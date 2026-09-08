@@ -162,8 +162,12 @@ export function parsePid(text: string | undefined): number | undefined {
  * 跑），开发态那是 `electron.exe`——只认 node 会把自己刚起的进程判成「不是它」。所以
  * 两头都认：node 与当前可执行文件。
  */
+/** 映像名 → 可比的小写裸名:`C:\apps\Electron.exe` 与 `electron` 是同一个东西 */
+export function shed(value: string): string {
+  return path.basename(value).toLowerCase().replace(/\.exe$/, '')
+}
+
 export function isOwnedProcess(name: string | undefined, execPath: string): boolean {
-  const shed = (value: string): string => path.basename(value).toLowerCase().replace(/\.exe$/, '')
   if (name === undefined || name.trim() === '') return false
   const image = shed(name.trim())
   return image === 'node' || image === shed(execPath)

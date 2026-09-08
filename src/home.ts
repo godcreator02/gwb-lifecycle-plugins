@@ -1,0 +1,466 @@
+import path from 'node:path'
+import { isRecord } from '@godcreator02/gwb-plugin-api'
+import { shed, type ProcessProbe } from './daemon.js'
+
+/**
+ * 测试 home 的纯机:命名、启动计划、起/停/删的时序与守卫。
+ *
+ * 开测试 home 的纪律(一次验开一个新 home、清理放在开新那一刻)是 devkit 手册与内核
+ * 仓 gwb-test skill 的正典,这儿只管把那几步做成命令:名字怎么起、electron 怎么拉、
+ * pid 记在哪、停与删之前核对什么。
+ *
+ * **碰盘与开进程的能力全走注入**(`HomeDeps`),整条时序在测试里用假件跑得完——
+ * 「查不出 pid 就不敢杀」「default 不许删」这类守卫,恰恰是只在边角上才现形的判断。
+ */
+
+/** home 名的形状。这就是内核 `GWB_HOME` 的验收正则——比它严没有意义,名字到头来是它说了算 */
+export const HOME_NAME_RE = /^[a-z0-9]+(-[a-z0-9]+)*$/
+
+/** devkit 记在每个测试 home 里的启动记录。一个 home 一份,home 删了它自然也没了 */
+export const RECORD_FILE = 'devkit.json'
+
+/** 日常那份 home 的名字。删它要 `force`——那是人每天住的地方,不是验完就删的 */
+export const DAILY_HOME = 'default'
+
+/** `home.new` 里那条 build 的上限。内核那条 build 是 tsc 直出,平时几秒,三分钟还完不成就是卡了 */
+export const BUILD_TIMEOUT_MS = 180_000
+
+/** 起了之后确认「不是秒退」的观察窗与轮询间隔 */
+export const ALIVE_TIMEOUT_MS = 5_000
+export const ALIVE_POLL_MS = 500
+
+/** build 失败回给人的输出尾巴行数。全量输出没人读,要的是最后那段报错 */
+export const BUILD_TAIL_LINES = 40
+
+// ── 启动记录 ──────────────────────────────────────────────────────────────────
+
+export interface HomeRecord {
+  pid: number
+  launchedAt: number
+  /** 起它的时候用的内核仓——给人看的出处,open 用的是设置里现配的那个 */
+  kernelDir: string
+  /** 带了 CDP 调试口的话记下来:stop 时它是对得上对的第二道核对 */
+  cdp?: number
+}
+
+export function recordFile(homeDir: string): string {
+  return path.join(homeDir, RECORD_FILE)
+}
+
+export function renderRecord(record: HomeRecord): string {
+  return JSON.stringify(record) + '\n'
+}
+
+/**
+ * 记录文件的内容 → 一份像样的记录。半截 JSON、形状不对、pid 不是正整数,一律当没有
+ ——与 registry 的 `parsePid` 同一个道理:残缺的记录不该导出任何一个动作。
+ */
+export function parseRecord(text: string | undefined): HomeRecord | undefined {
+  if (text === undefined) return undefined
+  let doc: unknown
+  try {
+    doc = JSON.parse(text)
+  } catch {
+    return undefined
+  }
+  if (!isRecord(doc)) return undefined
+  const { pid, launchedAt, kernelDir, cdp } = doc
+  if (typeof pid !== 'number' || !Number.isInteger(pid) || pid <= 0) return undefined
+  if (typeof launchedAt !== 'number' || !Number.isFinite(launchedAt)) return undefined
+  if (typeof kernelDir !== 'string' || kernelDir === '') return undefined
+  const validCdp = typeof cdp === 'number' && Number.isInteger(cdp) && cdp > 0 && cdp < 65_536
+  return {
+    pid,
+    launchedAt,
+    kernelDir,
+    ...(validCdp ? { cdp: cdp as number } : {}),
+  }
+}
+
+// ── 命名 ──────────────────────────────────────────────────────────────────────
+
+function pad(value: number): string {
+  return String(value).padStart(2, '0')
+}
+
+/** 本地时间的 `yyMMddHHmm`——gwb-test skill 定的命名法的时间半段 */
+export function minuteStamp(now: number): string {
+  const at = new Date(now)
+  const yy = pad(at.getFullYear() % 100)
+  return `${yy}${pad(at.getMonth() + 1)}${pad(at.getDate())}${pad(at.getHours())}${pad(at.getMinutes())}`
+}
+
+/** 秒级的退让格式:分钟粒度撞了(同一分钟开过)才用它 */
+export function secondStamp(now: number): string {
+  return `${minuteStamp(now)}${pad(new Date(now).getSeconds())}`
+}
+
+export function composeName(short: string, now: number): string {
+  return `${short}-${minuteStamp(now)}`
+}
+
+/**
+ * 这个时刻该开的 home 名。分钟粒度先试;那个名字已被占用就退到秒;再占就是同一分钟里
+ 开过两个同前缀的 home——照实拒,不静默加序号(名号里每一段都得能读出时间)。
+ */
+export function nextName(short: string, now: number, exists: (name: string) => boolean): string {
+  const minute = composeName(short, now)
+  if (!exists(minute)) return minute
+  const second = `${short}-${secondStamp(now)}`
+  if (!exists(second)) return second
+  throw new Error(
+    `同一分钟里 ${short}- 开头的 home 已经有两个(${minute}、${second} 都在)——换个 short,或等下一分钟`,
+  )
+}
+
+// ── 启动计划 ──────────────────────────────────────────────────────────────────
+
+/** 内核 GUI 所在的目录:build 在这儿跑,electron 也在这儿 */
+export function appDirOf(kernelDir: string): string {
+  return path.join(kernelDir, 'apps', 'desktop')
+}
+
+/** electron 本体。包名固定、发布形状固定,只有可执行文件名随平台 */
+export function electronBinOf(appDir: string, platform: NodeJS.Platform): string {
+  return path.join(appDir, 'node_modules', 'electron', 'dist', platform === 'win32' ? 'electron.exe' : 'electron')
+}
+
+/**
+ * 起 electron 的命令行:cwd 给 apps/desktop,应用路径就是 `.`——手工那几步的原样。
+ *
+ * **CDP 调试口走命令行,不走环境变量**:内核不认识任何调试相关的环境变量,
+ * `--remote-debugging-port` 是 Chromium 自己的开关,命令行上就生效。
+ */
+export function guiSpawnPlan(appDir: string, platform: NodeJS.Platform, cdp?: number): {
+  command: string
+  args: string[]
+  cwd: string
+} {
+  return {
+    command: electronBinOf(appDir, platform),
+    args: cdp === undefined ? ['.'] : ['.', `--remote-debugging-port=${String(cdp)}`],
+    cwd: appDir,
+  }
+}
+
+/**
+ * build 那条命令。内核的 `pnpm build` 是 tsc 直出到 `dist/`,没有打包器。
+ * Windows 上 pnpm 是 `.cmd`,不借 `cmd /c` 一层就 ENOENT。
+ */
+export function buildPlan(appDir: string, platform: NodeJS.Platform): {
+  command: string
+  args: string[]
+  cwd: string
+} {
+  const args = ['build']
+  return platform === 'win32'
+    ? { command: 'cmd', args: ['/c', 'pnpm', ...args], cwd: appDir }
+    : { command: 'pnpm', args, cwd: appDir }
+}
+
+/**
+ * 给测试 home 的环境。**剥掉 `ELECTRON_RUN_AS_NODE`**:件跑在 Electron 主进程里,
+ 起 node 子进程的件(gwb-node-cli 那种)会带上它;漏进这儿,起的就不是一扇窗而是一个
+ 看不见的 node。`npm_config_*` 同 registry 的道理一并剥——这个 GUI 不该被「它是从
+ 哪个环境里点起来的」影响。
+ */
+export function guiChildEnv(env: NodeJS.ProcessEnv, name: string): NodeJS.ProcessEnv {
+  const out: NodeJS.ProcessEnv = {}
+  for (const key of Object.keys(env)) {
+    if (/^npm_config_/i.test(key)) continue
+    if (key === 'ELECTRON_RUN_AS_NODE') continue
+    out[key] = env[key]
+  }
+  out.GWB_HOME = name
+  return out
+}
+
+// ── 参数收窄 ──────────────────────────────────────────────────────────────────
+
+/** 参数里的名字 → 合格的名字;不合格回 undefined,调用方连 USAGE 一起回(错误即文档) */
+export function asHomeName(value: unknown): string | undefined {
+  return typeof value === 'string' && HOME_NAME_RE.test(value) ? value : undefined
+}
+
+/** CDP 调试口:1–65535 的整数。给成别的就拒,不猜 */
+export function asCdpPort(value: unknown): number | undefined {
+  return typeof value === 'number' && Number.isInteger(value) && value > 0 && value < 65_536 ? value : undefined
+}
+
+// ── 注入面 ────────────────────────────────────────────────────────────────────
+
+/**
+ * 碰盘那一半。读不动一律回「没有」。`removeDir` 与 registry 的 `remove` 不同:**错误
+ 必须上抛给人**——EBUSY/EPERM 是「目录还被进程占着」的唯一线索,吞掉它,人看到的就是
+ 「删掉了」,而那个 home 还在盘上。
+ */
+export interface HomeFs {
+  exists(target: string): boolean
+  readText(file: string): string | undefined
+  writeText(file: string, text: string): void
+  remove(file: string): void
+  /** 建出 target 的父目录(递归)。落启动记录前用:目录此刻多半还不存在 */
+  ensureDir(dir: string): void
+  /** 目录下的子目录名(不含文件);读不动回空表 */
+  dirs(target: string): string[]
+  removeDir(dir: string): { ok: true } | { ok: false; error: string }
+}
+
+export interface HomeDeps {
+  fs: HomeFs
+  /** 起一个 detached、**窗口可见**的子进程,回它的 pid;起不来回 undefined */
+  spawn(plan: { command: string; args: string[]; cwd: string }, env: NodeJS.ProcessEnv): number | undefined
+  /** 前台跑一条命令到结束:成没成,加输出尾巴(build 失败时人要看的就是它) */
+  run(
+    plan: { command: string; args: string[]; cwd: string },
+    timeoutMs: number,
+  ): Promise<{ ok: boolean; tail: string }>
+  /** 查 pid 对应的进程:running / gone / unknown 三态(见 daemon 的 ProcessProbe) */
+  processName(pid: number): Promise<ProcessProbe>
+  portOwner(port: number): Promise<number | undefined>
+  /** 停一个进程:'killed' / 'gone',别的失败一律抛 */
+  kill(pid: number): 'killed' | 'gone'
+  sleep(ms: number): Promise<void>
+  now(): number
+  /** 起子进程用的可执行文件(宿主进程自己那个) */
+  execPath: string
+  /** 起子进程的环境底稿,进 guiChildEnv 过一遍 */
+  env: NodeJS.ProcessEnv
+  platform: NodeJS.Platform
+}
+
+// ── pid 判活 ──────────────────────────────────────────────────────────────────
+
+/**
+ * 这个映像名算不算「那个测试 home」。**认 `electron`,外加宿主自己**:测试 home 的
+ 本体永远是仓里那份 electron,而宿主在开发态恰好也是同一个 exe,打包后名字对不上——
+ 所以两头都认。**node 不认**:registry 那半的子进程是纯 node,这半不是;把 node 也认
+ 进来只会放宽 pid 复用时的误判面。
+ */
+export function isHomeProcess(name: string | undefined, execPath: string): boolean {
+  if (name === undefined || name.trim() === '') return false
+  const image = shed(name.trim())
+  return image === 'electron' || image === shed(execPath)
+}
+
+/** 探测结果 → 还在不在我们手写记录所指的那个进程。「查不出」回 undefined,不导出动作 */
+function ownedProbe(probe: ProcessProbe, execPath: string): boolean | undefined {
+  if (probe.state === 'unknown') return undefined
+  if (probe.state === 'gone') return false
+  return isHomeProcess(probe.name, execPath)
+}
+
+// ── 起 ────────────────────────────────────────────────────────────────────────
+
+export type LaunchOutcome =
+  | { ok: true; name: string; home: string; pid: number; note: string }
+  | { ok: false; error: string }
+
+export interface LaunchInput {
+  name: string
+  homesRoot: string
+  kernelDir: string
+  /** 带了就在命令行上加 `--remote-debugging-port`——CDP 取证那条路子的入口 */
+  cdp?: number
+  /** 给了就先跑,失败即失败;不给(open 的路)就不 build */
+  build?: { command: string; args: string[]; cwd: string }
+}
+
+/**
+ * 把一个测试 home 拉起来:先 build(要的话)、起 electron、落启动记录、观察五秒确认
+ 不是秒退。
+ *
+ * **build 放在最前面且失败即失败**:「改了内核没 build,起的是上一次的 out/」是实机
+ 验证最隐蔽的一种空验——界面看着一切正常,验的是旧代码。所以默认 build 是这条命令的
+ 正身,不是可省的 optimization。
+ *
+ * **detached 但不 `windowsHide`**:测试 home 要活过宿主退出,可它也得让人看得见——
+ registry 那半 hide 是给后台守护的,这半恰恰相反。子进程 stdio ignore:起得来之后的
+ 日志全在 `homes/<名>/gwb.log`,那儿才是它的嘴。
+ *
+ * 「起没起来」没有 ping 可打——**「进程还活着」是此刻唯一拿得到的信号**,五秒观察窗
+ 只为抓住「秒退」(产物不在、端口被占)这一种最常见的死法;真正成没成,窗与人说了算。
+ */
+export async function launchHome(input: LaunchInput, deps: HomeDeps): Promise<LaunchOutcome> {
+  const appDir = appDirOf(input.kernelDir)
+  const electronBin = electronBinOf(appDir, deps.platform)
+  if (!deps.fs.exists(electronBin)) {
+    return {
+      ok: false,
+      error: `${electronBin} 不在——electron 的二进制没装?进 ${appDir} 跑 pnpm install(electron 的二进制靠包里那条显式 postinstall 装)`,
+    }
+  }
+  if (input.build !== undefined) {
+    const done = await deps.run(input.build, BUILD_TIMEOUT_MS)
+    if (!done.ok) {
+      return {
+        ok: false,
+        error: `build 没成,electron 没起——产物不新就起,验的是旧代码,这一下不能省。输出尾巴:\n${done.tail}`,
+      }
+    }
+  }
+  const home = path.join(input.homesRoot, input.name)
+  // 同一个 home 不许开两个实例:记录里的 pid 还活着就拒——两扇窗写同一份日志、同一个
+  // home,而 stop 只认得住记录里那一个
+  const existing = parseRecord(deps.fs.readText(recordFile(home)))
+  if (existing !== undefined && ownedProbe(await deps.processName(existing.pid), deps.execPath) === true) {
+    return { ok: false, error: `${input.name} 已经有一个实例在跑(pid ${existing.pid})——先 stop,或直接用那扇窗` }
+  }
+  // 目录先虚位以待,再拉进程:**所有还会摔的步骤都排在 spawn 前面**——spawn 之后的
+  // 失败留下一扇没记录的窗,谁也管不着它。home 的最小形态(package.json 与空 cordis.yml)
+  // 归内核自己铺,而那要等它起来;devkit 只建目录、落自己的记录(内核那边幂等,两不冲突)
+  deps.fs.ensureDir(home)
+  const pid = deps.spawn(guiSpawnPlan(appDir, deps.platform, input.cdp), guiChildEnv(deps.env, input.name))
+  if (pid === undefined) return { ok: false, error: '起不来:子进程没拿到 pid,看宿主日志' }
+  deps.fs.writeText(
+    recordFile(home),
+    renderRecord({ pid, launchedAt: deps.now(), kernelDir: input.kernelDir, ...(input.cdp === undefined ? {} : { cdp: input.cdp }) }),
+  )
+
+  const deadline = deps.now() + ALIVE_TIMEOUT_MS
+  while (deps.now() < deadline) {
+    // 查不出时接着等:只有确凿的「它不在了」才值得中断——与 bringUp 的轮询同一个道理
+    if ((await deps.processName(pid)).state === 'gone') {
+      return {
+        ok: false,
+        error: `起的进程(pid ${pid})秒退了——多半是产物不在(没 build?)或起的时候就错。看 ${path.join(home, 'gwb.log')};启动记录留着,stop 或 rm 会把它清掉`,
+      }
+    }
+    await deps.sleep(ALIVE_POLL_MS)
+  }
+  return {
+    ok: true,
+    name: input.name,
+    home,
+    pid,
+    note: `起来了(pid ${pid}${input.cdp === undefined ? '' : `,CDP ${input.cdp}`})——日志在 ${path.join(home, 'gwb.log')}`,
+  }
+}
+
+// ── 列 ────────────────────────────────────────────────────────────────────────
+
+export interface HomeEntry {
+  name: string
+  home: string
+  /** 启动记录里那个 pid,且此刻还活着认得出;否则 null */
+  pid: number | null
+  running: boolean
+  cdp: number | null
+}
+
+/** home 根下全部 home。名字带着时间戳后缀,字典序就是时间序——排序不必另做 */
+export async function listHomes(homesRoot: string, deps: HomeDeps): Promise<HomeEntry[]> {
+  const out: HomeEntry[] = []
+  for (const name of deps.fs.dirs(homesRoot)) {
+    const home = path.join(homesRoot, name)
+    const record = parseRecord(deps.fs.readText(recordFile(home)))
+    let running = false
+    if (record !== undefined) {
+      running = ownedProbe(await deps.processName(record.pid), deps.execPath) === true
+    }
+    out.push({
+      name,
+      home,
+      pid: running && record !== undefined ? record.pid : null,
+      running,
+      cdp: record?.cdp ?? null,
+    })
+  }
+  return out
+}
+
+// ── 停 ────────────────────────────────────────────────────────────────────────
+
+export interface StopOutcome {
+  ok: boolean
+  killed: number | null
+  note: string
+}
+
+/**
+ * 按 home 里的启动记录停。**两道核对再杀**,与 registry 的 bringDown 同一个道理:
+ * pid 会被复用,光「有这个进程」不作数;映像名认过之后,记录里带 CDP 口的再对一次
+ 端口持有者——对不上就不杀。
+ *
+ * 只停「有 devkit 记录的那个」。不是 devkit 起的 home(手工那四步起的)如实说没有
+ 可停的——没有记录就没有「它是谁」的凭据,不猜、不按名字扫进程。
+ *
+ * **kill 失败时记录留着**:进程还在跑,记录是唯一一份「它是谁」的线索。
+ */
+export async function bringDownHome(homeDir: string, deps: HomeDeps): Promise<StopOutcome> {
+  const file = recordFile(homeDir)
+  const record = parseRecord(deps.fs.readText(file))
+  if (record === undefined) {
+    deps.fs.remove(file)
+    return { ok: true, killed: null, note: '没有启动记录(devkit.json 不在或读不出)——多半不是 devkit 起的,或已经停了' }
+  }
+  const owned = ownedProbe(await deps.processName(record.pid), deps.execPath)
+  if (owned === undefined) {
+    return { ok: false, killed: null, note: `查不出 pid ${record.pid} 是什么——没敢杀,记录留着` }
+  }
+  if (!owned) {
+    deps.fs.remove(file)
+    return { ok: true, killed: null, note: `pid ${record.pid} 已陈旧(进程不在,或不是它)——只清了记录` }
+  }
+  if (record.cdp !== undefined) {
+    const owner = await deps.portOwner(record.cdp)
+    if (owner !== undefined && owner !== record.pid) {
+      return {
+        ok: false,
+        killed: null,
+        note: `CDP ${record.cdp} 端口上 listen 的是 pid ${owner},记录里写的是 ${record.pid}——对不上,没敢杀(记录留着)`,
+      }
+    }
+  }
+  let killed: 'killed' | 'gone'
+  try {
+    killed = deps.kill(record.pid)
+  } catch (err) {
+    return { ok: false, killed: null, note: `停 pid ${record.pid} 没成:${String(err)}——进程还在,记录留着` }
+  }
+  deps.fs.remove(file)
+  if (killed === 'gone') {
+    return { ok: true, killed: null, note: `pid ${record.pid} 已陈旧(下手时进程已经不在了)——只清了记录` }
+  }
+  return { ok: true, killed: record.pid, note: `已停 pid ${record.pid}` }
+}
+
+// ── 删 ────────────────────────────────────────────────────────────────────────
+
+export interface RemoveOutcome {
+  ok: boolean
+  note: string
+}
+
+/**
+ * 删一个测试 home。**两道守卫**:`default` 是日常那份,不 `force` 不删;记录里的
+ pid 还活着就拒——先 stop,删一个还在跑的 home 得到半个目录和一屏 EBUSY。
+ *
+ * 记录「查不出还在不在」时也不删:不知道占没占着目录,下手就是在赌。
+ */
+export async function removeHome(homeDir: string, name: string, force: boolean, deps: HomeDeps): Promise<RemoveOutcome> {
+  if (name === DAILY_HOME && !force) {
+    return { ok: false, note: `${DAILY_HOME} 是日常那份 home,不删。真要删,带 force: true` }
+  }
+  if (!deps.fs.exists(homeDir)) {
+    return { ok: false, note: `${homeDir} 不在——没有这个 home(看 devkit.home.list)` }
+  }
+  const record = parseRecord(deps.fs.readText(recordFile(homeDir)))
+  if (record !== undefined) {
+    const owned = ownedProbe(await deps.processName(record.pid), deps.execPath)
+    if (owned === undefined) {
+      return { ok: false, note: `查不出记录里的 pid ${record.pid} 还在不在——没敢删,先 stop 或看一眼` }
+    }
+    if (owned) {
+      return { ok: false, note: `还在跑(pid ${record.pid})——先 devkit.home.stop 再删` }
+    }
+  }
+  const done = deps.fs.removeDir(homeDir)
+  if (!done.ok) {
+    return {
+      ok: false,
+      note: `删没成:${done.error}——多半还有进程占着目录(electron 的子进程偶尔晚退几秒),稍等再试`,
+    }
+  }
+  return { ok: true, note: `已删 ${name}(${homeDir})` }
+}

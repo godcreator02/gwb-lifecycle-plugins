@@ -16,10 +16,10 @@
   },
   "engines": { "node": ">=24" },
   "peerDependencies": {
-    "@godcreator02/gwb-plugin-api": ">=0.0.4"
+    "@godcreator02/gwb-plugin-api": ">=0.1.0"
   },
   "devDependencies": {
-    "@godcreator02/gwb-plugin-api": "0.0.4",
+    "@godcreator02/gwb-plugin-api": "0.1.0",
     "@types/node": "^24.0.0",
     "cordis": "4.0.0-rc.9",
     "typescript": "^7.0.2"

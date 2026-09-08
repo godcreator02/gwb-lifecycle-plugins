@@ -42,6 +42,12 @@ export const name = 'gwb-devkit'
 export const inject = ['gwbCommands']
 
 /**
+ * 「插件源」窗格那半的地址，注册窗格时报给外壳。本模块住 `dist/index.js`，浏览器半是
+ * `dist/client/index.js`（tsc 直出，零依赖，没有样式表要注）。
+ */
+const CLIENT_URL = new URL('./client/index.js', import.meta.url).href
+
+/**
  * 开发套件。四件事，全 服务同一个理由——「在新文件夹里开发新件」这条路的地基：
  *
  * - **建仓**：`devkit.scaffold` 把一个新件的骨架落进一个新文件夹
@@ -363,9 +369,10 @@ export function apply(ctx: GwbContext): void {
   )
 
   // 插件源窗格：registry 状态的可视面，身体住本件 client 的 mountPane（原先是状态件
-  // 的一颗格子，状态格机制 2026-09-08 下架后改开普通窗格）。注册不用自己包 effect
+  // 的一颗格子，状态格机制 2026-09-08 下架后改开普通窗格）。注册不用自己包 effect。
+  // **浏览器半的地址自报**：内核不再替件取货，注册时把 client.js 的 file:// 交出去
   ctx.inject(['gwbShell'], (scoped) => {
-    scoped.gwbShell.registerPane({ id: 'registry', title: '插件源', icon: 'server' })
+    scoped.gwbShell.registerPane({ id: 'registry', title: '插件源', icon: 'server', client: CLIENT_URL })
     // 给人看的名字（件清单里显示用）。外壳不在就算了，那半本来就不是它的脸
     scoped.gwbShell.describeSelf({ title: '开发套件', icon: 'wrench' })
   })

@@ -7,8 +7,9 @@
  * 替换；verdaccio 自己的运行日志不进来——那些是日志的事，这格越干净越一眼。
  * 轮询只更新状态行，不动操作行。
  *
- * **零依赖**（vanilla DOM + inline 样式）：这一份经 `gwb://` 被外壳动态 import，不引
- * react 也就不用进 importmap；tsc 直出即是可用产物，没有打包器。
+ * **零依赖**（vanilla DOM + inline 样式）：这一份由外壳按 node 半注册窗格时自报的
+ * `file://` 地址动态 import，不引 react 也就不用进 importmap；tsc 直出即是可用产物，
+ * 没有打包器。
  */
 
 interface PaneArgs {
