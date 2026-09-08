@@ -1,6 +1,10 @@
 /**
  * 「插件源」格子的身体。卡框（边框、标题行、占格）归 gwb-status 的格子墙，这里只画
- * 框内：跑没跑、地址、端口、pid，加 起/停/刷新 三个按钮和一条日志尾巴。
+ * 框内：跑没跑、地址、端口、pid，加 起/停/刷新 三个按钮，和**最近一次操作的回执**。
+ *
+ * **格子只显示本次操作的状态信息**：起/停的回执（note/error）显示在操作行，随下一次
+ * 操作被替换；verdaccio 自己的运行日志不进格子——那些是日志的事，格子越干净越一眼。
+ * 轮询只更新状态行，不动操作行。
  *
  * **零依赖**（vanilla DOM + inline 样式）：这一份经 `gwb://` 被 status 的格子墙动态
  * import，不引 react 也就不用进 importmap；tsc 直出即是可用产物，没有打包器。
@@ -72,23 +76,15 @@ export function mountCell(args: CellArgs, container: HTMLElement): { dispose: ()
   const buttons = el('div', 'display:flex;gap:8px;align-items:center;')
   buttons.append(upBtn, downBtn, refreshBtn)
 
-  // 日志尾巴
-  const logPre = el(
-    'pre',
-    'margin:0;padding:8px;border:1px solid color-mix(in srgb, currentColor 18%, transparent);border-radius:6px;' +
-      'font-size:11px;line-height:1.5;max-height:150px;overflow:auto;white-space:pre-wrap;word-break:break-all;' +
-      'opacity:.85;display:none;',
-  )
+  // 操作行：**只放最近一次操作的回执**（起来了的 note、停掉的 note、失败的原因）。
+  // 轮询不写它，verdaccio 的运行日志也不进它——格子只说「刚才那一下结果如何」
+  const opLine = el('div', 'font-size:12px;display:none;min-width:0;')
 
-  // 提示 / 报错一行（未配置、命令失败都走这儿）
-  const note = el('div', 'font-size:12px;display:none;')
-
-  root.append(stateLine, detail, buttons, note, logPre)
+  root.append(stateLine, detail, buttons, opLine)
   container.append(root)
 
   let busy = false
   let disposed = false
-  let showLog = false
 
   function setButtons(): void {
     const off = BTN + BTN_OFF
@@ -100,52 +96,46 @@ export function mountCell(args: CellArgs, container: HTMLElement): { dispose: ()
   function render(status: StatusData): void {
     const color = status.running ? '#16a34a' : 'color-mix(in srgb, currentColor 35%, transparent)'
     dot.style.background = color
-    stateText.textContent = status.running
-      ? `跑着${status.adopted ? '（接管来的）' : ''}`
-      : '停着'
+    stateText.textContent = status.running ? `跑着${status.adopted ? '（接管来的）' : ''}` : '停着'
     stateText.style.color = status.running ? '#16a34a' : 'inherit'
 
     detail.textContent = ''
-    const port = portOfUrl(status.url)
     detail.append(
       el('span', '', `地址 ${status.url ?? '—'}`),
-      el('span', '', `端口 ${port}`),
+      el('span', '', `端口 ${portOfUrl(status.url)}`),
       el('span', '', `pid ${status.pid === null ? '—' : String(status.pid)}`),
     )
     if (!status.hasBin) detail.append(el('span', 'opacity:.7;', '目录里没有 verdaccio 本体'))
   }
 
+  /** 配置缺失是**状态本身**，进状态行；其余失败不算状态，不打扰状态行 */
   async function refresh(): Promise<void> {
     const reply = (await host.call('registry.status')) as unknown
     if (disposed || !isRecord(reply)) return
     if (reply.ok !== true) {
       const error = typeof reply.error === 'string' ? reply.error : '查状态没成'
-      note.textContent = error
-      note.style.color = '#dc2626'
-      note.style.display = 'block'
-      // 「未配置」只认配置缺失那一种错——宿主断了、命令超时之类的失败不冒充它
       if (error.includes('registry-dir')) {
         stateText.textContent = '未配置'
+        stateText.style.color = 'inherit'
         dot.style.background = 'color-mix(in srgb, currentColor 30%, transparent)'
         detail.textContent = ''
       }
       return
     }
-    note.style.display = 'none'
     if (isRecord(reply.data)) render(reply.data as unknown as StatusData)
   }
 
-  async function refreshLog(): Promise<void> {
-    if (!showLog) {
-      logPre.style.display = 'none'
-      return
+  function showOutcome(reply: unknown): void {
+    if (!isRecord(reply)) return
+    if (reply.ok === true) {
+      const note = isRecord(reply.data) && typeof reply.data.note === 'string' ? reply.data.note : '好了'
+      opLine.textContent = note
+      opLine.style.color = 'inherit'
+    } else {
+      opLine.textContent = typeof reply.error === 'string' ? reply.error : '没成'
+      opLine.style.color = '#dc2626'
     }
-    logPre.style.display = 'block'
-    logPre.textContent = '读日志…'
-    const reply = (await host.call('registry.log', { lines: 100 })) as unknown
-    if (disposed || !isRecord(reply) || !isRecord(reply.data)) return
-    const text = reply.data.text
-    logPre.textContent = typeof text === 'string' && text !== '' ? text : '（日志还没有内容——registry 从没起过，或没写过这一条）'
+    opLine.style.display = 'block'
   }
 
   async function act(command: string): Promise<void> {
@@ -153,38 +143,17 @@ export function mountCell(args: CellArgs, container: HTMLElement): { dispose: ()
     busy = true
     setButtons()
     try {
-      const reply = (await host.call(command)) as unknown
-      if (isRecord(reply) && reply.ok === false) {
-        note.textContent = typeof reply.error === 'string' ? reply.error : '命令没成'
-        note.style.color = '#dc2626'
-        note.style.display = 'block'
-      } else {
-        note.style.display = 'none'
-      }
+      showOutcome(await host.call(command))
     } finally {
       busy = false
       setButtons()
     }
-    await Promise.all([refresh(), refreshLog()])
+    await refresh()
   }
 
   upBtn.addEventListener('click', () => void act('registry.up'))
   downBtn.addEventListener('click', () => void act('registry.down'))
-  logPre.addEventListener('dblclick', () => {
-    showLog = false
-    void refreshLog()
-  })
-  refreshBtn.addEventListener('click', () => {
-    void refresh()
-    void refreshLog()
-  })
-  // 日志默认收着，双击状态行展开——格子的高度不该被一个没人看的尾巴永久占着
-  stateLine.addEventListener('dblclick', () => {
-    showLog = !showLog
-    void refreshLog()
-  })
-  stateLine.style.cursor = 'default'
-  stateLine.title = '双击展开/收起日志'
+  refreshBtn.addEventListener('click', () => void refresh())
 
   const timer = setInterval(() => {
     if (!disposed) void refresh()

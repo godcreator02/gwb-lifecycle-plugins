@@ -1,6 +1,6 @@
 {
   "name": "@godcreator02/gwb-devkit",
-  "version": "0.0.4",
+  "version": "0.0.5",
   "description": "开发套件：把一个新件的骨架落进一个新文件夹，并随件带一份写件手册",
   "type": "module",
   "exports": {
