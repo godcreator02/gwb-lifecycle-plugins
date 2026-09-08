@@ -1,7 +1,7 @@
 {
   "name": "@godcreator02/gwb-devkit",
-  "version": "0.0.5",
-  "description": "开发套件：把一个新件的骨架落进一个新文件夹，并随件带一份写件手册",
+  "version": "0.0.9",
+  "description": "开发套件：把一个新件的骨架落进一个新文件夹，随件带一份写件手册；本机源的起停与测试 home 的开/收也在这儿",
   "type": "module",
   "exports": {
     ".": {
@@ -31,7 +31,8 @@
     "yaml": "^2.8.0"
   },
   "peerDependencies": {
-    "@godcreator02/gwb-plugin-api": ">=0.0.4"
+    "@godcreator02/gwb-plugin-api": ">=0.0.4",
+    "@godcreator02/gwb-shell": ">=0.0.4"
   },
   "devDependencies": {
     "@godcreator02/gwb-plugin-api": "0.0.4",
@@ -39,10 +40,14 @@
     "@godcreator02/gwb-settings": "0.0.6",
     "@godcreator02/gwb-shell": "0.0.12",
     "@godcreator02/gwb-skills": "0.0.3",
-    "@godcreator02/gwb-status": "0.0.4",
     "@types/node": "^24.0.0",
     "cordis": "4.0.0-rc.9",
     "typescript": "^7.0.2",
     "vitest": "^4.1.10"
+  },
+  "peerDependenciesMeta": {
+    "@godcreator02/gwb-shell": {
+      "optional": true
+    }
   }
 }

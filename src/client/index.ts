@@ -1,18 +1,20 @@
 /**
- * 「插件源」格子的身体。卡框（边框、标题行、占格）归 gwb-status 的格子墙，这里只画
- * 框内：跑没跑、地址、端口、pid，加 起/停/刷新 三个按钮，和**最近一次操作的回执**。
+ * 「插件源」窗格的身体：跑没跑、地址、端口、pid，加 起/停/刷新 三个按钮，和**最近一次
+ * 操作的回执**。原先是状态件格子墙上的一颗格子，状态格机制 2026-09-08 下架后改开普通
+ * 窗格（契约从 `mountCell` 换成 `mountPane`，身体原样）。
  *
- * **格子只显示本次操作的状态信息**：起/停的回执（note/error）显示在操作行，随下一次
- * 操作被替换；verdaccio 自己的运行日志不进格子——那些是日志的事，格子越干净越一眼。
+ * **只显示本次操作的状态信息**：起/停的回执（note/error）显示在操作行，随下一次操作被
+ * 替换；verdaccio 自己的运行日志不进来——那些是日志的事，这格越干净越一眼。
  * 轮询只更新状态行，不动操作行。
  *
- * **零依赖**（vanilla DOM + inline 样式）：这一份经 `gwb://` 被 status 的格子墙动态
- * import，不引 react 也就不用进 importmap；tsc 直出即是可用产物，没有打包器。
+ * **零依赖**（vanilla DOM + inline 样式）：这一份经 `gwb://` 被外壳动态 import，不引
+ * react 也就不用进 importmap；tsc 直出即是可用产物，没有打包器。
  */
 
-interface CellArgs {
+interface PaneArgs {
   host: { call: (command: string, args?: unknown) => Promise<unknown> }
-  cell: { id: string; title: string; size: string; entryId: string; pkg: string }
+  shell: unknown
+  pane: { id: string; instance: string }
 }
 
 interface StatusData {
@@ -55,7 +57,12 @@ const BTN =
   'background:transparent;color:inherit;font:inherit;font-size:12px;cursor:pointer;'
 const BTN_OFF = 'opacity:.4;cursor:default;'
 
-export function mountCell(args: CellArgs, container: HTMLElement): { dispose: () => void } {
+export function mountPane(args: PaneArgs, container: HTMLElement): { dispose: () => void } {
+  if (args.pane.id !== 'registry') {
+    const line = el('p', 'margin:8px;font-size:13px;', `开发套件不认识这扇窗：${args.pane.id}`)
+    container.append(line)
+    return { dispose: () => line.remove() }
+  }
   const host = args.host
 
   const root = el('div', 'display:flex;flex-direction:column;gap:8px;font-size:13px;min-width:0;')
