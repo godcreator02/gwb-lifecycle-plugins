@@ -1,0 +1,66 @@
+{
+  "content/docs/index.mdx": {
+    "../src/index.ts:43-44": {
+      "kind": "git",
+      "blob": "4b433ecab198986b10c74ba5e20fbb955165b8d1",
+      "commit": "eeced6b6ac891f464885b0d637e577727285bb81",
+      "lines": [
+        43,
+        44
+      ],
+      "hash": "208126b10bcf069b2db01d6187e80e6444e72a4c0871c20653698eda96ee37cd"
+    },
+    "../src/index.ts:438-456": {
+      "kind": "git",
+      "blob": "4b433ecab198986b10c74ba5e20fbb955165b8d1",
+      "commit": "eeced6b6ac891f464885b0d637e577727285bb81",
+      "lines": [
+        438,
+        456
+      ],
+      "hash": "a9fb08729cb40f02f88544bc12b6c4281b6ebae1a1cd09008683710ca4f4b19f"
+    },
+    "../src/index.ts:583-595": {
+      "kind": "git",
+      "blob": "4b433ecab198986b10c74ba5e20fbb955165b8d1",
+      "commit": "eeced6b6ac891f464885b0d637e577727285bb81",
+      "lines": [
+        583,
+        595
+      ],
+      "hash": "b7d61e111393b08005a3f8383095f1ea74831bb17d27f30d1e4c8616ae9a4c5a"
+    },
+    "tree ../src depth=1": {
+      "kind": "tree",
+      "names": [
+        "client/",
+        "daemon.ts",
+        "home.ts",
+        "index.ts",
+        "node-home-deps.ts",
+        "node-registry-deps.ts",
+        "scaffold.ts"
+      ]
+    },
+    "../src/scaffold.ts:84-113": {
+      "kind": "git",
+      "blob": "2585143280c9a539b0b0475483bad85805702f82",
+      "commit": "eeced6b6ac891f464885b0d637e577727285bb81",
+      "lines": [
+        84,
+        113
+      ],
+      "hash": "78b29bb715237601dc6d7a67874c7b6a3a24c357ab9117a721f4b55327500f22"
+    },
+    "../src/index.ts:67-73": {
+      "kind": "git",
+      "blob": "4b433ecab198986b10c74ba5e20fbb955165b8d1",
+      "commit": "eeced6b6ac891f464885b0d637e577727285bb81",
+      "lines": [
+        67,
+        73
+      ],
+      "hash": "f2161ab3fb4c56b996126487b5cc431ed64384eca86371931147889793d94062"
+    }
+  }
+}

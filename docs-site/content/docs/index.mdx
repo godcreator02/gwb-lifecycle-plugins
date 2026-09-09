@@ -70,12 +70,12 @@ devkit ──可选──▶ gwbNodeCli / gwbSkills / gwbSettings / gwbShell
 `export const inject = [...]`（缺了整件不挂），可选依赖写 `ctx.inject([...], fn)`
 （开一条子 fiber，缺服务时那条 fiber 永远 PENDING，而主件照常挂上）。
 
-@@livedoc ref ../src/index.ts:43-44 @@
+{/* ref file="../src/index.ts" lines="43-44" */}
 
 上面这两行就是这件事的正本：**硬依赖只有一条**。没有命令总线，devkit 登记的一切都出不了
 这个进程，那时它确实不该挂上；而没有 node-cli，它只是建不了站——不是不能干活。
 
-@@livedoc ref ../src/index.ts:438-456 @@
+{/* ref file="../src/index.ts" lines="438-456" */}
 
 两条 node CLI 就挂在这条子 fiber 上。注意最后那个 `effect`：服务撤了要把捕获的那一格
 **还回去**。留着一个已经死掉的引用，失败会发生在很远的地方（下一次建仓，而且只在站那半）。
@@ -83,14 +83,14 @@ devkit ──可选──▶ gwbNodeCli / gwbSkills / gwbSettings / gwbShell
 **三、说明书这条依赖是「代挂」，不是「拥有」。** livedoc 是个 CLI 包、不是件，自己挂不上
 工作台；devkit 顺手把它的 `skills/` 也 register 一次：
 
-@@livedoc ref ../src/index.ts:583-595 @@
+{/* ref file="../src/index.ts" lines="583-595" */}
 
 解析不到只 warn 不炸——那两份说明书不是 devkit 能不能干活的前提。**这一段是「可选」这个
 概念的完整样例**：一处可选注入里，还嵌着一处可选的资源。
 
 ## 纯逻辑与真机器：隔离在哪一刀
 
-@@livedoc tree ../src @@
+{/* tree dir="../src" depth="1" */}
 
 切法只有一条判据：**这段逻辑能不能不起进程、不开窗、只喂输入看输出。**
 
@@ -109,14 +109,14 @@ devkit ──可选──▶ gwbNodeCli / gwbSkills / gwbSettings / gwbShell
 `scaffold.ts` 的隔离是另一种形状：它根本不需要接口，因为它**只做纯计算与同步写盘**。
 所以它的测试直接写临时目录跑——`writeRepo` 的活就是往盘上放文件，拿替身测等于没测。
 
-@@livedoc ref ../src/scaffold.ts:84-113 @@
+{/* ref file="../src/scaffold.ts" lines="84-113" */}
 
 `planScaffold` 是这条分界线上最清楚的一段：校验、派生、绝对化、缺省值，全在这儿，
 一次都没碰盘。它抛出的错误是给人和 agent 看的，所以每一句都说得出该怎么改。
 
 ## livedoc 那条命令为什么只适合 `init`
 
-@@livedoc ref ../src/index.ts:67-73 @@
+{/* ref file="../src/index.ts" lines="67-73" */}
 
 `import.meta.resolve` 拿到的是包主入口 `dist/run.mjs`，可执行在它旁边。
 **不读 `bin` 字段、不查 `.bin` 垫片**：node-cli 登记的是一个绝对路径的 js，
