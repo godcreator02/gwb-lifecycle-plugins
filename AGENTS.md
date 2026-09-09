@@ -24,6 +24,9 @@ pnpm build          # tsc 直出 dist/ 与 dist/client/，没有打包器
    ——现象是「件挂上了但新写的东西全没生效」
 3. `pnpm publish --registry http://127.0.0.1:4873/ --no-git-checks`
 
+**发版前先在隔离 home 装一遍验完**——`plugins.update-all`（插件窗格那颗「全部更新」）
+直接升日常那份 home，跳过了隔离验证；人点那颗键是最后一步，不是验证的一步。
+
 **`files` 白名单五项，一项都不能少**：`dist`、`src`、`template`、`skills`、`bin`。
 
 | 少了哪项       | 什么当场坏掉                               |
