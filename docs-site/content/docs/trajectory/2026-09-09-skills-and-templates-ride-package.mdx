@@ -1,0 +1,86 @@
+---
+title: skill 与模板回包，建站走 livedoc
+born-at: 2026-09-09T22:30
+type: choice
+parent: [2026-09-08-gwb-devkit]
+label: 知识回包
+domain: 分发
+---
+
+## 背景
+
+2026-09-09 上午定过相反的事：三份 gwb skill（`gwb-decide` / `gwb-devkit` / `gwb-doc`）的正本
+只住总控台的 `.claude/skills/`，理由是宿主机制——项目级 skill 只沿当前工作目录的祖先链加载，
+坐在件仓里看不见别处的 skill。当晚重推翻案，判据卡落在**内核仓的站**上
+（`trajectory/2026-09-09-knowledge-rides-package`，那是生态级的了断，不在本仓）：agent 经
+`gwb-mcp` 拿命令面与说明书，可见性不再取决于会话坐在哪个目录，而取决于连上哪个 home。
+
+落到本包身上，当时的现场是**两份正本已经分叉**：总控台那份手册约 450 行、包里那份 10 KB；
+总控台那套模板 10 个文件（oxlint、vitest、两份 tsconfig、起手测试、README 都在），
+包里那套 4 个（`package.json` / `tsconfig.json` / `src/index.ts` / `.gitignore`），
+连「模板不带测试、要自己 `pnpm add -D vitest`」这种话都还写在手册里。
+
+同时总控台那个建仓脚本 `scaffold.mjs` 已经把站那半交给了另一份 skill 旁边的 `site.mjs`
+——建站这件事本身也需要一个落点。
+
+**这张卡是那条生态级了断在本仓的落地**，不重复它的推导：那边定「知识随件走」这条规则，
+这边定本包按这条规则具体收下什么、把什么交出去。
+
+## 结论与边界
+
+- **手册与件模板的正本回本包**：`skills/gwb-devkit/SKILL.md` 换成总控台那份完整正文，
+  按「读者是连着工作台的 agent」改口；`template/` 换成那 10 个 `.tpl`。总控台那两份删掉，
+  不留同步关系
+- **建站能力不自己做，调 livedoc**。`@godcreator02/live-doc-cli@0.2.0` 新增
+  `livedoc init --dir <仓>`，站模板与两份文档 skill（`livedoc-docs` / `trajectory`）
+  随它发。本包依赖它、调它的 `init`、把它的 `skills/` 也挂给 `gwbSkills`
+- **依赖方向单向**：devkit 知道 livedoc；livedoc 的 `init` 只认「一个仓 + 一份模板」，
+  不知道 gwb 生态存在。这条方向是这次改动里唯一不许妥协的东西
+- **CLI 形态的东西一律经 `gwbNodeCli` 登记**，不做总线命令、不进程内调：`devkit.livedoc`
+  与 `devkit.cdp-eval` 两条。登记的命令自动镜像成总线命令、自动是 MCP 工具，
+  回执自带 stdout 与退出码
+- **`devkit.livedoc` 只适合 `init`**，这是边界不是缺陷：`init` 的目标由 `--dir` 给、跟 cwd
+  无关，而 node-cli 的 `cwd` 登记时定死、按次不可换。`check` / `confirm` / `render` 认 cwd 里
+  的配置，只能在那个仓的 `docs-site` 里自己跑
+- **站没建成不算建仓失败**：件那半照样落盘，回执里写明为什么、怎么补
+- 人拍板（2026-09-09）。
+
+## 否掉的候选
+
+- **正本继续留总控台，包里那份删掉。** 两份已经分叉是事实，但删包里那份等于承认说明书不随
+  能力走——连着工作台的 agent 就永远读不到它，而那正是这个生态里 agent 的常态入口
+- **建站能力做进 devkit（把总控台那个 `site.mjs` 连站模板一起搬进来）。** 最省事，一次搬完。
+  否掉的理由是方向：那样 devkit 就同时是「写件工具」和「文档工具」，而站这件事跟 gwb 一点
+  关系都没有——第二个想要站的仓（不是件的那种）就得反过来依赖一个 gwb 件
+- **livedoc 做成一个 gwb 件，自己挂自己的 skill。** 它是个通吃的 CLI，做成件等于让它认识
+  cordis、认识 gwb 的服务名。代价换来的只是省掉 devkit 里那五行代挂
+- **在 devkit 里进程内 `import` livedoc 的 `initSite`。** 少起一个进程，但回执形状与失败模式
+  立刻跟别的 CLI 分岔（没有 exitCode、没有 stdout、超时要自己写），而 `gwbNodeCli` 存在的
+  全部理由就是不让每个件各写一遍这套
+- **给 `NodeCliSpec` 加按次 `cwd`，让 `check` / `confirm` / `render` 也能经总线跑。**
+  那是动一个被别人 inject 的件的契约面，为的是省一次 `cd`。按「真遇到需求才加」不到期
+
+## 依据
+
+**前提变了就要重推。** 上午那条的前提是「项目级 skill 只在自己仓可见」；MCP 分发让可见性
+改由「连上哪个 home」决定。前提一换，「正本住总控台」就只剩分叉的代价。
+
+**代价不对称。** 往包里搬错了，退回来是搬 markdown；留在总控台错了，每新一个件都要问一遍
+「说明书写哪」，而两份正本每天都在继续分叉。
+
+**建站那半的判据是另一条：这件事属于谁。** 「往一个仓里铺一个 fumadocs 站」这句话里没有
+「件」也没有「gwb」——它属于 livedoc。放进 devkit 只是因为此刻只有 devkit 在用它，
+而那是最典型的、半年后变成耦合的理由。
+
+## 代价与遗留
+
+- 说明书从此改一个字也要抬版本、发版、`plugins.update`——`gwb-skills` 的「正文现读盘」
+  只对装进 home 的那份生效，不对仓里那份。所有件的常态，不为说明书开特例
+- devkit 多了 livedoc 这条运行时依赖：livedoc 的 CLI 改契约（比如 `init` 换参数名），
+  devkit 跟着抖，而这件事**没有守卫**——`entry` 是一个绝对路径，参数是一串字符串，
+  两头都不参与类型检查
+- `devkit.scaffold` 的回执里，「站建成没有」是 `docs.built`，不是调用方要不要建。
+  站没建成而 README 里那段话已经按「要建」写好了——那时它略微超前于事实，回执里说了，
+  但**盘上那份 README 确实需要人补一句或者补一个站**
+- `livedoc init` 挑端口只扫**目标仓的同级邻居**（`dirname(repoDir)`）。容器里一个单元一个
+  目录，所以跨单元的站端口它看不见——撞了要人自己 `--port`

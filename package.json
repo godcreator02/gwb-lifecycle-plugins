@@ -1,7 +1,7 @@
 {
   "name": "@godcreator02/gwb-devkit",
-  "version": "0.1.0",
-  "description": "开发套件：把一个新件的骨架落进一个新文件夹，随件带一份写件手册；本机源的起停与测试 home 的开/收也在这儿。0.1 对应单进程内核：注册窗格时自报浏览器半的 file:// 地址",
+  "version": "0.2.0",
+  "description": "开发套件：把一个新件的骨架落进一个新文件夹（件那半自带模板，站那半调 livedoc），随件带一份写件手册；本机源的起停、测试 home 的开/收、两条 node CLI（livedoc、cdp-eval）也在这儿",
   "type": "module",
   "//exports": "只剩主入口。**内核不再读 exports 表**：浏览器半的地址由 node 半从 import.meta.url 算成 file://，注册窗格时报给外壳",
   "exports": {
@@ -15,7 +15,8 @@
     "dist",
     "src",
     "template",
-    "skills"
+    "skills",
+    "bin"
   ],
   "gwb": {
     "title": "开发套件"
@@ -28,6 +29,7 @@
     "prepublishOnly": "pnpm build"
   },
   "dependencies": {
+    "@godcreator02/live-doc-cli": "^0.2.0",
     "yaml": "^2.8.0"
   },
   "peerDependencies": {
@@ -37,6 +39,7 @@
   "devDependencies": {
     "@godcreator02/gwb-plugin-api": "0.1.0",
     "@godcreator02/gwb-commands": "0.1.0",
+    "@godcreator02/gwb-node-cli": "0.1.0",
     "@godcreator02/gwb-settings": "0.1.0",
     "@godcreator02/gwb-shell": "0.1.0",
     "@godcreator02/gwb-skills": "0.1.0",

@@ -1,0 +1,87 @@
+---
+title: AGENTS
+description: 仓根 AGENTS.md 由这一页摆出去——每次会话都得知道的硬约束；改这里，跑 livedoc render，一起提交
+---
+
+# gwb-devkit
+
+开发套件，**一个普通的 gwb 件**：一仓一包一插件，仓根即包根。发本机 registry，装进 home。
+它管建仓 / 手册 / 本机源 / 测试 home 四件事，外加两条经 `gwbNodeCli` 登记的外部 CLI。
+设计与原理在文档站，这份只装**不知道就会做错事**的硬约束。
+
+## 门禁
+
+```powershell
+pnpm check          # = typecheck（两份 tsconfig）+ vitest
+pnpm build          # tsc 直出 dist/ 与 dist/client/，没有打包器
+```
+
+**`pnpm check` 不构建。** 它吃的是源码，全绿只说明源码站得住，跟「装出来能不能跑」是两件事。
+
+文档站的检查**不在 `pnpm check` 里**——它要起文档站的解析链，太慢。单独两条：
+`docs-site` 里 `pnpm doc`（`livedoc check`）与 `pnpm doc:confirm`。
+
+## 发版
+
+1. **先抬 `package.json` 的版本号。** 同一个版本号永不重发；发之前先问一句这个号在不在源上
+   （`npm view @godcreator02/gwb-devkit versions --registry http://127.0.0.1:4873/`）
+2. `prepublishOnly` **别删**。少了它 publish 会把上一版的 `dist/` 原样发出去而且一声不吭
+   ——现象是「件挂上了但新写的东西全没生效」
+3. `pnpm publish --registry http://127.0.0.1:4873/ --no-git-checks`
+
+**`files` 白名单五项，一项都不能少**：`dist`、`src`、`template`、`skills`、`bin`。
+
+| 少了哪项 | 什么当场坏掉 |
+| --- | --- |
+| `dist` | 件根本挂不上 |
+| `template` | `devkit.scaffold` 回「包内 template/ 不在」 |
+| `skills` | 写件手册装不进 home，agent 那边少一份说明书 |
+| `bin` | `devkit.cdp-eval` 的 entry 指向一个不存在的文件 |
+| `src` | 类型跳转与读源码断掉（不影响运行） |
+
+## 模板
+
+`template/` 下十个 `.tpl`，落盘时脱后缀（`npm pack` 不打 `.gitignore` 是硬行为，
+一条规则管所有文件）。
+
+**占位符集合就这五个**：`{{name}}`、`{{title}}`、`{{pkg}}`、`{{pkgName}}`、`{{docsBlock}}`。
+**认不出的占位符当场抛**——给模板加了新占位符，`src/scaffold.ts` 的 `placeholders()`
+必须同时加一格，否则下一次建仓整个失败（而不是留一个 `{{typo}}` 活到别人的 package.json 里）。
+
+两条落盘纪律，都是「没有干净回滚点」推出来的：**整套先在内存里渲染完再碰盘**；
+**目标目录必须还不存在**，存在就拒，不覆盖任何东西。
+
+## 两个设置项
+
+| key | 填什么 | 不填的后果 |
+| --- | --- | --- |
+| `registry-dir` | Verdaccio 目录（含 `config.yaml`、`storage`、`node_modules/verdaccio`） | `registry.*` 四条全回「未配置 registry-dir」 |
+| `kernel-dir` | 内核仓根（含 `apps/desktop`） | `devkit.home.new` / `open` 不工作；`list` / `stop` / `rm` 不受影响 |
+
+**两个都不给默认值。** 目录是这台机器的事实，编一个只会得到「配置了但不在」的假象。
+
+## node-cli 的 cwd 登记时定死
+
+`devkit.livedoc` **只适合 `init`**。`init` 的目标由 `--dir` 给，跟 cwd 无关；
+而 `check` / `confirm` / `render` 认的是 cwd 里那份 `livedoc.config.mjs`，
+**`NodeCliSpec` 没有按次传 cwd 的口子**（不给就落在 entry 自己旁边）。
+
+那三条只能在那个仓的 `docs-site` 里 `pnpm livedoc …` 自己跑。**这是已知限制，别绕**：
+给 node-cli 加按次 cwd 是动别人的契约面，进程内 import livedoc 是把一条 CLI 拉进本进程。
+
+## 写件的规矩不在这
+
+**手册正本是本包的 `skills/gwb-devkit/SKILL.md`**，随包发、经 `gwbSkills` 挂给 agent。
+七条红线、能力面菜单、发版装机、实机验机全在那儿——**这份不复述，那份也不往这儿搬**。
+本件另外把 livedoc 的两份 skill（`livedoc-docs` / `trajectory`）也挂上来了：
+文档写什么读前者，记轨迹卡读后者。
+
+## 文档站是正本
+
+仓根 `AGENTS.md` **是生成物，别手改**——正本是 `docs-site/content/docs/agents.mdx`。
+改完在 `docs-site` 跑 `pnpm livedoc render --target ai` 重摆，mdx 源、生成物、
+`.ledger.json` 同一个提交。`livedoc check` 守着生成物跟源一致，红了就是没重摆。
+
+被钉住的源码改动过要**先 commit 再 `pnpm doc:confirm`**——git 比较器只对已提交、
+工作区干净的内容钉。轨迹区（`content/docs/trajectory/`）**不钉活代码**：它冻结历史，
+钉了就变成一份会变黄的现状文档。

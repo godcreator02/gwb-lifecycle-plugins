@@ -1,9 +1,11 @@
 import fs from 'node:fs'
 import path from 'node:path'
+import { fileURLToPath } from 'node:url'
 import type { GwbContext } from '@godcreator02/gwb-plugin-api'
 import { isRecord, requireKernel } from '@godcreator02/gwb-plugin-api'
 // 只为激活对方包里的 declare module 'cordis'——ctx 上那几个名字的类型从那儿来
 import type {} from '@godcreator02/gwb-commands'
+import type { GwbNodeCliApi } from '@godcreator02/gwb-node-cli'
 import type {} from '@godcreator02/gwb-settings'
 import type {} from '@godcreator02/gwb-shell'
 import type {} from '@godcreator02/gwb-skills'
@@ -48,14 +50,57 @@ export const inject = ['gwbCommands']
 const CLIENT_URL = new URL('./client/index.js', import.meta.url).href
 
 /**
+ * 取证小工具的身体。`../bin/` 两态都对：源码态本模块在 `src/`、产物态在 `dist/`，
+ * 都是包根下一层。
+ */
+const CDP_EVAL_ENTRY = fileURLToPath(new URL('../bin/cdp-eval.mjs', import.meta.url))
+
+/**
+ * livedoc 那个可执行的绝对路径。
+ *
+ * `import.meta.resolve` 拿到的是包的主入口 `dist/run.mjs`（`exports` 只开了 `.` 与
+ * `./init`），可执行在它旁边：`dist/cli.mjs`。**不读 `bin` 字段、不查 `.bin` 垫片**
+ * ——node-cli 登记的是一个绝对路径的 js，垫片在 Windows 上是 `.cmd`，起不了。
+ *
+ * 包解析不到就回 null（依赖没装全的 home），调用方 warn 一句、不炸。
+ */
+function livedocEntry(): string | null {
+  try {
+    return fileURLToPath(new URL('./cli.mjs', import.meta.resolve('@godcreator02/live-doc-cli')))
+  } catch {
+    return null
+  }
+}
+
+/** livedoc 随包发的那两份 skill（`livedoc-docs` / `trajectory`）所在的目录 */
+function livedocSkillsDir(): URL | null {
+  try {
+    return new URL('../skills/', import.meta.resolve('@godcreator02/live-doc-cli'))
+  } catch {
+    return null
+  }
+}
+
+/**
+ * `devkit.livedoc` 只适合 `init` 的理由，登记时写在 description 里——调用方在命令表里
+ * 就看得见，不用先读手册。
+ */
+const LIVEDOC_DESC =
+  'livedoc 的命令行（@godcreator02/live-doc-cli）。**只适合 init**：{"args":["init","--dir","<仓的绝对路径>"]}——init 的目标由 --dir 给，跟 cwd 无关。check / confirm / render 认的是 cwd 里的 livedoc.config.mjs，而 node-cli 的 cwd 登记时就定死、按次换不了，所以那三条要在那个仓的 docs-site 里 pnpm livedoc … 自己跑'
+
+/**
  * 开发套件。四件事，全 服务同一个理由——「在新文件夹里开发新件」这条路的地基：
  *
- * - **建仓**：`devkit.scaffold` 把一个新件的骨架落进一个新文件夹
- * - **手册**：`skills/gwb-devkit/SKILL.md` 随件分发，经 gwb-skills 挂载
+ * - **建仓**：`devkit.scaffold` 把一个新件的骨架落进一个新文件夹（站那半调 livedoc）
+ * - **手册**：`skills/gwb-devkit/SKILL.md` 随件分发，经 gwb-skills 挂载；livedoc 那两份
+ *   （`livedoc-docs` / `trajectory`）也从这儿代挂——它是个 cli 包，自己挂不上
  * - **源**：本机 Verdaccio 的起/停/状态/日志（`registry.*`），有一扇「插件源」窗格
  *   可视化（registry.status，10 秒一轮）
  * - **home**：测试 home 的开/列/重开/停/删（`devkit.home.*`）——实机验证那几步的
  *   命令化（一次验开一个新 home、清理放在开新那一刻）
+ *
+ * 外加两条经 `gwbNodeCli` 登记的外部 CLI：`devkit.livedoc`（建站，只适合 `init`）与
+ * `devkit.cdp-eval`（从页面取证）。CLI 形态的东西一律这么登记，不做总线命令、不进程内调。
  *
  * `apply` 里只剩接线；建仓的校验、渲染、落盘在 `scaffold.ts`；registry 的起停时序在
  * `daemon.ts`、home 的在 `home.ts`（两处皆纯机，可单测），真机器的盘与进程在
@@ -69,6 +114,8 @@ const SCAFFOLD_USAGE = [
   `  name   必给，短名，kebab-case（${String(NAME_RE)}）。它派生出包名 @godcreator02/gwb-<短名>、插件名 gwb-<短名>、命令名 <短名>.<动作> 的前半`,
   '  dir    必给，目标目录的绝对路径，必须还不存在（存在就拒，不覆盖任何东西）',
   '  title  可选，显示名，缺省用 name',
+  '  docs   可选，缺省 true——件那半落盘之后顺带铺一个 fumadocs 文档站（经 devkit.livedoc 调 livedoc init）。false 就只建件那半',
+  '  port   可选，文档站端口。不给由 livedoc 自己挑（扫邻居已占的，从 4310 起找空位）',
   '例：{"name":"hello","dir":"D:\\\\tmp\\\\hello","title":"打个招呼"}',
 ].join('\n')
 
@@ -377,6 +424,37 @@ export function apply(ctx: GwbContext): void {
     scoped.gwbShell.describeSelf({ title: '开发套件', icon: 'wrench' })
   })
 
+  // ── 两条 node CLI ──────────────────────────────────────────────────────────
+
+  /**
+   * 拿到这一格才建得了站。**局部注入 = 可选依赖**：node-cli 件不在，devkit 照常挂，
+   * 只是 `devkit.scaffold` 的站那半改口说「没建」。
+   */
+  let nodeCli: GwbNodeCliApi | undefined
+
+  // CLI 形态的东西一律经 gwbNodeCli 登记，不做总线命令、不进程内调：登记的命令自动镜像
+  // 成总线命令，于是自动是 MCP 工具，回执自带 stdout 与退出码。
+  // 两个 register 都**不用自己包 effect**：运行器内部已经挂在调用方的 effect 上了
+  ctx.inject(['gwbNodeCli'], (scoped) => {
+    const livedoc = livedocEntry()
+    if (livedoc === null) {
+      log.warn('@godcreator02/live-doc-cli 解析不到——devkit.livedoc 没登记，devkit.scaffold 建不了站')
+    } else {
+      scoped.gwbNodeCli.register({ name: 'devkit.livedoc', description: LIVEDOC_DESC, entry: livedoc })
+    }
+    scoped.gwbNodeCli.register({
+      name: 'devkit.cdp-eval',
+      description:
+        '从页面里取证：连 CDP 跑一段表达式，把值打成 JSON。{"args":["<调试口>","<表达式文件>"]}——表达式放文件不放命令行（PowerShell 的引号会截断它）。内核起的时候要带 --remote-debugging-port=<口>（devkit.home.new/open 的 cdp 参数就是它）',
+      entry: CDP_EVAL_ENTRY,
+    })
+    nodeCli = scoped.gwbNodeCli
+    // 服务撤了就把这一格还回去——留着一个已经死掉的引用，建站会在很远的地方失败
+    scoped.effect(() => () => {
+      nodeCli = undefined
+    })
+  })
+
   // ── 建仓那半 ───────────────────────────────────────────────────────────────
 
   ctx.effect(() =>
@@ -384,21 +462,28 @@ export function apply(ctx: GwbContext): void {
       {
         name: 'devkit.scaffold',
         plugin: 'devkit',
-        description: '把一个新 gwb 件的骨架落进一个新文件夹：{name（必给，kebab-case 短名）, dir（必给，绝对路径且必须还不存在）, title?}。参数不对会把完整说明回给你',
+        description:
+          '把一个新 gwb 件的骨架落进一个新文件夹，默认连文档站一起建：{name（必给，kebab-case 短名）, dir（必给，绝对路径且必须还不存在）, title?, docs?（缺省 true）, port?}。件那半的模板在本包，站那半经 devkit.livedoc 调 livedoc init。参数不对会把完整说明回给你',
       },
-      (args) => {
+      async (args) => {
         if (!isRecord(args)) return { ok: false, error: `参数要是个对象。\n${SCAFFOLD_USAGE}` }
         const root = packageRoot()
         const templateRoot = root === null ? null : path.join(root, 'template')
         if (templateRoot === null || !fs.existsSync(templateRoot)) {
           return { ok: false, error: '包内 template/ 不在——这一版没把它带进包（files 白名单漏了），换一版' }
         }
+        // 「想不想建站」与「建不建得成」是两件事：node-cli 件不在的时候连 README 里
+        // 那段话都得改口，所以在渲染之前就把它定下来
+        const wantDocs = args.docs !== false
+        const canDocs = wantDocs && nodeCli !== undefined
         let plan
         try {
           plan = planScaffold({
             name: typeof args.name === 'string' ? args.name : '',
             dir: typeof args.dir === 'string' ? args.dir : '',
             ...(typeof args.title === 'string' && args.title.trim() !== '' ? { title: args.title } : {}),
+            docs: canDocs,
+            ...(typeof args.port === 'number' ? { port: args.port } : {}),
           })
         } catch (err) {
           return { ok: false, error: `${err instanceof Error ? err.message : String(err)}\n\n${SCAFFOLD_USAGE}` }
@@ -412,6 +497,10 @@ export function apply(ctx: GwbContext): void {
           return { ok: false, error: `建仓没成：${err instanceof Error ? err.message : String(err)}` }
         }
         log.info(`devkit.scaffold：${plan.pkg} → ${plan.dir}（${files.length} 个文件）`)
+
+        // ── 站那半：知识不在本包，调 livedoc ────────────────────────────────
+        // **件那半已经在盘上了，站没建成不算建仓失败**——回执里说清楚，人补一条命令就是
+        const docs = await buildDocsSite(plan)
         return {
           ok: true,
           data: {
@@ -420,19 +509,92 @@ export function apply(ctx: GwbContext): void {
             name: plan.name,
             title: plan.title,
             files: files.length,
-            nextSteps: nextSteps(plan),
+            docs,
+            nextSteps: nextSteps(plan, { built: docs.built, ...(docs.port === undefined ? {} : { port: docs.port }) }),
           },
         }
       },
     ),
   )
 
+  /** init 打印的那一行，用来把它现挑的端口捞回执里。捞不到不算错，只是回执里少一句 */
+  const PORT_LINE = /这个站用：(\d+)/
+
+  /**
+   * 站那半。`livedoc init` 认 `--dir`、不认 cwd，所以经 node-cli 调它是对的形状
+   * （cwd 登记时定死那条限制在这儿正好无关）。
+   */
+  async function buildDocsSite(plan: {
+    dir: string
+    title: string
+    docs: boolean
+    port: number | undefined
+  }): Promise<{ built: boolean; port?: number; note: string; exitCode?: number | null; stdout?: string; stderr?: string }> {
+    if (!plan.docs) {
+      return {
+        built: false,
+        note:
+          nodeCli === undefined
+            ? `没建站：node-cli 件不在（gwbNodeCli 没注入），devkit.livedoc 这条命令也就没登记。件那半已经落盘了，补站：pnpm dlx @godcreator02/live-doc-cli init --dir ${plan.dir}`
+            : '没建站：调用时给了 docs: false',
+      }
+    }
+    const runner = nodeCli
+    if (runner === undefined) {
+      // 渲染前判过一次，这儿是服务中途撤了的窄缝
+      return { built: false, note: '没建站：node-cli 件在渲染之后撤了' }
+    }
+    const extra = [
+      'init',
+      '--dir',
+      plan.dir,
+      '--title',
+      plan.title,
+      ...(plan.port === undefined ? [] : ['--port', String(plan.port)]),
+    ]
+    let result
+    try {
+      result = await runner.run('devkit.livedoc', extra)
+    } catch (err) {
+      const why = err instanceof Error ? err.message : String(err)
+      return { built: false, note: `没建站：devkit.livedoc 这条命令调不动（${why}）——livedoc 包解析不到？` }
+    }
+    if (!result.ok) {
+      log.warn(`devkit.scaffold 的站那半没成：${result.stderr.text || result.stdout.text}`)
+      return {
+        built: false,
+        note: 'livedoc init 失败了。件那半已经落盘、README 里讲站的那段话是按「要建」写的——补建一次，或者把那段改掉',
+        exitCode: result.exitCode,
+        stdout: result.stdout.text,
+        stderr: result.stderr.text,
+      }
+    }
+    const port = plan.port ?? Number(PORT_LINE.exec(result.stdout.text)?.[1] ?? Number.NaN)
+    log.info(`devkit.scaffold：文档站铺好了 → ${path.join(plan.dir, 'docs-site')}`)
+    return {
+      built: true,
+      ...(Number.isInteger(port) ? { port } : {}),
+      note: '站铺好了（livedoc init）。依赖没装——去 docs-site 里 pnpm install',
+      exitCode: result.exitCode,
+      stdout: result.stdout.text,
+    }
+  }
+
   // 说明书随件走。局部注入 = 可选依赖：skills 件不在，devkit 照常挂
   ctx.inject(['gwbSkills'], (scoped) => {
     scoped.effect(() => scoped.gwbSkills.register(new URL('../skills/', import.meta.url)))
+    // **livedoc 的两份也从这儿挂**（`livedoc-docs` / `trajectory`）：文档站那件事归 livedoc，
+    // 但连着工作台的 agent 得读得到它，而 livedoc 是个 cli 包、不是件、自己挂不上。
+    // 解析不到只 warn——那两份说明书不是 devkit 能不能干活的前提
+    const dir = livedocSkillsDir()
+    if (dir === null) {
+      log.warn('@godcreator02/live-doc-cli 解析不到——livedoc 那两份 skill（livedoc-docs / trajectory）没挂上')
+    } else {
+      scoped.effect(() => scoped.gwbSkills.register(dir))
+    }
   })
 
   log.info(
-    '开发套件就绪（devkit.scaffold、registry.status/up/down/log、devkit.home.new/list/open/stop/rm 经命令总线；手册挂在本件 skills/ 下）',
+    '开发套件就绪（devkit.scaffold、registry.status/up/down/log、devkit.home.new/list/open/stop/rm 经命令总线；devkit.livedoc、devkit.cdp-eval 经 node-cli；手册挂在本件 skills/ 下，livedoc 那两份代挂）',
   )
 }

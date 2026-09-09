@@ -1,0 +1,18 @@
+@import 'tailwindcss';
+@import 'fumadocs-ui/css/neutral.css';
+@import 'fumadocs-ui/css/preset.css';
+/* 状态点的样式随格式包发，一行引进来 */
+@import '@godcreator02/live-doc-format-fumadocs/light.css';
+
+html {
+  scrollbar-gutter: stable;
+}
+
+.note {
+  border: 1px solid rgba(86, 182, 232, 0.4);
+  border-left: 3px solid rgba(86, 182, 232, 0.7);
+  border-radius: 8px;
+  padding: 12px 16px;
+  margin: 18px 0;
+  font-size: 14px;
+}

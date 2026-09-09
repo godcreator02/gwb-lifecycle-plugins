@@ -7,7 +7,9 @@ import {
   NAME_RE,
   SCOPE,
   listTemplateFiles,
+  nextSteps,
   packageRoot,
+  placeholders,
   planScaffold,
   render,
   renderTemplate,
@@ -65,6 +67,61 @@ describe('planScaffold：校验与派生', () => {
     }
     expect(() => planScaffold({ name: 'x', dir: '   ' })).toThrow(/dir/)
   })
+
+  it('docs 缺省是建：人记得事后补第二条命令的概率，跟那一堆仓至今没有站是同一个概率', () => {
+    expect(planScaffold({ name: 'x', dir: 'D:\\tmp\\x' }).docs).toBe(true)
+    expect(planScaffold({ name: 'x', dir: 'D:\\tmp\\x', docs: false }).docs).toBe(false)
+  })
+
+  it('port 不给就是 undefined（本包不猜一个写进 README）；给了要在 1024–65535', () => {
+    expect(planScaffold({ name: 'x', dir: 'D:\\tmp\\x' }).port).toBeUndefined()
+    expect(planScaffold({ name: 'x', dir: 'D:\\tmp\\x', port: 4321 }).port).toBe(4321)
+    for (const bad of [80, 70000, 4321.5]) {
+      expect(() => planScaffold({ name: 'x', dir: 'D:\\tmp\\x', port: bad })).toThrow(/port/)
+    }
+  })
+})
+
+describe('docsBlock：README 里讲站的那一段', () => {
+  it('建了站就讲怎么跑；端口给了才敢写死，没给只说去哪儿看', () => {
+    const withPort = placeholders(planScaffold({ name: 'x', dir: 'D:\\tmp\\x', port: 4321 })).docsBlock ?? ''
+    expect(withPort).toContain('cd docs-site')
+    expect(withPort).toContain('http://localhost:4321')
+
+    const noPort = placeholders(planScaffold({ name: 'x', dir: 'D:\\tmp\\x' })).docsBlock ?? ''
+    expect(noPort).toContain('cd docs-site')
+    // 猜一个端口写进 README，读者照着敲的那条 pnpm dev 就是错的
+    expect(noPort).not.toMatch(/localhost:\d/)
+    expect(noPort).toContain('docs-site/package.json')
+  })
+
+  it('没建站就讲怎么补一个——别写一个不存在的站', () => {
+    const block = placeholders(planScaffold({ name: 'x', dir: 'D:\\tmp\\x', docs: false })).docsBlock ?? ''
+    expect(block).not.toContain('cd docs-site')
+    expect(block).toContain('devkit.livedoc')
+    expect(block).toContain('@godcreator02/live-doc-cli')
+  })
+})
+
+describe('nextSteps：按站真建起来没有分两支', () => {
+  const plan = planScaffold({ name: 'x', dir: 'D:\\tmp\\x' })
+
+  it('建成了才给 docs-site 那几步，端口有就报出来', () => {
+    const steps = nextSteps(plan, { built: true, port: 4321 }).join('\n')
+    expect(steps).toContain('docs-site')
+    expect(steps).toContain('4321')
+    expect(steps).toContain('doc:confirm')
+  })
+
+  it('没建成就给补建的那条命令——回执里给一条不存在的 cd docs-site 比不给还坏', () => {
+    const steps = nextSteps(plan, { built: false }).join('\n')
+    expect(steps).not.toContain('cd D:\\tmp\\x\\docs-site')
+    expect(steps).toContain('devkit.livedoc')
+  })
+
+  it('不给 site 就照计划里的意思说', () => {
+    expect(nextSteps(planScaffold({ name: 'x', dir: 'D:\\tmp\\x', docs: false })).join('\n')).toContain('devkit.livedoc')
+  })
 })
 
 describe('render：占位符', () => {
@@ -92,18 +149,41 @@ describe('targetRel：脱掉 .tpl', () => {
 describe('包内 template/', () => {
   it('每个文件都带 .tpl 后缀', () => {
     const files = listTemplateFiles(TEMPLATE_ROOT)
-    expect(files.length).toBeGreaterThanOrEqual(4)
+    expect(files.length).toBe(10)
     expect(files.filter((f) => !f.endsWith('.tpl'))).toEqual([])
   })
 
   it('真渲染一套：占位符一个不剩，包名与插件名都对', () => {
     const files = renderTemplate(TEMPLATE_ROOT, planScaffold({ name: 'hello', dir: 'D:\\tmp\\x', title: '打招呼' }))
-    expect(files.map((f) => f.rel).sort()).toEqual(['.gitignore', 'package.json', 'src/index.ts', 'tsconfig.json'])
-    const pkg = JSON.parse(files.find((f) => f.rel === 'package.json')?.text ?? '') as { name: string }
+    // 一个**能直接开工**的件仓：门禁（oxlint / vitest / 两份 tsconfig）、起手测试、README 都在
+    expect(files.map((f) => f.rel).sort()).toEqual([
+      '.gitignore',
+      '.npmrc',
+      '.oxlintrc.json',
+      'README.md',
+      'package.json',
+      'src/index.ts',
+      'tests/plugin.test.ts',
+      'tsconfig.build.json',
+      'tsconfig.json',
+      'vitest.config.ts',
+    ])
+    const pkg = JSON.parse(files.find((f) => f.rel === 'package.json')?.text ?? '') as {
+      name: string
+      scripts: Record<string, string>
+    }
     expect(pkg.name).toBe('@godcreator02/gwb-hello')
+    // 红线六：漏了 prepublishOnly，publish 会把上一版的 dist 原样发出去而且一声不吭
+    expect(pkg.scripts.prepublishOnly).toBeDefined()
+    expect(pkg.scripts.check).toBeDefined()
     const entry = files.find((f) => f.rel === 'src/index.ts')?.text ?? ''
     expect(entry).toContain("export const name = 'gwb-hello'")
     for (const file of files) expect(file.text).not.toContain('{{')
+  })
+
+  it('模板里的占位符全在 placeholders 的表上——认不出的当场抛，那正是这条要钉的', () => {
+    // docsBlock 是后加的一格：模板加了新占位符而这边没加，renderTemplate 会抛
+    expect(() => renderTemplate(TEMPLATE_ROOT, planScaffold({ name: 'x', dir: 'D:\\tmp\\x', docs: false }))).not.toThrow()
   })
 })
 

@@ -1,0 +1,43 @@
+---
+title: gwb-devkit 这个件
+born-at: 2026-09-08T12:57
+type: root
+label: 开发套件
+domain: 这个件
+---
+
+## 项目定义与边界
+
+**一个普通的 gwb 件**，管「在新文件夹里开发新件」这条路上的四件事：建仓、手册、本机源的
+起停、测试 home 的开收。装进 home 才有它的命令，挂不上就什么都没有——它没有任何特权，
+自己也是走它教别人走的那条路来的（独立起仓、发本机源、装进 home）。
+
+**边界一句话：它给这条路上的每一步开一个能被 agent 调到的口，不替人做判断。** 建仓不猜
+你要什么件、`registry.down` 不问「真的要停吗」（这台机器上别的仓也在用那条源）、
+`devkit.home.rm` 不自动清理旧 home——清理动作放在开新的那一刻，人永远有机会先看一眼。
+
+**不做的**：不做发版（`pnpm publish` 是仓自己的事）、不做装机（那是 `plugins` 件的口）、
+不做文档（那是 livedoc 的事，本件只是知道去哪儿要一个站）。
+
+**代码仓位置**：`D:\unitfolders\260908dkv\gwb-devkit`，不在任何 monorepo 里。
+分层与依赖方向见[整体原理](/docs)。
+
+**邻居**：
+
+| 单元 | 是什么 | 这个件怎么用它 |
+| --- | --- | --- |
+| `26090705ymz/gwb-kernel` | 内核仓 | 设置项 `kernel-dir` 指它；`devkit.home.new` 用它 build 与起 electron |
+| `26090709qzp/gwb-base-plugins` | 件仓 | 消费它的服务（commands / skills / settings / shell / node-cli），只 inject 不改它 |
+| `26090315xby/god-live-doc` | livedoc | **运行时依赖**：`@godcreator02/live-doc-cli` 建站，两份 skill 代挂 |
+| `26090520zzv/registry` | 本机 Verdaccio | 设置项 `registry-dir` 指它；`registry.*` 起停的就是它 |
+
+## 里程碑
+
+（只追加。日期｜标题｜一句话说明）
+
+- 2026-09-08 12:57｜立仓｜`devkit.scaffold` + 写件手册 + 本机源起停，0.0.4
+- 2026-09-08｜home 命令化｜实机验证那几步变成 `devkit.home.*`，一次验开一个新 home
+- 2026-09-08 16:56｜插件源改普通窗格｜状态格机制下架的连带，0.0.9
+- 2026-09-09 02:09｜迁 0.1｜窗格自报 client 地址；home 命令按单进程内核改起法与产物路径
+- 2026-09-09｜知识随件走｜手册与模板正本回本包，建站改调 livedoc，两条 node CLI 登记上，
+  文档站立起来（见[那张卡](/docs/trajectory/2026-09-09-skills-and-templates-ride-package)）

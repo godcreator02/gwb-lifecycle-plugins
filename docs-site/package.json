@@ -1,0 +1,37 @@
+{
+  "name": "gwb-devkit-docs-site",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "description": "开发套件 的文档站：论断钉在这个仓的真实源码上，README 与机读版由 render 摆出",
+  "scripts": {
+    "dev": "next dev -p 4322",
+    "build": "next build",
+    "start": "next start -p 4322",
+    "livedoc": "livedoc",
+    "doc": "livedoc check",
+    "doc:confirm": "livedoc confirm",
+    "verify:roster": "node scripts/verify-roster.mjs"
+  },
+  "dependencies": {
+    "fumadocs-core": "16.15.1",
+    "fumadocs-mdx": "15.3.1",
+    "fumadocs-ui": "npm:@fumadocs/base-ui@16.15.1",
+    "next": "16.3.0",
+    "react": "^19.2.8",
+    "react-dom": "^19.2.8"
+  },
+  "devDependencies": {
+    "@godcreator02/live-doc-cli": "0.2.0",
+    "@godcreator02/live-doc-format-fumadocs": "0.1.0",
+    "@godcreator02/live-doc-project": "0.1.0",
+    "@tailwindcss/postcss": "^4.3.3",
+    "@types/mdx": "^2.0.14",
+    "@types/node": "^26.2.0",
+    "@types/react": "^19.2.18",
+    "@types/react-dom": "^19.2.4",
+    "postcss": "^8.5.26",
+    "tailwindcss": "^4.3.3",
+    "typescript": "^6.0.3"
+  }
+}

@@ -8,6 +8,9 @@ importers:
 
   .:
     dependencies:
+      '@godcreator02/live-doc-cli':
+        specifier: ^0.2.0
+        version: 0.2.0
       yaml:
         specifier: ^2.8.0
         version: 2.9.0
@@ -15,6 +18,9 @@ importers:
       '@godcreator02/gwb-commands':
         specifier: 0.1.0
         version: 0.1.0(@godcreator02/gwb-plugin-api@0.1.0(cordis@4.0.0-rc.9))
+      '@godcreator02/gwb-node-cli':
+        specifier: 0.1.0
+        version: 0.1.0(@godcreator02/gwb-commands@0.1.0(@godcreator02/gwb-plugin-api@0.1.0(cordis@4.0.0-rc.9)))(@godcreator02/gwb-plugin-api@0.1.0(cordis@4.0.0-rc.9))(cordis@4.0.0-rc.9)
       '@godcreator02/gwb-plugin-api':
         specifier: 0.1.0
         version: 0.1.0(cordis@4.0.0-rc.9)
@@ -53,6 +59,13 @@ packages:
       '@godcreator02/gwb-plugin-api': '>=0.1.0'
       cordis: ^4.0.0-rc.9
 
+  '@godcreator02/gwb-node-cli@0.1.0':
+    resolution: {integrity: sha512-blpgzH70Piw3HUt42exPktw663E1w9N1IgnsxPm0wSfM7rO2ZwaDLKono6c4Exgg29RhrDfq5VLRSF6raZJPsQ==}
+    peerDependencies:
+      '@godcreator02/gwb-commands': '>=0.0.1'
+      '@godcreator02/gwb-plugin-api': '>=0.1.0'
+      cordis: ^4.0.0-rc.9
+
   '@godcreator02/gwb-plugin-api@0.1.0':
     resolution: {integrity: sha512-lHcK2jaE+dKjNcF7obgZUP3UKP6MWU9G6TJDLyRSSk8HrH4vaHldy9LX1PlL1Z7CAehPaJPlf55wXG/8YRIiyA==}
     peerDependencies:
@@ -86,6 +99,24 @@ packages:
 
   '@godcreator02/gwb-tokens@0.0.5':
     resolution: {integrity: sha512-lOI7fIUKS8IEqRcLohiADwtmG4iiA6pBsh0hN9tSKKXyKIrieGVbyIQ+1qT/GA3/n7JQZUnN40+/XvlKmlj/kQ==}
+
+  '@godcreator02/live-doc-cli@0.2.0':
+    resolution: {integrity: sha512-M/OKmd0eYF5SSu2P0ZdAZsxRDxwYxtI00bibmOLIGmjk/ljjRvgx2o9p1SpWvzlFiruJCjXQtnRKdYrX+0LAlQ==}
+    hasBin: true
+
+  '@godcreator02/live-doc-core@0.1.0':
+    resolution: {integrity: sha512-0rrsSGyEsSbZSqPWbGioCplppWkqXz0ZZV5U5+CNuMxzOpsfMkk2ssH0aexnHfJi25DnrsgK2kAl1RGUjudgBQ==}
+
+  '@godcreator02/live-doc-project@0.1.0':
+    resolution: {integrity: sha512-lM0yQQxv4yPRXuGprAxoQ+J5XjQGro3IW6VxrmyR//fB3uhhirq8nnramey1Do+SyyiTgFyO3OkTr61cZbjYwQ==}
+
+  '@godcreator02/live-doc-trajectory@0.1.0':
+    resolution: {integrity: sha512-KS3IV8gW5+H74o9m6nnkaYgKe47WYPyk+Nk5Z5LzSlUTcajUdha8Fttb4bQPyX5EFbuDW7mqEL27llcBb/GOHg==}
+    peerDependencies:
+      react: '>=19'
+    peerDependenciesMeta:
+      react:
+        optional: true
 
   '@jridgewell/sourcemap-codec@1.6.0':
     resolution: {integrity: sha512-T7jf+5zgsZHwNJ4lvQ7/aezbyk0nNX+zJVWpmHA7VYsEx7a7qr5Rg5IbtJFqkgze5Y2sruq1RUY8Q837Od7iFw==}
@@ -206,6 +237,9 @@ packages:
 
   '@types/node@24.13.3':
     resolution: {integrity: sha512-Dh8vAsV36ig5wa9OX4pXvMc9D3Veibfw2wix0CUwYODLD8nkj9UsLjASr49nPg+2eKzxhBV+v7L8pXvT4e639Q==}
+
+  '@types/unist@3.0.3':
+    resolution: {integrity: sha512-ko/gIFJRv177XgZsZcBwnqJN5x/Gien8qNOn0D5bQU/zAzVf9Zt3BlcUiLqhV9y4ARk0GbT3tnUiPNgnTXzc/Q==}
 
   '@typescript/typescript-aix-ppc64@7.0.2':
     resolution: {integrity: sha512-MTKKkWB7p/0E9xi1d1tHtZ5PiLkGEMIq88pK2CubZjOsLtYTLqhgIgi6zepFa+9GHZ6h05NMCkQxGKiPXMxXtQ==}
@@ -551,6 +585,15 @@ packages:
   undici-types@7.18.2:
     resolution: {integrity: sha512-AsuCzffGHJybSaRrmr5eHr81mwJU3kjw6M+uprWvCXiNeN9SOGwQ3Jn8jb8m3Z6izVgknn1R0FTCEAP2QrLY/w==}
 
+  unist-util-is@6.0.1:
+    resolution: {integrity: sha512-LsiILbtBETkDz8I9p1dQ0uyRUWuaQzd/cuEeS1hoRSyW5E5XGmTzlwY1OrNzzakGowI9Dr/I8HVaw4hTtnxy8g==}
+
+  unist-util-visit-parents@6.0.2:
+    resolution: {integrity: sha512-goh1s1TBrqSqukSc8wrjwWhL0hiJxgA8m4kFxGlQ+8FYQ3C/m11FcTs4YYem7V664AhHVvgoQLk890Ssdsr2IQ==}
+
+  unist-util-visit@5.1.0:
+    resolution: {integrity: sha512-m+vIdyeCOpdr/QeQCu2EzxX/ohgS8KbnPDgFni4dQsfSCtpz8UqDyY5GjRru8PDKuYn7Fq19j1CQ+nJSsGKOzg==}
+
   vite@8.2.2:
     resolution: {integrity: sha512-cFKLV/PRgAUlIRm5WjMjJ86jrftzpqcgH+Us+DS8mI3CDNiH30Whrz8uHL3+MOLPAgqbMBAqWdAHAphOAM+z/Q==}
     engines: {node: ^20.19.0 || >=22.12.0}
@@ -656,6 +699,12 @@ snapshots:
       '@godcreator02/gwb-plugin-api': 0.1.0(cordis@4.0.0-rc.9)
       cordis: 4.0.0-rc.9
 
+  '@godcreator02/gwb-node-cli@0.1.0(@godcreator02/gwb-commands@0.1.0(@godcreator02/gwb-plugin-api@0.1.0(cordis@4.0.0-rc.9)))(@godcreator02/gwb-plugin-api@0.1.0(cordis@4.0.0-rc.9))(cordis@4.0.0-rc.9)':
+    dependencies:
+      '@godcreator02/gwb-commands': 0.1.0(@godcreator02/gwb-plugin-api@0.1.0(cordis@4.0.0-rc.9))
+      '@godcreator02/gwb-plugin-api': 0.1.0(cordis@4.0.0-rc.9)
+      cordis: 4.0.0-rc.9
+
   '@godcreator02/gwb-plugin-api@0.1.0(cordis@4.0.0-rc.9)':
     dependencies:
       cordis: 4.0.0-rc.9
@@ -683,6 +732,24 @@ snapshots:
       cordis: 4.0.0-rc.9
 
   '@godcreator02/gwb-tokens@0.0.5': {}
+
+  '@godcreator02/live-doc-cli@0.2.0':
+    dependencies:
+      '@godcreator02/live-doc-core': 0.1.0
+      '@godcreator02/live-doc-project': 0.1.0
+      '@godcreator02/live-doc-trajectory': 0.1.0
+    transitivePeerDependencies:
+      - react
+
+  '@godcreator02/live-doc-core@0.1.0': {}
+
+  '@godcreator02/live-doc-project@0.1.0':
+    dependencies:
+      '@godcreator02/live-doc-core': 0.1.0
+
+  '@godcreator02/live-doc-trajectory@0.1.0':
+    dependencies:
+      unist-util-visit: 5.1.0
 
   '@jridgewell/sourcemap-codec@1.6.0': {}
 
@@ -749,6 +816,8 @@ snapshots:
   '@types/node@24.13.3':
     dependencies:
       undici-types: 7.18.2
+
+  '@types/unist@3.0.3': {}
 
   '@typescript/typescript-aix-ppc64@7.0.2':
     optional: true
@@ -1014,6 +1083,21 @@ snapshots:
       '@typescript/typescript-win32-x64': 7.0.2
 
   undici-types@7.18.2: {}
+
+  unist-util-is@6.0.1:
+    dependencies:
+      '@types/unist': 3.0.3
+
+  unist-util-visit-parents@6.0.2:
+    dependencies:
+      '@types/unist': 3.0.3
+      unist-util-is: 6.0.1
+
+  unist-util-visit@5.1.0:
+    dependencies:
+      '@types/unist': 3.0.3
+      unist-util-is: 6.0.1
+      unist-util-visit-parents: 6.0.2
 
   vite@8.2.2(@types/node@24.13.3)(yaml@2.9.0):
     dependencies:
