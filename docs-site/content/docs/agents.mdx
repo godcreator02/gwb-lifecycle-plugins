@@ -60,14 +60,28 @@ pnpm build          # tsc 直出 dist/ 与 dist/client/，没有打包器
 
 **两个都不给默认值。** 目录是这台机器的事实，编一个只会得到「配置了但不在」的假象。
 
-## node-cli 的 cwd 登记时定死
+**配置一律走 `gwbSettings.define`，不吃 `cordis.yml` 的 `config`。** 新加一项可改的东西就
+`define` 一项（类型 `string` / `number` / `boolean` / `secret` / `list`），别在条目上开
+config 面——写在 yml 里的那份界面看不见、agent 也不知道有它。
 
-`devkit.livedoc` **只适合 `init`**。`init` 的目标由 `--dir` 给，跟 cwd 无关；
-而 `check` / `confirm` / `render` 认的是 cwd 里那份 `livedoc.config.mjs`，
-**`NodeCliSpec` 没有按次传 cwd 的口子**（不给就落在 entry 自己旁边）。
+## 命令的 description 必须带参数形状
 
-那三条只能在那个仓的 `docs-site` 里 `pnpm livedoc …` 自己跑。**这是已知限制，别绕**：
-给 node-cli 加按次 cwd 是动别人的契约面，进程内 import livedoc 是把一条 CLI 拉进本进程。
+命令总线不带参数 schema，调用方（多数是 agent）看得见的只有 description 那一句：它得**只看
+它就知道参数怎么给**。所以每条 `register` 的 description 里写出形状（`{ lines?: number }`、
+`{ name, force? }`），**无参数的明写「无参数」**。参数复杂的，回执里再带完整说明
+（`devkit.scaffold` / home 那几条就是这么干的），但 description 里那句形状仍然要有。
+
+要让一条命令在 agent 那边直接露到顶层，登记时标 `top: true`——**标了之后还要问人**：
+MCP 桥固定只开 `gwb_command_list` / `gwb_command_run` 两枚，外加 gwb-mcp 的 `top` 设置里
+那份人批过的名单，agent 自己不动名单。
+
+## livedoc 那条命令：cwd 按次给
+
+`devkit.livedoc` 镜像出来的形状是 `{ args?: string[], cwd?: string }`，**`cwd` 是按次的**
+（必须是存在的绝对路径）。`init` 的目标由 `--dir` 给、跟 cwd 无关；`check` / `confirm` /
+`render` 认的是 cwd 里那份 `livedoc.config.mjs`，把 cwd 指到 `<仓>\docs-site` 就是了。
+
+别在件里进程内 import livedoc：CLI 形态的东西一律经 `gwbNodeCli` 登记，不做总线命令。
 
 ## 写件的规矩不在这
 

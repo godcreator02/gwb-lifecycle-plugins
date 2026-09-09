@@ -75,7 +75,7 @@ devkit ──可选──▶ gwbNodeCli / gwbSkills / gwbSettings / gwbShell
 上面这两行就是这件事的正本：**硬依赖只有一条**。没有命令总线，devkit 登记的一切都出不了
 这个进程，那时它确实不该挂上；而没有 node-cli，它只是建不了站——不是不能干活。
 
-{/* ref file="../src/index.ts" lines="438-456" */}
+{/* ref file="../src/index.ts" lines="441-459" */}
 
 两条 node CLI 就挂在这条子 fiber 上。注意最后那个 `effect`：服务撤了要把捕获的那一格
 **还回去**。留着一个已经死掉的引用，失败会发生在很远的地方（下一次建仓，而且只在站那半）。
@@ -83,7 +83,7 @@ devkit ──可选──▶ gwbNodeCli / gwbSkills / gwbSettings / gwbShell
 **三、说明书这条依赖是「代挂」，不是「拥有」。** livedoc 是个 CLI 包、不是件，自己挂不上
 工作台；devkit 顺手把它的 `skills/` 也 register 一次：
 
-{/* ref file="../src/index.ts" lines="583-595" */}
+{/* ref file="../src/index.ts" lines="585-597" */}
 
 解析不到只 warn 不炸——那两份说明书不是 devkit 能不能干活的前提。**这一段是「可选」这个
 概念的完整样例**：一处可选注入里，还嵌着一处可选的资源。
@@ -114,7 +114,7 @@ devkit ──可选──▶ gwbNodeCli / gwbSkills / gwbSettings / gwbShell
 `planScaffold` 是这条分界线上最清楚的一段：校验、派生、绝对化、缺省值，全在这儿，
 一次都没碰盘。它抛出的错误是给人和 agent 看的，所以每一句都说得出该怎么改。
 
-## livedoc 那条命令为什么只适合 `init`
+## livedoc 那条命令：入口怎么算、cwd 从哪来
 
 {/* ref file="../src/index.ts" lines="67-73" */}
 
@@ -122,13 +122,16 @@ devkit ──可选──▶ gwbNodeCli / gwbSkills / gwbSettings / gwbShell
 **不读 `bin` 字段、不查 `.bin` 垫片**：node-cli 登记的是一个绝对路径的 js，
 而垫片在 Windows 上是 `.cmd`，`process.execPath` 起不了它。
 
-但这条命令**只适合 `init`**，这是一条真限制不是偏好：`livedoc init` 的目标由 `--dir` 给，
-跟 cwd 无关；而 `check` / `confirm` / `render` 认的是 **cwd 里那份 `livedoc.config.mjs`**，
-**node-cli 的 `cwd` 在登记时就定死、按次不可换**。所以那三条只能在那个仓的 `docs-site` 里
-`pnpm livedoc …` 自己跑。
+这条命令一度**只适合 `init`**：`livedoc init` 的目标由 `--dir` 给、跟 cwd 无关，而
+`check` / `confirm` / `render` 认的是 **cwd 里那份 `livedoc.config.mjs`**，
+当时 node-cli 的 `cwd` 在登记时就定死、按次不可换。那三条只能在仓的 `docs-site` 里
+`pnpm livedoc …` 自己跑，等于这条命令只覆盖了 livedoc 的四分之一。
 
-绕它的两条路都更坏：给 node-cli 加「按次传 cwd」是动一个被别人 inject 的件的契约面；
-在 devkit 里进程内 import livedoc，是把一条 CLI 拉进本进程，回执形状与失败模式立刻分岔。
+**这条限制 2026-09-09 拆掉了，拆的位置在 node-cli 那边而不是这边**：`run` 的参数收了一个
+按次的 `cwd`（存在的绝对路径），于是四条子命令全都走得通——`{"args":["check"],"cwd":"<仓>\\docs-site"}`。
+这是「限制该在哪一层解」的一个样例：devkit 这边任何绕法（进程内 import livedoc、自己 spawn
+一遍）都会把回执形状与失败模式劈成两套，而在 node-cli 的契约面上加一格，整个生态的 CLI
+都跟着能按次换目录。devkit 自己因此一行判断都不用加，只有 description 换了句话。
 
 ## 怎么用
 
