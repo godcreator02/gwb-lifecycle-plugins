@@ -40,7 +40,7 @@ description: 动手写一个新 gwb 件之前读，打算说「验过了 / 跑�
 
 | 命令 | 参数 | 干什么 |
 | --- | --- | --- |
-| `devkit.livedoc` | `{ args: [...] }` | livedoc 的命令行。**只适合 `init`**，理由见下面那节 |
+| `devkit.livedoc` | `{ args?: string[], cwd?: string }` | livedoc 的命令行。`cwd` 按次给（必须是存在的绝对路径），所以 `check` / `confirm` / `render` 也走这条，见下面那节 |
 | `devkit.cdp-eval` | `{ args: [<调试口>, <表达式文件>] }` | 从页面里取证，见「拿证据」 |
 
 **本机源**（Verdaccio，`http://localhost:4873/`）
@@ -172,25 +172,29 @@ pnpm build
 livedoc 是个 CLI 包、不是件，自己挂不上工作台。本件把它的可执行登记进 `gwbNodeCli`，于是
 它自动镜像成总线命令、自动是 MCP 工具，回执自带 stdout 与退出码。
 
-**只适合 `init`。** `init` 的目标由 `--dir` 给，跟 cwd 无关，所以经这条命令调是对的形状：
+镜像出来的参数形状是 **`{ args?: string[], cwd?: string }`**——`cwd` **按次给**
+（node-cli / py-cli 的 `run` 都认它），必须是**存在的绝对路径**，不给就落在 entry 自己旁边。
+
+**建站**：`init` 的目标由 `--dir` 给，跟 cwd 无关，所以这条不用带 cwd：
 
 ```
 devkit.livedoc {"args":["init","--dir","<仓的绝对路径>","--title","<显示名>"]}
 ```
 
-**`check` / `confirm` / `render` 不要走这条。** 它们认的是 cwd 里那份 `livedoc.config.mjs`，
-而 **node-cli 的 `cwd` 在登记时就定死、按次不可换**（`NodeCliSpec` 没有按次传 cwd 的口子，
-不给就落在 entry 自己旁边）。那三条要在**那个仓的 `docs-site` 里**自己跑：
+**`check` / `confirm` / `render` 也走这条**：它们认的是 cwd 里那份 `livedoc.config.mjs`，
+所以把 cwd 指到那个仓的 `docs-site`：
 
-```powershell
-cd <仓>\docs-site
-pnpm livedoc check          # 或模板里的 pnpm doc
-pnpm livedoc confirm        # 或 pnpm doc:confirm
-pnpm livedoc render --target ai
+```
+devkit.livedoc {"args":["check"],"cwd":"<仓>\\docs-site"}
+devkit.livedoc {"args":["confirm"],"cwd":"<仓>\\docs-site"}
+devkit.livedoc {"args":["render","--target","ai"],"cwd":"<仓>\\docs-site"}
 ```
 
-**这是已知限制，别绕**——别为了「一条命令跑完」去给 node-cli 加按次 cwd，也别在件里进程内
-调 livedoc（CLI 形态的东西一律经 `gwbNodeCli` / `gwbPyCli` 登记，不做总线命令、不进程内调）。
+（在终端里也一样跑得了：`cd <仓>\docs-site` 之后 `pnpm doc` / `pnpm doc:confirm` /
+`pnpm livedoc render --target ai`。两条路等价，选手边那条。）
+
+别在件里进程内 import livedoc——CLI 形态的东西一律经 `gwbNodeCli` / `gwbPyCli` 登记，
+不做总线命令、不进程内调。
 
 # 从哪儿起手
 
@@ -213,11 +217,23 @@ home**。不存在「把源码摆在内核仓旁边跑起来」的近路——�
 ```ts
 ctx.inject(['gwbCommands'], (c) => {
   c.effect(() => c.gwbCommands.register(
-    { name: '<短名>.<动作>', plugin: '<短名>' }, handler))
+    { name: '<短名>.<动作>', plugin: '<短名>', description: '干什么：{ entryId: string, enabled?: boolean }' },
+    handler))
 })
 ```
 
 handler 参数是 `unknown`，自己收窄（词汇表包的 `isRecord`）。相对 import 带 `.js`。
+
+**`description` 必须写出参数形状。** 命令总线不带参数 schema，agent 看得见的只有这一句：
+它得只看它就知道参数怎么给。写成 `{ entryId }`、`{ name, force? }` 这种一眼能抄的形状，
+**无参数就明写「无参数」**——省略等于让调用方去猜，猜的结果是先错一次再读回执。
+参数复杂到一行写不下的，回执里带一份完整说明（错误即文档，`devkit.scaffold` 就是这么干的），
+但 description 里那句形状仍然要有。
+
+**要让 agent 在顶层直接看见这条命令，登记时标 `top: true`**（`GwbCommandDef` 的字段，
+命令总线 0.2.0 起）。默认不标：MCP 桥固定只开两枚顶层工具 `gwb_command_list` /
+`gwb_command_run`，外加**名单里**的顶层命令，而名单是 gwb-mcp 那个件的 `top` 设置、由人批。
+所以顺序是**先标上，然后问人要不要进名单**——agent 自己不动那份名单。
 
 **四、发一版。** 先抬 `package.json` 的版本号，再：
 
@@ -298,11 +314,11 @@ dependencies，装进 home 就是第二份实例，Service 身份对不上——
 | --- | --- | --- |
 | 命令总线 | `inject: ['gwbCommands']` → `register` | 能力要被调就要（几乎一定）。界面、agent 走的是同一张表 |
 | 说明书 | `skills/` 目录 + `gwbSkills.register`（局部） | 有多步流程或坑要讲给 agent 就要。**本件把 livedoc 的两份也挂上来了**：文档写什么读 skill「livedoc-docs」，记轨迹卡读 skill「trajectory」 |
-| 设置 | `gwbSettings.define`（局部）→ `get`/`set` | 要可改配置就要。home 级跟条目走，machine 级跨 home |
+| 设置 | `gwbSettings.define`（局部）→ `get`/`set` | **件的配置一律走这里，不吃 `cordis.yml` 的 `config`**。类型 `string` / `number` / `boolean` / `secret` / `list`。值跟条目走（分区是条目 id 的末段），`shared: true` 才落公共区 |
 | 数据 | `gwbData.readDoc/writeDoc`（局部） | 要落盘状态就要。存 `<home>/data/<条目末段>/` |
 | 窗格 | `gwbShell.registerPane` + client 半 | 要人看得见就要 |
 | 外部 CLI | `gwbNodeCli` / `gwbPyCli` register（局部） | 要给外部脚本一个稳定入口就要。**CLI 形态的东西一律走这儿**，不做总线命令、不进程内调 |
-| agent 桥 | 不用做——gwb-mcp 把总线与 skill 自动开出去 | — |
+| agent 桥 | 不用做——gwb-mcp 把总线开出去：agent 经 `gwb_command_run` 调你的命令 | 顶层工具只有两枚固定的（`gwb_command_list` / `gwb_command_run`）加名单里的，要上顶层见上面第三步 |
 
 inject 三种写法：`export const inject = [...]` 硬依赖（缺了不挂）；`static inject = [...]`
 （Service 类）；`ctx.inject([...], fn)` 局部可选（缺了主件照挂）。
@@ -310,8 +326,12 @@ inject 三种写法：`export const inject = [...]` 硬依赖（缺了不挂）�
 只为拿到 `declare module 'cordis'` 里那几个名字的类型时，写空 import 就够：
 `import type {} from '@godcreator02/gwb-commands'`。
 
-改条目 config 走 cordis 的 reconfigure：模块不重载，只重跑 `apply`。要「改配置就该清掉」
-的状态放 `apply` 里，要「只要没换代码就该留着」的放模块顶层——放错地方两种都不报错。
+**件不吃 `cordis.yml` 的 `config`。** 一条条目除了 `id` 就没别的要写的了——可改的东西一律
+`gwbSettings.define` 出来，人在「设置」里改、`get` 现读。理由是一份配置只该有一个正本：
+写在 yml 里的那份界面看不见、agent 也不知道有它，人只能靠记得。
+
+条目重挂（cordis 的 reconfigure）时模块不重载、只重跑 `apply`：要「重挂就该清掉」的状态放
+`apply` 里，要「只要没换代码就该留着」的放模块顶层——放错地方两种都不报错。
 
 # 带界面的件：浏览器半与样式
 
@@ -487,7 +507,7 @@ home 命名、不许复用、四种假验收、清理时机、拿证据——那
 
 手册随件分发，把别处的一手记录抄进来只会得到一份靠人记得重发版才更新的副本。正本：
 
-- 本件自己的文档站 `<devkit 包根>/docs-site`（依赖方向、模板占位符、cwd 定死那条限制）
+- 本件自己的文档站 `<devkit 包根>/docs-site`（依赖方向、模板占位符、livedoc 那条命令的形状）
 - 内核仓文档站 `D:\unitfolders\26090705ymz\gwb-kernel\docs-site`（`trajectory/`：baseUrl
   为什么挂根 ctx、热挂载的形态、装机口为什么拆、知识随件走）
 - 件仓文档站 `D:\unitfolders\26090709qzp\gwb-base-plugins\docs-site`（walls 与各件页）

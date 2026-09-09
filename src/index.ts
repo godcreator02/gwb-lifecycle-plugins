@@ -82,11 +82,14 @@ function livedocSkillsDir(): URL | null {
 }
 
 /**
- * `devkit.livedoc` 只适合 `init` 的理由，登记时写在 description 里——调用方在命令表里
- * 就看得见，不用先读手册。
+ * `devkit.livedoc` 的用法写在 description 里——调用方在命令表里就看得见，不用先读手册。
+ *
+ * 参数形状是 node-cli 镜像出来的那套：`{ args?, cwd? }`。**`cwd` 是按次给的**
+ * （node-cli 0.2 起），所以 `check` / `confirm` / `render` 也能经这条命令跑——
+ * 把 cwd 指到那个仓的 `docs-site` 就是了。
  */
 const LIVEDOC_DESC =
-  'livedoc 的命令行（@godcreator02/live-doc-cli）。**只适合 init**：{"args":["init","--dir","<仓的绝对路径>"]}——init 的目标由 --dir 给，跟 cwd 无关。check / confirm / render 认的是 cwd 里的 livedoc.config.mjs，而 node-cli 的 cwd 登记时就定死、按次换不了，所以那三条要在那个仓的 docs-site 里 pnpm livedoc … 自己跑'
+  'livedoc 的命令行（@godcreator02/live-doc-cli）：{args?: string[], cwd?: string}——cwd 是按次给的，必须是存在的绝对路径。建站（目标由 --dir 给，跟 cwd 无关）：{"args":["init","--dir","<仓的绝对路径>","--title","<显示名>"]}；check / confirm / render 认的是 cwd 里那份 livedoc.config.mjs，所以 cwd 指到那个仓的 docs-site：{"args":["check"],"cwd":"<仓>\\\\docs-site"}'
 
 /**
  * 开发套件。四件事，全 服务同一个理由——「在新文件夹里开发新件」这条路的地基：
@@ -99,7 +102,7 @@ const LIVEDOC_DESC =
  * - **home**：测试 home 的开/列/重开/停/删（`devkit.home.*`）——实机验证那几步的
  *   命令化（一次验开一个新 home、清理放在开新那一刻）
  *
- * 外加两条经 `gwbNodeCli` 登记的外部 CLI：`devkit.livedoc`（建站，只适合 `init`）与
+ * 外加两条经 `gwbNodeCli` 登记的外部 CLI：`devkit.livedoc`（建站、查、转正、重摆）与
  * `devkit.cdp-eval`（从页面取证）。CLI 形态的东西一律这么登记，不做总线命令、不进程内调。
  *
  * `apply` 里只剩接线；建仓的校验、渲染、落盘在 `scaffold.ts`；registry 的起停时序在
@@ -202,7 +205,7 @@ export function apply(ctx: GwbContext): void {
 
   ctx.effect(() =>
     bus.register(
-      { name: 'registry.status', plugin: 'devkit', description: '查本机插件源：{running, url, port 由 url 看, pid, adopted, dir}' },
+      { name: 'registry.status', plugin: 'devkit', description: '查本机插件源。无参数。回执 {running, url（端口从 url 看）, pid, adopted, dir}' },
       async () => {
         const dir = dirOf()
         if (dir === undefined) return { ok: false, error: MISSING_DIR }
@@ -214,7 +217,7 @@ export function apply(ctx: GwbContext): void {
 
   ctx.effect(() =>
     bus.register(
-      { name: 'registry.up', plugin: 'devkit', description: '拉起本机插件源（已经在跑就直接接管），轮询 /-/ping 最多 30 秒' },
+      { name: 'registry.up', plugin: 'devkit', description: '拉起本机插件源（已经在跑就直接接管），轮询 /-/ping 最多 30 秒。无参数' },
       async () => {
         const dir = dirOf()
         if (dir === undefined) return { ok: false, error: MISSING_DIR }
@@ -232,7 +235,7 @@ export function apply(ctx: GwbContext): void {
 
   ctx.effect(() =>
     bus.register(
-      { name: 'registry.down', plugin: 'devkit', description: '停本机插件源（按 pid 文件，核对映像名与端口持有者再杀）——这台机器上别的仓也在用它' },
+      { name: 'registry.down', plugin: 'devkit', description: '停本机插件源（按 pid 文件，核对映像名与端口持有者再杀）——这台机器上别的仓也在用它。无参数' },
       async () => {
         const dir = dirOf()
         if (dir === undefined) return { ok: false, error: MISSING_DIR }
@@ -252,7 +255,7 @@ export function apply(ctx: GwbContext): void {
 
   ctx.effect(() =>
     bus.register(
-      { name: 'registry.log', plugin: 'devkit', description: `源的运行日志尾巴（默认最后 ${DEFAULT_LOG_LINES} 行）：{lines?}` },
+      { name: 'registry.log', plugin: 'devkit', description: `源的运行日志尾巴：{lines?: number}——不给就是最后 ${DEFAULT_LOG_LINES} 行` },
       (args) => {
         const dir = dirOf()
         if (dir === undefined) return { ok: false, error: MISSING_DIR }
@@ -407,7 +410,7 @@ export function apply(ctx: GwbContext): void {
 
   ctx.effect(() =>
     bus.register(
-      { name: 'devkit.home.list', plugin: 'devkit', description: '列出 home 根下全部测试 home：名字（带时间戳）、谁还在跑、CDP 口' },
+      { name: 'devkit.home.list', plugin: 'devkit', description: '列出 home 根下全部测试 home：名字（带时间戳）、谁还在跑、CDP 口。无参数' },
       async () => {
         const root = homesRoot()
         return { ok: true, data: { root, homes: await listHomes(root, homeDeps) } }
@@ -521,8 +524,7 @@ export function apply(ctx: GwbContext): void {
   const PORT_LINE = /这个站用：(\d+)/
 
   /**
-   * 站那半。`livedoc init` 认 `--dir`、不认 cwd，所以经 node-cli 调它是对的形状
-   * （cwd 登记时定死那条限制在这儿正好无关）。
+   * 站那半。`livedoc init` 的目标由 `--dir` 给、跟 cwd 无关，所以这儿一个 cwd 都不用带。
    */
   async function buildDocsSite(plan: {
     dir: string
