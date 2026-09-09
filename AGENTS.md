@@ -56,7 +56,7 @@ pnpm build          # tsc 直出 dist/ 与 dist/client/，没有打包器
 **两个都不给默认值。** 目录是这台机器的事实，编一个只会得到「配置了但不在」的假象。
 
 **配置一律走 `gwbSettings.define`，不吃 `cordis.yml` 的 `config`。** 新加一项可改的东西就
-`define` 一项（类型 `string` / `number` / `boolean` / `secret` / `list`），别在条目上开
+`define` 一项（类型 `string` / `number` / `boolean` / `secret`），别在条目上开
 config 面——写在 yml 里的那份界面看不见、agent 也不知道有它。
 
 ## 命令的 description 必须带参数形状
@@ -66,9 +66,10 @@ config 面——写在 yml 里的那份界面看不见、agent 也不知道有�
 `{ name, force? }`），**无参数的明写「无参数」**。参数复杂的，回执里再带完整说明
 （`devkit.scaffold` / home 那几条就是这么干的），但 description 里那句形状仍然要有。
 
-要让一条命令在 agent 那边直接露到顶层，登记时标 `top: true`——**标了之后还要问人**：
-MCP 桥固定只开 `gwb_command_list` / `gwb_command_run` 两枚，外加 gwb-mcp 的 `top` 设置里
-那份人批过的名单，agent 自己不动名单。
+要让一条命令在 agent 那边直接露到顶层，登记时标 `top: true`：**标了就是顶层，桥照它渲染，
+没有运行时名单**——MCP 桥固定开 `gwb_command_list` / `gwb_command_run` 两枚，外加所有标了
+`top: true` 的命令。顶层是写件时定下来的，不是装进软件之后再批的，所以默认不标，
+**标之前先问人**。
 
 ## livedoc 那条命令：cwd 按次给
 

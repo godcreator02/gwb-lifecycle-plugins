@@ -231,9 +231,9 @@ handler 参数是 `unknown`，自己收窄（词汇表包的 `isRecord`）。相
 但 description 里那句形状仍然要有。
 
 **要让 agent 在顶层直接看见这条命令，登记时标 `top: true`**（`GwbCommandDef` 的字段，
-命令总线 0.2.0 起）。默认不标：MCP 桥固定只开两枚顶层工具 `gwb_command_list` /
-`gwb_command_run`，外加**名单里**的顶层命令，而名单是 gwb-mcp 那个件的 `top` 设置、由人批。
-所以顺序是**先标上，然后问人要不要进名单**——agent 自己不动那份名单。
+命令总线 0.2.0 起）。**标了就是顶层，桥照它渲染，没有运行时名单**：MCP 桥固定开两枚工具
+`gwb_command_list` / `gwb_command_run`，外加所有标了 `top: true` 的命令。顶层是**写件时
+定下来的一件事**，不是装进软件之后再批的——所以默认不标，**标之前先问人**。
 
 **四、发一版。** 先抬 `package.json` 的版本号，再：
 
@@ -314,11 +314,11 @@ dependencies，装进 home 就是第二份实例，Service 身份对不上——
 | --- | --- | --- |
 | 命令总线 | `inject: ['gwbCommands']` → `register` | 能力要被调就要（几乎一定）。界面、agent 走的是同一张表 |
 | 说明书 | `skills/` 目录 + `gwbSkills.register`（局部） | 有多步流程或坑要讲给 agent 就要。**本件把 livedoc 的两份也挂上来了**：文档写什么读 skill「livedoc-docs」，记轨迹卡读 skill「trajectory」 |
-| 设置 | `gwbSettings.define`（局部）→ `get`/`set` | **件的配置一律走这里，不吃 `cordis.yml` 的 `config`**。类型 `string` / `number` / `boolean` / `secret` / `list`。值跟条目走（分区是条目 id 的末段），`shared: true` 才落公共区 |
+| 设置 | `gwbSettings.define`（局部）→ `get`/`set` | **件的配置一律走这里，不吃 `cordis.yml` 的 `config`**。类型 `string` / `number` / `boolean` / `secret`。值跟条目走（分区是条目 id 的末段），`shared: true` 才落公共区 |
 | 数据 | `gwbData.readDoc/writeDoc`（局部） | 要落盘状态就要。存 `<home>/data/<条目末段>/` |
 | 窗格 | `gwbShell.registerPane` + client 半 | 要人看得见就要 |
 | 外部 CLI | `gwbNodeCli` / `gwbPyCli` register（局部） | 要给外部脚本一个稳定入口就要。**CLI 形态的东西一律走这儿**，不做总线命令、不进程内调 |
-| agent 桥 | 不用做——gwb-mcp 把总线开出去：agent 经 `gwb_command_run` 调你的命令 | 顶层工具只有两枚固定的（`gwb_command_list` / `gwb_command_run`）加名单里的，要上顶层见上面第三步 |
+| agent 桥 | 不用做——gwb-mcp 把总线开出去：agent 经 `gwb_command_run` 调你的命令 | 顶层工具只有固定两枚（`gwb_command_list` / `gwb_command_run`）加标了 `top: true` 的，要上顶层见上面第三步 |
 
 inject 三种写法：`export const inject = [...]` 硬依赖（缺了不挂）；`static inject = [...]`
 （Service 类）；`ctx.inject([...], fn)` 局部可选（缺了主件照挂）。
