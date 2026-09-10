@@ -1,6 +1,6 @@
 ---
 title: AGENTS
-description: 仓根 AGENTS.md 由这一页摆出去——每次会话都得知道的硬约束；改这里，跑 livedoc render，一起提交
+description: 仓根 AGENTS.md 由这一页摆出去——每次会话都得知道的硬约束；改这里，跑 pnpm doc:render，一起提交
 ---
 
 # gwb-devkit
@@ -19,7 +19,7 @@ pnpm build          # tsc 直出 dist/ 与 dist/client/，没有打包器
 **`pnpm check` 不构建。** 它吃的是源码，全绿只说明源码站得住，跟「装出来能不能跑」是两件事。
 
 文档站的检查**不在 `pnpm check` 里**——它要起文档站的解析链，太慢。单独两条：
-`docs-site` 里 `pnpm doc`（`livedoc check`）与 `pnpm doc:confirm`。
+`docs-site` 里 `pnpm doc`（`docfirst check`）与 `pnpm doc:confirm`。
 
 ## 发版
 
@@ -87,13 +87,13 @@ config 面——写在 yml 里的那份界面看不见、agent 也不知道有�
 `devkit.scaffold` 的站那半**经命令总线按名字转出去**，本包不依赖那两个件的任何包：
 
 1. `docs-site.create`（站件 `@godcreator02/gwb-docs-site`）铺 fumadocs 骨架
-2. `live-doc.attach`（livedoc 件 `@godcreator02/gwb-live-doc`）在**刚铺好的**骨架上装六区
+2. `docfirst.attach`（docfirst 件 `@godcreator02/gwb-docfirst-workflow`）在**刚铺好的**骨架上装六区
 
 两条都认**站目录**（`<仓>\docs-site`），不是仓根。**哪个件没装就跳过那一步**——回执里
 说清怎么补、README 那段话改口，件那半照样落盘，**不报错终止建仓**。回执里
 `docs.built`（骨架）与 `docs.attached`（六区）两格才是真相，`nextSteps` 按它俩分三支。
 
-`live-doc.attach` **只在还没写过内容的骨架上装得了**（它自己守着这条），所以补建的两条
+`docfirst.attach` **只在还没写过内容的骨架上装得了**（它自己守着这条），所以补建的两条
 要连着敲。`devkit.livedoc` 与 `@godcreator02/live-doc-cli` 那条依赖 0.3.0 起都没了。
 
 ## 说明书只挂自己那份
@@ -103,14 +103,14 @@ config 面——写在 yml 里的那份界面看不见、agent 也不知道有�
 
 **别替别的件代挂说明书。** 说明书是全局单一命名空间，撞名的那份直接不挂、只留一行
 警告，而被撞掉的常常是新那份——症状是 agent 读到旧的、照着做但做错了，最难查。
-本件 0.2.x 曾代挂 livedoc 那两份（`livedoc-docs` / `trajectory`），0.3.0 删了：
-知识随件走，那两份由 livedoc 件自己挂。
+本件 0.2.x 曾代挂 docfirst 那两份（`docfirst-docs` / `trajectory`），0.3.0 删了：
+知识随件走，那两份由 docfirst 件自己挂。
 
 ## 文档站是正本
 
 仓根 `AGENTS.md` **是生成物，别手改**——正本是 `docs-site/content/docs/agents.mdx`。
-改完在 `docs-site` 跑 `pnpm livedoc render --target ai` 重摆，mdx 源、生成物、
-`.ledger.json` 同一个提交。`livedoc check` 守着生成物跟源一致，红了就是没重摆。
+改完在 `docs-site` 跑 `pnpm doc:render` 重摆，mdx 源、生成物、
+`.ledger.json` 同一个提交。`docfirst check` 守着生成物跟源一致，红了就是没重摆。
 
 被钉住的源码改动过要**先 commit 再 `pnpm doc:confirm`**——git 比较器只对已提交、
 工作区干净的内容钉。轨迹区（`content/docs/trajectory/`）**不钉活代码**：它冻结历史，

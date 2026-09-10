@@ -99,7 +99,7 @@ describe('docsBlock：README 里讲站的那一段', () => {
     const block = placeholders(planScaffold({ name: 'x', dir: 'D:\\tmp\\x', docs: false })).docsBlock ?? ''
     expect(block).not.toContain('cd docs-site')
     expect(block).toContain('docs-site.create')
-    expect(block).toContain('live-doc.attach')
+    expect(block).toContain('docfirst.attach')
     // 旧线的包与命令一个都不许再出现在生成的 README 里
     expect(block).not.toContain('devkit.livedoc')
     expect(block).not.toContain('live-doc-cli')
@@ -118,7 +118,7 @@ describe('nextSteps：按站真建到哪一步分三支', () => {
 
   it('骨架铺了但六区没装：给 attach 那条，不给 pnpm doc——那几条脚本还不存在', () => {
     const steps = nextSteps(plan, { built: true, attached: false }).join('\n')
-    expect(steps).toContain('live-doc.attach')
+    expect(steps).toContain('docfirst.attach')
     expect(steps).not.toContain('doc:confirm')
   })
 
@@ -126,7 +126,7 @@ describe('nextSteps：按站真建到哪一步分三支', () => {
     const steps = nextSteps(plan, { built: false, attached: false }).join('\n')
     expect(steps).not.toContain('cd D:\\tmp\\x\\docs-site')
     expect(steps).toContain('docs-site.create')
-    expect(steps).toContain('live-doc.attach')
+    expect(steps).toContain('docfirst.attach')
   })
 
   it('不给 site 就照计划里的意思说', () => {

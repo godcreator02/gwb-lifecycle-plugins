@@ -1,6 +1,6 @@
 ---
 title: 开发套件
-description: 它是一个普通的件——四件事、一条 node CLI；站那半两步转出去，跟站件与 livedoc 件互不依赖
+description: 它是一个普通的件——四件事、一条 node CLI；站那半两步转出去，跟站件与 docfirst 件互不依赖
 ---
 
 # 开发套件
@@ -26,8 +26,8 @@ description: 它是一个普通的件——四件事、一条 node CLI；站那�
 3. **整套模板在内存里渲染完。** 十个 `.tpl` 读进来、占位符替掉。**认不出的占位符当场抛**
 4. **落盘。** 目标目录必须还不存在
 5. **站那半，两步。** 件已经在盘上了，这时才去建文档站——而且**一步都不是自己建**：
-   经命令总线调 `docs-site.create`（站件铺 fumadocs 骨架），再调 `live-doc.attach`
-   （livedoc 件在刚铺好的骨架上装六区）
+   经命令总线调 `docs-site.create`（站件铺 fumadocs 骨架），再调 `docfirst.attach`
+   （docfirst 件在刚铺好的骨架上装六区）
 6. **回执。** 建了几个文件、骨架铺没铺、六区装没装、下一步做什么
 
 第 2、3、4 步全是纯函数与盘操作，可以不起进程、只喂输入看输出；第 5 步要把活派给
@@ -56,7 +56,7 @@ node-cli 登记的命令自动镜像成同名总线命令，于是自动是 MCP 
 ```text
 devkit ──硬 inject──▶ gwbCommands                （唯一一条）
 devkit ──可选──────▶ gwbNodeCli / gwbSkills / gwbSettings / gwbShell
-devkit ──按名字找──▶ docs-site.create / live-doc.attach   （只在总线上，不依赖包）
+devkit ──按名字找──▶ docs-site.create / docfirst.attach   （只在总线上，不依赖包）
 ```
 
 **一、站那半是「找一条命令」，不是「依赖一个包」。** 2026-09-10 之前 devkit 的
@@ -64,7 +64,7 @@ devkit ──按名字找──▶ docs-site.create / live-doc.attach   （只�
 还把它的两份 skill 代挂给工作台。现在那条依赖没了，站那半改成在命令总线上按名字找
 两条命令——找得到就调，找不到就跳过那一步、在回执里说清怎么补。
 
-判据是那次拆分本身：站件、livedoc 件、开发件**三者互不依赖**，凭什么单单 devkit 要把
+判据是那次拆分本身：站件、docfirst 件、开发件**三者互不依赖**，凭什么单单 devkit 要把
 其中两个钉进自己的依赖树。换个角度问同一件事：一个不需要钉码的 fumadocs 站（容器里
 那个 TypeScript 交互教学站就是）凭什么先装一套钉码机制。
 
@@ -88,12 +88,12 @@ devkit ──按名字找──▶ docs-site.create / live-doc.attach   （只�
 连带一个「服务撤了要把它还回去」的 `effect`；站那半改走总线之后那一格没了——
 **耦合面缩小，随手也少掉一处生命周期陷阱**。
 
-**三、说明书只挂自己那份。** 0.2.x 时 devkit 顺手把 livedoc 的 `skills/` 也 register
-一次（理由：livedoc 那时是个 CLI 包、不是件，自己挂不上）。**现在不了**：
+**三、说明书只挂自己那份。** 0.2.x 时 devkit 顺手把 docfirst 的 `skills/` 也 register
+一次（理由：docfirst 那时是个 CLI 包、不是件，自己挂不上）。**现在不了**：
 
 {/* ref file="../src/index.ts" lines="598-604" */}
 
-livedoc 成了件、自己挂那两份，而说明书是**全局单一命名空间**——同名的第二份直接不挂、
+docfirst 成了件、自己挂那两份，而说明书是**全局单一命名空间**——同名的第二份直接不挂、
 只留一行警告。撞掉的那份未必是旧的，症状是 agent 读到过期手册、照着做但做错了，最难查。
 更根本的判据：**知识跟着它描述的代码走**，代挂等于把别人的知识钉在自己的发版节奏上。
 
@@ -131,25 +131,25 @@ livedoc 成了件、自己挂那两份，而说明书是**全局单一命名空�
 
 1. `docs-site.create`（站件）铺一个标准 fumadocs 骨架，**认站目录** `<仓>\docs-site`，
    端口由它扫邻居挑
-2. `live-doc.attach`（livedoc 件）在骨架上装六区
+2. `docfirst.attach`（docfirst 件）在骨架上装六区
 
 **为什么中间不能插事。** `attach` 只在**还没写过内容的骨架**上装得了——站里已经有
-`livedoc.config.mjs`、或 `content/` 下有骨架之外的东西，它报一句「这个站已有内容，
+`docfirst.config.mjs`、或 `content/` 下有骨架之外的东西，它报一句「这个站已有内容，
 请人工接线」退非零，一个字都不改写。这不是保守：建骨架与装六区连着跑，中间没人碰过
 文件，整个覆盖才是安全的；给一个跑了半年的站自作聪明地 AST 改写不是。`scaffold` 里
 这两条紧挨着，正是那个安全的时刻。
 
 **三种「没建成」，一种都不算建仓失败。** 件那半早已落盘：站件没装（总线上没有
-`docs-site.create`）、`create` 自己失败、livedoc 件没装或 `attach` 失败——回执里
+`docs-site.create`）、`create` 自己失败、docfirst 件没装或 `attach` 失败——回执里
 `built` 与 `attached` 两格分别说，`note` 写清卡在哪、怎么补，`nextSteps` 按这两格分三支。
 **回执里给一条不存在的 `cd docs-site` 比不给还坏**，所以连 README 里讲站的那段话都
 是在渲染之前按「站件在不在」定下来的。
 
 **退役的那条。** 这里曾经是 `devkit.livedoc`——把 `@godcreator02/live-doc-cli` 的可执行
 登记进 `gwbNodeCli`，`init` 建站、`check` / `confirm` / `render` 靠按次给的 `cwd`。
-那个包线不再更新，那些活现在归 livedoc 件的 `live-doc.cli`（还自带「cwd 缺省落在选中
-单元的站」）。**一件事只留一个入口**：留着旧那条，agent 有两条路可走，而其中一条
-指着一个不再更新的包。
+那个包线不再更新，那些活现在**在仓里发生**：`cd <仓>\docs-site` 之后 `pnpm doc` /
+`pnpm doc:confirm` / `pnpm doc:render`，docfirst 件不转发、不起子进程。**一件事只留一个
+入口**：留着旧那条，agent 有两条路可走，而其中一条指着一个不再更新的包。
 
 ## 怎么用
 

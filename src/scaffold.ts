@@ -12,7 +12,7 @@ import path from 'node:path'
  * 写就没有干净的回滚点，而占位符出错是最可能的失败。
  *
  * **这儿只有件那半。** 文档站是件落盘之后的事，而且是**两步**：`index.ts` 经命令总线先调
- * 站件的 `docs-site.create` 铺 fumadocs 骨架，再调 livedoc 件的 `live-doc.attach` 在骨架上
+ * 站件的 `docs-site.create` 铺 fumadocs 骨架，再调 docfirst 件的 `docfirst.attach` 在骨架上
  * 装配六区——本模块只决定 README 里那段话怎么写。
  */
 
@@ -48,7 +48,7 @@ export interface ScaffoldPlan {
   dir: string
   /**
    * 这一趟建不建站。**站那半的知识不在本包**：件落盘之后经命令总线转出去，两步
-   * （站件 `docs-site.create` 铺骨架 → livedoc 件 `live-doc.attach` 装六区）。
+   * （站件 `docs-site.create` 铺骨架 → docfirst 件 `docfirst.attach` 装六区）。
    * 依赖方向上本包**谁都不依赖**——只按名字在总线上找那两条命令
    */
   docs: boolean
@@ -122,12 +122,12 @@ export function docsBlock(plan: ScaffoldPlan): string {
 
 \`\`\`
 docs-site.create {"dir":"${siteDir}","title":"${plan.title}"}   # 站件：铺 fumadocs 骨架
-live-doc.attach  {"dir":"${siteDir}"}                            # livedoc 件：在骨架上装六区
+docfirst.attach  {"dir":"${siteDir}"}                            # docfirst 件：在骨架上装六区
 \`\`\`
 
-**两步要连着跑**：\`live-doc.attach\` 只在还没写过内容的骨架上装得了，往里写过东西
+**两步要连着跑**：\`docfirst.attach\` 只在还没写过内容的骨架上装得了，往里写过东西
 就得人工接线。命令不在就是那个件没装：\`plugins.install\`
-\`@godcreator02/gwb-docs-site\` / \`@godcreator02/gwb-live-doc\`。`
+\`@godcreator02/gwb-docs-site\` / \`@godcreator02/gwb-docfirst-workflow\`。`
   }
   const dev =
     plan.port === undefined
@@ -140,12 +140,12 @@ live-doc.attach  {"dir":"${siteDir}"}                            # livedoc 件�
 \`\`\`powershell
 cd docs-site
 pnpm install
-pnpm doc            # livedoc check：论断跟源码脱节了会报黄
+pnpm doc            # docfirst check：论断跟源码脱节了会报黄
 ${dev}
 \`\`\`
 
 改了被钉住的源码，先 \`git commit\` 再 \`pnpm doc:confirm\`——git 比较器只对已提交、
-工作区干净的内容钉。文档写什么见 skill「livedoc-docs」（随 \`@godcreator02/gwb-live-doc\` 发）。`
+工作区干净的内容钉。文档写什么见 skill「docfirst-docs」（随 \`@godcreator02/gwb-docfirst-workflow\` 发）。`
 }
 
 /** 占位符表。模板里写 `{{name}}` 这种，替换是纯字符串替换，不做转义 */
@@ -215,7 +215,7 @@ export function writeRepo(dir: string, files: RenderedFile[]): void {
  *
  * `site` 说的是**站真的建起来了没有**，不是计划里想不想建：站件没装、`docs-site.create`
  * 自己失败，两种都落到「没铺」那一支——回执里给一条不存在的 `cd docs-site` 比不给还坏。
- * 骨架铺了而六区没装（livedoc 件没装、attach 失败）是第三种，单独一支：那时站在盘上，
+ * 骨架铺了而六区没装（docfirst 件没装、attach 失败）是第三种，单独一支：那时站在盘上，
  * 但 `pnpm doc` 那几条还不存在。
  */
 export function nextSteps(
@@ -242,18 +242,18 @@ export function nextSteps(
     )
   } else if (built) {
     steps.push(
-      `站只有骨架、六区还没装：live-doc.attach {"dir":"${siteDir}"}——**立刻补**，它只在还没写过内容的骨架上装得了`,
+      `站只有骨架、六区还没装：docfirst.attach {"dir":"${siteDir}"}——**立刻补**，它只在还没写过内容的骨架上装得了`,
     )
   } else {
     steps.push(
-      `没有文档站。补一个是两步：docs-site.create {"dir":"${siteDir}","title":"${plan.title}"}（站件铺骨架），紧接着 live-doc.attach {"dir":"${siteDir}"}（livedoc 件装六区）`,
+      `没有文档站。补一个是两步：docs-site.create {"dir":"${siteDir}","title":"${plan.title}"}（站件铺骨架），紧接着 docfirst.attach {"dir":"${siteDir}"}（docfirst 件装六区）`,
     )
   }
   steps.push(
     '发一版：先抬 package.json 的版本号，再 pnpm publish --registry http://127.0.0.1:4873/ --no-git-checks',
     `装进 home：调 plugins.install {"pkg":"${plan.pkg}"}，或手动 pnpm add + 在 cordis.yml 手写 id 条目`,
     '发完就去升 default home（人点「全部更新」或 plugins.update-all）——攒着不升，agent 读到的手册与命令都停在旧版',
-    '写件手册：读 skill「gwb-devkit」——红线、能力面菜单、验机都在里面；文档写什么读 skill「livedoc-docs」',
+    '写件手册：读 skill「gwb-devkit」——红线、能力面菜单、验机都在里面；文档写什么读 skill「docfirst-docs」',
   )
   return steps
 }

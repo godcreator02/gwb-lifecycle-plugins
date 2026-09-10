@@ -64,18 +64,18 @@ const CDP_EVAL_ENTRY = fileURLToPath(new URL('../bin/cdp-eval.mjs', import.meta.
 const CREATE_SITE_COMMAND = 'docs-site.create'
 
 /**
- * 在骨架上装配六区那条命令，由 **livedoc 件** `@godcreator02/gwb-live-doc` 提供。
+ * 在骨架上装配六区那条命令，由 **docfirst 件** `@godcreator02/gwb-docfirst-workflow` 提供。
  * 同样只认名字、不依赖包。**只在刚铺好的骨架上装得了**：站里已经有内容它会自己拒。
  */
-const ATTACH_SITE_COMMAND = 'live-doc.attach'
+const ATTACH_SITE_COMMAND = 'docfirst.attach'
 
 /**
  * 开发套件。四件事，全服务同一个理由——「在新文件夹里开发新件」这条路的地基：
  *
  * - **建仓**：`devkit.scaffold` 把一个新件的骨架落进一个新文件夹（站那半经命令总线
- *   转给站件与 livedoc 件，两步）
+ *   转给站件与 docfirst 件，两步）
  * - **手册**：`skills/gwb-devkit/SKILL.md` 随件分发，经 gwb-skills 挂载。**只挂自己那份**
- *   ——知识随件走，livedoc 的两份归 livedoc 件自己挂（说明书是全局单一命名空间，
+ *   ——知识随件走，docfirst 的两份归 docfirst 件自己挂（说明书是全局单一命名空间，
  *   代挂第二份只会撞名，而且撞掉的那份很可能是旧版）
  * - **源**：本机 Verdaccio 的起/停/状态/日志（`registry.*`），有一扇「插件源」窗格
  *   可视化（registry.status，10 秒一轮）
@@ -442,7 +442,7 @@ export function apply(ctx: GwbContext): void {
         name: 'devkit.scaffold',
         plugin: 'devkit',
         description:
-          `把一个新 gwb 件的骨架落进一个新文件夹，默认连文档站一起建：{name（必给，kebab-case 短名）, dir（必给，绝对路径且必须还不存在）, title?, docs?（缺省 true）, port?}。件那半的模板在本包；站那半是两步，都经命令总线转出去——${CREATE_SITE_COMMAND}（站件）铺 fumadocs 骨架，${ATTACH_SITE_COMMAND}（livedoc 件）在骨架上装配六区。哪个件没装就跳过那一步、回执里说怎么补，件那半照样落盘。参数不对会把完整说明回给你`,
+          `把一个新 gwb 件的骨架落进一个新文件夹，默认连文档站一起建：{name（必给，kebab-case 短名）, dir（必给，绝对路径且必须还不存在）, title?, docs?（缺省 true）, port?}。件那半的模板在本包；站那半是两步，都经命令总线转出去——${CREATE_SITE_COMMAND}（站件）铺 fumadocs 骨架，${ATTACH_SITE_COMMAND}（docfirst 件）在骨架上装配六区。哪个件没装就跳过那一步、回执里说怎么补，件那半照样落盘。参数不对会把完整说明回给你`,
       },
       async (args) => {
         if (!isRecord(args)) return { ok: false, error: `参数要是个对象。\n${SCAFFOLD_USAGE}` }
@@ -504,7 +504,7 @@ export function apply(ctx: GwbContext): void {
   interface DocsOutcome {
     /** 骨架铺没铺（`docs-site.create` 成没成） */
     built: boolean
-    /** 六区装没装（`live-doc.attach` 成没成）。骨架都没铺时一定是 false */
+    /** 六区装没装（`docfirst.attach` 成没成）。骨架都没铺时一定是 false */
     attached: boolean
     /** 站端口。站件挑的，铺成了才有 */
     port?: number
@@ -518,7 +518,7 @@ export function apply(ctx: GwbContext): void {
    * 站那半。**建站是两步，都不是本包的知识**：
    *
    * 1. `docs-site.create`（站件）铺一个标准 fumadocs 骨架
-   * 2. `live-doc.attach`（livedoc 件）在**刚铺好的**骨架上装配六区
+   * 2. `docfirst.attach`（docfirst 件）在**刚铺好的**骨架上装配六区
    *
    * 两条都只按名字在总线上找，本包不依赖那两个件的任何包。**哪一步的件没装就停在那儿、
    * 说清怎么补**——建仓不因此失败，件那半早已落盘。
@@ -568,7 +568,7 @@ export function apply(ctx: GwbContext): void {
         built: true,
         attached: false,
         ...(port === undefined ? {} : { port }),
-        note: `骨架铺好了，六区没装：这个 home 没装 livedoc 件（命令总线上没有 ${ATTACH_SITE_COMMAND}）。装上 @godcreator02/gwb-live-doc 之后**立刻**跑 ${attachHint}——它只在还没写过内容的骨架上装得了，往里写过东西就得人工接线`,
+        note: `骨架铺好了，六区没装：这个 home 没装 docfirst 件（命令总线上没有 ${ATTACH_SITE_COMMAND}）。装上 @godcreator02/gwb-docfirst-workflow 之后**立刻**跑 ${attachHint}——它只在还没写过内容的骨架上装得了，往里写过东西就得人工接线`,
         create: created,
       }
     }

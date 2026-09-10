@@ -1,6 +1,6 @@
 ---
 name: gwb-devkit
-description: 动手写一个新 gwb 件之前读，打算说「验过了 / 跑通了 / 改动生效了」之前也读。开发套件的全部命令与设置项、建仓（devkit.scaffold，件模板随本包发，站那半两步转给站件与 livedoc 件）、从建仓到发版装机升 default 的整条路、七条红线、生态里每个件的服务什么时候用、一份新说明书该住哪个件的判据，以及改内核（不是改件）时验机怎么走。
+description: 动手写一个新 gwb 件之前读，打算说「验过了 / 跑通了 / 改动生效了」之前也读。开发套件的全部命令与设置项、建仓（devkit.scaffold，件模板随本包发，站那半两步转给站件与 docfirst 件）、从建仓到发版装机升 default 的整条路、七条红线、生态里每个件的服务什么时候用、一份新说明书该住哪个件的判据，以及改内核（不是改件）时验机怎么走。
 ---
 
 # 这套东西是什么
@@ -14,7 +14,7 @@ description: 动手写一个新 gwb 件之前读，打算说「验过了 / 跑�
 **测试 home 的开收**（`devkit.home.*`）。外加一条经 `gwbNodeCli` 登记的外部 CLI：
 `devkit.cdp-eval`（从页面取证）。
 
-**它不管文档站。** 站的一生归站件、站里内容的正确性归 livedoc 件——见「三个件各管什么」。
+**它不管文档站。** 站的一生归站件、站里内容的正确性归 docfirst 件——见「三个件各管什么」。
 本包**不依赖那两个件的任何包**：建仓时要用它们，只按名字在命令总线上找那两条命令。
 
 代码分层：`src/index.ts` 只剩接线；建仓的校验渲染落盘在 `scaffold.ts`，registry 起停时序在
@@ -47,8 +47,9 @@ description: 动手写一个新 gwb 件之前读，打算说「验过了 / 跑�
 | `devkit.cdp-eval` | `{ args: [<调试口>, <表达式文件>] }` | 从页面里取证，见「拿证据」 |
 
 **`devkit.livedoc` 已退役**（0.3.0 起没有这条命令）。它当年跑的是
-`@godcreator02/live-doc-cli` 的可执行；那个包线不再更新，而它的活现在是 livedoc 件的
-`live-doc.cli` 在做——还自带「cwd 缺省落在选中单元的站」。看见别处还写着
+`@godcreator02/live-doc-cli` 的可执行；那个包线不再更新，而它的活现在**在仓里发生**
+——`cd <仓>\docs-site` 之后 `pnpm doc` / `pnpm doc:confirm` / `pnpm doc:render`，
+没有总线命令替你转（见「docfirst 的命令怎么调」）。看见别处还写着
 `devkit.livedoc`，那份文档过期了。
 
 **本机源**（Verdaccio，`http://localhost:4873/`）
@@ -93,15 +94,15 @@ devkit.scaffold {"name":"hello","dir":"D:\\unitfolders\\<单元>\\gwb-hello","ti
 | 步 | 命令 | 谁提供 | 干什么 |
 | --- | --- | --- | --- |
 | 一 | `docs-site.create` | 站件 `@godcreator02/gwb-docs-site` | 铺一个标准 fumadocs 骨架：单集合、一条路由、一页 index，端口从邻居没占的里挑 |
-| 二 | `live-doc.attach` | livedoc 件 `@godcreator02/gwb-live-doc` | 在**刚铺好的**骨架上装配六区：六个集合六条路由、`livedoc.config.mjs`、mdx 接线、投影块与术语组件、名册脚本、`doc` 那几条脚本 |
+| 二 | `docfirst.attach` | docfirst 件 `@godcreator02/gwb-docfirst-workflow` | 在**刚铺好的**骨架上装配六区：六个集合六条路由、`docfirst.config.mjs`、mdx 接线、投影块与术语组件、名册脚本、`doc` 那几条脚本 |
 
 两条都认**站目录**（`<仓>\docs-site`），不是仓根——这跟退役的 `livedoc init --dir <仓>`
 正好差一层，别顺手抄旧的。`devkit.scaffold` 把这两步连着跑完；`port` 参数手给的一律
 让给你，不给就是站件挑。`docs: false` 就只建件那半——但别轻易用：人记得事后补命令的
 概率，跟容器里那一堆仓至今没有站是同一个概率。
 
-**只在刚铺好的骨架上装配。** `live-doc.attach` 自己守着这条：站里已经有
-`livedoc.config.mjs`、或 `content/` 下已经有骨架之外的内容，它报一句「这个站已有内容，
+**只在刚铺好的骨架上装配。** `docfirst.attach` 自己守着这条：站里已经有
+`docfirst.config.mjs`、或 `content/` 下已经有骨架之外的内容，它报一句「这个站已有内容，
 请人工接线」退非零，一个字都不改写。判据是：建骨架与装六区连着跑，中间没人改过文件，
 所以整个覆盖是安全的；给一个跑了半年的站自作聪明地 AST 改写不是。**所以补建的两条命令
 要连着敲**，别铺完骨架先去写内容。
@@ -112,7 +113,7 @@ devkit.scaffold {"name":"hello","dir":"D:\\unitfolders\\<单元>\\gwb-hello","ti
 
 **没装站件的时候**：`devkit.scaffold` 不报错、不终止，件那半正常落盘，回执与生成的
 README 都改口说「站没铺，装了站件之后自己跑 `docs-site.create`」。装：
-`plugins.install {"pkg":"@godcreator02/gwb-docs-site"}`，livedoc 件同理。
+`plugins.install {"pkg":"@godcreator02/gwb-docs-site"}`，docfirst 件同理。
 
 ## 建出来是什么
 
@@ -121,9 +122,9 @@ README 都改口说「站没铺，装了站件之后自己跑 `docs-site.create`
 | 半 | 装什么 | 模板归谁 |
 | --- | --- | --- |
 | 仓根 | `package.json`（build / typecheck / lint / test / check / prepublishOnly）、`tsconfig.json` 与 `tsconfig.build.json`（typecheck 带上 tests，构建只吃 src）、`.oxlintrc.json`（type-aware 那套规则）、`vitest.config.ts`（只认仓根 `tests/`，slow 标签留给真起子进程的用例）、`.npmrc`（scope 指本机源）、`src/index.ts`、`tests/plugin.test.ts`、`README.md` | **本包 `template/`**，10 个 `.tpl` |
-| `docs-site/` | fumadocs 骨架 + livedoc 的六区 | **不归本包**：骨架模板随站件发，六区那套随 `@godcreator02/livedoc` 发 |
+| `docs-site/` | fumadocs 骨架 + docfirst 的六区 | **不归本包**：骨架模板随站件发，六区那套随 `@godcreator02/docfirst-workflow` 发 |
 
-**三个件互不依赖。** devkit 不依赖站件、站件不认识 livedoc、livedoc 件不认识站件——
+**三个件互不依赖。** devkit 不依赖站件、站件不认识 docfirst、docfirst 件不认识站件——
 建仓时那两步是**按名字在命令总线上找**，找不到就跳过那一步。这不是偷懒，是这次拆分
 的判据本身：一个不需要钉码的 fumadocs 站（比如那个 TypeScript 交互教学站）凭什么
 先装一套钉码机制。
@@ -133,7 +134,7 @@ README 都改口说「站没铺，装了站件之后自己跑 `docs-site.create`
 
 ```
 docs-site.create {"dir":"D:\\unitfolders\\<单元>\\<已有仓>\\docs-site","title":"<显示名>"}
-live-doc.attach  {"dir":"D:\\unitfolders\\<单元>\\<已有仓>\\docs-site"}
+docfirst.attach  {"dir":"D:\\unitfolders\\<单元>\\<已有仓>\\docs-site"}
 ```
 
 **建完仓第一次 `pnpm doc:render` 之前先看一眼 README。** 件模板落了一份手写的
@@ -159,14 +160,14 @@ live-doc.attach  {"dir":"D:\\unitfolders\\<单元>\\<已有仓>\\docs-site"}
 
 ## 两条从实跑里换来的
 
-**一、livedoc 的包一个都不许进 `serverExternalPackages`。** `@godcreator02/livedoc` 与
-`@godcreator02/livedoc-trajectory` 里都有客户端组件（前者的 `/fumadocs/pre` 是状态点，
+**一、docfirst 的包一个都不许进 `serverExternalPackages`。** `@godcreator02/docfirst-workflow` 与
+`@godcreator02/docfirst-trajectory` 里都有客户端组件（前者的 `/fumadocs/pre` 是状态点，
 后者的 `./react` 是星轨盘），外置之后 Next 走 Node 单独加载它们、跟站打包的 React 分了家。
 **报错完全不指根因**——预渲染报 `Cannot read properties of null (reading 'use')`，或者
 构建期报 `ERR_PACKAGE_IMPORT_NOT_DEFINED` 指着 `@base-ui/react` 里的文件，会把人引去查
 base-ui 的版本，而那儿根本没问题。它们的服务端那半（remark 插件、读盘调 git 的那些）
 走 fumadocs-mdx 的 loader，本来就是 Node 直载、不经打包器，不需要外置。
-`live-doc.attach` 铺出来的 `next.config.mjs` 里那格就是空表，别往里加。
+`docfirst.attach` 铺出来的 `next.config.mjs` 里那格就是空表，别往里加。
 
 **二、`oxlint` 的 type-aware 要单独装 `oxlint-tsgolint`。** 少了它 `pnpm lint` 报
 "Failed to find tsgolint executable"。模板里两个都钉了版本。
@@ -211,44 +212,43 @@ pnpm build
 
 # 三个件各管什么
 
-2026-09-10 之前 livedoc 是一条包线，把钉码、轨迹、开发方法论、文档管理模式四样东西挤在
+2026-09-10 之前 docfirst 是一条包线，把钉码、轨迹、开发方法论、文档管理模式四样东西挤在
 一起。现在拆成**三个件，各自独立发版、互不依赖**：
 
 | 件 | 管什么 | 包 |
 | --- | --- | --- |
-| **站件** | 一个 fumadocs 站的**一生**：铺标准骨架、扫容器根找站、判构建新鲜度、现挑空口起停、到点自动关、一格窗格。**只认 fumadocs**，不认识 livedoc | `@godcreator02/gwb-docs-site` |
-| **livedoc 件** | 站里**内容的正确性**：装配六区与接线、钉码、核对、确认、渲染、待重写页清单、跨仓灌反馈。不知道站是谁建的、有没有在跑 | `@godcreator02/gwb-live-doc` |
+| **站件** | 一个 fumadocs 站的**一生**：铺标准骨架、扫容器根找站、判构建新鲜度、现挑空口起停、到点自动关、一格窗格。**只认 fumadocs**，不认识 docfirst | `@godcreator02/gwb-docs-site` |
+| **docfirst 件** | 站里**内容的正确性**：在骨架上装配六区与接线（`docfirst.attach`，件里就这一条命令），外加那几份说明书。核对 / 确认 / 渲染**不经件**——那是仓里的事，agent 自己 cd 过去跑 `pnpm doc`，件对 `@godcreator02/docfirst-workflow` 那个包零依赖 | `@godcreator02/gwb-docfirst-workflow` |
 | **开发件** | 三份**通用开发纪律**说明书：接到需求先盘问、按模块并行派活、让代码自己说清自己。**零命令、零运行时依赖** | `@godcreator02/gwb-dev-loop` |
 
-livedoc 的包线同时塌成了**一个包** `@godcreator02/livedoc`（原来的 `-core` / `-project` /
+docfirst 的包线同时塌成了**一个包** `@godcreator02/docfirst-workflow`（原来的 `-core` / `-project` /
 `-cli` / `-format-fumadocs` 四个并成它，`-format-md` 与 `-format-html` 删掉），轨迹另一个包
-`@godcreator02/livedoc-trajectory`。**旧的那批 `@godcreator02/live-doc-*` 不再更新**——看见
+`@godcreator02/docfirst-trajectory`。**旧的那批 `@godcreator02/live-doc-*` 不再更新**——看见
 哪儿还写着旧包名或 `livedoc init`，那份文档过期了。
 
-**装机面不一样**：`@godcreator02/livedoc` 是 npm 包，要装进**各仓**的 `node_modules`
+**装机面不一样**：`@godcreator02/docfirst-workflow` 是 npm 包，要装进**各仓**的 `node_modules`
 （站构建 import 它的接线、门禁跑它的 check）；三个件只装进 **home**，各仓的依赖树里
 不该出现它们。
 
-## livedoc 的命令怎么调
+## docfirst 的命令怎么调
 
-livedoc 件把命令行开成 `live-doc.cli`：**`{ args: string[], cwd?: string }`**，`args`
-原样递给 livedoc。`cwd` 是**站目录**的绝对路径（那儿有 `livedoc.config.mjs`），
-**不给就落在选中单元的站**——那份清单它问站件要，站件没装、选中的单元没站、或有好几个，
-它会回一句让你给 cwd。
+**总线上只有 `docfirst.attach` 一条**（装六区，见「建仓」那节）。核对 / 确认 / 渲染
+**没有总线命令**，件也不替你转发、不起子进程——判据是「这件事在哪儿发生」：那三件事
+要读仓里的源码、调仓里的 git、写仓里的 `.ledger.json`，都是**仓**里的事，所以
+`cd` 过去在仓里跑：
 
 ```
-live-doc.cli {"args":["check"],"cwd":"<仓>\\docs-site"}
-live-doc.cli {"args":["confirm"],"cwd":"<仓>\\docs-site"}
-live-doc.cli {"args":["render","--target","ai"],"cwd":"<仓>\\docs-site"}
+cd <仓>\docs-site
+pnpm doc            # docfirst check：论断跟源码脱节了会报黄
+pnpm doc:confirm    # docfirst confirm：重钉，先 commit 再跑
+pnpm doc:render     # docfirst render：机读版与挂了 outputs 的生成物重摆
 ```
 
-`check` 有红时退出码是 1——**那是核对结果，不是命令失败**。装六区**别从这儿递
-`attach`**，有专门的 `live-doc.attach`（见「建仓」那节）。另外三条常用的：
-`live-doc.stale`（把 `check --json` 收敛成待重写页清单）、`live-doc.feedback` /
-`live-doc.feedback-list`（往别的仓的反馈区投一条 / 读回来）。
+`check` 有红时退出码是 1——**那是核对结果，不是命令失败**。`render` 没有 `--target`
+开关（那是旧包线的写法），就一条 `docfirst render`。
 
-（在终端里也一样跑得了：`cd <仓>\docs-site` 之后 `pnpm doc` / `pnpm doc:confirm` /
-`pnpm livedoc render --target ai`。两条路等价，选手边那条。）
+跑这几条要仓的 `docs-site` 里装了 `@godcreator02/docfirst-workflow`（它带 `docfirst`
+这个可执行）；`attach` 铺出来的 `package.json` 里那几条脚本就是上面这三条。
 
 别在件里进程内 import 一个 CLI——CLI 形态的东西一律经 `gwbNodeCli` / `gwbPyCli` 登记，
 不做总线命令、不进程内调。
@@ -265,8 +265,8 @@ live-doc.cli {"args":["render","--target","ai"],"cwd":"<仓>\\docs-site"}
 
 **说明书是全局单一命名空间。** 两个件挂同名的那份，后来的直接不挂、只留一行警告——
 症状是 agent 读到的可能是旧那份、照着做但做错了，最难查。**所以别替别的件代挂它的
-说明书**：本件 0.2.x 曾经代挂 livedoc 那两份（`livedoc-docs` / `trajectory`），
-0.3.0 删了——livedoc 件现在自己挂，而本件依赖树里那份是不再更新的旧版。
+说明书**：本件 0.2.x 曾经代挂 docfirst 那两份（`docfirst-docs` / `trajectory`），
+0.3.0 删了——docfirst 件现在自己挂，而本件依赖树里那份是不再更新的旧版。
 
 # 从哪儿起手
 
@@ -385,7 +385,7 @@ dependencies，装进 home 就是第二份实例，Service 身份对不上——
 | 面 | 怎么拿 | 什么时候要 |
 | --- | --- | --- |
 | 命令总线 | `inject: ['gwbCommands']` → `register` | 能力要被调就要（几乎一定）。界面、agent 走的是同一张表 |
-| 说明书 | `skills/` 目录 + `gwbSkills.register`（局部） | 有多步流程或坑要讲给 agent 就要。**只挂自己那份**——见上一节的判据与那条撞名的坑。文档写什么读 skill「livedoc-docs」、记轨迹卡读「trajectory」，那两份由 livedoc 件自己挂 |
+| 说明书 | `skills/` 目录 + `gwbSkills.register`（局部） | 有多步流程或坑要讲给 agent 就要。**只挂自己那份**——见上一节的判据与那条撞名的坑。文档写什么读 skill「docfirst-docs」、记轨迹卡读「trajectory」，那两份由 docfirst 件自己挂 |
 | 设置 | `gwbSettings.define`（局部）→ `get`/`set` | **件的配置一律走这里，不吃 `cordis.yml` 的 `config`**。类型 `string` / `number` / `boolean` / `secret`。值跟条目走（分区是条目 id 的末段），`shared: true` 才落公共区 |
 | 数据 | `gwbData.readDoc/writeDoc`（局部） | 要落盘状态就要。存 `<home>/data/<条目末段>/` |
 | 窗格 | `gwbShell.registerPane` + client 半 | 要人看得见就要 |
@@ -622,12 +622,12 @@ home 命名、不许复用、四种假验收、清理时机、拿证据——那
 
 手册随件分发，把别处的一手记录抄进来只会得到一份靠人记得重发版才更新的副本。正本：
 
-- 本件自己的文档站 `<devkit 包根>/docs-site`（依赖方向、模板占位符、livedoc 那条命令的形状）
+- 本件自己的文档站 `<devkit 包根>/docs-site`（依赖方向、模板占位符、docfirst 那条命令的形状）
 - 内核仓文档站 `D:\unitfolders\26090705ymz\gwb-kernel\docs-site`（`trajectory/`：baseUrl
   为什么挂根 ctx、热挂载的形态、装机口为什么拆、知识随件走）
 - 件仓文档站 `D:\unitfolders\26090709qzp\gwb-base-plugins\docs-site`（walls 与各件页）
 
 自己撞到新墙记进**自己仓**的文档。判据：每一次发现「不伸手进别的仓就做不下去」，
-那就是一堵墙。文档怎么写见 skill「livedoc-docs」，记轨迹卡见 skill「trajectory」——
-两份随 `@godcreator02/livedoc` 发、由 livedoc 件挂上，本件不再代挂。通用开发纪律
+那就是一堵墙。文档怎么写见 skill「docfirst-docs」，记轨迹卡见 skill「trajectory」——
+两份随 `@godcreator02/docfirst-workflow` 发、由 docfirst 件挂上，本件不再代挂。通用开发纪律
 （先盘问、并行派活、代码自解释）在开发件 `@godcreator02/gwb-dev-loop` 那三份里。
