@@ -1,8 +1,8 @@
 @import 'tailwindcss';
 @import 'fumadocs-ui/css/neutral.css';
 @import 'fumadocs-ui/css/preset.css';
-/* 状态点的样式随格式包发，一行引进来 */
-@import '@godcreator02/live-doc-format-fumadocs/light.css';
+/* 状态点的样式随包发，一行引进来 */
+@import '@godcreator02/docfirst-workflow/fumadocs/light.css';
 
 html {
   scrollbar-gutter: stable;

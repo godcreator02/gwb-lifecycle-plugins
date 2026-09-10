@@ -6,16 +6,16 @@
  * fumadocs 的 Node loader 只认 source.config 里的集合。
  */
 import { defineConfig, defineDocs } from 'fumadocs-mdx/config'
-import { livedocMdxOptions, livedocMarkdownOptions } from '@godcreator02/live-doc-format-fumadocs'
+import { docfirstMdxOptions, docfirstMarkdownOptions } from '@godcreator02/docfirst-workflow/fumadocs'
 
 export const docs = defineDocs({
   dir: 'content/docs',
   docs: {
-    postprocess: { includeProcessedMarkdown: livedocMarkdownOptions() },
+    postprocess: { includeProcessedMarkdown: docfirstMarkdownOptions() },
   },
 })
 
 export default defineConfig({
   // 类型要求完整 options（含 themes），运行时会 merge 默认值——cast 只在这一处
-  mdxOptions: livedocMdxOptions({ root: process.cwd() }) as never,
+  mdxOptions: docfirstMdxOptions({ root: process.cwd() }) as never,
 })

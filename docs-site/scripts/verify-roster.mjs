@@ -1,12 +1,12 @@
 /**
- * 名册两头对：livedoc.config.mjs 里的压平表 vs src/components/registry.ts 里的 React 名单。
+ * 名册两头对：docfirst.config.mjs 里的压平表 vs src/components/registry.ts 里的 React 名单。
  * 少一边都不行：压平表没有 → 机读版硬失败；React 表没有 → 站渲染报 Expected component。
  * registry.ts 只有可擦除的类型，Node 直接吃。
  */
 import { pathToFileURL } from 'node:url'
 import { resolve } from 'node:path'
 
-const config = (await import(pathToFileURL(resolve('livedoc.config.mjs')).href)).default
+const config = (await import(pathToFileURL(resolve('docfirst.config.mjs')).href)).default
 const { componentNames } = await import(pathToFileURL(resolve('src/components/registry.ts')).href)
 
 const ai = new Set(Object.keys(config.components ?? {}))

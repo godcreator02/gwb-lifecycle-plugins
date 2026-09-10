@@ -27,15 +27,12 @@ importers:
         specifier: ^19.2.8
         version: 19.2.8(react@19.2.8)
     devDependencies:
-      '@godcreator02/live-doc-cli':
-        specifier: 0.2.0
-        version: 0.2.0(react@19.2.8)
-      '@godcreator02/live-doc-format-fumadocs':
-        specifier: 0.1.0
-        version: 0.1.0(0ed11fc9f2403c3ea7d0c613e91f0695)
-      '@godcreator02/live-doc-project':
-        specifier: 0.1.0
-        version: 0.1.0
+      '@godcreator02/docfirst-trajectory':
+        specifier: ^0.1.0
+        version: 0.1.0(react@19.2.8)
+      '@godcreator02/docfirst-workflow':
+        specifier: ^0.2.0
+        version: 0.2.0(0ed11fc9f2403c3ea7d0c613e91f0695)
       '@tailwindcss/postcss':
         specifier: ^4.3.3
         version: 4.3.3
@@ -313,15 +310,17 @@ packages:
   '@fumari/image-size@0.1.0':
     resolution: {integrity: sha512-x2o9u6P8uKUK15B8XgEoRhR3PgLoLSbQKK6FUCd14JzumEw+e8FXZPelij/dZ4VQVMp4r61VD3DcvSo3aEhLAA==}
 
-  '@godcreator02/live-doc-cli@0.2.0':
-    resolution: {integrity: sha512-M/OKmd0eYF5SSu2P0ZdAZsxRDxwYxtI00bibmOLIGmjk/ljjRvgx2o9p1SpWvzlFiruJCjXQtnRKdYrX+0LAlQ==}
+  '@godcreator02/docfirst-trajectory@0.1.0':
+    resolution: {integrity: sha512-QHrJLaiYio+w52vNFbUW/vcnGFOwUn23OzUGBGtM9o999mxLXhiJWUmT8WSjkf7u9zi6TDhVaJnkl3kjPL+4CQ==}
+    peerDependencies:
+      react: '>=19'
+    peerDependenciesMeta:
+      react:
+        optional: true
+
+  '@godcreator02/docfirst-workflow@0.2.0':
+    resolution: {integrity: sha512-WcWY4r+cDlJd1C5X9lKQhWnp2/TnWhpHO3BuX5ErlsBY1I++cf7N55Ozo6KnCTJSddT8uixJaTqasbXH6gNSqw==}
     hasBin: true
-
-  '@godcreator02/live-doc-core@0.1.0':
-    resolution: {integrity: sha512-0rrsSGyEsSbZSqPWbGioCplppWkqXz0ZZV5U5+CNuMxzOpsfMkk2ssH0aexnHfJi25DnrsgK2kAl1RGUjudgBQ==}
-
-  '@godcreator02/live-doc-format-fumadocs@0.1.0':
-    resolution: {integrity: sha512-wWg8H24qRW8hcRJ+kVz+9A2SfAwDqSMEe0ZekvDBTEfjpWglXSEIPV1MYmRDML4AqUGILePSvh50XbbPNc5H2g==}
     peerDependencies:
       fumadocs-core: '>=16'
       fumadocs-mdx: '>=15'
@@ -334,17 +333,6 @@ packages:
         optional: true
       fumadocs-ui:
         optional: true
-      react:
-        optional: true
-
-  '@godcreator02/live-doc-project@0.1.0':
-    resolution: {integrity: sha512-lM0yQQxv4yPRXuGprAxoQ+J5XjQGro3IW6VxrmyR//fB3uhhirq8nnramey1Do+SyyiTgFyO3OkTr61cZbjYwQ==}
-
-  '@godcreator02/live-doc-trajectory@0.1.0':
-    resolution: {integrity: sha512-KS3IV8gW5+H74o9m6nnkaYgKe47WYPyk+Nk5Z5LzSlUTcajUdha8Fttb4bQPyX5EFbuDW7mqEL27llcBb/GOHg==}
-    peerDependencies:
-      react: '>=19'
-    peerDependenciesMeta:
       react:
         optional: true
 
@@ -1931,20 +1919,15 @@ snapshots:
 
   '@fumari/image-size@0.1.0': {}
 
-  '@godcreator02/live-doc-cli@0.2.0(react@19.2.8)':
+  '@godcreator02/docfirst-trajectory@0.1.0(react@19.2.8)':
     dependencies:
-      '@godcreator02/live-doc-core': 0.1.0
-      '@godcreator02/live-doc-project': 0.1.0
-      '@godcreator02/live-doc-trajectory': 0.1.0(react@19.2.8)
-    transitivePeerDependencies:
-      - react
+      unist-util-visit: 5.1.0
+    optionalDependencies:
+      react: 19.2.8
 
-  '@godcreator02/live-doc-core@0.1.0': {}
-
-  '@godcreator02/live-doc-format-fumadocs@0.1.0(0ed11fc9f2403c3ea7d0c613e91f0695)':
+  '@godcreator02/docfirst-workflow@0.2.0(0ed11fc9f2403c3ea7d0c613e91f0695)':
     dependencies:
-      '@godcreator02/live-doc-core': 0.1.0
-      '@godcreator02/live-doc-project': 0.1.0
+      '@godcreator02/docfirst-trajectory': 0.1.0(react@19.2.8)
       remark-frontmatter: 5.0.0
       remark-mdx: 3.1.1
       remark-parse: 11.0.0
@@ -1956,16 +1939,6 @@ snapshots:
       react: 19.2.8
     transitivePeerDependencies:
       - supports-color
-
-  '@godcreator02/live-doc-project@0.1.0':
-    dependencies:
-      '@godcreator02/live-doc-core': 0.1.0
-
-  '@godcreator02/live-doc-trajectory@0.1.0(react@19.2.8)':
-    dependencies:
-      unist-util-visit: 5.1.0
-    optionalDependencies:
-      react: 19.2.8
 
   '@img/colour@1.1.0':
     optional: true
