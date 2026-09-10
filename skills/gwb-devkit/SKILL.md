@@ -136,6 +136,12 @@ docs-site.create {"dir":"D:\\unitfolders\\<单元>\\<已有仓>\\docs-site","tit
 live-doc.attach  {"dir":"D:\\unitfolders\\<单元>\\<已有仓>\\docs-site"}
 ```
 
+**建完仓第一次 `pnpm doc:render` 之前先看一眼 README。** 件模板落了一份手写的
+`README.md`，而六区里 `content/outputs/` 预置了 `readme.mdx` → `../README.md` 的映射
+——第一次 render 会**覆盖**那份手写的。`attach` 的输出里就有这句警告。要留内容就先把它
+搬进 `content/outputs/readme.mdx`（那才是正本），再 render。`AGENTS.md` 同理，只是新仓
+里本来还没有。
+
 装完在 `docs-site` 里 `pnpm install`、`pnpm doc:render`、`pnpm doc`。起手页里预置一条
 **草稿记号**钉着 `src/index.ts` 里 `export const name` 那一行（行号是现找的，不写死）
 ——`git init` 落第一个提交、在 `docs-site` 里 `pnpm doc:confirm`，它转成正式记号、
