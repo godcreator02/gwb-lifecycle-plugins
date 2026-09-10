@@ -1,6 +1,6 @@
 {
   "name": "@godcreator02/gwb-devkit",
-  "version": "0.3.1",
+  "version": "0.3.2",
   "description": "开发套件：把一个新件的骨架落进一个新文件夹（件那半自带模板，站那半经命令总线转出去——站件 docs-site.create 铺 fumadocs 骨架、docfirst 件 docfirst.attach 装六区，两步，哪个件没装就跳过那步），随件带一份写件手册（只挂自己那份，知识随件走）；本机源的起停、测试 home 的开/收、一条 node CLI（cdp-eval）也在这儿。**不依赖 docfirst 的任何包**",
   "type": "module",
   "//exports": "只剩主入口。**内核不再读 exports 表**：浏览器半的地址由 node 半从 import.meta.url 算成 file://，注册窗格时报给外壳",
