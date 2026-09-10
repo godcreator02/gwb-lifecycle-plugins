@@ -95,32 +95,46 @@ describe('docsBlock：README 里讲站的那一段', () => {
     expect(noPort).toContain('docs-site/package.json')
   })
 
-  it('没建站就讲怎么补一个——别写一个不存在的站', () => {
+  it('没建站就讲怎么补一个——两步，而且点名那两个件的命令', () => {
     const block = placeholders(planScaffold({ name: 'x', dir: 'D:\\tmp\\x', docs: false })).docsBlock ?? ''
     expect(block).not.toContain('cd docs-site')
-    expect(block).toContain('devkit.livedoc')
-    expect(block).toContain('@godcreator02/live-doc-cli')
+    expect(block).toContain('docs-site.create')
+    expect(block).toContain('live-doc.attach')
+    // 旧线的包与命令一个都不许再出现在生成的 README 里
+    expect(block).not.toContain('devkit.livedoc')
+    expect(block).not.toContain('live-doc-cli')
   })
 })
 
-describe('nextSteps：按站真建起来没有分两支', () => {
+describe('nextSteps：按站真建到哪一步分三支', () => {
   const plan = planScaffold({ name: 'x', dir: 'D:\\tmp\\x' })
 
-  it('建成了才给 docs-site 那几步，端口有就报出来', () => {
-    const steps = nextSteps(plan, { built: true, port: 4321 }).join('\n')
+  it('骨架铺了、六区也装了，才给 docs-site 那几步，端口有就报出来', () => {
+    const steps = nextSteps(plan, { built: true, attached: true, port: 4321 }).join('\n')
     expect(steps).toContain('docs-site')
     expect(steps).toContain('4321')
     expect(steps).toContain('doc:confirm')
   })
 
-  it('没建成就给补建的那条命令——回执里给一条不存在的 cd docs-site 比不给还坏', () => {
-    const steps = nextSteps(plan, { built: false }).join('\n')
+  it('骨架铺了但六区没装：给 attach 那条，不给 pnpm doc——那几条脚本还不存在', () => {
+    const steps = nextSteps(plan, { built: true, attached: false }).join('\n')
+    expect(steps).toContain('live-doc.attach')
+    expect(steps).not.toContain('doc:confirm')
+  })
+
+  it('骨架都没铺就给两步补建——回执里给一条不存在的 cd docs-site 比不给还坏', () => {
+    const steps = nextSteps(plan, { built: false, attached: false }).join('\n')
     expect(steps).not.toContain('cd D:\\tmp\\x\\docs-site')
-    expect(steps).toContain('devkit.livedoc')
+    expect(steps).toContain('docs-site.create')
+    expect(steps).toContain('live-doc.attach')
   })
 
   it('不给 site 就照计划里的意思说', () => {
-    expect(nextSteps(planScaffold({ name: 'x', dir: 'D:\\tmp\\x', docs: false })).join('\n')).toContain('devkit.livedoc')
+    expect(nextSteps(planScaffold({ name: 'x', dir: 'D:\\tmp\\x', docs: false })).join('\n')).toContain(
+      'docs-site.create',
+    )
+    // 计划里要建站 = 两步都走，走到底那一支
+    expect(nextSteps(plan).join('\n')).toContain('doc:confirm')
   })
 })
 

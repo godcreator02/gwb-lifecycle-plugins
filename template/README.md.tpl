@@ -30,4 +30,5 @@ pnpm publish --registry http://127.0.0.1:4873/ --no-git-checks
 
 红线七条、能力面菜单、发版装机、实机验机——全在 skill「gwb-devkit」里（随
 `@godcreator02/gwb-devkit` 分发），不在这儿复述。文档写什么见 skill「livedoc-docs」，
-记轨迹卡见 skill「trajectory」——两份随 `@godcreator02/live-doc-cli` 分发，devkit 代为挂上。
+记轨迹卡见 skill「trajectory」——两份随 `@godcreator02/gwb-live-doc` 件分发，那个件自己挂。
+不描述任何代码的通用开发纪律（先盘问、并行派活、代码自解释）在 `@godcreator02/gwb-dev-loop`。
