@@ -1,6 +1,6 @@
 ---
 title: 开发套件
-description: 它是一个普通的件——四件事、两条 node CLI、代挂 livedoc 的说明书；依赖方向全是单向的
+description: 它是一个普通的件——四件事、一条 node CLI；站那半两步转出去，跟站件与 livedoc 件互不依赖
 ---
 
 # 开发套件
@@ -25,24 +25,25 @@ description: 它是一个普通的件——四件事、两条 node CLI、代挂 
    这一步是纯函数，不碰盘
 3. **整套模板在内存里渲染完。** 十个 `.tpl` 读进来、占位符替掉。**认不出的占位符当场抛**
 4. **落盘。** 目标目录必须还不存在
-5. **站那半。** 件已经在盘上了，这时才去建文档站——而且**不是自己建**：经 `devkit.livedoc`
-   这条 node CLI 调 `livedoc init --dir <仓>`
-6. **回执。** 建了几个文件、站建成没有、下一步做什么
+5. **站那半，两步。** 件已经在盘上了，这时才去建文档站——而且**一步都不是自己建**：
+   经命令总线调 `docs-site.create`（站件铺 fumadocs 骨架），再调 `live-doc.attach`
+   （livedoc 件在刚铺好的骨架上装六区）
+6. **回执。** 建了几个文件、骨架铺没铺、六区装没装、下一步做什么
 
-第 2、3、4 步全是纯函数与盘操作，可以不起进程、只喂输入看输出；第 5 步要起一个真进程。
-这条分界线不是偶然，它就是下面「纯逻辑与真机器」那一节的分界线。
+第 2、3、4 步全是纯函数与盘操作，可以不起进程、只喂输入看输出；第 5 步要把活派给
+别的件。这条分界线不是偶然，它就是下面「纯逻辑与真机器」那一节的分界线。
 
 ## 它管哪四件事
 
 | | 是什么 | 口 |
 | --- | --- | --- |
-| 建仓 | 把一个新件的骨架落进一个新文件夹，默认连文档站一起 | `devkit.scaffold` |
-| 手册 | 写件的整条路、七条红线、验机怎么走，随包发 | `skills/` 经 `gwbSkills` 挂载 |
+| 建仓 | 把一个新件的骨架落进一个新文件夹，默认连文档站一起（站那半两步转给别的件） | `devkit.scaffold` |
+| 手册 | 写件的整条路、七条红线、验机怎么走，随包发。**只挂自己那份** | `skills/` 经 `gwbSkills` 挂载 |
 | 本机源 | 本机 Verdaccio 的起 / 停 / 状态 / 日志，另有一扇窗格 | `registry.*` |
 | 测试 home | 测试 home 的开 / 列 / 重开 / 停 / 删 | `devkit.home.*` |
 
-外加两条经 `gwbNodeCli` 登记的外部 CLI：**`devkit.livedoc`**（建站）与
-**`devkit.cdp-eval`**（从页面取证）。
+外加一条经 `gwbNodeCli` 登记的外部 CLI：**`devkit.cdp-eval`**（从页面取证）。
+（`devkit.livedoc` 0.3.0 起退役，理由在「站那半」那节。）
 
 **CLI 形态的东西一律经 `gwbNodeCli` 登记，不做总线命令、不进程内调。** 理由不是洁癖：
 node-cli 登记的命令自动镜像成同名总线命令，于是自动是 MCP 工具，回执自带 stdout、stderr
@@ -50,21 +51,27 @@ node-cli 登记的命令自动镜像成同名总线命令，于是自动是 MCP 
 
 ## 依赖方向
 
-这一节是整份里最该看的。**devkit 依赖谁，谁都不知道 devkit 存在。**
+这一节是整份里最该看的。**devkit 一个别的件的包都不依赖。**
 
 ```text
-devkit ──依赖──▶ live-doc-cli        （运行时真依赖，dependencies）
-devkit ──可选──▶ gwbCommands          （唯一的硬 inject）
-devkit ──可选──▶ gwbNodeCli / gwbSkills / gwbSettings / gwbShell
+devkit ──硬 inject──▶ gwbCommands                （唯一一条）
+devkit ──可选──────▶ gwbNodeCli / gwbSkills / gwbSettings / gwbShell
+devkit ──按名字找──▶ docs-site.create / live-doc.attach   （只在总线上，不依赖包）
 ```
 
-**一、livedoc 是单向的运行时依赖。** devkit 知道 livedoc（解析它的包、调它的 `init`、
-把它的两份 skill 挂给工作台）；livedoc 的 `init` 只认「一个仓 + 一份模板」，
-**它不知道调它的人在写什么件，也不知道 gwb 这个生态存在**。判据用一句话就能问过去：
-换掉 livedoc 的实现（比如换一个别的建站器），devkit 要改的只有一条 `entry` 的算法与一串
-参数，别的一行不动。
+**一、站那半是「找一条命令」，不是「依赖一个包」。** 2026-09-10 之前 devkit 的
+`dependencies` 里有 `@godcreator02/live-doc-cli`：它解析那个包、起它的 `init`、
+还把它的两份 skill 代挂给工作台。现在那条依赖没了，站那半改成在命令总线上按名字找
+两条命令——找得到就调，找不到就跳过那一步、在回执里说清怎么补。
 
-这条方向定下来的那一刻，devkit 就永远不会长成「文档工具」——它只是知道去哪儿要一个站。
+判据是那次拆分本身：站件、livedoc 件、开发件**三者互不依赖**，凭什么单单 devkit 要把
+其中两个钉进自己的依赖树。换个角度问同一件事：一个不需要钉码的 fumadocs 站（容器里
+那个 TypeScript 交互教学站就是）凭什么先装一套钉码机制。
+
+{/* ref file="../src/index.ts" lines="58-70" */}
+
+两条命令名就是全部的耦合面——**两个字符串**。哪个件没装，`hasCommand` 当场就知道；
+它**现问、不缓存**，因为件是热挂载的，装一个新件之后这个答案当场就变。
 
 **二、除了 `gwbCommands`，别的件全是可选依赖。** 写法上的区别只有一处：硬依赖写
 `export const inject = [...]`（缺了整件不挂），可选依赖写 `ctx.inject([...], fn)`
@@ -73,20 +80,22 @@ devkit ──可选──▶ gwbNodeCli / gwbSkills / gwbSettings / gwbShell
 {/* ref file="../src/index.ts" lines="43-44" */}
 
 上面这两行就是这件事的正本：**硬依赖只有一条**。没有命令总线，devkit 登记的一切都出不了
-这个进程，那时它确实不该挂上；而没有 node-cli，它只是建不了站——不是不能干活。
+这个进程，那时它确实不该挂上；而没有 node-cli，它只是从页面取不了证——不是不能干活。
 
-{/* ref file="../src/index.ts" lines="441-459" */}
+{/* ref file="../src/index.ts" lines="428-435" */}
 
-两条 node CLI 就挂在这条子 fiber 上。注意最后那个 `effect`：服务撤了要把捕获的那一格
-**还回去**。留着一个已经死掉的引用，失败会发生在很远的地方（下一次建仓，而且只在站那半）。
+那条 node CLI 就挂在这条子 fiber 上。这里曾经还捕获过一格 `gwbNodeCli` 供建站用，
+连带一个「服务撤了要把它还回去」的 `effect`；站那半改走总线之后那一格没了——
+**耦合面缩小，随手也少掉一处生命周期陷阱**。
 
-**三、说明书这条依赖是「代挂」，不是「拥有」。** livedoc 是个 CLI 包、不是件，自己挂不上
-工作台；devkit 顺手把它的 `skills/` 也 register 一次：
+**三、说明书只挂自己那份。** 0.2.x 时 devkit 顺手把 livedoc 的 `skills/` 也 register
+一次（理由：livedoc 那时是个 CLI 包、不是件，自己挂不上）。**现在不了**：
 
-{/* ref file="../src/index.ts" lines="585-597" */}
+{/* ref file="../src/index.ts" lines="598-604" */}
 
-解析不到只 warn 不炸——那两份说明书不是 devkit 能不能干活的前提。**这一段是「可选」这个
-概念的完整样例**：一处可选注入里，还嵌着一处可选的资源。
+livedoc 成了件、自己挂那两份，而说明书是**全局单一命名空间**——同名的第二份直接不挂、
+只留一行警告。撞掉的那份未必是旧的，症状是 agent 读到过期手册、照着做但做错了，最难查。
+更根本的判据：**知识跟着它描述的代码走**，代挂等于把别人的知识钉在自己的发版节奏上。
 
 ## 纯逻辑与真机器：隔离在哪一刀
 
@@ -109,29 +118,38 @@ devkit ──可选──▶ gwbNodeCli / gwbSkills / gwbSettings / gwbShell
 `scaffold.ts` 的隔离是另一种形状：它根本不需要接口，因为它**只做纯计算与同步写盘**。
 所以它的测试直接写临时目录跑——`writeRepo` 的活就是往盘上放文件，拿替身测等于没测。
 
-{/* ref file="../src/scaffold.ts" lines="84-113" */}
+{/* ref file="../src/scaffold.ts" lines="85-108" */}
 
 `planScaffold` 是这条分界线上最清楚的一段：校验、派生、绝对化、缺省值，全在这儿，
 一次都没碰盘。它抛出的错误是给人和 agent 看的，所以每一句都说得出该怎么改。
 
-## livedoc 那条命令：入口怎么算、cwd 从哪来
+## 站那半：两条不属于本包的命令
 
-{/* ref file="../src/index.ts" lines="67-73" */}
+{/* ref file="../src/index.ts" lines="545-575" */}
 
-`import.meta.resolve` 拿到的是包主入口 `dist/run.mjs`，可执行在它旁边。
-**不读 `bin` 字段、不查 `.bin` 垫片**：node-cli 登记的是一个绝对路径的 js，
-而垫片在 Windows 上是 `.cmd`，`process.execPath` 起不了它。
+建站是**两步**，中间那几行是这一节的全部内容：
 
-这条命令一度**只适合 `init`**：`livedoc init` 的目标由 `--dir` 给、跟 cwd 无关，而
-`check` / `confirm` / `render` 认的是 **cwd 里那份 `livedoc.config.mjs`**，
-当时 node-cli 的 `cwd` 在登记时就定死、按次不可换。那三条只能在仓的 `docs-site` 里
-`pnpm livedoc …` 自己跑，等于这条命令只覆盖了 livedoc 的四分之一。
+1. `docs-site.create`（站件）铺一个标准 fumadocs 骨架，**认站目录** `<仓>\docs-site`，
+   端口由它扫邻居挑
+2. `live-doc.attach`（livedoc 件）在骨架上装六区
 
-**这条限制 2026-09-09 拆掉了，拆的位置在 node-cli 那边而不是这边**：`run` 的参数收了一个
-按次的 `cwd`（存在的绝对路径），于是四条子命令全都走得通——`{"args":["check"],"cwd":"<仓>\\docs-site"}`。
-这是「限制该在哪一层解」的一个样例：devkit 这边任何绕法（进程内 import livedoc、自己 spawn
-一遍）都会把回执形状与失败模式劈成两套，而在 node-cli 的契约面上加一格，整个生态的 CLI
-都跟着能按次换目录。devkit 自己因此一行判断都不用加，只有 description 换了句话。
+**为什么中间不能插事。** `attach` 只在**还没写过内容的骨架**上装得了——站里已经有
+`livedoc.config.mjs`、或 `content/` 下有骨架之外的东西，它报一句「这个站已有内容，
+请人工接线」退非零，一个字都不改写。这不是保守：建骨架与装六区连着跑，中间没人碰过
+文件，整个覆盖才是安全的；给一个跑了半年的站自作聪明地 AST 改写不是。`scaffold` 里
+这两条紧挨着，正是那个安全的时刻。
+
+**三种「没建成」，一种都不算建仓失败。** 件那半早已落盘：站件没装（总线上没有
+`docs-site.create`）、`create` 自己失败、livedoc 件没装或 `attach` 失败——回执里
+`built` 与 `attached` 两格分别说，`note` 写清卡在哪、怎么补，`nextSteps` 按这两格分三支。
+**回执里给一条不存在的 `cd docs-site` 比不给还坏**，所以连 README 里讲站的那段话都
+是在渲染之前按「站件在不在」定下来的。
+
+**退役的那条。** 这里曾经是 `devkit.livedoc`——把 `@godcreator02/live-doc-cli` 的可执行
+登记进 `gwbNodeCli`，`init` 建站、`check` / `confirm` / `render` 靠按次给的 `cwd`。
+那个包线不再更新，那些活现在归 livedoc 件的 `live-doc.cli`（还自带「cwd 缺省落在选中
+单元的站」）。**一件事只留一个入口**：留着旧那条，agent 有两条路可走，而其中一条
+指着一个不再更新的包。
 
 ## 怎么用
 

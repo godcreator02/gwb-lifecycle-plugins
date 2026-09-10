@@ -1,8 +1,8 @@
 # gwb-devkit
 
 开发套件，**一个普通的 gwb 件**：一仓一包一插件，仓根即包根。发本机 registry，装进 home。
-它管建仓 / 手册 / 本机源 / 测试 home 四件事，外加两条经 `gwbNodeCli` 登记的外部 CLI。
-设计与原理在文档站，这份只装**不知道就会做错事**的硬约束。
+它管建仓 / 手册 / 本机源 / 测试 home 四件事，外加一条经 `gwbNodeCli` 登记的外部 CLI
+（`devkit.cdp-eval`）。设计与原理在文档站，这份只装**不知道就会做错事**的硬约束。
 
 ## 门禁
 
@@ -26,6 +26,9 @@ pnpm build          # tsc 直出 dist/ 与 dist/client/，没有打包器
 
 **发版前先在隔离 home 装一遍验完**——`plugins.update-all`（插件窗格那颗「全部更新」）
 直接升日常那份 home，跳过了隔离验证；人点那颗键是最后一步，不是验证的一步。
+
+**发完就去升 default，别攒着。** 手册与命令都随包走，不升＝ agent 读到的还是上一版，
+而它照着过期手册干活**不报错**。新件第一次装走 `plugins.install`，装完 `/mcp` 重连。
 
 **`files` 白名单五项，一项都不能少**：`dist`、`src`、`template`、`skills`、`bin`。
 
@@ -74,20 +77,29 @@ config 面——写在 yml 里的那份界面看不见、agent 也不知道有�
 `top: true` 的命令。顶层是写件时定下来的，不是装进软件之后再批的，所以默认不标，
 **标之前先问人**。
 
-## livedoc 那条命令：cwd 按次给
+## 建站是两步，两条都不是本包的命令
 
-`devkit.livedoc` 镜像出来的形状是 `{ args?: string[], cwd?: string }&#x60;，**`cwd` 是按次的**
-（必须是存在的绝对路径）。`init` 的目标由 `--dir` 给、跟 cwd 无关；`check` / `confirm` /
-`render` 认的是 cwd 里那份 `livedoc.config.mjs`，把 cwd 指到 `<仓>\docs-site` 就是了。
+`devkit.scaffold` 的站那半**经命令总线按名字转出去**，本包不依赖那两个件的任何包：
 
-别在件里进程内 import livedoc：CLI 形态的东西一律经 `gwbNodeCli` 登记，不做总线命令。
+1. `docs-site.create`（站件 `@godcreator02/gwb-docs-site`）铺 fumadocs 骨架
+2. `live-doc.attach`（livedoc 件 `@godcreator02/gwb-live-doc`）在**刚铺好的**骨架上装六区
 
-## 写件的规矩不在这
+两条都认**站目录**（`<仓>\docs-site`），不是仓根。**哪个件没装就跳过那一步**——回执里
+说清怎么补、README 那段话改口，件那半照样落盘，**不报错终止建仓**。回执里
+`docs.built`（骨架）与 `docs.attached`（六区）两格才是真相，`nextSteps` 按它俩分三支。
+
+`live-doc.attach` **只在还没写过内容的骨架上装得了**（它自己守着这条），所以补建的两条
+要连着敲。`devkit.livedoc` 与 `@godcreator02/live-doc-cli` 那条依赖 0.3.0 起都没了。
+
+## 说明书只挂自己那份
 
 **手册正本是本包的 `skills/gwb-devkit/SKILL.md`**，随包发、经 `gwbSkills` 挂给 agent。
 七条红线、能力面菜单、发版装机、实机验机全在那儿——**这份不复述，那份也不往这儿搬**。
-本件另外把 livedoc 的两份 skill（`livedoc-docs` / `trajectory`）也挂上来了：
-文档写什么读前者，记轨迹卡读后者。
+
+**别替别的件代挂说明书。** 说明书是全局单一命名空间，撞名的那份直接不挂、只留一行
+警告，而被撞掉的常常是新那份——症状是 agent 读到旧的、照着做但做错了，最难查。
+本件 0.2.x 曾代挂 livedoc 那两份（`livedoc-docs` / `trajectory`），0.3.0 删了：
+知识随件走，那两份由 livedoc 件自己挂。
 
 ## 文档站是正本
 
