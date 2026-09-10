@@ -14,7 +14,7 @@ description: 动手写一个新 gwb 件之前读，打算说「验过了 / 跑�
 **测试 home 的开收**（`devkit.home.*`）。外加一条经 `gwbNodeCli` 登记的外部 CLI：
 `devkit.cdp-eval`（从页面取证）。
 
-**它不管文档站。** 站的一生归站件、站里内容的正确性归 docfirst 件——见「三个件各管什么」。
+**它不管文档站。** 站的一生归站件、站里内容的正确性归 docfirst 件——见「两个件各管什么」。
 本包**不依赖那两个件的任何包**：建仓时要用它们，只按名字在命令总线上找那两条命令。
 
 代码分层：`src/index.ts` 只剩接线；建仓的校验渲染落盘在 `scaffold.ts`，registry 起停时序在
@@ -124,7 +124,7 @@ README 都改口说「站没铺，装了站件之后自己跑 `docs-site.create`
 | 仓根 | `package.json`（build / typecheck / lint / test / check / prepublishOnly）、`tsconfig.json` 与 `tsconfig.build.json`（typecheck 带上 tests，构建只吃 src）、`.oxlintrc.json`（type-aware 那套规则）、`vitest.config.ts`（只认仓根 `tests/`，slow 标签留给真起子进程的用例）、`.npmrc`（scope 指本机源）、`src/index.ts`、`tests/plugin.test.ts`、`README.md` | **本包 `template/`**，10 个 `.tpl` |
 | `docs-site/` | fumadocs 骨架 + docfirst 的六区 | **不归本包**：骨架模板随站件发，六区那套随 `@godcreator02/docfirst-workflow` 发 |
 
-**三个件互不依赖。** devkit 不依赖站件、站件不认识 docfirst、docfirst 件不认识站件——
+**三者互不依赖。** devkit 不依赖站件、站件不认识 docfirst、docfirst 件不认识站件——
 建仓时那两步是**按名字在命令总线上找**，找不到就跳过那一步。这不是偷懒，是这次拆分
 的判据本身：一个不需要钉码的 fumadocs 站（比如那个 TypeScript 交互教学站）凭什么
 先装一套钉码机制。
@@ -210,16 +210,16 @@ pnpm build
 发完就去升 default home（人点「全部更新」或 plugins.update-all）
 ```
 
-# 三个件各管什么
+# 两个件各管什么
 
 2026-09-10 之前 docfirst 是一条包线，把钉码、轨迹、开发方法论、文档管理模式四样东西挤在
-一起。现在拆成**三个件，各自独立发版、互不依赖**：
+一起。那天上午拆成三个件，当晚开发件又并了回来——通用纪律那三份说明书要跟钉码写法与六区
+对得上号，分两个仓存两份必然漂而漂了不报错。现在是**两个件，各自独立发版、互不依赖**：
 
 | 件 | 管什么 | 包 |
 | --- | --- | --- |
 | **站件** | 一个 fumadocs 站的**一生**：铺标准骨架、扫容器根找站、判构建新鲜度、现挑空口起停、到点自动关、一格窗格。**只认 fumadocs**，不认识 docfirst | `@godcreator02/gwb-docs-site` |
-| **docfirst 件** | 站里**内容的正确性**：在骨架上装配六区与接线（`docfirst.attach`，件里就这一条命令），外加那几份说明书。核对 / 确认 / 渲染**不经件**——那是仓里的事，agent 自己 cd 过去跑 `pnpm doc`，件对 `@godcreator02/docfirst-workflow` 那个包零依赖 | `@godcreator02/gwb-docfirst-workflow` |
-| **开发件** | 三份**通用开发纪律**说明书：接到需求先盘问、按模块并行派活、让代码自己说清自己。**零命令、零运行时依赖** | `@godcreator02/gwb-dev-loop` |
+| **docfirst 件** | 站里**内容的正确性**：在骨架上装配六区与接线（`docfirst.attach`，件里就这一条命令），外加六份说明书——讲机制的三份（`docfirst` 装六区 / `docfirst-docs` 写文档 / `trajectory` 记卡）加讲通用开发纪律的三份（`spec-grill` 先盘问 / `parallel-by-module` 并行派活 / `self-explaining-code` 代码自解释）。核对 / 确认 / 渲染**不经件**——那是仓里的事，agent 自己 cd 过去跑 `pnpm doc`，件对 `@godcreator02/docfirst-workflow` 那个包零依赖 | `@godcreator02/gwb-docfirst-workflow` |
 
 docfirst 的包线同时塌成了**一个包** `@godcreator02/docfirst-workflow`（原来的 `-core` / `-project` /
 `-cli` / `-format-fumadocs` 四个并成它，`-format-md` 与 `-format-html` 删掉），轨迹另一个包
@@ -227,7 +227,7 @@ docfirst 的包线同时塌成了**一个包** `@godcreator02/docfirst-workflow`
 哪儿还写着旧包名或 `livedoc init`，那份文档过期了。
 
 **装机面不一样**：`@godcreator02/docfirst-workflow` 是 npm 包，要装进**各仓**的 `node_modules`
-（站构建 import 它的接线、门禁跑它的 check）；三个件只装进 **home**，各仓的依赖树里
+（站构建 import 它的接线、门禁跑它的 check）；两个件只装进 **home**，各仓的依赖树里
 不该出现它们。
 
 ## docfirst 的命令怎么调
@@ -630,4 +630,4 @@ home 命名、不许复用、四种假验收、清理时机、拿证据——那
 自己撞到新墙记进**自己仓**的文档。判据：每一次发现「不伸手进别的仓就做不下去」，
 那就是一堵墙。文档怎么写见 skill「docfirst-docs」，记轨迹卡见 skill「trajectory」——
 两份随 `@godcreator02/docfirst-workflow` 发、由 docfirst 件挂上，本件不再代挂。通用开发纪律
-（先盘问、并行派活、代码自解释）在开发件 `@godcreator02/gwb-dev-loop` 那三份里。
+（先盘问、并行派活、代码自解释）在 `@godcreator02/gwb-docfirst-workflow` 随件发的那三份里。
