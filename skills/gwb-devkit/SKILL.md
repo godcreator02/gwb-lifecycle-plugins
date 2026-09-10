@@ -1,6 +1,6 @@
 ---
 name: gwb-devkit
-description: 动手写一个新 gwb 件之前读，打算说「验过了 / 跑通了 / 改动生效了」之前也读。开发套件的全部命令与设置项、建仓（devkit.scaffold，件模板随本包发，站那半调 livedoc）、从建仓到发版装机验完的整条路、七条红线、生态里每个件的服务什么时候用，以及改内核（不是改件）时验机怎么走。
+description: 动手写一个新 gwb 件之前读，打算说「验过了 / 跑通了 / 改动生效了」之前也读。开发套件的全部命令与设置项、建仓（devkit.scaffold，件模板随本包发，站那半两步转给站件与 livedoc 件）、从建仓到发版装机升 default 的整条路、七条红线、生态里每个件的服务什么时候用、一份新说明书该住哪个件的判据，以及改内核（不是改件）时验机怎么走。
 ---
 
 # 这套东西是什么
@@ -11,15 +11,19 @@ description: 动手写一个新 gwb 件之前读，打算说「验过了 / 跑�
 
 它管四件事：**建仓**（`devkit.scaffold`）、**手册**（就是这一份，随件分发经 gwb-skills 挂载）、
 **本机源的起停**（`registry.*`，另有一扇「插件源」窗格 10 秒一轮显示 status）、
-**测试 home 的开收**（`devkit.home.*`）。外加两条经 `gwbNodeCli` 登记的外部 CLI：
-`devkit.livedoc`（建站）与 `devkit.cdp-eval`（从页面取证）。
+**测试 home 的开收**（`devkit.home.*`）。外加一条经 `gwbNodeCli` 登记的外部 CLI：
+`devkit.cdp-eval`（从页面取证）。
+
+**它不管文档站。** 站的一生归站件、站里内容的正确性归 livedoc 件——见「三个件各管什么」。
+本包**不依赖那两个件的任何包**：建仓时要用它们，只按名字在命令总线上找那两条命令。
 
 代码分层：`src/index.ts` 只剩接线；建仓的校验渲染落盘在 `scaffold.ts`，registry 起停时序在
 `daemon.ts`，home 的在 `home.ts`（两处皆纯机、可单测），真机器的盘与进程在
 `node-registry-deps.ts` / `node-home-deps.ts`。
 
 **源码改了这份就过期**——对不上时以源码为准，回来改这儿。这份随包发：改一个字也要抬版本、
-发版、`plugins.update`，`gwb-skills` 的「正文现读盘」只对装进 home 的那份生效。
+发版、**去升 default home**（见「发完版就去升 default」），`gwb-skills` 的「正文现读盘」
+只对装进 home 的那份生效。
 
 ## 两个设置项（不填对应的半边就不工作）
 
@@ -34,14 +38,18 @@ description: 动手写一个新 gwb 件之前读，打算说「验过了 / 跑�
 
 | 命令 | 参数 |
 | --- | --- |
-| `devkit.scaffold` | `{ name, dir, title?, docs?, port? }`——`name` 必给（kebab-case 短名），`dir` 必给（绝对路径，**必须还不存在**），`title` 可选显示名，`docs` 缺省 `true`（连文档站一起建），`port` 可选站端口。**参数不对会把完整说明回给你**（错误即文档），不必背 |
+| `devkit.scaffold` | `{ name, dir, title?, docs?, port? }`——`name` 必给（kebab-case 短名），`dir` 必给（绝对路径，**必须还不存在**），`title` 可选显示名，`docs` 缺省 `true`（连文档站一起建，两步），`port` 可选站端口。**参数不对会把完整说明回给你**（错误即文档），不必背 |
 
-**两条外部 CLI**（经 `gwbNodeCli` 登记，自动镜像成同名总线命令）
+**一条外部 CLI**（经 `gwbNodeCli` 登记，自动镜像成同名总线命令）
 
 | 命令 | 参数 | 干什么 |
 | --- | --- | --- |
-| `devkit.livedoc` | `{ args?: string[], cwd?: string }` | livedoc 的命令行。`cwd` 按次给（必须是存在的绝对路径），所以 `check` / `confirm` / `render` 也走这条，见下面那节 |
 | `devkit.cdp-eval` | `{ args: [<调试口>, <表达式文件>] }` | 从页面里取证，见「拿证据」 |
+
+**`devkit.livedoc` 已退役**（0.3.0 起没有这条命令）。它当年跑的是
+`@godcreator02/live-doc-cli` 的可执行；那个包线不再更新，而它的活现在是 livedoc 件的
+`live-doc.cli` 在做——还自带「cwd 缺省落在选中单元的站」。看见别处还写着
+`devkit.livedoc`，那份文档过期了。
 
 **本机源**（Verdaccio，`http://localhost:4873/`）
 
@@ -80,14 +88,31 @@ devkit.scaffold {"name":"hello","dir":"D:\\unitfolders\\<单元>\\gwb-hello","ti
 校验：kebab-case 短名、**目标目录必须还不存在**、认不出的占位符当场抛、**整套先在内存渲染完
 再碰盘**（目录一旦开始写就没有干净的回滚点）。
 
-**默认连文档站一起建**：件那半落盘之后，本件经 node CLI `devkit.livedoc` 调
-`livedoc init --dir <仓>`，端口由 livedoc 自己挑（扫仓的邻居已占的，从 4310 起找第一个空位；
-`port` 参数手给的一律让给你）。`docs: false` 就只建件那半——但别轻易用：人记得事后补第二条
-命令的概率，跟容器里那一堆仓至今没有站是同一个概率。
+**默认连文档站一起建，而建站是两步**（0.3.0 起）：
 
-**站没建成不算建仓失败。** node-cli 件不在、或 `livedoc init` 自己失败，件那半照样在盘上；
-回执里 `docs.note` 写明为什么、怎么补。**回执里 `docs.built` 才是站真的建起来了没有**——
-`nextSteps` 按它分两支，不按你要不要建分。
+| 步 | 命令 | 谁提供 | 干什么 |
+| --- | --- | --- | --- |
+| 一 | `docs-site.create` | 站件 `@godcreator02/gwb-docs-site` | 铺一个标准 fumadocs 骨架：单集合、一条路由、一页 index，端口从邻居没占的里挑 |
+| 二 | `live-doc.attach` | livedoc 件 `@godcreator02/gwb-live-doc` | 在**刚铺好的**骨架上装配六区：六个集合六条路由、`livedoc.config.mjs`、mdx 接线、投影块与术语组件、名册脚本、`doc` 那几条脚本 |
+
+两条都认**站目录**（`<仓>\docs-site`），不是仓根——这跟退役的 `livedoc init --dir <仓>`
+正好差一层，别顺手抄旧的。`devkit.scaffold` 把这两步连着跑完；`port` 参数手给的一律
+让给你，不给就是站件挑。`docs: false` 就只建件那半——但别轻易用：人记得事后补命令的
+概率，跟容器里那一堆仓至今没有站是同一个概率。
+
+**只在刚铺好的骨架上装配。** `live-doc.attach` 自己守着这条：站里已经有
+`livedoc.config.mjs`、或 `content/` 下已经有骨架之外的内容，它报一句「这个站已有内容，
+请人工接线」退非零，一个字都不改写。判据是：建骨架与装六区连着跑，中间没人改过文件，
+所以整个覆盖是安全的；给一个跑了半年的站自作聪明地 AST 改写不是。**所以补建的两条命令
+要连着敲**，别铺完骨架先去写内容。
+
+**站没建成不算建仓失败。** 哪个件没装、哪条命令自己失败，件那半照样在盘上；回执里
+`docs.note` 写明卡在哪一步、怎么补。回执里两格分别是真相：**`docs.built`**（骨架铺没铺）
+与 **`docs.attached`**（六区装没装），`nextSteps` 按这两格分三支，不按你要不要建分。
+
+**没装站件的时候**：`devkit.scaffold` 不报错、不终止，件那半正常落盘，回执与生成的
+README 都改口说「站没铺，装了站件之后自己跑 `docs-site.create`」。装：
+`plugins.install {"pkg":"@godcreator02/gwb-docs-site"}`，livedoc 件同理。
 
 ## 建出来是什么
 
@@ -96,38 +121,46 @@ devkit.scaffold {"name":"hello","dir":"D:\\unitfolders\\<单元>\\gwb-hello","ti
 | 半 | 装什么 | 模板归谁 |
 | --- | --- | --- |
 | 仓根 | `package.json`（build / typecheck / lint / test / check / prepublishOnly）、`tsconfig.json` 与 `tsconfig.build.json`（typecheck 带上 tests，构建只吃 src）、`.oxlintrc.json`（type-aware 那套规则）、`vitest.config.ts`（只认仓根 `tests/`，slow 标签留给真起子进程的用例）、`.npmrc`（scope 指本机源）、`src/index.ts`、`tests/plugin.test.ts`、`README.md` | **本包 `template/`**，10 个 `.tpl` |
-| `docs-site/` | fumadocs 站接 livedoc | **livedoc 的站模板**，随 `@godcreator02/live-doc-cli` 发 |
+| `docs-site/` | fumadocs 骨架 + livedoc 的六区 | **不归本包**：骨架模板随站件发，六区那套随 `@godcreator02/livedoc` 发 |
 
-**方向是单向的**：devkit 知道 livedoc，livedoc 不知道 devkit——它那个 `init` 只认「一个仓 +
-一份模板」，不知道调它的人在写什么件。往**已有仓**里加站是同一条 `init`（前置条件正好相反：
-建新仓要求目标目录还不存在，加站要求仓已经在、而 `<仓>/docs-site` 还不在）：
+**三个件互不依赖。** devkit 不依赖站件、站件不认识 livedoc、livedoc 件不认识站件——
+建仓时那两步是**按名字在命令总线上找**，找不到就跳过那一步。这不是偷懒，是这次拆分
+的判据本身：一个不需要钉码的 fumadocs 站（比如那个 TypeScript 交互教学站）凭什么
+先装一套钉码机制。
+
+往**已有仓**里加站是同样两条命令（前置条件正好相反：建新仓要求目标目录还不存在，
+加站要求仓已经在、而 `<仓>\docs-site` 还不在）：
 
 ```
-devkit.livedoc {"args":["init","--dir","D:\\unitfolders\\<单元>\\<已有仓>"]}
+docs-site.create {"dir":"D:\\unitfolders\\<单元>\\<已有仓>\\docs-site","title":"<显示名>"}
+live-doc.attach  {"dir":"D:\\unitfolders\\<单元>\\<已有仓>\\docs-site"}
 ```
 
-起手页里预置一条**草稿记号**钉着 `src/index.ts` 里 `export const name` 那一行（行号是现找的，
-不写死）——`git init` 落第一个提交、在 `docs-site` 里 `pnpm doc:confirm`，它转成正式记号、
+装完在 `docs-site` 里 `pnpm install`、`pnpm doc:render`、`pnpm doc`。起手页里预置一条
+**草稿记号**钉着 `src/index.ts` 里 `export const name` 那一行（行号是现找的，不写死）
+——`git init` 落第一个提交、在 `docs-site` 里 `pnpm doc:confirm`，它转成正式记号、
 状态点变绿。这条闭环走一遍，这套机制就摸清了。
 
-`livedoc init` **不跑 `pnpm install`**（替人装依赖，出错时现场在哪都不好找），也**不改仓里
-任何已有文件**——仓根 `.gitignore` 缺哪几条只打印出来，自己加。
+两条命令都**只写文件**：不跑 `pnpm install`（替人装依赖，出错时现场在哪都不好找）、
+不 commit。
 
 模板文件一律带 `.tpl` 后缀、落盘时脱掉：`npm pack` 不打 `.gitignore` 是硬行为，一条规则管
 所有文件，不必记哪几个特殊。**这儿不抄模板正文**——抄一份就是第二份真相，要看就看
 `<devkit 包>/template/` 本身。
 
-**工作台起不来的时候**：件那半没有离线入口（模板在包里，但这个包是件、不是 CLI）——先按末尾
-「你改的是内核，不是件」那四步把工作台起起来。站那半随时可以 `pnpm dlx
-@godcreator02/live-doc-cli init --dir <仓>`。
+**工作台起不来的时候**：三样都没有离线入口（模板在包里，但那三个包都是件、不是 CLI）
+——先按末尾「你改的是内核，不是件」那四步把工作台起起来。
 
 ## 两条从实跑里换来的
 
-**一、`format-fumadocs` 不许进 `serverExternalPackages`。** 它的 `/pre` 是客户端组件，
-跟着站一起打包才是同一个 React。外置它的现象是构建期报
-`ERR_PACKAGE_IMPORT_NOT_DEFINED`（`#prehydration/...` 找不到，指着 `@base-ui/react`
-里的文件）——**报错完全不指根因**，会把人引去查 base-ui 的版本，而那儿根本没问题。
-`core` 与 `project` 要外置：它们读盘、调 git。
+**一、livedoc 的包一个都不许进 `serverExternalPackages`。** `@godcreator02/livedoc` 与
+`@godcreator02/livedoc-trajectory` 里都有客户端组件（前者的 `/fumadocs/pre` 是状态点，
+后者的 `./react` 是星轨盘），外置之后 Next 走 Node 单独加载它们、跟站打包的 React 分了家。
+**报错完全不指根因**——预渲染报 `Cannot read properties of null (reading 'use')`，或者
+构建期报 `ERR_PACKAGE_IMPORT_NOT_DEFINED` 指着 `@base-ui/react` 里的文件，会把人引去查
+base-ui 的版本，而那儿根本没问题。它们的服务端那半（remark 插件、读盘调 git 的那些）
+走 fumadocs-mdx 的 loader，本来就是 Node 直载、不经打包器，不需要外置。
+`live-doc.attach` 铺出来的 `next.config.mjs` 里那格就是空表，别往里加。
 
 **二、`oxlint` 的 type-aware 要单独装 `oxlint-tsgolint`。** 少了它 `pnpm lint` 报
 "Failed to find tsgolint executable"。模板里两个都钉了版本。
@@ -167,36 +200,67 @@ pnpm build
 先 git init 落第一个提交，再在 docs-site 里 pnpm doc:confirm
 发一版：先抬 package.json 的版本号，再 pnpm publish --registry http://127.0.0.1:4873/ --no-git-checks
 装进 home：调 plugins.install {"pkg":"@godcreator02/gwb-<短名>"}，或手动 pnpm add + 在 cordis.yml 手写 id 条目
+发完就去升 default home（人点「全部更新」或 plugins.update-all）
 ```
 
-# livedoc 经本件登记成 node CLI `devkit.livedoc`
+# 三个件各管什么
 
-livedoc 是个 CLI 包、不是件，自己挂不上工作台。本件把它的可执行登记进 `gwbNodeCli`，于是
-它自动镜像成总线命令、自动是 MCP 工具，回执自带 stdout 与退出码。
+2026-09-10 之前 livedoc 是一条包线，把钉码、轨迹、开发方法论、文档管理模式四样东西挤在
+一起。现在拆成**三个件，各自独立发版、互不依赖**：
 
-镜像出来的参数形状是 **`{ args?: string[], cwd?: string }`**——`cwd` **按次给**
-（node-cli / py-cli 的 `run` 都认它），必须是**存在的绝对路径**，不给就落在 entry 自己旁边。
+| 件 | 管什么 | 包 |
+| --- | --- | --- |
+| **站件** | 一个 fumadocs 站的**一生**：铺标准骨架、扫容器根找站、判构建新鲜度、现挑空口起停、到点自动关、一格窗格。**只认 fumadocs**，不认识 livedoc | `@godcreator02/gwb-docs-site` |
+| **livedoc 件** | 站里**内容的正确性**：装配六区与接线、钉码、核对、确认、渲染、待重写页清单、跨仓灌反馈。不知道站是谁建的、有没有在跑 | `@godcreator02/gwb-live-doc` |
+| **开发件** | 三份**通用开发纪律**说明书：接到需求先盘问、按模块并行派活、让代码自己说清自己。**零命令、零运行时依赖** | `@godcreator02/gwb-dev-loop` |
 
-**建站**：`init` 的目标由 `--dir` 给，跟 cwd 无关，所以这条不用带 cwd：
+livedoc 的包线同时塌成了**一个包** `@godcreator02/livedoc`（原来的 `-core` / `-project` /
+`-cli` / `-format-fumadocs` 四个并成它，`-format-md` 与 `-format-html` 删掉），轨迹另一个包
+`@godcreator02/livedoc-trajectory`。**旧的那批 `@godcreator02/live-doc-*` 不再更新**——看见
+哪儿还写着旧包名或 `livedoc init`，那份文档过期了。
+
+**装机面不一样**：`@godcreator02/livedoc` 是 npm 包，要装进**各仓**的 `node_modules`
+（站构建 import 它的接线、门禁跑它的 check）；三个件只装进 **home**，各仓的依赖树里
+不该出现它们。
+
+## livedoc 的命令怎么调
+
+livedoc 件把命令行开成 `live-doc.cli`：**`{ args: string[], cwd?: string }`**，`args`
+原样递给 livedoc。`cwd` 是**站目录**的绝对路径（那儿有 `livedoc.config.mjs`），
+**不给就落在选中单元的站**——那份清单它问站件要，站件没装、选中的单元没站、或有好几个，
+它会回一句让你给 cwd。
 
 ```
-devkit.livedoc {"args":["init","--dir","<仓的绝对路径>","--title","<显示名>"]}
+live-doc.cli {"args":["check"],"cwd":"<仓>\\docs-site"}
+live-doc.cli {"args":["confirm"],"cwd":"<仓>\\docs-site"}
+live-doc.cli {"args":["render","--target","ai"],"cwd":"<仓>\\docs-site"}
 ```
 
-**`check` / `confirm` / `render` 也走这条**：它们认的是 cwd 里那份 `livedoc.config.mjs`，
-所以把 cwd 指到那个仓的 `docs-site`：
-
-```
-devkit.livedoc {"args":["check"],"cwd":"<仓>\\docs-site"}
-devkit.livedoc {"args":["confirm"],"cwd":"<仓>\\docs-site"}
-devkit.livedoc {"args":["render","--target","ai"],"cwd":"<仓>\\docs-site"}
-```
+`check` 有红时退出码是 1——**那是核对结果，不是命令失败**。装六区**别从这儿递
+`attach`**，有专门的 `live-doc.attach`（见「建仓」那节）。另外三条常用的：
+`live-doc.stale`（把 `check --json` 收敛成待重写页清单）、`live-doc.feedback` /
+`live-doc.feedback-list`（往别的仓的反馈区投一条 / 读回来）。
 
 （在终端里也一样跑得了：`cd <仓>\docs-site` 之后 `pnpm doc` / `pnpm doc:confirm` /
 `pnpm livedoc render --target ai`。两条路等价，选手边那条。）
 
-别在件里进程内 import livedoc——CLI 形态的东西一律经 `gwbNodeCli` / `gwbPyCli` 登记，
+别在件里进程内 import 一个 CLI——CLI 形态的东西一律经 `gwbNodeCli` / `gwbPyCli` 登记，
 不做总线命令、不进程内调。
+
+## 写一个新件时，说明书该住哪个件
+
+**知识跟着它描述的代码走。** 判据只有一句：**这份说明书会不会因为某行代码改动而过期？**
+
+- 会 → 它必须跟那段代码**同仓同提交**，随那个包发。「六区怎么写」在六区从六个变七个的
+  那一刻当场过期，所以它跟六区同仓
+- 不会（换个生态照样成立，比如「接到需求先盘问」）→ 它不描述任何代码，归**开发件**
+- 一份说明书点名了某个宿主能力（比如 `AskUserQuestion`）而不是某段代码 → 它是宿主的
+  纪律，住宿主那边（总控台的 `.claude/skills/`），不随件
+
+**说明书是全局单一命名空间。** 两个件挂同名的那份，后来的直接不挂、只留一行警告——
+症状是 agent 读到的可能是旧那份、照着做但做错了，最难查。**所以别替别的件代挂它的
+说明书**：本件 0.2.x 曾经代挂 livedoc 那两份（`livedoc-docs` / `trajectory`），
+0.3.0 删了——livedoc 件现在自己挂，而本件依赖树里那份是不再更新的旧版。
 
 # 从哪儿起手
 
@@ -315,7 +379,7 @@ dependencies，装进 home 就是第二份实例，Service 身份对不上——
 | 面 | 怎么拿 | 什么时候要 |
 | --- | --- | --- |
 | 命令总线 | `inject: ['gwbCommands']` → `register` | 能力要被调就要（几乎一定）。界面、agent 走的是同一张表 |
-| 说明书 | `skills/` 目录 + `gwbSkills.register`（局部） | 有多步流程或坑要讲给 agent 就要。**本件把 livedoc 的两份也挂上来了**：文档写什么读 skill「livedoc-docs」，记轨迹卡读 skill「trajectory」 |
+| 说明书 | `skills/` 目录 + `gwbSkills.register`（局部） | 有多步流程或坑要讲给 agent 就要。**只挂自己那份**——见上一节的判据与那条撞名的坑。文档写什么读 skill「livedoc-docs」、记轨迹卡读「trajectory」，那两份由 livedoc 件自己挂 |
 | 设置 | `gwbSettings.define`（局部）→ `get`/`set` | **件的配置一律走这里，不吃 `cordis.yml` 的 `config`**。类型 `string` / `number` / `boolean` / `secret`。值跟条目走（分区是条目 id 的末段），`shared: true` 才落公共区 |
 | 数据 | `gwbData.readDoc/writeDoc`（局部） | 要落盘状态就要。存 `<home>/data/<条目末段>/` |
 | 窗格 | `gwbShell.registerPane` + client 半 | 要人看得见就要 |
@@ -401,7 +465,23 @@ minimumReleaseAgeExclude:
 装完看日志：`[host] 挂上 gwb-<短名>`；没挂上看 `[loader]` 那行——它带
 `ERR_MODULE_NOT_FOUND` 之类带完整路径的原因。
 
-## 一键更新：一批新版本发完之后
+## 发完版就去升 default home，别攒着
+
+整条路是三段，**一段都不能省，最后一段最容易忘**：
+
+1. **发版前在隔离 home 里验**（`devkit.home.new`，见「验机」）——`plugins.update-all`
+   直接升日常那份，跳过了这一步
+2. **发本机 registry**（`pnpm publish`，上一节）
+3. **升 default home**：人在插件窗格点「全部更新」，或 agent 调 `plugins.update-all`。
+   **新件第一次装**不走这条（它只升已装的），走 `plugins.install {"pkg":"<包名>"}`，
+   装完 `/mcp` 重连——顶层工具清单与 resources 列表都是连接时的快照
+
+**不升的代价**：说明书与命令都停在旧版，而 `gwb-skills` 的「正文现读盘」只对**装进 home
+的那份**生效——仓里改了字、发了版、没升，agent 读到的还是上一版。它照着一份过期手册
+干活**还不报错**，那正是最难查的一种。攒着几个版本一起升不会更省事，只会让「现在装的
+到底是哪一版」变成一道要现查的题。
+
+## 一键更新是怎么走的
 
 发完（可能是好几个件的好几版）之后，把 home 里那份升上来只有一个动作：人在插件窗格点
 **「全部更新」**，或 agent 经 MCP 调 **`plugins.update-all`**（无参数）。它一条命令走完：
@@ -518,8 +598,14 @@ node <devkit 包根>\bin\cdp-eval.mjs <端口> <表达式文件>
 $env:GWB_HOME = 'boot-2609070700'          # <这次验什么>-<yyMMddHHmm>
 cd D:\unitfolders\26090705ymz\gwb-kernel\apps\desktop
 pnpm build                                 # tsc 直出 dist/，没有打包器（electron-vite 已不在）
-.\run.cmd --remote-debugging-port=9334     # 要取证就带端口
+.\node_modules\electron\dist\electron.exe . --remote-debugging-port=9334
 ```
+
+**别用 `run.cmd` 转发 Chromium 参数。** `.\run.cmd --remote-debugging-port=9334` 那条
+在 cmd 那一层会把参数切断，输出里冒出一行 `'g-port' is not recognized as an internal or
+external command`。Electron 最终**仍然收到了**那个开关（不挡验机），但那行报错会把人
+引去查一个根本不存在的问题。直接调 `node_modules\electron\dist\electron.exe .` 绕开那层
+转发，不带调试口时 `run.cmd` 照用不误。
 
 这四步同时是**所有人的兜底**：`devkit.home.*` 那套要 devkit 跑在一个活着的 home 里，
 一个 home 都没活着的时候，命令化那半也起不来，只能走这里。
@@ -537,4 +623,5 @@ home 命名、不许复用、四种假验收、清理时机、拿证据——那
 
 自己撞到新墙记进**自己仓**的文档。判据：每一次发现「不伸手进别的仓就做不下去」，
 那就是一堵墙。文档怎么写见 skill「livedoc-docs」，记轨迹卡见 skill「trajectory」——
-两份随 livedoc 发，本件代为挂上。
+两份随 `@godcreator02/livedoc` 发、由 livedoc 件挂上，本件不再代挂。通用开发纪律
+（先盘问、并行派活、代码自解释）在开发件 `@godcreator02/gwb-dev-loop` 那三份里。
