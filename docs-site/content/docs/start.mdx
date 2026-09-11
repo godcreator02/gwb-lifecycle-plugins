@@ -47,7 +47,7 @@ plugins.install {"pkg":"@godcreator02/gwb-devkit"}
 
 **在页面里动手**。`devkit.cdp` 是经 `gwbNodeCli` 登记的外部 CLI，连上一个工作台页面发真鼠标、真按键、截图，也能在那张页上跑工作台命令、刷新、问它是哪个 home。
 
-{/* ref file="../src/index.ts" lines="479-486" */}
+{/* ref file="../src/index.ts" lines="487-494" */}
 
 动作表在 `bin/cdp.mjs` 的文件头，那份随包发，是唯一的真相。**第一个位置只收 home 名**，给数字当场拒；口从那个 home 的记录里查，连上之后还要拿页面自报的名字核对一次。**只对隔离 home 用，绝不打 `default`**：这儿发的是真操作，会真往库里写。内核起的时候要带 `--remote-debugging-port=<口>` 与 `--disable-backgrounding-occluded-windows`，后一个不带，窗口被别的窗口盖住时 Chromium 停止产帧，截图拿到的是陈旧帧。
 
@@ -55,13 +55,13 @@ plugins.install {"pkg":"@godcreator02/gwb-devkit"}
 
 ## 改一版看一版
 
-{/* ref file="../src/index.ts" lines="517-524" */}
+{/* ref file="../src/index.ts" lines="525-532" */}
 
 `devkit.dev` 走的是一条链：仓根构建，给每个包发一个开发版到本机源（号打成 `<patch+1>-dev.<戳>`，标 `dev` 不动 `latest`），在目标 home 里装那个准确的号，把对应条目停用再启用，整页重载，最后取证。取不到证就回 `ok: false`。
 
 **目标只有一种指法：说出 home 名。** 两条命令都不收端口，给了 `cdp` 当场拒，回一句教新写法的话：
 
-{/* ref file="../src/index.ts" lines="501-515" */}
+{/* ref file="../src/index.ts" lines="509-523" */}
 
 口是查出来的，查的时候顺带验活：记录读得出、pid 还活着、那个 pid 真的持着那个口，三道都过才动手。
 
