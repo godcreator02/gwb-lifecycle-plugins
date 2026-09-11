@@ -22,9 +22,9 @@ description: 一个普通的件，五件事一条 CLI；站那半两步转出去
 | --- | --- | --- | --- |
 | 建仓 | 把一个新件的骨架落进一个新文件夹，默认连文档站一起（站那半两步转给别的件） | `devkit.scaffold` | [建仓](/docs/scaffold) |
 | 手册 | 写件的整条路、红线、验机怎么走，随包发。**只挂自己那份** | `skills/` 经 `gwbSkills` 挂载 | [手册正本](/outputs/skills/gwb-devkit) |
-| 本机源 | 本机 Verdaccio 的起 / 停 / 状态 / 日志，另有一扇窗格 | `registry.*` | [本机源](/docs/registry) |
-| 测试 home | 测试 home 的开 / 列 / 重开 / 停 / 删 | `devkit.home.*` | [测试 home](/docs/home) |
-| 改一版看一版 | 把工作区的改动送进另一个 home 正在跑的进程，并且证明送到了 | `devkit.dev` / `devkit.dev-check` | [改一版看一版](/docs/dev) |
+| 本机源 | 本机 Verdaccio 的起 / 停 / 状态。一份实现两个入口，工作台没起时走包内那支命令行 | `registry.*` 与 `bin/registry.mjs` | [本机源](/docs/registry) |
+| 测试 home | 测试 home 的开 / 列 / 重开 / 删 | `devkit.home.*` | [测试 home](/docs/home) |
+| 改一版看一版 | 把工作区的改动送进另一个 home 正在跑的进程，并且证明送到了 | `devkit.dev` | [改一版看一版](/docs/dev) |
 
 外加一条经 `gwbNodeCli` 登记的外部 CLI：**`devkit.cdp`**，在一个工作台页面里动手。
 [那支驱动](/docs/cdp) 讲它管到哪儿为止。

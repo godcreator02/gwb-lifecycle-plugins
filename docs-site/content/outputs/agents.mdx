@@ -6,9 +6,10 @@ description: 仓根 AGENTS.md 由这一页摆出去——每次会话都得知�
 # gwb-devkit
 
 开发套件，**一个普通的 gwb 件**：一仓一包一插件，仓根即包根。发本机 registry，装进 home。
-它管建仓 / 手册 / 本机源 / 测试 home / 改一版看一版五件事，外加一条经 `gwbNodeCli` 登记的
-外部 CLI（`devkit.cdp`）。设计与原理在文档站（`docs-site/`，六区），这份只装**不知道就会做
-错事**的硬约束。
+它管建仓 / 手册 / 本机源 / 测试 home / 改一版看一版五件事，外加两支包内 CLI——`bin/cdp.mjs`
+（经 `gwbNodeCli` 登记成 `devkit.cdp`）与 `bin/registry.mjs`（起停源那条不经工作台的路）。
+**本件没有浏览器半**：它的使用者是 agent，读的是回执。设计与原理在文档站（`docs-site/`，
+六区），这份只装**不知道就会做错事**的硬约束。
 
 ## 文档站是正本，六区
 
@@ -24,8 +25,8 @@ description: 仓根 AGENTS.md 由这一页摆出去——每次会话都得知�
 ## 门禁
 
 ```powershell
-pnpm check          # = typecheck（两份 tsconfig）+ vitest
-pnpm build          # tsc 直出 dist/ 与 dist/client/，没有打包器
+pnpm check          # = typecheck + vitest
+pnpm build          # tsc 直出 dist/，没有打包器
 ```
 
 **`pnpm check` 不构建。** 它吃的是源码，全绿只说明源码站得住，跟「装出来能不能跑」是两件事。
@@ -54,7 +55,7 @@ pnpm build          # tsc 直出 dist/ 与 dist/client/，没有打包器
 | `dist` | 件根本挂不上 |
 | `template` | `devkit.scaffold` 回「包内 template/ 不在」 |
 | `skills` | 写件手册装不进 home，agent 那边少一份说明书 |
-| `bin` | `devkit.cdp` 的 entry 指向一个不存在的文件，`devkit.dev` 的重挂与取证三步一起废 |
+| `bin` | `devkit.cdp` 的 entry 指向一个不存在的文件，`devkit.dev` 的重挂与取证三步一起废；工作台没起时起停源那条路也没了 |
 | `src` | 类型跳转与读源码断掉（不影响运行） |
 
 ## 模板
@@ -73,8 +74,8 @@ pnpm build          # tsc 直出 dist/ 与 dist/client/，没有打包器
 
 | key | 填什么 | 不填的后果 |
 | --- | --- | --- |
-| `registry-dir` | Verdaccio 目录（含 `config.yaml`、`storage`、`node_modules/verdaccio`） | `registry.*` 四条全回「未配置 registry-dir」 |
-| `kernel-dir` | 内核仓根（含 `apps/desktop`） | `devkit.home.new` / `open` 不工作；`list` / `stop` / `rm` 不受影响 |
+| `registry-dir` | Verdaccio 目录（含 `config.yaml`、`storage`、`node_modules/verdaccio`） | `registry.*` 三条全回「未配置 registry-dir」 |
+| `kernel-dir` | 内核仓根（含 `apps/desktop`） | `devkit.home.new` / `open` 不工作；`list` / `rm` 不受影响 |
 
 **两个都不给默认值。** 目录是这台机器的事实，编一个只会得到「配置了但不在」的假象。
 
@@ -120,8 +121,9 @@ startedAt / appDir / cdp）与 mcp 件（绑上口之后补 `mcp` 那格）。�
 **验活**（pid 还在、且那个 pid 真的持着记录里那个口），以及**记录不删**（进程退了也留着，
 下一次开机内核会整份重写）。
 
-**够一个 home 只有一条路：说出它的名字。** `devkit.dev` / `dev-check` 与 `bin/cdp.mjs` 三处
-**都不收端口**（0.5.0 起），给了当场拒。口是查出来的，连上之后还要拿页面自报的名字核对一次：
+**够一个 home 只有一条路：说出它的名字。** `devkit.dev` 与 `bin/cdp.mjs` 两处**都不收端口**，
+给了当场拒；起 home 的那两条也不收，口由 `pickCdpPort` 自动挑。口是查出来的，连上之后还要拿
+页面自报的名字核对一次：
 记录回答「你要的是哪个」，页面回答「你连上的实际是哪个」。理由是端口没有语义，敲错一位就落在
 另一个现场，而那个现场会老老实实收下这一趟改动。**所以本包里不许再长出「给个端口就连」的口子**，
 包括图省事的内部调用：链里那七步也是按名字调驱动的，为的就是每一步都白得一次核对。
@@ -133,7 +135,24 @@ startedAt / appDir / cdp）与 mcp 件（绑上口之后补 `mcp` 那格）。�
 **收尾是取证不是刷新**：条目要真 ACTIVE、日志增量里不许有 error，取不到就回 `ok: false`。
 
 `bin/cdp.mjs` 是**零依赖单文件纯 JS，不进 typecheck**——它得在工作台起不来时也能直接跑，
-那是它的另一个身份。探针与截图落点按**工作目录**算，不按它装在哪算。
+那是它的另一个身份。`eval` 那个文件的相对路径与截图落点按**工作目录**算，不按它装在哪算。
+
+## 起停源：一份实现，两个入口
+
+**这台机器上不许再有第二份起停 registry 的实现。** 逻辑全在 `src/daemon.ts`：件那半是
+`registry.up` / `down` / `status` 三条命令，工作台没起时那半是 `bin/registry.mjs`
+（`node <包根>/bin/registry.mjs <status|up|down> <registry 目录>`），它 import 的就是
+`dist/daemon.js`。写第二份脚本的那天它会跟这份漂开，而漂了的现象不是崩，是「它说没在跑，
+其实跑着」。
+
+**`verdaccio.pid` 的格式不许动，里头只有一个数。** 老线那个工作台
+（`D:\unitfolders\26090412vav\god-workbench`）读写同一个文件，它那份解析要求整份文件就是一个数；
+往里加一格，老线会读成「没有 pid」，然后在源还跑着的时候把文件删掉。两条线并存期间这是跨线的契约。
+
+起它那个进程的映像名落**旁边那份 `verdaccio.owner`**（内容是 `<pid> <映像名>`）：件那半跑在
+electron 里、命令行那半跑在 node 里，少了它只能拿「读的人自己是什么」去猜起的人是什么，于是
+命令行会把 electron 起的那个判成「不是它」。**这份里的 pid 对不上就当没有**——老线起源时不写
+它，那时留着的是上一次的。两份记录一起写、一起清。
 
 ## 说明书只挂自己那份
 

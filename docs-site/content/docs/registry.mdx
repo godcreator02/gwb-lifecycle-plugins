@@ -1,23 +1,29 @@
 ---
 title: 本机源
-description: 维持一个 Verdaccio 目录：起停时序、判活判据、杀之前的两道核对
+description: 维持一个 Verdaccio 目录：一份起停实现两个入口、判活判据、杀之前的两道核对
 ---
 
 # 本机源
 
-**本页回答**：这块凭什么说一个 registry「在跑」、起和停各自的时序是什么、为什么杀一个进程之前要核对两道。
+**本页回答**：这块凭什么说一个 registry「在跑」、起和停各自的时序是什么、为什么杀一个进程之前要核对两道、为什么 pid 文件里还要记一个映像名。
 
 ## 管什么
 
-维持**一个 Verdaccio 目录**：把它拉起来、停掉、现查状态、回一段日志尾巴。外加一扇窗格，
-把状态每 10 秒画一次。
+维持**一个 Verdaccio 目录**：把它拉起来、停掉、现查状态。
 
 **一个 registry 目录就是全部真相**：地址、存储位、日志位都写在它自己那份 `config.yaml` 里。
 
-{/* ref file="../src/daemon.ts" lines="5-16" */}
+{/* ref file="../src/daemon.ts" lines="15-17" */}
 
 所以这一层认目录，不认配置项。据别处一份配置去 ping 另一个地址，会得出「你要维持的那个没起来，
 但状态显示在跑」，那是这台机器上另一个 registry 的回音。
+
+**这是起停唯一的一份实现，但有两个入口**：件那半的三条命令，与包内那支命令行脚本。
+
+{/* ref file="../src/daemon.ts" lines="9-11" */}
+
+两份判据必然漂开，而漂了的现象是「它说没在跑，其实跑着」——人照着那句话去起第二个，得到的是一个
+抢不到端口、几秒后死掉的进程，外加一份被覆盖成死号的 pid 文件。
 
 ## 不知道什么
 
@@ -25,10 +31,15 @@ description: 维持一个 Verdaccio 目录：起停时序、判活判据、杀�
 
 它**不替你装 Verdaccio**：
 
-{/* ref file="../src/daemon.ts" lines="43-50" */}
+{/* ref file="../src/daemon.ts" lines="57-64" */}
 
 装 verdaccio 本身要先有一个 registry，把它声明成依赖就是鸡生蛋。目录里没有那份本体，就实话说
 「进这个目录跑 pnpm install」。
+
+**它不知道日志里写着什么，只知道日志在哪。** 起不来时的错话里带着那个文件的绝对路径，读它是读
+文件那个工具的事，不是这块的事。
+
+{/* ref file="../src/daemon.ts" lines="534-540" */}
 
 它也不知道这台机器上还有谁在用这个源。停之前想清楚是人的事，命令只如实报它做了什么。
 
@@ -36,26 +47,56 @@ description: 维持一个 Verdaccio 目录：起停时序、判活判据、杀�
 
 对外那张状态表只钉形状：
 
-{/* ref file="../src/daemon.ts" lines="309-323" */}
+{/* ref file="../src/daemon.ts" lines="348-362" */}
 
 里头两格值得单独说。`running` 由 `/-/ping` 说了算，`pid` 只是用来停它的把手；`adopted` 是会话级的
 判断：宿主重启之后同一个源还在跑（它本来就该活过宿主），那时它对新会话确实是接管来的。
 
+盘上那份记录是**两个文件**：`verdaccio.pid` 里只有一个数，起它那个进程的映像名落在旁边的
+`verdaccio.owner`。
+
+{/* ref file="../src/daemon.ts" lines="26-43" */}
+
+**为什么分成两份**：老线那个工作台读写同一个 `verdaccio.pid`，它那份解析要求整份文件就是一个数。
+往里加一格，老线会读成「没有 pid」，然后在源还跑着的时候把文件删掉。两条线并存期间，那个文件的
+格式是跨线的契约。
+
+**为什么要记映像名**：件那半跑在 electron 里，命令行那半跑在 node 里，谁起的就把谁的写进去。
+没有它，读的人只能拿「我自己是什么」去猜起的人是什么，于是命令行会把 electron 起的那个判成
+「不是它」，清掉 pid 文件走人——而那个 registry 还跑着，唯一一份「它是谁」的记录没了。
+
+**这份里也记着 pid，对不上就当没有**：老线起源时不写它，那时留在盘上的是上一次那个进程的。
+
+{/* ref file="../src/daemon.ts" lines="187-199" */}
+
 另一张是查进程的三态。**「查不出」不能跟「不在」混成一个**：
 
-{/* ref file="../src/daemon.ts" lines="176-191" */}
+{/* ref file="../src/daemon.ts" lines="215-230" */}
 
 查映像名那条命令会超时、会不在、会自己出错。把这些当成「进程不在」，停就退化成「只清一份 pid 文件」，
 那个源还在跑，而唯一一份「它是谁」的线索被删了。
 
 ## 提供的接口
 
-四条命令：`registry.status`、`registry.up`、`registry.down`、`registry.log`，全部无参数，
-只有最后一条收一个 `lines`。
+件那半三条命令：`registry.status`、`registry.up`、`registry.down`，全部无参数。
+
+命令行那半一条：`node <包根>/bin/registry.mjs <status|up|down> <registry 目录>`。回执是一段 JSON 打在
+标准输出上，成了退出码 0、没成 1。
+
+{/* ref file="../bin/registry.mjs" lines="1-15" */}
+
+它存在的理由只有一个：**起源是工作台自举的前提**——首启要从源上装件，而那时工作台还没起。跟
+[那支 CDP 驱动](/docs/cdp)的要求不同：那支是零依赖单文件、连包都不用装，因为它要在「工作台起不来」
+时救场；这支只要求包已经装进某个 home（`yaml` 与 `dist/` 跟着包走），而要求更低的那种场面不存在
+——源都没起的时候，包本来就是从源上装的。
+
+两个入口喂的是同一张注入面，只有 `execPath` 不同：命令行那头是 node 本身。
+
+{/* ref file="../bin/registry.mjs" lines="45-61" */}
 
 `up` 的时序是「已经在跑就直接接管，不重起」：
 
-{/* ref file="../src/daemon.ts" lines="377-387" */}
+{/* ref file="../src/daemon.ts" lines="408-418" */}
 
 ping 通就认，不去比对 pid。这个地址上已经有一个源在服务了，再起一个只会得到一个抢不到端口、几秒后
 死掉的进程，还顺手把 pid 文件写成那个死号。pid 活着而地址不应答是另一种局面：多半它正在起，
@@ -66,34 +107,35 @@ ping 通就认，不去比对 pid。这个地址上已经有一个源在服务�
 
 `down` 是**两道核对再杀**：
 
-{/* ref file="../src/daemon.ts" lines="457-477" */}
+{/* ref file="../src/daemon.ts" lines="490-518" */}
 
 第一道是映像名，因为 pid 会被系统复用，一份陈旧的 pid 文件加一次不核对的 kill，杀的就是碰巧拿到这个
-号的另一个进程。第二道是端口持有者，因为映像名只能证明「这是个 node 或者跟宿主同一个 exe」，撞上别人
-的 node 照样杀错。两道都过了才下手。
+号的另一个进程。第二道是端口持有者，因为映像名只能证明「这是个记录里那种进程」，撞上别人的同名进程
+照样杀错。两道都过了才下手。
 
 kill 失败时 pid 文件留着：那个进程还在跑，而 pid 文件是唯一一份记录。删文件只发生在两种局面，
 真杀掉了，或者那个号确实已经陈旧。
 
 `status` 现查一次，**一个字都不动盘**：清 pid 文件是停那条路上的事。
 
-{/* ref file="../src/daemon.ts" lines="330-350" */}
+{/* ref file="../src/daemon.ts" lines="369-389" */}
 
 ## 依赖的接口
 
 一张注入面，起停时序全站在它上面：
 
-{/* ref file="../src/daemon.ts" lines="279-305" */}
+{/* ref file="../src/daemon.ts" lines="308-344" */}
 
 | 接口 | 用来做什么 | 生产实现 | 测试实现 |
 | --- | --- | --- | --- |
-| `fs` | 读 `config.yaml`、读写 pid 文件、读日志 | `node:fs` | 一张内存文件表 |
+| `fs` | 读 `config.yaml`、读写那两份记录 | `node:fs` | 一张内存文件表 |
 | `spawn` | 起 detached 子进程 | `child_process.spawn` | 记一笔，回一个假 pid |
 | `ping` | 打一次 `/-/ping` | `node:http`，不用 `fetch` | 按脚本回 true / false |
 | `processName` | 查 pid 的映像名 | Windows 走 `tasklist`，别的平台走 `ps` | 直接喂三态 |
 | `portOwner` | 查端口上 listen 的 pid | `netstat` / `ss` / `lsof` | 直接喂一个号 |
 | `kill` | 停一个进程 | `process.kill`，ESRCH 算 gone，别的抛 | 可以让它抛，演 EPERM |
 | `sleep` / `now` | 轮询与超时 | 真时钟 | 假时钟，30 秒的等待不用真等 |
+| `execPath` | 起子进程、落进 `verdaccio.owner` 那个映像名 | 宿主自己那个（件是 electron，CLI 是 node） | 给死值，两个入口都演得出来 |
 
 `ping` 那条用 `node:http` 而不是 `fetch` 是有理由的：它要按 500 毫秒轮询 30 秒，而 `fetch` 背后那个
 连接池会把 keep-alive 连接留着，探活探到最后剩一串谁也不用的连接挂在一个刚起来的源上。
@@ -107,18 +149,22 @@ kill 失败时 pid 文件留着：那个进程还在跑，而 pid 文件是唯�
 `ping` 通就接管、不重起；起了之后轮询到通、或者中途发现进程死了就立刻报；停之前两道核对，
 任何一道对不上就不杀；查不出 pid 是什么的时候既不杀也不删记录；kill 抛异常时 pid 文件留着。
 
+两个入口那件事单独有几条：起的时候 pid 文件里只落一个数、映像名落 `verdaccio.owner`；记了就照
+记的比，于是命令行（记着 node）起的那个，件那半（跑在 electron 里）照样停得了；反过来，号被另一个
+node 复用时不杀；那份记录的 pid 对不上（老线起的源）就当没有，回落到两头都认；停成了两份一起清。
+
 这些判断全部只在边角上现形，手工点几遍点不出来。
 
 ## 代码地图
 
-**在哪**：纯机在 `src/daemon.ts`，真机器在 `src/node-registry-deps.ts`，四条命令的接线在
-`src/index.ts`，窗格那半在 `src/client/`。
+**在哪**：纯机在 `src/daemon.ts`，真机器在 `src/node-registry-deps.ts`，三条命令的接线在
+`src/index.ts`，命令行入口在 `bin/registry.mjs`。
 
 **先读**：`readStatus`，一眼能看出这块认哪些事实。
 
-**读序**：`config.yaml` 的解析（`urlOf` / `logFileOf`）在最前面，接着是 pid 判活那几个纯函数，
-再往下是 `readStatus` / `bringUp` / `bringDown` 三条时序。`node-registry-deps.ts` 反过来 import 这个
-文件里的解析器与类型，方向是单向的。
+**读序**：`config.yaml` 的解析（`urlOf` / `logFileOf`）在最前面，接着是 pid 判活那几个纯函数
+（`parsePidFile` / `formatPidFile` / `isOwnedProcess`），再往下是 `readStatus` / `bringUp` /
+`bringDown` 三条时序。`node-registry-deps.ts` 反过来 import 这个文件里的解析器与类型，方向是单向的。
 
 **可跳过**：`parseTasklist` / `parseNetstat` / `parseSs` 三个解析器是喂给真机器那层的，读逻辑时跳过，
-它们各自有自己的用例。
+它们各自有自己的用例；`tailLines` 住在这个文件里，但它服务的是命令输出与构建输出，不是 registry。

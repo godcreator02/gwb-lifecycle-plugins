@@ -17,12 +17,12 @@ description: 拆成哪几块、各住哪、依赖方向是什么、先读哪块
 | 模块 | 在哪 | 管什么 | 先读 |
 | --- | --- | --- | --- |
 | 建仓 | `src/scaffold.ts` | 短名派生、模板渲染、落盘那两条纪律 | [建仓](/docs/scaffold) |
-| 本机源 | `src/daemon.ts` + `src/node-registry-deps.ts` | Verdaccio 的起停状态与日志 | [本机源](/docs/registry) |
-| 测试 home | `src/home.ts` + `src/node-home-deps.ts` | 测试 home 的开、列、重开、停、删 | [测试 home](/docs/home) |
+| 本机源 | `src/daemon.ts` + `src/node-registry-deps.ts` | Verdaccio 的起停与状态 | [本机源](/docs/registry) |
+| 测试 home | `src/home.ts` + `src/node-home-deps.ts` | 测试 home 的开、列、重开、删 | [测试 home](/docs/home) |
 | 改一版看一版 | `src/dev.ts` + `src/node-dev-deps.ts` | 发开发版、装进目标 home、重挂、取证 | [改一版看一版](/docs/dev) |
 | 页面驱动 | `bin/cdp.mjs` | 连 CDP 在一张工作台页面里动手 | [页面驱动](/docs/cdp) |
+| 起停的命令行入口 | `bin/registry.mjs` | 工作台没起时起停本机源，逻辑全在 `daemon.ts` | [本机源](/docs/registry) |
 | 接线 | `src/index.ts` | 命令登记、参数收窄、回执形状 | 本页 |
-| 插件源窗格 | `src/client/` | 本机源状态的可视面，10 秒一轮 | 本页 |
 
 盘上的样子：
 
@@ -32,30 +32,36 @@ description: 拆成哪几块、各住哪、依赖方向是什么、先读哪块
 
 **硬依赖只有一条：命令总线。**
 
-{/* ref file="../src/index.ts" lines="54-55" */}
+{/* ref file="../src/index.ts" lines="44-45" */}
 
 没有命令总线，这个件登记的一切都出不了这个进程，那时它确实不该挂上。别的服务全走
 `ctx.inject([...], fn)` 这种局部注入：设置、外壳、node CLI、说明书四个面各开一条子 fiber，
 缺哪个，那条 fiber 停在 PENDING，主件照常挂。少一条硬依赖就少一处挂不上的可能。
 
+**本件没有浏览器半。** 它的使用者是 agent，读的是回执，所以外壳那条子 fiber 里只有一句
+`describeSelf`——报一个给人看的名字，好让它在件清单里认得出来。没有窗格，也就没有
+`dist/client/`、没有第二份 tsconfig、没有第二趟 tsc。
+
+{/* ref file="../src/index.ts" lines="417-422" */}
+
 **文档站那半不是依赖，是两个字符串。** 建仓要铺 fumadocs 骨架、要装六区，这两件事分别归站件与
 docfirst 件。本包不引它们的任何包，只在命令总线上按名字找那两条命令，找不到就跳过那一步。
 
-{/* ref file="../src/index.ts" lines="63-75" */}
+{/* ref file="../src/index.ts" lines="47-59" */}
 
 耦合面因此只有那两个名字。哪个件没装，`hasCommand` 当场就知道，而且它现问不缓存：件是热挂载的，
 装一个新件之后这个答案当场就变。
 
 **说明书只挂自己那份。**
 
-{/* ref file="../src/index.ts" lines="745-751" */}
+{/* ref file="../src/index.ts" lines="667-673" */}
 
 说明书是全局单一命名空间，同名的第二份直接不挂、只留一行警告，而被撞掉的那份未必是旧的。代挂别人的
 说明书还有个更根本的问题：知识跟着它描述的代码走，代挂等于把别人的知识钉在自己的发版节奏上。
 
 那支页面驱动是 CLI 形态的东西，所以经 `gwbNodeCli` 登记，不做总线命令、不进程内调。
 
-{/* ref file="../src/index.ts" lines="487-494" */}
+{/* ref file="../src/index.ts" lines="429-436" */}
 
 登记进去的命令会自动镜像成同名总线命令，于是自动是 MCP 工具，回执自带 stdout、stderr 与退出码。
 自己写一遍 spawn 与超时，换来的只是同一件事的第二种回执形状。
