@@ -23,17 +23,24 @@ import { isRecord } from '@godcreator02/gwb-plugin-api'
 
 /** registry 目录里的几个固定名字（Verdaccio 自己的约定 + 起停落 pid 的位置） */
 export const CONFIG_FILE = 'config.yaml'
-/**
- * pid 文件。一行两格：`<pid> <起它那个进程的映像名>`。
- *
- * **第二格为的是两个入口认得出同一个 registry**：件那半跑在 electron 里，命令行那半
- * 跑在 node 里，谁起的就把谁的映像名写进来。少了这一格，只能拿「读的人自己是什么」去猜
- * 起的人是什么——命令行会把 electron 起的那个判成「不是它」，然后清掉 pid 文件走人，
- * 而那个 registry 还跑着，从此没人知道它是谁。
- *
- * 只有一格的文件照读（那时回落到老判据）：换格式不该逼人先停一次源。
- */
+/** pid 文件，**只有一个数**。这个格式不许动，见 `OWNER_FILE` */
 export const PID_FILE = 'verdaccio.pid'
+/**
+ * 起它那个进程的映像名，内容是 `<pid> <映像名>`。
+ *
+ * **为什么是旁边一个文件，不是 pid 文件里的第二格**：老线那个工作台
+ * （`D:\unitfolders\26090412vav\god-workbench`）读写同一个 `verdaccio.pid`，它那份解析要求
+ * 整份文件就是一个数。往 pid 文件里加一格，老线会读成「没有 pid」，然后在源还跑着的时候
+ * 把 pid 文件删掉——两条线并存期间，这个格式是跨线的契约，不许动。
+ *
+ * **为什么要记这一格**：件那半跑在 electron 里、命令行那半跑在 node 里，谁起的就把谁的
+ * 映像名写进来。少了它只能拿「读的人自己是什么」去猜起的人是什么，于是命令行会把 electron
+ * 起的那个判成「不是它」。
+ *
+ * **里头也记着 pid，对不上就当没有**：老线起源时只写 pid 文件、不写这份，那时这份是上一次
+ * 留下的，照它比会比到一个早没了的进程上去。
+ */
+export const OWNER_FILE = 'verdaccio.owner'
 /** `config.yaml` 里没写 `storage` 时的默认值（Verdaccio 的默认相对位） */
 export const DEFAULT_STORAGE = './storage'
 /** `config.yaml` 里没写 `listen` 时的地址——跟 Verdaccio 自己的默认一致 */
@@ -52,6 +59,10 @@ export function configFile(dir: string): string {
 
 export function pidFile(dir: string): string {
   return path.join(dir, PID_FILE)
+}
+
+export function ownerFile(dir: string): string {
+  return path.join(dir, OWNER_FILE)
 }
 
 /**
@@ -160,31 +171,30 @@ export function logFileOf(dir: string, configText: string | undefined): string {
 
 // ── pid 判活 ──────────────────────────────────────────────────────────────────
 
-/** pid 文件里那一行。`image` 是起它那个进程的映像名，老格式的文件没有这一格 */
-export interface PidRecord {
-  pid: number
-  image?: string
+/** pid 文件的内容 → 一个像样的 pid。空文件、半截数字、负数一律当没有 */
+export function parsePid(text: string | undefined): number | undefined {
+  const raw = text?.trim() ?? ''
+  if (!/^\d+$/.test(raw)) return undefined
+  const value = Number(raw)
+  return value > 0 ? value : undefined
+}
+
+/** 写 `verdaccio.owner`：起它那个进程的 pid 与映像名 */
+export function formatOwner(pid: number, execPath: string): string {
+  return `${String(pid)} ${shed(execPath)}\n`
 }
 
 /**
- * pid 文件的内容 → 一条记录。空文件、半截数字、负数一律当没有。
+ * `verdaccio.owner` 的内容 → 起它那个进程的映像名，**但只在 pid 对得上时才作数**。
  *
- * **第二格缺了不是坏**：0.6.0 之前写的文件只有一个数，那时按老判据认（node 或读的人
- * 自己那个可执行文件）。写坏了的第二格当没写——它只能让判据更准，不该让整条记录作废。
+ * 对不上说明这份记录不是给现在这个进程写的：老线那个工作台起源时只写 pid 文件，那时这份
+ * 是上一次留下的。照它比，会比到一个早就没了的进程身上去。
  */
-export function parsePidFile(text: string | undefined): PidRecord | undefined {
+export function ownerImage(text: string | undefined, pid: number): string | undefined {
   const parts = (text?.trim() ?? '').split(/\s+/)
-  const raw = parts[0] ?? ''
-  if (!/^\d+$/.test(raw)) return undefined
-  const pid = Number(raw)
-  if (pid <= 0) return undefined
-  const image = parts[1] === undefined || parts[1].trim() === '' ? undefined : shed(parts[1])
-  return image === undefined ? { pid } : { pid, image }
-}
-
-/** 写 pid 文件：pid 加起它那个进程的映像名 */
-export function formatPidFile(pid: number, execPath: string): string {
-  return `${String(pid)} ${shed(execPath)}\n`
+  if (parts[0] === undefined || !/^\d+$/.test(parts[0]) || Number(parts[0]) !== pid) return undefined
+  const image = parts[1]
+  return image === undefined || image.trim() === '' ? undefined : shed(image)
 }
 
 /** 映像名 → 可比的小写裸名:`C:\apps\Electron.exe` 与 `electron` 是同一个东西 */
@@ -369,12 +379,13 @@ export interface RegistryStatus {
 export async function readStatus(dir: string, deps: RegistryDeps, ownPid?: number): Promise<RegistryStatus> {
   const configText = deps.fs.readText(configFile(dir))
   const url = urlOf(configText) ?? null
-  const record = parsePidFile(deps.fs.readText(pidFile(dir)))
+  const filePid = parsePid(deps.fs.readText(pidFile(dir)))
+  const image = filePid === undefined ? undefined : ownerImage(deps.fs.readText(ownerFile(dir)), filePid)
   // 查不出的时候跟「不是它」一样报 null——状态上少一个 pid 是可以忍的。**但一个字都
   // 不动盘**：清 pid 文件是停那条路上的事，现查一次状态不该有副作用
   const live =
-    record !== undefined && ownsProcess(await deps.processName(record.pid), deps.execPath, record.image) === true
-      ? record.pid
+    filePid !== undefined && ownsProcess(await deps.processName(filePid), deps.execPath, image) === true
+      ? filePid
       : null
   const running = url === null ? false : await deps.ping(pingUrl(url))
   return {
@@ -433,8 +444,9 @@ export async function bringUp(dir: string, deps: RegistryDeps, ownPid?: number):
 
   const pid = deps.spawn(spawnPlan(dir, deps.execPath), nodeChildEnv(deps.env))
   if (pid === undefined) return { ok: false, error: '起不来：子进程没拿到 pid，看宿主日志' }
-  // 映像名跟 pid 一起落盘：起它的是这个进程，另一个入口读的时候才认得出（见 PID_FILE）
-  deps.fs.writeText(pidFile(dir), formatPidFile(pid, deps.execPath))
+  // pid 文件的格式是跨线的契约，只写那个数；映像名落旁边那份（见 OWNER_FILE）
+  deps.fs.writeText(pidFile(dir), `${String(pid)}\n`)
+  deps.fs.writeText(ownerFile(dir), formatOwner(pid, deps.execPath))
 
   const deadline = deps.now() + UP_TIMEOUT_MS
   const ping = pingUrl(before.url)
@@ -487,15 +499,25 @@ export interface DownOutcome {
  * **kill 失败时 pid 文件留着**：那个进程还在跑，而 pid 文件是唯一一份「它是谁」的记录。
  * 删文件只发生在两种局面——真杀掉了，或者那个号确实已经陈旧。
  */
+/**
+ * 清掉那两份记录。**两份一起清**：只清 pid 文件的话，旁边那份会活到下一个进程身上去，
+ * 而它记的映像名是上一个的。`ownerImage` 的 pid 核对兜得住这种局面，但留着一份必然对不上
+ * 的记录没有任何用处。
+ */
+function clearPidFiles(dir: string, deps: RegistryDeps): void {
+  deps.fs.remove(pidFile(dir))
+  deps.fs.remove(ownerFile(dir))
+}
+
 export async function bringDown(dir: string, deps: RegistryDeps): Promise<DownOutcome> {
   const file = pidFile(dir)
-  const record = parsePidFile(deps.fs.readText(file))
-  if (record === undefined) {
-    deps.fs.remove(file)
+  const filePid = parsePid(deps.fs.readText(file))
+  if (filePid === undefined) {
+    clearPidFiles(dir, deps)
     return { ok: true, killed: null, note: '没在跑（pid 文件不在或读不出 pid）' }
   }
-  const filePid = record.pid
-  const owned = ownsProcess(await deps.processName(filePid), deps.execPath, record.image)
+  const image = ownerImage(deps.fs.readText(ownerFile(dir)), filePid)
+  const owned = ownsProcess(await deps.processName(filePid), deps.execPath, image)
   if (owned === undefined) {
     return {
       ok: false,
@@ -504,7 +526,7 @@ export async function bringDown(dir: string, deps: RegistryDeps): Promise<DownOu
     }
   }
   if (!owned) {
-    deps.fs.remove(file)
+    clearPidFiles(dir, deps)
     return { ok: true, killed: null, note: `pid ${filePid} 已陈旧（进程不在，或不是它）——只清了 pid 文件` }
   }
   const port = portOf(urlOf(deps.fs.readText(configFile(dir))))
@@ -522,7 +544,7 @@ export async function bringDown(dir: string, deps: RegistryDeps): Promise<DownOu
   } catch (err) {
     return { ok: false, killed: null, note: `停 pid ${filePid} 没成：${String(err)}——进程还在，pid 文件留着` }
   }
-  deps.fs.remove(file)
+  clearPidFiles(dir, deps)
   if (killed === 'gone') {
     return { ok: true, killed: null, note: `pid ${filePid} 已陈旧（下手时进程已经不在了）——只清了 pid 文件` }
   }

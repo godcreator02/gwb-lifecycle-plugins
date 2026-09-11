@@ -672,7 +672,14 @@ export function apply(ctx: GwbContext): void {
     scoped.effect(() => scoped.gwbSkills.register(new URL('../skills/', import.meta.url)))
   })
 
+  // **就绪那句话现问总线，不手抄一份名单**：抄的那份改一条命令就过期，而它过期的样子是
+  // 「日志里列着一条早就没有的命令」。`devkit.cdp` 那条经 gwbNodeCli 登记，它在不在这一行里
+  // 取决于那个件有没有先挂上——列的是此刻真在总线上的，那正是这行字的全部价值
+  const mine = commands
+    .list()
+    .filter((entry) => entry.plugin === 'devkit')
+    .map((entry) => entry.name)
   log.info(
-    '开发套件就绪（devkit.scaffold、registry.status/up/down/log、devkit.home.new/list/open/stop/rm、devkit.dev/dev-check 经命令总线；devkit.cdp 经 node-cli；手册挂在本件 skills/ 下，只挂自己那份）',
+    `开发套件就绪（此刻在总线上的 ${String(mine.length)} 条：${mine.join('、')}；手册挂在本件 skills/ 下，只挂自己那份）`,
   )
 }

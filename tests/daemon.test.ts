@@ -8,14 +8,16 @@ import {
   bringDown,
   bringUp,
   configFile,
-  formatPidFile,
+  formatOwner,
   isOwnedProcess,
   listenToUrl,
   logFileOf,
   nodeChildEnv,
+  ownerFile,
+  ownerImage,
   ownsProcess,
   parseNetstat,
-  parsePidFile,
+  parsePid,
   parseSs,
   parseTasklist,
   pidFile,
@@ -177,19 +179,23 @@ describe('config.yaml：地址与日志位从目录自己那份配置推', () =>
 
 describe('pid 判活：复用的号不能认，自家 exe 起的也得认', () => {
   it('pid 文件里不是一个像样的数就当没有', () => {
-    expect(parsePidFile('14340\n')).toEqual({ pid: 14340 })
-    expect(parsePidFile('  14340  ')).toEqual({ pid: 14340 })
+    expect(parsePid('14340\n')).toBe(14340)
+    expect(parsePid('  14340  ')).toBe(14340)
     for (const bad of ['', '   ', '-1', '0', '14340x', 'abc', undefined]) {
-      expect(parsePidFile(bad), String(bad)).toBeUndefined()
+      expect(parsePid(bad), String(bad)).toBeUndefined()
     }
   })
 
-  it('pid 文件第二格是起它那个进程的映像名——两个入口靠它认得出同一个 registry', () => {
-    expect(parsePidFile('14340 electron\n')).toEqual({ pid: 14340, image: 'electron' })
+  it('旁边那份记着起它那个进程的映像名，**pid 对不上就当没有**', () => {
     // 记的是裸名：写进去的是 execPath，读出来能跟 tasklist 的映像名直接比
-    expect(parsePidFile('14340 C:/apps/Electron.exe')).toEqual({ pid: 14340, image: 'electron' })
-    expect(formatPidFile(14340, 'C:/apps/Electron.exe')).toBe('14340 electron\n')
-    expect(formatPidFile(14340, '/usr/bin/node')).toBe('14340 node\n')
+    expect(formatOwner(14340, 'C:/apps/Electron.exe')).toBe('14340 electron\n')
+    expect(ownerImage('14340 electron\n', 14340)).toBe('electron')
+    expect(ownerImage('14340 C:/apps/Electron.exe', 14340)).toBe('electron')
+    // 老线那个工作台起源时只写 pid 文件，这份是上一次留下的——照它比会比到早没了的进程上
+    expect(ownerImage('14340 electron\n', 99_999)).toBeUndefined()
+    for (const bad of ['', '   ', '14340', 'abc electron', undefined]) {
+      expect(ownerImage(bad, 14340), String(bad)).toBeUndefined()
+    }
   })
 
   it('记了映像名就照记的比：node 起的那个，electron 这头也认得出', () => {
@@ -373,8 +379,9 @@ describe('bringUp：ping 通就接管，起了就轮询三十秒', () => {
       expect(outcome.started).toBe(true)
       expect(outcome.status).toMatchObject({ running: true, pid: 4242, adopted: false })
     }
-    // 一行两格：pid 加起它那个进程的映像名（这儿的假 execPath 是 electron）
-    expect(fs.files.get(pidFile(DIR))).toBe('4242 electron\n')
+    // pid 文件只有那个数（跨线契约），映像名落旁边那份
+    expect(fs.files.get(pidFile(DIR))).toBe('4242\n')
+    expect(fs.files.get(ownerFile(DIR))).toBe('4242 electron\n')
     expect(state.spawned[0]?.args).toEqual([verdaccioBin(DIR), '--config', CONFIG_FILE])
     expect(state.spawned[0]?.env.ELECTRON_RUN_AS_NODE).toBe('1')
     expect(state.spawned[0]?.env.npm_config_registry).toBeUndefined()
@@ -414,8 +421,9 @@ describe('bringUp：ping 通就接管，起了就轮询三十秒', () => {
     expect(state.slept.length).toBe(UP_TIMEOUT_MS / POLL_MS)
     // 起不来不等于该收掉：那个进程可能还在慢慢起，收不收由人定
     expect(state.killed).toEqual([])
-    // 一行两格：pid 加起它那个进程的映像名（这儿的假 execPath 是 electron）
-    expect(fs.files.get(pidFile(DIR))).toBe('4242 electron\n')
+    // pid 文件只有那个数（跨线契约），映像名落旁边那份
+    expect(fs.files.get(pidFile(DIR))).toBe('4242\n')
+    expect(fs.files.get(ownerFile(DIR))).toBe('4242 electron\n')
   })
 
   it('pid 文件里那个活着、地址却不通：不再起一个，也不覆盖 pid 文件', async () => {
@@ -473,19 +481,29 @@ describe('bringDown：核对映像名再杀', () => {
   })
 
   it('命令行起的（记着 node），件那半（跑在 electron 里）照样停得了', async () => {
-    // 收编那条兜底 CLI 之后两个入口共用一份 pid 文件。没有第二格的话，这一条就是
-    // 「不是它」：清掉 pid 文件走人，而那个 registry 还跑着，从此没人知道它是谁
-    const fs = fakeFs({ [configFile(DIR)]: CONFIG, [pidFile(DIR)]: '14340 node\n' })
+    // 两个入口共用一份 pid 文件。没有旁边那份记录的话，这一条就是「不是它」：
+    // 清掉 pid 文件走人，而那个 registry 还跑着，从此没人知道它是谁
+    const fs = fakeFs({ [configFile(DIR)]: CONFIG, [pidFile(DIR)]: '14340', [ownerFile(DIR)]: '14340 node\n' })
     const { deps, state } = fakeDeps({ fs, processes: { 14340: 'node.exe' }, execPath: 'C:/apps/electron.exe' })
     expect(await bringDown(DIR, deps)).toMatchObject({ ok: true, killed: 14340 })
     expect(state.killed).toEqual([14340])
+    // 两份一起清
+    expect(fs.files.has(ownerFile(DIR))).toBe(false)
   })
 
   it('记了映像名就只认那个：号被另一个 node 复用了，不杀', async () => {
-    const fs = fakeFs({ [configFile(DIR)]: CONFIG, [pidFile(DIR)]: '14340 electron\n' })
+    const fs = fakeFs({ [configFile(DIR)]: CONFIG, [pidFile(DIR)]: '14340', [ownerFile(DIR)]: '14340 electron\n' })
     const { deps, state } = fakeDeps({ fs, processes: { 14340: 'node.exe' }, execPath: '/usr/bin/node' })
     expect((await bringDown(DIR, deps)).killed).toBeNull()
     expect(state.killed).toEqual([])
+  })
+
+  it('旁边那份是上一个进程留下的（pid 对不上）：当没有，回落到老判据', async () => {
+    // 老线那个工作台起源时只写 pid 文件。那时这份陈的照着比，会比到一个早没了的进程身上
+    const fs = fakeFs({ [configFile(DIR)]: CONFIG, [pidFile(DIR)]: '14340', [ownerFile(DIR)]: '9999 chrome\n' })
+    const { deps, state } = fakeDeps({ fs, processes: { 14340: 'node.exe' }, execPath: 'C:/apps/electron.exe' })
+    expect(await bringDown(DIR, deps)).toMatchObject({ ok: true, killed: 14340 })
+    expect(state.killed).toEqual([14340])
   })
 
   it('端口上 listen 的是另一个 pid：不杀、不删 pid 文件——映像名那道拦不住 pid 复用', async () => {
