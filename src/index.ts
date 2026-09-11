@@ -1,6 +1,5 @@
 import fs from 'node:fs'
 import path from 'node:path'
-import { fileURLToPath } from 'node:url'
 import type { GwbContext } from '@godcreator02/gwb-plugin-api'
 import { isRecord, requireKernel } from '@godcreator02/gwb-plugin-api'
 // 只为激活对方包里的 declare module 'cordis'——ctx 上那几个名字的类型从那儿来
@@ -18,6 +17,14 @@ import {
   type RegistryDeps,
 } from './daemon.js'
 import { kill, makeSpawn, nodeFs, ping, portOwner, processName } from './node-registry-deps.js'
+import {
+  DEFAULT_REGISTRY,
+  LOG_TAIL_LINES,
+  type DevInput,
+  inspect,
+  runDev,
+} from './dev.js'
+import { CDP_ENTRY, devDeps } from './node-dev-deps.js'
 import {
   appDirOf,
   asCdpPort,
@@ -49,11 +56,6 @@ export const inject = ['gwbCommands']
  */
 const CLIENT_URL = new URL('./client/index.js', import.meta.url).href
 
-/**
- * 取证小工具的身体。`../bin/` 两态都对：源码态本模块在 `src/`、产物态在 `dist/`，
- * 都是包根下一层。
- */
-const CDP_EVAL_ENTRY = fileURLToPath(new URL('../bin/cdp-eval.mjs', import.meta.url))
 
 /**
  * 铺 fumadocs 骨架那条命令，由**站件** `@godcreator02/gwb-docs-site` 提供。
@@ -82,11 +84,16 @@ const ATTACH_SITE_COMMAND = 'docfirst.attach'
  * - **home**：测试 home 的开/列/重开/停/删（`devkit.home.*`）——实机验证那几步的
  *   命令化（一次验开一个新 home、清理放在开新那一刻）
  *
- * 外加一条经 `gwbNodeCli` 登记的外部 CLI：`devkit.cdp-eval`（从页面取证）。
+ * - **改一版看一版**：`devkit.dev` 一条走完「构建 → 发开发版 → 装进隔离 home → 重挂 →
+ *   刷新 → 取证」，`devkit.dev-check` 只取证。**这条命令住控制台那个 home，操作另一个
+ *   home**：换件那一步要把条目停用再启用，工具自己跑在目标里就会把自己停掉
+ *
+ * 外加一条经 `gwbNodeCli` 登记的外部 CLI：`devkit.cdp`（在一个工作台页面里动手，
+ * 从取证到点按拖拽都是它；`eval` 是它的一个动词，退役的 `devkit.cdp-eval` 是它的祖先）。
  *
  * `apply` 里只剩接线；建仓的校验、渲染、落盘在 `scaffold.ts`；registry 的起停时序在
- * `daemon.ts`、home 的在 `home.ts`（两处皆纯机，可单测），真机器的盘与进程在
- * `node-registry-deps.ts` 与 `node-home-deps.ts`。
+ * `daemon.ts`、home 的在 `home.ts`、改一版看一版那条链在 `dev.ts`（皆纯机，可单测），
+ * 真机器的盘与进程在 `node-registry-deps.ts` / `node-home-deps.ts` / `node-dev-deps.ts`。
  */
 
 /** `devkit.scaffold` 的参数说明。参数错的时候连它一起回——错误即文档 */
@@ -118,6 +125,21 @@ const HOME_USAGE = [
   '  devkit.home.rm   { name，force? }——删一个 home；default 是日常那份，force 才删',
   '  devkit.home.list {}——列出 home 根下全部 home 与谁在跑',
   '例：{"short":"data"}、{"name":"data-2609081430"}',
+].join('\n')
+
+/** 改一版看一版那两条的参数说明。参数错的时候连它一起回——错误即文档 */
+const DEV_USAGE = [
+  'devkit.dev 的参数：',
+  '  cdp       必给，目标 home 的 CDP 调试口（内核起的时候 --remote-debugging-port 给的那个数）',
+  '  dir       必给，仓根的绝对路径。构建在这儿跑',
+  '  packages  可选，要发的包目录，相对仓根，**按依赖顺序**（被依赖的排前面）。不给就是仓根自己',
+  '  build     可选，缺省 true：先在仓根 pnpm build。产物不新就发＝发的是上一版',
+  '  waitFor   可选，刷新之后等页面上这个选择器出现才算刷回来了',
+  '  registry  可选，本机源地址，缺省 ' + DEFAULT_REGISTRY,
+  'devkit.dev-check 的参数：{ cdp 必给, lines? }',
+  '例：{"cdp":9346,"dir":"D:\\\\unitfolders\\\\26090814otr\\\\gwb-block-note","packages":["packages/model","plugins/gwb-bn-core"]}',
+  '目标 home 是 default、或者就是本件自己住的那个，都当场拒——前者会把开发版塞进日常那份，',
+  '后者停用条目那一下会把正在跑的这条命令自己停掉。换 devkit 自己：发正式版，再 plugins.update-all',
 ].join('\n')
 
 export function apply(ctx: GwbContext): void {
@@ -427,12 +449,73 @@ export function apply(ctx: GwbContext): void {
   // register **不用自己包 effect**：运行器内部已经挂在调用方的 effect 上了
   ctx.inject(['gwbNodeCli'], (scoped) => {
     scoped.gwbNodeCli.register({
-      name: 'devkit.cdp-eval',
+      name: 'devkit.cdp',
       description:
-        '从页面里取证：连 CDP 跑一段表达式，把值打成 JSON。{"args":["<调试口>","<表达式文件>"]}——表达式放文件不放命令行（PowerShell 的引号会截断它）。内核起的时候要带 --remote-debugging-port=<口>（devkit.home.new/open 的 cdp 参数就是它）',
-      entry: CDP_EVAL_ENTRY,
+        '在一个工作台页面里动手：{"args":["<调试口>","<动作>","<参数…>"]}。动作 targets / raise / eval <表达式文件> / shot [图.png] [选择器] / move / click / rclick / drag / type / key / scroll <点> / cmd <命令名> [JSON 参数] / reload [选择器] [秒] / home / probe <名> [JSON] / probes。点写成 .sel、.sel@=文字、.a@=文字 >> .b，或 x,y。开关 --target / --mod / --pad / --size / --repo。**只对隔离 home 用，绝不打 default**：这儿发的是真操作。内核起的时候要带 --remote-debugging-port=<口> 与 --disable-backgrounding-occluded-windows',
+      entry: CDP_ENTRY,
     })
   })
+
+  // ── 改一版看一版 ───────────────────────────────────────────────────────────
+
+  ctx.effect(() =>
+    bus.register(
+      {
+        name: 'devkit.dev',
+        plugin: 'devkit',
+        description:
+          '改一版看一版：{cdp 必给（目标 home 的调试口）, dir 必给（仓根绝对路径）, packages?（包目录，相对仓根，按依赖顺序；不给就是仓根自己）, build?（缺省 true，仓根 pnpm build）, waitFor?（刷新后等这个选择器出现）, registry?}。一条走完：构建 → 发开发版（<patch+1>-dev.<戳>，标 dev 不动 latest）→ 在目标 home 里 pnpm add 那个准确号 → 条目停用再启用重挂 → 整页重载 → 取证（条目真 ACTIVE、日志增量里没有 error），取不到证就回 ok:false。**目标是 default 或本件自己所在的 home 都当场拒**',
+      },
+      async (args) => {
+        if (!isRecord(args)) return { ok: false, error: `参数要是个对象。\n${DEV_USAGE}` }
+        const cdp = asCdpPort(args.cdp)
+        if (cdp === undefined) return { ok: false, error: `cdp 缺了或不是 1–65535 的整数。\n${DEV_USAGE}` }
+        const dir = typeof args.dir === 'string' ? args.dir.trim() : ''
+        if (dir === '' || !path.isAbsolute(dir)) return { ok: false, error: `dir 要是仓根的绝对路径。\n${DEV_USAGE}` }
+        if (!devDeps.exists(dir)) return { ok: false, error: `${dir} 不在——dir 给的是仓根，不是包目录` }
+        const packages = Array.isArray(args.packages)
+          ? args.packages.filter((one): one is string => typeof one === 'string' && one.trim() !== '')
+          : []
+        const input: DevInput = {
+          cdp,
+          repoDir: path.resolve(dir),
+          packages,
+          build: args.build !== false,
+          ...(typeof args.waitFor === 'string' && args.waitFor.trim() !== '' ? { waitFor: args.waitFor.trim() } : {}),
+          registry: typeof args.registry === 'string' && args.registry.trim() !== '' ? args.registry.trim() : DEFAULT_REGISTRY,
+          ownHome: requireKernel(ctx).dataDir,
+        }
+        log.info(`devkit.dev：仓 ${input.repoDir} → 调试口 ${String(cdp)}`)
+        const outcome = await runDev(input, devDeps)
+        if (!outcome.ok) {
+          log.warn(`devkit.dev 没成：${outcome.error}`)
+          return outcome.data === undefined
+            ? { ok: false, error: outcome.error }
+            : { ok: false, error: outcome.error, data: outcome.data }
+        }
+        log.info(`devkit.dev：${outcome.data.homeName} 换上了 ${outcome.data.shipped.map((one) => `${one.pkg}@${one.version}`).join('、')}`)
+        return outcome
+      },
+    ),
+  )
+
+  ctx.effect(() =>
+    bus.register(
+      {
+        name: 'devkit.dev-check',
+        plugin: 'devkit',
+        description:
+          `只取证不动手：{cdp 必给（调试口）, lines?（日志尾巴行数，缺省 ${String(LOG_TAIL_LINES)}）}。回目标 home、条目表、日志尾巴与里头的 error/warn。**它不下判定**——单独跑时没有「这一趟之前」的基线，看到的 error 可能是几天前的；判定只发生在 devkit.dev 里头那一次`,
+      },
+      async (args) => {
+        if (!isRecord(args)) return { ok: false, error: `参数要是个对象。\n${DEV_USAGE}` }
+        const cdp = asCdpPort(args.cdp)
+        if (cdp === undefined) return { ok: false, error: `cdp 缺了或不是 1–65535 的整数。\n${DEV_USAGE}` }
+        const lines = typeof args.lines === 'number' && args.lines > 0 ? Math.floor(args.lines) : LOG_TAIL_LINES
+        return await inspect(cdp, lines, devDeps)
+      },
+    ),
+  )
 
   // ── 建仓那半 ───────────────────────────────────────────────────────────────
 
@@ -604,6 +687,6 @@ export function apply(ctx: GwbContext): void {
   })
 
   log.info(
-    '开发套件就绪（devkit.scaffold、registry.status/up/down/log、devkit.home.new/list/open/stop/rm 经命令总线；devkit.cdp-eval 经 node-cli；手册挂在本件 skills/ 下，只挂自己那份）',
+    '开发套件就绪（devkit.scaffold、registry.status/up/down/log、devkit.home.new/list/open/stop/rm、devkit.dev/dev-check 经命令总线；devkit.cdp 经 node-cli；手册挂在本件 skills/ 下，只挂自己那份）',
   )
 }
