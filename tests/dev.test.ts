@@ -99,7 +99,7 @@ function fake(options: FakeOptions = {}): DevDeps & { calls: string[] } {
 }
 
 function input(over: Partial<DevInput> = {}): DevInput {
-  return { cdp: 9346, repoDir: REPO, packages: [], build: true, registry: DEFAULT_REGISTRY, ownHome: OWN, ...over }
+  return { home: 'bn-2609111200', repoDir: REPO, packages: [], build: true, registry: DEFAULT_REGISTRY, ownHome: OWN, ...over }
 }
 
 /** 一个包挂着一条活条目的清单 */
@@ -192,7 +192,7 @@ describe('一趟', () => {
     expect(out.data.shipped[0]?.remounted).toEqual(['home:fake'])
     expect(out.data.evidence.ok).toBe(true)
     // 顺序是硬要求：先问 home，最后一趟 plugins.list 是取证
-    expect(deps.calls[0]).toContain('cdp 9346 home')
+    expect(deps.calls[0]).toContain('cdp bn-2609111200 home')
     expect(deps.calls.some((one) => one.includes('pnpm build'))).toBe(true)
     expect(deps.calls.at(-1)).toContain('plugins.list')
   })
@@ -250,7 +250,7 @@ describe('一趟', () => {
 
   it('取证只看这一趟的日志增量，不看全量', async () => {
     const deps = fake({ packages: ONE_ENTRY })
-    const evidence = await collect(9346, [{ pkg: PKG, version: '0.3.2-dev.x', dir: REPO, remounted: [] }], 'D:/h/gwb.log', 0, deps)
+    const evidence = await collect('bn-2609111200', [{ pkg: PKG, version: '0.3.2-dev.x', dir: REPO, remounted: [] }], 'D:/h/gwb.log', 0, deps)
     expect(evidence.ok).toBe(true)
     expect(evidence.entries).toHaveLength(1)
   })

@@ -4,6 +4,7 @@ import {
   ALIVE_POLL_MS,
   ALIVE_TIMEOUT_MS,
   BUILD_TIMEOUT_MS,
+  CDP_PORT_BASE,
   DAILY_HOME,
   appDirOf,
   asCdpPort,
@@ -19,6 +20,8 @@ import {
   listHomes,
   minuteStamp,
   nextName,
+  pickCdpPort,
+  portsInRecords,
   parseRecord,
   recordFile,
   removeHome,
@@ -383,6 +386,45 @@ describe('listHomes：谁在跑看记录里的 pid', () => {
       { name: NAME, home: HOME, pid: 4242, running: true, cdp: 9222, mcp },
       { name: 'shell-2609081430', home: other, pid: null, running: false, cdp: null, mcp: null },
     ])
+  })
+})
+
+describe('pickCdpPort：起 home 时自动挑一个空口', () => {
+  const other = path.join(ROOT, 'shell-2609081430')
+
+  it('别的 home 记录里占着的跳过，此刻有人 listen 的也跳过', async () => {
+    const fs = fakeFs(
+      { [recordFile(HOME)]: write({ ...RECORD, cdp: CDP_PORT_BASE }) },
+      { [ROOT]: [NAME, 'shell-2609081430'] },
+    )
+    // 记录占了第一个，portOwner 让第二个也「有人在 listen」
+    const { deps } = fakeDeps({ fs, portOwner: 777 })
+    const picked = await pickCdpPort(ROOT, deps)
+    // 每个候选都问一次 portOwner，而这个假件一律回「有人」，所以一个都挑不到
+    expect(picked).toBeUndefined()
+  })
+
+  it('记录占了头一个，第二个空着就用第二个', async () => {
+    const fs = fakeFs(
+      { [recordFile(HOME)]: write({ ...RECORD, cdp: CDP_PORT_BASE }) },
+      { [ROOT]: [NAME] },
+    )
+    const { deps } = fakeDeps({ fs })
+    expect(await pickCdpPort(ROOT, deps)).toBe(CDP_PORT_BASE + 1)
+  })
+
+  it('陈旧记录里那个口也算占着——两份记录不许同时声称自己是同一个口', async () => {
+    const fs = fakeFs(
+      {
+        // 这个 home 的 pid 早没了，但记录还指着 CDP_PORT_BASE
+        [recordFile(HOME)]: write({ ...RECORD, pid: 999, cdp: CDP_PORT_BASE }),
+        [recordFile(other)]: write({ ...RECORD, cdp: CDP_PORT_BASE + 1 }),
+      },
+      { [ROOT]: [NAME, 'shell-2609081430'] },
+    )
+    const { deps } = fakeDeps({ fs })
+    expect(portsInRecords(ROOT, deps)).toEqual(new Set([CDP_PORT_BASE, CDP_PORT_BASE + 1]))
+    expect(await pickCdpPort(ROOT, deps)).toBe(CDP_PORT_BASE + 2)
   })
 })
 

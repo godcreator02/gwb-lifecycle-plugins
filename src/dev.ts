@@ -236,13 +236,17 @@ export interface DevDeps {
   /** 前台跑一条命令到结束:成没成加输出尾巴 */
   run(plan: RunPlan, timeoutMs: number): Promise<{ ok: boolean; tail: string }>
   /**
-   * 对目标页跑一个 `devkit.cdp` 动作,回它打出来的那张 JSON。
+   * 对目标 home 那张页跑一个 `devkit.cdp` 动作,回它打出来的那张 JSON。
+   *
+   * **按 home 名调,不按端口**:那支驱动自己查记录、自己核对页面自报的名字,于是这条链里
+   * 每一步都白得一次「我连的还是那个 home 吗」。传端口的话,这七步就成了七次没人看着的
+   * 重新定位。
    *
    * **起子进程,不在本进程里连**:那支驱动必须能在工作台没起的时候独立跑(那是它的兜底
    * 身份),所以它是一个零依赖单文件,不是一个可 import 的模块。一趟循环多五六次进程启动,
    * 几百毫秒,对一趟一分钟的链可以忽略。
    */
-  cdp(port: number, args: string[], timeoutMs: number): Promise<{ ok: boolean; data: unknown; tail: string }>
+  cdp(home: string, args: string[], timeoutMs: number): Promise<{ ok: boolean; data: unknown; tail: string }>
   /**
    * 发一个开发版:在临时目录摆一份分发形态再 publish(**不改仓里的 package.json**——中途
    * 摔了会留下一个号被改过的仓,而那正是最难认出来的现场)。
@@ -267,8 +271,11 @@ export interface DevDeps {
 // ── 一趟 ──────────────────────────────────────────────────────────────────────
 
 export interface DevInput {
-  /** 目标 home 的 CDP 调试口 */
-  cdp: number
+  /**
+   * 目标 home 的名字。**这条链只认名字**:口是驱动那头按记录查的,而记录会陈旧,所以每一次
+   * 连上都要拿页面自报的名字核对。端口是个没有语义的数,敲错一位就落在另一个现场。
+   */
+  home: string
   /** 仓根。构建在这儿跑 */
   repoDir: string
   /** 要发的包目录,相对仓根。空表＝仓根自己(一仓一包一插件的常态) */
@@ -280,8 +287,6 @@ export interface DevInput {
   registry: string
   /** 本件自己住的那个 home 目录。目标是它就拒 */
   ownHome: string
-  /** 调用方点名要的那个 home。给了就跟页面自报的名字核对,不符当场拒 */
-  expectHome?: string
 }
 
 export interface ShippedPackage {
@@ -336,15 +341,15 @@ function receiptOf(data: unknown): { ok: boolean; data: unknown; error?: string 
 export async function runDev(input: DevInput, deps: DevDeps): Promise<DevOutcome> {
   // ── 一、推去哪 ──────────────────────────────────────────────────────────────
   // 不配置、不猜:问一趟正在跑的那张页就知道了
-  const probe = await deps.cdp(input.cdp, ['home'], CDP_TIMEOUT_MS)
+  const probe = await deps.cdp(input.home, ['home'], CDP_TIMEOUT_MS)
   if (!probe.ok && !isRecord(probe.data)) {
-    return { ok: false, error: `连不上调试口 ${String(input.cdp)}:${probe.tail}——内核起的时候要带 --remote-debugging-port=<口>` }
+    return { ok: false, error: `连不上 ${input.home}:${probe.tail}` }
   }
   const guard = guardHome(
     isRecord(probe.data) ? { home: typeof probe.data.home === 'string' ? probe.data.home : null, ...(typeof probe.data.why === 'string' ? { why: probe.data.why } : {}) } : { home: null },
     input.ownHome,
     deps.platform,
-    input.expectHome,
+    input.home,
   )
   if (!guard.ok) return { ok: false, error: guard.error }
 
@@ -402,7 +407,7 @@ export async function runDev(input: DevInput, deps: DevDeps): Promise<DevOutcome
 
   // ── 五、重挂 ────────────────────────────────────────────────────────────────
   // 盘上换了不等于跑着的换了。**装了不重挂比没装还糟**:盘上是新的,跑着的是旧的
-  const listed = receiptOf((await deps.cdp(input.cdp, ['cmd', 'plugins.list'], CDP_TIMEOUT_MS)).data)
+  const listed = receiptOf((await deps.cdp(input.home, ['cmd', 'plugins.list'], CDP_TIMEOUT_MS)).data)
   if (!listed.ok) return { ok: false, error: `问不出目标 home 的条目表(plugins.list:${listed.error ?? '没说原因'})`, data: { shipped } }
   for (const one of shipped) {
     const entries = entriesOf(listed.data, one.pkg)
@@ -412,9 +417,9 @@ export async function runDev(input: DevInput, deps: DevDeps): Promise<DevOutcome
     }
     for (const entry of entries) {
       // 停用→启用。版本变了路径就变了,这一下 Node 才会真的重新求值
-      const off = receiptOf((await deps.cdp(input.cdp, ['cmd', 'plugins.disable', JSON.stringify({ entryId: entry.entryId })], CDP_TIMEOUT_MS)).data)
+      const off = receiptOf((await deps.cdp(input.home, ['cmd', 'plugins.disable', JSON.stringify({ entryId: entry.entryId })], CDP_TIMEOUT_MS)).data)
       if (!off.ok) return { ok: false, error: `停用 ${entry.entryId} 没成:${off.error ?? '没说原因'}`, data: { shipped } }
-      const on = receiptOf((await deps.cdp(input.cdp, ['cmd', 'plugins.enable', JSON.stringify({ entryId: entry.entryId })], CDP_TIMEOUT_MS)).data)
+      const on = receiptOf((await deps.cdp(input.home, ['cmd', 'plugins.enable', JSON.stringify({ entryId: entry.entryId })], CDP_TIMEOUT_MS)).data)
       if (!on.ok) return { ok: false, error: `启用 ${entry.entryId} 没成:${on.error ?? '没说原因'}——件现在是停用状态,盘上是新版,自己去插件窗格启用它`, data: { shipped } }
       one.remounted.push(entry.entryId)
     }
@@ -423,10 +428,10 @@ export async function runDev(input: DevInput, deps: DevDeps): Promise<DevOutcome
   // ── 六、刷新 ────────────────────────────────────────────────────────────────
   // 浏览器那半要整页重载才会按 file:// 重新取 client 与样式表。给了选择器就等它出现:
   // 不等就接着量的话,量到的要么是刷新途中的异常,要么是上一版的画面
-  const reloaded = await deps.cdp(input.cdp, ['reload', ...(input.waitFor === undefined ? [] : [input.waitFor])], CDP_TIMEOUT_MS)
+  const reloaded = await deps.cdp(input.home, ['reload', ...(input.waitFor === undefined ? [] : [input.waitFor])], CDP_TIMEOUT_MS)
 
   // ── 七、取证 ────────────────────────────────────────────────────────────────
-  const evidence = await collect(input.cdp, shipped, logFile, baseline, deps)
+  const evidence = await collect(input.home, shipped, logFile, baseline, deps)
   const report: DevReport = { home: guard.home, homeName: guard.name, shipped, reload: reloaded.data, evidence }
   if (!evidence.ok) return { ok: false, error: evidence.note, data: report }
   return { ok: true, data: report }
@@ -441,13 +446,13 @@ export async function runDev(input: DevInput, deps: DevDeps): Promise<DevOutcome
  *   里的 async 一旦静默 reject,现象就是「挂上了但什么都没发生」,那一条只在日志里
  */
 export async function collect(
-  port: number,
+  home: string,
   shipped: ShippedPackage[],
   logFile: string,
   baseline: number,
   deps: DevDeps,
 ): Promise<Evidence> {
-  const listed = receiptOf((await deps.cdp(port, ['cmd', 'plugins.list'], CDP_TIMEOUT_MS)).data)
+  const listed = receiptOf((await deps.cdp(home, ['cmd', 'plugins.list'], CDP_TIMEOUT_MS)).data)
   const entries: Evidence['entries'] = []
   const dead: string[] = []
   for (const one of shipped) {
@@ -476,16 +481,16 @@ export async function collect(
  * 正好是它防的那件事。
  */
 export async function inspect(
-  port: number,
+  name: string,
   logLines: number,
   deps: DevDeps,
 ): Promise<{ ok: true; data: unknown } | { ok: false; error: string }> {
-  const probe = await deps.cdp(port, ['home'], CDP_TIMEOUT_MS)
+  const probe = await deps.cdp(name, ['home'], CDP_TIMEOUT_MS)
   const home = isRecord(probe.data) && typeof probe.data.home === 'string' ? probe.data.home : null
   if (home === null) {
-    return { ok: false, error: `问不出这张页是哪个 home:${probe.tail}——它可能不是工作台的外壳页` }
+    return { ok: false, error: `问不出 ${name} 那张页是哪个 home:${probe.tail}——它可能不是工作台的外壳页` }
   }
-  const listed = receiptOf((await deps.cdp(port, ['cmd', 'plugins.list'], CDP_TIMEOUT_MS)).data)
+  const listed = receiptOf((await deps.cdp(name, ['cmd', 'plugins.list'], CDP_TIMEOUT_MS)).data)
   const logFile = path.join(home, LOG_FILE)
   const text = deps.readText(logFile) ?? ''
   const lines = text.split(/\r?\n/)

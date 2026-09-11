@@ -43,6 +43,15 @@ export const ALIVE_POLL_MS = 500
 /** build 失败回给人的输出尾巴行数。全量输出没人读,要的是最后那段报错 */
 export const BUILD_TAIL_LINES = 40
 
+/**
+ * 自动挑调试口时从这儿起找。**避开 9222 与 93xx 那一段**:那几个是人手工起 home 时常敲的数,
+ * 撞上就是自动挑的口把人手工那扇窗顶掉。
+ */
+export const CDP_PORT_BASE = 9400
+
+/** 往上找多少个。找不到就是这台机器上出了别的事,照实报,不静默放弃调试口 */
+export const CDP_PORT_TRIES = 50
+
 // ── 启动记录 ──────────────────────────────────────────────────────────────────
 
 /** MCP 那道口绑在哪。绑成功之后由 mcp 件补进记录,没开这道口就没有这一格 */
@@ -402,6 +411,38 @@ export async function listHomes(homesRoot: string, deps: HomeDeps): Promise<Home
     })
   }
   return out
+}
+
+// ── 挑一个调试口 ──────────────────────────────────────────────────────────────
+
+/**
+ * 别的 home 记录里占着的调试口。**陈旧的也算占着**:那份记录还指着这个数,再分给第二个 home
+ * 的话,两份记录会同时声称自己是这个口,而「按名字定位」全靠这个数唯一。
+ */
+export function portsInRecords(homesRoot: string, deps: HomeDeps): Set<number> {
+  const taken = new Set<number>()
+  for (const name of deps.fs.dirs(homesRoot)) {
+    const record = parseRecord(deps.fs.readText(recordFile(path.join(homesRoot, name))))
+    if (record?.cdp !== undefined) taken.add(record.cdp)
+  }
+  return taken
+}
+
+/**
+ * 给一个新起的 home 挑个调试口。**名字是唯一的地址之后,没有口的 home 等于够不着**,所以
+ * 不给就自动挑,而不是让它默默地开不了调试口。
+ *
+ * 两道筛:别的 home 记录里占着的跳过(见 `portsInRecords`),此刻真有人 listen 的跳过。
+ * **挑完到 electron 真绑上之间有个缝**——那一瞬别人抢走了这个口,记录里会写着一个不属于它的
+ * 数;那种情况由「端口持有者要等于 pid」那道守卫抓,不在这儿赌。
+ */
+export async function pickCdpPort(homesRoot: string, deps: HomeDeps): Promise<number | undefined> {
+  const taken = portsInRecords(homesRoot, deps)
+  for (let port = CDP_PORT_BASE; port < CDP_PORT_BASE + CDP_PORT_TRIES; port += 1) {
+    if (taken.has(port)) continue
+    if ((await deps.portOwner(port)) === undefined) return port
+  }
+  return undefined
 }
 
 // ── 按名字定位 ────────────────────────────────────────────────────────────────

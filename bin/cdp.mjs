@@ -19,10 +19,12 @@
 // 跟人的手一样，命中测试是浏览器自己做的。所以本件的价值不止「能点」，还在**点不着的时候
 // 会告状**：把挡路的那个元素报出来。
 //
-// 用法：node <本文件> <端口或 home 名> <动作> [参数…]
+// 用法：node <本文件> <home 名> <动作> [参数…]
 //
-// 第一个位置给数字就是调试口，给名字就当 home 名，口从那个 home 的 `runtime.json` 里查
-// （内核开机写的那份，`--homes <目录>` 换 home 根）。
+// **第一个位置只收 home 名，不收端口**（0.5.0 起）。口从那个 home 的 `runtime.json` 里查
+// （内核开机写的那份，`--homes <目录>` 换 home 根），连上之后还会问一句这张页自报的 home 名
+// 对不对得上——记录只说「它起的时候用的是这个口」，不说「此刻这个口上还是它」。
+// 端口是个没有语义的数，敲错一位就落在另一个现场，而那个现场会老老实实收下你发的事件。
 //
 //   targets                          列出能连的页面
 //   raise                            把窗口抬到前面（被遮住时 Chromium 停止产帧，截图会是陈旧帧）
@@ -85,25 +87,29 @@ for (const arg of process.argv.slice(2)) {
   else if (/^--(target|mod|pad|size|repo|timeout|homes)$/.test(rest.at(-1) ?? '')) opts[rest.pop().slice(2)] = arg
   else rest.push(arg)
 }
-const [where, verb, ...args] = rest
-if (!where || !verb) throw new Error('用法：node <本文件> <端口或 home 名> <动作> [参数…]，动作见文件头')
+const [home, verb, ...args] = rest
+if (!home || !verb) throw new Error('用法：node <本文件> <home 名> <动作> [参数…]，动作见文件头')
 
 /**
- * 第一个位置给端口，也可以给 **home 名**：口从那个 home 的 `runtime.json` 里查（内核开机
- * 写的那份）。给名字省去了人记端口，代价是这儿要认得 home 根在哪——所以只在拿得准的平台上
- * 认（Windows 是 `%APPDATA%\gwb-kernel\homes`），拿不准就照实说「自己给端口」，不猜。
+ * 第一个位置是 **home 名，不是端口**（0.5.0 起）。口从那个 home 的 `runtime.json` 里查
+ * （内核开机写的那份）。
  *
- * **这儿不验活**：这支脚本的活是连上去，连不上 WebSocket 那头自然会报。要验活的是
- * `devkit.dev` 那条链，它在动手之前核对 pid 与端口持有者。
+ * **端口不再收**：它是一个没有语义的数，敲错一位就落在另一个现场，而那个现场会老老实实
+ * 收下你发的事件。名字有拼写、有记录、连上之后还能跟页面自报的名字对一次（见 `assertHome`），
+ * 三样端口都没有。给了数字当场拒，不静默改道。
+ *
+ * home 根：Windows 是 `%APPDATA%\gwb-kernel\homes`，别的平台或别处用 `--homes <目录>`。
  */
-function portOf(given) {
-  if (/^\d+$/.test(given)) return given
+function portOf(name) {
+  if (/^\d+$/.test(name)) {
+    throw new Error(`第一个位置要 home 名，不是端口（给的是 ${name}）。哪个 home 在跑、口在哪，看 devkit.home.list`)
+  }
   const root = opts.homes ?? (process.platform === 'win32' && process.env.APPDATA
     ? path.join(process.env.APPDATA, 'gwb-kernel', 'homes')
     : undefined)
-  if (root === undefined) throw new Error(`认不出 home 根在哪（非 Windows 且没给 --homes），第一个位置请直接给端口`)
-  const file = path.join(root, given, 'runtime.json')
-  if (!fs.existsSync(file)) throw new Error(`${file} 不在——${given} 没起过，或者起它的内核版本还不写这份记录。直接给端口吧`)
+  if (root === undefined) throw new Error('认不出 home 根在哪（非 Windows），用 --homes <目录> 指一下')
+  const file = path.join(root, name, 'runtime.json')
+  if (!fs.existsSync(file)) throw new Error(`${file} 不在——${name} 没起过，或者起它的内核版本还不写这份记录。停掉重开一次`)
   let record
   try {
     record = JSON.parse(fs.readFileSync(file, 'utf8'))
@@ -112,12 +118,13 @@ function portOf(given) {
   }
   const cdp = record?.cdp
   if (!Number.isInteger(cdp) || cdp <= 0 || cdp >= 65536) {
-    throw new Error(`${given} 的记录里没有 cdp 那格——起它的时候没带 --remote-debugging-port，够不着`)
+    throw new Error(`${name} 的记录里没有 cdp 那格——起它的时候没带 --remote-debugging-port，够不着。停掉重开一次`)
   }
   return String(cdp)
 }
 
-const port = portOf(where)
+// `probes` 只列盘上有哪几支探针，压根不碰页面——那条不该因为一个 home 没起而用不了
+const port = verb === 'probes' ? null : portOf(home)
 
 /** CDP 的修饰键是位掩码，不是名字 */
 const MOD_BIT = { alt: 1, ctrl: 2, meta: 4, shift: 8 }
@@ -145,9 +152,19 @@ const WATCHDOG_MS = Number(opts.timeout ?? (verb === 'cmd' ? 900 : verb === 'rel
 // 连上一个页面
 // ---------------------------------------------------------------------------
 
-/** 能连的页面。devtools:// 是检查器自己那张页，不算 */
+/**
+ * 能连的页面。devtools:// 是检查器自己那张页，不算。
+ *
+ * 连不上时**把原始错换成一句能读的话**：记录里那个口没人应答，压倒性的原因是那个 home
+ * 已经退了而记录还留着（记录进程退了不删，这是故意的）。裸的 ECONNREFUSED 会让人去查网络。
+ */
 async function pagesOf() {
-  const list = await (await fetch(`http://127.0.0.1:${port}/json/list`)).json()
+  let list
+  try {
+    list = await (await fetch(`http://127.0.0.1:${port}/json/list`)).json()
+  } catch (err) {
+    throw new Error(`连不上 ${home} 记录里那个调试口 ${port}：那儿没人应答——它多半已经退了（记录是上一次留下的）。停掉重开一次。原始错：${String(err)}`)
+  }
   return list.filter((t) => t.type === 'page' && !String(t.url).startsWith('devtools://'))
 }
 
@@ -670,6 +687,25 @@ async function run(send, target) {
   }
 }
 
+/**
+ * 连上之后，问一句这张页属于哪个 home，跟你要的那个对不上就停。
+ *
+ * **记录只说「它起的时候用的是这个口」**，不说「此刻这个口上还是它」：进程可能已经退了、
+ * 端口被下一个进程占走，而记录还躺在那儿指着那个数。名字是唯一的地址之后，这道核对就是
+ * 「地址对不对」的最后一关——少了它，名字给的是一种假的安全感。
+ *
+ * 拿不出 home 的页也停：那说明这个口后头根本不是工作台的外壳页。
+ */
+async function assertHome(send) {
+  const found = homeOf(await evaluate(send, HOME_EXPR))
+  if (found.home === null) {
+    throw new Error(`这个口后头不是工作台的外壳页（${found.why}）——记录陈旧了，或者那扇窗已经不在`)
+  }
+  if (found.名字 !== home) {
+    throw new Error(`你要的是 ${home}，可这个口上的页面自报是 ${found.名字}——记录陈旧了。停掉重开那个 home`)
+  }
+}
+
 // ---------------------------------------------------------------------------
 
 // 这两条不碰页面，不必先连上：一条问浏览器有哪些页，一条问磁盘有哪些探针
@@ -680,8 +716,9 @@ if (verb === 'targets') {
 } else {
   const { ws, send, page } = await connect()
   try {
+    await assertHome(send)
     const viewport = await override(send)
-    console.log(JSON.stringify({ page: page.title, ...viewport, ...(await run(send, page)) }, null, 2))
+    console.log(JSON.stringify({ page: page.title, 在哪个home: home, ...viewport, ...(await run(send, page)) }, null, 2))
   } finally {
     /*
      * 视口覆盖**必须自己撤**。它不像鼠标位置那样只是页面里的一点状态：断开连接不一定还原，

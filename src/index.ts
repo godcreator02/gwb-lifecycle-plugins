@@ -35,8 +35,11 @@ import {
   launchHome,
   listHomes,
   nextName,
+  pickCdpPort,
   removeHome,
   resolveTarget,
+  CDP_PORT_BASE,
+  CDP_PORT_TRIES,
 } from './home.js'
 import { homeFs, makeGuiSpawn, runCaptured } from './node-home-deps.js'
 import {
@@ -72,7 +75,7 @@ const CREATE_SITE_COMMAND = 'docs-site.create'
 const ATTACH_SITE_COMMAND = 'docfirst.attach'
 
 /**
- * 开发套件。四件事，全服务同一个理由——「在新文件夹里开发新件」这条路的地基：
+ * 开发套件。五件事，全服务同一个理由——「在新文件夹里开发新件」这条路的地基：
  *
  * - **建仓**：`devkit.scaffold` 把一个新件的骨架落进一个新文件夹（站那半经命令总线
  *   转给站件与 docfirst 件，两步）
@@ -119,9 +122,9 @@ const MISSING_KERNEL_DIR =
 /** home 命令的参数说明。参数错的时候连它一起回——错误即文档 */
 const HOME_USAGE = [
   'home 命令的参数：',
-  '  devkit.home.new  { short 必给（kebab-case 短名），cdp?（调试口），skipBuild? }——开 <short>-<yyMMddHHmm> 的新 home，默认先 build 内核（产物不新就起＝验旧代码）',
-  '  devkit.home.open { name 必给（完整 home 名），cdp? }——重开一个已有的 home，不 build',
-  '  devkit.home.stop { name }——停 devkit 起的那个（按 home 里 devkit.json 的 pid，核对映像名再杀）',
+  '  devkit.home.new  { short 必给（kebab-case 短名），cdp?（调试口，不给就自动挑一个空的），skipBuild? }——开 <short>-<yyMMddHHmm> 的新 home，默认先 build 内核（产物不新就起＝验旧代码）',
+  '  devkit.home.open { name 必给（完整 home 名），cdp?（不给就自动挑一个空的） }——重开一个已有的 home，不 build',
+  '  devkit.home.stop { name }——停一个 home（按它 runtime.json 里的 pid，核对映像名与那个口再杀）',
   '  devkit.home.rm   { name，force? }——删一个 home；default 是日常那份，force 才删',
   '  devkit.home.list {}——列出 home 根下全部 home 与谁在跑',
   '例：{"short":"data"}、{"name":"data-2609081430"}',
@@ -130,14 +133,16 @@ const HOME_USAGE = [
 /** 改一版看一版那两条的参数说明。参数错的时候连它一起回——错误即文档 */
 const DEV_USAGE = [
   'devkit.dev 的参数：',
-  '  home      目标 home 名。口从那个 home 的 runtime.json 里查（内核开机写的），顺带验活',
-  '  cdp       直接给调试口。跟 home 二选一；两个都给就要求一致，不一致当场拒',
+  '  home      必给，目标 home 名。**这儿不收端口**：口从那个 home 的 runtime.json 里查，顺带验活',
+  '            （记录读得出、pid 还活着、那个 pid 真的持着那个口），再拿页面自报的名字核对一次',
   '  dir       必给，仓根的绝对路径。构建在这儿跑',
   '  packages  可选，要发的包目录，相对仓根，**按依赖顺序**（被依赖的排前面）。不给就是仓根自己',
   '  build     可选，缺省 true：先在仓根 pnpm build。产物不新就发＝发的是上一版',
   '  waitFor   可选，刷新之后等页面上这个选择器出现才算刷回来了',
   '  registry  可选，本机源地址，缺省 ' + DEFAULT_REGISTRY,
-  'devkit.dev-check 的参数：{ home 或 cdp, lines? }',
+  'devkit.dev-check 的参数：{ home 必给, lines? }',
+  '起 home 的那两条（devkit.home.new / open）里的 cdp 是另一回事：那是给一个新进程分配端口，',
+  '不给就自动挑一个空口，于是它起的 home 一定按名字够得到。',
   '例：{"home":"bn-2609111200","dir":"D:\\\\unitfolders\\\\26090814otr\\\\gwb-block-note","packages":["packages/model","plugins/gwb-bn-core"]}',
   '目标 home 是 default、或者就是本件自己住的那个，都当场拒——前者会把开发版塞进日常那份，',
   '后者停用条目那一下会把正在跑的这条命令自己停掉。换 devkit 自己：发正式版，再 plugins.update-all',
@@ -306,13 +311,32 @@ export function apply(ctx: GwbContext): void {
     return path.join(path.resolve(requireKernel(ctx).dataDir, '..', '..'), 'homes')
   }
 
+  /**
+   * 这一趟起 home 用哪个调试口。**不给就自动挑，挑不到就不起**——名字是唯一的地址之后，
+   * 没有调试口的 home 等于起完就够不着；那不是「少一个可选项」，是起了个用不上的东西。
+   */
+  async function cdpFor(
+    given: number | undefined,
+    root: string,
+  ): Promise<{ ok: true; cdp: number } | { ok: false; error: string }> {
+    if (given !== undefined) return { ok: true, cdp: given }
+    const picked = await pickCdpPort(root, homeDeps)
+    if (picked === undefined) {
+      return {
+        ok: false,
+        error: `从 ${String(CDP_PORT_BASE)} 往上找了 ${String(CDP_PORT_TRIES)} 个口，一个空的都没有——这台机器上是不是攒了一堆没停的 home（devkit.home.list）`,
+      }
+    }
+    return { ok: true, cdp: picked }
+  }
+
   ctx.effect(() =>
     bus.register(
       {
         name: 'devkit.home.new',
         plugin: 'devkit',
         description:
-          '开一个测试 home：{short 必给（kebab-case），cdp?（调试口），skipBuild?}——名字长成 <short>-<yyMMddHHmm>，默认先 build 内核（产物不新就起＝验旧代码）。返回里带着现有 home 清单，开新那一刻正好清旧的',
+          '开一个测试 home：{short 必给（kebab-case），cdp?（调试口，**不给就自动挑一个空的**——名字是唯一的地址，没口的 home 起完就够不着），skipBuild?}——名字长成 <short>-<yyMMddHHmm>，默认先 build 内核（产物不新就起＝验旧代码）。返回里带着现有 home 清单，开新那一刻正好清旧的',
       },
       async (args) => {
         const kernelDir = kernelDirOf()
@@ -331,12 +355,14 @@ export function apply(ctx: GwbContext): void {
         } catch (err) {
           return { ok: false, error: String(err instanceof Error ? err.message : err) }
         }
+        const port = await cdpFor(cdp, root)
+        if (!port.ok) return { ok: false, error: port.error }
         const outcome = await launchHome(
           {
             name,
             homesRoot: root,
             kernelDir,
-            ...(cdp === undefined ? {} : { cdp }),
+            cdp: port.cdp,
             ...(args.skipBuild === true ? {} : { build: buildPlan(appDirOf(kernelDir), homeDeps.platform) }),
           },
           homeDeps,
@@ -356,7 +382,7 @@ export function apply(ctx: GwbContext): void {
       {
         name: 'devkit.home.open',
         plugin: 'devkit',
-        description: '重开一个已有的测试 home：{name 必给，cdp?}——不 build，人要亲自看一眼的那条路',
+        description: '重开一个已有的测试 home：{name 必给，cdp?（不给就自动挑一个空的）}——不 build，人要亲自看一眼的那条路',
       },
       async (args) => {
         const kernelDir = kernelDirOf()
@@ -372,8 +398,10 @@ export function apply(ctx: GwbContext): void {
         if (!homeDeps.fs.exists(path.join(root, name))) {
           return { ok: false, error: `${path.join(root, name)} 不在——没有这个 home（看 devkit.home.list）` }
         }
+        const port = await cdpFor(cdp, root)
+        if (!port.ok) return { ok: false, error: port.error }
         const outcome = await launchHome(
-          { name, homesRoot: root, kernelDir, ...(cdp === undefined ? {} : { cdp }) },
+          { name, homesRoot: root, kernelDir, cdp: port.cdp },
           homeDeps,
         )
         if (!outcome.ok) {
@@ -391,7 +419,7 @@ export function apply(ctx: GwbContext): void {
       {
         name: 'devkit.home.stop',
         plugin: 'devkit',
-        description: '停一个 devkit 起的测试 home：{name}——按 home 里 devkit.json 的 pid，核对映像名（与记录过的 CDP 端口）再杀',
+        description: '停一个 home：{name}——按它 runtime.json 里的 pid，核对映像名与记录里那个 CDP 端口再杀。手工起的也停得了',
       },
       async (args) => {
         if (!isRecord(args)) return { ok: false, error: `参数要是个对象。\n${HOME_USAGE}` }
@@ -426,7 +454,7 @@ export function apply(ctx: GwbContext): void {
 
   ctx.effect(() =>
     bus.register(
-      { name: 'devkit.home.list', plugin: 'devkit', description: '列出 home 根下全部测试 home：名字（带时间戳）、谁还在跑、CDP 口。无参数' },
+      { name: 'devkit.home.list', plugin: 'devkit', description: '列出 home 根下全部测试 home：名字（带时间戳）、谁还在跑、CDP 口、MCP 口。无参数' },
       async () => {
         const root = homesRoot()
         return { ok: true, data: { root, homes: await listHomes(root, homeDeps) } }
@@ -460,39 +488,29 @@ export function apply(ctx: GwbContext): void {
   // ── 改一版看一版 ───────────────────────────────────────────────────────────
 
   /**
-   * 「要操作哪个 home」收窄成「连哪个调试口」。两种给法：
+   * 「要操作哪个 home」收窄成「连哪个调试口」。**只收名字，不收端口**（0.5.0 起）。
    *
-   * - `home`：名字。口从那个 home 的 `runtime.json` 里查（内核开机写的），**顺带验活**——
-   *   pid 还在、且那个 pid 真的持着那个口。查出来的名字接着传给循环，跟页面自报的再核对
-   *   一次：记录回答「你要的是哪个」，页面回答「你连上的实际是哪个」
-   * - `cdp`：直接给口。手工起的老 home（记录还没写过）走这条；这时没有名字可核对，
-   *   只剩「不是 default、不是自己」那两道
+   * 口从那个 home 的 `runtime.json` 里查（内核开机写的），**顺带验活**：pid 还在、且那个 pid
+   * 真的持着那个口。名字接着传给循环，跟页面自报的再核对一次——记录回答「你要的是哪个」，
+   * 页面回答「你连上的实际是哪个」。
    *
-   * **两个都给就要求一致**：不一致时不猜哪个是对的，当场拒。
+   * **端口不再是地址**：它是一个没有语义、敲错一位就落在另一个现场的数，而那个现场也会
+   * 老老实实收下这一趟改动。名字有拼写、有记录、有交叉核对，三样端口都没有。给了 `cdp`
+   * 不是忽略，是当场拒并告诉他新写法——静默改道比报错坏。
    */
   async function targetOf(
     args: Record<string, unknown>,
-  ): Promise<{ ok: true; cdp: number; name?: string } | { ok: false; error: string }> {
-    const name = asHomeName(args.home)
-    const given = args.cdp === undefined ? undefined : asCdpPort(args.cdp)
-    if (args.home !== undefined && name === undefined) {
-      return { ok: false, error: `home 不是个合格的 home 名（kebab-case）。\n${DEV_USAGE}` }
-    }
-    if (args.cdp !== undefined && given === undefined) {
-      return { ok: false, error: `cdp 要是 1–65535 的整数。\n${DEV_USAGE}` }
-    }
-    if (name === undefined) {
-      if (given === undefined) return { ok: false, error: `home 与 cdp 得给一个。\n${DEV_USAGE}` }
-      return { ok: true, cdp: given }
-    }
-    const found = await resolveTarget(homesRoot(), name, homeDeps)
-    if (!found.ok) return { ok: false, error: found.error }
-    if (given !== undefined && given !== found.cdp) {
+  ): Promise<{ ok: true; cdp: number; name: string } | { ok: false; error: string }> {
+    if (args.cdp !== undefined) {
       return {
         ok: false,
-        error: `你给的 cdp 是 ${String(given)}，可 ${name} 的记录里写着 ${String(found.cdp)}——不猜哪个对，没动它`,
+        error: `这儿不收端口了，只收 home 名：{"home":"<名>"}。口从那个 home 的 runtime.json 里查，顺带验活。\n${DEV_USAGE}`,
       }
     }
+    const name = asHomeName(args.home)
+    if (name === undefined) return { ok: false, error: `home 缺了或不是个合格的 home 名（kebab-case）。\n${DEV_USAGE}` }
+    const found = await resolveTarget(homesRoot(), name, homeDeps)
+    if (!found.ok) return { ok: false, error: found.error }
     return { ok: true, cdp: found.cdp, name }
   }
 
@@ -502,7 +520,7 @@ export function apply(ctx: GwbContext): void {
         name: 'devkit.dev',
         plugin: 'devkit',
         description:
-          '改一版看一版：{home（目标 home 名，口从它的 runtime.json 里查）或 cdp（直接给调试口），两个给一个；dir 必给（仓根绝对路径）, packages?（包目录，相对仓根，按依赖顺序；不给就是仓根自己）, build?（缺省 true，仓根 pnpm build）, waitFor?（刷新后等这个选择器出现）, registry?}。一条走完：构建 → 发开发版（<patch+1>-dev.<戳>，标 dev 不动 latest）→ 在目标 home 里 pnpm add 那个准确号 → 条目停用再启用重挂 → 整页重载 → 取证（条目真 ACTIVE、日志增量里没有 error），取不到证就回 ok:false。**目标是 default 或本件自己所在的 home 都当场拒；给了 home 名还会拿页面自报的名字核对一次**',
+          '改一版看一版：{home 必给（目标 home 名，**只认名字不认端口**——口从它的 runtime.json 里查并验活）, dir 必给（仓根绝对路径）, packages?（包目录，相对仓根，按依赖顺序；不给就是仓根自己）, build?（缺省 true，仓根 pnpm build）, waitFor?（刷新后等这个选择器出现）, registry?}。一条走完：构建 → 发开发版（<patch+1>-dev.<戳>，标 dev 不动 latest）→ 在目标 home 里 pnpm add 那个准确号 → 条目停用再启用重挂 → 整页重载 → 取证（条目真 ACTIVE、日志增量里没有 error），取不到证就回 ok:false。**目标是 default 或本件自己所在的 home 都当场拒；页面自报的名字跟你给的对不上也拒**',
       },
       async (args) => {
         if (!isRecord(args)) return { ok: false, error: `参数要是个对象。\n${DEV_USAGE}` }
@@ -515,16 +533,15 @@ export function apply(ctx: GwbContext): void {
           ? args.packages.filter((one): one is string => typeof one === 'string' && one.trim() !== '')
           : []
         const input: DevInput = {
-          cdp: target.cdp,
+          home: target.name,
           repoDir: path.resolve(dir),
           packages,
           build: args.build !== false,
           ...(typeof args.waitFor === 'string' && args.waitFor.trim() !== '' ? { waitFor: args.waitFor.trim() } : {}),
           registry: typeof args.registry === 'string' && args.registry.trim() !== '' ? args.registry.trim() : DEFAULT_REGISTRY,
           ownHome: requireKernel(ctx).dataDir,
-          ...(target.name === undefined ? {} : { expectHome: target.name }),
         }
-        log.info(`devkit.dev：仓 ${input.repoDir} → ${target.name ?? '调试口'} ${String(target.cdp)}`)
+        log.info(`devkit.dev：仓 ${input.repoDir} → ${target.name}（调试口 ${String(target.cdp)}）`)
         const outcome = await runDev(input, devDeps)
         if (!outcome.ok) {
           log.warn(`devkit.dev 没成：${outcome.error}`)
@@ -544,14 +561,14 @@ export function apply(ctx: GwbContext): void {
         name: 'devkit.dev-check',
         plugin: 'devkit',
         description:
-          `只取证不动手：{home（目标 home 名）或 cdp（调试口），两个给一个；lines?（日志尾巴行数，缺省 ${String(LOG_TAIL_LINES)}）}。回目标 home、条目表、日志尾巴与里头的 error/warn。**它不下判定**——单独跑时没有「这一趟之前」的基线，看到的 error 可能是几天前的；判定只发生在 devkit.dev 里头那一次`,
+          `只取证不动手：{home 必给（目标 home 名，**只认名字不认端口**）, lines?（日志尾巴行数，缺省 ${String(LOG_TAIL_LINES)}）}。回目标 home、条目表、日志尾巴与里头的 error/warn。**它不下判定**——单独跑时没有「这一趟之前」的基线，看到的 error 可能是几天前的；判定只发生在 devkit.dev 里头那一次`,
       },
       async (args) => {
         if (!isRecord(args)) return { ok: false, error: `参数要是个对象。\n${DEV_USAGE}` }
         const target = await targetOf(args)
         if (!target.ok) return { ok: false, error: target.error }
         const lines = typeof args.lines === 'number' && args.lines > 0 ? Math.floor(args.lines) : LOG_TAIL_LINES
-        return await inspect(target.cdp, lines, devDeps)
+        return await inspect(target.name, lines, devDeps)
       },
     ),
   )

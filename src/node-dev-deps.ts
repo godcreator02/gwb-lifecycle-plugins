@@ -29,13 +29,13 @@ const TAIL_LINES = 40
  * **退出码与 JSON 两样都要**:那支驱动在「命令没跑成」时照样打一张完整的回执,只是把退出码
  * 置成非零。只看退出码会丢掉原因,只看 JSON 会把失败当成功。
  */
-function runCdp(port: number, args: string[], timeoutMs: number): Promise<{ ok: boolean; data: unknown; tail: string }> {
+function runCdp(home: string, args: string[], timeoutMs: number): Promise<{ ok: boolean; data: unknown; tail: string }> {
   return new Promise((resolve) => {
     let out = ''
     let err = ''
     let child
     try {
-      child = spawn(process.execPath, [CDP_ENTRY, String(port), ...args], {
+      child = spawn(process.execPath, [CDP_ENTRY, home, ...args], {
         stdio: ['ignore', 'pipe', 'pipe'],
         windowsHide: true,
         // 件跑在 Electron 主进程里,`process.execPath` 是 electron.exe:**不带
