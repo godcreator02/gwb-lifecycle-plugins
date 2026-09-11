@@ -468,7 +468,7 @@ export async function resolveTarget(homesRoot: string, name: string, deps: HomeD
   if (record === undefined) {
     return {
       ok: false,
-      error: `${name} 里没有能读的 ${RECORD_FILE}——它没起过,或者起它的内核版本还不写这份记录。那时只能自己给 cdp 口`,
+      error: `${name} 里没有能读的 ${RECORD_FILE}——它没起过,或者起它的内核版本还不写这份记录。停掉重开一次就有了`,
     }
   }
   const owned = ownedProbe(await deps.processName(record.pid), deps.execPath)
