@@ -1,23 +1,30 @@
 /**
- * 这个站怎么挂机制：用哪个格式包、文档在哪、组件名册是什么。命令行和站读的是同一份。
+ * 这个站怎么挂机制：用哪个格式包、哪几区进 check、卡目录在哪、生成物摆哪、组件名册是什么。
+ * 命令行和站读的是同一份。
  *
  * 项目根是这个站目录，钉的代码在仓根——引用里写 `../src/…`，读取器按项目根拼路径。
  * 比较器不写死：仓里有 git 就用 git 比，没有就退回按内容摘要比。
  *
- * outputs：仓根 AGENTS.md 是生成物，正本是 content/docs/agents.mdx。改 mdx 源之后跑
- * `pnpm doc:render` 重摆，两份一起提交——check 守着生成物跟源一致，
- * 红了就是没重摆。README.md 眼下不是生成物（仓里没有），要的时候照这条形状加一行。
+ * 六区里只有 docs（现状）与 outputs（生成正本）进 check——只有这两区对代码说话。
+ * trajectory 指卡目录：check 顺带跑卡校验（卡是 .mdx，六个字段一个不沾的页不算卡）。
  *
- * 轨迹区 content/docs/trajectory/ **不钉活代码**：它冻结历史，钉了就变成会变黄的现状文档。
+ * 本仓有三份生成物，第三份是**随包发的手册**：`skills/gwb-devkit/SKILL.md` 要保留
+ * frontmatter 的 `name` 与 `description`（gwb-skills 挂载时读它们），所以目标写成对象形式。
+ * 手册是这个包对外的知识面，正本跟别的文档一样住站里，改它照样是 `doc:render` 重摆。
  */
 import * as fumadocs from '@godcreator02/docfirst-workflow/fumadocs'
 
 export default {
   formats: [fumadocs],
-  docs: 'content/docs',
+  docs: ['content/docs', 'content/outputs'],
+  trajectory: 'content/trajectory',
   out: 'out',
   outputs: {
-    'content/docs/agents.mdx': ['../AGENTS.md'],
+    'content/outputs/agents.mdx': ['../AGENTS.md'],
+    'content/outputs/readme.mdx': ['../README.md'],
+    'content/outputs/skills/gwb-devkit.mdx': [
+      { to: '../skills/gwb-devkit/SKILL.md', frontmatter: ['name', 'description'] },
+    ],
   },
   components: {
     ...fumadocs.defaultRoster,

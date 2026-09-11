@@ -1,0 +1,3 @@
+{
+  "pages": ["agents", "readme", "..."]
+}

@@ -56,7 +56,6 @@ export const inject = ['gwbCommands']
  */
 const CLIENT_URL = new URL('./client/index.js', import.meta.url).href
 
-
 /**
  * 铺 fumadocs 骨架那条命令，由**站件** `@godcreator02/gwb-docs-site` 提供。
  *

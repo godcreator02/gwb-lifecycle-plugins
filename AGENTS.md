@@ -1,8 +1,20 @@
 # gwb-devkit
 
 开发套件，**一个普通的 gwb 件**：一仓一包一插件，仓根即包根。发本机 registry，装进 home。
-它管建仓 / 手册 / 本机源 / 测试 home 四件事，外加一条经 `gwbNodeCli` 登记的外部 CLI
-（`devkit.cdp-eval`）。设计与原理在文档站，这份只装**不知道就会做错事**的硬约束。
+它管建仓 / 手册 / 本机源 / 测试 home / 改一版看一版五件事，外加一条经 `gwbNodeCli` 登记的
+外部 CLI（`devkit.cdp`）。设计与原理在文档站（`docs-site/`，六区），这份只装**不知道就会做
+错事**的硬约束。
+
+## 文档站是正本，六区
+
+`AGENTS.md` 与 `README.md` 与包内 `skills/gwb-devkit/SKILL.md` **三份都是生成物，别手改**——
+正本分别是 `docs-site/content/outputs/` 下的 `agents.mdx` / `readme.mdx` /
+`skills/gwb-devkit.mdx`。改完在 `docs-site` 跑 `pnpm doc:render` 重摆，mdx 源、生成物、
+`.ledger.json` 同一个提交。
+
+六区各是什么：`content/docs` 现状（**钉码只在这一区**与 outputs）、`trajectory` 轨迹卡（只增
+不改、**不钉活代码**）、`spec` 在途交接（有页就是有活在路上，做完拆解归梁后删页）、`future`
+未来、`outputs` 生成正本、`feedback` 本仓孵化区。怎么写见 skill「docfirst-docs」。
 
 ## 门禁
 
@@ -32,13 +44,13 @@ pnpm build          # tsc 直出 dist/ 与 dist/client/，没有打包器
 
 **`files` 白名单五项，一项都不能少**：`dist`、`src`、`template`、`skills`、`bin`。
 
-| 少了哪项       | 什么当场坏掉                               |
-| ---------- | ------------------------------------ |
-| `dist`     | 件根本挂不上                               |
-| `template` | `devkit.scaffold` 回「包内 template/ 不在」 |
-| `skills`   | 写件手册装不进 home，agent 那边少一份说明书          |
-| `bin`      | `devkit.cdp-eval` 的 entry 指向一个不存在的文件 |
-| `src`      | 类型跳转与读源码断掉（不影响运行）                    |
+| 少了哪项       | 什么当场坏掉                                                   |
+| ---------- | -------------------------------------------------------- |
+| `dist`     | 件根本挂不上                                                   |
+| `template` | `devkit.scaffold` 回「包内 template/ 不在」                     |
+| `skills`   | 写件手册装不进 home，agent 那边少一份说明书                              |
+| `bin`      | `devkit.cdp` 的 entry 指向一个不存在的文件，`devkit.dev` 的重挂与取证三步一起废 |
+| `src`      | 类型跳转与读源码断掉（不影响运行）                                        |
 
 ## 模板
 
@@ -91,21 +103,36 @@ config 面——写在 yml 里的那份界面看不见、agent 也不知道有�
 `docfirst.attach` **只在还没写过内容的骨架上装得了**（它自己守着这条），所以补建的两条
 要连着敲。`devkit.livedoc` 与 `@godcreator02/live-doc-cli` 那条依赖 0.3.0 起都没了。
 
+## 改一版看一版：换件的工具不许住在被换的进程里
+
+`devkit.dev` **住控制台那个 home、操作另一个 home**：盘那半（构建、发版、`pnpm add`）在本进程做，
+页那半（重挂、刷新、取证）经 CDP 送到目标页去。换件那一步要把条目停用再启用，工具自己跑在目标里
+就会把正在跑的它自己停掉。**目标是 `default` 或本件自己所在的 home，两种都当场拒**。
+
+**不许把产物覆盖进 home 的 `node_modules`**：home 里那些文件是硬链接到 pnpm 全局仓的，覆盖写会
+写穿它；而且 ESM 模块图按 URL 缓存，不换版本号就换不动 node 那半。**版本号变了路径才变**，
+重挂那一下才真的重新求值。
+
+**收尾是取证不是刷新**：条目要真 ACTIVE、日志增量里不许有 error，取不到就回 `ok: false`。
+
+`bin/cdp.mjs` 是**零依赖单文件纯 JS，不进 typecheck**——它得在工作台起不来时也能直接跑，
+那是它的另一个身份。探针与截图落点按**工作目录**算，不按它装在哪算。
+
 ## 说明书只挂自己那份
 
-**手册正本是本包的 `skills/gwb-devkit/SKILL.md`**，随包发、经 `gwbSkills` 挂给 agent。
-七条红线、能力面菜单、发版装机、实机验机全在那儿——**这份不复述，那份也不往这儿搬**。
+**手册正本是 `docs-site/content/outputs/skills/gwb-devkit.mdx`**（render 摆成包内
+`skills/gwb-devkit/SKILL.md`），随包发、经 `gwbSkills` 挂给 agent。八条红线、能力面菜单、
+发版装机、实机验机全在那儿——**这份不复述，那份也不往这儿搬**。
 
 **别替别的件代挂说明书。** 说明书是全局单一命名空间，撞名的那份直接不挂、只留一行
 警告，而被撞掉的常常是新那份——症状是 agent 读到旧的、照着做但做错了，最难查。
 本件 0.2.x 曾代挂 docfirst 那两份（`docfirst-docs` / `trajectory`），0.3.0 删了：
 知识随件走，那两份由 docfirst 件自己挂。
 
-## 文档站是正本
+## 钉码与确认
 
-仓根 `AGENTS.md` **是生成物，别手改**——正本是 `docs-site/content/docs/agents.mdx`。
-改完在 `docs-site` 跑 `pnpm doc:render` 重摆，mdx 源、生成物、
-`.ledger.json` 同一个提交。`docfirst check` 守着生成物跟源一致，红了就是没重摆。
+`docfirst check` 守着现状区与生成正本区的论断跟源码一致，也守着生成物跟 mdx 源一致，红了就是
+漂了或者没重摆。
 
 被钉住的源码改动过要**先 commit 再 `pnpm doc:confirm`**——git 比较器只对已提交、
 工作区干净的内容钉。轨迹区（`content/docs/trajectory/`）**不钉活代码**：它冻结历史，
