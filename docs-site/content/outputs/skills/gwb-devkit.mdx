@@ -121,8 +121,8 @@ devkit.scaffold {"name":"hello","dir":"D:\\unitfolders\\<单元>\\gwb-hello","ti
 要连着敲**，别铺完骨架先去写内容。
 
 **站没建成不算建仓失败。** 哪个件没装、哪条命令自己失败，件那半照样在盘上；回执里
-`docs.note` 写明卡在哪一步、怎么补。回执里两格分别是真相：**`docs.built`**（骨架铺没铺）
-与 **`docs.attached`**（六区装没装），`nextSteps` 按这两格分三支，不按你要不要建分。
+`docs.note` 写明卡在哪一步、怎么补。回执里有两格才是真相，`docs.built` 说骨架铺没铺、
+`docs.attached` 说六区装没装，`nextSteps` 按这两格分三支，不按你要不要建分。
 
 **没装站件的时候**：`devkit.scaffold` 不报错、不终止，件那半正常落盘，回执与生成的
 README 都改口说「站没铺，装了站件之后自己跑 `docs-site.create`」。装：
@@ -510,7 +510,7 @@ minimumReleaseAgeExclude:
 ## 一键更新是怎么走的
 
 发完（可能是好几个件的好几版）之后，把 home 里那份升上来只有一个动作：人在插件窗格点
-**「全部更新」**，或 agent 经 MCP 调 **`plugins.update-all`**（无参数）。它一条命令走完：
+那颗**「全部更新」**键，或 agent 经 MCP 调 `plugins.update-all`（无参数）。它一条命令走完：
 查新版本 → 一次 `pnpm` 全升 → 升了的条目**逐条停用再启用**（即热重挂，`plugins` 件自己
 排最后）→ 调 `shell.reload` 整页重载。回执按包报 `from → to`，并逐条说挂上了没有。
 
