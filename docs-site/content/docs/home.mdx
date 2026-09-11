@@ -31,15 +31,15 @@ home 建在 `%APPDATA%\gwb-kernel\homes\<名>\`。开哪一个由环境变量 `G
 
 一份启动记录，一个 home 一份，home 删了它自然也没了：
 
-@@docfirst ref ../src/home.ts:37-44 @@
+{/* ref file="../src/home.ts" lines="37-44" */}
 
 列出来的样子是另一张，`running` 由记录里那个 pid 现查出来：
 
-@@docfirst ref ../src/home.ts:342-349 @@
+{/* ref file="../src/home.ts" lines="342-349" */}
 
 名字的形状不是这块自己定的：
 
-@@docfirst ref ../src/home.ts:16-17 @@
+{/* ref file="../src/home.ts" lines="16-17" */}
 
 比内核那道严没有意义，名字到头来是它说了算。
 
@@ -49,14 +49,14 @@ home 建在 `%APPDATA%\gwb-kernel\homes\<名>\`。开哪一个由环境变量 `G
 
 **命名是 `<短名>-<yyMMddHHmm>`**，撞了退到秒，再撞就照实拒：
 
-@@docfirst ref ../src/home.ts:102-114 @@
+{/* ref file="../src/home.ts" lines="102-114" */}
 
 不静默加序号，因为名号里每一段都得能读出时间。同一个件的 home 因此在目录里挨在一起、各自按时间排，
 正好是清理时要的顺序。
 
 **`new` 默认先 build 内核，而且 build 失败就是失败**：
 
-@@docfirst ref ../src/home.ts:269-301 @@
+{/* ref file="../src/home.ts" lines="269-301" */}
 
 「改了内核没 build，起的是上一次的产物」是实机验证里最隐蔽的一种空验：界面看着一切正常，验的是旧代码。
 所以 build 是这条命令的正身，不是可省的优化，赶时间才给 `skipBuild`。
@@ -68,41 +68,41 @@ home 建在 `%APPDATA%\gwb-kernel\homes\<名>\`。开哪一个由环境变量 `G
 
 起来之后看五秒：
 
-@@docfirst ref ../src/home.ts:320-330 @@
+{/* ref file="../src/home.ts" lines="320-330" */}
 
 「起没起来」没有 ping 可打，进程还活着是此刻唯一拿得到的信号。这五秒只为抓住「秒退」这一种最常见的
 死法（产物不在、端口被占），真正成没成，那扇窗和人说了算。
 
 CDP 调试口**走命令行，不走环境变量**：
 
-@@docfirst ref ../src/home.ts:128-144 @@
+{/* ref file="../src/home.ts" lines="128-144" */}
 
 内核不认识任何调试相关的环境变量，`--remote-debugging-port` 是 Chromium 自己的开关，命令行上就生效。
 
 给子进程的环境要**剥掉 `ELECTRON_RUN_AS_NODE`**：
 
-@@docfirst ref ../src/home.ts:161-176 @@
+{/* ref file="../src/home.ts" lines="161-176" */}
 
 件跑在 Electron 主进程里，起 node 子进程的件会带上这个变量。漏进这儿，起的就不是一扇窗而是一个看不见
 的 node。
 
 **`stop` 两道核对再杀**，跟本机源那半同一个道理：
 
-@@docfirst ref ../src/home.ts:397-414 @@
+{/* ref file="../src/home.ts" lines="397-414" */}
 
 它只停「有启动记录的那个」。手工起的 home 如实说没有可停的：没有记录就没有「它是谁」的凭据，
 不猜、不按名字扫进程。
 
 **`rm` 两道守卫**：
 
-@@docfirst ref ../src/home.ts:435-457 @@
+{/* ref file="../src/home.ts" lines="435-457" */}
 
 `default` 是人每天住的地方，不给 `force` 不删；还在跑的拒删，删一个跑着的 home 只会得到半个目录和
 一屏 EBUSY。记录「查不出还在不在」时同样不删，不知道占没占着目录就下手是在赌。
 
 ## 依赖的接口
 
-@@docfirst ref ../src/home.ts:209-230 @@
+{/* ref file="../src/home.ts" lines="209-230" */}
 
 | 接口 | 用来做什么 | 生产实现 | 测试实现 |
 | --- | --- | --- | --- |

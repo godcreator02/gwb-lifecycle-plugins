@@ -14,7 +14,7 @@ description: 维持一个 Verdaccio 目录：起停时序、判活判据、杀�
 
 **一个 registry 目录就是全部真相**：地址、存储位、日志位都写在它自己那份 `config.yaml` 里。
 
-@@docfirst ref ../src/daemon.ts:5-16 @@
+{/* ref file="../src/daemon.ts" lines="5-16" */}
 
 所以这一层认目录，不认配置项。据别处一份配置去 ping 另一个地址，会得出「你要维持的那个没起来，
 但状态显示在跑」，那是这台机器上另一个 registry 的回音。
@@ -25,7 +25,7 @@ description: 维持一个 Verdaccio 目录：起停时序、判活判据、杀�
 
 它**不替你装 Verdaccio**：
 
-@@docfirst ref ../src/daemon.ts:43-50 @@
+{/* ref file="../src/daemon.ts" lines="43-50" */}
 
 装 verdaccio 本身要先有一个 registry，把它声明成依赖就是鸡生蛋。目录里没有那份本体，就实话说
 「进这个目录跑 pnpm install」。
@@ -36,14 +36,14 @@ description: 维持一个 Verdaccio 目录：起停时序、判活判据、杀�
 
 对外那张状态表只钉形状：
 
-@@docfirst ref ../src/daemon.ts:309-323 @@
+{/* ref file="../src/daemon.ts" lines="309-323" */}
 
 里头两格值得单独说。`running` 由 `/-/ping` 说了算，`pid` 只是用来停它的把手；`adopted` 是会话级的
 判断：宿主重启之后同一个源还在跑（它本来就该活过宿主），那时它对新会话确实是接管来的。
 
 另一张是查进程的三态。**「查不出」不能跟「不在」混成一个**：
 
-@@docfirst ref ../src/daemon.ts:176-191 @@
+{/* ref file="../src/daemon.ts" lines="176-191" */}
 
 查映像名那条命令会超时、会不在、会自己出错。把这些当成「进程不在」，停就退化成「只清一份 pid 文件」，
 那个源还在跑，而唯一一份「它是谁」的线索被删了。
@@ -55,7 +55,7 @@ description: 维持一个 Verdaccio 目录：起停时序、判活判据、杀�
 
 `up` 的时序是「已经在跑就直接接管，不重起」：
 
-@@docfirst ref ../src/daemon.ts:377-387 @@
+{/* ref file="../src/daemon.ts" lines="377-387" */}
 
 ping 通就认，不去比对 pid。这个地址上已经有一个源在服务了，再起一个只会得到一个抢不到端口、几秒后
 死掉的进程，还顺手把 pid 文件写成那个死号。pid 活着而地址不应答是另一种局面：多半它正在起，
@@ -66,7 +66,7 @@ ping 通就认，不去比对 pid。这个地址上已经有一个源在服务�
 
 `down` 是**两道核对再杀**：
 
-@@docfirst ref ../src/daemon.ts:457-477 @@
+{/* ref file="../src/daemon.ts" lines="457-477" */}
 
 第一道是映像名，因为 pid 会被系统复用，一份陈旧的 pid 文件加一次不核对的 kill，杀的就是碰巧拿到这个
 号的另一个进程。第二道是端口持有者，因为映像名只能证明「这是个 node 或者跟宿主同一个 exe」，撞上别人
@@ -77,13 +77,13 @@ kill 失败时 pid 文件留着：那个进程还在跑，而 pid 文件是唯�
 
 `status` 现查一次，**一个字都不动盘**：清 pid 文件是停那条路上的事。
 
-@@docfirst ref ../src/daemon.ts:330-350 @@
+{/* ref file="../src/daemon.ts" lines="330-350" */}
 
 ## 依赖的接口
 
 一张注入面，起停时序全站在它上面：
 
-@@docfirst ref ../src/daemon.ts:279-305 @@
+{/* ref file="../src/daemon.ts" lines="279-305" */}
 
 | 接口 | 用来做什么 | 生产实现 | 测试实现 |
 | --- | --- | --- | --- |
