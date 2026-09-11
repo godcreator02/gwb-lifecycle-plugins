@@ -47,8 +47,12 @@ description: 动手写一个新 gwb 件之前读，打算说「验过了 / 跑�
 
 | 命令 | 参数 | 干什么 |
 | --- | --- | --- |
-| `devkit.dev` | `{ cdp, dir, packages?, build?, waitFor?, registry? }` | 一条走完：仓根构建 → 发开发版 → 在目标 home 里装那个准确号 → 条目停用再启用重挂 → 整页重载 → 取证。**目标是 `default` 或本件自己所在的 home 都当场拒** |
-| `devkit.dev-check` | `{ cdp, lines? }` | 只摆现状：目标 home、条目表、日志尾巴与里头的 error/warn。**它不下判定** |
+| `devkit.dev` | `{ home 或 cdp, dir, packages?, build?, waitFor?, registry? }` | 一条走完：仓根构建 → 发开发版 → 在目标 home 里装那个准确号 → 条目停用再启用重挂 → 整页重载 → 取证。**目标是 `default` 或本件自己所在的 home 都当场拒** |
+| `devkit.dev-check` | `{ home 或 cdp, lines? }` | 只摆现状：目标 home、条目表、日志尾巴与里头的 error/warn。**它不下判定** |
+
+**目标怎么指**：给 `home`（名字）最省事，口从那个 home 的 `runtime.json` 里查（内核开机写的那份），
+顺带验活；给 `cdp`（口）是手工起的老 home 那条退路，那时没有名字可核对。两个都给就要求一致，
+不一致当场拒——不猜哪个是对的。
 
 **一条外部 CLI**（经 `gwbNodeCli` 登记，自动镜像成同名总线命令）
 
@@ -81,14 +85,16 @@ description: 动手写一个新 gwb 件之前读，打算说「验过了 / 跑�
 | 命令 | 参数 | 干什么 |
 | --- | --- | --- |
 | `devkit.home.new` | `{ short, cdp?, skipBuild? }` | 开一个新 home，名字长成 `<short>-<yyMMddHHmm>`。**默认先 build 内核**——产物不新就起等于验旧代码；赶时间才 `skipBuild: true`。`cdp: 9222` 顺带开调试口。**回执里带着现有 home 清单**，开新那一刻正好清旧的 |
-| `devkit.home.list` | — | 列 home 根下全部：名字、谁还在跑、CDP 口 |
+| `devkit.home.list` | — | 列 home 根下全部：名字、谁还在跑、CDP 口、MCP 口 |
 | `devkit.home.open` | `{ name, cdp? }` | 重开已有的，**不 build**。验完留给人亲自看那一眼走这条 |
-| `devkit.home.stop` | `{ name }` | 停 devkit 起的那个：按 home 里 `devkit.json` 的 pid，核对映像名与记录过的 CDP 端口再杀 |
+| `devkit.home.stop` | `{ name }` | 停一个 home：按它 `runtime.json` 里的 pid，核对映像名与记录里那个 CDP 端口再杀。**手工起的也停得了**——记录归内核写 |
 | `devkit.home.rm` | `{ name, force? }` | 删。还在跑的拒删（先 stop）；`default` 是日常那份，`force` 才删 |
 
-启动记录落在每个 home 自己的 `devkit.json` 里，home 删了它自然也没了。**热重挂不换 pid**
-——`plugins.update-all` 那套停用再启用只动条目，内核进程还是原来那个，`devkit.home.stop`
-照常认得它。
+运行时记录落在每个 home 自己的 `runtime.json` 里（`pid` / `startedAt` / `appDir` / `cdp` /
+`mcp`），home 删了它自然也没了。**写它的是内核与 mcp 件，devkit 只读**：内核开机整份重写，
+mcp 件绑上口之后补自己那格。所以**手工起的 home 也有记录**，「说出名字就够得着它」对所有
+home 都成立。**热重挂不换 pid**——`plugins.update-all` 那套停用再启用只动条目，内核进程还是
+原来那个，记录照旧作数。
 
 **前提**：`devkit.home.*` 要 devkit 本身跑在一个活着的 home 里——它是个件，宿主不在它也起不了。
 一个 home 都没活着的时候只能手工起，见末尾「你改的是内核，不是件」那四步（件作者同样能用）。
@@ -536,7 +542,7 @@ minimumReleaseAgeExclude:
 内循环就是一条命令：
 
 ```
-devkit.dev {"cdp":9347,"dir":"D:\\unitfolders\\<单元>\\<仓>","packages":["plugins/hello"]}
+devkit.dev {"home":"<home 名>","dir":"D:\\unitfolders\\<单元>\\<仓>","packages":["plugins/hello"]}
 ```
 
 七步一趟：问目标页它是哪个 home → 仓根 `pnpm build` → 逐个包发开发版（`<patch+1>-dev.<戳>`，
@@ -547,17 +553,20 @@ devkit.dev {"cdp":9347,"dir":"D:\\unitfolders\\<单元>\\<仓>","packages":["plu
 同一趟里互相依赖的包，依赖会被钉成这一趟那几个准确号——`>=` 那类范围认不到 dev 号，不钉就是
 「新件配旧库」。
 
-## 四道守卫，每道都有人撞过
+## 五道守卫，每道都有人撞过
 
-1. **目标是 `default` 就拒。** 开发版的号看着跟正式版没两样，进了日常那份 home 就悄悄换了代码，
+1. **点了名就得对得上。** 给了 `home` 的话，页面自报的名字必须是它——**记录回答「你要的是
+   哪个」，页面回答「你连上的实际是哪个」**。端口会被下一个进程占走、记录会陈旧，只信一头
+   就会把一趟改动静默推给另一个隔离 home
+2. **目标是 `default` 就拒。** 开发版的号看着跟正式版没两样，进了日常那份 home 就悄悄换了代码，
    而 `plugins.list` 上一点异常都看不出来
-2. **目标是本件自己所在的 home 就拒。** 停用条目那一下会把正在跑的这条命令自己停掉。
+3. **目标是本件自己所在的 home 就拒。** 停用条目那一下会把正在跑的这条命令自己停掉。
    **换 devkit 自己走外循环**：发正式版，再 `plugins.update-all`（那条是 plugins 件在调，
    活得过 devkit 的重挂）
-3. **产物不全就不发。** 照 `package.json` 的 `files` 白名单问，不另列一份名单。否定式
+4. **产物不全就不发。** 照 `package.json` 的 `files` 白名单问，不另列一份名单。否定式
    （`!py/**/__pycache__`）与通配不算产物；`files` 里有**通配的正条目**时这条链当场拒，
    它只认字面路径，让你去走正路发
-4. **取不到证就回 `ok: false`。** 条目要真 ACTIVE、日志增量里不许有 error
+5. **取不到证就回 `ok: false`。** 条目要真 ACTIVE、日志增量里不许有 error
 
 ## 为什么不覆盖 dist
 
@@ -587,6 +596,11 @@ devkit.dev {"cdp":9347,"dir":"D:\\unitfolders\\<单元>\\<仓>","packages":["plu
 前一个开门（`devkit.home.new` / `open` 的 `cdp` 参数给的就是它）；后一个是被真窗口撞出来的：
 窗口被别的窗口整个盖住时 Chromium 判定不可见、停止产帧，截图拿到陈旧帧、`requestAnimationFrame`
 一次都不回。**发事件从来不需要窗口在前台**，看画面才需要它没被判定隐藏。
+
+**口记在哪**：内核开机把 `pid` / `startedAt` / `appDir` / `cdp` 写进 `<home>/runtime.json`，
+mcp 件绑上口之后补一格 `mcp`。所以起的时候带了开关，之后说出 home 名就够得着它，不用记那个数。
+**没带开关的 home 够不着**——记录里没有 `cdp` 那格，那时只能停掉重开。记录**进程退了也不删**，
+读的人验活（pid 还在、且那个 pid 真的持着那个口），下一次开机内核整份重写。
 
 **底座还得手工铺。** `devkit.home.new` 开出来的是个空 home，把基础件（命令总线、外壳、插件管理、
 数据那几个）与被测的件装进去这一步**没有命令**，自己 `pnpm add` 加写 `cordis.yml` 条目。
@@ -678,11 +692,13 @@ home 里验」这一步**。所以**发版前**在一个测试 home 里装一遍
 别的实例常用的，换一个；或者 `devkit.home.new` / `open` 给 `"cdp": <端口>`），然后
 
 ```
-devkit.cdp {"args":["<端口>","eval","<表达式文件>"]}
-devkit.cdp {"args":["<端口>","cmd","plugins.list"]}
-devkit.cdp {"args":["<端口>","home"]}
-devkit.cdp {"args":["<端口>","click",".dv-tab@=日志"]}
+devkit.cdp {"args":["<端口或 home 名>","eval","<表达式文件>"]}
+devkit.cdp {"args":["<端口或 home 名>","cmd","plugins.list"]}
+devkit.cdp {"args":["<端口或 home 名>","home"]}
+devkit.cdp {"args":["<端口或 home 名>","click",".dv-tab@=日志"]}
 ```
+
+第一个位置给数字就是调试口，给名字就当 home 名，口从那个 home 的 `runtime.json` 里查。
 
 工作台没起的时候它的身体也能直接跑：
 

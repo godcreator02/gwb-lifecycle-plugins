@@ -7,7 +7,7 @@ import { shed, type ProcessProbe } from './daemon.js'
  *
  * 开测试 home 的纪律(一次验开一个新 home、清理放在开新那一刻)是 devkit 手册与内核
  * 仓 gwb-test skill 的正典,这儿只管把那几步做成命令:名字怎么起、electron 怎么拉、
- * pid 记在哪、停与删之前核对什么。
+ * 记录怎么读、停与删之前核对什么。
  *
  * **碰盘与开进程的能力全走注入**(`HomeDeps`),整条时序在测试里用假件跑得完——
  * 「查不出 pid 就不敢杀」「default 不许删」这类守卫,恰恰是只在边角上才现形的判断。
@@ -292,8 +292,8 @@ export interface LaunchInput {
 }
 
 /**
- * 把一个测试 home 拉起来:先 build(要的话)、起 electron、落启动记录、观察五秒确认
- 不是秒退。
+ * 把一个测试 home 拉起来:先 build(要的话)、起 electron、观察五秒确认不是秒退,最后读一眼
+ 内核落下的那份记录。
  *
  * **build 放在最前面且失败即失败**:「改了内核没 build,起的是上一次的 out/」是实机
  验证最隐蔽的一种空验——界面看着一切正常,验的是旧代码。所以默认 build 是这条命令的
