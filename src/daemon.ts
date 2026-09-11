@@ -4,7 +4,13 @@ import { isRecord } from '@godcreator02/gwb-plugin-api'
 
 /**
  * 维持一个 Verdaccio 目录的纯机：地址与存储位从它自己的 `config.yaml` 推、pid 判活、
- * 起停时序、日志尾巴。
+ * 起停时序。
+ *
+ * **这是起停唯一的一份实现**。工作台没起时也要能起停源，那条路是包内
+ * `bin/registry.mjs`，它 import 的就是这个模块——一份逻辑，两个入口。这台机器上不再
+ * 有第二份起停脚本：两份判据必然漂，而漂了的现象是「它说没在跑，其实跑着」。
+ *
+ * **日志不另开命令**：起不来时的错话里带着日志文件的绝对路径，读它就是了。
  *
  * **一个 registry 目录就是全部真相**：地址、存储位、日志位都写在那份 `config.yaml`
  * 里，所以这一层认目录、不认配置项。据别处一份配置去 ping 另一个地址，会得出「你要
@@ -17,6 +23,16 @@ import { isRecord } from '@godcreator02/gwb-plugin-api'
 
 /** registry 目录里的几个固定名字（Verdaccio 自己的约定 + 起停落 pid 的位置） */
 export const CONFIG_FILE = 'config.yaml'
+/**
+ * pid 文件。一行两格：`<pid> <起它那个进程的映像名>`。
+ *
+ * **第二格为的是两个入口认得出同一个 registry**：件那半跑在 electron 里，命令行那半
+ * 跑在 node 里，谁起的就把谁的映像名写进来。少了这一格，只能拿「读的人自己是什么」去猜
+ * 起的人是什么——命令行会把 electron 起的那个判成「不是它」，然后清掉 pid 文件走人，
+ * 而那个 registry 还跑着，从此没人知道它是谁。
+ *
+ * 只有一格的文件照读（那时回落到老判据）：换格式不该逼人先停一次源。
+ */
 export const PID_FILE = 'verdaccio.pid'
 /** `config.yaml` 里没写 `storage` 时的默认值（Verdaccio 的默认相对位） */
 export const DEFAULT_STORAGE = './storage'
@@ -29,8 +45,6 @@ export const DEFAULT_LOG = './verdaccio.log'
 export const UP_TIMEOUT_MS = 30_000
 /** 轮询间隔 */
 export const POLL_MS = 500
-/** `registry.log` 默认回多少行 */
-export const DEFAULT_LOG_LINES = 200
 
 export function configFile(dir: string): string {
   return path.join(dir, CONFIG_FILE)
@@ -146,30 +160,55 @@ export function logFileOf(dir: string, configText: string | undefined): string {
 
 // ── pid 判活 ──────────────────────────────────────────────────────────────────
 
-/** pid 文件的内容 → 一个像样的 pid。空文件、半截数字、负数一律当没有 */
-export function parsePid(text: string | undefined): number | undefined {
-  const raw = text?.trim() ?? ''
-  if (!/^\d+$/.test(raw)) return undefined
-  const value = Number(raw)
-  return value > 0 ? value : undefined
+/** pid 文件里那一行。`image` 是起它那个进程的映像名，老格式的文件没有这一格 */
+export interface PidRecord {
+  pid: number
+  image?: string
 }
 
 /**
- * 这个映像名算不算「我们起的那个 registry」。
+ * pid 文件的内容 → 一条记录。空文件、半截数字、负数一律当没有。
  *
- * pid 会被系统复用，光「有这个进程」不作数，还得看它是什么。而**判据不能只写 `node`**：
- * 起子进程用的是本进程自己的可执行文件（靠 `ELECTRON_RUN_AS_NODE` 让它以纯 node 身份
- * 跑），开发态那是 `electron.exe`——只认 node 会把自己刚起的进程判成「不是它」。所以
- * 两头都认：node 与当前可执行文件。
+ * **第二格缺了不是坏**：0.6.0 之前写的文件只有一个数，那时按老判据认（node 或读的人
+ * 自己那个可执行文件）。写坏了的第二格当没写——它只能让判据更准，不该让整条记录作废。
  */
+export function parsePidFile(text: string | undefined): PidRecord | undefined {
+  const parts = (text?.trim() ?? '').split(/\s+/)
+  const raw = parts[0] ?? ''
+  if (!/^\d+$/.test(raw)) return undefined
+  const pid = Number(raw)
+  if (pid <= 0) return undefined
+  const image = parts[1] === undefined || parts[1].trim() === '' ? undefined : shed(parts[1])
+  return image === undefined ? { pid } : { pid, image }
+}
+
+/** 写 pid 文件：pid 加起它那个进程的映像名 */
+export function formatPidFile(pid: number, execPath: string): string {
+  return `${String(pid)} ${shed(execPath)}\n`
+}
+
 /** 映像名 → 可比的小写裸名:`C:\apps\Electron.exe` 与 `electron` 是同一个东西 */
 export function shed(value: string): string {
   return path.basename(value).toLowerCase().replace(/\.exe$/, '')
 }
 
-export function isOwnedProcess(name: string | undefined, execPath: string): boolean {
+/**
+ * 这个映像名算不算「我们起的那个 registry」。
+ *
+ * pid 会被系统复用，光「有这个进程」不作数，还得看它是什么。
+ *
+ * **pid 文件里记着起它的是谁就照那个比**（`recorded`）——那是唯一一份不靠猜的证据。
+ * 件那半跑在 electron 里、兜底 CLI 那半跑在 node 里，两边起出来的映像名本来就不一样，
+ * 拿「读的人自己是什么」去比，必然有一头判错。
+ *
+ * **没记的那种是老文件**，回落到老判据：node 与当前可执行文件两头都认。起子进程用的是
+ * 本进程自己的可执行文件（靠 `ELECTRON_RUN_AS_NODE` 让它以纯 node 身份跑），开发态那是
+ * `electron.exe`——只认 node 会把自己刚起的进程判成「不是它」。
+ */
+export function isOwnedProcess(name: string | undefined, execPath: string, recorded?: string): boolean {
   if (name === undefined || name.trim() === '') return false
   const image = shed(name.trim())
+  if (recorded !== undefined) return image === recorded
   return image === 'node' || image === shed(execPath)
 }
 
@@ -184,10 +223,10 @@ export type ProcessProbe = { state: 'running'; name: string } | { state: 'gone' 
  * 探测结果 → 「这个 pid 是不是我们那个 registry」。查不出时回 `undefined`：「不知道」
  * 跟「不是」得分开，前者不该导出任何一个动作。
  */
-export function ownsProcess(probe: ProcessProbe, execPath: string): boolean | undefined {
+export function ownsProcess(probe: ProcessProbe, execPath: string, recorded?: string): boolean | undefined {
   if (probe.state === 'unknown') return undefined
   if (probe.state === 'gone') return false
-  return isOwnedProcess(probe.name, execPath)
+  return isOwnedProcess(probe.name, execPath, recorded)
 }
 
 /**
@@ -330,12 +369,12 @@ export interface RegistryStatus {
 export async function readStatus(dir: string, deps: RegistryDeps, ownPid?: number): Promise<RegistryStatus> {
   const configText = deps.fs.readText(configFile(dir))
   const url = urlOf(configText) ?? null
-  const filePid = parsePid(deps.fs.readText(pidFile(dir)))
+  const record = parsePidFile(deps.fs.readText(pidFile(dir)))
   // 查不出的时候跟「不是它」一样报 null——状态上少一个 pid 是可以忍的。**但一个字都
   // 不动盘**：清 pid 文件是停那条路上的事，现查一次状态不该有副作用
   const live =
-    filePid !== undefined && ownsProcess(await deps.processName(filePid), deps.execPath) === true
-      ? filePid
+    record !== undefined && ownsProcess(await deps.processName(record.pid), deps.execPath, record.image) === true
+      ? record.pid
       : null
   const running = url === null ? false : await deps.ping(pingUrl(url))
   return {
@@ -394,7 +433,8 @@ export async function bringUp(dir: string, deps: RegistryDeps, ownPid?: number):
 
   const pid = deps.spawn(spawnPlan(dir, deps.execPath), nodeChildEnv(deps.env))
   if (pid === undefined) return { ok: false, error: '起不来：子进程没拿到 pid，看宿主日志' }
-  deps.fs.writeText(pidFile(dir), `${pid}\n`)
+  // 映像名跟 pid 一起落盘：起它的是这个进程，另一个入口读的时候才认得出（见 PID_FILE）
+  deps.fs.writeText(pidFile(dir), formatPidFile(pid, deps.execPath))
 
   const deadline = deps.now() + UP_TIMEOUT_MS
   const ping = pingUrl(before.url)
@@ -449,12 +489,13 @@ export interface DownOutcome {
  */
 export async function bringDown(dir: string, deps: RegistryDeps): Promise<DownOutcome> {
   const file = pidFile(dir)
-  const filePid = parsePid(deps.fs.readText(file))
-  if (filePid === undefined) {
+  const record = parsePidFile(deps.fs.readText(file))
+  if (record === undefined) {
     deps.fs.remove(file)
     return { ok: true, killed: null, note: '没在跑（pid 文件不在或读不出 pid）' }
   }
-  const owned = ownsProcess(await deps.processName(filePid), deps.execPath)
+  const filePid = record.pid
+  const owned = ownsProcess(await deps.processName(filePid), deps.execPath, record.image)
   if (owned === undefined) {
     return {
       ok: false,
@@ -488,25 +529,16 @@ export async function bringDown(dir: string, deps: RegistryDeps): Promise<DownOu
   return { ok: true, killed: filePid, note: `已停 pid ${filePid}` }
 }
 
-// ── 日志 ──────────────────────────────────────────────────────────────────────
+// ── 尾巴 ──────────────────────────────────────────────────────────────────────
 
-/** 最后 n 行。空行也算行——日志里那些空行是分隔，抹掉反而看不出段落 */
+/**
+ * 最后 n 行。空行也算行——那些空行是分隔，抹掉反而看不出段落。
+ *
+ * 这一条不为 registry 服务：命令输出、构建输出、日志，凡是要回一截尾巴的地方都用它
+ * （见 `node-home-deps` 与 `node-dev-deps`）。**registry 的运行日志没有读法，只有位置**
+ * （`logFileOf`）：起不来时的错话里带着那个绝对路径，读文件的事交给读文件的工具。
+ */
 export function tailLines(text: string, max: number): string {
   const lines = text.replace(/\n$/, '').split('\n')
   return lines.slice(Math.max(0, lines.length - max)).join('\n')
-}
-
-export interface LogRead {
-  file: string
-  /** 读不到文件时为 null（registry 从没起过就是这样，不是错） */
-  text: string | null
-  lines: number
-}
-
-export function readLog(dir: string, deps: RegistryDeps, max = DEFAULT_LOG_LINES): LogRead {
-  const file = logFileOf(dir, deps.fs.readText(configFile(dir)))
-  const raw = deps.fs.readText(file)
-  if (raw === undefined) return { file, text: null, lines: 0 }
-  const text = tailLines(raw, max)
-  return { file, text, lines: text === '' ? 0 : text.split('\n').length }
 }

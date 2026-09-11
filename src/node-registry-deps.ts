@@ -3,7 +3,7 @@ import fs from 'node:fs'
 import http from 'node:http'
 import https from 'node:https'
 import type { RegistryDeps, RegistryFs, ProcessProbe } from './daemon.js'
-import { parseNetstat, parsePid, parseSs, parseTasklist } from './daemon.js'
+import { parseNetstat, parsePidFile, parseSs, parseTasklist } from './daemon.js'
 
 /**
  * `RegistryDeps` 的真身：碰盘走 node:fs，开进程与探进程走系统命令。
@@ -137,7 +137,8 @@ export async function portOwner(port: number): Promise<number | undefined> {
   const fromSs = ss === undefined ? undefined : parseSs(ss, port)
   if (fromSs !== undefined) return fromSs
   const lsof = await runProbe('lsof', ['-i', `:${port}`, '-sTCP:LISTEN', '-t'], PORT_OWNER_TIMEOUT_MS)
-  return lsof === undefined ? undefined : parsePid(lsof.split('\n')[0])
+  // lsof -t 一行一个 pid，取头一个。借 pid 文件那条解析：它认的就是「一行里头一个数」
+  return lsof === undefined ? undefined : parsePidFile(lsof.split('\n')[0])?.pid
 }
 
 /**

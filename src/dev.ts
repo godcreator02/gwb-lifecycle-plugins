@@ -280,11 +280,8 @@ export interface DevInput {
   repoDir: string
   /** 要发的包目录,相对仓根。空表＝仓根自己(一仓一包一插件的常态) */
   packages: string[]
-  /** 仓根 pnpm build。缺省跑 */
-  build: boolean
   /** 刷新之后等页面上这个选择器出现才算刷回来了。不给就只等 readyState */
   waitFor?: string
-  registry: string
   /** 本件自己住的那个 home 目录。目标是它就拒 */
   ownHome: string
 }
@@ -356,10 +353,8 @@ export async function runDev(input: DevInput, deps: DevDeps): Promise<DevOutcome
   // ── 二、构建 ────────────────────────────────────────────────────────────────
   // **仓根构建,不是包目录**:工作区里的件常常吃着同仓另一个包的产物,只构建被发的那一个,
   // 发出去的就是「新件配旧库」
-  if (input.build) {
-    const built = await deps.run(pnpmPlan(['build'], input.repoDir, deps.platform), BUILD_TIMEOUT_MS)
-    if (!built.ok) return { ok: false, error: `仓根 pnpm build 没成,一步都没往下走。输出尾巴:\n${built.tail}` }
-  }
+  const built = await deps.run(pnpmPlan(['build'], input.repoDir, deps.platform), BUILD_TIMEOUT_MS)
+  if (!built.ok) return { ok: false, error: `仓根 pnpm build 没成,一步都没往下走。输出尾巴:\n${built.tail}` }
 
   // ── 三、发开发版 ────────────────────────────────────────────────────────────
   // 两趟:**先把全部号算出来,再一个个发**。因为包之间会互相依赖,发第一个的时候就得知道
@@ -377,10 +372,10 @@ export async function runDev(input: DevInput, deps: DevDeps): Promise<DevOutcome
     // 「发出去了,装上了,新写的东西全没生效」
     const missing = literalArtifacts(manifest.files ?? []).filter((one) => !deps.exists(path.join(pkgDir, one)))
     if (missing.length > 0) {
-      return { ok: false, error: `${manifest.name} 的产物不全,没发:${missing.join('、')} 不在。先在仓里 pnpm build(或别给 build: false)` }
+      return { ok: false, error: `${manifest.name} 的产物不全,没发:${missing.join('、')} 不在。仓根 pnpm build 刚跑过还缺,多半是 files 白名单里那一项根本没人生成` }
     }
     const version = devVersion(manifest.version, deps.now())
-    if (await deps.published(`${manifest.name}@${version}`, input.registry)) {
+    if (await deps.published(`${manifest.name}@${version}`, DEFAULT_REGISTRY)) {
       return { ok: false, error: `${manifest.name}@${version} 已经在源上了,同一个号永不重发——同一分钟里发了两趟的话,等一分钟再来` }
     }
     planned.push({ pkgDir, manifest, version })
@@ -389,7 +384,7 @@ export async function runDev(input: DevInput, deps: DevDeps): Promise<DevOutcome
   const shipped: ShippedPackage[] = []
   // **按给的顺序发**:被依赖的先发,不然装的时候源上还没有它。顺序是调用方的事,这儿不猜
   for (const one of planned) {
-    const sent = await deps.publish({ pkgDir: one.pkgDir, version: one.version, registry: input.registry, siblings })
+    const sent = await deps.publish({ pkgDir: one.pkgDir, version: one.version, registry: DEFAULT_REGISTRY, siblings })
     if (!sent.ok) return { ok: false, error: `${one.manifest.name}@${one.version} 发版没成:\n${sent.tail}`, data: { shipped } }
     shipped.push({ pkg: one.manifest.name, version: one.version, dir: one.pkgDir, remounted: [] })
   }
@@ -473,37 +468,6 @@ export async function collect(
   return { ok, entries, dead, errors, warns, note }
 }
 
-/**
- * 只取证,不动任何东西(`devkit.dev-check`)。
- *
- * **它不做判定,只把三样摆出来**:单独跑的时候没有「这一趟之前」的基线,日志里那些 error
- * 可能是三天前的。判定只发生在 `runDev` 里头那一次——它带着基线。拿这一条的绿色当验收,
- * 正好是它防的那件事。
- */
-export async function inspect(
-  name: string,
-  logLines: number,
-  deps: DevDeps,
-): Promise<{ ok: true; data: unknown } | { ok: false; error: string }> {
-  const probe = await deps.cdp(name, ['home'], CDP_TIMEOUT_MS)
-  const home = isRecord(probe.data) && typeof probe.data.home === 'string' ? probe.data.home : null
-  if (home === null) {
-    return { ok: false, error: `问不出 ${name} 那张页是哪个 home:${probe.tail}——它可能不是工作台的外壳页` }
-  }
-  const listed = receiptOf((await deps.cdp(name, ['cmd', 'plugins.list'], CDP_TIMEOUT_MS)).data)
-  const logFile = path.join(home, LOG_FILE)
-  const text = deps.readText(logFile) ?? ''
-  const lines = text.split(/\r?\n/)
-  const tail = lines.slice(Math.max(0, lines.length - logLines)).join('\n')
-  return {
-    ok: true,
-    data: {
-      home,
-      homeName: path.basename(home.replace(/[\\/]+$/, '')),
-      plugins: listed.ok ? listed.data : { error: listed.error },
-      logTail: tail,
-      ...errorLines(tail),
-      note: '这是现状,不是判定:没有「这一趟之前」的基线,下面那些 error 可能是几天前的。判定只在 devkit.dev 里头那一次',
-    },
-  }
-}
+// 取证只有 `collect` 这一条路,而且只在 `runDev` 里头走——**判定要基线**:哪些 error 是
+// 这一趟自己惹出来的,只有拿装包之前那个日志长度才分得出来。要现看一眼某个 home 的条目表,
+// `devkit.cdp {"args":["<名>","cmd","plugins.list"]}` 就是,那是看,不是验。

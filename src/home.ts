@@ -216,11 +216,6 @@ export function asHomeName(value: unknown): string | undefined {
   return typeof value === 'string' && HOME_NAME_RE.test(value) ? value : undefined
 }
 
-/** CDP 调试口:1–65535 的整数。给成别的就拒,不猜 */
-export function asCdpPort(value: unknown): number | undefined {
-  return typeof value === 'number' && Number.isInteger(value) && value > 0 && value < 65_536 ? value : undefined
-}
-
 // ── 注入面 ────────────────────────────────────────────────────────────────────
 
 /**
@@ -567,13 +562,21 @@ export interface RemoveOutcome {
 }
 
 /**
- * 删一个测试 home。**两道守卫**:`default` 是日常那份,不 `force` 不删;记录里的
- pid 还活着就拒——先 stop,删一个还在跑的 home 得到半个目录和一屏 EBUSY。
+ * 删一个测试 home。**还在跑的先停再删**:单独停一个 home 唯一的用处就是接着删它。
  *
- * 记录「查不出还在不在」时也不删:不知道占没占着目录,下手就是在赌。
+ * `force` 是同一个意思的两面:**越过守卫**。一面是「它还在跑,连停带删」,另一面是
+ * 「`default` 是日常那份,真要删」。
+ *
+ * **但这两面不叠加**:`default` 正跑着的时候 `force` 也不停它。一条开发工具不该去关
+ * 人正在用的那扇窗——那不是删一个测试现场,那是把人的桌子掀了。如实说,让人自己关。
+ *
+ * 记录「查不出还在不在」时不删:不知道占没占着目录,下手就是在赌。
  */
 export async function removeHome(homeDir: string, name: string, force: boolean, deps: HomeDeps): Promise<RemoveOutcome> {
-  if (name === DAILY_HOME && !force) {
+  const daily = name === DAILY_HOME
+  /** 删之前真停过的话,那句话要跟着回执走:人得知道自己刚才顺手杀了一个进程 */
+  let stoppedNote: string | undefined
+  if (daily && !force) {
     return { ok: false, note: `${DAILY_HOME} 是日常那份 home,不删。真要删,带 force: true` }
   }
   if (!deps.fs.exists(homeDir)) {
@@ -583,10 +586,18 @@ export async function removeHome(homeDir: string, name: string, force: boolean, 
   if (record !== undefined) {
     const owned = ownedProbe(await deps.processName(record.pid), deps.execPath)
     if (owned === undefined) {
-      return { ok: false, note: `查不出记录里的 pid ${record.pid} 还在不在——没敢删,先 stop 或看一眼` }
+      return { ok: false, note: `查不出记录里的 pid ${record.pid} 还在不在——没敢删,先看一眼` }
+    }
+    if (owned && !force) {
+      return { ok: false, note: `还在跑(pid ${record.pid})——带 force: true 连停带删` }
+    }
+    if (owned && daily) {
+      return { ok: false, note: `${DAILY_HOME} 正跑着(pid ${record.pid})——这是日常那份,我不替你关它。自己关掉那扇窗再来删` }
     }
     if (owned) {
-      return { ok: false, note: `还在跑(pid ${record.pid})——先 devkit.home.stop 再删` }
+      const stopped = await bringDownHome(homeDir, deps)
+      if (!stopped.ok) return { ok: false, note: `没删:停它没成——${stopped.note}` }
+      stoppedNote = stopped.note
     }
   }
   const done = deps.fs.removeDir(homeDir)
@@ -596,5 +607,5 @@ export async function removeHome(homeDir: string, name: string, force: boolean, 
       note: `删没成:${done.error}——多半还有进程占着目录(electron 的子进程偶尔晚退几秒),稍等再试`,
     }
   }
-  return { ok: true, note: `已删 ${name}(${homeDir})` }
+  return { ok: true, note: `已删 ${name}(${homeDir})${stoppedNote === undefined ? '' : `——删之前先停了它:${stoppedNote}`}` }
 }

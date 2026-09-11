@@ -9,9 +9,10 @@
 // `devkit.cdp {"args":["<口>","<动作>",…]}`（经 gwbNodeCli 登记，见本包 src/index.ts）。
 // `devkit.dev` 那条链里，重挂、刷新、取证三步也是起它的子进程做的。
 //
-// **跟着仓走的两样东西按工作目录算**，不按这个文件在哪算：探针在 `<cwd>/scripts/probes/`，
-// 截图落 `<cwd>/out/cdp/`。这支脚本住在 node_modules 里，而探针是各仓自己的东西——
-// 拿脚本自己的位置去找它们，只会在别人的依赖树里翻。要指别处用 `--repo <目录>`。
+// **落点按工作目录算**，不按这个文件在哪算：截图落 `<cwd>/out/cdp/`，`eval` 那个文件
+// 按 cwd 解相对路径。这支脚本住在 node_modules 里，拿它自己的位置去解，只会在别人的
+// 依赖树里翻。量一张表的脚本落哪儿是调用方的纪律，一次性的就落 `out/`（那儿 gitignore
+// 着，本来就是随时可以清空的地方）——提交进仓的那种会跟着界面一起变黄，而且不报错。
 //
 // 为什么不在页面里自己造事件（`el.dispatchEvent(new PointerEvent(…))`）：
 // 造出来的事件**不做命中测试**，目标被浮层盖住照样打得中，而遮挡正是这套界面最容易出的错；
@@ -26,9 +27,7 @@
 // 对不对得上——记录只说「它起的时候用的是这个口」，不说「此刻这个口上还是它」。
 // 端口是个没有语义的数，敲错一位就落在另一个现场，而那个现场会老老实实收下你发的事件。
 //
-//   targets                          列出能连的页面
-//   raise                            把窗口抬到前面（被遮住时 Chromium 停止产帧，截图会是陈旧帧）
-//   eval   <表达式文件>               求值（表达式走文件：PowerShell 的引号会把它截断）
+//   eval   <文件> [JSON 参数]         在页面里跑一个函数：文件里写 `(args) => 一张表`
 //   shot   [输出.png] [选择器]        截图；给选择器就裁到它
 //   move   <点>                       悬停——这套界面一半东西是悬停才出现的
 //   click  <点>                       命中检查过了才点
@@ -39,17 +38,15 @@
 //   scroll <点> [像素]                滚轮，正数往下，缺省 300
 //   cmd    <命令名> [JSON 参数]        在页面里跑一条工作台命令，回执原样打出来；命令失败退出码非零
 //   reload [选择器] [超时秒]           刷新这张页；给了选择器就等它出现再回（缺省等 20 秒）
-//   home                             这张页的件是从哪个 home 装的
-//   probe  <探针名> [JSON 参数]        跑 <仓>/scripts/probes/<名>.js，量一张表出来
-//   probes                           有哪几支探针，各自管什么
+//   home                             这张页的件是从哪个 home 装的（回绝对路径，devkit.dev 拿它当守卫）
 //
 // 「点」怎么写：`.bn-row` 纯选择器；`.bn-row@=观测独立性` 加「文字含这段」；
 // `.bn-blk@=非独立观测 >> .bn-cbtn` 用 >> 先划范围再往里找；`520,400` 直接给视口坐标。
 // 挑不出唯一一个的时候，候选的文字会一并报出来。
 // 开关：`--target <子串>` 页面不止一个时按标题或地址挑；`--mod ctrl,shift` 带修饰键；
 //       `--pad <像素>` 给 shot 的裁剪留边；`--size <宽>x<高>` 把视口当成这么大，扫容器查询的
-//       断点用（会话级，必须跟动作同一句，见 override）；`--repo <目录>` 探针与截图按它算，
-//       缺省是当前工作目录；`--timeout <秒>` 一条 CDP 消息等多久（cmd 缺省 900、reload 60、其余 15）。
+//       断点用（会话级，必须跟动作同一句，见 override）；
+//       `--timeout <秒>` 一条 CDP 消息等多久（cmd 缺省 900、reload 60、其余 15）。
 //
 // **只对隔离 home 用，绝不打 default。** 这儿发的是真操作，会真往库里写。
 //
@@ -82,9 +79,9 @@ import { fileURLToPath } from 'node:url'
 const opts = {}
 const rest = []
 for (const arg of process.argv.slice(2)) {
-  const named = /^--(target|mod|pad|size|repo|timeout|homes)=(.*)$/.exec(arg)
+  const named = /^--(target|mod|pad|size|timeout)=(.*)$/.exec(arg)
   if (named) opts[named[1]] = named[2]
-  else if (/^--(target|mod|pad|size|repo|timeout|homes)$/.test(rest.at(-1) ?? '')) opts[rest.pop().slice(2)] = arg
+  else if (/^--(target|mod|pad|size|timeout)$/.test(rest.at(-1) ?? '')) opts[rest.pop().slice(2)] = arg
   else rest.push(arg)
 }
 const [home, verb, ...args] = rest
@@ -98,16 +95,16 @@ if (!home || !verb) throw new Error('用法：node <本文件> <home 名> <动�
  * 收下你发的事件。名字有拼写、有记录、连上之后还能跟页面自报的名字对一次（见 `assertHome`），
  * 三样端口都没有。给了数字当场拒，不静默改道。
  *
- * home 根：Windows 是 `%APPDATA%\gwb-kernel\homes`，别的平台或别处用 `--homes <目录>`。
+ * home 根：Windows 是 `%APPDATA%\gwb-kernel\homes`。
  */
 function portOf(name) {
   if (/^\d+$/.test(name)) {
     throw new Error(`第一个位置要 home 名，不是端口（给的是 ${name}）。哪个 home 在跑、口在哪，看 devkit.home.list`)
   }
-  const root = opts.homes ?? (process.platform === 'win32' && process.env.APPDATA
+  const root = process.platform === 'win32' && process.env.APPDATA
     ? path.join(process.env.APPDATA, 'gwb-kernel', 'homes')
-    : undefined)
-  if (root === undefined) throw new Error('认不出 home 根在哪（非 Windows），用 --homes <目录> 指一下')
+    : undefined
+  if (root === undefined) throw new Error('认不出 home 根在哪——这支只在 Windows 上认得出 home 根')
   const file = path.join(root, name, 'runtime.json')
   if (!fs.existsSync(file)) throw new Error(`${file} 不在——${name} 没起过，或者起它的内核版本还不写这份记录。停掉重开一次`)
   let record
@@ -123,8 +120,7 @@ function portOf(name) {
   return String(cdp)
 }
 
-// `probes` 只列盘上有哪几支探针，压根不碰页面——那条不该因为一个 home 没起而用不了
-const port = verb === 'probes' ? null : portOf(home)
+const port = portOf(home)
 
 /** CDP 的修饰键是位掩码，不是名字 */
 const MOD_BIT = { alt: 1, ctrl: 2, meta: 4, shift: 8 }
@@ -135,10 +131,10 @@ const modifiers = (opts.mod ?? '')
 
 const pad = Number(opts.pad ?? 0)
 /**
- * 探针与截图按**工作目录**算，不按这个文件在哪算。这支脚本装在 home 的 node_modules 里，
- * 而探针是各仓自己的东西——照文件位置找，找的是本件包里那个不存在的 `scripts/probes/`。
+ * 相对路径与截图落点按**工作目录**算，不按这个文件在哪算。这支脚本装在 home 的
+ * `node_modules` 里，照文件位置解，解出来的是别人依赖树里的路径。
  */
-const repo = path.resolve(opts.repo ?? process.cwd())
+const cwd = process.cwd()
 
 /**
  * 一条 CDP 消息等多久。看门狗防的是**页面卡住**，不是「这条命令干的活久」——所以
@@ -375,49 +371,38 @@ async function press(send, name) {
 function shotPath(given) {
   if (given !== undefined && given.toLowerCase().endsWith('.png')) return path.resolve(given)
   const stamp = new Date().toISOString().replace(/[:.]/g, '-').slice(0, 19)
-  return path.join(repo, 'out', 'cdp', `shot-${stamp}.png`)
+  return path.join(cwd, 'out', 'cdp', `shot-${stamp}.png`)
 }
 
 // ---------------------------------------------------------------------------
-// 探针
+// 在页面里跑一个文件
 // ---------------------------------------------------------------------------
 
 /**
- * 探针住 `scripts/probes/<名>.js`，**一支探针就是一个函数表达式**：`(args) => 一张表`。
- * 想 await 就写成 async，求值这头等得住。
+ * `eval <文件> [JSON 参数]` 的那段表达式。
  *
- * 为什么不把探针写进这个文件：量什么是**跟着界面走的**，界面改一版就要添一支、改一支；
- * 而这个文件管的是「怎么把事件发进页面」，那件事一年也不该变一次。混在一起，稳的那半
- * 就会跟着不稳的那半一起动。搁成一支一个文件，添一支不用碰这里。
+ * **文件里一律是一个函数表达式**：`(args) => 一张表`，想 await 就写成 async，求值这头
+ * 等得住。不给参数就按空对象调。只有这一条规则——「是函数就调、不是就直接求值」是两条
+ * 规则伪装成一条，而选错分支的那次不报错，只是回一个看不懂的值。
+ *
+ * **量什么不住这个文件**：界面改一版就要添一段、改一段，而这支脚本管的是「怎么把事件
+ * 发进页面」，那件事一年也不该变一次。混在一起，稳的那半会跟着不稳的那半一起动。
+ * 文件落哪儿是调用方的纪律：一次性的落 `out/`（gitignore 着），那儿本来就随时可以清空。
  */
-const probesDir = path.join(repo, 'scripts', 'probes')
-
-function probeList() {
-  if (!fs.existsSync(probesDir)) return []
-  return fs.readdirSync(probesDir)
-    .filter((name) => name.endsWith('.js'))
-    .map((name) => {
-      // 头一行注释当一句话说明——探针自己说自己管什么，这儿不另存一份清单
-      const first = fs.readFileSync(path.join(probesDir, name), 'utf8').split('\n').find((line) => line.trim().startsWith('//'))
-      return { 探针: name.replace(/\.js$/, ''), 管什么: (first ?? '').replace(/^\s*\/\/\s?/, '').trim() }
-    })
-}
-
-function probeExpressionOf(name, rawArgs) {
-  const file = path.join(probesDir, `${name}.js`)
-  if (!fs.existsSync(file)) {
-    const have = probeList().map((p) => p.探针).join(' / ')
-    throw new Error(`没有这支探针：${name}。有的是：${have === '' ? '（一支都没有）' : have}`)
+function callExpressionOf(file, rawArgs) {
+  const target = path.resolve(cwd, file)
+  if (!fs.existsSync(target)) {
+    throw new Error(`${target} 不在——eval 收的是一个文件路径（相对路径按当前工作目录算）`)
   }
   let args = {}
   if (rawArgs !== undefined) {
     try {
       args = JSON.parse(rawArgs)
     } catch {
-      throw new Error(`探针参数要是一段 JSON，收到的是：${rawArgs}`)
+      throw new Error(`参数要是一段 JSON，收到的是：${rawArgs}`)
     }
   }
-  return `(${fs.readFileSync(file, 'utf8')})(${JSON.stringify(args)})`
+  return `(${fs.readFileSync(target, 'utf8')})(${JSON.stringify(args)})`
 }
 
 /**
@@ -503,12 +488,10 @@ function insist(spot) {
 
 async function run(send, target) {
   switch (verb) {
-    case 'raise':
-      return { did: 'raise', ...(await visibility(send, true)) }
-
-
-    case 'eval':
-      return await evaluate(send, fs.readFileSync(args[0], 'utf8'))
+    case 'eval': {
+      if (args[0] === undefined) throw new Error('eval 要一个文件路径，文件里写 `(args) => 一张表`')
+      return { did: 'eval', 文件: path.resolve(cwd, args[0]), 表: await evaluate(send, callExpressionOf(args[0], args[1])) }
+    }
 
     case 'move': {
       const spot = insist(await pointOf(send, args[0]))
@@ -641,17 +624,13 @@ async function run(send, target) {
       return { did: 'reload', 等到了: true, 等的是: wait ?? 'readyState' }
     }
 
-    case 'home': {
-      const found = homeOf(await evaluate(send, HOME_EXPR))
-      if (found.home === null) process.exitCode = 1
-      return { did: 'home', ...found }
-    }
-
-    case 'probe': {
-      if (args[0] === undefined) throw new Error('probe 要一个探针名。有哪些跑 `probes`')
-      const report = await evaluate(send, probeExpressionOf(args[0], args[1]))
-      return { did: 'probe', 探针: args[0], ...report }
-    }
+    /*
+     * 这张页的件是从哪个 home 装的。**连上就已经核对过了**（见 assertHome），所以这一条
+     * 回的不是「对不对得上」，是那个 home 的**绝对路径**：`devkit.dev` 拿它挡住 default
+     * 与本件自己住的那个 home。
+     */
+    case 'home':
+      return { did: 'home', ...homeOf(await evaluate(send, HOME_EXPR)) }
 
     case 'shot': {
       await send('Page.enable')
@@ -708,12 +687,7 @@ async function assertHome(send) {
 
 // ---------------------------------------------------------------------------
 
-// 这两条不碰页面，不必先连上：一条问浏览器有哪些页，一条问磁盘有哪些探针
-if (verb === 'targets') {
-  console.log(JSON.stringify(brief(await pagesOf()), null, 2))
-} else if (verb === 'probes') {
-  console.log(JSON.stringify(probeList(), null, 2))
-} else {
+{
   const { ws, send, page } = await connect()
   try {
     await assertHome(send)

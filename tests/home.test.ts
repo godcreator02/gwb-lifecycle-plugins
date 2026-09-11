@@ -199,14 +199,10 @@ describe('运行时记录与参数收窄', () => {
     expect(parseRecord(JSON.stringify({ ...RECORD, 将来: 1 }))).toEqual(RECORD)
   })
 
-  it('名字与 CDP 口的收窄：内核那道正则说了算，端口是 1–65535 的整数', () => {
+  it('名字的收窄：内核那道正则说了算', () => {
     expect(asHomeName('data-2609081430')).toBe('data-2609081430')
     for (const bad of ['../../x', 'Data', 'data--x', 'data-', 42, undefined]) {
       expect(asHomeName(bad), String(bad)).toBeUndefined()
-    }
-    expect(asCdpPort(9222)).toBe(9222)
-    for (const bad of [0, -1, 65_536, 1.5, '9222', undefined]) {
-      expect(asCdpPort(bad), String(bad)).toBeUndefined()
     }
   })
 })
@@ -567,7 +563,7 @@ describe('bringDownHome：核对映像名再杀', () => {
   })
 })
 
-describe('removeHome：default 守得住，跑着的拒删', () => {
+describe('removeHome：default 守得住，跑着的要 force 才连停带删', () => {
   it('default 不带 force 拒；force 就放行', async () => {
     const daily = path.join(ROOT, DAILY_HOME)
     const fs = fakeFs({}, { [ROOT]: [DAILY_HOME] })
@@ -587,12 +583,44 @@ describe('removeHome：default 守得住，跑着的拒删', () => {
     expect(outcome.note).toContain('不在')
   })
 
-  it('还在跑（记录里的 pid 认得出）：拒删，指去 stop', async () => {
+  it('还在跑、没带 force：拒删，指去 force', async () => {
     const fs = fakeFs({ [recordFile(HOME)]: write(RECORD) }, { [ROOT]: [NAME] })
     const { deps } = fakeDeps({ fs, processes: { 4242: 'electron.exe' } })
     const outcome = await removeHome(HOME, NAME, false, deps)
     expect(outcome.ok).toBe(false)
-    expect(outcome.note).toContain('stop')
+    expect(outcome.note).toContain('force')
+    expect(fs.removed).toEqual([])
+  })
+
+  it('还在跑、带了 force：先停再删，停了哪个 pid 写在回执里', async () => {
+    const fs = fakeFs({ [recordFile(HOME)]: write(RECORD) }, { [ROOT]: [NAME] })
+    const { deps, state } = fakeDeps({ fs, processes: { 4242: 'electron.exe' } })
+    const outcome = await removeHome(HOME, NAME, true, deps)
+    expect(outcome.ok).toBe(true)
+    expect(state.killed).toEqual([4242])
+    expect(outcome.note).toContain('4242')
+    expect(fs.removed).toEqual([path.resolve(HOME)])
+  })
+
+  it('停不掉就不删：半个目录加一屏 EBUSY 比「没删成」难收拾得多', async () => {
+    // 记录里带着 CDP 口，而那个口上 listen 的是另一个 pid：bringDownHome 第二道核对拦下来
+    const fs = fakeFs({ [recordFile(HOME)]: write({ ...RECORD, cdp: 9400 }) }, { [ROOT]: [NAME] })
+    const { deps, state } = fakeDeps({ fs, processes: { 4242: 'electron.exe' }, portOwner: 9001 })
+    const outcome = await removeHome(HOME, NAME, true, deps)
+    expect(outcome.ok).toBe(false)
+    expect(outcome.note).toContain('停它没成')
+    expect(state.killed).toEqual([])
+    expect(fs.removed).toEqual([])
+  })
+
+  it('default 正跑着：force 也不删——不替人关他正在用的那扇窗', async () => {
+    const daily = path.join(ROOT, DAILY_HOME)
+    const fs = fakeFs({ [recordFile(daily)]: write(RECORD) }, { [ROOT]: [DAILY_HOME] })
+    const { deps, state } = fakeDeps({ fs, processes: { 4242: 'electron.exe' } })
+    const outcome = await removeHome(daily, DAILY_HOME, true, deps)
+    expect(outcome.ok).toBe(false)
+    expect(outcome.note).toContain('自己关')
+    expect(state.killed).toEqual([])
     expect(fs.removed).toEqual([])
   })
 

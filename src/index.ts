@@ -9,27 +9,17 @@ import type {} from '@godcreator02/gwb-settings'
 import type {} from '@godcreator02/gwb-shell'
 import type {} from '@godcreator02/gwb-skills'
 import {
-  DEFAULT_LOG_LINES,
   bringDown,
   bringUp,
-  readLog,
   readStatus,
   type RegistryDeps,
 } from './daemon.js'
 import { kill, makeSpawn, nodeFs, ping, portOwner, processName } from './node-registry-deps.js'
-import {
-  DEFAULT_REGISTRY,
-  LOG_TAIL_LINES,
-  type DevInput,
-  inspect,
-  runDev,
-} from './dev.js'
+import { DEFAULT_REGISTRY, type DevInput, runDev } from './dev.js'
 import { CDP_ENTRY, devDeps } from './node-dev-deps.js'
 import {
   appDirOf,
-  asCdpPort,
   asHomeName,
-  bringDownHome,
   buildPlan,
   type HomeDeps,
   launchHome,
@@ -55,12 +45,6 @@ export const name = 'gwb-devkit'
 export const inject = ['gwbCommands']
 
 /**
- * 「插件源」窗格那半的地址，注册窗格时报给外壳。本模块住 `dist/index.js`，浏览器半是
- * `dist/client/index.js`（tsc 直出，零依赖，没有样式表要注）。
- */
-const CLIENT_URL = new URL('./client/index.js', import.meta.url).href
-
-/**
  * 铺 fumadocs 骨架那条命令，由**站件** `@godcreator02/gwb-docs-site` 提供。
  *
  * **本包不依赖它**——只在命令总线上按名字找。找不到就是这个 home 没装站件，跳过铺站、
@@ -82,14 +66,14 @@ const ATTACH_SITE_COMMAND = 'docfirst.attach'
  * - **手册**：`skills/gwb-devkit/SKILL.md` 随件分发，经 gwb-skills 挂载。**只挂自己那份**
  *   ——知识随件走，docfirst 的两份归 docfirst 件自己挂（说明书是全局单一命名空间，
  *   代挂第二份只会撞名，而且撞掉的那份很可能是旧版）
- * - **源**：本机 Verdaccio 的起/停/状态/日志（`registry.*`），有一扇「插件源」窗格
- *   可视化（registry.status，10 秒一轮）
- * - **home**：测试 home 的开/列/重开/停/删（`devkit.home.*`）——实机验证那几步的
+ * - **源**：本机 Verdaccio 的起/停/状态（`registry.*`）。工作台没起时同一份逻辑还有
+ *   一个命令行入口，包内 `bin/registry.mjs`——一份实现，两个入口
+ * - **home**：测试 home 的开/列/重开/删（`devkit.home.*`）——实机验证那几步的
  *   命令化（一次验开一个新 home、清理放在开新那一刻）
  *
  * - **改一版看一版**：`devkit.dev` 一条走完「构建 → 发开发版 → 装进隔离 home → 重挂 →
- *   刷新 → 取证」，`devkit.dev-check` 只取证。**这条命令住控制台那个 home，操作另一个
- *   home**：换件那一步要把条目停用再启用，工具自己跑在目标里就会把自己停掉
+ *   刷新 → 取证」。**这条命令住控制台那个 home，操作另一个 home**：换件那一步要把条目
+ *   停用再启用，工具自己跑在目标里就会把自己停掉
  *
  * 外加一条经 `gwbNodeCli` 登记的外部 CLI：`devkit.cdp`（在一个工作台页面里动手，
  * 从取证到点按拖拽都是它；`eval` 是它的一个动词，退役的 `devkit.cdp-eval` 是它的祖先）。
@@ -122,27 +106,26 @@ const MISSING_KERNEL_DIR =
 /** home 命令的参数说明。参数错的时候连它一起回——错误即文档 */
 const HOME_USAGE = [
   'home 命令的参数：',
-  '  devkit.home.new  { short 必给（kebab-case 短名），cdp?（调试口，不给就自动挑一个空的），skipBuild? }——开 <short>-<yyMMddHHmm> 的新 home，默认先 build 内核（产物不新就起＝验旧代码）',
-  '  devkit.home.open { name 必给（完整 home 名），cdp?（不给就自动挑一个空的） }——重开一个已有的 home，不 build',
-  '  devkit.home.stop { name }——停一个 home（按它 runtime.json 里的 pid，核对映像名与那个口再杀）',
-  '  devkit.home.rm   { name，force? }——删一个 home；default 是日常那份，force 才删',
+  '  devkit.home.new  { short 必给（kebab-case 短名） }——开 <short>-<yyMMddHHmm> 的新 home。先 build 内核，调试口自动挑',
+  '  devkit.home.open { name 必给（完整 home 名） }——重开一个已有的 home，不 build。机器重启之后回到现场走这条',
+  '  devkit.home.rm   { name，force? }——删一个 home。没在跑的直接删；还在跑的要 force（连停带删）',
+  '                     default 是日常那份：不 force 不删，而且它在跑的时候 force 也不删——自己关掉那扇窗再来',
   '  devkit.home.list {}——列出 home 根下全部 home 与谁在跑',
   '例：{"short":"data"}、{"name":"data-2609081430"}',
+  '**这几条都不收调试口**：口是起的时候自动挑的（先沿用这个 home 上次那个，被占了才另挑），',
+  '之后从它的 runtime.json 里查。端口没有语义，敲错一位就落在另一个现场。',
 ].join('\n')
 
-/** 改一版看一版那两条的参数说明。参数错的时候连它一起回——错误即文档 */
+/** `devkit.dev` 的参数说明。参数错的时候连它一起回——错误即文档 */
 const DEV_USAGE = [
   'devkit.dev 的参数：',
   '  home      必给，目标 home 名。**这儿不收端口**：口从那个 home 的 runtime.json 里查，顺带验活',
   '            （记录读得出、pid 还活着、那个 pid 真的持着那个口），再拿页面自报的名字核对一次',
   '  dir       必给，仓根的绝对路径。构建在这儿跑',
   '  packages  可选，要发的包目录，相对仓根，**按依赖顺序**（被依赖的排前面）。不给就是仓根自己',
-  '  build     可选，缺省 true：先在仓根 pnpm build。产物不新就发＝发的是上一版',
   '  waitFor   可选，刷新之后等页面上这个选择器出现才算刷回来了',
-  '  registry  可选，本机源地址，缺省 ' + DEFAULT_REGISTRY,
-  'devkit.dev-check 的参数：{ home 必给, lines? }',
-  '起 home 的那两条（devkit.home.new / open）里的 cdp 是另一回事：那是给一个新进程分配端口，',
-  '不给就自动挑一个空口，于是它起的 home 一定按名字够得到。',
+  '**构建不可跳过**：产物不新就发＝发的是上一版，而回执一切正常。源也不收：这台机器上只有',
+  '一个，就是 ' + DEFAULT_REGISTRY,
   '例：{"home":"bn-2609111200","dir":"D:\\\\unitfolders\\\\26090814otr\\\\gwb-block-note","packages":["packages/model","plugins/gwb-bn-core"]}',
   '目标 home 是 default、或者就是本件自己住的那个，都当场拒——前者会把开发版塞进日常那份，',
   '后者停用条目那一下会把正在跑的这条命令自己停掉。换 devkit 自己：发正式版，再 plugins.update-all',
@@ -274,19 +257,6 @@ export function apply(ctx: GwbContext): void {
     ),
   )
 
-  ctx.effect(() =>
-    bus.register(
-      { name: 'registry.log', plugin: 'devkit', description: `源的运行日志尾巴：{lines?: number}——不给就是最后 ${DEFAULT_LOG_LINES} 行` },
-      (args) => {
-        const dir = dirOf()
-        if (dir === undefined) return { ok: false, error: MISSING_DIR }
-        const lines = isRecord(args) ? args.lines : undefined
-        const want = typeof lines === 'number' && lines > 0 ? Math.floor(lines) : DEFAULT_LOG_LINES
-        return { ok: true, data: readLog(dir, deps, want) }
-      },
-    ),
-  )
-
   // ── home 那半 ──────────────────────────────────────────────────────────────
 
   const homeDeps: HomeDeps = {
@@ -312,18 +282,17 @@ export function apply(ctx: GwbContext): void {
   }
 
   /**
-   * 这一趟起 home 用哪个调试口。**不给就自动定，定不出来就不起**——名字是唯一的地址之后，
+   * 这一趟起 home 用哪个调试口。**自动定，定不出来就不起**——名字是唯一的地址之后，
    * 没有调试口的 home 等于起完就够不着；那不是「少一个可选项」，是起了个用不上的东西。
    *
-   * 自动那条**先沿用这个 home 上次那个口**，被占了才另挑；换没换在回执里说一句，
-   * 不然人会以为口没变。
+   * **人给不了这个口**：自动那条先沿用这个 home 上次那个、被占了才另挑，比手给一个准；
+   * 收下一个手给的口，剩下的全部用法就只有「敲错一位落在别人口上」。换没换在回执里说
+   * 一句，不然人会以为口没变。
    */
   async function cdpFor(
-    given: number | undefined,
     root: string,
     name: string,
   ): Promise<{ ok: true; cdp: number; note?: string } | { ok: false; error: string }> {
-    if (given !== undefined) return { ok: true, cdp: given }
     const picked = await pickCdpPort(root, homeDeps, name)
     if (picked === undefined) {
       return {
@@ -344,7 +313,7 @@ export function apply(ctx: GwbContext): void {
         name: 'devkit.home.new',
         plugin: 'devkit',
         description:
-          '开一个测试 home：{short 必给（kebab-case），cdp?（调试口，**不给就自动挑一个空的**——名字是唯一的地址，没口的 home 起完就够不着），skipBuild?}——名字长成 <short>-<yyMMddHHmm>，默认先 build 内核（产物不新就起＝验旧代码）。返回里带着现有 home 清单，开新那一刻正好清旧的',
+          '开一个测试 home：{short 必给（kebab-case）}——名字长成 <short>-<yyMMddHHmm>，先 build 内核（产物不新就起＝验旧代码），调试口自动挑一个空的。返回里带着现有 home 清单，开新那一刻正好清旧的',
       },
       async (args) => {
         const kernelDir = kernelDirOf()
@@ -352,10 +321,6 @@ export function apply(ctx: GwbContext): void {
         if (!isRecord(args)) return { ok: false, error: `参数要是个对象。\n${HOME_USAGE}` }
         const short = asHomeName(args.short)
         if (short === undefined) return { ok: false, error: `short 缺了或不是 kebab-case。\n${HOME_USAGE}` }
-        const cdp = args.cdp === undefined ? undefined : asCdpPort(args.cdp)
-        if (args.cdp !== undefined && cdp === undefined) {
-          return { ok: false, error: `cdp 要是 1–65535 的整数。\n${HOME_USAGE}` }
-        }
         const root = homesRoot()
         let name: string
         try {
@@ -363,15 +328,16 @@ export function apply(ctx: GwbContext): void {
         } catch (err) {
           return { ok: false, error: String(err instanceof Error ? err.message : err) }
         }
-        const port = await cdpFor(cdp, root, name)
+        const port = await cdpFor(root, name)
         if (!port.ok) return { ok: false, error: port.error }
+        // **build 不可跳过**：产物不新就起等于验旧代码，而屏幕上一切正常
         const outcome = await launchHome(
           {
             name,
             homesRoot: root,
             kernelDir,
             cdp: port.cdp,
-            ...(args.skipBuild === true ? {} : { build: buildPlan(appDirOf(kernelDir), homeDeps.platform) }),
+            build: buildPlan(appDirOf(kernelDir), homeDeps.platform),
           },
           homeDeps,
         )
@@ -390,7 +356,7 @@ export function apply(ctx: GwbContext): void {
       {
         name: 'devkit.home.open',
         plugin: 'devkit',
-        description: '重开一个已有的测试 home：{name 必给，cdp?（不给就自动挑一个空的）}——不 build，人要亲自看一眼的那条路',
+        description: '重开一个已有的测试 home：{name 必给}——不 build，调试口自动挑。机器重启之后回到原来那个现场只有这一条路（home.new 永远造新目录，件得全部重装一遍）',
       },
       async (args) => {
         const kernelDir = kernelDirOf()
@@ -398,15 +364,11 @@ export function apply(ctx: GwbContext): void {
         if (!isRecord(args)) return { ok: false, error: `参数要是个对象。\n${HOME_USAGE}` }
         const name = asHomeName(args.name)
         if (name === undefined) return { ok: false, error: `name 缺了或不是 kebab-case。\n${HOME_USAGE}` }
-        const cdp = args.cdp === undefined ? undefined : asCdpPort(args.cdp)
-        if (args.cdp !== undefined && cdp === undefined) {
-          return { ok: false, error: `cdp 要是 1–65535 的整数。\n${HOME_USAGE}` }
-        }
         const root = homesRoot()
         if (!homeDeps.fs.exists(path.join(root, name))) {
           return { ok: false, error: `${path.join(root, name)} 不在——没有这个 home（看 devkit.home.list）` }
         }
-        const port = await cdpFor(cdp, root, name)
+        const port = await cdpFor(root, name)
         if (!port.ok) return { ok: false, error: port.error }
         const outcome = await launchHome(
           { name, homesRoot: root, kernelDir, cdp: port.cdp },
@@ -425,28 +387,10 @@ export function apply(ctx: GwbContext): void {
   ctx.effect(() =>
     bus.register(
       {
-        name: 'devkit.home.stop',
-        plugin: 'devkit',
-        description: '停一个 home：{name}——按它 runtime.json 里的 pid，核对映像名与记录里那个 CDP 端口再杀。手工起的也停得了',
-      },
-      async (args) => {
-        if (!isRecord(args)) return { ok: false, error: `参数要是个对象。\n${HOME_USAGE}` }
-        const name = asHomeName(args.name)
-        if (name === undefined) return { ok: false, error: `name 缺了或不是 kebab-case。\n${HOME_USAGE}` }
-        const outcome = await bringDownHome(path.join(homesRoot(), name), homeDeps)
-        if (outcome.ok) log.info(`devkit.home.stop：${outcome.note}`)
-        else log.warn(`devkit.home.stop 没成：${outcome.note}`)
-        return outcome.ok ? { ok: true, data: outcome } : { ok: false, error: outcome.note }
-      },
-    ),
-  )
-
-  ctx.effect(() =>
-    bus.register(
-      {
         name: 'devkit.home.rm',
         plugin: 'devkit',
-        description: '删一个测试 home：{name，force?}——还在跑的拒删（先 stop）；default 是日常那份，force 才删',
+        description:
+          '删一个测试 home：{name，force?}——没在跑的直接删；**还在跑的要 force**，那时连停带删（按它 runtime.json 里的 pid，核对映像名与记录里那个 CDP 端口再杀）。default 是日常那份：不 force 不删，而且它在跑的时候 force 也不删，自己关掉那扇窗再来',
       },
       async (args) => {
         if (!isRecord(args)) return { ok: false, error: `参数要是个对象。\n${HOME_USAGE}` }
@@ -470,11 +414,9 @@ export function apply(ctx: GwbContext): void {
     ),
   )
 
-  // 插件源窗格：registry 状态的可视面，身体住本件 client 的 mountPane（原先是状态件
-  // 的一颗格子，状态格机制 2026-09-08 下架后改开普通窗格）。注册不用自己包 effect。
-  // **浏览器半的地址自报**：内核不再替件取货，注册时把 client.js 的 file:// 交出去
+  // **本件没有浏览器半**：它的使用者是 agent，读的是回执。所以这儿只报一个给人看的
+  // 名字，没有窗格、没有 `dist/client/`
   ctx.inject(['gwbShell'], (scoped) => {
-    scoped.gwbShell.registerPane({ id: 'registry', title: '插件源', icon: 'server', client: CLIENT_URL })
     // 给人看的名字（件清单里显示用）。外壳不在就算了，那半本来就不是它的脸
     scoped.gwbShell.describeSelf({ title: '开发套件', icon: 'wrench' })
   })
@@ -488,7 +430,7 @@ export function apply(ctx: GwbContext): void {
     scoped.gwbNodeCli.register({
       name: 'devkit.cdp',
       description:
-        '在一个工作台页面里动手：{"args":["<home 名>","<动作>","<参数…>"]}。**第一个位置只收 home 名，给数字当场拒**——口从那个 home 的 runtime.json 里查，连上之后还拿页面自报的名字核对一次。动作 targets / raise / eval <表达式文件> / shot [图.png] [选择器] / move / click / rclick / drag / type / key / scroll <点> / cmd <命令名> [JSON 参数] / reload [选择器] [秒] / home / probe <名> [JSON] / probes。点写成 .sel、.sel@=文字、.a@=文字 >> .b，或 x,y。开关 --target / --mod / --pad / --size / --repo / --timeout / --homes。**只对隔离 home 用，绝不打 default**：这儿发的是真操作。够不着的 home 是起的时候没带 --remote-debugging-port，停掉重开一次',
+        '在一个工作台页面里动手：{"args":["<home 名>","<动作>","<参数…>"]}。**第一个位置只收 home 名，给数字当场拒**——口从那个 home 的 runtime.json 里查，连上之后还拿页面自报的名字核对一次。动作 eval <文件> [JSON 参数] / shot [图.png] [选择器] / move / click / rclick / drag / type / key / scroll <点> / cmd <命令名> [JSON 参数] / reload [选择器] [秒] / home。点写成 .sel、.sel@=文字、.a@=文字 >> .b，或 x,y。开关 --target / --mod / --pad / --size / --timeout。**只对隔离 home 用，绝不打 default**：这儿发的是真操作。够不着的 home 是起的时候没带 --remote-debugging-port，停掉重开一次',
       entry: CDP_ENTRY,
     })
   })
@@ -528,7 +470,7 @@ export function apply(ctx: GwbContext): void {
         name: 'devkit.dev',
         plugin: 'devkit',
         description:
-          '改一版看一版：{home 必给（目标 home 名，**只认名字不认端口**——口从它的 runtime.json 里查并验活）, dir 必给（仓根绝对路径）, packages?（包目录，相对仓根，按依赖顺序；不给就是仓根自己）, build?（缺省 true，仓根 pnpm build）, waitFor?（刷新后等这个选择器出现）, registry?}。一条走完：构建 → 发开发版（<patch+1>-dev.<戳>，标 dev 不动 latest）→ 在目标 home 里 pnpm add 那个准确号 → 条目停用再启用重挂 → 整页重载 → 取证（条目真 ACTIVE、日志增量里没有 error），取不到证就回 ok:false。**目标是 default 或本件自己所在的 home 都当场拒；页面自报的名字跟你给的对不上也拒**',
+          '改一版看一版：{home 必给（目标 home 名，**只认名字不认端口**——口从它的 runtime.json 里查并验活）, dir 必给（仓根绝对路径）, packages?（包目录，相对仓根，按依赖顺序；不给就是仓根自己）, waitFor?（刷新后等这个选择器出现）}。一条走完：仓根 pnpm build → 发开发版（<patch+1>-dev.<戳>，标 dev 不动 latest）→ 在目标 home 里 pnpm add 那个准确号 → 条目停用再启用重挂 → 整页重载 → 取证（条目真 ACTIVE、日志增量里没有 error），取不到证就回 ok:false。**构建与源都不可给**：跳过构建就是发上一版，而这台机器只有一个源。**目标是 default 或本件自己所在的 home 都当场拒；页面自报的名字跟你给的对不上也拒**',
       },
       async (args) => {
         if (!isRecord(args)) return { ok: false, error: `参数要是个对象。\n${DEV_USAGE}` }
@@ -544,9 +486,7 @@ export function apply(ctx: GwbContext): void {
           home: target.name,
           repoDir: path.resolve(dir),
           packages,
-          build: args.build !== false,
           ...(typeof args.waitFor === 'string' && args.waitFor.trim() !== '' ? { waitFor: args.waitFor.trim() } : {}),
-          registry: typeof args.registry === 'string' && args.registry.trim() !== '' ? args.registry.trim() : DEFAULT_REGISTRY,
           ownHome: requireKernel(ctx).dataDir,
         }
         log.info(`devkit.dev：仓 ${input.repoDir} → ${target.name}（调试口 ${String(target.cdp)}）`)
@@ -559,24 +499,6 @@ export function apply(ctx: GwbContext): void {
         }
         log.info(`devkit.dev：${outcome.data.homeName} 换上了 ${outcome.data.shipped.map((one) => `${one.pkg}@${one.version}`).join('、')}`)
         return outcome
-      },
-    ),
-  )
-
-  ctx.effect(() =>
-    bus.register(
-      {
-        name: 'devkit.dev-check',
-        plugin: 'devkit',
-        description:
-          `只取证不动手：{home 必给（目标 home 名，**只认名字不认端口**）, lines?（日志尾巴行数，缺省 ${String(LOG_TAIL_LINES)}）}。回目标 home、条目表、日志尾巴与里头的 error/warn。**它不下判定**——单独跑时没有「这一趟之前」的基线，看到的 error 可能是几天前的；判定只发生在 devkit.dev 里头那一次`,
-      },
-      async (args) => {
-        if (!isRecord(args)) return { ok: false, error: `参数要是个对象。\n${DEV_USAGE}` }
-        const target = await targetOf(args)
-        if (!target.ok) return { ok: false, error: target.error }
-        const lines = typeof args.lines === 'number' && args.lines > 0 ? Math.floor(args.lines) : LOG_TAIL_LINES
-        return await inspect(target.name, lines, devDeps)
       },
     ),
   )
