@@ -88,7 +88,7 @@ description: 动手写一个新 gwb 件之前读，打算说「验过了 / 跑�
 
 | 命令 | 参数 | 干什么 |
 | --- | --- | --- |
-| `devkit.home.new` | `{ short, cdp?, skipBuild? }` | 开一个新 home，名字长成 `<short>-<yyMMddHHmm>`。**默认先 build 内核**——产物不新就起等于验旧代码；赶时间才 `skipBuild: true`。**`cdp` 不给就自动挑一个空口**，所以它起的 home 天然按名字够得到。**回执里带着现有 home 清单**，开新那一刻正好清旧的 |
+| `devkit.home.new` | `{ short, cdp?, skipBuild? }` | 开一个新 home，名字长成 `<short>-<yyMMddHHmm>`。**默认先 build 内核**——产物不新就起等于验旧代码；赶时间才 `skipBuild: true`。**`cdp` 不给就自动定一个**（先沿用这个 home 上次那个口，被占了才另挑），所以它起的 home 天然按名字够得到。**回执里带着现有 home 清单**，开新那一刻正好清旧的 |
 | `devkit.home.list` | — | 列 home 根下全部：名字、谁还在跑、CDP 口、MCP 口 |
 | `devkit.home.open` | `{ name, cdp? }` | 重开已有的，**不 build**。验完留给人亲自看那一眼走这条 |
 | `devkit.home.stop` | `{ name }` | 停一个 home：按它 `runtime.json` 里的 pid，核对映像名与记录里那个 CDP 端口再杀。**手工起的也停得了**——记录归内核写 |
@@ -601,9 +601,13 @@ devkit.dev {"home":"<home 名>","dir":"D:\\unitfolders\\<单元>\\<仓>","packag
 截图拿到陈旧帧、`requestAnimationFrame` 一次都不回。**发事件从来不需要窗口在前台**，看画面才
 需要它没被判定隐藏。
 
-**`devkit.home.new` / `open` 不给 `cdp` 就自动挑一个空口**（跳过别的 home 记录里占着的、跳过
-此刻真有人 listen 的），挑不到就不起。所以它起的 home 天然按名字够得到。那一格 `cdp` 是
-**给一个新进程分配端口**，跟「按端口访问」是两件事——后者 0.5.0 起整条砍掉了。
+**`devkit.home.new` / `open` 不给 `cdp` 就自动定一个**，定不出来就不起。所以它起的 home 天然按
+名字够得到。那一格 `cdp` 是**给一个新进程分配端口**，跟「按端口访问」是两件事——后者 0.5.0 起
+整条砍掉了。
+
+自动那条**先沿用这个 home 上次那个口**（记录里的 `cdp`），被别人占了才另挑（另挑时跳过别的
+home 记录里占着的、跳过此刻真有人 listen 的），换了会在回执的 `cdpNote` 里说一句。口稳定下来
+是有价值的：人记得住、日志里对得上、开着的检查器不用换地址。
 
 **口记在哪**：内核开机把 `pid` / `startedAt` / `appDir` / `cdp` 写进 `<home>/runtime.json`，
 mcp 件绑上口之后补一格 `mcp`。之后说出 home 名就够得着它，不用记那个数。**手工起的 home 没带

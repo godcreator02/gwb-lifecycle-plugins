@@ -416,12 +416,16 @@ export async function listHomes(homesRoot: string, deps: HomeDeps): Promise<Home
 // ── 挑一个调试口 ──────────────────────────────────────────────────────────────
 
 /**
- * 别的 home 记录里占着的调试口。**陈旧的也算占着**:那份记录还指着这个数,再分给第二个 home
- * 的话,两份记录会同时声称自己是这个口,而「按名字定位」全靠这个数唯一。
+ * **别的** home 记录里占着的调试口。**陈旧的也算占着**:那份记录还指着这个数,再分给第二个
+ * home 的话,两份记录会同时声称自己是这个口,而「按名字定位」全靠这个数唯一。
+ *
+ * `except` 是正要起的那个 home 自己:它自己那份记录不算占着,否则重开一次就换一个口,
+ * 而那个口每次都是被自己上一次的记录挤走的。
  */
-export function portsInRecords(homesRoot: string, deps: HomeDeps): Set<number> {
+export function portsInRecords(homesRoot: string, deps: HomeDeps, except?: string): Set<number> {
   const taken = new Set<number>()
   for (const name of deps.fs.dirs(homesRoot)) {
+    if (name === except) continue
     const record = parseRecord(deps.fs.readText(recordFile(path.join(homesRoot, name))))
     if (record?.cdp !== undefined) taken.add(record.cdp)
   }
@@ -429,18 +433,28 @@ export function portsInRecords(homesRoot: string, deps: HomeDeps): Set<number> {
 }
 
 /**
- * 给一个新起的 home 挑个调试口。**名字是唯一的地址之后,没有口的 home 等于够不着**,所以
- * 不给就自动挑,而不是让它默默地开不了调试口。
+ * 给一个要起的 home 定调试口。**名字是唯一的地址之后,没有口的 home 等于够不着**,所以
+ * 不给就自动定,而不是让它默默地开不了调试口。
  *
- * 两道筛:别的 home 记录里占着的跳过(见 `portsInRecords`),此刻真有人 listen 的跳过。
+ * **先沿用它自己上次那个口**(记录里的 `cdp`),被别人占了才另挑。口稳定下来是有价值的:
+ * 人记得住、日志里对得上、开着的检查器不用换地址;而漂来漂去除了「每次都得重新问一遍」之外
+ * 什么都换不来。
+ *
+ * 另挑时两道筛:别的 home 记录里占着的跳过(见 `portsInRecords`),此刻真有人 listen 的跳过。
  * **挑完到 electron 真绑上之间有个缝**——那一瞬别人抢走了这个口,记录里会写着一个不属于它的
  * 数;那种情况由「端口持有者要等于 pid」那道守卫抓,不在这儿赌。
  */
-export async function pickCdpPort(homesRoot: string, deps: HomeDeps): Promise<number | undefined> {
-  const taken = portsInRecords(homesRoot, deps)
+export async function pickCdpPort(
+  homesRoot: string,
+  deps: HomeDeps,
+  name?: string,
+): Promise<{ port: number; reused: boolean } | undefined> {
+  const mine = name === undefined ? undefined : parseRecord(deps.fs.readText(recordFile(path.join(homesRoot, name))))?.cdp
+  if (mine !== undefined && (await deps.portOwner(mine)) === undefined) return { port: mine, reused: true }
+  const taken = portsInRecords(homesRoot, deps, name)
   for (let port = CDP_PORT_BASE; port < CDP_PORT_BASE + CDP_PORT_TRIES; port += 1) {
     if (taken.has(port)) continue
-    if ((await deps.portOwner(port)) === undefined) return port
+    if ((await deps.portOwner(port)) === undefined) return { port, reused: false }
   }
   return undefined
 }

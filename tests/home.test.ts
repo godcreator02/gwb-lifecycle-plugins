@@ -392,28 +392,39 @@ describe('listHomes：谁在跑看记录里的 pid', () => {
 describe('pickCdpPort：起 home 时自动挑一个空口', () => {
   const other = path.join(ROOT, 'shell-2609081430')
 
-  it('别的 home 记录里占着的跳过，此刻有人 listen 的也跳过', async () => {
-    const fs = fakeFs(
-      { [recordFile(HOME)]: write({ ...RECORD, cdp: CDP_PORT_BASE }) },
-      { [ROOT]: [NAME, 'shell-2609081430'] },
-    )
-    // 记录占了第一个，portOwner 让第二个也「有人在 listen」
+  it('一个空口都没有：照实回 undefined，让上头拒掉这次启动', async () => {
+    const fs = fakeFs({}, { [ROOT]: [NAME, 'shell-2609081430'] })
+    // portOwner 一律回「有人」，所以每个候选都被占着
     const { deps } = fakeDeps({ fs, portOwner: 777 })
-    const picked = await pickCdpPort(ROOT, deps)
-    // 每个候选都问一次 portOwner，而这个假件一律回「有人」，所以一个都挑不到
-    expect(picked).toBeUndefined()
+    expect(await pickCdpPort(ROOT, deps, NAME)).toBeUndefined()
   })
 
-  it('记录占了头一个，第二个空着就用第二个', async () => {
+  it('先沿用这个 home 自己上次那个口——重开一次不该换地址', async () => {
+    const fs = fakeFs(
+      { [recordFile(HOME)]: write({ ...RECORD, cdp: CDP_PORT_BASE + 7 }) },
+      { [ROOT]: [NAME] },
+    )
+    const { deps } = fakeDeps({ fs })
+    expect(await pickCdpPort(ROOT, deps, NAME)).toEqual({ port: CDP_PORT_BASE + 7, reused: true })
+  })
+
+  it('上次那个口被别人占着：另挑一个，并报出「换了」', async () => {
     const fs = fakeFs(
       { [recordFile(HOME)]: write({ ...RECORD, cdp: CDP_PORT_BASE }) },
       { [ROOT]: [NAME] },
     )
+    // 第一次问的是它自己那个口（有人），之后每个候选都空
+    let asked = 0
     const { deps } = fakeDeps({ fs })
-    expect(await pickCdpPort(ROOT, deps)).toBe(CDP_PORT_BASE + 1)
+    const owner = deps.portOwner.bind(deps)
+    deps.portOwner = (port) => {
+      asked += 1
+      return asked === 1 ? Promise.resolve(777) : owner(port)
+    }
+    expect(await pickCdpPort(ROOT, deps, NAME)).toEqual({ port: CDP_PORT_BASE, reused: false })
   })
 
-  it('陈旧记录里那个口也算占着——两份记录不许同时声称自己是同一个口', async () => {
+  it('别的 home 记录里那个口算占着，自己那份不算——不然重开一次就被自己挤走', async () => {
     const fs = fakeFs(
       {
         // 这个 home 的 pid 早没了，但记录还指着 CDP_PORT_BASE
@@ -424,7 +435,9 @@ describe('pickCdpPort：起 home 时自动挑一个空口', () => {
     )
     const { deps } = fakeDeps({ fs })
     expect(portsInRecords(ROOT, deps)).toEqual(new Set([CDP_PORT_BASE, CDP_PORT_BASE + 1]))
-    expect(await pickCdpPort(ROOT, deps)).toBe(CDP_PORT_BASE + 2)
+    expect(portsInRecords(ROOT, deps, NAME)).toEqual(new Set([CDP_PORT_BASE + 1]))
+    // 自己那个口空着就沿用，哪怕记录是陈旧的
+    expect(await pickCdpPort(ROOT, deps, NAME)).toEqual({ port: CDP_PORT_BASE, reused: true })
   })
 })
 

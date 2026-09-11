@@ -312,22 +312,30 @@ export function apply(ctx: GwbContext): void {
   }
 
   /**
-   * 这一趟起 home 用哪个调试口。**不给就自动挑，挑不到就不起**——名字是唯一的地址之后，
+   * 这一趟起 home 用哪个调试口。**不给就自动定，定不出来就不起**——名字是唯一的地址之后，
    * 没有调试口的 home 等于起完就够不着；那不是「少一个可选项」，是起了个用不上的东西。
+   *
+   * 自动那条**先沿用这个 home 上次那个口**，被占了才另挑；换没换在回执里说一句，
+   * 不然人会以为口没变。
    */
   async function cdpFor(
     given: number | undefined,
     root: string,
-  ): Promise<{ ok: true; cdp: number } | { ok: false; error: string }> {
+    name: string,
+  ): Promise<{ ok: true; cdp: number; note?: string } | { ok: false; error: string }> {
     if (given !== undefined) return { ok: true, cdp: given }
-    const picked = await pickCdpPort(root, homeDeps)
+    const picked = await pickCdpPort(root, homeDeps, name)
     if (picked === undefined) {
       return {
         ok: false,
         error: `从 ${String(CDP_PORT_BASE)} 往上找了 ${String(CDP_PORT_TRIES)} 个口，一个空的都没有——这台机器上是不是攒了一堆没停的 home（devkit.home.list）`,
       }
     }
-    return { ok: true, cdp: picked }
+    return {
+      ok: true,
+      cdp: picked.port,
+      ...(picked.reused ? {} : { note: `调试口 ${String(picked.port)}（上次那个被占着或者还没有，另挑的）` }),
+    }
   }
 
   ctx.effect(() =>
@@ -355,7 +363,7 @@ export function apply(ctx: GwbContext): void {
         } catch (err) {
           return { ok: false, error: String(err instanceof Error ? err.message : err) }
         }
-        const port = await cdpFor(cdp, root)
+        const port = await cdpFor(cdp, root, name)
         if (!port.ok) return { ok: false, error: port.error }
         const outcome = await launchHome(
           {
@@ -372,7 +380,7 @@ export function apply(ctx: GwbContext): void {
           return outcome
         }
         log.info(`devkit.home.new：${outcome.note}`)
-        return { ok: true, data: { ...outcome, homes: await listHomes(root, homeDeps) } }
+        return { ok: true, data: { ...outcome, ...(port.note === undefined ? {} : { cdpNote: port.note }), homes: await listHomes(root, homeDeps) } }
       },
     ),
   )
@@ -398,7 +406,7 @@ export function apply(ctx: GwbContext): void {
         if (!homeDeps.fs.exists(path.join(root, name))) {
           return { ok: false, error: `${path.join(root, name)} 不在——没有这个 home（看 devkit.home.list）` }
         }
-        const port = await cdpFor(cdp, root)
+        const port = await cdpFor(cdp, root, name)
         if (!port.ok) return { ok: false, error: port.error }
         const outcome = await launchHome(
           { name, homesRoot: root, kernelDir, cdp: port.cdp },
@@ -409,7 +417,7 @@ export function apply(ctx: GwbContext): void {
           return outcome
         }
         log.info(`devkit.home.open：${outcome.note}`)
-        return { ok: true, data: outcome }
+        return { ok: true, data: { ...outcome, ...(port.note === undefined ? {} : { cdpNote: port.note }) } }
       },
     ),
   )
