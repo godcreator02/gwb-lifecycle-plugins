@@ -19,7 +19,10 @@
 // 跟人的手一样，命中测试是浏览器自己做的。所以本件的价值不止「能点」，还在**点不着的时候
 // 会告状**：把挡路的那个元素报出来。
 //
-// 用法：node <本文件> <端口> <动作> [参数…]
+// 用法：node <本文件> <端口或 home 名> <动作> [参数…]
+//
+// 第一个位置给数字就是调试口，给名字就当 home 名，口从那个 home 的 `runtime.json` 里查
+// （内核开机写的那份，`--homes <目录>` 换 home 根）。
 //
 //   targets                          列出能连的页面
 //   raise                            把窗口抬到前面（被遮住时 Chromium 停止产帧，截图会是陈旧帧）
@@ -77,13 +80,44 @@ import { fileURLToPath } from 'node:url'
 const opts = {}
 const rest = []
 for (const arg of process.argv.slice(2)) {
-  const named = /^--(target|mod|pad|size|repo|timeout)=(.*)$/.exec(arg)
+  const named = /^--(target|mod|pad|size|repo|timeout|homes)=(.*)$/.exec(arg)
   if (named) opts[named[1]] = named[2]
-  else if (/^--(target|mod|pad|size|repo|timeout)$/.test(rest.at(-1) ?? '')) opts[rest.pop().slice(2)] = arg
+  else if (/^--(target|mod|pad|size|repo|timeout|homes)$/.test(rest.at(-1) ?? '')) opts[rest.pop().slice(2)] = arg
   else rest.push(arg)
 }
-const [port, verb, ...args] = rest
-if (!port || !verb) throw new Error('用法：node scripts/cdp.mjs <端口> <动作> [参数…]，动作见文件头')
+const [where, verb, ...args] = rest
+if (!where || !verb) throw new Error('用法：node <本文件> <端口或 home 名> <动作> [参数…]，动作见文件头')
+
+/**
+ * 第一个位置给端口，也可以给 **home 名**：口从那个 home 的 `runtime.json` 里查（内核开机
+ * 写的那份）。给名字省去了人记端口，代价是这儿要认得 home 根在哪——所以只在拿得准的平台上
+ * 认（Windows 是 `%APPDATA%\gwb-kernel\homes`），拿不准就照实说「自己给端口」，不猜。
+ *
+ * **这儿不验活**：这支脚本的活是连上去，连不上 WebSocket 那头自然会报。要验活的是
+ * `devkit.dev` 那条链，它在动手之前核对 pid 与端口持有者。
+ */
+function portOf(given) {
+  if (/^\d+$/.test(given)) return given
+  const root = opts.homes ?? (process.platform === 'win32' && process.env.APPDATA
+    ? path.join(process.env.APPDATA, 'gwb-kernel', 'homes')
+    : undefined)
+  if (root === undefined) throw new Error(`认不出 home 根在哪（非 Windows 且没给 --homes），第一个位置请直接给端口`)
+  const file = path.join(root, given, 'runtime.json')
+  if (!fs.existsSync(file)) throw new Error(`${file} 不在——${given} 没起过，或者起它的内核版本还不写这份记录。直接给端口吧`)
+  let record
+  try {
+    record = JSON.parse(fs.readFileSync(file, 'utf8'))
+  } catch (err) {
+    throw new Error(`${file} 读不出来：${String(err)}`)
+  }
+  const cdp = record?.cdp
+  if (!Number.isInteger(cdp) || cdp <= 0 || cdp >= 65536) {
+    throw new Error(`${given} 的记录里没有 cdp 那格——起它的时候没带 --remote-debugging-port，够不着`)
+  }
+  return String(cdp)
+}
+
+const port = portOf(where)
 
 /** CDP 的修饰键是位掩码，不是名字 */
 const MOD_BIT = { alt: 1, ctrl: 2, meta: 4, shift: 8 }

@@ -36,6 +36,7 @@ import {
   listHomes,
   nextName,
   removeHome,
+  resolveTarget,
 } from './home.js'
 import { homeFs, makeGuiSpawn, runCaptured } from './node-home-deps.js'
 import {
@@ -129,14 +130,15 @@ const HOME_USAGE = [
 /** 改一版看一版那两条的参数说明。参数错的时候连它一起回——错误即文档 */
 const DEV_USAGE = [
   'devkit.dev 的参数：',
-  '  cdp       必给，目标 home 的 CDP 调试口（内核起的时候 --remote-debugging-port 给的那个数）',
+  '  home      目标 home 名。口从那个 home 的 runtime.json 里查（内核开机写的），顺带验活',
+  '  cdp       直接给调试口。跟 home 二选一；两个都给就要求一致，不一致当场拒',
   '  dir       必给，仓根的绝对路径。构建在这儿跑',
   '  packages  可选，要发的包目录，相对仓根，**按依赖顺序**（被依赖的排前面）。不给就是仓根自己',
   '  build     可选，缺省 true：先在仓根 pnpm build。产物不新就发＝发的是上一版',
   '  waitFor   可选，刷新之后等页面上这个选择器出现才算刷回来了',
   '  registry  可选，本机源地址，缺省 ' + DEFAULT_REGISTRY,
-  'devkit.dev-check 的参数：{ cdp 必给, lines? }',
-  '例：{"cdp":9346,"dir":"D:\\\\unitfolders\\\\26090814otr\\\\gwb-block-note","packages":["packages/model","plugins/gwb-bn-core"]}',
+  'devkit.dev-check 的参数：{ home 或 cdp, lines? }',
+  '例：{"home":"bn-2609111200","dir":"D:\\\\unitfolders\\\\26090814otr\\\\gwb-block-note","packages":["packages/model","plugins/gwb-bn-core"]}',
   '目标 home 是 default、或者就是本件自己住的那个，都当场拒——前者会把开发版塞进日常那份，',
   '后者停用条目那一下会把正在跑的这条命令自己停掉。换 devkit 自己：发正式版，再 plugins.update-all',
 ].join('\n')
@@ -457,18 +459,55 @@ export function apply(ctx: GwbContext): void {
 
   // ── 改一版看一版 ───────────────────────────────────────────────────────────
 
+  /**
+   * 「要操作哪个 home」收窄成「连哪个调试口」。两种给法：
+   *
+   * - `home`：名字。口从那个 home 的 `runtime.json` 里查（内核开机写的），**顺带验活**——
+   *   pid 还在、且那个 pid 真的持着那个口。查出来的名字接着传给循环，跟页面自报的再核对
+   *   一次：记录回答「你要的是哪个」，页面回答「你连上的实际是哪个」
+   * - `cdp`：直接给口。手工起的老 home（记录还没写过）走这条；这时没有名字可核对，
+   *   只剩「不是 default、不是自己」那两道
+   *
+   * **两个都给就要求一致**：不一致时不猜哪个是对的，当场拒。
+   */
+  async function targetOf(
+    args: Record<string, unknown>,
+  ): Promise<{ ok: true; cdp: number; name?: string } | { ok: false; error: string }> {
+    const name = asHomeName(args.home)
+    const given = args.cdp === undefined ? undefined : asCdpPort(args.cdp)
+    if (args.home !== undefined && name === undefined) {
+      return { ok: false, error: `home 不是个合格的 home 名（kebab-case）。\n${DEV_USAGE}` }
+    }
+    if (args.cdp !== undefined && given === undefined) {
+      return { ok: false, error: `cdp 要是 1–65535 的整数。\n${DEV_USAGE}` }
+    }
+    if (name === undefined) {
+      if (given === undefined) return { ok: false, error: `home 与 cdp 得给一个。\n${DEV_USAGE}` }
+      return { ok: true, cdp: given }
+    }
+    const found = await resolveTarget(homesRoot(), name, homeDeps)
+    if (!found.ok) return { ok: false, error: found.error }
+    if (given !== undefined && given !== found.cdp) {
+      return {
+        ok: false,
+        error: `你给的 cdp 是 ${String(given)}，可 ${name} 的记录里写着 ${String(found.cdp)}——不猜哪个对，没动它`,
+      }
+    }
+    return { ok: true, cdp: found.cdp, name }
+  }
+
   ctx.effect(() =>
     bus.register(
       {
         name: 'devkit.dev',
         plugin: 'devkit',
         description:
-          '改一版看一版：{cdp 必给（目标 home 的调试口）, dir 必给（仓根绝对路径）, packages?（包目录，相对仓根，按依赖顺序；不给就是仓根自己）, build?（缺省 true，仓根 pnpm build）, waitFor?（刷新后等这个选择器出现）, registry?}。一条走完：构建 → 发开发版（<patch+1>-dev.<戳>，标 dev 不动 latest）→ 在目标 home 里 pnpm add 那个准确号 → 条目停用再启用重挂 → 整页重载 → 取证（条目真 ACTIVE、日志增量里没有 error），取不到证就回 ok:false。**目标是 default 或本件自己所在的 home 都当场拒**',
+          '改一版看一版：{home（目标 home 名，口从它的 runtime.json 里查）或 cdp（直接给调试口），两个给一个；dir 必给（仓根绝对路径）, packages?（包目录，相对仓根，按依赖顺序；不给就是仓根自己）, build?（缺省 true，仓根 pnpm build）, waitFor?（刷新后等这个选择器出现）, registry?}。一条走完：构建 → 发开发版（<patch+1>-dev.<戳>，标 dev 不动 latest）→ 在目标 home 里 pnpm add 那个准确号 → 条目停用再启用重挂 → 整页重载 → 取证（条目真 ACTIVE、日志增量里没有 error），取不到证就回 ok:false。**目标是 default 或本件自己所在的 home 都当场拒；给了 home 名还会拿页面自报的名字核对一次**',
       },
       async (args) => {
         if (!isRecord(args)) return { ok: false, error: `参数要是个对象。\n${DEV_USAGE}` }
-        const cdp = asCdpPort(args.cdp)
-        if (cdp === undefined) return { ok: false, error: `cdp 缺了或不是 1–65535 的整数。\n${DEV_USAGE}` }
+        const target = await targetOf(args)
+        if (!target.ok) return { ok: false, error: target.error }
         const dir = typeof args.dir === 'string' ? args.dir.trim() : ''
         if (dir === '' || !path.isAbsolute(dir)) return { ok: false, error: `dir 要是仓根的绝对路径。\n${DEV_USAGE}` }
         if (!devDeps.exists(dir)) return { ok: false, error: `${dir} 不在——dir 给的是仓根，不是包目录` }
@@ -476,15 +515,16 @@ export function apply(ctx: GwbContext): void {
           ? args.packages.filter((one): one is string => typeof one === 'string' && one.trim() !== '')
           : []
         const input: DevInput = {
-          cdp,
+          cdp: target.cdp,
           repoDir: path.resolve(dir),
           packages,
           build: args.build !== false,
           ...(typeof args.waitFor === 'string' && args.waitFor.trim() !== '' ? { waitFor: args.waitFor.trim() } : {}),
           registry: typeof args.registry === 'string' && args.registry.trim() !== '' ? args.registry.trim() : DEFAULT_REGISTRY,
           ownHome: requireKernel(ctx).dataDir,
+          ...(target.name === undefined ? {} : { expectHome: target.name }),
         }
-        log.info(`devkit.dev：仓 ${input.repoDir} → 调试口 ${String(cdp)}`)
+        log.info(`devkit.dev：仓 ${input.repoDir} → ${target.name ?? '调试口'} ${String(target.cdp)}`)
         const outcome = await runDev(input, devDeps)
         if (!outcome.ok) {
           log.warn(`devkit.dev 没成：${outcome.error}`)
@@ -504,14 +544,14 @@ export function apply(ctx: GwbContext): void {
         name: 'devkit.dev-check',
         plugin: 'devkit',
         description:
-          `只取证不动手：{cdp 必给（调试口）, lines?（日志尾巴行数，缺省 ${String(LOG_TAIL_LINES)}）}。回目标 home、条目表、日志尾巴与里头的 error/warn。**它不下判定**——单独跑时没有「这一趟之前」的基线，看到的 error 可能是几天前的；判定只发生在 devkit.dev 里头那一次`,
+          `只取证不动手：{home（目标 home 名）或 cdp（调试口），两个给一个；lines?（日志尾巴行数，缺省 ${String(LOG_TAIL_LINES)}）}。回目标 home、条目表、日志尾巴与里头的 error/warn。**它不下判定**——单独跑时没有「这一趟之前」的基线，看到的 error 可能是几天前的；判定只发生在 devkit.dev 里头那一次`,
       },
       async (args) => {
         if (!isRecord(args)) return { ok: false, error: `参数要是个对象。\n${DEV_USAGE}` }
-        const cdp = asCdpPort(args.cdp)
-        if (cdp === undefined) return { ok: false, error: `cdp 缺了或不是 1–65535 的整数。\n${DEV_USAGE}` }
+        const target = await targetOf(args)
+        if (!target.ok) return { ok: false, error: target.error }
         const lines = typeof args.lines === 'number' && args.lines > 0 ? Math.floor(args.lines) : LOG_TAIL_LINES
-        return await inspect(cdp, lines, devDeps)
+        return await inspect(target.cdp, lines, devDeps)
       },
     ),
   )

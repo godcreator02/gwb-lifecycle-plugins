@@ -22,7 +22,7 @@ import {
   parseRecord,
   recordFile,
   removeHome,
-  renderRecord,
+  resolveTarget,
   secondStamp,
   type HomeDeps,
   type HomeFs,
@@ -41,7 +41,10 @@ const ROOT = 'D:/fake-homes'
 const NAME = 'data-2609081430'
 const HOME = path.join(ROOT, NAME)
 const BIN = electronBinOf(APP, 'win32')
-const RECORD: HomeRecord = { pid: 4242, launchedAt: 1_000, kernelDir: KERNEL }
+const RECORD: HomeRecord = { pid: 4242, startedAt: 1_000, appDir: APP }
+
+/** 内核会往 home 里写的那份。**devkit 只读它**，所以测试里由测试自己摆 */
+const write = (record: HomeRecord): string => JSON.stringify(record)
 
 /** 一个内存盘：文件表 + 目录表。removeDir 的错误是注进去的——EBUSY 那条路要能演出来 */
 function fakeFs(
@@ -173,17 +176,24 @@ describe('命名：本地时间的 yyMMddHHmm，撞了退到秒，再撞就拒',
   })
 })
 
-describe('启动记录与参数收窄', () => {
-  it('记录渲染出去再读回来是同一份；半截 JSON、形状不对、pid 不像样都当没有', () => {
-    const record: HomeRecord = { ...RECORD, cdp: 9222 }
-    expect(parseRecord(renderRecord(record))).toEqual(record)
+describe('运行时记录与参数收窄', () => {
+  it('读得回来的是内核写的那份；半截 JSON、形状不对、pid 不像样都当没有', () => {
+    const full: HomeRecord = { ...RECORD, cdp: 9222, mcp: { port: 2870, url: 'http://127.0.0.1:2870/mcp' } }
+    expect(parseRecord(JSON.stringify(full))).toEqual(full)
     expect(parseRecord(undefined)).toBeUndefined()
     expect(parseRecord('{ half')).toBeUndefined()
     expect(parseRecord('[]')).toBeUndefined()
-    expect(parseRecord(JSON.stringify({ pid: -1, launchedAt: 1, kernelDir: 'x' }))).toBeUndefined()
-    expect(parseRecord(JSON.stringify({ pid: 4242, launchedAt: 1 }))).toBeUndefined()
-    // cdp 不像样就当没记过，别的字段照读
+    expect(parseRecord(JSON.stringify({ pid: -1, startedAt: 1 }))).toBeUndefined()
+    expect(parseRecord(JSON.stringify({ pid: 4242 }))).toBeUndefined()
+  })
+
+  it('缺一格不算坏：cdp 与 mcp 是「那件事没发生」，不是这份记录不能用', () => {
+    // 起的时候没带调试口，或者那个 home 根本没装 mcp 件——两样都是常态
     expect(parseRecord(JSON.stringify({ ...RECORD, cdp: 'x' }))).toEqual(RECORD)
+    expect(parseRecord(JSON.stringify({ ...RECORD, mcp: { port: 2870 } }))).toEqual(RECORD)
+    expect(parseRecord(JSON.stringify({ ...RECORD, mcp: 'nope' }))).toEqual(RECORD)
+    // 不认得的字段随它去：将来别的写者往里补东西，不该让这儿读不动
+    expect(parseRecord(JSON.stringify({ ...RECORD, 将来: 1 }))).toEqual(RECORD)
   })
 
   it('名字与 CDP 口的收窄：内核那道正则说了算，端口是 1–65535 的整数', () => {
@@ -260,7 +270,7 @@ describe('launchHome：先 build、起 electron、落记录、看五秒', () => 
     expect(fs.files.has(recordFile(HOME))).toBe(false)
   })
 
-  it('build 失败：不起 electron、不落记录，尾巴带回来', async () => {
+  it('build 失败：不起 electron，尾巴带回来', async () => {
     const { deps, state } = fakeDeps({ runs: [{ ok: false, tail: 'ERR!坏的' }] })
     const outcome = await launchHome(
       { name: NAME, homesRoot: ROOT, kernelDir: KERNEL, build: buildPlan(APP, 'win32') },
@@ -282,24 +292,45 @@ describe('launchHome：先 build、起 electron、落记录、看五秒', () => 
     expect(skipState.spawned).toHaveLength(1)
   })
 
-  it('起得来：环境、记录、观察窗全对', async () => {
+  it('起得来：环境与观察窗全对，记录由内核写、这儿只读回来报给人', async () => {
     const fs = fakeFs({ [BIN]: 'MZ' })
     const { deps, state } = fakeDeps({ fs, processes: { 4242: 'electron.exe' } })
+    // 记录是**起来之后**才出现的（内核开机写的那一下），所以让假的 spawn 顺手把它摆上——
+    // 一开始就摆在盘上的话，那份记录会被当成「已经有一个实例在跑」
+    const spawn = deps.spawn
+    deps.spawn = (plan, env) => {
+      const pid = spawn(plan, env)
+      fs.writeText(recordFile(HOME), write({ ...RECORD, cdp: 9222 }))
+      return pid
+    }
     const outcome = await launchHome(
       { name: NAME, homesRoot: ROOT, kernelDir: KERNEL, cdp: 9222, build: buildPlan(APP, 'win32') },
       deps,
     )
     expect(outcome).toMatchObject({ ok: true, name: NAME, home: HOME, pid: 4242 })
-    if (outcome.ok) expect(outcome.note).toContain('9222')
+    if (outcome.ok) {
+      expect(outcome.note).toContain('9222')
+      expect(outcome.record).toEqual({ ...RECORD, cdp: 9222 })
+    }
     expect(state.spawned[0]?.cwd).toBe(APP)
     expect(state.spawned[0]?.args).toEqual(['.', '--remote-debugging-port=9222'])
     expect(state.spawned[0]?.env.GWB_HOME).toBe(NAME)
     expect(state.spawned[0]?.env.ELECTRON_RUN_AS_NODE).toBeUndefined()
-    expect(parseRecord(fs.files.get(recordFile(HOME)))).toEqual({ ...RECORD, cdp: 9222 })
     expect(state.slept).toEqual(new Array(ALIVE_TIMEOUT_MS / ALIVE_POLL_MS).fill(ALIVE_POLL_MS))
   })
 
-  it('秒退：立刻报并指向 home 的日志，记录留着等 stop/rm 清', async () => {
+  it('记录没出现不算起失败，但回执要明说——那时按名字定位用不了', async () => {
+    const fs = fakeFs({ [BIN]: 'MZ' })
+    const { deps } = fakeDeps({ fs, processes: { 4242: 'electron.exe' } })
+    const outcome = await launchHome({ name: NAME, homesRoot: ROOT, kernelDir: KERNEL }, deps)
+    expect(outcome.ok).toBe(true)
+    if (outcome.ok) {
+      expect(outcome.record).toBeUndefined()
+      expect(outcome.note).toContain('runtime.json')
+    }
+  })
+
+  it('秒退：立刻报并指向 home 的日志', async () => {
     const fs = fakeFs({ [BIN]: 'MZ' })
     // 进程表里没有 4242：spawn 回了 pid，但那个进程转眼就退了
     const { deps, state } = fakeDeps({ fs })
@@ -310,12 +341,11 @@ describe('launchHome：先 build、起 electron、落记录、看五秒', () => 
       expect(outcome.error).toContain(path.join(HOME, 'gwb.log'))
     }
     expect(state.slept).toEqual([])
-    expect(fs.files.has(recordFile(HOME))).toBe(true)
   })
 
   it('同一个 home 已有实例在跑:拒,不起第二个', async () => {
     const fs = fakeFs(
-      { [BIN]: 'MZ', [recordFile(HOME)]: renderRecord(RECORD) },
+      { [BIN]: 'MZ', [recordFile(HOME)]: write(RECORD) },
     )
     const { deps, state } = fakeDeps({ fs, processes: { 4242: 'electron.exe' } })
     const outcome = await launchHome({ name: NAME, homesRoot: ROOT, kernelDir: KERNEL }, deps)
@@ -326,13 +356,13 @@ describe('launchHome：先 build、起 electron、落记录、看五秒', () => 
 
   it('记录陈旧(上一轮的实例早停了):不拦,照常起', async () => {
     // 表里没有 999:记录里那个 pid 已经不在了
-    const fs = fakeFs({ [BIN]: 'MZ', [recordFile(HOME)]: renderRecord({ ...RECORD, pid: 999 }) })
+    const fs = fakeFs({ [BIN]: 'MZ', [recordFile(HOME)]: write({ ...RECORD, pid: 999 }) })
     const { deps, state } = fakeDeps({ fs, processes: { 4242: 'electron.exe' } })
     expect((await launchHome({ name: NAME, homesRoot: ROOT, kernelDir: KERNEL }, deps)).ok).toBe(true)
     expect(state.spawned).toHaveLength(1)
   })
 
-  it('spawn 拿不到 pid：当场失败，不去写一份空记录', async () => {
+  it('spawn 拿不到 pid：当场失败', async () => {
     const fs = fakeFs({ [BIN]: 'MZ' })
     const { deps } = fakeDeps({ fs, spawnFails: true })
     expect((await launchHome({ name: NAME, homesRoot: ROOT, kernelDir: KERNEL }, deps)).ok).toBe(false)
@@ -341,31 +371,76 @@ describe('launchHome：先 build、起 electron、落记录、看五秒', () => 
 })
 
 describe('listHomes：谁在跑看记录里的 pid', () => {
-  it('有记录且 pid 认得出的报 running；没记录的就是没在跑', async () => {
+  it('有记录且 pid 认得出的报 running；没记录的就是没在跑，两道口如实报', async () => {
     const other = path.join(ROOT, 'shell-2609081430')
+    const mcp = { port: 2870, url: 'http://127.0.0.1:2870/mcp' }
     const fs = fakeFs(
-      { [recordFile(HOME)]: renderRecord({ ...RECORD, cdp: 9222 }) },
+      { [recordFile(HOME)]: write({ ...RECORD, cdp: 9222, mcp }) },
       { [ROOT]: [NAME, 'shell-2609081430'] },
     )
     const { deps } = fakeDeps({ fs, processes: { 4242: 'electron.exe' } })
     expect(await listHomes(ROOT, deps)).toEqual([
-      { name: NAME, home: HOME, pid: 4242, running: true, cdp: 9222 },
-      { name: 'shell-2609081430', home: other, pid: null, running: false, cdp: null },
+      { name: NAME, home: HOME, pid: 4242, running: true, cdp: 9222, mcp },
+      { name: 'shell-2609081430', home: other, pid: null, running: false, cdp: null, mcp: null },
     ])
   })
 })
 
+describe('resolveTarget：「我要操作哪个 home」→ 够得着它的那个口', () => {
+  const base = { [recordFile(HOME)]: write({ ...RECORD, cdp: 9222 }) }
+  const dirs = { [ROOT]: [NAME] }
+
+  it('记录在、pid 活着、口上就是它：给出那个口', async () => {
+    const { deps } = fakeDeps({ fs: fakeFs(base, dirs), processes: { 4242: 'electron.exe' }, portOwner: 4242 })
+    expect(await resolveTarget(ROOT, NAME, deps)).toMatchObject({ ok: true, name: NAME, cdp: 9222 })
+  })
+
+  it('口上 listen 的是别人：记录陈旧，不给——端口会被下一个进程占走', async () => {
+    const { deps } = fakeDeps({ fs: fakeFs(base, dirs), processes: { 4242: 'electron.exe' }, portOwner: 9001 })
+    const out = await resolveTarget(ROOT, NAME, deps)
+    expect(out.ok).toBe(false)
+    if (!out.ok) expect(out.error).toContain('9001')
+  })
+
+  it('pid 已经不在：说它没在跑，指去 open', async () => {
+    const { deps } = fakeDeps({ fs: fakeFs(base, dirs) })
+    const out = await resolveTarget(ROOT, NAME, deps)
+    expect(out.ok).toBe(false)
+    if (!out.ok) expect(out.error).toContain('open')
+  })
+
+  it('查不出那个 pid 是什么：不导出动作', async () => {
+    const { deps } = fakeDeps({ fs: fakeFs(base, dirs), unknownPids: [4242] })
+    expect((await resolveTarget(ROOT, NAME, deps)).ok).toBe(false)
+  })
+
+  it('在跑但记录里没有 cdp：够不着，说清是起的时候没带开关', async () => {
+    const fs = fakeFs({ [recordFile(HOME)]: write(RECORD) }, dirs)
+    const { deps } = fakeDeps({ fs, processes: { 4242: 'electron.exe' } })
+    const out = await resolveTarget(ROOT, NAME, deps)
+    expect(out.ok).toBe(false)
+    if (!out.ok) expect(out.error).toContain('remote-debugging-port')
+  })
+
+  it('压根没有记录：指去自己给端口，不猜', async () => {
+    const { deps } = fakeDeps({ fs: fakeFs({}, dirs) })
+    const out = await resolveTarget(ROOT, NAME, deps)
+    expect(out.ok).toBe(false)
+    if (!out.ok) expect(out.error).toContain('runtime.json')
+  })
+})
+
 describe('bringDownHome：核对映像名再杀', () => {
-  it('pid 活着且认得出：杀它、清记录', async () => {
-    const fs = fakeFs({ [recordFile(HOME)]: renderRecord(RECORD) })
+  it('pid 活着且认得出：杀它，记录留着（下一次开机内核整份重写）', async () => {
+    const fs = fakeFs({ [recordFile(HOME)]: write(RECORD) })
     const { deps, state } = fakeDeps({ fs, processes: { 4242: 'electron.exe' } })
     expect(await bringDownHome(HOME, deps)).toMatchObject({ ok: true, killed: 4242 })
     expect(state.killed).toEqual([4242])
-    expect(fs.files.has(recordFile(HOME))).toBe(false)
+    expect(fs.files.has(recordFile(HOME))).toBe(true)
   })
 
   it('记录里没记 cdp：不问端口，一道核对就够了', async () => {
-    const fs = fakeFs({ [recordFile(HOME)]: renderRecord(RECORD) })
+    const fs = fakeFs({ [recordFile(HOME)]: write(RECORD) })
     const { deps, state } = fakeDeps({ fs, processes: { 4242: 'electron.exe' }, portOwner: 9001 })
     await bringDownHome(HOME, deps)
     expect(state.portsAsked).toEqual([])
@@ -373,34 +448,34 @@ describe('bringDownHome：核对映像名再杀', () => {
   })
 
   it('记录里带着 cdp、端口上 listen 的是别人：不杀、记录留着', async () => {
-    const fs = fakeFs({ [recordFile(HOME)]: renderRecord({ ...RECORD, cdp: 9222 }) })
+    const fs = fakeFs({ [recordFile(HOME)]: write({ ...RECORD, cdp: 9222 }) })
     const { deps, state } = fakeDeps({ fs, processes: { 4242: 'electron.exe' }, portOwner: 9001 })
     const outcome = await bringDownHome(HOME, deps)
     expect(outcome).toMatchObject({ ok: false, killed: null })
     expect(outcome.note).toContain('9001')
     expect(state.portsAsked).toEqual([9222])
     expect(state.killed).toEqual([])
-    expect(fs.files.get(recordFile(HOME))).toBe(renderRecord({ ...RECORD, cdp: 9222 }))
+    expect(fs.files.get(recordFile(HOME))).toBe(write({ ...RECORD, cdp: 9222 }))
   })
 
   it('端口上 listen 的就是记录里那个：两道都过，照杀', async () => {
-    const fs = fakeFs({ [recordFile(HOME)]: renderRecord({ ...RECORD, cdp: 9222 }) })
+    const fs = fakeFs({ [recordFile(HOME)]: write({ ...RECORD, cdp: 9222 }) })
     const { deps, state } = fakeDeps({ fs, processes: { 4242: 'electron.exe' }, portOwner: 4242 })
     expect(await bringDownHome(HOME, deps)).toMatchObject({ ok: true, killed: 4242 })
     expect(state.killed).toEqual([4242])
   })
 
-  it('pid 号被别人复用（node 也算别人）：一个都不杀，只清记录', async () => {
-    const fs = fakeFs({ [recordFile(HOME)]: renderRecord(RECORD) })
+  it('pid 号被别人复用（node 也算别人）：一个都不杀', async () => {
+    const fs = fakeFs({ [recordFile(HOME)]: write(RECORD) })
     const { deps, state } = fakeDeps({ fs, processes: { 4242: 'chrome.exe' } })
     const outcome = await bringDownHome(HOME, deps)
     expect(outcome.killed).toBeNull()
     expect(state.killed).toEqual([])
-    expect(fs.files.has(recordFile(HOME))).toBe(false)
+    expect(fs.files.has(recordFile(HOME))).toBe(true)
   })
 
   it('查不出那个 pid 是什么：不杀、不删记录，回 ok:false', async () => {
-    const fs = fakeFs({ [recordFile(HOME)]: renderRecord(RECORD) })
+    const fs = fakeFs({ [recordFile(HOME)]: write(RECORD) })
     const { deps, state } = fakeDeps({ fs, unknownPids: [4242] })
     const outcome = await bringDownHome(HOME, deps)
     expect(outcome).toMatchObject({ ok: false, killed: null })
@@ -410,7 +485,7 @@ describe('bringDownHome：核对映像名再杀', () => {
   })
 
   it('kill 抛了（EPERM 之类）：记录留着，回 ok:false', async () => {
-    const fs = fakeFs({ [recordFile(HOME)]: renderRecord(RECORD) })
+    const fs = fakeFs({ [recordFile(HOME)]: write(RECORD) })
     const { deps } = fakeDeps({
       fs,
       processes: { 4242: 'electron.exe' },
@@ -422,11 +497,11 @@ describe('bringDownHome：核对映像名再杀', () => {
     expect(fs.files.has(recordFile(HOME))).toBe(true)
   })
 
-  it('下手时进程已经不在（ESRCH）：算停成了，清记录、killed 报 null', async () => {
-    const fs = fakeFs({ [recordFile(HOME)]: renderRecord(RECORD) })
+  it('下手时进程已经不在（ESRCH）：算停成了，killed 报 null', async () => {
+    const fs = fakeFs({ [recordFile(HOME)]: write(RECORD) })
     const { deps } = fakeDeps({ fs, processes: { 4242: 'electron.exe' }, kill: 'gone' })
     expect(await bringDownHome(HOME, deps)).toMatchObject({ ok: true, killed: null })
-    expect(fs.files.has(recordFile(HOME))).toBe(false)
+    expect(fs.files.has(recordFile(HOME))).toBe(true)
   })
 
   it('没有记录：没有可停的——不猜、不按名字扫进程', async () => {
@@ -458,7 +533,7 @@ describe('removeHome：default 守得住，跑着的拒删', () => {
   })
 
   it('还在跑（记录里的 pid 认得出）：拒删，指去 stop', async () => {
-    const fs = fakeFs({ [recordFile(HOME)]: renderRecord(RECORD) }, { [ROOT]: [NAME] })
+    const fs = fakeFs({ [recordFile(HOME)]: write(RECORD) }, { [ROOT]: [NAME] })
     const { deps } = fakeDeps({ fs, processes: { 4242: 'electron.exe' } })
     const outcome = await removeHome(HOME, NAME, false, deps)
     expect(outcome.ok).toBe(false)
@@ -467,7 +542,7 @@ describe('removeHome：default 守得住，跑着的拒删', () => {
   })
 
   it('查不出记录里的 pid 还在不在：不删', async () => {
-    const fs = fakeFs({ [recordFile(HOME)]: renderRecord(RECORD) }, { [ROOT]: [NAME] })
+    const fs = fakeFs({ [recordFile(HOME)]: write(RECORD) }, { [ROOT]: [NAME] })
     const { deps } = fakeDeps({ fs, unknownPids: [4242] })
     const outcome = await removeHome(HOME, NAME, false, deps)
     expect(outcome.ok).toBe(false)
@@ -476,7 +551,7 @@ describe('removeHome：default 守得住，跑着的拒删', () => {
   })
 
   it('记录陈旧（进程早没了）：删', async () => {
-    const fs = fakeFs({ [recordFile(HOME)]: renderRecord(RECORD) }, { [ROOT]: [NAME] })
+    const fs = fakeFs({ [recordFile(HOME)]: write(RECORD) }, { [ROOT]: [NAME] })
     const { deps } = fakeDeps({ fs })
     expect(await removeHome(HOME, NAME, false, deps)).toMatchObject({ ok: true })
     expect(fs.removed).toEqual([path.resolve(HOME)])

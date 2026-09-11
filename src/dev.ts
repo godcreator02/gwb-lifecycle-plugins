@@ -107,11 +107,16 @@ export function samePath(a: string, b: string, platform: NodeJS.Platform): boole
  *    换 devkit 自己走另一条路:发正式版 + `plugins.update-all`(那是 plugins 件在调,不是
  *    devkit 自己,所以它活得过重挂)
  */
-export function guardHome(probe: HomeProbe, ownHome: string, platform: NodeJS.Platform): HomeGuard {
+export function guardHome(probe: HomeProbe, ownHome: string, platform: NodeJS.Platform, expect?: string): HomeGuard {
   if (probe.home === null || probe.home === '') {
     return { ok: false, error: `问不出这张页是哪个 home:${probe.why ?? '没说原因'}——它可能不是工作台的外壳页,或者这个调试口连到了别的应用` }
   }
   const name = path.basename(probe.home.replace(/[\\/]+$/, ''))
+  // 点了名就得对得上。**记录回答「你要的是哪个」,页面回答「你连上的实际是哪个」**——
+  // 记录会陈旧、口会被复用,只信记录就会静默推给另一个进程
+  if (expect !== undefined && expect !== name) {
+    return { ok: false, error: `你点名要 ${expect},可这个调试口上的页面自报是 ${name}——记录陈旧了,或者口给错了。没动它` }
+  }
   if (name === DAILY_HOME) {
     return { ok: false, error: `目标是 ${DAILY_HOME},这是日常那份 home,开发版不进它——换个隔离 home(devkit.home.new)再来` }
   }
@@ -275,6 +280,8 @@ export interface DevInput {
   registry: string
   /** 本件自己住的那个 home 目录。目标是它就拒 */
   ownHome: string
+  /** 调用方点名要的那个 home。给了就跟页面自报的名字核对,不符当场拒 */
+  expectHome?: string
 }
 
 export interface ShippedPackage {
@@ -337,6 +344,7 @@ export async function runDev(input: DevInput, deps: DevDeps): Promise<DevOutcome
     isRecord(probe.data) ? { home: typeof probe.data.home === 'string' ? probe.data.home : null, ...(typeof probe.data.why === 'string' ? { why: probe.data.why } : {}) } : { home: null },
     input.ownHome,
     deps.platform,
+    input.expectHome,
   )
   if (!guard.ok) return { ok: false, error: guard.error }
 

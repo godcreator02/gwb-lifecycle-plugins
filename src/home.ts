@@ -16,8 +16,19 @@ import { shed, type ProcessProbe } from './daemon.js'
 /** home 名的形状。这就是内核 `GWB_HOME` 的验收正则——比它严没有意义,名字到头来是它说了算 */
 export const HOME_NAME_RE = /^[a-z0-9]+(-[a-z0-9]+)*$/
 
-/** devkit 记在每个测试 home 里的启动记录。一个 home 一份,home 删了它自然也没了 */
-export const RECORD_FILE = 'devkit.json'
+/**
+ * 每个 home 里那份运行时记录。一个 home 一份,home 删了它自然也没了。
+ *
+ * **写它的不是 devkit,是内核与 mcp 件**(2026-09-11 起):内核开机整份重写 pid / startedAt /
+ * appDir / cdp,mcp 件绑上口之后读改写补自己那格。判据是「谁知道那个数」——CDP 口是 Chromium
+ * 的命令行开关,只有起进程的那只手知道,而**内核是唯一必然在场的那个进程**;MCP 的口绑成功
+ * 之后才定下来,只有那个件手里有。devkit 从前自己写一份 `devkit.json`,那份只覆盖得了它自己
+ * 起的 home,容器里十八个 home 只有一个有记录,所以退役。
+ *
+ * **进程退了不删**:崩溃与被 kill 是常态,「退出时删」在那两种情况下本来就不会跑。读的人
+ * 负责验活(pid 还在,且那个 pid 真的持着记录里那个端口)。
+ */
+export const RECORD_FILE = 'runtime.json'
 
 /** 日常那份 home 的名字。删它要 `force`——那是人每天住的地方,不是验完就删的 */
 export const DAILY_HOME = 'default'
@@ -34,26 +45,38 @@ export const BUILD_TAIL_LINES = 40
 
 // ── 启动记录 ──────────────────────────────────────────────────────────────────
 
+/** MCP 那道口绑在哪。绑成功之后由 mcp 件补进记录,没开这道口就没有这一格 */
+export interface McpEndpoint {
+  port: number
+  url: string
+}
+
+/** 一个 home 此刻的运行时身份。**本包只读不写** */
 export interface HomeRecord {
   pid: number
-  launchedAt: number
-  /** 起它的时候用的内核仓——给人看的出处,open 用的是设置里现配的那个 */
-  kernelDir: string
-  /** 带了 CDP 调试口的话记下来:stop 时它是对得上对的第二道核对 */
+  startedAt: number
+  /** electron 起的那个应用目录——给人看的出处 */
+  appDir?: string
+  /** Chromium 调试口;没开这道口就没有这一格。它是「够得着这个 home」的唯一入口 */
   cdp?: number
+  mcp?: McpEndpoint
 }
 
 export function recordFile(homeDir: string): string {
   return path.join(homeDir, RECORD_FILE)
 }
 
-export function renderRecord(record: HomeRecord): string {
-  return JSON.stringify(record) + '\n'
+/** 端口值收窄:1–65535 的整数才算,别的一律当没给 */
+function asPort(value: unknown): number | undefined {
+  return typeof value === 'number' && Number.isInteger(value) && value > 0 && value < 65_536 ? value : undefined
 }
 
 /**
  * 记录文件的内容 → 一份像样的记录。半截 JSON、形状不对、pid 不是正整数,一律当没有
  ——与 registry 的 `parsePid` 同一个道理:残缺的记录不该导出任何一个动作。
+ *
+ * **少一格不算坏**:`cdp` 只有起的时候带了那个开关才有,`mcp` 只有装了那个件且绑成了才有,
+ * `appDir` 是旧版内核可能没写的。缺哪格就是那件事没发生,不是这份记录不能用。
  */
 export function parseRecord(text: string | undefined): HomeRecord | undefined {
   if (text === undefined) return undefined
@@ -64,16 +87,18 @@ export function parseRecord(text: string | undefined): HomeRecord | undefined {
     return undefined
   }
   if (!isRecord(doc)) return undefined
-  const { pid, launchedAt, kernelDir, cdp } = doc
+  const { pid, startedAt, appDir, cdp, mcp } = doc
   if (typeof pid !== 'number' || !Number.isInteger(pid) || pid <= 0) return undefined
-  if (typeof launchedAt !== 'number' || !Number.isFinite(launchedAt)) return undefined
-  if (typeof kernelDir !== 'string' || kernelDir === '') return undefined
-  const validCdp = typeof cdp === 'number' && Number.isInteger(cdp) && cdp > 0 && cdp < 65_536
+  if (typeof startedAt !== 'number' || !Number.isFinite(startedAt)) return undefined
+  const mcpPort = isRecord(mcp) ? asPort(mcp.port) : undefined
+  const mcpUrl = isRecord(mcp) && typeof mcp.url === 'string' && mcp.url !== '' ? mcp.url : undefined
+  const port = asPort(cdp)
   return {
     pid,
-    launchedAt,
-    kernelDir,
-    ...(validCdp ? { cdp: cdp as number } : {}),
+    startedAt,
+    ...(typeof appDir === 'string' && appDir !== '' ? { appDir } : {}),
+    ...(port === undefined ? {} : { cdp: port }),
+    ...(mcpPort === undefined || mcpUrl === undefined ? {} : { mcp: { port: mcpPort, url: mcpUrl } }),
   }
 }
 
@@ -253,7 +278,7 @@ function ownedProbe(probe: ProcessProbe, execPath: string): boolean | undefined 
 // ── 起 ────────────────────────────────────────────────────────────────────────
 
 export type LaunchOutcome =
-  | { ok: true; name: string; home: string; pid: number; note: string }
+  | { ok: true; name: string; home: string; pid: number; record?: HomeRecord; note: string }
   | { ok: false; error: string }
 
 export interface LaunchInput {
@@ -308,14 +333,10 @@ export async function launchHome(input: LaunchInput, deps: HomeDeps): Promise<La
   }
   // 目录先虚位以待,再拉进程:**所有还会摔的步骤都排在 spawn 前面**——spawn 之后的
   // 失败留下一扇没记录的窗,谁也管不着它。home 的最小形态(package.json 与空 cordis.yml)
-  // 归内核自己铺,而那要等它起来;devkit 只建目录、落自己的记录(内核那边幂等,两不冲突)
+  // 与那份 runtime.json 都归内核自己铺,而那要等它起来;devkit 只建目录
   deps.fs.ensureDir(home)
   const pid = deps.spawn(guiSpawnPlan(appDir, deps.platform, input.cdp), guiChildEnv(deps.env, input.name))
   if (pid === undefined) return { ok: false, error: '起不来:子进程没拿到 pid,看宿主日志' }
-  deps.fs.writeText(
-    recordFile(home),
-    renderRecord({ pid, launchedAt: deps.now(), kernelDir: input.kernelDir, ...(input.cdp === undefined ? {} : { cdp: input.cdp }) }),
-  )
 
   const deadline = deps.now() + ALIVE_TIMEOUT_MS
   while (deps.now() < deadline) {
@@ -323,17 +344,27 @@ export async function launchHome(input: LaunchInput, deps: HomeDeps): Promise<La
     if ((await deps.processName(pid)).state === 'gone') {
       return {
         ok: false,
-        error: `起的进程(pid ${pid})秒退了——多半是产物不在(没 build?)或起的时候就错。看 ${path.join(home, 'gwb.log')};启动记录留着,stop 或 rm 会把它清掉`,
+        error: `起的进程(pid ${pid})秒退了——多半是产物不在(没 build?)或起的时候就错。看 ${path.join(home, 'gwb.log')}`,
       }
     }
     await deps.sleep(ALIVE_POLL_MS)
   }
+  // 观察窗过完再读记录:内核开机时才写它,而这一格是下游「按 home 名找得着它」的全部凭据。
+  // **读不到不算起失败**——窗已经在那儿了,只是这个内核版本还不写,或者写晚了
+  const record = parseRecord(deps.fs.readText(recordFile(home)))
+  const seen =
+    record === undefined
+      ? `,但 ${RECORD_FILE} 还没出现——这个内核版本可能还不写它,那么 stop 与「按 home 名定位」都用不了`
+      : record.cdp === undefined
+        ? `,${RECORD_FILE} 里没有 cdp 那格(起的时候没带 --remote-debugging-port?)`
+        : `,${RECORD_FILE} 记下了 CDP ${String(record.cdp)}`
   return {
     ok: true,
     name: input.name,
     home,
     pid,
-    note: `起来了(pid ${pid}${input.cdp === undefined ? '' : `,CDP ${input.cdp}`})——日志在 ${path.join(home, 'gwb.log')}`,
+    ...(record === undefined ? {} : { record }),
+    note: `起来了(pid ${pid}${input.cdp === undefined ? '' : `,CDP ${input.cdp}`})${seen}——日志在 ${path.join(home, 'gwb.log')}`,
   }
 }
 
@@ -342,10 +373,12 @@ export async function launchHome(input: LaunchInput, deps: HomeDeps): Promise<La
 export interface HomeEntry {
   name: string
   home: string
-  /** 启动记录里那个 pid,且此刻还活着认得出;否则 null */
+  /** 记录里那个 pid,且此刻还活着认得出;否则 null */
   pid: number | null
   running: boolean
+  /** 够得着它的两道口。没记录、或那一格没写,就是 null */
   cdp: number | null
+  mcp: McpEndpoint | null
 }
 
 /** home 根下全部 home。名字带着时间戳后缀,字典序就是时间序——排序不必另做 */
@@ -363,10 +396,57 @@ export async function listHomes(homesRoot: string, deps: HomeDeps): Promise<Home
       home,
       pid: running && record !== undefined ? record.pid : null,
       running,
+      // 口按记录如实报,不因为「进程看着不在」就抹掉:陈旧的口正是人要看见的那条线索
       cdp: record?.cdp ?? null,
+      mcp: record?.mcp ?? null,
     })
   }
   return out
+}
+
+// ── 按名字定位 ────────────────────────────────────────────────────────────────
+
+export type TargetOutcome =
+  | { ok: true; name: string; home: string; record: HomeRecord; cdp: number }
+  | { ok: false; error: string }
+
+/**
+ * 「我要操作 <home 名>」→ 够得着它的那个调试口。
+ *
+ * **记录只回答「你要的是哪个」,不回答「它此刻还在不在」**,所以三道都要验:记录读得出、
+ * pid 还活着且认得出是个 home 进程、那个 pid 真的持着记录里那个口。端口会被复用、pid 会被
+ * 复用,少一道就可能把一趟改动推给另一个进程——而那正是这条路要消灭的那种错。
+ *
+ * 「查不出」与「确凿地不在」分开报:前者不导出任何动作(别的什么东西挡着看不见),后者是
+ * 明确的「它没在跑」。这跟 stop 那半同一个道理。
+ */
+export async function resolveTarget(homesRoot: string, name: string, deps: HomeDeps): Promise<TargetOutcome> {
+  const home = path.join(homesRoot, name)
+  if (!deps.fs.exists(home)) return { ok: false, error: `${home} 不在——没有这个 home(看 devkit.home.list)` }
+  const record = parseRecord(deps.fs.readText(recordFile(home)))
+  if (record === undefined) {
+    return {
+      ok: false,
+      error: `${name} 里没有能读的 ${RECORD_FILE}——它没起过,或者起它的内核版本还不写这份记录。那时只能自己给 cdp 口`,
+    }
+  }
+  const owned = ownedProbe(await deps.processName(record.pid), deps.execPath)
+  if (owned === undefined) return { ok: false, error: `查不出记录里的 pid ${record.pid} 还在不在——没敢认` }
+  if (!owned) return { ok: false, error: `${name} 没在跑(记录里的 pid ${record.pid} 已经不是它了)——先 devkit.home.open` }
+  if (record.cdp === undefined) {
+    return {
+      ok: false,
+      error: `${name} 在跑,但记录里没有 cdp 那格——起它的时候没带 --remote-debugging-port,够不着。停掉重开时给 cdp 参数`,
+    }
+  }
+  const owner = await deps.portOwner(record.cdp)
+  if (owner !== undefined && owner !== record.pid) {
+    return {
+      ok: false,
+      error: `记录说 ${name} 的调试口是 ${record.cdp},可那个口上 listen 的是 pid ${owner},不是 ${record.pid}——记录陈旧了,没敢用`,
+    }
+  }
+  return { ok: true, name, home, record, cdp: record.cdp }
 }
 
 // ── 停 ────────────────────────────────────────────────────────────────────────
@@ -382,8 +462,8 @@ export interface StopOutcome {
  * pid 会被复用,光「有这个进程」不作数;映像名认过之后,记录里带 CDP 口的再对一次
  端口持有者——对不上就不杀。
  *
- * 只停「有 devkit 记录的那个」。不是 devkit 起的 home(手工那四步起的)如实说没有
- 可停的——没有记录就没有「它是谁」的凭据,不猜、不按名字扫进程。
+ * **手工起的 home 现在也停得了**:记录归内核写(2026-09-11 起),所以「它是谁」的凭据不再
+ 只有 devkit 起的那几个有。没有记录仍然如实说没有可停的——不猜、不按名字扫进程。
  *
  * **kill 失败时记录留着**:进程还在跑,记录是唯一一份「它是谁」的线索。
  */
@@ -391,16 +471,16 @@ export async function bringDownHome(homeDir: string, deps: HomeDeps): Promise<St
   const file = recordFile(homeDir)
   const record = parseRecord(deps.fs.readText(file))
   if (record === undefined) {
-    deps.fs.remove(file)
-    return { ok: true, killed: null, note: '没有启动记录(devkit.json 不在或读不出)——多半不是 devkit 起的,或已经停了' }
+    return { ok: true, killed: null, note: `没有运行时记录(${RECORD_FILE} 不在或读不出)——它没起过,或者起它的内核版本还不写这份记录` }
   }
   const owned = ownedProbe(await deps.processName(record.pid), deps.execPath)
   if (owned === undefined) {
-    return { ok: false, killed: null, note: `查不出 pid ${record.pid} 是什么——没敢杀,记录留着` }
+    return { ok: false, killed: null, note: `查不出 pid ${record.pid} 是什么——没敢杀` }
   }
   if (!owned) {
-    deps.fs.remove(file)
-    return { ok: true, killed: null, note: `pid ${record.pid} 已陈旧(进程不在,或不是它)——只清了记录` }
+    // **记录不删**:它是「上一次它在哪个口上」的唯一线索,而下一次开机内核会整份重写。
+    // 删了只换来一次「看着干净」,代价是 home 停掉之后连查都查不了
+    return { ok: true, killed: null, note: `pid ${record.pid} 已陈旧(进程不在,或不是它)——没什么可停的` }
   }
   if (record.cdp !== undefined) {
     const owner = await deps.portOwner(record.cdp)
@@ -416,11 +496,10 @@ export async function bringDownHome(homeDir: string, deps: HomeDeps): Promise<St
   try {
     killed = deps.kill(record.pid)
   } catch (err) {
-    return { ok: false, killed: null, note: `停 pid ${record.pid} 没成:${String(err)}——进程还在,记录留着` }
+    return { ok: false, killed: null, note: `停 pid ${record.pid} 没成:${String(err)}——进程还在` }
   }
-  deps.fs.remove(file)
   if (killed === 'gone') {
-    return { ok: true, killed: null, note: `pid ${record.pid} 已陈旧(下手时进程已经不在了)——只清了记录` }
+    return { ok: true, killed: null, note: `pid ${record.pid} 已陈旧(下手时进程已经不在了)` }
   }
   return { ok: true, killed: record.pid, note: `已停 pid ${record.pid}` }
 }
