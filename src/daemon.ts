@@ -181,7 +181,7 @@ export function parsePid(text: string | undefined): number | undefined {
 
 /** 写 `verdaccio.owner`：起它那个进程的 pid 与映像名 */
 export function formatOwner(pid: number, execPath: string): string {
-  return `${String(pid)} ${shed(execPath)}\n`
+  return `${String(pid)} ${bareImage(execPath)}\n`
 }
 
 /**
@@ -194,11 +194,11 @@ export function ownerImage(text: string | undefined, pid: number): string | unde
   const parts = (text?.trim() ?? '').split(/\s+/)
   if (parts[0] === undefined || !/^\d+$/.test(parts[0]) || Number(parts[0]) !== pid) return undefined
   const image = parts[1]
-  return image === undefined || image.trim() === '' ? undefined : shed(image)
+  return image === undefined || image.trim() === '' ? undefined : bareImage(image)
 }
 
 /** 映像名 → 可比的小写裸名:`C:\apps\Electron.exe` 与 `electron` 是同一个东西 */
-export function shed(value: string): string {
+export function bareImage(value: string): string {
   return path.basename(value).toLowerCase().replace(/\.exe$/, '')
 }
 
@@ -217,9 +217,9 @@ export function shed(value: string): string {
  */
 export function isOwnedProcess(name: string | undefined, execPath: string, recorded?: string): boolean {
   if (name === undefined || name.trim() === '') return false
-  const image = shed(name.trim())
+  const image = bareImage(name.trim())
   if (recorded !== undefined) return image === recorded
-  return image === 'node' || image === shed(execPath)
+  return image === 'node' || image === bareImage(execPath)
 }
 
 /**
@@ -486,6 +486,16 @@ export interface DownOutcome {
 }
 
 /**
+ * 清掉那两份记录。**两份一起清**：只清 pid 文件的话，旁边那份会活到下一个进程身上去，
+ * 而它记的映像名是上一个的。`ownerImage` 的 pid 核对兜得住这种局面，但留着一份必然对不上
+ * 的记录没有任何用处。
+ */
+function clearPidFiles(dir: string, deps: RegistryDeps): void {
+  deps.fs.remove(pidFile(dir))
+  deps.fs.remove(ownerFile(dir))
+}
+
+/**
  * 按 pid 文件停。**两道核对再杀**：
  *
  * 一是映像名——pid 会被系统复用，一份陈旧的 pid 文件加上一次不核对的 kill，杀的就是
@@ -499,16 +509,6 @@ export interface DownOutcome {
  * **kill 失败时 pid 文件留着**：那个进程还在跑，而 pid 文件是唯一一份「它是谁」的记录。
  * 删文件只发生在两种局面——真杀掉了，或者那个号确实已经陈旧。
  */
-/**
- * 清掉那两份记录。**两份一起清**：只清 pid 文件的话，旁边那份会活到下一个进程身上去，
- * 而它记的映像名是上一个的。`ownerImage` 的 pid 核对兜得住这种局面，但留着一份必然对不上
- * 的记录没有任何用处。
- */
-function clearPidFiles(dir: string, deps: RegistryDeps): void {
-  deps.fs.remove(pidFile(dir))
-  deps.fs.remove(ownerFile(dir))
-}
-
 export async function bringDown(dir: string, deps: RegistryDeps): Promise<DownOutcome> {
   const file = pidFile(dir)
   const filePid = parsePid(deps.fs.readText(file))

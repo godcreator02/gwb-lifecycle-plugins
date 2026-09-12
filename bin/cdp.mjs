@@ -5,8 +5,8 @@
 // 不知道什么：页面里有什么、点完该发生什么——那是调用方的事。
 //
 // **这支脚本是本件的身体，也是工作台起不来时的那条路**：零依赖、单文件、纯 JS，
-// `node <devkit 包根>/bin/cdp.mjs <口> <动作>` 随时能跑。工作台跑着的时候走总线就够：
-// `devkit.cdp {"args":["<口>","<动作>",…]}`（经 gwbNodeCli 登记，见本包 src/index.ts）。
+// `node <devkit 包根>/bin/cdp.mjs <home 名> <动作>` 随时能跑。工作台跑着的时候走总线就够：
+// `devkit.cdp {"args":["<home 名>","<动作>",…]}`（经 gwbNodeCli 登记，见本包 src/index.ts）。
 // `devkit.dev` 那条链里，重挂、刷新、取证三步也是起它的子进程做的。
 //
 // **落点按工作目录算**，不按这个文件在哪算：截图落 `<cwd>/out/cdp/`，`eval` 那个文件
@@ -409,7 +409,7 @@ function callExpressionOf(file, rawArgs) {
  *
  * 页面上那些 `file://` 地址里带着 home 的绝对路径（外壳注的样式表、共享 React 的
  * importmap 都是），所以**不用配置、不用猜**：问一趟正在跑的那张页就知道了。
- * 推 dist 进 home 的那个脚本靠这一条定位，人也能拿它核对「我改的到底是不是这一个 home」。
+ * `devkit.dev` 的守卫靠这一条定位，人也能拿它核对「我改的到底是不是这一个 home」。
  */
 const HOME_EXPR = `(() => {
   const urls = [];

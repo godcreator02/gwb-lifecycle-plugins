@@ -1,6 +1,6 @@
 import path from 'node:path'
 import { isRecord } from '@godcreator02/gwb-plugin-api'
-import { shed, type ProcessProbe } from './daemon.js'
+import { bareImage, type ProcessProbe } from './daemon.js'
 
 /**
  * 测试 home 的纯机:命名、启动计划、起/停/删的时序与守卫。
@@ -268,8 +268,8 @@ export interface HomeDeps {
  */
 export function isHomeProcess(name: string | undefined, execPath: string): boolean {
   if (name === undefined || name.trim() === '') return false
-  const image = shed(name.trim())
-  return image === 'electron' || image === shed(execPath)
+  const image = bareImage(name.trim())
+  return image === 'electron' || image === bareImage(execPath)
 }
 
 /** 探测结果 → 还在不在我们手写记录所指的那个进程。「查不出」回 undefined,不导出动作 */
