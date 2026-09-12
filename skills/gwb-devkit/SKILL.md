@@ -500,15 +500,56 @@ esbuild 打成 `dist/client.js`，只把 `react` / `react/jsx-runtime` / `react-
 `data-gwb-plugin` 只是身份标记。`components.json` 的 `tailwind.prefix` 填短名，
 `shadcn add` 拉下来的组件类名自带前缀；`cn` 包默认就能正确合并带前缀的类，不用配。
 
-五条会静默的事：不引令牌映射面颜色类全空；不引 `tw-animate-css` 则 `animate-in` 一族全部
-不生成、菜单永不动画；**忘加前缀的类一个字节都不出**——把 hello 的 `tests/prefix.test.ts`
-抄一份钉住；`group` / `peer` 这类**标记类也要带前缀**（`logger:group-hover:*` 编出的选择器认的
-是 `.logger\:group`，标记不带前缀永远不命中，守卫抓不到它，因为它本来就编不出规则）；
-Tailwind 会把内置主题变量名也改掉（`--<短名>-spacing`），令牌只能经映射面送值。
+第二行引的令牌映射面，`@godcreator02/gwb-tokens&#x60; **≥0.1.1** 起把件里用到的 Tailwind 出厂键
+（间距、字重字距、白黑、八档阴影、缓动、过渡、容器断点）全部接管到页面变量。件依赖声明
+`>=0.1.1` 重编后，`dist/style.css` **零字面 fallback**——`calc(var(--<短名>-spacing, 0.25rem)*4)`
+编成 `calc(var(--gwb-spacing)*4)`、`text-white` 查 `--gwb-white`，主题值整页只剩令牌表一份。
+
+六条会静默的事：不引令牌映射面颜色类全空；用 Tailwind 内置调色板类（`amber-600` 这种）表达
+语义色——编得出来、看着也对，**换主题时颜色不跟随**，漂在令牌表外没人报；不引
+`tw-animate-css` 则 `animate-in` 一族全部不生成、菜单永不动画；**忘加前缀的类一个字节都不出**
+——把 hello 的 `tests/prefix.test.ts` 抄一份钉住；`group` / `peer` 这类**标记类也要带前缀**
+（`logger:group-hover:*` 编出的选择器认的是 `.logger\:group`，标记不带前缀永远不命中，
+守卫抓不到它，因为它本来就编不出规则）；Tailwind 会把内置主题变量名也改掉
+（`--<短名>-spacing`），令牌只能经映射面送值。
 lucide 图标身上的 `lucide lucide-xxx` 是它烤进 SVG 的身份属性，不是类名泄漏，别去管。
 
 **窗格不是视口**：响应式用容器查询变体 `@sm:` / `@md:`，不用 `sm:`。外壳给每格的容器是
 容器查询根（shell 0.1.1 起）。
+
+**颜色三条纪律**（判据与规矩正本：UI 平台仓文档站「令牌与颜色：共享规则」，
+`D:\unitfolders\26091217uiz\gwb-ui-plugins\docs-site\content\docs\tokens.mdx`；这儿只写操作要点）：
+
+* **语义色一律语义类**，含 `warning`（0.1.1 起的新键，亮暗两套）。不许拿 Tailwind 内置
+  调色板类（`amber-600` 这种）表达语义色，也不许写死颜色字面量
+* **纯装饰色走件域令牌两段制**，值只住一处：值段 `src/client/tokens.css`（变量带件前缀挂
+  `:root`——挂 `:root` 而非容器类，弹层 portal 到哪都读得到；值桥接优先如 `var(--accent)`，
+  `.dark` 里可覆盖），映射段在样式入口尾部 `@theme inline` 注册件域工具类。活例：baseui 的
+  日志来源点色
+* **一次性装饰**可以任意值语法明示写死（`bg-[#abc]`）——写死要看得见是写死
+
+件域两段制的最小形状：
+
+```css
+/* 值段 src/client/tokens.css：变量带件前缀挂 :root */
+:root { --<短名>-src-plugin: oklch(0.623 0.214 259.815); }
+
+/* 映射段 src/client/styles.css 尾部：注册 <短名>:bg-src-plugin 这一族 */
+@theme inline { --color-src-plugin: var(--<短名>-src-plugin); }
+```
+
+**产物守卫两条新断言**（2026-09-12 起），新件照 hello 或 baseui 的 `tests/artifact.test.ts`
+抄：
+
+* **零字面 fallback**：`dist/style.css` 里 `var()` 的第二参只认 `var()` 引用、`currentcolor`、
+  空；tw-animate-css 烤在包里的机制缺省豁免（`--tw-animation-*` / `--tw-enter-*` /
+  `--tw-exit-*`，及 `--tw-ease,ease` / `--tw-duration,.15s`）。红了多半是升了令牌没重编
+* **颜色类白名单**：色名 ∈ 令牌包映射面的 `--color-*` 条目 ∪ 本件入口 `@theme` 自注册，
+  两边现扫、不手写名单；`transparent` / `inherit` / `current` 与非色形态（`text-sm` 那类
+  字号与对齐）豁免
+
+升 Tailwind 大版本时按令牌包映射面头注的提示重核键名——映射面是出厂主题的镜像，新键与
+改名都在那儿现形。
 
 **组件的共享不用操心。** 官方 registry 与自建 registry 是同一份协议——官方只是第一个
 实现，CLI 拉取时按件自己的 `tailwind.prefix` 改写类名。所以将来真要生态自己的组件源头，
