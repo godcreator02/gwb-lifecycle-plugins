@@ -510,6 +510,11 @@ lucide 图标身上的 `lucide lucide-xxx` 是它烤进 SVG 的身份属性，�
 **窗格不是视口**：响应式用容器查询变体 `@sm:` / `@md:`，不用 `sm:`。外壳给每格的容器是
 容器查询根（shell 0.1.1 起）。
 
+**组件的共享不用操心。** 官方 registry 与自建 registry 是同一份协议——官方只是第一个
+实现，CLI 拉取时按件自己的 `tailwind.prefix` 改写类名。所以将来真要生态自己的组件源头，
+今天这套纪律原样够用、零架构变更；在那之前照 hello 各拉各的。机制、版本化与启动信号
+见件仓文档站「样式与组件」第五节（`gwb-base-plugins/docs-site/content/docs/styles.mdx`）。
+
 # 发版与装机
 
 ```
