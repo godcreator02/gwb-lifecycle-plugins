@@ -107,7 +107,7 @@ ping 通就认，不去比对 pid。这个地址上已经有一个源在服务�
 
 `down` 是**两道核对再杀**：
 
-{/* ref file="../src/daemon.ts" lines="490-518" */}
+{/* ref file="../src/daemon.ts" lines="498-511" */}
 
 第一道是映像名，因为 pid 会被系统复用，一份陈旧的 pid 文件加一次不核对的 kill，杀的就是碰巧拿到这个
 号的另一个进程。第二道是端口持有者，因为映像名只能证明「这是个记录里那种进程」，撞上别人的同名进程
@@ -163,7 +163,7 @@ node 复用时不杀；那份记录的 pid 对不上（老线起的源）就当�
 **先读**：`readStatus`，一眼能看出这块认哪些事实。
 
 **读序**：`config.yaml` 的解析（`urlOf` / `logFileOf`）在最前面，接着是 pid 判活那几个纯函数
-（`parsePidFile` / `formatPidFile` / `isOwnedProcess`），再往下是 `readStatus` / `bringUp` /
+（`parsePid` / `formatOwner` / `isOwnedProcess`），再往下是 `readStatus` / `bringUp` /
 `bringDown` 三条时序。`node-registry-deps.ts` 反过来 import 这个文件里的解析器与类型，方向是单向的。
 
 **可跳过**：`parseTasklist` / `parseNetstat` / `parseSs` 三个解析器是喂给真机器那层的，读逻辑时跳过，
