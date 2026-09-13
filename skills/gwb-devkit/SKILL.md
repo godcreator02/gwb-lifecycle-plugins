@@ -131,7 +131,7 @@ node <devkit 包根>\bin\registry.mjs status D:\unitfolders\26090520zzv\registry
 
 运行时记录落在每个 home 自己的 `runtime.json` 里（`pid` / `startedAt` / `appDir` / `cdp` /
 `mcp`），home 删了它自然也没了。**写它的是内核与 mcp 插件，devkit 只读**：内核开机整份重写，
-mcp 插件绑上端口之后补自己那格。所以**手工起的 home 也有记录**，「说出名字就够得着它」对所有
+mcp 插件绑上端口之后补自己那个字段。所以**手工起的 home 也有记录**，「说出名字就够得着它」对所有
 home 都成立。**热重挂不换 pid**——`plugins.update-all` 那套停用再启用只动条目，内核进程还是
 原来那个，记录照旧作数。
 
@@ -166,8 +166,8 @@ devkit.scaffold {"name":"hello","dir":"D:\\unitfolders\\<单元>\\gwb-hello","ti
 要连着敲**，别铺完骨架先去写内容。
 
 **站没建成不算建仓失败。** 哪个插件没装、哪条命令自己失败，插件那半照样在盘上；回执里
-`docs.note` 写明卡在哪一步、怎么补。回执里有两格才是真相，`docs.built` 说骨架铺没铺、
-`docs.attached` 说六区装没装，`nextSteps` 按这两格分三支，不按你要不要建分。
+`docs.note` 写明卡在哪一步、怎么补。回执里有两个字段才是真相，`docs.built` 说骨架铺没铺、
+`docs.attached` 说六区装没装，`nextSteps` 按这两个字段分三支，不按你要不要建分。
 
 **没装站点插件的时候**：`devkit.scaffold` 不报错、不终止，插件那半正常落盘，回执与生成的
 README 都改口说「站没铺，装了站点插件之后自己跑 `docs-site.create`」。装：
@@ -225,7 +225,7 @@ docfirst.attach  {"dir":"D:\\unitfolders\\<单元>\\<已有仓>\\docs-site"}
 构建期报 `ERR_PACKAGE_IMPORT_NOT_DEFINED` 指着 `@base-ui/react` 里的文件，会把人引去查
 base-ui 的版本，而那儿根本没问题。它们的服务端那半（remark 插件、读盘调 git 的那些）
 走 fumadocs-mdx 的 loader，本来就是 Node 直载、不经打包器，不需要外置。
-`docfirst.attach` 铺出来的 `next.config.mjs` 里那格就是空表，别往里加。
+`docfirst.attach` 铺出来的 `next.config.mjs` 里那个字段就是空表，别往里加。
 
 **二、`oxlint` 的 type-aware 要单独装 `oxlint-tsgolint`。** 少了它 `pnpm lint` 报
 "Failed to find tsgolint executable"。模板里两个都钉了版本。
@@ -250,7 +250,7 @@ base-ui 的版本，而那儿根本没问题。它们的服务端那半（remark
 （占位符出错是最可能的失败）；**目标目录必须还不存在**，存在就拒，不覆盖任何东西。
 模板里留一个认不出的 `{{typo}}` 会当场抛——不然它一路活到别人的 package.json 里，
 那时已经没人知道它本来该是什么。**给模板加了新占位符，`scaffold.ts` 的 `placeholders()`
-就得同时加一格**，不然下一次建仓当场抛。
+就得同时加一条**，不然下一次建仓当场抛。
 
 ## 建完之后
 
@@ -360,7 +360,7 @@ handler 参数是 `unknown`，自己收窄（词汇表包的 `isRecord`）。相
 但 description 里那句形状仍然要有。
 
 **要让 agent 在顶层直接看见这条命令，登记时标 `top: true`**（`GwbCommandDef` 的字段）。
-**标了就是顶层，桥照它渲染，没有运行时名单**：MCP 桥固定开两枚工具
+**标了就是顶层，桥照它渲染，没有运行时名单**：MCP 桥固定开两个工具
 `gwb_command_list` / `gwb_command_run`，外加所有标了 `top: true` 的命令。顶层是**写插件时
 定下来的一件事**，不是装进软件之后再批的——所以默认不标，**标之前先问人**。
 
@@ -451,7 +451,7 @@ dependencies，装进 home 就是第二份实例，Service 身份对不上——
 | 数据      | `gwbData.readDoc/writeDoc`（局部）                      | 要落盘状态就要。存 `<home>/data/<条目末段>/`                                                                                                  |
 | 窗格      | `gwbShell.registerPane` + client 半                  | 要人看得见就要                                                                                                                          |
 | 外部 CLI  | `gwbNodeCli` / `gwbPyCli` register（局部）              | 要给外部脚本一个稳定入口就要。**CLI 形态的东西一律走这儿**，不做总线命令、不进程内调                                                                                   |
-| agent 桥 | 不用做——gwb-mcp 把总线开出去：agent 经 `gwb_command_run` 调你的命令 | 顶层工具只有固定两枚（`gwb_command_list` / `gwb_command_run`）加标了 `top: true` 的，要上顶层见上面第三步                                                   |
+| agent 桥 | 不用做——gwb-mcp 把总线开出去：agent 经 `gwb_command_run` 调你的命令 | 顶层工具只有固定两个（`gwb_command_list` / `gwb_command_run`）加标了 `top: true` 的，要上顶层见上面第三步                                                   |
 
 inject 三种写法：`export const inject = [...]` 硬依赖（缺了不挂）；`static inject = [...]`
 （Service 类）；`ctx.inject([...], fn)` 局部可选（缺了主插件照挂）。
@@ -690,8 +690,8 @@ home 记录里占着的、跳过此刻真有人 listen 的），换了会在回�
 是有价值的：人记得住、日志里对得上、开着的检查器不用换地址。
 
 **端口记在哪**：内核开机把 `pid` / `startedAt` / `appDir` / `cdp` 写进 `<home>/runtime.json`，
-mcp 插件绑上端口之后补一格 `mcp`。之后说出 home 名就够得着它，不用记那个数。**手工起的 home 没带
-那个开关就够不着**——记录里没有 `cdp` 那格，停掉重开一次就有了。记录**进程退了也不删**，
+mcp 插件绑上端口之后补一个 `mcp` 字段。之后说出 home 名就够得着它，不用记那个数。**手工起的 home 没带
+那个开关就够不着**——记录里没有 `cdp` 那个字段，停掉重开一次就有了。记录**进程退了也不删**，
 读的人验活（pid 还在、且那个 pid 真的持着那个端口），下一次开机内核整份重写。
 
 **底座还得手工铺。** `devkit.home.new` 开出来的是个空 home，把基础插件（命令总线、外壳、插件管理、
