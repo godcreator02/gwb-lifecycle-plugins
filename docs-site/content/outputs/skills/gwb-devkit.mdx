@@ -440,7 +440,8 @@ dependencies，装进 home 就是第二份实例，Service 身份对不上——
 
 内核给的面就七个名字（`@godcreator02/gwb-plugin-api` 0.1）：`GwbContext` / `GwbKernelApi` /
 `GwbResult` / `GwbWindowApi` / `ShellBoot` / `requireKernel` / `isRecord`。类型住词汇表包，
-运行时值走服务。`gwbKernel` 上只有三样：`dataDir` / `emit(payload)` / `setShell(url)`。
+运行时值走服务。`gwbKernel` 上只有三样：`dataDir` / `emit(payload)` / `setShell(url)`——
+三样的语义、页面交接与边界，正本在内核仓文档站的「内核契约面」页。
 
 生态里每个插件的服务，**按需取**——不上的面就不写 inject，少一条依赖少一处挂不上的可能：
 
@@ -455,7 +456,21 @@ dependencies，装进 home 就是第二份实例，Service 身份对不上——
 | agent 桥 | 不用做——gwb-mcp 把总线开出去：agent 经 `gwb_command_run` 调你的命令 | 顶层工具只有固定两个（`gwb_command_list` / `gwb_command_run`）加标了 `top: true` 的，要上顶层见上面第三步 |
 
 inject 三种写法：`export const inject = [...]` 硬依赖（缺了不挂）；`static inject = [...]`
-（Service 类）；`ctx.inject([...], fn)` 局部可选（缺了主插件照挂）。
+（Service 类）；`ctx.inject([...], fn)` 局部可选（缺了主插件照挂）。**inject 是等待不是
+建议**：硬依赖写了，服务不在你的插件就**不挂**，cordis 替你等到底——要可选就走局部那行。
+
+## 服务：命名与 provide
+
+- 服务名一律 `gwb` 开头的小驼峰，默认跟插件名对应（`gwb-commands` 插件 → `ctx.gwbCommands`）。
+  例外只有 cordis 官方自己的服务（`timer`、`loader`）——那不是这个生态的东西。全加而不是
+  「通用名才加」是代价不对称：该加没加，将来撞名，所有消费方的 `inject` 与 `ctx.xxx` 跟着
+  改，是破坏性变更；不该加而加了，只是名字长几个字符。顺带白得一条反向信息：看到
+  `ctx.foo` 没前缀，就知道它不是这个生态的。
+- provide 包在 `ctx.effect` 里：`ctx.effect(() => ctx.provide('gwbThing', api))`——插件
+  卸载时服务自动撤销，不包的话名字被已卸载的插件占着。类服务用 `Service` 基类，
+  `super(ctx, 'gwbThing')` 一句就是 provide。
+- **撞名是硬错误**：第二个 provide 同名服务的插件挂不上，日志里明说撞的是谁。这不是要防
+  的坑，是「一个名字一个提供方」的保证。
 
 只为拿到 `declare module 'cordis'` 里那几个名字的类型时，写空 import 就够：
 `import type {} from '@godcreator02/gwb-commands'`。
