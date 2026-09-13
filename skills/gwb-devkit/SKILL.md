@@ -1,15 +1,15 @@
 ---
 name: gwb-devkit
-description: 动手写一个新 gwb 件之前读，打算说「验过了 / 跑通了 / 改动生效了」之前也读。开发套件的全部命令与设置项、建仓（devkit.scaffold，件模板随本包发，站那半两步转给站件与 docfirst 件）、改一版看一版那条内循环（devkit.dev：发开发版、装进隔离 home、重挂、取证）、从建仓到发版装机升 default 的外循环、八条红线、生态里每个件的服务什么时候用、一份新说明书该住哪个件的判据，以及改内核（不是改件）时验机怎么走。
+description: 动手写一个新 gwb 插件之前读，打算说「验过了 / 跑通了 / 改动生效了」之前也读。开发套件的全部命令与设置项、建仓（devkit.scaffold，插件模板随本包发，站那半两步转给站点插件与 docfirst 插件）、改一版看一版那条内循环（devkit.dev：发开发版、装进隔离 home、重挂、取证）、从建仓到发版装机升 default 的外循环、八条红线、生态里每个插件的服务什么时候用、一份新说明书该住哪个插件的判据，以及改内核（不是改插件）时验机怎么走。
 ---
 
 # 这套东西是什么
 
-`@godcreator02/gwb-devkit` 是个**普通的 gwb 件**，装进 home 才有它的命令。它自己就是
+`@godcreator02/gwb-devkit` 是个**普通的 gwb 插件**，装进 home 才有它的命令。它自己就是
 「独立起仓、发本机源、装进 home」这条路走出来的样例——住独立文件夹
 `D:\unitfolders\260908dkv\gwb-devkit`，不在任何 monorepo 里。
 
-它管五件事：**建仓**（`devkit.scaffold`）、**手册**（就是这一份，随件分发经 gwb-skills 挂载）、
+它管五件事：**建仓**（`devkit.scaffold`）、**手册**（就是这一份，随包分发经 gwb-skills 挂载）、
 **本机源的起停**（`registry.*`）、**测试 home 的开收**（`devkit.home.*`）、
 **改一版看一版**（`devkit.dev`）。
 
@@ -17,10 +17,10 @@ description: 动手写一个新 gwb 件之前读，打算说「验过了 / 跑�
 取证、点按拖拽、跑一条工作台命令、问那张页是哪个 home）；另一支 `bin/registry.mjs` 不登记，
 它是起停源那条**不经工作台**的路，逻辑跟 `registry.*` 三条命令是同一份。
 
-**本件没有浏览器半**，没有窗格：它的使用者是 agent，读的是回执。
+**本插件没有浏览器半**，没有窗格：它的使用者是 agent，读的是回执。
 
-**它不管文档站。** 站的一生归站件、站里内容的正确性归 docfirst 件——见「两个件各管什么」。
-本包**不依赖那两个件的任何包**：建仓时要用它们，只按名字在命令总线上找那两条命令。
+**它不管文档站。** 站的一生归站点插件、站里内容的正确性归 docfirst 插件——见「两个插件各管什么」。
+本包**不依赖那两个插件的任何包**：建仓时要用它们，只按名字在命令总线上找那两条命令。
 
 代码分层：`src/index.ts` 只剩接线；建仓的校验渲染落盘在 `scaffold.ts`，registry 起停时序在
 `daemon.ts`，home 的在 `home.ts`，改一版看一版那条链在 `dev.ts`（皆纯机、可单测），真机器的盘与
@@ -49,17 +49,17 @@ description: 动手写一个新 gwb 件之前读，打算说「验过了 / 跑�
 
 **改一版看一版**（内循环，整节在「改一版看一版」）
 
-| 命令           | 参数                                   | 干什么                                                                                              |
-| ------------ | ------------------------------------ | ------------------------------------------------------------------------------------------------ |
-| `devkit.dev` | `{ home, dir, packages?, waitFor? }` | 一条走完：仓根构建 → 发开发版 → 在目标 home 里装那个准确号 → 条目停用再启用重挂 → 整页重载 → 取证。**目标是 `default` 或本件自己所在的 home 都当场拒** |
+| 命令           | 参数                                   | 干什么                                                                                               |
+| ------------ | ------------------------------------ | ------------------------------------------------------------------------------------------------- |
+| `devkit.dev` | `{ home, dir, packages?, waitFor? }` | 一条走完：仓根构建 → 发开发版 → 在目标 home 里装那个准确号 → 条目停用再启用重挂 → 整页重载 → 取证。**目标是 `default` 或本插件自己所在的 home 都当场拒** |
 
 **构建不可跳过，源也不可给**。产物不新就发，发出去的是上一版，而整条链一路绿灯；源这台机器上
 只有一个。想现看一眼某个 home 的条目表，用
 `devkit.cdp {"args":["<名>","cmd","plugins.list"]}`——**那是看，不是验**。验只发生在
 `devkit.dev` 里头那一次，因为只有它手上有「这一趟之前」的日志基线。
 
-**目标只用 home 名指，这一层不收端口**。口是从那个 home 的 `runtime.json` 里查的
-（内核开机写的那份），查的时候顺带验活：pid 还在、且那个 pid 真的持着那个口。给了 `cdp` 当场拒
+**目标只用 home 名指，这一层不收端口**。端口是从那个 home 的 `runtime.json` 里查的
+（内核开机写的那份），查的时候顺带验活：pid 还在、且那个 pid 真的持着那个端口。给了 `cdp` 当场拒
 并告诉你新写法，不静默改道。
 
 **为什么端口不是地址**：它是一个没有语义的数，敲错一位就落在另一个现场，而那个现场会老老实实
@@ -85,24 +85,19 @@ description: 动手写一个新 gwb 件之前读，打算说「验过了 / 跑�
 看见别的文档里还写着它们，那份文档过期了。为什么砍在轨迹卡
 「砍掉没人用的那一半，起停收成一份实现两个入口」里，这儿只列名字。
 
-| 名字                                                                                                           | 从哪一版起没有 | 现在怎么办                                                     |
-| ------------------------------------------------------------------------------------------------------------ | ------- | --------------------------------------------------------- |
-| `registry.log`                                                                                               | 0.6.0   | `registry.up` 起不来时的错话里带着日志文件绝对路径，Read 它                   |
-| `devkit.dev-check`                                                                                           | 0.6.0   | `devkit.cdp {"args":["<名>","cmd","plugins.list"]}`，那是看不是验 |
-| `devkit.home.stop`                                                                                           | 0.6.0   | 并进 `devkit.home.rm`：`force` 连停带删                          |
-| cdp 的 `targets`                                                                                              | 0.6.0   | 连不上时错话里已经带着候选页整张表                                         |
-| cdp 的 `raise`                                                                                                | 0.6.0   | `shot` 自己会抬窗                                              |
-| cdp 的 `probe` / `probes`                                                                                     | 0.6.0   | 并进 `eval`：给路径，文件里写 `(args) => 一张表`                        |
-| `home.new` 的 `cdp` / `skipBuild`、`home.open` 的 `cdp`、`dev` 的 `build` / `registry`、cdp 的 `--repo` / `--homes` | 0.6.0   | 都别给。每一个都是「跳过一道守卫」的机会                                      |
-| 「插件源」窗格                                                                                                      | 0.6.0   | 没有替代：本件没有浏览器半了，状态看 `registry.status`                      |
-| `D:\unitfolders\26090520zzv\registry.ps1`                                                                    | 0.6.0   | 包内 `bin/registry.mjs`，同一份逻辑                               |
-| `devkit.cdp-eval`                                                                                            | 0.4.0   | `eval` 是 `devkit.cdp` 的一个动作                               |
-
-**`devkit.livedoc` 已退役**（0.3.0 起没有这条命令）。它当年跑的是
-`@godcreator02/live-doc-cli` 的可执行；那个包线不再更新，而它的活现在**在仓里发生**
-——`cd <仓>\docs-site` 之后 `pnpm doc` / `pnpm doc:confirm` / `pnpm doc:render`，
-没有总线命令替你转（见「docfirst 的命令怎么调」）。看见别处还写着
-`devkit.livedoc`，那份文档过期了。
+| 名字                                                                                                           | 从哪一版起没有 | 现在怎么办                                                                                                                     |
+| ------------------------------------------------------------------------------------------------------------ | ------- | ------------------------------------------------------------------------------------------------------------------------- |
+| `registry.log`                                                                                               | 0.6.0   | `registry.up` 起不来时的错话里带着日志文件绝对路径，Read 它                                                                                   |
+| `devkit.dev-check`                                                                                           | 0.6.0   | `devkit.cdp {"args":["<名>","cmd","plugins.list"]}`，那是看不是验                                                                 |
+| `devkit.home.stop`                                                                                           | 0.6.0   | 并进 `devkit.home.rm`：`force` 连停带删                                                                                          |
+| cdp 的 `targets`                                                                                              | 0.6.0   | 连不上时错话里已经带着候选页整张表                                                                                                         |
+| cdp 的 `raise`                                                                                                | 0.6.0   | `shot` 自己会抬窗                                                                                                              |
+| cdp 的 `probe` / `probes`                                                                                     | 0.6.0   | 并进 `eval`：给路径，文件里写 `(args) => 一张表`                                                                                        |
+| `home.new` 的 `cdp` / `skipBuild`、`home.open` 的 `cdp`、`dev` 的 `build` / `registry`、cdp 的 `--repo` / `--homes` | 0.6.0   | 都别给。每一个都是「跳过一道守卫」的机会                                                                                                      |
+| 「插件源」窗格                                                                                                      | 0.6.0   | 没有替代：本插件没有浏览器半了，状态看 `registry.status`                                                                                     |
+| `D:\unitfolders\26090520zzv\registry.ps1`                                                                    | 0.6.0   | 包内 `bin/registry.mjs`，同一份逻辑                                                                                               |
+| `devkit.cdp-eval`                                                                                            | 0.4.0   | `eval` 是 `devkit.cdp` 的一个动作                                                                                               |
+| `devkit.livedoc`                                                                                             | 0.3.0   | 核对 / 确认 / 渲染在仓里发生：`cd <仓>\docs-site` 之后 `pnpm doc` / `pnpm doc:confirm` / `pnpm doc:render`，没有总线命令替你转（见「docfirst 的命令怎么调」） |
 
 **本机源**（Verdaccio，`http://localhost:4873/`）
 
@@ -127,21 +122,21 @@ node <devkit 包根>\bin\registry.mjs status D:\unitfolders\26090520zzv\registry
 
 **测试 home**
 
-| 命令                 | 参数                 | 干什么                                                                                                                                                             |
-| ------------------ | ------------------ | --------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `devkit.home.new`  | `{ short }`        | 开一个新 home，名字长成 `<short>-<yyMMddHHmm>`。**先 build 内核**（产物不新就起等于验旧代码，这一步跳不过），**调试口自动挑**（先沿用这个 home 上次那个，被占了才另挑），所以它起的 home 天然按名字够得到。**回执里带着现有 home 清单**，开新那一刻正好清旧的 |
-| `devkit.home.list` | —                  | 列 home 根下全部：名字、谁还在跑、CDP 口、MCP 口                                                                                                                                 |
-| `devkit.home.open` | `{ name }`         | 重开已有的，**不 build**。机器重启之后回到原来那个现场只有这一条路——`home.new` 永远造新目录，件得全部重装一遍                                                                                              |
-| `devkit.home.rm`   | `{ name, force? }` | 删。没在跑的直接删；**还在跑的要 `force`**，那时连停带删（按 `runtime.json` 里的 pid，核对映像名与记录里那个 CDP 端口再杀），停不掉就不删。`default` 是日常那份：不 `force` 不删，**而且它在跑的时候 `force` 也不删**——自己关掉那扇窗再来   |
+| 命令                 | 参数                 | 干什么                                                                                                                                                              |
+| ------------------ | ------------------ | ---------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `devkit.home.new`  | `{ short }`        | 开一个新 home，名字长成 `<short>-<yyMMddHHmm>`。**先 build 内核**（产物不新就起等于验旧代码，这一步跳不过），**调试端口自动挑**（先沿用这个 home 上次那个，被占了才另挑），所以它起的 home 天然按名字够得到。**回执里带着现有 home 清单**，开新那一刻正好清旧的 |
+| `devkit.home.list` | —                  | 列 home 根下全部：名字、谁还在跑、CDP 端口、MCP 端口                                                                                                                                |
+| `devkit.home.open` | `{ name }`         | 重开已有的，**不 build**。机器重启之后回到原来那个现场只有这一条路——`home.new` 永远造新目录，插件得全部重装一遍                                                                                              |
+| `devkit.home.rm`   | `{ name, force? }` | 删。没在跑的直接删；**还在跑的要 `force`**，那时连停带删（按 `runtime.json` 里的 pid，核对映像名与记录里那个 CDP 端口再杀），停不掉就不删。`default` 是日常那份：不 `force` 不删，**而且它在跑的时候 `force` 也不删**——自己关掉那扇窗再来    |
 
 运行时记录落在每个 home 自己的 `runtime.json` 里（`pid` / `startedAt` / `appDir` / `cdp` /
-`mcp`），home 删了它自然也没了。**写它的是内核与 mcp 件，devkit 只读**：内核开机整份重写，
-mcp 件绑上口之后补自己那格。所以**手工起的 home 也有记录**，「说出名字就够得着它」对所有
+`mcp`），home 删了它自然也没了。**写它的是内核与 mcp 插件，devkit 只读**：内核开机整份重写，
+mcp 插件绑上端口之后补自己那格。所以**手工起的 home 也有记录**，「说出名字就够得着它」对所有
 home 都成立。**热重挂不换 pid**——`plugins.update-all` 那套停用再启用只动条目，内核进程还是
 原来那个，记录照旧作数。
 
-**前提**：`devkit.home.*` 要 devkit 本身跑在一个活着的 home 里——它是个件，宿主不在它也起不了。
-一个 home 都没活着的时候只能手工起，见末尾「你改的是内核，不是件」那四步（件作者同样能用）。
+**前提**：`devkit.home.*` 要 devkit 本身跑在一个活着的 home 里——它是个插件，宿主不在它也起不了。
+一个 home 都没活着的时候只能手工起，见末尾「你改的是内核，不是插件」那四步（插件作者同样能用）。
 
 # 建仓：`devkit.scaffold` 一条命令
 
@@ -152,16 +147,16 @@ devkit.scaffold {"name":"hello","dir":"D:\\unitfolders\\<单元>\\gwb-hello","ti
 校验：kebab-case 短名、**目标目录必须还不存在**、认不出的占位符当场抛、**整套先在内存渲染完
 再碰盘**（目录一旦开始写就没有干净的回滚点）。
 
-**默认连文档站一起建，而建站是两步**（0.3.0 起）：
+**默认连文档站一起建，而建站是两步**：
 
-| 步 | 命令                 | 谁提供                                              | 干什么                                                                              |
-| - | ------------------ | ------------------------------------------------ | -------------------------------------------------------------------------------- |
-| 一 | `docs-site.create` | 站件 `@godcreator02/gwb-docs-site`                 | 铺一个标准 fumadocs 骨架：单集合、一条路由、一页 index，端口从邻居没占的里挑                                   |
-| 二 | `docfirst.attach`  | docfirst 件 `@godcreator02/gwb-docfirst-workflow` | 在**刚铺好的**骨架上装配六区：六个集合六条路由、`docfirst.config.mjs`、mdx 接线、投影块与术语组件、名册脚本、`doc` 那几条脚本 |
+| 步 | 命令                 | 谁提供                                               | 干什么                                                                              |
+| - | ------------------ | ------------------------------------------------- | -------------------------------------------------------------------------------- |
+| 一 | `docs-site.create` | 站点插件 `@godcreator02/gwb-docs-site`                | 铺一个标准 fumadocs 骨架：单集合、一条路由、一页 index，端口从邻居没占的里挑                                   |
+| 二 | `docfirst.attach`  | docfirst 插件 `@godcreator02/gwb-docfirst-workflow` | 在**刚铺好的**骨架上装配六区：六个集合六条路由、`docfirst.config.mjs`、mdx 接线、投影块与术语组件、名册脚本、`doc` 那几条脚本 |
 
 两条都认**站目录**（`<仓>\docs-site`），不是仓根——这跟退役的 `livedoc init --dir <仓>`
 正好差一层，别顺手抄旧的。`devkit.scaffold` 把这两步连着跑完；`port` 参数手给的一律
-让给你，不给就是站件挑。`docs: false` 就只建件那半——但别轻易用：人记得事后补命令的
+让给你，不给就是站点插件挑。`docs: false` 就只建插件那半——但别轻易用：人记得事后补命令的
 概率，跟容器里那一堆仓至今没有站是同一个概率。
 
 **只在刚铺好的骨架上装配。** `docfirst.attach` 自己守着这条：站里已经有
@@ -170,26 +165,26 @@ devkit.scaffold {"name":"hello","dir":"D:\\unitfolders\\<单元>\\gwb-hello","ti
 所以整个覆盖是安全的；给一个跑了半年的站自作聪明地 AST 改写不是。**所以补建的两条命令
 要连着敲**，别铺完骨架先去写内容。
 
-**站没建成不算建仓失败。** 哪个件没装、哪条命令自己失败，件那半照样在盘上；回执里
+**站没建成不算建仓失败。** 哪个插件没装、哪条命令自己失败，插件那半照样在盘上；回执里
 `docs.note` 写明卡在哪一步、怎么补。回执里有两格才是真相，`docs.built` 说骨架铺没铺、
 `docs.attached` 说六区装没装，`nextSteps` 按这两格分三支，不按你要不要建分。
 
-**没装站件的时候**：`devkit.scaffold` 不报错、不终止，件那半正常落盘，回执与生成的
-README 都改口说「站没铺，装了站件之后自己跑 `docs-site.create`」。装：
-`plugins.install {"pkg":"@godcreator02/gwb-docs-site"}`，docfirst 件同理。
+**没装站点插件的时候**：`devkit.scaffold` 不报错、不终止，插件那半正常落盘，回执与生成的
+README 都改口说「站没铺，装了站点插件之后自己跑 `docs-site.create`」。装：
+`plugins.install {"pkg":"@godcreator02/gwb-docs-site"}`，docfirst 插件同理。
 
 ## 建出来是什么
 
-一个能直接开工的件仓，两半各有各的依赖：
+一个能直接开工的插件仓，两半各有各的依赖：
 
-| 半            | 装什么                                                                                                                                                                                                                                                                                                        | 模板归谁                                                        |
-| ------------ | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ----------------------------------------------------------- |
-| 仓根           | `package.json`（build / typecheck / lint / test / check / prepublishOnly）、`tsconfig.json` 与 `tsconfig.build.json`（typecheck 带上 tests，构建只吃 src）、`.oxlintrc.json`（type-aware 那套规则）、`vitest.config.ts`（只认仓根 `tests/`，slow 标签留给真起子进程的用例）、`.npmrc`（scope 指本机源）、`src/index.ts`、`tests/plugin.test.ts`、`README.md` | **本包 `template/`**，10 个 `.tpl`                              |
-| `docs-site/` | fumadocs 骨架 + docfirst 的六区                                                                                                                                                                                                                                                                                 | **不归本包**：骨架模板随站件发，六区那套随 `@godcreator02/docfirst-workflow` 发 |
+| 半            | 装什么                                                                                                                                                                                                                                                                                                        | 模板归谁                                                          |
+| ------------ | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------- |
+| 仓根           | `package.json`（build / typecheck / lint / test / check / prepublishOnly）、`tsconfig.json` 与 `tsconfig.build.json`（typecheck 带上 tests，构建只吃 src）、`.oxlintrc.json`（type-aware 那套规则）、`vitest.config.ts`（只认仓根 `tests/`，slow 标签留给真起子进程的用例）、`.npmrc`（scope 指本机源）、`src/index.ts`、`tests/plugin.test.ts`、`README.md` | **本包 `template/`**，10 个 `.tpl`                                |
+| `docs-site/` | fumadocs 骨架 + docfirst 的六区                                                                                                                                                                                                                                                                                 | **不归本包**：骨架模板随站点插件发，六区那套随 `@godcreator02/docfirst-workflow` 发 |
 
-**三者互不依赖。** devkit 不依赖站件、站件不认识 docfirst、docfirst 件不认识站件——
-建仓时那两步是**按名字在命令总线上找**，找不到就跳过那一步。这不是偷懒，是这次拆分
-的判据本身：一个不需要钉码的 fumadocs 站（比如那个 TypeScript 交互教学站）凭什么
+**三者互不依赖。** devkit 不依赖站点插件、站点插件不认识 docfirst、docfirst 插件不认识站点插件——
+建仓时那两步是**按名字在命令总线上找**，找不到就跳过那一步。这不是偷懒，是拆分的
+判据本身：一个不需要钉码的 fumadocs 站（比如那个 TypeScript 交互教学站）凭什么
 先装一套钉码机制。
 
 往**已有仓**里加站是同样两条命令（前置条件正好相反：建新仓要求目标目录还不存在，
@@ -200,7 +195,7 @@ docs-site.create {"dir":"D:\\unitfolders\\<单元>\\<已有仓>\\docs-site","tit
 docfirst.attach  {"dir":"D:\\unitfolders\\<单元>\\<已有仓>\\docs-site"}
 ```
 
-**建完仓第一次 `pnpm doc:render` 之前先看一眼 README。** 件模板落了一份手写的
+**建完仓第一次 `pnpm doc:render` 之前先看一眼 README。** 插件模板落了一份手写的
 `README.md`，而六区里 `content/outputs/` 预置了 `readme.mdx` → `../README.md` 的映射
 ——第一次 render 会**覆盖**那份手写的。`attach` 的输出里就有这句警告。要留内容就先把它
 搬进 `content/outputs/readme.mdx`（那才是正本），再 render。`AGENTS.md` 同理，只是新仓
@@ -218,8 +213,8 @@ docfirst.attach  {"dir":"D:\\unitfolders\\<单元>\\<已有仓>\\docs-site"}
 所有文件，不必记哪几个特殊。**这儿不抄模板正文**——抄一份就是第二份真相，要看就看
 `<devkit 包>/template/` 本身。
 
-**工作台起不来的时候**：三样都没有离线入口（模板在包里，但那三个包都是件、不是 CLI）
-——先按末尾「你改的是内核，不是件」那四步把工作台起起来。
+**工作台起不来的时候**：三样都没有离线入口（模板在包里，但那三个包都是插件、不是 CLI）
+——先按末尾「你改的是内核，不是插件」那四步把工作台起起来。
 
 ## 两条从实跑里换来的
 
@@ -266,37 +261,36 @@ cd <dir>
 pnpm install
 pnpm check          # typecheck + oxlint + vitest，模板自带一条测试
 pnpm build
-文档站那半（自己一套依赖，跟件分开装）：cd <dir>\docs-site && pnpm install && pnpm doc
+文档站那半（自己一套依赖，跟插件那半分开装）：cd <dir>\docs-site && pnpm install && pnpm doc
 先 git init 落第一个提交，再在 docs-site 里 pnpm doc:confirm
 发一版：先抬 package.json 的版本号，再 pnpm publish --registry http://127.0.0.1:4873/ --no-git-checks
 装进 home：调 plugins.install {"pkg":"@godcreator02/gwb-<短名>"}，或手动 pnpm add + 在 cordis.yml 手写 id 条目
 发完就去升 default home（人点「全部更新」或 plugins.update-all）
 ```
 
-# 两个件各管什么
+# 两个插件各管什么
 
-2026-09-10 之前 docfirst 是一条包线，把钉码、轨迹、开发方法论、文档管理模式四样东西挤在
-一起。那天上午拆成三个件，当晚开发件又并了回来——通用纪律那三份说明书要跟钉码写法与六区
-对得上号，分两个仓存两份必然漂而漂了不报错。现在是**两个件，各自独立发版、互不依赖**：
+docfirst 那条线曾拆成三个插件又并回两个——讲通用纪律的说明书要跟钉码写法与六区对得上号，
+分两个仓存两份必然漂而漂了不报错（拆分与并回的了断在 docfirst 仓站的轨迹区）。现在是
+**两个插件，各自独立发版、互不依赖**：
 
-| 件              | 管什么                                                                                                                                                                                                                                                                                                                     | 包                                     |
-| -------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ------------------------------------- |
-| **站件**         | 一个 fumadocs 站的**一生**：铺标准骨架、扫容器根找站、判构建新鲜度、现挑空口起停、到点自动关、一格窗格。**只认 fumadocs**，不认识 docfirst                                                                                                                                                                                                                                 | `@godcreator02/gwb-docs-site`         |
-| **docfirst 件** | 站里**内容的正确性**：在骨架上装配六区与接线（`docfirst.attach`，件里就这一条命令），外加六份说明书——讲机制的三份（`docfirst` 装六区 / `docfirst-docs` 写文档 / `trajectory` 记卡）加讲通用开发纪律的三份（`spec-grill` 先盘问 / `parallel-by-module` 并行派活 / `self-explaining-code` 代码自解释）。核对 / 确认 / 渲染**不经件**——那是仓里的事，agent 自己 cd 过去跑 `pnpm doc`，件对 `@godcreator02/docfirst-workflow` 那个包零依赖 | `@godcreator02/gwb-docfirst-workflow` |
+| 插件              | 管什么                                                                                                                                                                                                                                                                                                                        | 包                                     |
+| --------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ------------------------------------- |
+| **站点插件**        | 一个 fumadocs 站的**一生**：铺标准骨架、扫容器根找站、判构建新鲜度、现挑空端口起停、到点自动关、一个窗格。**只认 fumadocs**，不认识 docfirst                                                                                                                                                                                                                                   | `@godcreator02/gwb-docs-site`         |
+| **docfirst 插件** | 站里**内容的正确性**：在骨架上装配六区与接线（`docfirst.attach`，插件里就这一条命令），外加六份说明书——讲机制的三份（`docfirst` 装六区 / `docfirst-docs` 写文档 / `trajectory` 记卡）加讲通用开发纪律的三份（`spec-grill` 先盘问 / `parallel-by-module` 并行派活 / `self-explaining-code` 代码自解释）。核对 / 确认 / 渲染**不经插件**——那是仓里的事，agent 自己 cd 过去跑 `pnpm doc`，插件对 `@godcreator02/docfirst-workflow` 那个包零依赖 | `@godcreator02/gwb-docfirst-workflow` |
 
-docfirst 的包线同时塌成了**一个包** `@godcreator02/docfirst-workflow`（原来的 `-core` / `-project` /
-`-cli` / `-format-fumadocs` 四个并成它，`-format-md` 与 `-format-html` 删掉），轨迹另一个包
+docfirst 的包是两个：`@godcreator02/docfirst-workflow` 与轨迹包
 `@godcreator02/docfirst-trajectory`。**旧的那批 `@godcreator02/live-doc-*` 不再更新**——看见
 哪儿还写着旧包名或 `livedoc init`，那份文档过期了。
 
 **装机面不一样**：`@godcreator02/docfirst-workflow` 是 npm 包，要装进**各仓**的 `node_modules`
-（站构建 import 它的接线、门禁跑它的 check）；两个件只装进 **home**，各仓的依赖树里
+（站构建 import 它的接线、门禁跑它的 check）；两个插件只装进 **home**，各仓的依赖树里
 不该出现它们。
 
 ## docfirst 的命令怎么调
 
 **总线上只有 `docfirst.attach` 一条**（装六区，见「建仓」那节）。核对 / 确认 / 渲染
-**没有总线命令**，件也不替你转发、不起子进程——判据是「这件事在哪儿发生」：那三件事
+**没有总线命令**，插件也不替你转发、不起子进程——判据是「这件事在哪儿发生」：那三件事
 要读仓里的源码、调仓里的 git、写仓里的 `.ledger.json`，都是**仓**里的事，所以
 `cd` 过去在仓里跑：
 
@@ -313,27 +307,27 @@ pnpm doc:render     # docfirst render：机读版与挂了 outputs 的生成物�
 跑这几条要仓的 `docs-site` 里装了 `@godcreator02/docfirst-workflow`（它带 `docfirst`
 这个可执行）；`attach` 铺出来的 `package.json` 里那几条脚本就是上面这三条。
 
-别在件里进程内 import 一个 CLI——CLI 形态的东西一律经 `gwbNodeCli` / `gwbPyCli` 登记，
+别在插件里进程内 import 一个 CLI——CLI 形态的东西一律经 `gwbNodeCli` / `gwbPyCli` 登记，
 不做总线命令、不进程内调。
 
-## 写一个新件时，说明书该住哪个件
+## 写一个新插件时，说明书该住哪个插件
 
 **知识跟着它描述的代码走。** 判据只有一句：**这份说明书会不会因为某行代码改动而过期？**
 
 * 会 → 它必须跟那段代码**同仓同提交**，随那个包发。「六区怎么写」在六区从六个变七个的
   那一刻当场过期，所以它跟六区同仓
-* 不会（换个生态照样成立，比如「接到需求先盘问」）→ 它不描述任何代码，归**开发件**
+* 不会（换个生态照样成立，比如「接到需求先盘问」）→ 它不描述任何代码，归讲通用纪律的
+  那三份一起走——它们随 docfirst 插件发
 * 一份说明书点名了某个宿主能力（比如 `AskUserQuestion`）而不是某段代码 → 它是宿主的
-  纪律，住宿主那边（总控台的 `.claude/skills/`），不随件
+  纪律，住宿主那边（总控台的 `.claude/skills/`），不随插件
 
-**说明书是全局单一命名空间。** 两个件挂同名的那份，后来的直接不挂、只留一行警告——
-症状是 agent 读到的可能是旧那份、照着做但做错了，最难查。**所以别替别的件代挂它的
-说明书**：本件 0.2.x 曾经代挂 docfirst 那两份（`docfirst-docs` / `trajectory`），
-0.3.0 删了——docfirst 件现在自己挂，而本件依赖树里那份是不再更新的旧版。
+**说明书是全局单一命名空间。** 两个插件挂同名的那份，后来的直接不挂、只留一行警告——
+症状是 agent 读到的可能是旧那份、照着做但做错了，最难查。**所以别替别的插件代挂它的
+说明书**：知识随插件走，由它描述的代码所在仓的插件自己挂。
 
 # 从哪儿起手
 
-写一个 gwb 件，只有一条路：**独立起一个仓（或文件夹），发一版进本机 registry，装进
+写一个 gwb 插件，只有一条路：**独立起一个仓（或文件夹），发一版进本机 registry，装进
 home**。不存在「把源码摆在内核仓旁边跑起来」的近路——近路绕过了安装这个动作，
 `exports` 漏一个子路径、`files` 少带一个目录，近路上都不显形，装出来才炸。
 
@@ -347,7 +341,7 @@ home**。不存在「把源码摆在内核仓旁边跑起来」的近路——�
 `[host] 挂上 gwb-<短名>` 出来再往下写。
 
 **三、要给人或 agent 调的能力，挂到命令总线上。** 用**局部注入**（可选依赖写法——
-总线件不在，你的件照常挂）：
+总线插件不在，你的插件照常挂）：
 
 ```ts
 ctx.inject(['gwbCommands'], (c) => {
@@ -365,9 +359,9 @@ handler 参数是 `unknown`，自己收窄（词汇表包的 `isRecord`）。相
 参数复杂到一行写不下的，回执里带一份完整说明（错误即文档，`devkit.scaffold` 就是这么干的），
 但 description 里那句形状仍然要有。
 
-**要让 agent 在顶层直接看见这条命令，登记时标 `top: true`**（`GwbCommandDef` 的字段，
-命令总线 0.2.0 起）。**标了就是顶层，桥照它渲染，没有运行时名单**：MCP 桥固定开两枚工具
-`gwb_command_list` / `gwb_command_run`，外加所有标了 `top: true` 的命令。顶层是**写件时
+**要让 agent 在顶层直接看见这条命令，登记时标 `top: true`**（`GwbCommandDef` 的字段）。
+**标了就是顶层，桥照它渲染，没有运行时名单**：MCP 桥固定开两枚工具
+`gwb_command_list` / `gwb_command_run`，外加所有标了 `top: true` 的命令。顶层是**写插件时
 定下来的一件事**，不是装进软件之后再批的——所以默认不标，**标之前先问人**。
 
 **四、发一版。** 先抬 `package.json` 的版本号，再：
@@ -377,7 +371,7 @@ pnpm publish --registry http://127.0.0.1:4873/ --no-git-checks
 ```
 
 **同一个版本号永不重发**；发之前先问一句这个号在不在源上。源没起就发不了也装不了
-（`registry.up`，或那个 ps1 旁路）。
+（`registry.up`，或包内那支 `bin/registry.mjs`）。
 
 **五、装进 home 看真效果。** 两条路：
 
@@ -388,12 +382,12 @@ pnpm publish --registry http://127.0.0.1:4873/ --no-git-checks
 
 **六、全套验一遍**（见「验机」节）。
 
-**七、上市场——不用做。** 市场页（`plugins` 件的市场标签）**直接搜本机源**
+**七、上市场——不用做。** 市场页（`plugins` 插件的市场标签）**直接搜本机源**
 （`plugins.search`，基址由 node 半从 pnpm 配置解析：装从哪条源来，搜就到哪去），
 发上去就搜得到。没有白名单要登记——早先手册写的 `market/src/catalog.ts` 是老写法，
 那个文件不存在。
 
-已装的件市场不给「再装一份」按钮：多数件是服务提供方，第二条条目会抛
+已装的插件市场不给「再装一份」按钮：多数插件是服务提供方，第二条条目会抛
 `service ... has been registered` 根本挂不上。真要第二条走 `plugins.add-entry`。
 
 # 先写测试
@@ -406,7 +400,7 @@ pnpm publish --registry http://127.0.0.1:4873/ --no-git-checks
 devkit 自己就是这么分的——`scaffold.ts` / `daemon.ts` / `home.ts` 纯机可单测，真机器的盘
 与进程另起两个 `node-*-deps.ts`。
 
-模板建出来的仓自带 `vitest` 与一条起手测试（`tests/plugin.test.ts`：件的身份对不对），
+模板建出来的仓自带 `vitest` 与一条起手测试（`tests/plugin.test.ts`：插件的身份对不对），
 门禁是 `pnpm check`（typecheck + oxlint + vitest）。真起子进程的用例**必打 `slow` 标签**，
 日常 `pnpm test` 用 `--tags-filter=!slow` 跳过它们。
 
@@ -418,7 +412,7 @@ devkit 自己就是这么分的——`scaffold.ts` / `daemon.ts` / `home.ts` 纯
 `workspace:`。（本地包经 `file:` 装进 home 是**安装动作**，不算——但发版上架仍是正路。）
 
 **二、cordis 不写进 dependencies，写 dev。** 它只在 `apply` 的参数类型里用到；写进
-dependencies，装进 home 就是第二份实例，Service 身份对不上——件挂不上，报错完全不指根因。
+dependencies，装进 home 就是第二份实例，Service 身份对不上——插件挂不上，报错完全不指根因。
 
 **三、依赖三档。** 运行时真 import → `peer`；只 import type 但**出现在导出的类型面**
 → `peer`（消费方必须解析得到）；只在实现内部用类型、不占导出面 → `dev`。
@@ -431,7 +425,7 @@ dependencies，装进 home 就是第二份实例，Service 身份对不上——
 写进去只多一处挂不上的可能。
 
 **六、`prepublishOnly` 别漏。** `pnpm typecheck` 不构建；少了这条，publish 把上一版的
-`dist/` 原样发出去而且一声不吭——现象是「件挂上了但新写的东西全没生效」。
+`dist/` 原样发出去而且一声不吭——现象是「插件挂上了但新写的东西全没生效」。
 （模板里已经有了，别删。）
 
 **七、类的私有字段用 TS `private` 不用 `#`。** cordis 给消费者派生 `Object.create(this)`，
@@ -447,35 +441,35 @@ dependencies，装进 home 就是第二份实例，Service 身份对不上——
 `GwbResult` / `GwbWindowApi` / `ShellBoot` / `requireKernel` / `isRecord`。类型住词汇表包，
 运行时值走服务。`gwbKernel` 上只有三样：`dataDir` / `emit(payload)` / `setShell(url)`。
 
-生态里每个件的服务，**按需取**——不上的面就不写 inject，少一条依赖少一处挂不上的可能：
+生态里每个插件的服务，**按需取**——不上的面就不写 inject，少一条依赖少一处挂不上的可能：
 
-| 面       | 怎么拿                                                 | 什么时候要                                                                                                                           |
-| ------- | --------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------- |
-| 命令总线    | `inject: ['gwbCommands']` → `register`              | 能力要被调就要（几乎一定）。界面、agent 走的是同一张表                                                                                                  |
-| 说明书     | `skills/` 目录 + `gwbSkills.register`（局部）             | 有多步流程或坑要讲给 agent 就要。**只挂自己那份**——见上一节的判据与那条撞名的坑。文档写什么读 skill「docfirst-docs」、记轨迹卡读「trajectory」，那两份由 docfirst 件自己挂                 |
-| 设置      | `gwbSettings.define`（局部）→ `get`/`set`               | **件的配置一律走这里，不吃 `cordis.yml` 的 `config`**。类型 `string` / `number` / `boolean` / `secret`。值跟条目走（分区是条目 id 的末段），`shared: true` 才落公共区 |
-| 数据      | `gwbData.readDoc/writeDoc`（局部）                      | 要落盘状态就要。存 `<home>/data/<条目末段>/`                                                                                                 |
-| 窗格      | `gwbShell.registerPane` + client 半                  | 要人看得见就要                                                                                                                         |
-| 外部 CLI  | `gwbNodeCli` / `gwbPyCli` register（局部）              | 要给外部脚本一个稳定入口就要。**CLI 形态的东西一律走这儿**，不做总线命令、不进程内调                                                                                  |
-| agent 桥 | 不用做——gwb-mcp 把总线开出去：agent 经 `gwb_command_run` 调你的命令 | 顶层工具只有固定两枚（`gwb_command_list` / `gwb_command_run`）加标了 `top: true` 的，要上顶层见上面第三步                                                  |
+| 面       | 怎么拿                                                 | 什么时候要                                                                                                                            |
+| ------- | --------------------------------------------------- | -------------------------------------------------------------------------------------------------------------------------------- |
+| 命令总线    | `inject: ['gwbCommands']` → `register`              | 能力要被调就要（几乎一定）。界面、agent 走的是同一张表                                                                                                   |
+| 说明书     | `skills/` 目录 + `gwbSkills.register`（局部）             | 有多步流程或坑要讲给 agent 就要。**只挂自己那份**——见上一节的判据与那条撞名的坑。文档写什么读 skill「docfirst-docs」、记轨迹卡读「trajectory」，那两份由 docfirst 插件自己挂                 |
+| 设置      | `gwbSettings.define`（局部）→ `get`/`set`               | **插件的配置一律走这里，不吃 `cordis.yml` 的 `config`**。类型 `string` / `number` / `boolean` / `secret`。值跟条目走（分区是条目 id 的末段），`shared: true` 才落公共区 |
+| 数据      | `gwbData.readDoc/writeDoc`（局部）                      | 要落盘状态就要。存 `<home>/data/<条目末段>/`                                                                                                  |
+| 窗格      | `gwbShell.registerPane` + client 半                  | 要人看得见就要                                                                                                                          |
+| 外部 CLI  | `gwbNodeCli` / `gwbPyCli` register（局部）              | 要给外部脚本一个稳定入口就要。**CLI 形态的东西一律走这儿**，不做总线命令、不进程内调                                                                                   |
+| agent 桥 | 不用做——gwb-mcp 把总线开出去：agent 经 `gwb_command_run` 调你的命令 | 顶层工具只有固定两枚（`gwb_command_list` / `gwb_command_run`）加标了 `top: true` 的，要上顶层见上面第三步                                                   |
 
 inject 三种写法：`export const inject = [...]` 硬依赖（缺了不挂）；`static inject = [...]`
-（Service 类）；`ctx.inject([...], fn)` 局部可选（缺了主件照挂）。
+（Service 类）；`ctx.inject([...], fn)` 局部可选（缺了主插件照挂）。
 
 只为拿到 `declare module 'cordis'` 里那几个名字的类型时，写空 import 就够：
 `import type {} from '@godcreator02/gwb-commands'`。
 
-**件不吃 `cordis.yml` 的 `config`。** 一条条目除了 `id` 就没别的要写的了——可改的东西一律
+**插件不吃 `cordis.yml` 的 `config`。** 一条条目除了 `id` 就没别的要写的了——可改的东西一律
 `gwbSettings.define` 出来，人在「设置」里改、`get` 现读。理由是一份配置只该有一个正本：
 写在 yml 里的那份界面看不见、agent 也不知道有它，人只能靠记得。
 
 条目重挂（cordis 的 reconfigure）时模块不重载、只重跑 `apply`：要「重挂就该清掉」的状态放
 `apply` 里，要「只要没换代码就该留着」的放模块顶层——放错地方两种都不报错。
 
-# 带界面的件：浏览器半与样式
+# 带界面的插件：浏览器半与样式
 
-样板是件仓的 `plugins/hello`（`D:\unitfolders\26090709qzp\gwb-base-plugins`，0.2.0 起），
-新件照它抄。要点：
+样板是插件仓的 `plugins/hello`（`D:\unitfolders\26090709qzp\gwb-base-plugins`），
+新插件照它抄。要点：
 
 **浏览器半**：`src/client/index.tsx` 导出 `mountPane(args, container) => { dispose() }`；
 esbuild 打成 `dist/client.js`，只把 `react` / `react/jsx-runtime` / `react-dom` /
@@ -483,7 +477,7 @@ esbuild 打成 `dist/client.js`，只把 `react` / `react/jsx-runtime` / `react-
 外置错一个就是运行期 `Failed to resolve module specifier`。node 半注册窗格时自报
 `client` 与 `style` 的 `file://` 地址，从自己的 `import.meta.url` 算。
 
-**样式围栏是 Tailwind 前缀，不是选择器 scope。** 件自己就是一个完整的 Tailwind 入口，
+**样式围栏是 Tailwind 前缀，不是选择器 scope。** 插件自己就是一个完整的 Tailwind 入口，
 `src/client/styles.css` 五行：
 
 ```css
@@ -495,13 +489,13 @@ esbuild 打成 `dist/client.js`，只把 `react` / `react/jsx-runtime` / `react-
 ```
 
 产物 `tailwindcss -i src/client/styles.css -o dist/style.css`（`@tailwindcss/cli`）。类名一律
-`<短名>:flex` 这种：规则全页有效但只匹配本件元素，围栏来自名字唯一，不靠 DOM 祖先关系。
+`<短名>:flex` 这种：规则全页有效但只匹配本插件元素，围栏来自名字唯一，不靠 DOM 祖先关系。
 所以弹层 portal 到 body 照样有样式（shadcn 组件**不打任何 Portal 补丁**），容器上的
 `data-gwb-plugin` 只是身份标记。`components.json` 的 `tailwind.prefix` 填短名，
 `shadcn add` 拉下来的组件类名自带前缀；`cn` 包默认就能正确合并带前缀的类，不用配。
 
-第二行引的令牌映射面，`@godcreator02/gwb-tokens&#x60; **≥0.1.1** 起把件里用到的 Tailwind 出厂键
-（间距、字重字距、白黑、八档阴影、缓动、过渡、容器断点）全部接管到页面变量。件依赖声明
+第二行引的令牌映射面，`@godcreator02/gwb-tokens&#x60; **≥0.1.1** 起把插件里用到的 Tailwind 出厂键
+（间距、字重字距、白黑、八档阴影、缓动、过渡、容器断点）全部接管到页面变量。插件依赖声明
 `>=0.1.1` 重编后，`dist/style.css` **零字面 fallback**——`calc(var(--<短名>-spacing, 0.25rem)*4)`
 编成 `calc(var(--gwb-spacing)*4)`、`text-white` 查 `--gwb-white`，主题值整页只剩令牌表一份。
 
@@ -514,37 +508,37 @@ esbuild 打成 `dist/client.js`，只把 `react` / `react/jsx-runtime` / `react-
 （`--<短名>-spacing`），令牌只能经映射面送值。
 lucide 图标身上的 `lucide lucide-xxx` 是它烤进 SVG 的身份属性，不是类名泄漏，别去管。
 
-**窗格不是视口**：响应式用容器查询变体 `@sm:` / `@md:`，不用 `sm:`。外壳给每格的容器是
+**窗格不是视口**：响应式用容器查询变体 `@sm:` / `@md:`，不用 `sm:`。外壳给每个窗格的容器是
 容器查询根（shell 0.1.1 起）。
 
 **颜色三条纪律**（判据与规矩正本：UI 平台仓文档站「令牌与颜色：共享规则」，
 `D:\unitfolders\26091217uiz\gwb-ui-plugins\docs-site\content\docs\tokens.mdx`；这儿只写操作要点）：
 
-* **语义色一律语义类**，含 `warning`（0.1.1 起的新键，亮暗两套）。不许拿 Tailwind 内置
+* **语义色一律语义类**，含 `warning`（亮暗两套，0.1.1 起）。不许拿 Tailwind 内置
   调色板类（`amber-600` 这种）表达语义色，也不许写死颜色字面量
-* **纯装饰色走件域令牌两段制**，值只住一处：值段 `src/client/tokens.css`（变量带件前缀挂
+* **纯装饰色走插件域令牌两段制**，值只住一处：值段 `src/client/tokens.css`（变量带插件前缀挂
   `:root`——挂 `:root` 而非容器类，弹层 portal 到哪都读得到；值桥接优先如 `var(--accent)`，
-  `.dark` 里可覆盖），映射段在样式入口尾部 `@theme inline` 注册件域工具类。活例：baseui 的
+  `.dark` 里可覆盖），映射段在样式入口尾部 `@theme inline` 注册插件域工具类。活例：baseui 的
   日志来源点色
 * **一次性装饰**可以任意值语法明示写死（`bg-[#abc]`）——写死要看得见是写死
 
-件域两段制的最小形状：
+插件域两段制的最小形状：
 
 ```css
-/* 值段 src/client/tokens.css：变量带件前缀挂 :root */
+/* 值段 src/client/tokens.css：变量带插件前缀挂 :root */
 :root { --<短名>-src-plugin: oklch(0.623 0.214 259.815); }
 
 /* 映射段 src/client/styles.css 尾部：注册 <短名>:bg-src-plugin 这一族 */
 @theme inline { --color-src-plugin: var(--<短名>-src-plugin); }
 ```
 
-**产物守卫两条新断言**（2026-09-12 起），新件照 hello 或 baseui 的 `tests/artifact.test.ts`
+**产物守卫两条断言**，新插件照 hello 或 baseui 的 `tests/artifact.test.ts`
 抄：
 
 * **零字面 fallback**：`dist/style.css` 里 `var()` 的第二参只认 `var()` 引用、`currentcolor`、
   空；tw-animate-css 烤在包里的机制缺省豁免（`--tw-animation-*` / `--tw-enter-*` /
   `--tw-exit-*`，及 `--tw-ease,ease` / `--tw-duration,.15s`）。红了多半是升了令牌没重编
-* **颜色类白名单**：色名 ∈ 令牌包映射面的 `--color-*` 条目 ∪ 本件入口 `@theme` 自注册，
+* **颜色类白名单**：色名 ∈ 令牌包映射面的 `--color-*` 条目 ∪ 本插件入口 `@theme` 自注册，
   两边现扫、不手写名单；`transparent` / `inherit` / `current` 与非色形态（`text-sm` 那类
   字号与对齐）豁免
 
@@ -552,9 +546,9 @@ lucide 图标身上的 `lucide lucide-xxx` 是它烤进 SVG 的身份属性，�
 改名都在那儿现形。
 
 **组件的共享不用操心。** 官方 registry 与自建 registry 是同一份协议——官方只是第一个
-实现，CLI 拉取时按件自己的 `tailwind.prefix` 改写类名。所以将来真要生态自己的组件源头，
+实现，CLI 拉取时按插件自己的 `tailwind.prefix` 改写类名。所以将来真要生态自己的组件源头，
 今天这套纪律原样够用、零架构变更；在那之前照 hello 各拉各的。机制、版本化与启动信号
-见件仓文档站「样式与组件」第五节（`gwb-base-plugins/docs-site/content/docs/styles.mdx`）。
+见插件仓文档站「样式与组件」第五节（`gwb-base-plugins/docs-site/content/docs/styles.mdx`）。
 
 # 发版与装机
 
@@ -595,7 +589,7 @@ minimumReleaseAgeExclude:
    直接升日常那份，跳过了这一步
 2. **发本机 registry**（`pnpm publish`，上一节）
 3. **升 default home**：人在插件窗格点「全部更新」，或 agent 调 `plugins.update-all`。
-   **新件第一次装**不走这条（它只升已装的），走 `plugins.install {"pkg":"<包名>"}`，
+   **新插件第一次装**不走这条（它只升已装的），走 `plugins.install {"pkg":"<包名>"}`，
    装完 `/mcp` 重连——顶层工具清单与 resources 列表都是连接时的快照
 
 **不升的代价**：说明书与命令都停在旧版，而 `gwb-skills` 的「正文现读盘」只对**装进 home
@@ -605,9 +599,9 @@ minimumReleaseAgeExclude:
 
 ## 一键更新是怎么走的
 
-发完（可能是好几个件的好几版）之后，把 home 里那份升上来只有一个动作：人在插件窗格点
+发完（可能是好几个插件的好几版）之后，把 home 里那份升上来只有一个动作：人在插件窗格点
 那颗\*\*「全部更新」**键，或 agent 经 MCP 调 `plugins.update-all`（无参数）。它一条命令走完：
-查新版本 → 一次 `pnpm` 全升 → 升了的条目**逐条停用再启用\*\*（即热重挂，`plugins` 件自己
+查新版本 → 一次 `pnpm` 全升 → 升了的条目**逐条停用再启用\*\*（即热重挂，`plugins` 插件自己
 排最后）→ 调 `shell.reload` 整页重载。回执按包报 `from → to`，并逐条说挂上了没有。
 
 **不重启工作台，也没有回退。** 升坏了就是升坏了，往前修（再发一版再升），别指望它退回去。
@@ -615,7 +609,7 @@ minimumReleaseAgeExclude:
 **升到 `gwb-mcp` 自己时，经 MCP 触发的那条回执会丢**——桥跟着它一起重挂，调用方等不到返回。
 那不是失败：重连之后调 `plugins.list` 核对谁挂上了、版本对不对，别当它没升成又升一次。
 
-**升级与重挂在同一条命令里，中间别插别的命令。** 那一段时间里件正一个个下线上线，
+**升级与重挂在同一条命令里，中间别插别的命令。** 那一段时间里插件正一个个下线上线，
 这时候调任何别的命令，看到的都是半截状态。
 
 整页重载单独也能要：`shell.reload`（无参数）。
@@ -641,7 +635,7 @@ devkit.dev {"home":"<home 名>","dir":"D:\\unitfolders\\<单元>\\<仓>","packag
 
 `packages` 给的是**相对仓根**的包目录，**按依赖顺序**（被依赖的排前面）；一仓一包一插件的仓不用给。
 同一趟里互相依赖的包，依赖会被钉成这一趟那几个准确号——`>=` 那类范围认不到 dev 号，不钉就是
-「新件配旧库」。
+「新插件配旧库」。
 
 ## 五道守卫，每道都有人撞过
 
@@ -650,8 +644,8 @@ devkit.dev {"home":"<home 名>","dir":"D:\\unitfolders\\<单元>\\<仓>","packag
    就会把一趟改动静默推给另一个隔离 home
 2. **目标是 `default` 就拒。** 开发版的号看着跟正式版没两样，进了日常那份 home 就悄悄换了代码，
    而 `plugins.list` 上一点异常都看不出来
-3. **目标是本件自己所在的 home 就拒。** 停用条目那一下会把正在跑的这条命令自己停掉。
-   **换 devkit 自己走外循环**：发正式版，再 `plugins.update-all`（那条是 plugins 件在调，
+3. **目标是本插件自己所在的 home 就拒。** 停用条目那一下会把正在跑的这条命令自己停掉。
+   **换 devkit 自己走外循环**：发正式版，再 `plugins.update-all`（那条是 plugins 插件在调，
    活得过 devkit 的重挂）
 4. **产物不全就不发。** 照 `package.json` 的 `files` 白名单问，不另列一份名单。否定式
    （`!py/**/__pycache__`）与通配不算产物；`files` 里有**通配的正条目**时这条链当场拒，
@@ -660,7 +654,7 @@ devkit.dev {"home":"<home 名>","dir":"D:\\unitfolders\\<单元>\\<仓>","packag
 
 ## 为什么不覆盖 dist
 
-覆盖 `dist/` 到 home 的 `node_modules` 快四倍（十几秒对一分钟），**两条都撞过，别走**：
+覆盖 `dist/` 到 home 的 `node_modules` 快四倍（十几秒对一分钟），**两条都别走**：
 
 * **写穿 pnpm 的全局仓。** home 里那些文件是**硬链接**到 `AppData\Local\pnpm\store` 的，覆盖写是
   就地截断重写，写的是共享那个 inode。于是 store 里按原始内容哈希命名的文件，内容变成了你的开发
@@ -669,8 +663,8 @@ devkit.dev {"home":"<home 名>","dir":"D:\\unitfolders\\<单元>\\<仓>","packag
   缓存里那份旧的。浏览器半（client.js、样式表）换得动，node 半（命令、引擎、窗格注册、招募）
   换不动——**而换不动的那一半，也就验不到**
 
-加戳 import（`import(url + '?v=' + 戳)`）是第三条路，内核仓量过账：不可逆泄漏，量级约等于件 dist
-体积的两倍，Node 24 上没有清模块图的口子。也别走。
+加戳 import（`import(url + '?v=' + 戳)`）是第三条路：不可逆泄漏，量级约等于插件 dist
+体积的两倍，Node 24 上没有清模块图的路子。也别走。
 
 **版本号必须变，是因为版本变了路径才变**，重挂那一下 Node 才会真的重新求值。这不是发版仪式，
 是这条链的机制本身。
@@ -680,30 +674,30 @@ devkit.dev {"home":"<home 名>","dir":"D:\\unitfolders\\<单元>\\<仓>","packag
 隔离 home 起的时候**两个 Chromium 开关缺一不可**：
 
 ```
---remote-debugging-port=<口>  --disable-backgrounding-occluded-windows
+--remote-debugging-port=<端口>  --disable-backgrounding-occluded-windows
 ```
 
-前一个开门；后一个是被真窗口撞出来的：窗口被别的窗口整个盖住时 Chromium 判定不可见、停止产帧，
+前一个开调试端口；后一个：窗口被别的窗口整个盖住时 Chromium 判定不可见、停止产帧，
 截图拿到陈旧帧、`requestAnimationFrame` 一次都不回。**发事件从来不需要窗口在前台**，看画面才
 需要它没被判定隐藏。
 
-**`devkit.home.new` / `open` 自动定那个口**，定不出来就不起。所以它起的 home 天然按名字够得到。
-**这两条也不收人给的口**：自动那条比手给的准，收下一个手给的，剩下的用法就只有「敲错一位落在
-别人口上」。
+**`devkit.home.new` / `open` 自动定那个端口**，定不出来就不起。所以它起的 home 天然按名字够得到。
+**这两条也不收人给的端口**：自动那条比手给的准，收下一个手给的，剩下的用法就只有「敲错一位落在
+别人的端口上」。
 
-自动那条**先沿用这个 home 上次那个口**（记录里的 `cdp`），被别人占了才另挑（另挑时跳过别的
-home 记录里占着的、跳过此刻真有人 listen 的），换了会在回执的 `cdpNote` 里说一句。口稳定下来
+自动那条**先沿用这个 home 上次那个端口**（记录里的 `cdp`），被别人占了才另挑（另挑时跳过别的
+home 记录里占着的、跳过此刻真有人 listen 的），换了会在回执的 `cdpNote` 里说一句。端口稳定下来
 是有价值的：人记得住、日志里对得上、开着的检查器不用换地址。
 
-**口记在哪**：内核开机把 `pid` / `startedAt` / `appDir` / `cdp` 写进 `<home>/runtime.json`，
-mcp 件绑上口之后补一格 `mcp`。之后说出 home 名就够得着它，不用记那个数。**手工起的 home 没带
+**端口记在哪**：内核开机把 `pid` / `startedAt` / `appDir` / `cdp` 写进 `<home>/runtime.json`，
+mcp 插件绑上端口之后补一格 `mcp`。之后说出 home 名就够得着它，不用记那个数。**手工起的 home 没带
 那个开关就够不着**——记录里没有 `cdp` 那格，停掉重开一次就有了。记录**进程退了也不删**，
-读的人验活（pid 还在、且那个 pid 真的持着那个口），下一次开机内核整份重写。
+读的人验活（pid 还在、且那个 pid 真的持着那个端口），下一次开机内核整份重写。
 
-**底座还得手工铺。** `devkit.home.new` 开出来的是个空 home，把基础件（命令总线、外壳、插件管理、
-数据那几个）与被测的件装进去这一步**没有命令**，自己 `pnpm add` 加写 `cordis.yml` 条目。
-第一次装一个件用 `plugins.install`（它会顺带落条目）；**已经装过的包别再用它**，它对已装的包也
-照样新建一条条目，同一个件挂两遍。这条链因此走 `pnpm add` 加已有条目。
+**底座还得手工铺。** `devkit.home.new` 开出来的是个空 home，把基础插件（命令总线、外壳、插件管理、
+数据那几个）与被测的插件装进去这一步**没有命令**，自己 `pnpm add` 加写 `cordis.yml` 条目。
+第一次装一个插件用 `plugins.install`（它会顺带落条目）；**已经装过的包别再用它**，它对已装的包也
+照样新建一条条目，同一个插件挂两遍。这条链因此走 `pnpm add` 加已有条目。
 
 **开发版会攒。** 本机源与 pnpm 仓里留下一堆一次性版本，攒多了跑一次 `pnpm store prune`。
 
@@ -713,7 +707,7 @@ mcp 件绑上口之后补一格 `mcp`。之后说出 home 名就够得着它，�
 `<home>\gwb.log`。**这是看，不是验**：单看一眼时没有「这一趟之前」的基线，日志里那些 error
 可能是几天前的。判定只发生在 `devkit.dev` 里头那一次，它手上有基线。
 
-（`devkit.dev-check` 0.6.0 起没有这条命令，见「已退役的那些名字」。）
+（`devkit.dev-check` 已没有这条命令，见「已退役的那些名字」。）
 
 # 验机
 
@@ -730,27 +724,26 @@ home 里验」这一步**。所以**发版前**在一个测试 home 里装一遍
 `%APPDATA%\gwb-kernel\homes\<名>\`，**不用先创建**；不给名字就是 `default`——那是日常
 那份，**别拿它验东西**。
 
-**命名 `<被测件短名>-<yyMMddHHmm>`**：`data-2609070700`、`shell-2609071130`。这样列目录时
-同一个件的挨在一起、各自按时间排，正好是清理时要的顺序。**不冲着某个件的验证**
+**命名 `<被测插件短名>-<yyMMddHHmm>`**：`data-2609070700`、`shell-2609071130`。这样列目录时
+同一个插件的挨在一起、各自按时间排，正好是清理时要的顺序。**不冲着某个插件的验证**
 （验从零装机、验没有外壳时的留白）前缀用一个说清这次验什么的短词：`boot-2609070700`、
 `empty-2609070700`。名字得是 kebab-case——内核会当场拒掉不合规的（`../../x` 那种能跳出
 `homes/`）。
 
 **为什么不许复用**：一个 home 用上两天，里面就是十几个不同时刻装进去的版本快照，外加几个
-仓里已经删掉、home 里还跑着的件。那时你不知道自己在验什么。
+仓里已经删掉、home 里还跑着的插件。那时你不知道自己在验什么。
 
 ## 二、开之前：产物是不是新的
 
 三条，漏一条就是在验旧代码，**而且界面看着一切正常**：
 
-1. **改了件** → 必须 `pnpm build` **再**发版。件如果没有 `prepublishOnly`，`pnpm publish`
-   会把上一版的 `dist/` 原样发出去——**这个坑真撞过**：件挂上了、不报错、新写的东西全没
-   生效，查了一圈才想起产物是旧的
+1. **改了插件** → 必须 `pnpm build` **再**发版。插件如果没有 `prepublishOnly`，`pnpm publish`
+   会把上一版的 `dist/` 原样发出去——现象是插件挂上了、不报错、新写的东西全没生效
 2. **改了内核** → 必须在 `apps/desktop` 跑 `pnpm build`。不构建，起的是上一次的产物
    （`devkit.home.new` 每次都帮你做了这一步，跳不过）
 3. **改了共享包**（`gwb-tokens` / `gwb-shared-react`）→ 它们装在 home 里，得重发再装
 
-## 三、件进 home 只有一条路
+## 三、插件进 home 只有一条路
 
 抬版本号 → 发本机 registry → 在那个 home 里装 → 落 `cordis.yml` 条目。细节与那两个坑在
 「发版与装机」节，不重复。
@@ -760,17 +753,17 @@ home 里验」这一步**。所以**发版前**在一个测试 home 里装一遍
 
 ## 四、几种「看着成了」其实什么都没验
 
-1. **拿日常 `default` 验**。验完那个 home 里就多了几个只为验证装的件、改过的 `cordis.yml`、
+1. **拿日常 `default` 验**。验完那个 home 里就多了几个只为验证装的插件、改过的 `cordis.yml`、
    落下的 `data/`——下次再验时它已经不干净了
-2. **只看「挂上了」不看件真干了活**。日志里 `[host] 挂上 xxx` 只说明模块 import 成功、
+2. **只看「挂上了」不看插件真干了活**。日志里 `[host] 挂上 xxx` 只说明模块 import 成功、
    `apply` 被调用了。`apply` 里的 async 一旦静默 reject，现象就是「挂上了但什么都没发生」——
-   **件里那条链必须自己 catch 并打出来**
+   **插件里那条链必须自己 catch 并打出来**
 3. **量颜色靠「等过渡跑完」**。窗口最小化时 Chromium 节流后台动画，等多久都可能读到起点值。
    先注一条 `transition:none` 再读；返回 `oklab(…)` 格式就是「还在过渡中」的指纹
-4. **改了件没重发 / 改了内核没重 build**。第二节那三条，最隐蔽的一种：界面全对，验的是上一版
+4. **改了插件没重发 / 改了内核没重 build**。第二节那三条，最隐蔽的一种：界面全对，验的是上一版
 
 谁挂上了看 `plugins.list`——它的 `active` 判的是 fiber 真 ACTIVE，不是 fiber 建出来了
-（inject 永远等不到的件也有 fiber，但 `active: false`）。
+（inject 永远等不到的插件也有 fiber，但 `active: false`）。
 
 ## 五、清理放在开新的那一刻
 
@@ -784,12 +777,12 @@ home 里验」这一步**。所以**发版前**在一个测试 home 里装一遍
 ## 六、拿证据
 
 **日志在 `%APPDATA%\gwb-kernel\homes\<名>\gwb.log`**——跟着 home 走，所以测试 home 的
-日志天然是分开的。内核自己的话、件的、渲染层 `console-message` 转来的，三路都汇在这一份里
+日志天然是分开的。内核自己的话、插件的、渲染层 `console-message` 转来的，三路都汇在这一份里
 （单进程内核之后没有宿主子进程，也就没有 `logs\` 子目录）。
 
 **从页面里动手走 node CLI `devkit.cdp`**：起内核时带 `--remote-debugging-port=<端口>` 与
 `--disable-backgrounding-occluded-windows`（Chromium 开关在命令行上就生效，内核不管它；9222 是
-别的实例常用的，换一个；`devkit.home.new` / `open` 起的不用管这一步，它自己挑口），然后
+别的实例常用的，换一个；`devkit.home.new` / `open` 起的不用管这一步，它自己挑端口），然后
 
 ```
 devkit.cdp {"args":["<home 名>","eval","out\\量一下.js"]}
@@ -798,9 +791,9 @@ devkit.cdp {"args":["<home 名>","home"]}
 devkit.cdp {"args":["<home 名>","click",".dv-tab@=日志"]}
 ```
 
-**第一个位置只收 home 名，给数字当场拒**（0.5.0 起）。口它自己去 `runtime.json` 里查，
-**连上之后还会问一句这张页自报的 home 名对不对得上**——记录只说「它起的时候用的是这个口」，
-不说「此刻这个口上还是它」。所以这支驱动从此只驱动得了 gwb 的窗口：连不了别的 Chromium 页，
+**第一个位置只收 home 名，给数字当场拒**。端口它自己去 `runtime.json` 里查，
+**连上之后还会问一句这张页自报的 home 名对不对得上**——记录只说「它起的时候用的是这个端口」，
+不说「此刻这个端口上还是它」。所以这支驱动从此只驱动得了 gwb 的窗口：连不了别的 Chromium 页，
 也连不了记录坏掉的 home，那两种情况下先把那个 home 停掉重开。
 
 工作台没起的时候它的身体也能直接跑：
@@ -811,13 +804,13 @@ node <devkit 包根>\bin\cdp.mjs <home 名> <动作> [参数…]
 
 `eval` 那个文件里写一个函数表达式 `(args) => 一张表`，返回值即读数，想 await 就写成 async。
 **放文件不放命令行**——PowerShell 的引号会截断它；一次性的落 `out/`，那儿 gitignore 着。
-两条实机撞出来的规矩：dockview 只渲染激活的那格，取证前先
+两条实机的规矩：dockview 只渲染激活的那个窗格，取证前先
 `click` 它的 `.dv-tab`（**发真事件，不在页面里自己造**：造出来的事件不做命中测试，目标被浮层
 盖住照样打得中，而这套界面最容易出的错正是遮挡）；量颜色前先注一条 `transition: none`，
 读到 `oklab(…)` 格式就是还在过渡中。
 
 **`cmd` 那个动作是不经 MCP 读写一个 home 的路**：外壳把 `window.gwb.command` 开给页面，于是从
-命令行够得到那个 home 的整张命令面。隔离 home 多半没装 `gwb-mcp`（装了也是随机口，只有 `default`
+命令行够得到那个 home 的整张命令面。隔离 home 多半没装 `gwb-mcp`（装了也是随机端口，只有 `default`
 认死 2870），这条路那时是唯一的一条。**只对隔离 home 用，绝不打 `default`**：这儿发的是真操作。
 
 量什么跟着界面走，所以**量表的脚本外置**：一个文件一张表，`eval` 收路径，按**工作目录**解
@@ -827,9 +820,9 @@ node <devkit 包根>\bin\cdp.mjs <home 名> <动作> [参数…]
 **没有「探针目录」这个约定**：落哪儿是你的纪律。一次性的落 `out/`——提交进仓的那种会跟着界面
 一起变黄，而且不报错。
 
-# 你改的是内核，不是件
+# 你改的是内核，不是插件
 
-上面整份以「你在写件」为主线。改内核（`D:\unitfolders\26090705ymz\gwb-kernel`）时不一样的
+上面整份以「你在写插件」为主线。改内核（`D:\unitfolders\26090705ymz\gwb-kernel`）时不一样的
 只有起法——**不发版、不装机，直接 build 了起**：
 
 ```powershell
@@ -843,7 +836,7 @@ pnpm build                                 # tsc 直出 dist/，没有打包器�
 在 cmd 那一层会把参数切断，输出里冒出一行 `'g-port' is not recognized as an internal or
 external command`。Electron 最终**仍然收到了**那个开关（不挡验机），但那行报错会把人
 引去查一个根本不存在的问题。直接调 `node_modules\electron\dist\electron.exe .` 绕开那层
-转发，不带调试口时 `run.cmd` 照用不误。
+转发，不带调试端口时 `run.cmd` 照用不误。
 
 这四步同时是**所有人的兜底**：`devkit.home.*` 那套要 devkit 跑在一个活着的 home 里，
 一个 home 都没活着的时候，命令化那半也起不来，只能走这里。
@@ -852,14 +845,14 @@ home 命名、不许复用、四种假验收、清理时机、拿证据——那
 
 # 撞墙记录不在这
 
-手册随件分发，把别处的一手记录抄进来只会得到一份靠人记得重发版才更新的副本。正本：
+手册随包分发，把别处的一手记录抄进来只会得到一份靠人记得重发版才更新的副本。正本：
 
-* 本件自己的文档站 `<devkit 包根>/docs-site`（依赖方向、模板占位符、docfirst 那条命令的形状）
+* 本包自己的文档站 `<devkit 包根>/docs-site`（依赖方向、模板占位符、docfirst 那条命令的形状）
 * 内核仓文档站 `D:\unitfolders\26090705ymz\gwb-kernel\docs-site`（`trajectory/`：baseUrl
-  为什么挂根 ctx、热挂载的形态、装机口为什么拆、知识随件走）
-* 件仓文档站 `D:\unitfolders\26090709qzp\gwb-base-plugins\docs-site`（walls 与各件页）
+  为什么挂根 ctx、热挂载的形态、装机入口为什么拆、知识随插件走）
+* 插件仓文档站 `D:\unitfolders\26090709qzp\gwb-base-plugins\docs-site`（walls 与各插件页）
 
 自己撞到新墙记进**自己仓**的文档。判据：每一次发现「不伸手进别的仓就做不下去」，
 那就是一堵墙。文档怎么写见 skill「docfirst-docs」，记轨迹卡见 skill「trajectory」——
-两份随 `@godcreator02/docfirst-workflow` 发、由 docfirst 件挂上，本件不再代挂。通用开发纪律
-（先盘问、并行派活、代码自解释）在 `@godcreator02/gwb-docfirst-workflow` 随件发的那三份里。
+两份随 `@godcreator02/docfirst-workflow` 发、由 docfirst 插件挂上，本插件不再代挂。通用开发纪律
+（先盘问、并行派活、代码自解释）在 `@godcreator02/gwb-docfirst-workflow` 随插件发的那三份里。
