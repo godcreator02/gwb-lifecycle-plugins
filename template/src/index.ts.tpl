@@ -1,7 +1,7 @@
-import type { GwbContext } from '@godcreator02/gwb-plugin-api'
+import type { GwbContext } from '@team/gwb-plugin-api'
 // 只为激活那两个件的 `declare module 'cordis'`——它们给 ctx 加上 gwbCommands / gwbShell
-import type {} from '@godcreator02/gwb-commands'
-import type {} from '@godcreator02/gwb-shell'
+import type {} from '@team/gwb-commands'
+import type {} from '@team/gwb-shell'
 
 /**
  * node 半：挂上、一格窗格、一条 ping 命令——模板插件的最小完整形状。
