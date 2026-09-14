@@ -30,11 +30,13 @@ pnpm build          # tsc 直出 dist/，没有打包器
 
 ## 发版
 
-1. **先抬 `package.json` 的版本号。** 同一个版本号永不重发；发之前先问一句这个号在不在源上
-   （`npm view @godcreator02/gwb-devkit versions --registry https://npm.tianshen02.online:28377/`）
-2. `prepublishOnly` **别删**。少了它 publish 会把上一版的 `dist/` 原样发出去而且一声不吭
-   ——现象是「插件挂上了但新写的东西全没生效」
-3. `pnpm publish --registry https://npm.tianshen02.online:28377/ --no-git-checks`
+1. **先抬 `package.json` 的版本号。** 同一个版本号永不重发；要发新的一版，先抬号、提交，再调
+2. 发版走 `devkit.release {"dir":"<本仓根>"}`——仓根 git 树不干净就拒、staging 发 latest、
+   不改仓里任何文件。**它不跑 `prepublishOnly`**（staging 分发形态里没有 `scripts`，产物靠
+   仓根构建加 `files` 白名单守卫）；真要走仓里钩子的场景才用手工那条：
+   `pnpm publish --registry https://npm.tianshen02.online:28377/ --no-git-checks`——那时
+   `prepublishOnly` **别删**，少了它会把上一版的 `dist/` 原样发出去而且一声不吭（现象是
+   「插件挂上了但新写的东西全没生效」）
 
 **发版前先在隔离 home 装一遍验完**——`plugins.update-all`（插件窗格那颗「全部更新」）
 直接升日常那份 home，跳过了隔离验证；人点那颗键是最后一步，不是验证的一步。

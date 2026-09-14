@@ -5,6 +5,7 @@ import path from 'node:path'
 import { fileURLToPath } from 'node:url'
 import { tailLines } from './probes.js'
 import { PUBLISH_TIMEOUT_MS, pnpmPlan, type DevDeps, type RunPlan } from './dev.js'
+import type { ReleaseDeps } from './release.js'
 import { runCaptured } from './node-home-deps.js'
 
 /**
@@ -163,16 +164,21 @@ export function distManifest(
 }
 
 /**
- * 发一个开发版。**在临时目录里摆一份分发形态再发,不改仓里的 package.json**:改仓里那份
+ * 发一个包的 staging 版。**在临时目录里摆一份分发形态再发,不改仓里的 package.json**:改仓里那份
  * 的话,中途摔了就留下一个号被动过的工作区,而那是最难认出来的现场。
+ *
+ * 开发版与正式版只差两处,都由调用方给:**打哪个 tag**(dev 不动 latest / latest)与
+ * **同趟兄弟的依赖写什么**(开发版钉准确号,semver 的范围认不到预发布号;正式版给 `>=`
+ * 范围,消费方跟得进后续 patch)。
  *
  * 带进分发包的东西**取自 `files` 白名单**,不在这儿另列一份——两份名单必然漂。
  */
-async function publishDev(input: {
+async function publishStaged(input: {
   pkgDir: string
   version: string
   registry: string
-  siblings: Record<string, string>
+  tag: 'dev' | 'latest'
+  deps: Record<string, string>
 }): Promise<{ ok: boolean; tail: string }> {
   let manifest: DistManifest
   try {
@@ -214,12 +220,12 @@ async function publishDev(input: {
     if (readme !== undefined) fs.copyFileSync(readme, path.join(stage, 'README.md'))
     fs.writeFileSync(
       path.join(stage, 'package.json'),
-      JSON.stringify(distManifest(manifest, input.version, input.siblings, workspaceVersions(repoDir)), null, 2) + '\n',
+      JSON.stringify(distManifest(manifest, input.version, input.deps, workspaceVersions(repoDir)), null, 2) + '\n',
     )
-    // **标 dev 不动 latest**:本机源上这些包同时被别的仓消费,开发版顶掉 latest 会让它们
-    // 莫名其妙换了代码
+    // **tag 由调用方给**:开发版标 dev 不动 latest(源上这些包同时被别的仓消费,开发版顶掉
+    // latest 会让它们莫名其妙换了代码);正式版就是 latest
     return await runCaptured(
-      pnpmPlan(['publish', '--no-git-checks', '--tag', 'dev', '--registry', input.registry], stage, process.platform),
+      pnpmPlan(['publish', '--no-git-checks', '--tag', input.tag, '--registry', input.registry], stage, process.platform),
       PUBLISH_TIMEOUT_MS,
     )
   } catch (err) {
@@ -229,11 +235,12 @@ async function publishDev(input: {
   }
 }
 
-/** 这台机器上的真身 */
+/** 这台机器上的真身(「改一版看一版」那条链) */
 export const devDeps: DevDeps = {
   run: (plan: RunPlan, timeoutMs: number) => runCaptured(plan, timeoutMs),
   cdp: runCdp,
-  publish: publishDev,
+  publish: (input) =>
+    publishStaged({ pkgDir: input.pkgDir, version: input.version, registry: input.registry, tag: 'dev', deps: input.siblings }),
   async published(spec, registry) {
     const seen = await runCaptured(pnpmPlan(['view', spec, 'version', '--registry', registry], os.tmpdir(), process.platform), 60_000)
     return seen.ok
@@ -274,5 +281,48 @@ export const devDeps: DevDeps = {
     }
   },
   now: () => Date.now(),
+  platform: process.platform,
+}
+
+/** git 那一趟的上限。问一句状态而已,卡住说明 git 本身出了问题 */
+const GIT_TIMEOUT_MS = 30_000
+
+/**
+ * 仓根的 git 树干不干净。git 是 exe(不像 pnpm 是 .cmd),不用借 cmd /c 一层。
+ *
+ * `runCaptured` 回的是 stdout 与 stderr 合流的尾巴,所以**按 porcelain 条目的长相认脏**
+ * (两列状态加路径),合进来的别的行(git 的 safe.directory 警告之类)不拿来当脏——把它们
+ * 算进去的话,一句无害的警告就能让这条链永远发不出版。
+ */
+async function gitStatusOf(repoDir: string): Promise<{ ok: true; dirty: string[] } | { ok: false; error: string }> {
+  const out = await runCaptured({ command: 'git', args: ['status', '--porcelain=v1'], cwd: repoDir }, GIT_TIMEOUT_MS)
+  if (!out.ok) return { ok: false, error: out.tail === '' ? 'git status 没成(git 不在?)' : out.tail }
+  const dirty = out.tail
+    .split(/\r?\n/)
+    .map((line) => line.trimEnd())
+    .filter((line) => /^[ MADRCU?!]{1,3}\s+\S/.test(line))
+  return { ok: true, dirty }
+}
+
+/** 这台机器上的真身(发正式版那条链)。publish 的真体与开发版共用同一套 staging,只差 tag 与依赖写法 */
+export const releaseDeps: ReleaseDeps = {
+  run: (plan: RunPlan, timeoutMs: number) => runCaptured(plan, timeoutMs),
+  publish: (input) =>
+    publishStaged({ pkgDir: input.pkgDir, version: input.version, registry: input.registry, tag: 'latest', deps: input.ranges }),
+  published: async (spec, registry) => {
+    const seen = await runCaptured(pnpmPlan(['view', spec, 'version', '--registry', registry], os.tmpdir(), process.platform), 60_000)
+    return seen.ok
+  },
+  gitStatus: gitStatusOf,
+  readText(file) {
+    try {
+      return fs.readFileSync(file, 'utf8')
+    } catch {
+      return undefined
+    }
+  },
+  exists(target) {
+    return fs.existsSync(target)
+  },
   platform: process.platform,
 }

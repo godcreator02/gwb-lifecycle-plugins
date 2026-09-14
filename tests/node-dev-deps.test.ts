@@ -52,6 +52,11 @@ describe('分发清单', () => {
     expect(out.dependencies?.['@godcreator02/gwb-sibling']).toBe('0.4.0-dev.202609131200')
   })
 
+  it('正式版那趟给的是 >= 范围，原样写进去——消费方跟得进后续 patch', () => {
+    const out = distManifest(MANIFEST, '0.4.0', { '@godcreator02/gwb-sibling': '>=0.4.0' }, WORKSPACE)
+    expect(out.dependencies?.['@godcreator02/gwb-sibling']).toBe('>=0.4.0')
+  })
+
   it('不是兄弟的 workspace: 换成工作区里那个真号；工作区里没有就 >=0.0.0', () => {
     const out = distManifest(
       { ...MANIFEST, dependencies: { '@godcreator02/gwb-sibling': 'workspace:^', '@godcreator02/gwb-stranger': 'workspace:*' } },

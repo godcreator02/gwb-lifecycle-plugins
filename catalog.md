@@ -10,7 +10,7 @@
 
 `gwbCommands`（硬依赖，inject）、`gwbSettings`、`gwbNodeCli`、`gwbShell`、`gwbSkills`（后四样局部注入）
 
-<!-- 来源 ../src/index.ts:39-39 · 新鲜 -->
+<!-- 来源 ../src/index.ts:40-40 · 新鲜 -->
 
 ```ts
 export const inject = ['gwbCommands']

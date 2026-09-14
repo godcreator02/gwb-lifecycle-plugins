@@ -24,7 +24,8 @@ import {
 } from './home.js'
 import { kill, portOwner, processName } from './node-probe-deps.js'
 import { DEFAULT_REGISTRY, type DevInput, runDev } from './dev.js'
-import { CDP_ENTRY, devDeps } from './node-dev-deps.js'
+import { runRelease } from './release.js'
+import { CDP_ENTRY, devDeps, releaseDeps } from './node-dev-deps.js'
 import { homeFs, makeGuiSpawn, runCaptured } from './node-home-deps.js'
 import {
   NAME_RE,
@@ -66,6 +67,9 @@ const ATTACH_SITE_COMMAND = 'docfirst.attach'
  * - **改一版看一版**：`devkit.dev` 一条走完「构建 → 发开发版 → 装进隔离 home → 重挂 →
  *   刷新 → 取证」。**这条命令住控制台那个 home，操作另一个 home**：换件那一步要把条目
  *   停用再启用，工具自己跑在目标里就会把自己停掉
+ *
+ * - **发正式版**：`devkit.release` 从仓根把包按序发到团队源（tag latest）。号在仓里抬、
+ *   git 树不干净就拒、只碰源不碰任何 home——没有自停问题，从哪个 home 调都行
  *
  * 外加一条经 `gwbNodeCli` 登记的外部 CLI：`devkit.cdp`（在一个工作台页面里动手，
  * 从取证到点按拖拽都是它；`eval` 是它的一个动词，退役的 `devkit.cdp-eval` 是它的祖先）。
@@ -117,6 +121,17 @@ const DEV_USAGE = [
   '例：{"home":"bn-2609111200","dir":"D:\\\\unitfolders\\\\26090814otr\\\\gwb-block-note","packages":["packages/model","plugins/gwb-bn-core"]}',
   '目标 home 是 default、或者就是本件自己住的那个，都当场拒——前者会把开发版塞进日常那份，',
   '后者停用条目那一下会把正在跑的这条命令自己停掉。换 devkit 自己：发正式版，再 plugins.update-all',
+].join('\n')
+
+/** `devkit.release` 的参数说明。参数错的时候连它一起回——错误即文档 */
+const RELEASE_USAGE = [
+  'devkit.release 的参数：',
+  '  dir       必给，仓根的绝对路径。git 守卫与构建都在这儿跑',
+  '  packages  可选，要发的包目录，相对仓根，**按依赖顺序**（被依赖的排前面）。不给就是仓根自己',
+  '**号在仓里抬**：发的是 package.json 里声明的那个号，同号在源上就拒——要发新的一版，先抬号、提交，再来',
+  '**仓根 git 树不干净就拒**：正式版只从提交过的状态发',
+  '**这条链只碰源、不碰任何 home**，从哪个 home 调都行；升 default 是下一步的事，走 plugin-manager.update-all',
+  '例：{"dir":"D:\\\\unitfolders\\\\26090814otr\\\\gwb-block-note","packages":["packages/model","packages/engine","packages/client","plugins/gwb-bn-core","plugins/gwb-bn-comment"]}',
 ].join('\n')
 
 export function apply(ctx: GwbContext): void {
@@ -404,6 +419,43 @@ export function apply(ctx: GwbContext): void {
             : { ok: false, error: outcome.error, data: outcome.data }
         }
         log.info(`devkit.dev：${outcome.data.homeName} 换上了 ${outcome.data.shipped.map((one) => `${one.pkg}@${one.version}`).join('、')}`)
+        return outcome
+      },
+    ),
+  )
+
+  // ── 发正式版 ───────────────────────────────────────────────────────────────
+
+  /**
+   * 与 `devkit.dev` 的安全模型不同:那条要站在被换的进程外(住控制台、操作另一个 home),
+   * 这条只碰 registry、一个 home 都不碰,从哪个 home 调都行。升 default 不链进来——
+   * update-all 得由插件件在那个 home 里发起才活得过热重挂,而且发完该先在隔离 home 验过。
+   */
+  ctx.effect(() =>
+    bus.register(
+      {
+        name: 'devkit.release',
+        plugin: name,
+        description:
+          '发正式版到团队源：{dir 必给（仓根绝对路径）, packages?（包目录，相对仓根，按依赖顺序；不给就是仓根自己）}。一条走完：仓根 git 树干净守卫（有未提交改动就拒，一个都不发）→ 仓根 pnpm build → 照 files 白名单验产物 → 同号已在源上就拒 → staging 发版（不改仓里任何文件；tag latest；workspace: 依赖写成 >= 范围，这一趟同发的写成 >= 新号）→ 按给定顺序发完。**号在仓里抬**（改 package.json 提交），同号永不重发。只碰源不碰任何 home；升 default 走 plugin-manager.update-all',
+      },
+      async (args) => {
+        if (!isRecord(args)) return { ok: false, error: `参数要是个对象。\n${RELEASE_USAGE}` }
+        const dir = typeof args.dir === 'string' ? args.dir.trim() : ''
+        if (dir === '' || !path.isAbsolute(dir)) return { ok: false, error: `dir 要是仓根的绝对路径。\n${RELEASE_USAGE}` }
+        if (!releaseDeps.exists(dir)) return { ok: false, error: `${dir} 不在——dir 给的是仓根，不是包目录` }
+        const packages = Array.isArray(args.packages)
+          ? args.packages.filter((one): one is string => typeof one === 'string' && one.trim() !== '')
+          : []
+        log.info(`devkit.release：仓 ${path.resolve(dir)}（${packages.length === 0 ? '仓根自己' : packages.join('、')}）`)
+        const outcome = await runRelease({ repoDir: path.resolve(dir), packages }, releaseDeps)
+        if (!outcome.ok) {
+          log.warn(`devkit.release 没成：${outcome.error}`)
+          return outcome.data === undefined
+            ? { ok: false, error: outcome.error }
+            : { ok: false, error: outcome.error, data: outcome.data }
+        }
+        log.info(`devkit.release：${outcome.data.shipped.map((one) => `${one.pkg}@${one.version}`).join('、')} 上了 latest`)
         return outcome
       },
     ),

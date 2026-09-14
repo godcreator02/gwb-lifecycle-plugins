@@ -1,6 +1,6 @@
 ---
 name: gwb-devkit
-description: 动手写一个新 gwb 插件之前读，打算说「验过了 / 跑通了 / 改动生效了」之前也读。开发套件的全部命令与设置项、建仓（devkit.scaffold，插件模板随本包发，站那半两步转给站点插件与 docfirst 插件）、改一版看一版那条内循环（devkit.dev：发开发版、装进隔离 home、重挂、取证）、从建仓到发版装机升 default 的外循环、八条红线、生态里每个插件的服务什么时候用、一份新说明书该住哪个插件的判据，以及改内核（不是改插件）时验机怎么走。
+description: 动手写一个新 gwb 插件之前读，打算说「验过了 / 跑通了 / 改动生效了」之前也读。开发套件的全部命令与设置项、建仓（devkit.scaffold，插件模板随本包发，站那半两步转给站点插件与 docfirst 插件）、改一版看一版那条内循环（devkit.dev：发开发版、装进隔离 home、重挂、取证）、发正式版（devkit.release：git 树不干净就拒、staging 发 latest、workspace 依赖写成 >= 范围）、从建仓到发版装机升 default 的外循环、八条红线、生态里每个插件的服务什么时候用、一份新说明书该住哪个插件的判据，以及改内核（不是改插件）时验机怎么走。
 ---
 
 # 这套东西是什么
@@ -61,6 +61,12 @@ description: 动手写一个新 gwb 插件之前读，打算说「验过了 / �
 **为什么端口不是地址**：它是一个没有语义的数，敲错一位就落在另一个现场，而那个现场会老老实实
 收下你这一趟的发版、装包与重挂。名字有拼写、有记录、有交叉核对，三样端口都没有。代价也说清：
 **记录坏了或起它的内核太旧的 home 够不着**，那时停掉重开一次就有了。
+
+**发正式版**（整节在「发版与装机」）
+
+| 命令               | 参数                   | 干什么                                                                                                                                                       |
+| ---------------- | -------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `devkit.release` | `{ dir, packages? }` | 从仓根把包按序发到团队源（tag latest）：仓根 git 树干净守卫（有未提交改动就拒，一个都不发）→ 仓根构建 → 照 `files` 白名单验产物 → 同号已在源上就拒 → staging 发版。**号在仓里抬**，这条不改仓里任何文件；**只碰源不碰任何 home**，从哪个 home 调都行 |
 
 **一条外部 CLI**（经 `gwbNodeCli` 登记，自动镜像成同名总线命令）
 
@@ -559,11 +565,23 @@ lucide 图标身上的 `lucide lucide-xxx` 是它烤进 SVG 的身份属性，�
 
 # 发版与装机
 
+发正式版走 `devkit.release`（从哪个 home 调都行；一仓一包不给 `packages` 就是仓根自己）：
+
 ```
-pnpm publish --no-git-checks   # scope 路由自动走对源，别手写 --registry
+devkit.release {"dir":"<仓根>"}
+devkit.release {"dir":"<仓根>","packages":["packages/model","packages/engine","plugins/gwb-bn-core"]}
 ```
 
-（`.npmrc` 已把 `@godcreator02` 指过去。）
+（第二行是多包工作区的样子，`packages` 按依赖序排。）
+
+一条走完：仓根 git 树干净守卫（有未提交改动就拒，一个都不发）→ 仓根 `pnpm build` → 照
+`files` 白名单验产物 → 同号已在源上就拒 → staging 发版（tag latest；不改仓里任何文件；
+`workspace:` 依赖写成 `>=` 范围，这一趟同发的写成 `>= 新号`）。**号在仓里抬**：要发新的
+一版，先改 `package.json` 的号、提交，再调——抬号是语义行为，跟着版本提交走 git 纪律。
+
+手工那条（`pnpm publish --no-git-checks`，scope 路由自动走对源，别手写 `--registry`；`.npmrc`
+已把 `@godcreator02` 指过去）留给 staging 覆盖不了的场景：要在 publish 前跑仓里的钩子
+（`prepublishOnly`）——staging 分发形态里没有 `scripts`，钩子一个都不会跑。
 
 **刚发的包为什么装得进去。** pnpm 11 起 `minimumReleaseAge` 默认 1440 分钟——包发布后
 要放够一天才准装，刚 publish 的包年龄是 0 分钟，本该每次都被拦。这台机器在**用户级配置**
@@ -594,7 +612,7 @@ minimumReleaseAgeExclude:
 
 1. **发版前在隔离 home 里验**（`devkit.home.new`，见「验机」）——`plugin-manager.update-all`
    直接升日常那份，跳过了这一步
-2. **发本机 registry**（`pnpm publish`，上一节）
+2. **发团队源**（`devkit.release`，上一节）
 3. **升 default home**：人在插件窗格点「全部更新」，或 agent 调 `plugin-manager.update-all`。
    **新插件第一次装**不走这条（它只升已装的），走 `plugin-manager.install {"pkg":"<包名>"}`，
    装完下一次 `/surface` 现扫就有——门没有会话，**没有重连这个动作**
