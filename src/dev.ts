@@ -30,8 +30,8 @@ import { isRecord } from '@team/gwb-plugin-api'
  * 碰盘、开进程、连 CDP 全走注入(`DevDeps`),于是整条时序在测试里用假件跑得完。
  */
 
-/** 团队源（NAS 上的 Verdaccio，经反代出域名）。跟用户级 `~/.npmrc` 里 `@team` scope 那行同一个地址 */
-export const DEFAULT_REGISTRY = 'https://git.tianshen02.online:28377/api/packages/team/npm/'
+/** 团队源（gitea 的 team 组织 npm registry，本机走组网 IP 不赌域名覆盖）。跟用户级 `~/.npmrc` 里 `@team` scope 那行同一个地址 */
+export const DEFAULT_REGISTRY = 'http://100.66.1.1:35057/api/packages/team/npm/'
 
 /** 日常那份 home 的名字。开发版进它就是「悄悄换了日常代码」,所以当场拒 */
 export const DAILY_HOME = 'default'
