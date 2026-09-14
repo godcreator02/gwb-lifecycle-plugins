@@ -1,13 +1,13 @@
 import fs from 'node:fs'
 import path from 'node:path'
-import type { GwbContext } from '@godcreator02/gwb-plugin-api'
-import { isRecord, requireKernel } from '@godcreator02/gwb-plugin-api'
+import type { GwbContext } from '@team/gwb-plugin-api'
+import { isRecord, requireKernel } from '@team/gwb-plugin-api'
 // 只为激活对方包里的 declare module 'cordis'——ctx 上那几个名字的类型从那儿来
-import type {} from '@godcreator02/gwb-commands'
-import type {} from '@godcreator02/gwb-node-cli'
-import type {} from '@godcreator02/gwb-settings'
-import type {} from '@godcreator02/gwb-shell'
-import type {} from '@godcreator02/gwb-skills'
+import type {} from '@team/gwb-commands'
+import type {} from '@team/gwb-node-cli'
+import type {} from '@team/gwb-settings'
+import type {} from '@team/gwb-shell'
+import type {} from '@team/gwb-skills'
 import {
   appDirOf,
   asHomeName,
@@ -40,7 +40,7 @@ export const name = 'gwb-devkit'
 export const inject = ['gwbCommands']
 
 /**
- * 铺 fumadocs 骨架那条命令，由**站件** `@godcreator02/gwb-docs-site` 提供。
+ * 铺 fumadocs 骨架那条命令，由**站件** `@team/gwb-docs-site` 提供。
  *
  * **本包不依赖它**——只在命令总线上按名字找。找不到就是这个 home 没装站件，跳过铺站、
  * 在回执里说清怎么补，绝不因此让建仓失败。
@@ -48,7 +48,7 @@ export const inject = ['gwbCommands']
 const CREATE_SITE_COMMAND = 'docs-site.create'
 
 /**
- * 在骨架上装配六区那条命令，由 **docfirst 件** `@godcreator02/gwb-docfirst-workflow` 提供。
+ * 在骨架上装配六区那条命令，由 **docfirst 件** `@team/gwb-docfirst-workflow` 提供。
  * 同样只认名字、不依赖包。**只在刚铺好的骨架上装得了**：站里已经有内容它会自己拒。
  */
 const ATTACH_SITE_COMMAND = 'docfirst.attach'
@@ -83,7 +83,7 @@ const ATTACH_SITE_COMMAND = 'docfirst.attach'
 const SCAFFOLD_USAGE = [
   'devkit.scaffold 的参数：',
   // 规则从 NAME_RE 现取，不在这儿手抄一份——抄的那份必然跟真源漂开
-  `  name   必给，短名，kebab-case（${String(NAME_RE)}）。它派生出包名 @godcreator02/gwb-<短名>、插件名 gwb-<短名>、命令名 <短名>.<动作> 的前半`,
+  `  name   必给，短名，kebab-case（${String(NAME_RE)}）。它派生出包名 @team/gwb-<短名>、插件名 gwb-<短名>、命令名 <短名>.<动作> 的前半`,
   '  dir    必给，目标目录的绝对路径，必须还不存在（存在就拒，不覆盖任何东西）',
   '  title  可选，显示名，缺省用 name',
   `  docs   可选，缺省 true——件那半落盘之后顺带建站，两步：${CREATE_SITE_COMMAND} 铺 fumadocs 骨架、${ATTACH_SITE_COMMAND} 在骨架上装配六区。两条都经命令总线找，没装那个件就跳过那一步（回执里说怎么补），不算建仓失败。false 就只建件那半`,
@@ -230,9 +230,10 @@ export function apply(ctx: GwbContext): void {
     bus.register(
       {
         name: 'devkit.home.new',
-        plugin: name,
-        description:
-          '开一个测试 home：{short 必给（kebab-case）}——名字长成 <short>-<yyMMddHHmm>，先 build 内核（产物不新就起＝验旧代码），调试口自动挑一个空的。返回里带着现有 home 清单，开新那一刻正好清旧的',
+        plugin: '@team/gwb-devkit',
+        description: '开一个测试 home（先 build 内核、调试口自动挑）',
+        usage:
+          '{short 必给（kebab-case）}——名字长成 <short>-<yyMMddHHmm>，先 build 内核（产物不新就起＝验旧代码），调试口自动挑一个空的。返回里带着现有 home 清单，开新那一刻正好清旧的',
       },
       async (args) => {
         const kernelDir = kernelDirOf()
@@ -275,8 +276,9 @@ export function apply(ctx: GwbContext): void {
     bus.register(
       {
         name: 'devkit.home.open',
-        plugin: name,
-        description: '重开一个已有的测试 home：{name 必给}——不 build，调试口自动挑。机器重启之后回到原来那个现场只有这一条路（home.new 永远造新目录，件得全部重装一遍）',
+        plugin: '@team/gwb-devkit',
+        description: '重开一个已有的测试 home（不 build）',
+        usage: '{name 必给}——调试口自动挑。机器重启之后回到原来那个现场只有这一条路（home.new 永远造新目录，件得全部重装一遍）',
       },
       async (args) => {
         const kernelDir = kernelDirOf()
@@ -308,9 +310,10 @@ export function apply(ctx: GwbContext): void {
     bus.register(
       {
         name: 'devkit.home.rm',
-        plugin: name,
-        description:
-          '删一个测试 home：{name，force?}——没在跑的直接删；**还在跑的要 force**，那时连停带删（按它 runtime.json 里的 pid，核对映像名与记录里那个 CDP 端口再杀）。default 是日常那份：不 force 不删，而且它在跑的时候 force 也不删，自己关掉那扇窗再来',
+        plugin: '@team/gwb-devkit',
+        description: '删一个测试 home',
+        usage:
+          '{name，force?}——没在跑的直接删；**还在跑的要 force**，那时连停带删（按它 runtime.json 里的 pid，核对映像名与记录里那个 CDP 端口再杀）。default 是日常那份：不 force 不删，而且它在跑的时候 force 也不删，自己关掉那扇窗再来',
       },
       async (args) => {
         if (!isRecord(args)) return { ok: false, error: `参数要是个对象。\n${HOME_USAGE}` }
@@ -326,7 +329,7 @@ export function apply(ctx: GwbContext): void {
 
   ctx.effect(() =>
     bus.register(
-      { name: 'devkit.home.list', plugin: name, description: '列出 home 根下全部测试 home：名字（带时间戳）、谁还在跑、CDP 口、MCP 门（mcp 格；老 home 的 command-http 格照报当线索）。无参数' },
+      { name: 'devkit.home.list', plugin: '@team/gwb-devkit', description: '列出全部测试 home 与各自的口', usage: '名字（带时间戳）、谁还在跑、CDP 口、MCP 门（mcp 格；老 home 的 command-http 格照报当线索）。无参数' },
       async () => {
         const root = homesRoot()
         return { ok: true, data: { root, homes: await listHomes(root, homeDeps) } }
@@ -349,9 +352,10 @@ export function apply(ctx: GwbContext): void {
   ctx.inject(['gwbNodeCli'], (scoped) => {
     scoped.gwbNodeCli.register({
       name: 'devkit.cdp',
-      plugin: name,
-      description:
-        '在一个工作台页面里动手：{"args":["<home 名>","<动作>","<参数…>"]}。**第一个位置只收 home 名，给数字当场拒**——口从那个 home 的 runtime.json 里查，连上之后还拿页面自报的名字核对一次。动作 eval <文件> [JSON 参数] / shot [图.png] [选择器] / move / click / rclick / drag / type / key / scroll <点> / cmd <命令名> [JSON 参数] / reload [选择器] [秒] / home。点写成 .sel、.sel@=文字、.a@=文字 >> .b，或 x,y。开关 --target / --mod / --pad / --size / --timeout。**只对隔离 home 用，绝不打 default**：这儿发的是真操作。够不着的 home 是起的时候没带 --remote-debugging-port，停掉重开一次',
+      plugin: '@team/gwb-devkit',
+      description: '在一个工作台页面里动手（CDP 直达，只对隔离 home 用）',
+      usage:
+        '{"args":["<home 名>","<动作>","<参数…>"]}。**第一个位置只收 home 名，给数字当场拒**——口从那个 home 的 runtime.json 里查，连上之后还拿页面自报的名字核对一次。动作 eval <文件> [JSON 参数] / shot [图.png] [选择器] / move / click / rclick / drag / type / key / scroll <点> / cmd <命令名> [JSON 参数] / reload [选择器] [秒] / home。点写成 .sel、.sel@=文字、.a@=文字 >> .b，或 x,y。开关 --target / --mod / --pad / --size / --timeout。**只对隔离 home 用，绝不打 default**：这儿发的是真操作。够不着的 home 是起的时候没带 --remote-debugging-port，停掉重开一次',
       entry: CDP_ENTRY,
     })
   })
@@ -389,9 +393,10 @@ export function apply(ctx: GwbContext): void {
     bus.register(
       {
         name: 'devkit.dev',
-        plugin: name,
-        description:
-          '改一版看一版：{home 必给（目标 home 名，**只认名字不认端口**——口从它的 runtime.json 里查并验活）, dir 必给（仓根绝对路径）, packages?（包目录，相对仓根，按依赖顺序；不给就是仓根自己）, waitFor?（刷新后等这个选择器出现）}。一条走完：仓根 pnpm build → 发开发版（<patch+1>-dev.<戳>，标 dev 不动 latest）→ 在目标 home 里 pnpm add 那个准确号 → 条目停用再启用重挂 → 整页重载 → 取证（条目真 ACTIVE、日志增量里没有 error），取不到证就回 ok:false。**构建与源都不可给**：跳过构建就是发上一版，而这台机器只有一个源。**目标是 default 或本件自己所在的 home 都当场拒；页面自报的名字跟你给的对不上也拒**',
+        plugin: '@team/gwb-devkit',
+        description: '改一版看一版（build→发 dev 版→目标 home 热挂→取证）',
+        usage:
+          '{home 必给（目标 home 名，**只认名字不认端口**——口从它的 runtime.json 里查并验活）, dir 必给（仓根绝对路径）, packages?（包目录，相对仓根，按依赖顺序；不给就是仓根自己）, waitFor?（刷新后等这个选择器出现）}。一条走完：仓根 pnpm build → 发开发版（<patch+1>-dev.<戳>，标 dev 不动 latest）→ 在目标 home 里 pnpm add 那个准确号 → 条目停用再启用重挂 → 整页重载 → 取证（条目真 ACTIVE、日志增量里没有 error），取不到证就回 ok:false。**构建与源都不可给**：跳过构建就是发上一版，而这台机器只有一个源。**目标是 default 或本件自己所在的 home 都当场拒；页面自报的名字跟你给的对不上也拒**',
       },
       async (args) => {
         if (!isRecord(args)) return { ok: false, error: `参数要是个对象。\n${DEV_USAGE}` }
@@ -435,9 +440,10 @@ export function apply(ctx: GwbContext): void {
     bus.register(
       {
         name: 'devkit.release',
-        plugin: name,
-        description:
-          '发正式版到团队源：{dir 必给（仓根绝对路径）, packages?（包目录，相对仓根，按依赖顺序；不给就是仓根自己）}。一条走完：仓根 git 树干净守卫（有未提交改动就拒，一个都不发）→ 仓根 pnpm build → 照 files 白名单验产物 → 同号已在源上就拒 → staging 发版（不改仓里任何文件；tag latest；workspace: 依赖写成 >= 范围，这一趟同发的写成 >= 新号）→ 按给定顺序发完。**号在仓里抬**（改 package.json 提交），同号永不重发。只碰源不碰任何 home；升 default 走 plugin-manager.update-all',
+        plugin: '@team/gwb-devkit',
+        description: '发正式版到团队源（树干净守卫→build→验产物→staging 发）',
+        usage:
+          '{dir 必给（仓根绝对路径）, packages?（包目录，相对仓根，按依赖顺序；不给就是仓根自己）}。一条走完：仓根 git 树干净守卫（有未提交改动就拒，一个都不发）→ 仓根 pnpm build → 照 files 白名单验产物 → 同号已在源上就拒 → staging 发版（不改仓里任何文件；tag latest；workspace: 依赖写成 >= 范围，这一趟同发的写成 >= 新号）→ 按给定顺序发完。**号在仓里抬**（改 package.json 提交），同号永不重发。只碰源不碰任何 home；升 default 走 plugin-manager.update-all',
       },
       async (args) => {
         if (!isRecord(args)) return { ok: false, error: `参数要是个对象。\n${RELEASE_USAGE}` }
@@ -566,7 +572,7 @@ export function apply(ctx: GwbContext): void {
         attached: false,
         note: hasCommand(CREATE_SITE_COMMAND)
           ? '没建站：调用时给了 docs: false'
-          : `没建站：这个 home 没装站件（命令总线上没有 ${CREATE_SITE_COMMAND}）。件那半已经落盘了——装上 @godcreator02/gwb-docs-site（plugins.install）之后自己补两步：${CREATE_SITE_COMMAND} {"dir":"${siteDir}","title":"${plan.title}"} 铺骨架，再 ${attachHint} 装六区`,
+          : `没建站：这个 home 没装站件（命令总线上没有 ${CREATE_SITE_COMMAND}）。件那半已经落盘了——装上 @team/gwb-docs-site（plugins.install）之后自己补两步：${CREATE_SITE_COMMAND} {"dir":"${siteDir}","title":"${plan.title}"} 铺骨架，再 ${attachHint} 装六区`,
       }
     }
     const created = await commands.run(CREATE_SITE_COMMAND, {
@@ -595,7 +601,7 @@ export function apply(ctx: GwbContext): void {
         built: true,
         attached: false,
         ...(port === undefined ? {} : { port }),
-        note: `骨架铺好了，六区没装：这个 home 没装 docfirst 件（命令总线上没有 ${ATTACH_SITE_COMMAND}）。装上 @godcreator02/gwb-docfirst-workflow 之后**立刻**跑 ${attachHint}——它只在还没写过内容的骨架上装得了，往里写过东西就得人工接线`,
+        note: `骨架铺好了，六区没装：这个 home 没装 docfirst 件（命令总线上没有 ${ATTACH_SITE_COMMAND}）。装上 @team/gwb-docfirst-workflow 之后**立刻**跑 ${attachHint}——它只在还没写过内容的骨架上装得了，往里写过东西就得人工接线`,
         create: created,
       }
     }
