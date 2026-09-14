@@ -23,8 +23,8 @@
     "react-dom": "^19.2.8"
   },
   "devDependencies": {
-    "@godcreator02/docfirst-trajectory": "^0.1.0",
-    "@godcreator02/docfirst-workflow": "^0.2.0",
+    "@team/docfirst-trajectory": "^0.1.0",
+    "@team/docfirst-workflow": "^0.2.0",
     "@tailwindcss/postcss": "^4.3.3",
     "@types/mdx": "^2.0.14",
     "@types/node": "^26.2.0",
