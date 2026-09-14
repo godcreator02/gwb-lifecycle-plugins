@@ -642,6 +642,18 @@ minimumReleaseAgeExclude:
 
 整页重载单独也能要：`shell.reload`（无参数）。
 
+## 发版收尾：动门必过两道筛
+
+凡这次发版动的是门（gwb-command-http）、任何命令的名字/参数形状、或术语，收尾多两步：
+
+**一筛旧词。** 拿旧词表——件、井、格、门、gwb_command_list、skill_list、skill_read，加上
+这次改掉的每一个旧名——筛三处：门的 instructions、各仓 AGENTS 里提到门或命令的段落、
+所有随包 skill 的描述。
+
+**二验指向。** 文档里指名道姓的每个 skill 名与命令名，`skill.list` 与 `/surface?slim=true`
+各现扫一遍；指到不在的，要么修指向、要么补对象。docfirst 守得住「文档对源码」，守不住
+这两层；这两层只能靠收尾清单。
+
 # 改一版看一版
 
 **两条循环，别混着用。**
