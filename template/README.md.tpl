@@ -40,7 +40,7 @@ pnpm publish --registry https://git.tianshen02.online:28377/api/packages/team/np
 4. 发完就去升 default home（人点「全部更新」或 `plugin-manager.update-all`）——攒着不升，
    agent 读到的手册与命令都停在旧版。
 
-源是 NAS 上的常驻团队源，无需起停；地址见用户级 `~/.npmrc` 的 `@godcreator02` scope 行。
+源是 NAS 上的常驻团队源，无需起停；地址见用户级 `~/.npmrc` 的 `@team` scope 行。
 
 ## 规矩在哪
 
