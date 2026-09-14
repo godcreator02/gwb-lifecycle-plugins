@@ -247,7 +247,7 @@ pnpm check          # typecheck（node 半 + 浏览器半）+ oxlint + vitest，
 pnpm build          # tsc + esbuild + tailwindcss 三步
 文档站那半（自己一套依赖，跟插件那半分开装）：cd <dir>\docs-site && pnpm install && pnpm doc
 先 git init 落第一个提交，再在 docs-site 里 pnpm doc:confirm
-发一版：先抬 package.json 的版本号，再 pnpm publish --registry https://npm.tianshen02.online:28377/ --no-git-checks
+发一版：先抬 package.json 的版本号，再 pnpm publish --no-git-checks   # scope 路由自动走对源，别手写 --registry
 装进隔离 home：plugin-manager.install {"pkg":"@godcreator02/gwb-<短名>"}——该进的 peer 会一并装上
 命令面验证：POST /run {"command":"<短名>.ping"} 回 {ok:true,…}；工作台那格窗格「你好」+计数按钮点得动——六步验收到这儿走完
 发完就去升 default home（人点「全部更新」或 plugin-manager.update-all）
@@ -352,7 +352,7 @@ handler 参数是 `unknown`，自己收窄（词汇表包的 `isRecord`）。相
 **四、发一版。** 先抬 `package.json` 的版本号，再：
 
 ```
-pnpm publish --registry https://npm.tianshen02.online:28377/ --no-git-checks
+pnpm publish --no-git-checks   # scope 路由自动走对源，别手写 --registry
 ```
 
 **同一个版本号永不重发**；发之前先问一句这个号在不在源上。源是 NAS 上的常驻团队源，不经本机、无需起停。
@@ -554,7 +554,7 @@ lucide 图标身上的 `lucide lucide-xxx` 是它烤进 SVG 的身份属性，�
 # 发版与装机
 
 ```
-pnpm publish --registry https://npm.tianshen02.online:28377/ --no-git-checks
+pnpm publish --no-git-checks   # scope 路由自动走对源，别手写 --registry
 ```
 
 （`.npmrc` 已把 `@godcreator02` 指过去。）
@@ -707,10 +707,11 @@ home 记录里占着的、跳过此刻真有人 listen 的），换了会在回�
 那个开关就够不着**——记录里没有 `cdp` 那个字段，停掉重开一次就有了。记录**进程退了也不删**，
 读的人验活（pid 还在、且那个 pid 真的持着那个端口），下一次开机内核整份重写。
 
-**底座还得手工铺。** `devkit.home.new` 开出来的是个空 home，把基础插件（命令总线、外壳、插件管理、
-数据那几个）与被测的插件装进去这一步**没有命令**，自己 `pnpm add` 加写 `cordis.yml` 条目。
-第一次装一个插件用 `plugin-manager.install`（它会顺带落条目）；**已经装过的包别再用它**，它对已装的包也
-照样新建一条条目，同一个插件挂两遍。这条链因此走 `pnpm add` 加已有条目。
+**底座自动铺（0.7.6 起）。** `devkit.home.new` 在起内核前会自动装底座：命令总线、外壳、数据、
+设置、说明书、插件管理、基础窗格皮（七件）加三个共享包（shared-react / tokens / plugin-api），
+写好 `cordis.yml` 条目再拉进程——**开箱就是一个能用的家**。要加别的插件，装完后自己
+`plugin-manager.install`。registry 地址不写死在命令行上：scope 路由住用户级 pnpm 配置
+（`@godcreator02:registry`），`pnpm add` / `pnpm publish` 不带 `--registry` 开关就走那条路。
 
 **开发版会攒。** 本机源与 pnpm 仓里留下一堆一次性版本，攒多了跑一次 `pnpm store prune`。
 

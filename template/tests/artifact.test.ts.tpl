@@ -149,8 +149,9 @@ describe.skipIf(!built)('产物', () => {
   const all = built ? fs.readdirSync(distDir).filter((f) => f.endsWith('.js')) : []
   const nodeHalf = all.filter((f) => f !== CLIENT)
 
-  it('两半都在——node 半的 index.js，浏览器半的 client.js，外加 style.css', () => {
-    expect(nodeHalf.sort()).toEqual(['index.js'])
+  it('两半都在——node 半至少有 index.js，浏览器半有 client.js，外加 style.css', () => {
+    // node 半＝所有 .js 减掉 client.js；拆出 store.js 等新文件也照收
+    expect(nodeHalf).toContain('index.js')
     expect(all).toContain(CLIENT)
     expect(fs.existsSync(path.join(distDir, 'style.css'))).toBe(true)
   })

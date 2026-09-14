@@ -24,9 +24,9 @@ describe('catalog.md：身份卡防漏', () => {
   it('源码 inject 的每个服务名，卡上都点名了', () => {
     const services = new Set<string>()
     for (const m of srcText().matchAll(/(?:export const inject|static inject)\s*=\s*\[([^\]]*)\]/g))
-      for (const q of m[1]!.matchAll(/'([^']+)'/g)) services.add(q[1])
+      for (const q of m[1]!.matchAll(/'([^']+)'/g)) services.add(q[1]!)
     for (const m of srcText().matchAll(/\.inject\(\s*\[([^\]]*)\]/g))
-      for (const q of m[1]!.matchAll(/'([^']+)'/g)) services.add(q[1])
-    for (const s of services) expect(card, s).toContain(s)
+      for (const q of m[1]!.matchAll(/'([^']+)'/g)) services.add(q[1]!)
+    for (const s of services) expect(card, s ?? "?").toContain(s ?? "?")
   })
 })

@@ -293,7 +293,54 @@ export interface LaunchInput {
   cdp?: number
   /** 给了就先跑,失败即失败;不给(open 的路)就不 build */
   build?: { command: string; args: string[]; cwd: string }
+  /** 给了就在起内核前铺底座：写 cordis.yml 条目 + pnpm add 基础件（只有 home.new 用） */
+  base?: boolean
 }
+
+// ── 底座 ──────────────────────────────────────────────────────────────────────
+
+/**
+ * 底座件集——一个「开箱能用」的测试 home 最少要装的。**写死、不做参数**：
+ * 底座是个概念（命令总线、外壳、数据、设置、说明书、插件管理、基础窗格皮），不是一张可定制的购物清单。
+ * 要加东西，装完再 `plugin-manager.install`。
+ */
+export const BASE_PLUGINS: ReadonlyArray<{ id: string; pkg: string }> = [
+  { id: 'commands', pkg: '@godcreator02/gwb-commands' },
+  { id: 'shell', pkg: '@godcreator02/gwb-shell' },
+  { id: 'data', pkg: '@godcreator02/gwb-data' },
+  { id: 'settings', pkg: '@godcreator02/gwb-settings' },
+  { id: 'skills', pkg: '@godcreator02/gwb-skills' },
+  { id: 'plugin-manager', pkg: '@godcreator02/gwb-plugin-manager' },
+  { id: 'baseui', pkg: '@godcreator02/gwb-baseui' },
+] as const
+
+/** 共享包——不是插件（不进 cordis.yml），但必须是 home 的直接依赖，否则外壳起不来 */
+export const BASE_SHARED: readonly string[] = [
+  '@godcreator02/gwb-shared-react',
+  '@godcreator02/gwb-tokens',
+  '@godcreator02/gwb-plugin-api',
+] as const
+
+/** 底座的 cordis.yml 内容 */
+export function baseYaml(): string {
+  return BASE_PLUGINS.map((p) => `- id: ${p.id}\n  name: '${p.pkg}'`).join('\n') + '\n'
+}
+
+/** 底座的 pnpm add 命令行（Windows 上 pnpm 是 .cmd，要过 cmd /c） */
+export function baseInstallPlan(home: string, platform: NodeJS.Platform): {
+  command: string
+  args: string[]
+  cwd: string
+} {
+  const all = [...BASE_PLUGINS.map((p) => p.pkg), ...BASE_SHARED]
+  const args = ['add', ...all]
+  return platform === 'win32'
+    ? { command: 'cmd', args: ['/c', 'pnpm', ...args], cwd: home }
+    : { command: 'pnpm', args, cwd: home }
+}
+
+/** 底座安装的超时——pnpm add 一批包，给足 5 分钟 */
+export const BASE_INSTALL_TIMEOUT_MS = 300_000
 
 /**
  * 把一个测试 home 拉起来:先 build(要的话)、起 electron、观察五秒确认不是秒退,最后读一眼
@@ -339,6 +386,21 @@ export async function launchHome(input: LaunchInput, deps: HomeDeps): Promise<La
   // 失败留下一扇没记录的窗,谁也管不着它。home 的最小形态(package.json 与空 cordis.yml)
   // 与那份 runtime.json 都归内核自己铺,而那要等它起来;devkit 只建目录
   deps.fs.ensureDir(home)
+  // 铺底座：在起内核之前把 cordis.yml 写好、包装好——内核一睁眼就是一个能用的家。
+  // **只在文件还不存在时写**（内核的规矩也是不覆盖）：open 已有 home 不会走到这儿（不带 base）
+  if (input.base === true) {
+    if (!deps.fs.exists(path.join(home, 'cordis.yml'))) {
+      deps.fs.writeText(path.join(home, 'cordis.yml'), baseYaml())
+    }
+    const install = baseInstallPlan(home, deps.platform)
+    const installed = await deps.run(install, BASE_INSTALL_TIMEOUT_MS)
+    if (!installed.ok) {
+      return {
+        ok: false,
+        error: `底座装不上(pnpm add 失败;查 scope 路由与源的连通性)。输出尾巴:\n${installed.tail}`,
+      }
+    }
+  }
   const pid = deps.spawn(guiSpawnPlan(appDir, deps.platform, input.cdp), guiChildEnv(deps.env, input.name))
   if (pid === undefined) return { ok: false, error: '起不来:子进程没拿到 pid,看宿主日志' }
 

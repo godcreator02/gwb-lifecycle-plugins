@@ -242,6 +242,7 @@ export function apply(ctx: GwbContext): void {
             kernelDir,
             cdp: port.cdp,
             build: buildPlan(appDirOf(kernelDir), homeDeps.platform),
+            base: true,
           },
           homeDeps,
         )
