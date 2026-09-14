@@ -126,7 +126,7 @@ docfirst.attach  {"dir":"${siteDir}"}                            # docfirst 件�
 \`\`\`
 
 **两步要连着跑**：\`docfirst.attach\` 只在还没写过内容的骨架上装得了，往里写过东西
-就得人工接线。命令不在就是那个件没装：\`plugins.install\`
+就得人工接线。命令不在就是那个件没装：\`plugin-manager.install\`
 \`@godcreator02/gwb-docs-site\` / \`@godcreator02/gwb-docfirst-workflow\`。`
   }
   const dev =
@@ -230,8 +230,8 @@ export function nextSteps(
   const steps = [
     `cd ${plan.dir}`,
     'pnpm install',
-    'pnpm check          # typecheck + oxlint + vitest，模板自带一条测试',
-    'pnpm build',
+    'pnpm check          # typecheck（node 半 + 浏览器半）+ oxlint + vitest，模板自带四份测试',
+    'pnpm build          # tsc + esbuild + tailwindcss 三步',
   ]
   if (built && attached) {
     steps.push(
@@ -251,8 +251,9 @@ export function nextSteps(
   }
   steps.push(
     '发一版：先抬 package.json 的版本号，再 pnpm publish --registry http://127.0.0.1:4873/ --no-git-checks',
-    `装进 home：调 plugins.install {"pkg":"${plan.pkg}"}，或手动 pnpm add + 在 cordis.yml 手写 id 条目`,
-    '发完就去升 default home（人点「全部更新」或 plugins.update-all）——攒着不升，agent 读到的手册与命令都停在旧版',
+    `装进隔离 home：plugin-manager.install {"pkg":"${plan.pkg}"}——该进的 peer 会一并装上`,
+    `命令面验证：POST /run {"command":"${plan.name}.ping"} 回 {ok:true,…}；工作台那格窗格「你好」+计数按钮点得动——模板的六步验收走完`,
+    '发完就去升 default home（人点「全部更新」或 plugin-manager.update-all）——攒着不升，agent 读到的手册与命令都停在旧版',
     '写件手册：读 skill「gwb-devkit」——红线、能力面菜单、验机都在里面；文档写什么读 skill「docfirst-docs」',
   )
   return steps

@@ -1,3 +1,13 @@
 {
-  "pages": ["index", "..."]
+  "pages": [
+    "index",
+    "2026-09-08-gwb-devkit",
+    "2026-09-09-skills-and-templates-ride-package",
+    "2026-09-11-address-a-home-by-name",
+    "2026-09-11-cut-the-half-nobody-uses",
+    "2026-09-11-dev-loop-comes-to-devkit",
+    "2026-09-11-port-is-not-an-address",
+    "2026-09-13-terminology-rename",
+    "2026-09-13-template-becomes-the-plugin"
+  ]
 }

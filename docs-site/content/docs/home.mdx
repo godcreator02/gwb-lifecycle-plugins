@@ -23,10 +23,10 @@ home 建在 `%APPDATA%\gwb-kernel\homes\<名>\`。开哪一个由环境变量 `G
 
 ## 不知道什么
 
-它不知道 home 里装了哪些插件，也不知道插件挂上了没有。那是 plugins 插件的事，问 `plugins.list`。
+它不知道 home 里装了哪些插件，也不知道插件挂上了没有。那是 plugin-manager 插件的事，问 `plugin-manager.list`。
 
 它**不写那份运行时记录**，只读。`package.json`、空的 `cordis.yml` 与 `runtime.json` 都归内核自己铺，
-`runtime.json` 里 mcp 那格归 mcp 插件补；这块只建目录，然后读。
+`runtime.json` 里 `command-http` 那格归命令口插件（gwb-command-http）补；这块只建目录，然后读。
 
 它不知道 CDP 端口拿来干什么，只负责挑一个、把那个开关摆到命令行上、再从记录里把它读回来。
 
@@ -39,11 +39,11 @@ home 建在 `%APPDATA%\gwb-kernel\homes\<名>\`。开哪一个由环境变量 `G
 
 {/* ref file="../src/home.ts" lines="57-72" */}
 
-**写它的是内核与 mcp 插件，不是这块。** 内核开机整份重写前四格，mcp 插件绑上端口之后读改写补自己那格。
+**写它的是内核与命令口插件，不是这块。** 内核开机整份重写前四格，gwb-command-http 绑上端口之后读改写补 `command-http` 那格。
 判据是谁知道那个数：CDP 端口是 Chromium 的命令行开关，只有起进程的那只手知道，而内核是唯一必然
-在场的那个进程；MCP 的端口绑成功之后才定下来，只有那个插件手里有。
+在场的那个进程；命令口的端口绑成功之后才定下来，只有那个插件手里有。
 
-**少一格不是坏记录。** `cdp` 只有起的时候带了那个开关才有，`mcp` 只有装了那个插件且绑成了才有。
+**少一格不是坏记录。** `cdp` 只有起的时候带了那个开关才有，`command-http` 只有装了那个插件且绑成了才有。
 缺哪格就是那件事没发生。
 
 {/* ref file="../src/home.ts" lines="83-90" */}

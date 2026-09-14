@@ -163,21 +163,29 @@ describe('targetRel：脱掉 .tpl', () => {
 describe('包内 template/', () => {
   it('每个文件都带 .tpl 后缀', () => {
     const files = listTemplateFiles(TEMPLATE_ROOT)
-    expect(files.length).toBe(10)
+    expect(files.length).toBe(17)
     expect(files.filter((f) => !f.endsWith('.tpl'))).toEqual([])
   })
 
   it('真渲染一套：占位符一个不剩，包名与插件名都对', () => {
     const files = renderTemplate(TEMPLATE_ROOT, planScaffold({ name: 'hello', dir: 'D:\\tmp\\x', title: '打招呼' }))
-    // 一个**能直接开工**的件仓：门禁（oxlint / vitest / 两份 tsconfig）、起手测试、README 都在
+    // 一个**能直接开工**的模板插件仓：门禁（oxlint / vitest / 两半 tsconfig）、浏览器半
+    // （client + styles + build.ts）、身份卡、四份测试、README 都在
     expect(files.map((f) => f.rel).sort()).toEqual([
       '.gitignore',
-      '.npmrc',
       '.oxlintrc.json',
       'README.md',
+      'build.ts',
+      'catalog.md',
       'package.json',
+      'src/client/index.tsx',
+      'src/client/styles.css',
+      'src/client/tsconfig.json',
       'src/index.ts',
+      'tests/artifact.test.ts',
+      'tests/catalog.test.ts',
       'tests/plugin.test.ts',
+      'tests/prefix.test.ts',
       'tsconfig.build.json',
       'tsconfig.json',
       'vitest.config.ts',

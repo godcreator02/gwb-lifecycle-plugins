@@ -56,7 +56,7 @@ description: 动手写一个新 gwb 插件之前读，打算说「验过了 / �
 
 **构建不可跳过，源也不可给**。产物不新就发，发出去的是上一版，而整条链一路绿灯；源这台机器上
 只有一个。想现看一眼某个 home 的条目表，用
-`devkit.cdp {"args":["<名>","cmd","plugins.list"]}`——**那是看，不是验**。验只发生在
+`devkit.cdp {"args":["<名>","cmd","plugin-manager.list"]}`——**那是看，不是验**。验只发生在
 `devkit.dev` 里头那一次，因为只有它手上有「这一趟之前」的日志基线。
 
 **目标只用 home 名指，这一层不收端口**。端口是从那个 home 的 `runtime.json` 里查的
@@ -89,7 +89,7 @@ description: 动手写一个新 gwb 插件之前读，打算说「验过了 / �
 | 名字 | 从哪一版起没有 | 现在怎么办 |
 | --- | --- | --- |
 | `registry.log` | 0.6.0 | `registry.up` 起不来时的错话里带着日志文件绝对路径，Read 它 |
-| `devkit.dev-check` | 0.6.0 | `devkit.cdp {"args":["<名>","cmd","plugins.list"]}`，那是看不是验 |
+| `devkit.dev-check` | 0.6.0 | `devkit.cdp {"args":["<名>","cmd","plugin-manager.list"]}`，那是看不是验 |
 | `devkit.home.stop` | 0.6.0 | 并进 `devkit.home.rm`：`force` 连停带删 |
 | cdp 的 `targets` | 0.6.0 | 连不上时错话里已经带着候选页整张表 |
 | cdp 的 `raise` | 0.6.0 | `shot` 自己会抬窗 |
@@ -126,14 +126,15 @@ node <devkit 包根>\bin\registry.mjs status D:\unitfolders\26090520zzv\registry
 | 命令 | 参数 | 干什么 |
 | --- | --- | --- |
 | `devkit.home.new` | `{ short }` | 开一个新 home，名字长成 `<short>-<yyMMddHHmm>`。**先 build 内核**（产物不新就起等于验旧代码，这一步跳不过），**调试端口自动挑**（先沿用这个 home 上次那个，被占了才另挑），所以它起的 home 天然按名字够得到。**回执里带着现有 home 清单**，开新那一刻正好清旧的 |
-| `devkit.home.list` | — | 列 home 根下全部：名字、谁还在跑、CDP 端口、MCP 端口 |
+| `devkit.home.list` | — | 列 home 根下全部：名字、谁还在跑、CDP 端口、命令口（`command-http` 格） |
 | `devkit.home.open` | `{ name }` | 重开已有的，**不 build**。机器重启之后回到原来那个现场只有这一条路——`home.new` 永远造新目录，插件得全部重装一遍 |
 | `devkit.home.rm` | `{ name, force? }` | 删。没在跑的直接删；**还在跑的要 `force`**，那时连停带删（按 `runtime.json` 里的 pid，核对映像名与记录里那个 CDP 端口再杀），停不掉就不删。`default` 是日常那份：不 `force` 不删，**而且它在跑的时候 `force` 也不删**——自己关掉那扇窗再来 |
 
 运行时记录落在每个 home 自己的 `runtime.json` 里（`pid` / `startedAt` / `appDir` / `cdp` /
-`mcp`），home 删了它自然也没了。**写它的是内核与 mcp 插件，devkit 只读**：内核开机整份重写，
-mcp 插件绑上端口之后补自己那个字段。所以**手工起的 home 也有记录**，「说出名字就够得着它」对所有
-home 都成立。**热重挂不换 pid**——`plugins.update-all` 那套停用再启用只动条目，内核进程还是
+`command-http`），home 删了它自然也没了。**写它的是内核与 gwb-command-http 插件，devkit 只读**：
+内核开机整份重写，命令口插件绑上端口之后补自己那个字段。所以**手工起的 home 也有记录**，
+「说出名字就够得着它」对所有
+home 都成立。**热重挂不换 pid**——`plugin-manager.update-all` 那套停用再启用只动条目，内核进程还是
 原来那个，记录照旧作数。
 
 **前提**：`devkit.home.*` 要 devkit 本身跑在一个活着的 home 里——它是个插件，宿主不在它也起不了。
@@ -172,15 +173,17 @@ devkit.scaffold {"name":"hello","dir":"D:\\unitfolders\\<单元>\\gwb-hello","ti
 
 **没装站点插件的时候**：`devkit.scaffold` 不报错、不终止，插件那半正常落盘，回执与生成的
 README 都改口说「站没铺，装了站点插件之后自己跑 `docs-site.create`」。装：
-`plugins.install {"pkg":"@godcreator02/gwb-docs-site"}`，docfirst 插件同理。
+`plugin-manager.install {"pkg":"@godcreator02/gwb-docs-site"}`，docfirst 插件同理。
 
 ## 建出来是什么
 
-一个能直接开工的插件仓，两半各有各的依赖：
+一个**起手即可验证运行**的模板插件仓：node 半（挂载 + 一格窗格注册 + 一条 `<短名>.ping`
+命令）、浏览器半（「你好 + 计数按钮」的窗格，Tailwind 前缀围栏）、身份卡（`catalog.md`）、
+四份测试（身份与注册 / catalog 不撒谎 / 类名前缀守卫 / 产物守卫）。两半各有各的依赖：
 
 | 半 | 装什么 | 模板归谁 |
 | --- | --- | --- |
-| 仓根 | `package.json`（build / typecheck / lint / test / check / prepublishOnly）、`tsconfig.json` 与 `tsconfig.build.json`（typecheck 带上 tests，构建只吃 src）、`.oxlintrc.json`（type-aware 那套规则）、`vitest.config.ts`（只认仓根 `tests/`，slow 标签留给真起子进程的用例）、`.npmrc`（scope 指本机源）、`src/index.ts`、`tests/plugin.test.ts`、`README.md` | **本包 `template/`**，10 个 `.tpl` |
+| 仓根 | `package.json`（build 三步：tsc + esbuild + tailwindcss；check / prepublishOnly）、`tsconfig.json` 与 `tsconfig.build.json`（node 半）、`src/client/tsconfig.json`（浏览器半，jsx + DOM）、`.oxlintrc.json`（type-aware 那套规则）、`vitest.config.ts`（只认仓根 `tests/`，slow 标签留给真起子进程的用例）、`build.ts`（esbuild 打包，react 四裸名外置）、`src/index.ts`、`src/client/index.tsx`、`src/client/styles.css`、`catalog.md`、`tests/` 四份、`README.md`。**不写 `.npmrc`**——scope 路由住用户级 pnpm 配置 | **本包 `template/`**，17 个 `.tpl` |
 | `docs-site/` | fumadocs 骨架 + docfirst 的六区 | **不归本包**：骨架模板随站点插件发，六区那套随 `@godcreator02/docfirst-workflow` 发 |
 
 **三者互不依赖。** devkit 不依赖站点插件、站点插件不认识 docfirst、docfirst 插件不认识站点插件——
@@ -260,13 +263,14 @@ base-ui 的版本，而那儿根本没问题。它们的服务端那半（remark
 ```
 cd <dir>
 pnpm install
-pnpm check          # typecheck + oxlint + vitest，模板自带一条测试
-pnpm build
+pnpm check          # typecheck（node 半 + 浏览器半）+ oxlint + vitest，模板自带四份测试
+pnpm build          # tsc + esbuild + tailwindcss 三步
 文档站那半（自己一套依赖，跟插件那半分开装）：cd <dir>\docs-site && pnpm install && pnpm doc
 先 git init 落第一个提交，再在 docs-site 里 pnpm doc:confirm
 发一版：先抬 package.json 的版本号，再 pnpm publish --registry http://127.0.0.1:4873/ --no-git-checks
-装进 home：调 plugins.install {"pkg":"@godcreator02/gwb-<短名>"}，或手动 pnpm add + 在 cordis.yml 手写 id 条目
-发完就去升 default home（人点「全部更新」或 plugins.update-all）
+装进隔离 home：plugin-manager.install {"pkg":"@godcreator02/gwb-<短名>"}——该进的 peer 会一并装上
+命令面验证：POST /run {"command":"<短名>.ping"} 回 {ok:true,…}；工作台那格窗格「你好」+计数按钮点得动——六步验收到这儿走完
+发完就去升 default home（人点「全部更新」或 plugin-manager.update-all）
 ```
 
 # 两个插件各管什么
@@ -361,8 +365,8 @@ handler 参数是 `unknown`，自己收窄（词汇表包的 `isRecord`）。相
 但 description 里那句形状仍然要有。
 
 **要让 agent 在顶层直接看见这条命令，登记时标 `top: true`**（`GwbCommandDef` 的字段）。
-**标了就是顶层，桥照它渲染，没有运行时名单**：MCP 桥固定开两个工具
-`gwb_command_list` / `gwb_command_run`，外加所有标了 `top: true` 的命令。顶层是**写插件时
+那是**给将来门面留的位**：gwb-command-http 的门只是如实带出这个标记（`/surface` 里看得见），
+没有顶层渲染这一层；MCP 时代的桥拿它挑顶层工具，那条线已随 mcp 搁置。顶层是**写插件时
 定下来的一件事**，不是装进软件之后再批的——所以默认不标，**标之前先问人**。
 
 **四、发一版。** 先抬 `package.json` 的版本号，再：
@@ -376,7 +380,7 @@ pnpm publish --registry http://127.0.0.1:4873/ --no-git-checks
 
 **五、装进 home 看真效果。** 两条路：
 
-- **正路**：`plugins.install { "pkg": "@godcreator02/gwb-<短名>" }`（可选 `spec` 指定版本）
+- **正路**：`plugin-manager.install { "pkg": "@godcreator02/gwb-<短名>" }`（可选 `spec` 指定版本）
   ——真跑 pnpm add，**然后自动加一条条目（默认启用）**，回执带新条目的 `entryId`
 - **手动路**：home 目录里 `pnpm add @godcreator02/gwb-<短名>@<版本>`，再在 `cordis.yml`
   手写一条条目。`id` **必须手写**：不写 loader 当场发 8 位随机 hex 且首挂不写回，身份一直漂
@@ -384,7 +388,7 @@ pnpm publish --registry http://127.0.0.1:4873/ --no-git-checks
 **六、全套验一遍**（见「验机」节）。
 
 **七、上市场——不用做。** 市场页（`plugins` 插件的市场标签）**直接搜本机源**
-（`plugins.search`，基址由 node 半从 pnpm 配置解析：装从哪条源来，搜就到哪去），
+（`plugin-manager.search`，基址由 node 半从 pnpm 配置解析：装从哪条源来，搜就到哪去），
 发上去就搜得到。没有白名单要登记——早先手册写的 `market/src/catalog.ts` 是老写法，
 那个文件不存在。
 
@@ -453,7 +457,7 @@ dependencies，装进 home 就是第二份实例，Service 身份对不上——
 | 数据 | `gwbData.readDoc/writeDoc`（局部） | 要落盘状态就要。存 `<home>/data/<条目末段>/` |
 | 窗格 | `gwbShell.registerPane` + client 半 | 要人看得见就要 |
 | 外部 CLI | `gwbNodeCli` / `gwbPyCli` register（局部） | 要给外部脚本一个稳定入口就要。**CLI 形态的东西一律走这儿**，不做总线命令、不进程内调 |
-| agent 桥 | 不用做——gwb-mcp 把总线开出去：agent 经 `gwb_command_run` 调你的命令 | 顶层工具只有固定两个（`gwb_command_list` / `gwb_command_run`）加标了 `top: true` 的，要上顶层见上面第三步 |
+| agent 桥 | 不用做——gwb-command-http 把总线开出去：agent 经 `POST /run` 按名调你的命令 | 门就两条路（`GET /surface` 现扫 + `POST /run`），没有顶层清单这回事；`top: true` 是给将来门面留的位 |
 
 inject 三种写法：`export const inject = [...]` 硬依赖（缺了不挂）；`static inject = [...]`
 （Service 类）；`ctx.inject([...], fn)` 局部可选（缺了主插件照挂）。**inject 是等待不是
@@ -484,8 +488,9 @@ inject 三种写法：`export const inject = [...]` 硬依赖（缺了不挂）�
 
 # 带界面的插件：浏览器半与样式
 
-样板是插件仓的 `plugins/hello`（`D:\unitfolders\26090709qzp\gwb-base-plugins`），
-新插件照它抄。要点：
+**样板就是模板本身**：`devkit.scaffold` 落出来的就是带窗格的完整形状（浏览器半、前缀
+围栏、两道产物守卫、esbuild 构建线全在），照着改就行；要看更活的用例，UI 平台仓的 baseui
+（`D:\unitfolders\26091217uiz\gwb-ui-plugins`）是运行中的样。要点：
 
 **浏览器半**：`src/client/index.tsx` 导出 `mountPane(args, container) => { dispose() }`；
 esbuild 打成 `dist/client.js`，只把 `react` / `react/jsx-runtime` / `react-dom` /
@@ -518,7 +523,7 @@ esbuild 打成 `dist/client.js`，只把 `react` / `react/jsx-runtime` / `react-
 六条会静默的事：不引令牌映射面颜色类全空；用 Tailwind 内置调色板类（`amber-600` 这种）表达
 语义色——编得出来、看着也对，**换主题时颜色不跟随**，漂在令牌表外没人报；不引
 `tw-animate-css` 则 `animate-in` 一族全部不生成、菜单永不动画；**忘加前缀的类一个字节都不出**
-——把 hello 的 `tests/prefix.test.ts` 抄一份钉住；`group` / `peer` 这类**标记类也要带前缀**
+——模板自带的 `tests/prefix.test.ts` 钉着，新加的类忘了前缀它当场红；`group` / `peer` 这类**标记类也要带前缀**
 （`logger:group-hover:*` 编出的选择器认的是 `.logger\:group`，标记不带前缀永远不命中，
 守卫抓不到它，因为它本来就编不出规则）；Tailwind 会把内置主题变量名也改掉
 （`--<短名>-spacing`），令牌只能经映射面送值。
@@ -548,8 +553,9 @@ lucide 图标身上的 `lucide lucide-xxx` 是它烤进 SVG 的身份属性，�
 @theme inline { --color-src-plugin: var(--<短名>-src-plugin); }
 ```
 
-**产物守卫两条断言**，新插件照 hello 或 baseui 的 `tests/artifact.test.ts`
-抄：
+**产物守卫两条断言**，模板自带的 `tests/artifact.test.ts` 已经钉着（零字面 fallback 与
+前缀选择器；要加**颜色类白名单**那条，照 UI 平台仓 baseui 的同名文件补——色名 ∈ 令牌包
+映射面的 `--color-*` 条目 ∪ 本插件入口 `@theme` 自注册，两边现扫、不手写名单）：
 
 - **零字面 fallback**：`dist/style.css` 里 `var()` 的第二参只认 `var()` 引用、`currentcolor`、
   空；tw-animate-css 烤在包里的机制缺省豁免（`--tw-animation-*` / `--tw-enter-*` /
@@ -563,8 +569,8 @@ lucide 图标身上的 `lucide lucide-xxx` 是它烤进 SVG 的身份属性，�
 
 **组件的共享不用操心。** 官方 registry 与自建 registry 是同一份协议——官方只是第一个
 实现，CLI 拉取时按插件自己的 `tailwind.prefix` 改写类名。所以将来真要生态自己的组件源头，
-今天这套纪律原样够用、零架构变更；在那之前照 hello 各拉各的。机制、版本化与启动信号
-见插件仓文档站「样式与组件」第五节（`gwb-base-plugins/docs-site/content/docs/styles.mdx`）。
+今天这套纪律原样够用、零架构变更；在那之前各拉各的。机制、版本化与启动信号
+见 UI 平台仓文档站「样式与组件」（`gwb-ui-plugins/docs-site`，从基础件仓迁过去的）。
 
 # 发版与装机
 
@@ -601,12 +607,12 @@ minimumReleaseAgeExclude:
 
 整条路是三段，**一段都不能省，最后一段最容易忘**：
 
-1. **发版前在隔离 home 里验**（`devkit.home.new`，见「验机」）——`plugins.update-all`
+1. **发版前在隔离 home 里验**（`devkit.home.new`，见「验机」）——`plugin-manager.update-all`
    直接升日常那份，跳过了这一步
 2. **发本机 registry**（`pnpm publish`，上一节）
-3. **升 default home**：人在插件窗格点「全部更新」，或 agent 调 `plugins.update-all`。
-   **新插件第一次装**不走这条（它只升已装的），走 `plugins.install {"pkg":"<包名>"}`，
-   装完 `/mcp` 重连——顶层工具清单与 resources 列表都是连接时的快照
+3. **升 default home**：人在插件窗格点「全部更新」，或 agent 调 `plugin-manager.update-all`。
+   **新插件第一次装**不走这条（它只升已装的），走 `plugin-manager.install {"pkg":"<包名>"}`，
+   装完下一次 `/surface` 现扫就有——门没有会话，**没有重连这个动作**
 
 **不升的代价**：说明书与命令都停在旧版，而 `gwb-skills` 的「正文现读盘」只对**装进 home
 的那份**生效——仓里改了字、发了版、没升，agent 读到的还是上一版。它照着一份过期手册
@@ -616,14 +622,14 @@ minimumReleaseAgeExclude:
 ## 一键更新是怎么走的
 
 发完（可能是好几个插件的好几版）之后，把 home 里那份升上来只有一个动作：人在插件窗格点
-那颗**「全部更新」**键，或 agent 经 MCP 调 `plugins.update-all`（无参数）。它一条命令走完：
-查新版本 → 一次 `pnpm` 全升 → 升了的条目**逐条停用再启用**（即热重挂，`plugins` 插件自己
+那颗**「全部更新」**键，或 agent 经命令口调 `plugin-manager.update-all`（无参数）。它一条命令走完：
+查新版本 → 一次 `pnpm` 全升 → 升了的条目**逐条停用再启用**（即热重挂，plugin-manager 自己
 排最后）→ 调 `shell.reload` 整页重载。回执按包报 `from → to`，并逐条说挂上了没有。
 
 **不重启工作台，也没有回退。** 升坏了就是升坏了，往前修（再发一版再升），别指望它退回去。
 
-**升到 `gwb-mcp` 自己时，经 MCP 触发的那条回执会丢**——桥跟着它一起重挂，调用方等不到返回。
-那不是失败：重连之后调 `plugins.list` 核对谁挂上了、版本对不对，别当它没升成又升一次。
+**升到 `gwb-command-http` 自己时，在途的那条请求会断**——门跟着它一起重挂，调用方等不到返回。
+那不是失败：**下一发请求自动就好**，之后调 `plugin-manager.list` 核对谁挂上了、版本对不对，别当它没升成又升一次。
 
 **升级与重挂在同一条命令里，中间别插别的命令。** 那一段时间里插件正一个个下线上线，
 这时候调任何别的命令，看到的都是半截状态。
@@ -637,12 +643,12 @@ minimumReleaseAgeExclude:
 - **内循环**：改一行、看一眼。发**开发版**，装进**隔离 home**，重挂，取证。一天几十趟。
   开发版**永远不进 `default`**
 - **外循环**：一轮改完了，抬版本号发**正式版**，升 `default`（人点「全部更新」或
-  `plugins.update-all`）。见「发完版就去升 default home」
+  `plugin-manager.update-all`）。见「发完版就去升 default home」
 
 内循环就是一条命令：
 
 ```
-devkit.dev {"home":"<home 名>","dir":"D:\\unitfolders\\<单元>\\<仓>","packages":["plugins/hello"]}
+devkit.dev {"home":"<home 名>","dir":"D:\\unitfolders\\<单元>\\<仓>","packages":["plugins/demo"]}
 ```
 
 七步一趟：问目标页它是哪个 home → 仓根 `pnpm build` → 逐个包发开发版（`<patch+1>-dev.<戳>`，
@@ -659,9 +665,9 @@ devkit.dev {"home":"<home 名>","dir":"D:\\unitfolders\\<单元>\\<仓>","packag
    哪个」，页面回答「你连上的实际是哪个」**。端口会被下一个进程占走、记录会陈旧，只信一头
    就会把一趟改动静默推给另一个隔离 home
 2. **目标是 `default` 就拒。** 开发版的号看着跟正式版没两样，进了日常那份 home 就悄悄换了代码，
-   而 `plugins.list` 上一点异常都看不出来
+   而 `plugin-manager.list` 上一点异常都看不出来
 3. **目标是本插件自己所在的 home 就拒。** 停用条目那一下会把正在跑的这条命令自己停掉。
-   **换 devkit 自己走外循环**：发正式版，再 `plugins.update-all`（那条是 plugins 插件在调，
+   **换 devkit 自己走外循环**：发正式版，再 `plugin-manager.update-all`（那条是 plugins 插件在调，
    活得过 devkit 的重挂）
 4. **产物不全就不发。** 照 `package.json` 的 `files` 白名单问，不另列一份名单。否定式
    （`!py/**/__pycache__`）与通配不算产物；`files` 里有**通配的正条目**时这条链当场拒，
@@ -706,20 +712,20 @@ home 记录里占着的、跳过此刻真有人 listen 的），换了会在回�
 是有价值的：人记得住、日志里对得上、开着的检查器不用换地址。
 
 **端口记在哪**：内核开机把 `pid` / `startedAt` / `appDir` / `cdp` 写进 `<home>/runtime.json`，
-mcp 插件绑上端口之后补一个 `mcp` 字段。之后说出 home 名就够得着它，不用记那个数。**手工起的 home 没带
+命令口插件绑上端口之后补一个 `command-http` 字段。之后说出 home 名就够得着它，不用记那个数。**手工起的 home 没带
 那个开关就够不着**——记录里没有 `cdp` 那个字段，停掉重开一次就有了。记录**进程退了也不删**，
 读的人验活（pid 还在、且那个 pid 真的持着那个端口），下一次开机内核整份重写。
 
 **底座还得手工铺。** `devkit.home.new` 开出来的是个空 home，把基础插件（命令总线、外壳、插件管理、
 数据那几个）与被测的插件装进去这一步**没有命令**，自己 `pnpm add` 加写 `cordis.yml` 条目。
-第一次装一个插件用 `plugins.install`（它会顺带落条目）；**已经装过的包别再用它**，它对已装的包也
+第一次装一个插件用 `plugin-manager.install`（它会顺带落条目）；**已经装过的包别再用它**，它对已装的包也
 照样新建一条条目，同一个插件挂两遍。这条链因此走 `pnpm add` 加已有条目。
 
 **开发版会攒。** 本机源与 pnpm 仓里留下一堆一次性版本，攒多了跑一次 `pnpm store prune`。
 
 ## 想单看一眼
 
-`devkit.cdp {"args":["<名>","cmd","plugins.list"]}` 回条目表，日志自己 Read
+`devkit.cdp {"args":["<名>","cmd","plugin-manager.list"]}` 回条目表，日志自己 Read
 `<home>\gwb.log`。**这是看，不是验**：单看一眼时没有「这一趟之前」的基线，日志里那些 error
 可能是几天前的。判定只发生在 `devkit.dev` 里头那一次，它手上有基线。
 
@@ -730,7 +736,7 @@ mcp 插件绑上端口之后补一个 `mcp` 字段。之后说出 home 名就够
 `pnpm typecheck` / `vitest` 全绿只说明源码站得住——它们**不依赖 build 产物**，吃的都是源码。
 装出来能不能跑是另一件事，这一节管后者。
 
-**「一键更新」不替这一节。** `plugins.update-all` 直接升日常那份 home，**跳过了「先在隔离
+**「一键更新」不替这一节。** `plugin-manager.update-all` 直接升日常那份 home，**跳过了「先在隔离
 home 里验」这一步**。所以**发版前**在一个测试 home 里装一遍、按下面几条验完，仍然是 agent
 的责任；人点「全部更新」是最后一步，不是验证的一步。
 
@@ -778,7 +784,7 @@ home 里验」这一步**。所以**发版前**在一个测试 home 里装一遍
    先注一条 `transition:none` 再读；返回 `oklab(…)` 格式就是「还在过渡中」的指纹
 4. **改了插件没重发 / 改了内核没重 build**。第二节那三条，最隐蔽的一种：界面全对，验的是上一版
 
-谁挂上了看 `plugins.list`——它的 `active` 判的是 fiber 真 ACTIVE，不是 fiber 建出来了
+谁挂上了看 `plugin-manager.list`——它的 `active` 判的是 fiber 真 ACTIVE，不是 fiber 建出来了
 （inject 永远等不到的插件也有 fiber，但 `active: false`）。
 
 ## 五、清理放在开新的那一刻
@@ -802,7 +808,7 @@ home 里验」这一步**。所以**发版前**在一个测试 home 里装一遍
 
 ```
 devkit.cdp {"args":["<home 名>","eval","out\\量一下.js"]}
-devkit.cdp {"args":["<home 名>","cmd","plugins.list"]}
+devkit.cdp {"args":["<home 名>","cmd","plugin-manager.list"]}
 devkit.cdp {"args":["<home 名>","home"]}
 devkit.cdp {"args":["<home 名>","click",".dv-tab@=日志"]}
 ```
@@ -825,8 +831,8 @@ node <devkit 包根>\bin\cdp.mjs <home 名> <动作> [参数…]
 盖住照样打得中，而这套界面最容易出的错正是遮挡）；量颜色前先注一条 `transition: none`，
 读到 `oklab(…)` 格式就是还在过渡中。
 
-**`cmd` 那个动作是不经 MCP 读写一个 home 的路**：外壳把 `window.gwb.command` 开给页面，于是从
-命令行够得到那个 home 的整张命令面。隔离 home 多半没装 `gwb-mcp`（装了也是随机端口，只有 `default`
+**`cmd` 那个动作是不经命令口读写一个 home 的路**：外壳把 `window.gwb.command` 开给页面，于是从
+命令行够得到那个 home 的整张命令面。隔离 home 多半没装 `gwb-command-http`（装了也是随机端口，只有 `default`
 认死 2870），这条路那时是唯一的一条。**只对隔离 home 用，绝不打 `default`**：这儿发的是真操作。
 
 量什么跟着界面走，所以**量表的脚本外置**：一个文件一张表，`eval` 收路径，按**工作目录**解

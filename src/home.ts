@@ -19,8 +19,8 @@ export const HOME_NAME_RE = /^[a-z0-9]+(-[a-z0-9]+)*$/
 /**
  * 每个 home 里那份运行时记录。一个 home 一份,home 删了它自然也没了。
  *
- * **写它的不是 devkit,是内核与 mcp 件**(2026-09-11 起):内核开机整份重写 pid / startedAt /
- * appDir / cdp,mcp 件绑上口之后读改写补自己那格。判据是「谁知道那个数」——CDP 口是 Chromium
+ * **写它的不是 devkit,是内核与命令口插件**(2026-09-11 起):内核开机整份重写 pid / startedAt /
+ * appDir / cdp,gwb-command-http 绑上口之后读改写补 `command-http` 那格。判据是「谁知道那个数」——CDP 口是 Chromium
  * 的命令行开关,只有起进程的那只手知道,而**内核是唯一必然在场的那个进程**;MCP 的口绑成功
  * 之后才定下来,只有那个件手里有。devkit 从前自己写一份 `devkit.json`,那份只覆盖得了它自己
  * 起的 home,容器里十八个 home 只有一个有记录,所以退役。
@@ -54,8 +54,8 @@ export const CDP_PORT_TRIES = 50
 
 // ── 启动记录 ──────────────────────────────────────────────────────────────────
 
-/** MCP 那道口绑在哪。绑成功之后由 mcp 件补进记录,没开这道口就没有这一格 */
-export interface McpEndpoint {
+/** 命令口绑在哪。绑成功之后由 gwb-command-http 插件补进记录（`command-http` 那格），没开这道口就没有这一格 */
+export interface CommandHttpEndpoint {
   port: number
   url: string
 }
@@ -68,7 +68,7 @@ export interface HomeRecord {
   appDir?: string
   /** Chromium 调试口;没开这道口就没有这一格。它是「够得着这个 home」的唯一入口 */
   cdp?: number
-  mcp?: McpEndpoint
+  commandHttp?: CommandHttpEndpoint
 }
 
 export function recordFile(homeDir: string): string {
@@ -84,7 +84,7 @@ function asPort(value: unknown): number | undefined {
  * 记录文件的内容 → 一份像样的记录。半截 JSON、形状不对、pid 不是正整数,一律当没有
  ——与 registry 的 `parsePid` 同一个道理:残缺的记录不该导出任何一个动作。
  *
- * **少一格不算坏**:`cdp` 只有起的时候带了那个开关才有,`mcp` 只有装了那个件且绑成了才有,
+ * **少一格不算坏**:`cdp` 只有起的时候带了那个开关才有,`command-http` 只有装了那个插件且绑成了才有,
  * `appDir` 是旧版内核可能没写的。缺哪格就是那件事没发生,不是这份记录不能用。
  */
 export function parseRecord(text: string | undefined): HomeRecord | undefined {
@@ -96,18 +96,18 @@ export function parseRecord(text: string | undefined): HomeRecord | undefined {
     return undefined
   }
   if (!isRecord(doc)) return undefined
-  const { pid, startedAt, appDir, cdp, mcp } = doc
+  const { pid, startedAt, appDir, cdp, 'command-http': commandHttp } = doc
   if (typeof pid !== 'number' || !Number.isInteger(pid) || pid <= 0) return undefined
   if (typeof startedAt !== 'number' || !Number.isFinite(startedAt)) return undefined
-  const mcpPort = isRecord(mcp) ? asPort(mcp.port) : undefined
-  const mcpUrl = isRecord(mcp) && typeof mcp.url === 'string' && mcp.url !== '' ? mcp.url : undefined
+  const httpPort = isRecord(commandHttp) ? asPort(commandHttp.port) : undefined
+  const httpUrl = isRecord(commandHttp) && typeof commandHttp.url === 'string' && commandHttp.url !== '' ? commandHttp.url : undefined
   const port = asPort(cdp)
   return {
     pid,
     startedAt,
     ...(typeof appDir === 'string' && appDir !== '' ? { appDir } : {}),
     ...(port === undefined ? {} : { cdp: port }),
-    ...(mcpPort === undefined || mcpUrl === undefined ? {} : { mcp: { port: mcpPort, url: mcpUrl } }),
+    ...(httpPort === undefined || httpUrl === undefined ? {} : { commandHttp: { port: httpPort, url: httpUrl } }),
   }
 }
 
@@ -382,7 +382,7 @@ export interface HomeEntry {
   running: boolean
   /** 够得着它的两道口。没记录、或那一格没写,就是 null */
   cdp: number | null
-  mcp: McpEndpoint | null
+  commandHttp: CommandHttpEndpoint | null
 }
 
 /** home 根下全部 home。名字带着时间戳后缀,字典序就是时间序——排序不必另做 */
@@ -402,7 +402,7 @@ export async function listHomes(homesRoot: string, deps: HomeDeps): Promise<Home
       running,
       // 口按记录如实报,不因为「进程看着不在」就抹掉:陈旧的口正是人要看见的那条线索
       cdp: record?.cdp ?? null,
-      mcp: record?.mcp ?? null,
+      commandHttp: record?.commandHttp ?? null,
     })
   }
   return out

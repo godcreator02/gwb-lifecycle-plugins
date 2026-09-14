@@ -209,7 +209,7 @@ export function apply(ctx: GwbContext): void {
 
   ctx.effect(() =>
     bus.register(
-      { name: 'registry.status', plugin: 'devkit', description: '查本机插件源。无参数。回执 {running, url（端口从 url 看）, pid, adopted, dir}' },
+      { name: 'registry.status', plugin: name, description: '查本机插件源。无参数。回执 {running, url（端口从 url 看）, pid, adopted, dir}' },
       async () => {
         const dir = dirOf()
         if (dir === undefined) return { ok: false, error: MISSING_DIR }
@@ -221,7 +221,7 @@ export function apply(ctx: GwbContext): void {
 
   ctx.effect(() =>
     bus.register(
-      { name: 'registry.up', plugin: 'devkit', description: '拉起本机插件源（已经在跑就直接接管），轮询 /-/ping 最多 30 秒。无参数' },
+      { name: 'registry.up', plugin: name, description: '拉起本机插件源（已经在跑就直接接管），轮询 /-/ping 最多 30 秒。无参数' },
       async () => {
         const dir = dirOf()
         if (dir === undefined) return { ok: false, error: MISSING_DIR }
@@ -239,7 +239,7 @@ export function apply(ctx: GwbContext): void {
 
   ctx.effect(() =>
     bus.register(
-      { name: 'registry.down', plugin: 'devkit', description: '停本机插件源（按 pid 文件，核对映像名与端口持有者再杀）——这台机器上别的仓也在用它。无参数' },
+      { name: 'registry.down', plugin: name, description: '停本机插件源（按 pid 文件，核对映像名与端口持有者再杀）——这台机器上别的仓也在用它。无参数' },
       async () => {
         const dir = dirOf()
         if (dir === undefined) return { ok: false, error: MISSING_DIR }
@@ -311,7 +311,7 @@ export function apply(ctx: GwbContext): void {
     bus.register(
       {
         name: 'devkit.home.new',
-        plugin: 'devkit',
+        plugin: name,
         description:
           '开一个测试 home：{short 必给（kebab-case）}——名字长成 <short>-<yyMMddHHmm>，先 build 内核（产物不新就起＝验旧代码），调试口自动挑一个空的。返回里带着现有 home 清单，开新那一刻正好清旧的',
       },
@@ -355,7 +355,7 @@ export function apply(ctx: GwbContext): void {
     bus.register(
       {
         name: 'devkit.home.open',
-        plugin: 'devkit',
+        plugin: name,
         description: '重开一个已有的测试 home：{name 必给}——不 build，调试口自动挑。机器重启之后回到原来那个现场只有这一条路（home.new 永远造新目录，件得全部重装一遍）',
       },
       async (args) => {
@@ -388,7 +388,7 @@ export function apply(ctx: GwbContext): void {
     bus.register(
       {
         name: 'devkit.home.rm',
-        plugin: 'devkit',
+        plugin: name,
         description:
           '删一个测试 home：{name，force?}——没在跑的直接删；**还在跑的要 force**，那时连停带删（按它 runtime.json 里的 pid，核对映像名与记录里那个 CDP 端口再杀）。default 是日常那份：不 force 不删，而且它在跑的时候 force 也不删，自己关掉那扇窗再来',
       },
@@ -406,7 +406,7 @@ export function apply(ctx: GwbContext): void {
 
   ctx.effect(() =>
     bus.register(
-      { name: 'devkit.home.list', plugin: 'devkit', description: '列出 home 根下全部测试 home：名字（带时间戳）、谁还在跑、CDP 口、MCP 口。无参数' },
+      { name: 'devkit.home.list', plugin: name, description: '列出 home 根下全部测试 home：名字（带时间戳）、谁还在跑、CDP 口、MCP 口。无参数' },
       async () => {
         const root = homesRoot()
         return { ok: true, data: { root, homes: await listHomes(root, homeDeps) } }
@@ -468,7 +468,7 @@ export function apply(ctx: GwbContext): void {
     bus.register(
       {
         name: 'devkit.dev',
-        plugin: 'devkit',
+        plugin: name,
         description:
           '改一版看一版：{home 必给（目标 home 名，**只认名字不认端口**——口从它的 runtime.json 里查并验活）, dir 必给（仓根绝对路径）, packages?（包目录，相对仓根，按依赖顺序；不给就是仓根自己）, waitFor?（刷新后等这个选择器出现）}。一条走完：仓根 pnpm build → 发开发版（<patch+1>-dev.<戳>，标 dev 不动 latest）→ 在目标 home 里 pnpm add 那个准确号 → 条目停用再启用重挂 → 整页重载 → 取证（条目真 ACTIVE、日志增量里没有 error），取不到证就回 ok:false。**构建与源都不可给**：跳过构建就是发上一版，而这台机器只有一个源。**目标是 default 或本件自己所在的 home 都当场拒；页面自报的名字跟你给的对不上也拒**',
       },
@@ -509,7 +509,7 @@ export function apply(ctx: GwbContext): void {
     bus.register(
       {
         name: 'devkit.scaffold',
-        plugin: 'devkit',
+        plugin: name,
         description:
           `把一个新 gwb 件的骨架落进一个新文件夹，默认连文档站一起建：{name（必给，kebab-case 短名）, dir（必给，绝对路径且必须还不存在）, title?, docs?（缺省 true）, port?}。件那半的模板在本包；站那半是两步，都经命令总线转出去——${CREATE_SITE_COMMAND}（站件）铺 fumadocs 骨架，${ATTACH_SITE_COMMAND}（docfirst 件）在骨架上装配六区。哪个件没装就跳过那一步、回执里说怎么补，件那半照样落盘。参数不对会把完整说明回给你`,
       },

@@ -1,0 +1,60 @@
+---
+title: 模板即插件：scaffold 落「你好+计数」完整形状，hello 整体退役；手册跟上命令口
+born-at: 2026-09-14T00:05
+type: choice
+parent: [2026-09-08-gwb-devkit]
+label: 模板即插件
+domain: devkit
+---
+
+## 背景
+
+scaffold 落出来的骨架从「能编译的最小无头件」（8 行、一条身份测试）起家，带界面的那一半
+靠人去抄 hello——模板太空、hello 太重，中间没有台阶。hello 自己则常驻 default，与它的
+天职（干净 home 里的装配态验收）相反：验收件住在验收场里，证明不了任何东西。同时手册
+停在 MCP 时代（`gwb_command_run`、`plugins.*` 旧前缀、`/mcp` 重连），门换代三天了没跟上。
+
+## 结论与边界
+
+- **模板重做**：scaffold 落「起手即可验证运行」的完整模板插件——node 半（挂载 + 一格
+  窗格 + 一条 `<短名>.ping` 命令）、浏览器半（你好 + 计数按钮，Tailwind 前缀围栏，
+  esbuild + tailwindcss 构建线）、`catalog.md` 身份卡、四份测试（身份与注册 / catalog
+  反射 / 前缀守卫 / 产物守卫）。17 个 `.tpl`；占位符零新增，`scaffold.ts` 渲染机制不动
+- **`ui` 开关被否**：模板始终带界面，不做无头/带界面两形态——用户点名「打开就是一个
+  能够正常运行的模板插件」，窗格是「正常运行」的人眼形态
+- **hello 整体退役**：模板吃掉它的全部角色（样板、验收道具），default 已卸载，验收仓
+  单元（26091217hkq）删除。装配态验收改为「scaffold 现场生成一个、装、验、拆」——
+  验真产出，不验养老件
+- **手册大改口**：MCP 话术清零（grep 黑名单验收）、样板指路改「模板即样板」、样式正本
+  指针修到 UI 仓、`top: true` 降为「给将来门面留的位」、六步验收（check→build→publish
+  →install→ping/窗格→升 default）写进 nextSteps 与 README
+- **home.list 跟上命令口**：runtime.json 读 `command-http` 格（原 `mcp` 格已无写者），
+  自家命令登记的 `plugin` 字段从 `devkit` 正为 `gwb-devkit`
+- **`.npmrc` 出模板**：scope 路由中心化到用户级 pnpm 配置一处，新生仓不再制造就近遮蔽
+- 人拍板（2026-09-13/14，含「命令原子、编排归 skill」原则对 release/accept 复合命令
+  提案的否决——序列写在手册里，不写进代码）。
+
+## 否掉的候选
+
+- **模板加 `ui?: boolean` 两形态**——多一条分叉多一份文档，而「无头件」把窗格段删掉
+  就是了，不需要开关
+- **`devkit.release` / `devkit.accept` 复合命令**——原子性原则：编排归 skill，命令保持
+  原子。发版与验收的序列写成手册段落（六步验收即活样）
+- **hello 原地改口留仓**——它的三个角色全被模板取代，留着就是下一个 gwb-basics
+  （MCP 话术漂在那里没人改）
+
+## 依据
+
+- 「打开就是能运行」的判据落到可验证形态：六步走完，`POST /run {"command":"<短名>.ping"}`
+  回 ok、窗格按钮点得动——比「日志里见着了」强一档
+- hello 的浏览器半工程（esbuild 外置清单、前缀五行、两道守卫）是被实机验证过的知识，
+  模板**照抄不发明**——减去玩具（counter 多份、CLI、skill、下拉菜单），留下骨架
+
+## 代价与遗留
+
+- 模板件从此 peer 里带 shell / tokens / shared-react——无外壳的 home 里它挂不上（README
+  写明；install 的 peer 装载兜底）
+- 样板代码（ping、你好窗格）可能活进真件——判无害（只读冒烟），README 写明可删可改
+- 生态级欠账转出本仓：catalog 铺到存量各仓（基础件仓的活）、`plugin` 字段口径统一
+  （commands 件契约）、原子性原则落内核仓规则页、registry.* 随远端源退役
+- 老隔离 home 里残留的 gwb-hello 包无人清——用完即弃的 home 本来就弃
