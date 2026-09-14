@@ -23,18 +23,18 @@
   "engines": { "node": ">=24" },
   "//peer": "硬依赖 gwbCommands 与 gwbShell（inject）；tokens 供样式映射面（≥0.1.1 零字面 fallback），shared-react 供页面 importmap。写 >= 不写 ^：caret 在 0.0.x 锁死 patch",
   "peerDependencies": {
-    "@godcreator02/gwb-plugin-api": ">=0.1.0",
-    "@godcreator02/gwb-commands": ">=0.2.0",
-    "@godcreator02/gwb-shell": ">=0.1.0",
-    "@godcreator02/gwb-tokens": ">=0.1.1",
-    "@godcreator02/gwb-shared-react": ">=0.0.2"
+    "@team/gwb-plugin-api": ">=0.1.0",
+    "@team/gwb-commands": ">=0.2.0",
+    "@team/gwb-shell": ">=0.1.0",
+    "@team/gwb-tokens": ">=0.1.1",
+    "@team/gwb-shared-react": ">=0.0.2"
   },
   "devDependencies": {
-    "@godcreator02/gwb-plugin-api": "0.1.0",
-    "@godcreator02/gwb-commands": "0.2.1",
-    "@godcreator02/gwb-shell": "0.5.0",
-    "@godcreator02/gwb-tokens": "0.1.1",
-    "@godcreator02/gwb-shared-react": "0.0.3",
+    "@team/gwb-plugin-api": "0.1.0",
+    "@team/gwb-commands": "0.2.1",
+    "@team/gwb-shell": "0.5.0",
+    "@team/gwb-tokens": "0.1.1",
+    "@team/gwb-shared-react": "0.0.3",
     "@tailwindcss/cli": "^4.3.0",
     "@tailwindcss/node": "^4.3.0",
     "@types/node": "^24.0.0",
