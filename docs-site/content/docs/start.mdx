@@ -17,11 +17,9 @@ plugin-manager.install {"pkg":"@godcreator02/gwb-devkit"}
 
 挂上了的证据在 `<home>\gwb.log` 里那句「开发套件就绪」。读那一行，不要读「装完了」这四个字：包装进 `node_modules` 与插件真的挂上是两件事。此刻这个 home 上到底有哪几条命令，以 `/surface` 的回执为准。
 
-## 两个设置项
+## 一个设置项
 
 {/* ref file="../src/index.ts" lines="180-194" */}
-
-`registry-dir` 是本机 Verdaccio 那个目录，含 `config.yaml`、`storage` 与 `node_modules/verdaccio`。不填，`registry.*` 三条全部回一句「未配置 registry-dir」。
 
 `kernel-dir` 是内核仓的根，即含 `apps/desktop` 的那一级。不填，`devkit.home.new` 与 `devkit.home.open` 不工作；列与删不受影响。
 
@@ -33,9 +31,7 @@ plugin-manager.install {"pkg":"@godcreator02/gwb-devkit"}
 
 **建仓**。`devkit.scaffold` 把一个新插件的骨架落进一个新文件夹，默认连文档站一起建。目标目录必须还不存在。站那半是两步，经命令总线转给站点插件与 docfirst 插件，哪个插件没装就跳过那一步，插件那半照样落盘。参数给错会把整份说明回给你，不必背。
 
-**本机源**。`registry.status` 查、`registry.up` 拉起（已经在跑就直接接管）、`registry.down` 停，三条都无参数。这台机器上别的仓也在用这个源，停之前想清楚。起不来的时候错话里带着日志文件的绝对路径，读它就是了，没有一条专门回日志的命令。
-
-工作台没起的时候走同一份逻辑的另一个入口：`node <包根>/bin/registry.mjs <status|up|down> <registry 目录>`，回执是一段 JSON，成了退出码 0、没成 1。首启要从源上装插件，那时工作台还起不来，所以这条路非有不可。
+**源**。NAS 上的常驻团队源（`https://npm.tianshen02.online:28377/`），不经本机、无需起停。`@godcreator02` 是 gwb 线的命名空间，发布者锁 `godcreator` 一人；其他人自助注册后发自己的包。
 
 **测试 home**。`devkit.home.new` 开一个新的，名字长成 `<短名>-<时间戳>`，先 build 内核；`devkit.home.list` 列全部与谁在跑，连带两个端口（调试端口与命令口端口）；`devkit.home.open` 重开一个已有的且不 build；`devkit.home.rm` 删。一次验证开一个新 home，清理放在开新的那一刻，回执里本来就带着现有清单。
 
@@ -83,7 +79,7 @@ plugin-manager.install {"pkg":"@godcreator02/gwb-devkit"}
 
 ## 门禁
 
-{/* ref file="../package.json" lines="24-30" */}
+{/* ref file="../package.json" lines="25-31" */}
 
 ```
 pnpm check          # typecheck + vitest
@@ -96,7 +92,7 @@ pnpm build          # 一趟 tsc 直出 dist/，没有打包器
 
 ## 发一版
 
-先抬 `package.json` 的版本号，同一个号永不重发，发之前先问一句它在不在源上。然后 `pnpm publish --registry http://127.0.0.1:4873/ --no-git-checks`。
+先抬 `package.json` 的版本号，同一个号永不重发，发之前先问一句它在不在源上。然后 `pnpm publish --registry https://npm.tianshen02.online:28377/ --no-git-checks`。
 
 发完就去升 default，别攒着：人在插件窗格点「全部更新」，或者调 `plugins.update-all`。手册与命令都随包走，不升等于 agent 读到的还是上一版，而它照着一份过期手册干活不报错。
 

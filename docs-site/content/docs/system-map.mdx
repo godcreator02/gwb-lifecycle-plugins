@@ -17,11 +17,9 @@ description: 拆成哪几块、各住哪、依赖方向是什么、先读哪块
 | 模块 | 在哪 | 管什么 | 先读 |
 | --- | --- | --- | --- |
 | 建仓 | `src/scaffold.ts` | 短名派生、模板渲染、落盘那两条纪律 | [建仓](/docs/scaffold) |
-| 本机源 | `src/daemon.ts` + `src/node-registry-deps.ts` | Verdaccio 的起停与状态 | [本机源](/docs/registry) |
 | 测试 home | `src/home.ts` + `src/node-home-deps.ts` | 测试 home 的开、列、重开、删 | [测试 home](/docs/home) |
 | 改一版看一版 | `src/dev.ts` + `src/node-dev-deps.ts` | 发开发版、装进目标 home、重挂、取证 | [改一版看一版](/docs/dev) |
 | 页面驱动 | `bin/cdp.mjs` | 连 CDP 在一张工作台页面里动手 | [页面驱动](/docs/cdp) |
-| 起停的命令行入口 | `bin/registry.mjs` | 工作台没起时起停本机源，逻辑全在 `daemon.ts` | [本机源](/docs/registry) |
 | 接线 | `src/index.ts` | 命令登记、参数收窄、回执形状 | 本页 |
 
 盘上的样子：
@@ -32,7 +30,7 @@ description: 拆成哪几块、各住哪、依赖方向是什么、先读哪块
 
 **硬依赖只有一条：命令总线。**
 
-{/* ref file="../src/index.ts" lines="44-45" */}
+{/* ref file="../src/index.ts" lines="38-39" */}
 
 没有命令总线，这个插件登记的一切都出不了这个进程，那时它确实不该挂上。别的服务全走
 `ctx.inject([...], fn)` 这种局部注入：设置、外壳、node CLI、说明书四个面各开一条子 fiber，
@@ -42,26 +40,26 @@ description: 拆成哪几块、各住哪、依赖方向是什么、先读哪块
 `describeSelf`——报一个给人看的名字，好让它在插件清单里认得出来。没有窗格，也就没有
 `dist/client/`、没有第二份 tsconfig、没有第二趟 tsc。
 
-{/* ref file="../src/index.ts" lines="417-422" */}
+{/* ref file="../src/index.ts" lines="321-326" */}
 
 **文档站那半不是依赖，是两个字符串。** 建仓要铺 fumadocs 骨架、要装六区，这两件事分别归站点插件与
 docfirst 插件。本包不引它们的任何包，只在命令总线上按名字找那两条命令，找不到就跳过那一步。
 
-{/* ref file="../src/index.ts" lines="47-59" */}
+{/* ref file="../src/index.ts" lines="41-53" */}
 
 耦合面因此只有那两个名字。哪个插件没装，`hasCommand` 当场就知道，而且它现问不缓存：插件是热挂载的，
 装一个新插件之后这个答案当场就变。
 
 **说明书只挂自己那份。**
 
-{/* ref file="../src/index.ts" lines="667-673" */}
+{/* ref file="../src/index.ts" lines="572-578" */}
 
 说明书是全局单一命名空间，同名的第二份直接不挂、只留一行警告，而被撞掉的那份未必是旧的。代挂别人的
 说明书还有个更根本的问题：知识跟着它描述的代码走，代挂等于把别人的知识钉在自己的发版节奏上。
 
 那支页面驱动是 CLI 形态的东西，所以经 `gwbNodeCli` 登记，不做总线命令、不进程内调。
 
-{/* ref file="../src/index.ts" lines="429-436" */}
+{/* ref file="../src/index.ts" lines="333-341" */}
 
 登记进去的命令会自动镜像成同名总线命令，于是自动是 MCP 工具，回执自带 stdout、stderr 与退出码。
 自己写一遍 spawn 与超时，换来的只是同一件事的第二种回执形状。
@@ -70,13 +68,13 @@ docfirst 插件。本包不引它们的任何包，只在命令总线上按名�
 
 判据只有一句：**这段逻辑能不能不起进程、不开窗、只喂输入看输出。**
 
-能的那半是纯机，住 `scaffold.ts`、`daemon.ts`、`home.ts`、`dev.ts`。时序、守卫、命名、版本号、
+能的那半是纯机，住 `scaffold.ts`、`probes.ts`、`home.ts`、`dev.ts`。时序、守卫、命名、版本号、
 「查不出算不算不在」这类判断全在这儿，测试拿假插件把整条路跑完。
 
 不能的那半是手，住三个 `node-*-deps.ts`。它们只负责在真机器上拿到答案：开进程、查进程表、查端口
 持有者、读写盘、连 CDP。这一层不做任何判断，也不进单测。
 
-隔离面是**显式接口**，不是自觉：`RegistryDeps` / `HomeDeps` / `DevDeps` 三张表由纯机那边定义，
+隔离面是**显式接口**，不是自觉：`HomeDeps` / `DevDeps` 两张表由纯机那边定义，
 真跑时传 `node-*-deps.ts`，测试时传一套假的。依赖方向因此是单向的：真身认识纯机，纯机不认识真身。
 
 建仓那块是另一种形状。它不需要接口，因为它只做纯计算与同步写盘，所以它的测试直接写临时目录跑。

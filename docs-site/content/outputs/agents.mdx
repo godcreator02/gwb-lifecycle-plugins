@@ -5,9 +5,8 @@ description: 仓根 AGENTS.md 由这一页摆出去——每次会话都得知�
 
 # gwb-devkit
 
-开发套件，**一个普通的 gwb 插件**：一仓一包一插件，仓根即包根。发本机 registry，装进 home。
-它管建仓 / 手册 / 本机源 / 测试 home / 改一版看一版五件事，外加两支包内 CLI——`bin/cdp.mjs`
-（经 `gwbNodeCli` 登记成 `devkit.cdp`）与 `bin/registry.mjs`（起停源那条不经工作台的路）。
+开发套件，**一个普通的 gwb 插件**：一仓一包一插件，仓根即包根。发团队源（NAS registry），装进 home。
+它管建仓 / 手册 / 测试 home / 改一版看一版四件事，外加一支包内 CLI——`bin/cdp.mjs`（经 `gwbNodeCli` 登记成 `devkit.cdp`）。
 **本插件没有浏览器半**：它的使用者是 agent，读的是回执。设计与原理在文档站（`docs-site/`，
 六区），这份只装**不知道就会做错事**的硬约束。
 
@@ -37,10 +36,10 @@ pnpm build          # tsc 直出 dist/，没有打包器
 ## 发版
 
 1. **先抬 `package.json` 的版本号。** 同一个版本号永不重发；发之前先问一句这个号在不在源上
-   （`npm view @godcreator02/gwb-devkit versions --registry http://127.0.0.1:4873/`）
+   （`npm view @godcreator02/gwb-devkit versions --registry https://npm.tianshen02.online:28377/`）
 2. `prepublishOnly` **别删**。少了它 publish 会把上一版的 `dist/` 原样发出去而且一声不吭
    ——现象是「插件挂上了但新写的东西全没生效」
-3. `pnpm publish --registry http://127.0.0.1:4873/ --no-git-checks`
+3. `pnpm publish --registry https://npm.tianshen02.online:28377/ --no-git-checks`
 
 **发版前先在隔离 home 装一遍验完**——`plugins.update-all`（插件窗格那颗「全部更新」）
 直接升日常那份 home，跳过了隔离验证；人点那颗键是最后一步，不是验证的一步。
@@ -74,7 +73,6 @@ pnpm build          # tsc 直出 dist/，没有打包器
 
 | key | 填什么 | 不填的后果 |
 | --- | --- | --- |
-| `registry-dir` | Verdaccio 目录（含 `config.yaml`、`storage`、`node_modules/verdaccio`） | `registry.*` 三条全回「未配置 registry-dir」 |
 | `kernel-dir` | 内核仓根（含 `apps/desktop`） | `devkit.home.new` / `open` 不工作；`list` / `rm` 不受影响 |
 
 **两个都不给默认值。** 目录是这台机器的事实，编一个只会得到「配置了但不在」的假象。
@@ -136,24 +134,6 @@ startedAt / appDir / cdp）与 mcp 插件（绑上端口之后补 `mcp` 那个�
 
 `bin/cdp.mjs` 是**零依赖单文件纯 JS，不进 typecheck**——它得在工作台起不来时也能直接跑，
 那是它的另一个身份。`eval` 那个文件的相对路径与截图落点按**工作目录**算，不按它装在哪算。
-
-## 起停源：一份实现，两个入口
-
-**这台机器上不许再有第二份起停 registry 的实现。** 逻辑全在 `src/daemon.ts`：插件那半是
-`registry.up` / `down` / `status` 三条命令，工作台没起时那半是 `bin/registry.mjs`
-（`node <包根>/bin/registry.mjs <status|up|down> <registry 目录>`），它 import 的就是
-`dist/daemon.js`。写第二份脚本的那天它会跟这份漂开，而漂了的现象不是崩，是「它说没在跑，
-其实跑着」。
-
-**`verdaccio.pid` 的格式不许动，里头只有一个数。** 老线那个工作台
-（`D:\unitfolders\26090412vav\god-workbench`）读写同一个文件，它那份解析要求整份文件就是一个数；
-往里加一个字段，老线会读成「没有 pid」，然后在源还跑着的时候把文件删掉。两条线并存期间这是跨线的契约。
-
-起它那个进程的映像名落**旁边那份 `verdaccio.owner`**（内容是 `<pid> <映像名>`）：插件那半跑在
-electron 里、命令行那半跑在 node 里，少了它只能拿「读的人自己是什么」去猜起的人是什么，于是
-命令行会把 electron 起的那个判成「不是它」。**这份里的 pid 对不上就当没有**——老线起源时不写
-它，那时留着的是上一次的。两份记录一起写、一起清。
-
 ## 说明书只挂自己那份
 
 **手册正本是 `docs-site/content/outputs/skills/gwb-devkit.mdx`**（render 摆成包内

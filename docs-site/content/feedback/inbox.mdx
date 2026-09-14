@@ -28,17 +28,4 @@ docfirst: none
    报错文案说清，或 `home.new` 提供带底座件的选项。
 3. agent 侧绕法值得进说明书：**devkit 命令里凡传 Windows 路径一律用正斜杠**（`D:/unitfolders/...`）——
    ZCode 的 MCP 参数会把 `\\` 吃掉一层，进 JSON 就是 `\u` 坏转义，报错只说 Bad Unicode escape 不指根因。
-
-## 2026-09-14 本机 registry 退役，devkit 三处源码指向已死的地址
-
-来源：总控台（本机 Verdaccio 整体退役卸载、gwb 发包与装包统一切 NAS 团队源
-`https://npm.tianshen02.online:28377/` 时核对的）。私有包全量（51 包 61MB）已迁 NAS，
-各仓 `.npmrc` 钉子已清，用户级 `~/.npmrc` 的 scope 行已翻——devkit 里还有三处没跟上：
-
-1. `src/dev.ts:34` `DEFAULT_REGISTRY = 'http://127.0.0.1:4873/'`——`devkit.dev` 的发布目标。
-   改默认值，或改成读用户级 npmrc 的 `@godcreator02:registry` 行（改一次以后源变迁就不用再动 devkit）。
-2. `src/daemon.ts` 整块本机 registry 生命周期管理（`DEFAULT_LISTEN`、起停探活）与
-   `bin/registry.mjs`、`registry.up/down/status` 三命令——本机 Verdaccio 已卸载，全是死代码，
-   建议整体摘除，说明书里 registry 起停段同删。
-3. `src/scaffold.ts:253` 脚手架生成的新项目文案写着 `pnpm publish --registry http://127.0.0.1:4873/`
-   ——改为团队源地址，或干脆不写 `--registry`（走用户级 npmrc）。
+\n

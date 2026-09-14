@@ -7,27 +7,24 @@ description: 动手写一个新 gwb 插件之前读，打算说「验过了 / �
 # 这套东西是什么
 
 `@godcreator02/gwb-devkit` 是个**普通的 gwb 插件**，装进 home 才有它的命令。它自己就是
-「独立起仓、发本机源、装进 home」这条路走出来的样例——住独立文件夹
+「独立起仓、发团队源、装进 home」这条路走出来的样例——住独立文件夹
 `D:\unitfolders\260908dkv\gwb-devkit`，不在任何 monorepo 里。
 
-它管五件事：**建仓**（`devkit.scaffold`）、**手册**（就是这一份，随包分发经 gwb-skills 挂载）、
-**本机源的起停**（`registry.*`）、**测试 home 的开收**（`devkit.home.*`）、
-**改一版看一版**（`devkit.dev`）。
+它管四件事：**建仓**（`devkit.scaffold`）、**手册**（就是这一份，随包分发经 gwb-skills 挂载）、
+**测试 home 的开收**（`devkit.home.*`）、**改一版看一版**（`devkit.dev`）。
 
-外加两支包内 CLI。一支经 `gwbNodeCli` 登记成总线命令 `devkit.cdp`（在一个工作台页面里动手：
-取证、点按拖拽、跑一条工作台命令、问那张页是哪个 home）；另一支 `bin/registry.mjs` 不登记，
-它是起停源那条**不经工作台**的路，逻辑跟 `registry.*` 三条命令是同一份。
+外加一支包内 CLI，经 `gwbNodeCli` 登记成总线命令 `devkit.cdp`（在一个工作台页面里动手：
+取证、点按拖拽、跑一条工作台命令、问那张页是哪个 home）。
 
 **本插件没有浏览器半**，没有窗格：它的使用者是 agent，读的是回执。
 
 **它不管文档站。** 站的一生归站点插件、站里内容的正确性归 docfirst 插件——见「两个插件各管什么」。
 本包**不依赖那两个插件的任何包**：建仓时要用它们，只按名字在命令总线上找那两条命令。
 
-代码分层：`src/index.ts` 只剩接线；建仓的校验渲染落盘在 `scaffold.ts`，registry 起停时序在
-`daemon.ts`，home 的在 `home.ts`，改一版看一版那条链在 `dev.ts`（皆纯机、可单测），真机器的盘与
-进程在 `node-registry-deps.ts` / `node-home-deps.ts` / `node-dev-deps.ts`。两支 CLI 里，
-`bin/cdp.mjs` 是零依赖单文件纯 JS、连包都不用装就能跑；`bin/registry.mjs` 反过来，它 import
-`dist/daemon.js`，所以**它不是第二份实现，是第二个入口**。
+代码分层：`src/index.ts` 只剩接线；建仓的校验渲染落盘在 `scaffold.ts`，home 的时序在
+`home.ts`，改一版看一版那条链在 `dev.ts`，进程探测的纯机在 `probes.ts`（皆纯机、可单测），真机器的盘与
+进程在 `node-probe-deps.ts` / `node-home-deps.ts` / `node-dev-deps.ts`。包内唯一一支 CLI
+`bin/cdp.mjs` 是零依赖单文件纯 JS、连包都不用装就能跑。
 
 **源码改了这份就过期**——对不上时以源码为准，回来改这儿。这份随包发：改一个字也要抬版本、
 发版、**去升 default home**（见「发完版就去升 default」），`gwb-skills` 的「正文现读盘」
@@ -37,7 +34,6 @@ description: 动手写一个新 gwb 插件之前读，打算说「验过了 / �
 
 | key | 填什么 | 不填的后果 |
 | --- | --- | --- |
-| `registry-dir` | Verdaccio 目录，含 `config.yaml`、`storage`、`node_modules/verdaccio`。本机那份在 `D:\unitfolders\26090520zzv\registry` | `registry.*` 三条全回 "未配置 registry-dir" |
 | `kernel-dir` | 内核仓根（含 `apps/desktop`），即 `D:\unitfolders\26090705ymz\gwb-kernel` | `devkit.home.new` / `open` 不工作 |
 
 # 命令全表
@@ -88,38 +84,17 @@ description: 动手写一个新 gwb 插件之前读，打算说「验过了 / �
 
 | 名字 | 从哪一版起没有 | 现在怎么办 |
 | --- | --- | --- |
-| `registry.log` | 0.6.0 | `registry.up` 起不来时的错话里带着日志文件绝对路径，Read 它 |
+| `registry.log` | 0.6.0 | 起停已整体退役：源是 NAS 上的常驻团队源 |
 | `devkit.dev-check` | 0.6.0 | `devkit.cdp {"args":["<名>","cmd","plugin-manager.list"]}`，那是看不是验 |
 | `devkit.home.stop` | 0.6.0 | 并进 `devkit.home.rm`：`force` 连停带删 |
 | cdp 的 `targets` | 0.6.0 | 连不上时错话里已经带着候选页整张表 |
 | cdp 的 `raise` | 0.6.0 | `shot` 自己会抬窗 |
 | cdp 的 `probe` / `probes` | 0.6.0 | 并进 `eval`：给路径，文件里写 `(args) => 一张表` |
 | `home.new` 的 `cdp` / `skipBuild`、`home.open` 的 `cdp`、`dev` 的 `build` / `registry`、cdp 的 `--repo` / `--homes` | 0.6.0 | 都别给。每一个都是「跳过一道守卫」的机会 |
-| 「插件源」窗格 | 0.6.0 | 没有替代：本插件没有浏览器半了，状态看 `registry.status` |
-| `D:\unitfolders\26090520zzv\registry.ps1` | 0.6.0 | 包内 `bin/registry.mjs`，同一份逻辑 |
+| 「插件源」窗格 | 0.6.0 | 没有替代：本插件没有浏览器半了 |
+| `D:\unitfolders\26090520zzv\registry.ps1` | 0.6.0 | 已随本机源退役 |
 | `devkit.cdp-eval` | 0.4.0 | `eval` 是 `devkit.cdp` 的一个动作 |
 | `devkit.livedoc` | 0.3.0 | 核对 / 确认 / 渲染在仓里发生：`cd <仓>\docs-site` 之后 `pnpm doc` / `pnpm doc:confirm` / `pnpm doc:render`，没有总线命令替你转（见「docfirst 的命令怎么调」） |
-
-**本机源**（Verdaccio，`http://localhost:4873/`）
-
-| 命令 | 参数 | 干什么 |
-| --- | --- | --- |
-| `registry.status` | — | `{running, url, pid, adopted, dir}`。端口从 url 看 |
-| `registry.up` | — | 拉起；**已经在跑就直接接管**（`adopted`）。轮询 `/-/ping`，最多 30 秒（每 500ms 一次） |
-| `registry.down` | — | 按 `verdaccio.pid` 停，核对映像名与端口持有者再杀。**这台机器上别的仓也在用它**，停之前想清楚 |
-
-**日志没有命令**：起不来时 `registry.up` 的错话里带着日志文件的绝对路径，Read 那个文件就是。
-
-**工作台没起时走包内那支 CLI**，不是另写一份脚本：
-
-```
-node <devkit 包根>\bin\registry.mjs status D:\unitfolders\26090520zzv\registry
-```
-
-`up` / `down` 同样形状。**它 import 的就是 `dist/daemon.js`**，跟上面三条命令是同一份逻辑、
-同一份 pid 文件、同一份判活判据——这台机器上不许再有第二份起停实现，两份必然漂，而漂了的现象
-是「它说没在跑，其实跑着」。包根在任何一个装了 devkit 的 home 的
-`node_modules\@godcreator02\gwb-devkit` 下面。
 
 **测试 home**
 
@@ -273,7 +248,7 @@ pnpm check          # typecheck（node 半 + 浏览器半）+ oxlint + vitest，
 pnpm build          # tsc + esbuild + tailwindcss 三步
 文档站那半（自己一套依赖，跟插件那半分开装）：cd <dir>\docs-site && pnpm install && pnpm doc
 先 git init 落第一个提交，再在 docs-site 里 pnpm doc:confirm
-发一版：先抬 package.json 的版本号，再 pnpm publish --registry http://127.0.0.1:4873/ --no-git-checks
+发一版：先抬 package.json 的版本号，再 pnpm publish --registry https://npm.tianshen02.online:28377/ --no-git-checks
 装进隔离 home：plugin-manager.install {"pkg":"@godcreator02/gwb-<短名>"}——该进的 peer 会一并装上
 命令面验证：POST /run {"command":"<短名>.ping"} 回 {ok:true,…}；工作台那格窗格「你好」+计数按钮点得动——六步验收到这儿走完
 发完就去升 default home（人点「全部更新」或 plugin-manager.update-all）
@@ -378,11 +353,10 @@ handler 参数是 `unknown`，自己收窄（词汇表包的 `isRecord`）。相
 **四、发一版。** 先抬 `package.json` 的版本号，再：
 
 ```
-pnpm publish --registry http://127.0.0.1:4873/ --no-git-checks
+pnpm publish --registry https://npm.tianshen02.online:28377/ --no-git-checks
 ```
 
-**同一个版本号永不重发**；发之前先问一句这个号在不在源上。源没起就发不了也装不了
-（`registry.up`，或包内那支 `bin/registry.mjs`）。
+**同一个版本号永不重发**；发之前先问一句这个号在不在源上。源是 NAS 上的常驻团队源，不经本机、无需起停。
 
 **五、装进 home 看真效果。** 两条路：
 
@@ -408,8 +382,8 @@ pnpm publish --registry http://127.0.0.1:4873/ --no-git-checks
 是走「验机」那条路——两者不互相替代。
 
 写不出测试常常是形状的问题：把判断从副作用里抠出来做成纯函数，测试自然就写得出。
-devkit 自己就是这么分的——`scaffold.ts` / `daemon.ts` / `home.ts` 纯机可单测，真机器的盘
-与进程另起两个 `node-*-deps.ts`。
+devkit 自己就是这么分的——`scaffold.ts` / `probes.ts` / `home.ts` / `dev.ts` 纯机可单测，真机器的盘
+与进程另起 `node-*-deps.ts`。
 
 模板建出来的仓自带 `vitest` 与一条起手测试（`tests/plugin.test.ts`：插件的身份对不对），
 门禁是 `pnpm check`（typecheck + oxlint + vitest）。真起子进程的用例**必打 `slow` 标签**，
@@ -581,7 +555,7 @@ lucide 图标身上的 `lucide lucide-xxx` 是它烤进 SVG 的身份属性，�
 # 发版与装机
 
 ```
-pnpm publish --registry http://127.0.0.1:4873/ --no-git-checks
+pnpm publish --registry https://npm.tianshen02.online:28377/ --no-git-checks
 ```
 
 （`.npmrc` 已把 `@godcreator02` 指过去。）

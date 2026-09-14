@@ -1,6 +1,6 @@
 # gwb-devkit
 
-**定位**：写插件工具链——建仓（模板即插件）、写插件手册（随包发）、本机源起停、测试 home 开收、改一版看一版内循环；外加两支包内 CLI（devkit.cdp 的身体 bin/cdp.mjs、起停源兜底 bin/registry.mjs）。
+**定位**：写插件工具链——建仓（模板即插件）、写插件手册（随包发）、测试 home 开收、改一版看一版内循环；外加一支包内 CLI（devkit.cdp 的身体 bin/cdp.mjs）。
 
 ## 提供
 
@@ -10,7 +10,7 @@
 
 `gwbCommands`（硬依赖，inject）、`gwbSettings`、`gwbNodeCli`、`gwbShell`、`gwbSkills`（后四样局部注入）
 
-<!-- 来源 ../src/index.ts:45-45 · 未确认 -->
+<!-- 来源 ../src/index.ts:39-39 · 新鲜 -->
 
 ```ts
 export const inject = ['gwbCommands']
