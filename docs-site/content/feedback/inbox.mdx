@@ -29,3 +29,56 @@ docfirst: none
 3. agent 侧绕法值得进说明书：**devkit 命令里凡传 Windows 路径一律用正斜杠**（`D:/unitfolders/...`）——
    ZCode 的 MCP 参数会把 `\\` 吃掉一层，进 JSON 就是 `\u` 坏转义，报错只说 Bad Unicode escape 不指根因。
 \n
+
+## 2026-09-14 前缀与变体的顺序写反了静默编不出规则——手册只暗示没明说，守卫也测不到
+
+来源：总控台（第三轮 fresh-eyes 自举验收，功能题 gwb-timer，隔离 home 实跑）。
+
+窗格样式写 `disabled:timer:opacity-50`：编译**一条规则都不出、也不报错**；写成
+`timer:disabled:opacity-50` 才有。写插件手册里 `logger:group-hover:*` 的示例只暗示
+「前缀在最前」，没有明说这条；模板的产物守卫只检查已编出的规则，对「源码里有这个类名、
+产物里却没有」完全测不到。验收代理在这里走了本轮最大的一段弯路——写探针脚本用
+`@tailwindcss/node` 逐条编译才定案（第一版探针还因摘了 prefix 得出「全都不出」的假结论）。
+实测：`timer:disabled:*` 出规则，`disabled:timer:*` 与 `hover:timer:*` 都不出。
+
+**投来的建议**：手册明写一句「前缀永远排最前；顺序写反不报错，只是没有规则」；更进一步，
+模板产物守卫加一层「源码里出现的全类名 ⊆ 产物规则」的覆盖检查，把这类静默失败拦进门禁。
+
+## 2026-09-14 scaffold 回执与模板 README 的发版指引过时：还在教 `--registry`
+
+来源：同上（同轮验收）。
+
+`devkit.scaffold` 回执的 nextSteps 与模板落盘的 README 都写 `pnpm publish --registry
+https://npm.tianshen02.online:28377/ …`，而 gwb-devkit 说明书（本机 Verdaccio 退役、迁到
+NAS 团队源之后的正本口径）明说**别手写 --registry**、scope 路由住用户级 `~/.npmrc`。照回执
+做的代理会拿到与说明书相反的指令——本轮代理两头都读了、按说明书走并发布成功，但这三处
+口径该收敛成一份。
+
+**投来的建议**：改 `src/scaffold.ts` 里 nextSteps 的文案与 README 的 mdx 正本
+（`outputs/readme.mdx`），render 重摆后同一个提交发版。
+
+## 2026-09-14 「路径一律正斜杠」对 `devkit.scaffold` 不成立
+
+来源：同上。
+
+经 HTTP 门 curl 传含 Windows 路径的 JSON：`unit-folder.readFile` 吃正斜杠，
+`devkit.scaffold` 的 `dir` **必须真反斜杠**——本仓 09-12 那张卡「凡传 Windows 路径一律用
+正斜杠」的绕法在 scaffold 这里行不通，代理在 `bad json` 上来回试了好几轮（稳法见同日投给
+base-plugins 的卡：body 落文件再 `--data-binary @file`，那条归 command-http 说明书）。
+
+**投来的建议**：scaffold 与一切收路径参数的 devkit 命令统一吃正斜杠（入口处归一），让
+「一律正斜杠」这条绕法全线成立。
+
+## 2026-09-14 三条小的：client 半 import type 行给得太晚、测试 harness 的无参类型、首装条目复验
+
+来源：同上。
+
+1. client 半 tsconfig `"types": []` 不吃全局声明，`window.gwb` 要在文件头
+   `import type {} from '@godcreator02/gwb-plugin-api'` 才认。说明书里有这条信息
+   （plugin-api ≥0.1.1 声明 `window.gwb`，实测属实），但埋得深——代理是先撞了编译错才回头
+   找到的。建议把这一行提前到写码/窗格章节开头明写。
+2. 模板测试里无参调 handler 类型不过（参数 `unknown` 不自动可省），代理把 harness 的
+   handler 类型改成 `(args?: unknown)` 才过。建议模板直接给这个形状。
+3. 本仓 09-12「往隔离 home 首装件」卡的复验结论：`devkit.home.new` **自动铺底座已管用**
+   （基座七件，`devkit.dev` 不再因空 home 退）；首装仍要按 `devkit.dev` 回执里的指引手写
+   `plugin-manager.add-entry`——指引清楚，但离那张卡要的自动化还差最后一步，建议那条不撤。
