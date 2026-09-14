@@ -3,7 +3,7 @@
 `{{pkg}}` —— gwb 内核线的模板插件。插件名 `{{pkgName}}`，命令名前缀 `{{name}}`。
 
 一仓一包一插件，仓根即包根。发团队源（NAS registry），装进 home。**scope 路由住用户级 pnpm 配置**
-（`@team:registry`），本仓不写 `.npmrc`。
+（`@godcreator:registry`），本仓不写 `.npmrc`。
 
 ## 这是什么形状
 
@@ -29,7 +29,7 @@ pnpm build          # tsc + esbuild + tailwindcss 三步
 
 ```powershell
 # 先抬 package.json 的版本号，同一个版本号永不重发
-pnpm publish --registry https://git.tianshen02.online:28377/api/packages/team/npm/ --no-git-checks
+pnpm publish --registry https://git.tianshen02.online:28377/api/packages/godcreator/npm/ --no-git-checks
 ```
 
 然后：
@@ -40,11 +40,11 @@ pnpm publish --registry https://git.tianshen02.online:28377/api/packages/team/np
 4. 发完就去升 default home（人点「全部更新」或 `plugin-manager.update-all`）——攒着不升，
    agent 读到的手册与命令都停在旧版。
 
-源是 NAS 上的常驻团队源，无需起停；地址见用户级 `~/.npmrc` 的 `@team` scope 行。
+源是 NAS 上的常驻团队源，无需起停；地址见用户级 `~/.npmrc` 的 `@godcreator` scope 行。
 
 ## 规矩在哪
 
 红线七条、能力面菜单、发版装机、实机验机——全在 skill「gwb-devkit」里（随
-`@team/gwb-devkit` 分发），不在这儿复述。文档写什么见 skill「docfirst-docs」，
-记轨迹卡见 skill「trajectory」——两份随 `@team/gwb-docfirst-workflow` 件分发。
+`@godcreator/gwb-devkit` 分发），不在这儿复述。文档写什么见 skill「docfirst-docs」，
+记轨迹卡见 skill「trajectory」——两份随 `@godcreator/gwb-docfirst-workflow` 件分发。
 不描述任何代码的通用开发纪律（先盘问、并行派活、代码自解释）也随那个件发。
