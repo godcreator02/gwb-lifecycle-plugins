@@ -16,8 +16,8 @@
  * fumadocs 的 Node loader 只认 source.config 里的集合。
  */
 import { applyMdxPreset, defineConfig, defineDocs } from 'fumadocs-mdx/config'
-import { docfirstMdxOptions, docfirstMarkdownOptions } from '@godcreator02/docfirst-workflow/fumadocs'
-import { cardSchema, remarkTrajectoryLinks } from '@godcreator02/docfirst-trajectory/server'
+import { docfirstMdxOptions, docfirstMarkdownOptions } from '@team/docfirst-workflow/fumadocs'
+import { cardSchema, remarkTrajectoryLinks } from '@team/docfirst-trajectory/server'
 
 export const docs = defineDocs({
   dir: 'content/docs',
