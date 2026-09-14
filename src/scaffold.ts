@@ -4,7 +4,7 @@ import path from 'node:path'
 /**
  * 建仓的纯逻辑：校验短名与目标目录，把包内 `template/` 那套骨架渲染好、落下去。
  *
- * 短名即名字：包名 `@team/gwb-<短名>`、插件名（`export const name`）`gwb-<短名>`、
+ * 短名即名字：包名 `@godcreator/gwb-<短名>`、插件名（`export const name`）`gwb-<短名>`、
  * 命令名 `<短名>.<动作>` 的前半，全从它派生。
  *
  * 模板文件一律带 `.tpl` 后缀，落盘时脱掉：`npm pack` 不打 `.gitignore`（硬行为），一条
@@ -20,7 +20,7 @@ import path from 'node:path'
 export const NAME_RE = /^[a-z][a-z0-9]*(?:-[a-z0-9]+)*$/
 
 /** 件的包名 scope。命名规矩全仓统一，不做成参数 */
-export const SCOPE = '@team'
+export const SCOPE = '@godcreator'
 
 /** 模板文件的后缀，落盘时脱掉 */
 export const TEMPLATE_SUFFIX = '.tpl'
@@ -40,7 +40,7 @@ export interface ScaffoldPlan {
   name: string
   /** 显示名，缺省用短名 */
   title: string
-  /** 完整包名 `@team/gwb-<短名>` */
+  /** 完整包名 `@godcreator/gwb-<短名>` */
   pkg: string
   /** 插件名 `gwb-<短名>`——`export const name` 的值 */
   pluginName: string
@@ -127,7 +127,7 @@ docfirst.attach  {"dir":"${siteDir}"}                            # docfirst 件�
 
 **两步要连着跑**：\`docfirst.attach\` 只在还没写过内容的骨架上装得了，往里写过东西
 就得人工接线。命令不在就是那个件没装：\`plugin-manager.install\`
-\`@team/gwb-docs-site\` / \`@team/gwb-docfirst-workflow\`。`
+\`@godcreator/gwb-docs-site\` / \`@godcreator/gwb-docfirst-workflow\`。`
   }
   const dev =
     plan.port === undefined
@@ -145,7 +145,7 @@ ${dev}
 \`\`\`
 
 改了被钉住的源码，先 \`git commit\` 再 \`pnpm doc:confirm\`——git 比较器只对已提交、
-工作区干净的内容钉。文档写什么见 skill「docfirst-docs」（随 \`@team/gwb-docfirst-workflow\` 发）。`
+工作区干净的内容钉。文档写什么见 skill「docfirst-docs」（随 \`@godcreator/gwb-docfirst-workflow\` 发）。`
 }
 
 /** 占位符表。模板里写 `{{name}}` 这种，替换是纯字符串替换，不做转义 */
@@ -250,7 +250,7 @@ export function nextSteps(
     )
   }
   steps.push(
-    '发一版：先抬 package.json 的版本号，再 pnpm publish --registry https://git.tianshen02.online:28377/api/packages/team/npm/ --no-git-checks',
+    '发一版：先抬 package.json 的版本号，再 pnpm publish --registry https://git.tianshen02.online:28377/api/packages/godcreator/npm/ --no-git-checks',
     `装进隔离 home：plugin-manager.install {"pkg":"${plan.pkg}"}——该进的 peer 会一并装上`,
     `命令面验证：POST /run {"command":"${plan.name}.ping"} 回 {ok:true,…}；工作台那格窗格「你好」+计数按钮点得动——模板的六步验收走完`,
     '发完就去升 default home（人点「全部更新」或 plugin-manager.update-all）——攒着不升，agent 读到的手册与命令都停在旧版',
