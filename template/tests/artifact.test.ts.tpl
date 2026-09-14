@@ -18,7 +18,7 @@ if (!built) console.warn('[{{pkgName}}] dist/ 还没造出来，产物组跳过�
 
 const CLIENT = 'client.js'
 /** node 半运行时真 import 的。契约包与那几个件都是 import type，整句擦除，不该出现 */
-const ALLOWED_BARE = new Set(['@team/gwb-plugin-api'])
+const ALLOWED_BARE = new Set(['@godcreator/gwb-plugin-api'])
 /** 正则锚行首：字符串字面量里的 import 总带着缩进，顶格的才是真的顶层 import */
 const RELATIVE = /^import\s+(?:[^'"]*from\s*)?['"](\.[^'"]*)['"]/gm
 const BARE = /^import\s+(?:[^'"]*from\s*)?['"]([^'".][^'"]*)['"]/gm
