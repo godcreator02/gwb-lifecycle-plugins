@@ -69,6 +69,18 @@ base-plugins 的卡：body 落文件再 `--data-binary @file`，那条归 comman
 **投来的建议**：scaffold 与一切收路径参数的 devkit 命令统一吃正斜杠（入口处归一），让
 「一律正斜杠」这条绕法全线成立。
 
+## 2026-09-14（晚） `devkit.home.open` 丢遮挡开关：09-12 那条的复发，症状升格
+
+来源：总控台（block-note 底部抖动取证，隔离 home 实机）。
+
+09-12「顺带三条」第 1 条的复发，且症状比「陈旧帧」重：整机 kill 后 `devkit.home.open` 重开的
+home，其进程命令行实测只有 `--remote-debugging-port`、没有 `--disable-backgrounding-occluded-windows`。
+窗口被遮/最小化时 `devkit.cdp` 的 **`Input.dispatchMouseEvent` 看门狗直接挂死**（15 秒超时）——
+click / scroll / type 全军覆没，eval 反而活着（不需要帧）。同日早些时候 `devkit.home.new` 起的
+home 取证正常，疑似 new 已带开关、open 没跟上。绕法：kill 后经内核仓 `apps/desktop` 手动
+`electron . --remote-debugging-port=<口> --disable-backgrounding-occluded-windows` + `GWB_HOME`
+指回原目录。**建议**：open 与 new 走同一条起进程路，开关统一带上（09-12 卡的正主就是这条）。
+
 ## 2026-09-14 三条小的：client 半 import type 行给得太晚、测试 harness 的无参类型、首装条目复验
 
 来源：同上。
