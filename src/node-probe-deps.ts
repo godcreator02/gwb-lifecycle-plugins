@@ -1,40 +1,35 @@
-import { execFile, spawn } from 'node:child_process'
+import { execFile } from 'node:child_process'
 import fs from 'node:fs'
-import http from 'node:http'
-import https from 'node:https'
-import type { RegistryDeps, RegistryFs, ProcessProbe } from './daemon.js'
-import { parseNetstat, parsePid, parseSs, parseTasklist } from './daemon.js'
+import type { ProcessProbe } from './probes.js'
+import { parseNetstat, parsePid, parseSs, parseTasklist } from './probes.js'
 
 /**
- * `RegistryDeps` 的真身：碰盘走 node:fs，开进程与探进程走系统命令。
- *
- * 这一层全是环境胶水，**不进单测**——起停时序的判断全在 daemon.ts 的纯机里，假件
- * 测试在那里跑；这里只负责「真机器上怎么拿到那些答案」。
+ * 探测那半的环境胶水：碰盘走 node:fs，探进程与杀进程走系统命令。时序与守卫的
+ * 纯机在 `probes.ts` 与 `home.ts`，**这一层不进单测**——这里只负责「真机器上怎么
+ * 拿到那些答案」。home 与 dev 两半的 deps 都从这儿取件。
  */
 
 /** 查一次映像名的上限。tasklist 平时几十毫秒，卡住的话状态卡不能跟着一起卡住 */
 const PROCESS_NAME_TIMEOUT_MS = 5_000
 /** 查一次端口持有者的上限。netstat 要把整张连接表打出来，比 tasklist 慢，但也就那样 */
 const PORT_OWNER_TIMEOUT_MS = 5_000
-/** 一次 `/-/ping` 的上限 */
-const PING_TIMEOUT_MS = 2_000
 
-export const nodeFs: RegistryFs = {
-  exists: (target) => fs.existsSync(target),
-  readText(file) {
+export const nodeFs = {
+  exists: (target: string) => fs.existsSync(target),
+  readText(file: string): string | undefined {
     try {
       return fs.readFileSync(file, 'utf8')
     } catch {
       return undefined
     }
   },
-  writeText: (file, text) => fs.writeFileSync(file, text, 'utf8'),
-  remove(file) {
+  writeText: (file: string, text: string) => fs.writeFileSync(file, text, 'utf8'),
+  remove(file: string) {
     try {
       fs.rmSync(file, { force: true })
     } catch {}
   },
-  dirs(target) {
+  dirs(target: string): string[] {
     try {
       return fs
         .readdirSync(target, { withFileTypes: true })
@@ -48,44 +43,10 @@ export const nodeFs: RegistryFs = {
 }
 
 /**
- * 打一次 `/-/ping`。用 `node:http` 而不是 `fetch`：这条要按 500ms 的间隔轮询三十秒，
- * 而 fetch 背后那个连接池会把 keep-alive 连接留着——探活探到最后剩一串谁也不用的连接
- * 挂在一个刚起来的 registry 上。`agent: false` 加拿到状态码就 `destroy`，两道都要。
- */
-export function ping(url: string): Promise<boolean> {
-  return new Promise((resolve) => {
-    let settled = false
-    const done = (ok: boolean): void => {
-      if (settled) return
-      settled = true
-      resolve(ok)
-    }
-    let req: http.ClientRequest
-    try {
-      const client = url.startsWith('https:') ? https : http
-      req = client.get(url, { timeout: PING_TIMEOUT_MS, agent: false }, (res) => {
-        const ok = res.statusCode === 200
-        res.resume()
-        req.destroy()
-        done(ok)
-      })
-    } catch {
-      done(false)
-      return
-    }
-    req.on('timeout', () => {
-      req.destroy()
-      done(false)
-    })
-    req.on('error', () => done(false))
-  })
-}
-
-/**
  * 查一个 pid 对应的进程。**不走 WMI**：这台机器上 `Get-CimInstance` 那条路会死锁。
  * Windows 用 `tasklist` 的 CSV 单行输出，别的平台 `ps -o comm=`，两条都带超时。
  *
- * 超时、命令不在、tasklist 自己出错都归「查不出」（daemon 的 ProcessProbe 三态）——
+ * 超时、命令不在、tasklist 自己出错都归「查不出」（probes 的 ProcessProbe 三态）——
  * 把这些当成「进程不在」，停就退化成「只清一份 pid 文件」。POSIX 那侧 `ps` 对一个
  * 不存在的 pid 就是非零退出且不打东西，那才是确凿的「不在」。
  */
@@ -140,33 +101,7 @@ export async function portOwner(port: number): Promise<number | undefined> {
   return lsof === undefined ? undefined : parsePid(lsof.split('\n')[0])
 }
 
-/**
- * 起 registry 进程。**detached + unref + stdio ignore**：它要活过宿主重启与工作台退出
- * （这台机器上别的仓也从它装包）。Windows 上 detached 会给子进程一扇控制台窗口，所以
- * `windowsHide` 是必须的。`error` 事件必须接：不接的话 spawn 失败会以未捕获异常的形式
- * 炸掉宿主进程——起没起成由随后那三十秒的 ping 说了算，这里只记日志。
- */
-export function makeSpawn(log: (message: string) => void): RegistryDeps['spawn'] {
-  return (plan, env) => {
-    try {
-      const child = spawn(plan.command, plan.args, {
-        cwd: plan.cwd,
-        env,
-        detached: true,
-        stdio: 'ignore',
-        windowsHide: true,
-      })
-      child.on('error', (err) => log(`registry 子进程起不来：${String(err)}`))
-      child.unref()
-      return child.pid
-    } catch (err) {
-      log(`registry 子进程起不来：${String(err)}`)
-      return undefined
-    }
-  }
-}
-
-/** `process.kill` 的两种收场之外（EPERM 之类）一律往上抛，由 bringDown 收进 note */
+/** `process.kill` 的两种收场之外（EPERM 之类）一律往上抛，由调用方收进各自的失败说明 */
 export function kill(pid: number): 'killed' | 'gone' {
   try {
     process.kill(pid)

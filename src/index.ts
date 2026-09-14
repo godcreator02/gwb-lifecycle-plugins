@@ -9,15 +9,6 @@ import type {} from '@godcreator02/gwb-settings'
 import type {} from '@godcreator02/gwb-shell'
 import type {} from '@godcreator02/gwb-skills'
 import {
-  bringDown,
-  bringUp,
-  readStatus,
-  type RegistryDeps,
-} from './daemon.js'
-import { kill, makeSpawn, nodeFs, ping, portOwner, processName } from './node-registry-deps.js'
-import { DEFAULT_REGISTRY, type DevInput, runDev } from './dev.js'
-import { CDP_ENTRY, devDeps } from './node-dev-deps.js'
-import {
   appDirOf,
   asHomeName,
   buildPlan,
@@ -31,6 +22,9 @@ import {
   CDP_PORT_BASE,
   CDP_PORT_TRIES,
 } from './home.js'
+import { kill, portOwner, processName } from './node-probe-deps.js'
+import { DEFAULT_REGISTRY, type DevInput, runDev } from './dev.js'
+import { CDP_ENTRY, devDeps } from './node-dev-deps.js'
 import { homeFs, makeGuiSpawn, runCaptured } from './node-home-deps.js'
 import {
   NAME_RE,
@@ -59,15 +53,13 @@ const CREATE_SITE_COMMAND = 'docs-site.create'
 const ATTACH_SITE_COMMAND = 'docfirst.attach'
 
 /**
- * 开发套件。五件事，全服务同一个理由——「在新文件夹里开发新件」这条路的地基：
+ * 开发套件。四件事，全服务同一个理由——「在新文件夹里开发新件」这条路的地基：
  *
  * - **建仓**：`devkit.scaffold` 把一个新件的骨架落进一个新文件夹（站那半经命令总线
  *   转给站件与 docfirst 件，两步）
  * - **手册**：`skills/gwb-devkit/SKILL.md` 随件分发，经 gwb-skills 挂载。**只挂自己那份**
  *   ——知识随件走，docfirst 的两份归 docfirst 件自己挂（说明书是全局单一命名空间，
  *   代挂第二份只会撞名，而且撞掉的那份很可能是旧版）
- * - **源**：本机 Verdaccio 的起/停/状态（`registry.*`）。工作台没起时同一份逻辑还有
- *   一个命令行入口，包内 `bin/registry.mjs`——一份实现，两个入口
  * - **home**：测试 home 的开/列/重开/删（`devkit.home.*`）——实机验证那几步的
  *   命令化（一次验开一个新 home、清理放在开新那一刻）
  *
@@ -78,9 +70,9 @@ const ATTACH_SITE_COMMAND = 'docfirst.attach'
  * 外加一条经 `gwbNodeCli` 登记的外部 CLI：`devkit.cdp`（在一个工作台页面里动手，
  * 从取证到点按拖拽都是它；`eval` 是它的一个动词，退役的 `devkit.cdp-eval` 是它的祖先）。
  *
- * `apply` 里只剩接线；建仓的校验、渲染、落盘在 `scaffold.ts`；registry 的起停时序在
- * `daemon.ts`、home 的在 `home.ts`、改一版看一版那条链在 `dev.ts`（皆纯机，可单测），
- * 真机器的盘与进程在 `node-registry-deps.ts` / `node-home-deps.ts` / `node-dev-deps.ts`。
+ * `apply` 里只剩接线；建仓的校验、渲染、落盘在 `scaffold.ts`；home 的时序在 `home.ts`、
+ * 改一版看一版那条链在 `dev.ts`、进程探测的纯机在 `probes.ts`（皆纯机，可单测），
+ * 真机器的盘与进程在 `node-probe-deps.ts` / `node-home-deps.ts` / `node-dev-deps.ts`。
  */
 
 /** `devkit.scaffold` 的参数说明。参数错的时候连它一起回——错误即文档 */
@@ -94,10 +86,6 @@ const SCAFFOLD_USAGE = [
   '  port   可选，文档站端口。不给由站件自己挑（扫邻居已占的，从 4310 起找空位）',
   '例：{"name":"hello","dir":"D:\\\\tmp\\\\hello","title":"打个招呼"}',
 ].join('\n')
-
-/** 未配置 registry-dir 时回的那句话 */
-const MISSING_DIR =
-  '未配置 registry-dir——到「设置」给开发套件填 registry-dir：那个含 config.yaml、storage、node_modules/verdaccio 的 Verdaccio 目录'
 
 /** 未配置 kernel-dir 时回的那句话 */
 const MISSING_KERNEL_DIR =
@@ -154,36 +142,9 @@ export function apply(ctx: GwbContext): void {
     return commands.list().some((entry) => entry.name === command)
   }
 
-  // ── registry 那半 ──────────────────────────────────────────────────────────
-
-  /**
-   * 本次会话起的那个 pid。只在内存里、不落盘：它回答「这个 registry 是不是我这次起的」，
-   * 宿主一重启答案就该变回「接管来的」，那正是实情。
-   */
-  let ownPid: number | undefined
-
-  const deps: RegistryDeps = {
-    fs: nodeFs,
-    spawn: makeSpawn((message) => log.warn(message)),
-    ping,
-    processName,
-    portOwner,
-    kill,
-    sleep: (ms) => new Promise((resolve) => setTimeout(resolve, ms)),
-    now: () => Date.now(),
-    execPath: process.execPath,
-    env: process.env,
-  }
-
   let settings: { get(key: string): unknown } | undefined
 
   ctx.inject(['gwbSettings'], (scoped) => {
-    scoped.gwbSettings.define({
-      key: 'registry-dir',
-      title: '本机插件源目录',
-      type: 'string',
-      description: 'Verdaccio 目录（含 config.yaml、storage、node_modules/verdaccio）。registry 的起/停/状态/日志都用它；不填这半不工作',
-    })
     scoped.gwbSettings.define({
       key: 'kernel-dir',
       title: '内核仓根目录',
@@ -193,69 +154,12 @@ export function apply(ctx: GwbContext): void {
     settings = scoped.gwbSettings
   })
 
-  /** 设置里那个目录。**不给默认值**：目录是这台机器的事实，编一个只会是「配置了但不在」的假象 */
-  function dirOf(): string | undefined {
-    const raw = settings?.get('registry-dir')
-    const dir = typeof raw === 'string' ? raw.trim() : ''
-    return dir === '' ? undefined : path.resolve(dir)
-  }
-
-  /** 设置里那个内核仓根。不给默认值的道理同 dirOf */
+  /** 设置里那个内核仓根。**不给默认值**：目录是这台机器的事实，编一个只会是「配置了但不在」的假象 */
   function kernelDirOf(): string | undefined {
     const raw = settings?.get('kernel-dir')
     const dir = typeof raw === 'string' ? raw.trim() : ''
     return dir === '' ? undefined : path.resolve(dir)
   }
-
-  ctx.effect(() =>
-    bus.register(
-      { name: 'registry.status', plugin: name, description: '查本机插件源。无参数。回执 {running, url（端口从 url 看）, pid, adopted, dir}' },
-      async () => {
-        const dir = dirOf()
-        if (dir === undefined) return { ok: false, error: MISSING_DIR }
-        const status = await readStatus(dir, deps, ownPid)
-        return { ok: true, data: status }
-      },
-    ),
-  )
-
-  ctx.effect(() =>
-    bus.register(
-      { name: 'registry.up', plugin: name, description: '拉起本机插件源（已经在跑就直接接管），轮询 /-/ping 最多 30 秒。无参数' },
-      async () => {
-        const dir = dirOf()
-        if (dir === undefined) return { ok: false, error: MISSING_DIR }
-        const outcome = await bringUp(dir, deps, ownPid)
-        if (!outcome.ok) {
-          log.warn(`registry.up 没成：${outcome.error}`)
-          return { ok: false, error: outcome.error }
-        }
-        if (outcome.started) ownPid = outcome.status.pid ?? undefined
-        log.info(`registry.up：${outcome.note}`)
-        return { ok: true, data: { ...outcome.status, note: outcome.note } }
-      },
-    ),
-  )
-
-  ctx.effect(() =>
-    bus.register(
-      { name: 'registry.down', plugin: name, description: '停本机插件源（按 pid 文件，核对映像名与端口持有者再杀）——这台机器上别的仓也在用它。无参数' },
-      async () => {
-        const dir = dirOf()
-        if (dir === undefined) return { ok: false, error: MISSING_DIR }
-        const outcome = await bringDown(dir, deps)
-        // 停完这个 pid 就不是「我们起的那个」了，留着会让下一次状态把别人起的算成自己的
-        if (outcome.killed !== null && outcome.killed === ownPid) ownPid = undefined
-        // 没停成得当成失败回：跑着的源跟已停的源混成一句话，人会转头去查别的
-        if (!outcome.ok) {
-          log.warn(`registry.down 没成：${outcome.note}`)
-          return { ok: false, error: outcome.note }
-        }
-        log.info(`registry.down：${outcome.note}`)
-        return { ok: true, data: { ...outcome, status: await readStatus(dir, deps, ownPid) } }
-      },
-    ),
-  )
 
   // ── home 那半 ──────────────────────────────────────────────────────────────
 

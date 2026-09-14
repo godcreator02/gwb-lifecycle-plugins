@@ -30,8 +30,8 @@ import { isRecord } from '@godcreator02/gwb-plugin-api'
  * 碰盘、开进程、连 CDP 全走注入(`DevDeps`),于是整条时序在测试里用假件跑得完。
  */
 
-/** 本机源。跟手册、件模板的 `.npmrc` 里那个是同一个地址 */
-export const DEFAULT_REGISTRY = 'http://127.0.0.1:4873/'
+/** 团队源（NAS 上的 Verdaccio，经反代出域名）。跟用户级 `~/.npmrc` 里 `@godcreator02` scope 那行同一个地址 */
+export const DEFAULT_REGISTRY = 'https://npm.tianshen02.online:28377/'
 
 /** 日常那份 home 的名字。开发版进它就是「悄悄换了日常代码」,所以当场拒 */
 export const DAILY_HOME = 'default'
@@ -61,7 +61,7 @@ function pad(value: number): string {
  * 当成旧版跳过。戳到分钟:同一分钟里发两趟会撞号,那时改一行再来(撞了会当场拒,见
  * `publishedAlready`),比静默覆盖一个已经装出去的号强。
  *
- * **标 dev 不动 latest**:本机源上这些包同时被别的仓消费,开发版顶掉 latest 会让它们
+ * **标 dev 不动 latest**:团队源上这些包同时被别的仓消费,开发版顶掉 latest 会让它们
  * 莫名其妙换了代码。
  */
 export function devVersion(version: string, now: number): string {

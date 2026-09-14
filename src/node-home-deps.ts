@@ -2,13 +2,13 @@ import { spawn } from 'node:child_process'
 import { mkdirSync, rmSync } from 'node:fs'
 import type { HomeDeps, HomeFs } from './home.js'
 import { BUILD_TAIL_LINES } from './home.js'
-import { tailLines } from './daemon.js'
-import { kill, nodeFs, portOwner, processName } from './node-registry-deps.js'
+import { tailLines } from './probes.js'
+import { kill, nodeFs, portOwner, processName } from './node-probe-deps.js'
 
 /**
  * `HomeDeps` 的真身:碰盘走 node:fs,开进程走系统。
  *
- * 与 node-registry-deps 同一个分工——这一层全是环境胶水,**不进单测**;时序与守卫的
+ * 与 node-probe-deps 同一个分工——这一层全是环境胶水,**不进单测**;时序与守卫的
  * 判断全在 home.ts 的纯机里,假件测试在那儿跑。能复用的判据(processName / kill /
  * portOwner)直接从 registry 那半拿:同一台机器,查 pid 与停 pid 的坑是同一批。
  */

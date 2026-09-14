@@ -3,7 +3,7 @@ import fs from 'node:fs'
 import os from 'node:os'
 import path from 'node:path'
 import { fileURLToPath } from 'node:url'
-import { tailLines } from './daemon.js'
+import { tailLines } from './probes.js'
 import { PUBLISH_TIMEOUT_MS, pnpmPlan, type DevDeps, type RunPlan } from './dev.js'
 import { runCaptured } from './node-home-deps.js'
 

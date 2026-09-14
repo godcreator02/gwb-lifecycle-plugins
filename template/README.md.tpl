@@ -2,7 +2,7 @@
 
 `{{pkg}}` —— gwb 内核线的模板插件。插件名 `{{pkgName}}`，命令名前缀 `{{name}}`。
 
-一仓一包一插件，仓根即包根。发本机 registry，装进 home。**scope 路由住用户级 pnpm 配置**
+一仓一包一插件，仓根即包根。发团队源（NAS registry），装进 home。**scope 路由住用户级 pnpm 配置**
 （`@godcreator02:registry`），本仓不写 `.npmrc`。
 
 ## 这是什么形状
@@ -29,7 +29,7 @@ pnpm build          # tsc + esbuild + tailwindcss 三步
 
 ```powershell
 # 先抬 package.json 的版本号，同一个版本号永不重发
-pnpm publish --registry http://127.0.0.1:4873/ --no-git-checks
+pnpm publish --registry https://npm.tianshen02.online:28377/ --no-git-checks
 ```
 
 然后：
@@ -40,7 +40,7 @@ pnpm publish --registry http://127.0.0.1:4873/ --no-git-checks
 4. 发完就去升 default home（人点「全部更新」或 `plugin-manager.update-all`）——攒着不升，
    agent 读到的手册与命令都停在旧版。
 
-本机源没起：调 `registry.up`（开发套件那条命令；源目录在它的设置项 `registry-dir` 里）。
+源是 NAS 上的常驻团队源，无需起停；地址见用户级 `~/.npmrc` 的 `@godcreator02` scope 行。
 
 ## 规矩在哪
 

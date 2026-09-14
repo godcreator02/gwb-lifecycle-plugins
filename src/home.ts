@@ -1,6 +1,6 @@
 import path from 'node:path'
 import { isRecord } from '@godcreator02/gwb-plugin-api'
-import { bareImage, type ProcessProbe } from './daemon.js'
+import { bareImage, type ProcessProbe } from './probes.js'
 
 /**
  * 测试 home 的纯机:命名、启动计划、起/停/删的时序与守卫。
@@ -244,7 +244,7 @@ export interface HomeDeps {
     plan: { command: string; args: string[]; cwd: string },
     timeoutMs: number,
   ): Promise<{ ok: boolean; tail: string }>
-  /** 查 pid 对应的进程:running / gone / unknown 三态(见 daemon 的 ProcessProbe) */
+  /** 查 pid 对应的进程:running / gone / unknown 三态(见 probes 的 ProcessProbe) */
   processName(pid: number): Promise<ProcessProbe>
   portOwner(port: number): Promise<number | undefined>
   /** 停一个进程:'killed' / 'gone',别的失败一律抛 */
