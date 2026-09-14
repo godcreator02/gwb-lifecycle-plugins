@@ -9,25 +9,25 @@ import { distManifest } from '../src/node-dev-deps.js'
 
 /** 一份典型的工作区清单：同仓兄弟用 workspace:，外来包用普通范围 */
 const MANIFEST = {
-  name: '@godcreator02/gwb-fake',
+  name: '@team/gwb-fake',
   version: '0.3.1',
   files: ['dist'],
   scripts: { build: 'tsc', test: 'vitest run' },
   dependencies: {
-    '@godcreator02/gwb-sibling': 'workspace:^',
+    '@team/gwb-sibling': 'workspace:^',
     'yaml': '^2.8.0',
   },
   peerDependencies: {
-    '@godcreator02/gwb-plugin-api': 'workspace:^',
+    '@team/gwb-plugin-api': 'workspace:^',
   },
   devDependencies: { typescript: '^7.0.2' },
   gwb: { title: '假的' },
 } as const
 
-const SIBLINGS = { '@godcreator02/gwb-sibling': '0.4.0-dev.202609131200' }
+const SIBLINGS = { '@team/gwb-sibling': '0.4.0-dev.202609131200' }
 const WORKSPACE = new Map([
-  ['@godcreator02/gwb-sibling', '0.3.9'],
-  ['@godcreator02/gwb-plugin-api', '0.1.0'],
+  ['@team/gwb-sibling', '0.3.9'],
+  ['@team/gwb-plugin-api', '0.1.0'],
 ])
 
 describe('分发清单', () => {
@@ -37,7 +37,7 @@ describe('分发清单', () => {
     expect(out.scripts).toBeUndefined()
     expect(out.devDependencies).toBeUndefined()
     expect(out.gwb).toEqual({ title: '假的' })
-    expect(out.name).toBe('@godcreator02/gwb-fake')
+    expect(out.name).toBe('@team/gwb-fake')
   })
 
   it('不改入参那份清单——仓里的 package.json 一个字都不动', () => {
@@ -49,23 +49,23 @@ describe('分发清单', () => {
 
   it('同趟发的兄弟钉成它的准确号——范围认不到 dev 版，不钉就是新件配旧库', () => {
     const out = distManifest(MANIFEST, '0.4.0-dev.202609131200', SIBLINGS, WORKSPACE)
-    expect(out.dependencies?.['@godcreator02/gwb-sibling']).toBe('0.4.0-dev.202609131200')
+    expect(out.dependencies?.['@team/gwb-sibling']).toBe('0.4.0-dev.202609131200')
   })
 
   it('正式版那趟给的是 >= 范围，原样写进去——消费方跟得进后续 patch', () => {
-    const out = distManifest(MANIFEST, '0.4.0', { '@godcreator02/gwb-sibling': '>=0.4.0' }, WORKSPACE)
-    expect(out.dependencies?.['@godcreator02/gwb-sibling']).toBe('>=0.4.0')
+    const out = distManifest(MANIFEST, '0.4.0', { '@team/gwb-sibling': '>=0.4.0' }, WORKSPACE)
+    expect(out.dependencies?.['@team/gwb-sibling']).toBe('>=0.4.0')
   })
 
   it('不是兄弟的 workspace: 换成工作区里那个真号；工作区里没有就 >=0.0.0', () => {
     const out = distManifest(
-      { ...MANIFEST, dependencies: { '@godcreator02/gwb-sibling': 'workspace:^', '@godcreator02/gwb-stranger': 'workspace:*' } },
+      { ...MANIFEST, dependencies: { '@team/gwb-sibling': 'workspace:^', '@team/gwb-stranger': 'workspace:*' } },
       '0.4.0-dev.202609131200',
       {},
       WORKSPACE,
     )
-    expect(out.dependencies?.['@godcreator02/gwb-sibling']).toBe('>=0.3.9')
-    expect(out.dependencies?.['@godcreator02/gwb-stranger']).toBe('>=0.0.0')
+    expect(out.dependencies?.['@team/gwb-sibling']).toBe('>=0.3.9')
+    expect(out.dependencies?.['@team/gwb-stranger']).toBe('>=0.0.0')
   })
 
   it('普通范围原样过，外来包不掺和', () => {
@@ -75,12 +75,12 @@ describe('分发清单', () => {
 
   it('peer 不钉兄弟的准确号——钉了就是逼消费方也换版本；workspace: 照样换成真号', () => {
     const out = distManifest(
-      { ...MANIFEST, peerDependencies: { '@godcreator02/gwb-sibling': 'workspace:^', '@godcreator02/gwb-plugin-api': '>=0.1.0' } },
+      { ...MANIFEST, peerDependencies: { '@team/gwb-sibling': 'workspace:^', '@team/gwb-plugin-api': '>=0.1.0' } },
       '0.4.0-dev.202609131200',
       SIBLINGS,
       WORKSPACE,
     )
-    expect(out.peerDependencies?.['@godcreator02/gwb-sibling']).toBe('>=0.3.9')
-    expect(out.peerDependencies?.['@godcreator02/gwb-plugin-api']).toBe('>=0.1.0')
+    expect(out.peerDependencies?.['@team/gwb-sibling']).toBe('>=0.3.9')
+    expect(out.peerDependencies?.['@team/gwb-plugin-api']).toBe('>=0.1.0')
   })
 })
