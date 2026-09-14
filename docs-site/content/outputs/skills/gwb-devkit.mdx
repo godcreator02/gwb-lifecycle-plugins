@@ -422,10 +422,16 @@ dependencies，装进 home 就是第二份实例，Service 身份对不上——
 
 # 能力面菜单
 
-内核给的面就七个名字（`@godcreator02/gwb-plugin-api` 0.1）：`GwbContext` / `GwbKernelApi` /
+内核给的面就七个名字（`@godcreator02/gwb-plugin-api` ≥0.1.1）：`GwbContext` / `GwbKernelApi` /
 `GwbResult` / `GwbWindowApi` / `ShellBoot` / `requireKernel` / `isRecord`。类型住词汇表包，
-运行时值走服务。`gwbKernel` 上只有三样：`dataDir` / `emit(payload)` / `setShell(url)`——
+运行时值走服务。**0.1.1 起词汇表包还声明了全局 `window.gwb`**——浏览器半写 `window.gwb.command(...)`
+时 TypeScript 认得它，不用翻别人的产物找形状。
+`gwbKernel` 上只有三样：`dataDir` / `emit(payload)` / `setShell(url)`——
 三样的语义、页面交接与边界，正本在内核仓文档站的「内核契约面」页。
+
+**各面的方法签名：`import type {} from '<那个包>'`——TypeScript 会告诉你一切。**
+不用翻 `.d.ts` 文件、不用读源码、不用猜：每个服务提供方都在自己的包里导出了完整的接口类型，
+import 一行，IDE 的自动补全就是你的说明书。
 
 生态里每个插件的服务，**按需取**——不上的面就不写 inject，少一条依赖少一处挂不上的可能：
 
