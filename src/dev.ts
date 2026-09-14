@@ -1,5 +1,5 @@
 import path from 'node:path'
-import { isRecord } from '@team/gwb-plugin-api'
+import { isRecord } from '@godcreator/gwb-plugin-api'
 
 /**
  * 「改一版看一版」那条链的纯机:守卫、版本号、发什么装什么、重挂哪几条、拿什么当证据。
@@ -30,8 +30,8 @@ import { isRecord } from '@team/gwb-plugin-api'
  * 碰盘、开进程、连 CDP 全走注入(`DevDeps`),于是整条时序在测试里用假件跑得完。
  */
 
-/** 团队源（gitea 的 team 组织 npm registry，经 Lucky 反代出域名——与 git remote 同判例）。跟用户级 `~/.npmrc` 里 `@team` scope 那行同一个地址 */
-export const DEFAULT_REGISTRY = 'https://git.tianshen02.online:28377/api/packages/team/npm/'
+/** 团队源（gitea 的 team 组织 npm registry，经 Lucky 反代出域名——与 git remote 同判例）。跟用户级 `~/.npmrc` 里 `@godcreator` scope 那行同一个地址 */
+export const DEFAULT_REGISTRY = 'https://git.tianshen02.online:28377/api/packages/godcreator/npm/'
 
 /** 日常那份 home 的名字。开发版进它就是「悄悄换了日常代码」,所以当场拒 */
 export const DAILY_HOME = 'default'
