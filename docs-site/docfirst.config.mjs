@@ -12,7 +12,7 @@
  * frontmatter 的 `name` 与 `description`（gwb-skills 挂载时读它们），所以目标写成对象形式。
  * 手册是这个包对外的知识面，正本跟别的文档一样住站里，改它照样是 `doc:render` 重摆。
  */
-import * as fumadocs from '@team/docfirst-workflow/fumadocs'
+import * as fumadocs from '@godcreator/docfirst-workflow/fumadocs'
 
 export default {
   formats: [fumadocs],
