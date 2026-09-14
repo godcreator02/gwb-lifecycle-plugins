@@ -5,7 +5,7 @@ description: 动手写一个新 gwb 插件之前读，打算说「验过了 / �
 
 # 这套东西是什么
 
-`@godcreator02/gwb-devkit` 是个**普通的 gwb 插件**，装进 home 才有它的命令。它自己就是
+`@team/gwb-devkit` 是个**普通的 gwb 插件**，装进 home 才有它的命令。它自己就是
 「独立起仓、发团队源、装进 home」这条路走出来的样例——住独立文件夹
 `D:\unitfolders\260908dkv\gwb-devkit`，不在任何 monorepo 里。
 
@@ -134,8 +134,8 @@ devkit.scaffold {"name":"hello","dir":"D:\\unitfolders\\<单元>\\gwb-hello","ti
 
 | 步 | 命令                 | 谁提供                                               | 干什么                                                                              |
 | - | ------------------ | ------------------------------------------------- | -------------------------------------------------------------------------------- |
-| 一 | `docs-site.create` | 站点插件 `@godcreator02/gwb-docs-site`                | 铺一个标准 fumadocs 骨架：单集合、一条路由、一页 index，端口从邻居没占的里挑                                   |
-| 二 | `docfirst.attach`  | docfirst 插件 `@godcreator02/gwb-docfirst-workflow` | 在**刚铺好的**骨架上装配六区：六个集合六条路由、`docfirst.config.mjs`、mdx 接线、投影块与术语组件、名册脚本、`doc` 那几条脚本 |
+| 一 | `docs-site.create` | 站点插件 `@team/gwb-docs-site`                | 铺一个标准 fumadocs 骨架：单集合、一条路由、一页 index，端口从邻居没占的里挑                                   |
+| 二 | `docfirst.attach`  | docfirst 插件 `@team/gwb-docfirst-workflow` | 在**刚铺好的**骨架上装配六区：六个集合六条路由、`docfirst.config.mjs`、mdx 接线、投影块与术语组件、名册脚本、`doc` 那几条脚本 |
 
 两条都认**站目录**（`<仓>\docs-site`），不是仓根——这跟退役的 `livedoc init --dir <仓>`
 正好差一层，别顺手抄旧的。`devkit.scaffold` 把这两步连着跑完；`port` 参数手给的一律
@@ -154,7 +154,7 @@ devkit.scaffold {"name":"hello","dir":"D:\\unitfolders\\<单元>\\gwb-hello","ti
 
 **没装站点插件的时候**：`devkit.scaffold` 不报错、不终止，插件那半正常落盘，回执与生成的
 README 都改口说「站没铺，装了站点插件之后自己跑 `docs-site.create`」。装：
-`plugin-manager.install {"pkg":"@godcreator02/gwb-docs-site"}`，docfirst 插件同理。
+`plugin-manager.install {"pkg":"@team/gwb-docs-site"}`，docfirst 插件同理。
 
 ## 建出来是什么
 
@@ -165,7 +165,7 @@ README 都改口说「站没铺，装了站点插件之后自己跑 `docs-site.c
 | 半            | 装什么                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                         | 模板归谁                                                          |
 | ------------ | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------- |
 | 仓根           | `package.json`（build 三步：tsc + esbuild + tailwindcss；check / prepublishOnly）、`pnpm-workspace.yaml`（**pnpm 11 的设置家**：allowBuilds 批 esbuild 的构建脚本，package.json 的 pnpm 字段已不读）、`tsconfig.json` 与 `tsconfig.build.json`（node 半）、`src/client/tsconfig.json`（浏览器半，jsx + DOM）、`.oxlintrc.json`（type-aware 那套规则）、`vitest.config.ts`（只认仓根 `tests/`，slow 标签留给真起子进程的用例）、`build.ts`（esbuild 打包，react 四裸名外置）、`src/index.ts`、`src/client/index.tsx`、`src/client/styles.css`、`catalog.md`、`tests/` 四份、`README.md`。**不写 `.npmrc`**——scope 路由住用户级 pnpm 配置 | **本包 `template/`**，18 个 `.tpl`                                |
-| `docs-site/` | fumadocs 骨架 + docfirst 的六区                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                  | **不归本包**：骨架模板随站点插件发，六区那套随 `@godcreator02/docfirst-workflow` 发 |
+| `docs-site/` | fumadocs 骨架 + docfirst 的六区                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                  | **不归本包**：骨架模板随站点插件发，六区那套随 `@team/docfirst-workflow` 发 |
 
 **三者互不依赖。** devkit 不依赖站点插件、站点插件不认识 docfirst、docfirst 插件不认识站点插件——
 建仓时那两步是**按名字在命令总线上找**，找不到就跳过那一步。这不是偷懒，是拆分的
@@ -203,8 +203,8 @@ docfirst.attach  {"dir":"D:\\unitfolders\\<单元>\\<已有仓>\\docs-site"}
 
 ## 三条从实跑里换来的
 
-**一、docfirst 的包一个都不许进 `serverExternalPackages`。** `@godcreator02/docfirst-workflow` 与
-`@godcreator02/docfirst-trajectory` 里都有客户端组件（前者的 `/fumadocs/pre` 是状态点，
+**一、docfirst 的包一个都不许进 `serverExternalPackages`。** `@team/docfirst-workflow` 与
+`@team/docfirst-trajectory` 里都有客户端组件（前者的 `/fumadocs/pre` 是状态点，
 后者的 `./react` 是星轨盘），外置之后 Next 走 Node 单独加载它们、跟站打包的 React 分了家。
 **报错完全不指根因**——预渲染报 `Cannot read properties of null (reading 'use')`，或者
 构建期报 `ERR_PACKAGE_IMPORT_NOT_DEFINED` 指着 `@base-ui/react` 里的文件，会把人引去查
@@ -228,7 +228,7 @@ scripts」，`pnpm run` 的依赖状态核验自动补装再撞同一块石头�
 | 占位符             | 值                                       | 例（`name: "hello"`）        |
 | --------------- | --------------------------------------- | ------------------------- |
 | `{{name}}`      | 短名本身                                    | `hello`                   |
-| `{{pkg}}`       | `@godcreator02/gwb-<短名>`                | `@godcreator02/gwb-hello` |
+| `{{pkg}}`       | `@team/gwb-<短名>`                | `@team/gwb-hello` |
 | `{{pkgName}}`   | 插件名 `gwb-<短名>`，即 `export const name` 的值 | `gwb-hello`               |
 | `{{title}}`     | 显示名，缺省用短名                               | `打个招呼`                    |
 | `{{docsBlock}}` | README 里讲文档站的那一段：建了站讲怎么跑，没建讲怎么补         | —                         |
@@ -255,7 +255,7 @@ pnpm build          # tsc + esbuild + tailwindcss 三步
 文档站那半（自己一套依赖，跟插件那半分开装）：cd <dir>\docs-site && pnpm install && pnpm doc
 先 git init 落第一个提交，再在 docs-site 里 pnpm doc:confirm
 发一版：先抬 package.json 的版本号，再 pnpm publish --no-git-checks   # scope 路由自动走对源，别手写 --registry
-装进隔离 home：plugin-manager.install {"pkg":"@godcreator02/gwb-<短名>"}——该进的 peer 会一并装上
+装进隔离 home：plugin-manager.install {"pkg":"@team/gwb-<短名>"}——该进的 peer 会一并装上
 命令面验证：POST /run {"command":"<短名>.ping"} 回 {ok:true,…}；工作台那格窗格「你好」+计数按钮点得动——六步验收到这儿走完
 发完就去升 default home（人点「全部更新」或 plugin-manager.update-all）
 ```
@@ -268,14 +268,14 @@ docfirst 那条线曾拆成三个插件又并回两个——讲通用纪律的�
 
 | 插件              | 管什么                                                                                                                                                                                                                                                                                                                              | 包                                     |
 | --------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ------------------------------------- |
-| **站点插件**        | 一个 fumadocs 站的**一生**：铺标准骨架、扫容器根找站、判构建新鲜度、现挑空端口起停、到点自动关、一个窗格。**只认 fumadocs**，不认识 docfirst                                                                                                                                                                                                                                         | `@godcreator02/gwb-docs-site`         |
-| **docfirst 插件** | 站里**内容的正确性**：在骨架上装配六区与接线（`docfirst.attach`，插件里就这一条命令），外加六份说明书——讲机制的三份（`docfirst` 装六区 / `docfirst-docs` 写文档 / `trajectory` 记卡）加讲通用开发纪律的三份（`spec-grill` 先盘问 / `parallel-by-module` 并行派活 / `docs-governance` 文档与注释治理，含代码自解释扫描）。核对 / 确认 / 渲染**不经插件**——那是仓里的事，agent 自己 cd 过去跑 `pnpm doc`，插件对 `@godcreator02/docfirst-workflow` 那个包零依赖 | `@godcreator02/gwb-docfirst-workflow` |
+| **站点插件**        | 一个 fumadocs 站的**一生**：铺标准骨架、扫容器根找站、判构建新鲜度、现挑空端口起停、到点自动关、一个窗格。**只认 fumadocs**，不认识 docfirst                                                                                                                                                                                                                                         | `@team/gwb-docs-site`         |
+| **docfirst 插件** | 站里**内容的正确性**：在骨架上装配六区与接线（`docfirst.attach`，插件里就这一条命令），外加六份说明书——讲机制的三份（`docfirst` 装六区 / `docfirst-docs` 写文档 / `trajectory` 记卡）加讲通用开发纪律的三份（`spec-grill` 先盘问 / `parallel-by-module` 并行派活 / `docs-governance` 文档与注释治理，含代码自解释扫描）。核对 / 确认 / 渲染**不经插件**——那是仓里的事，agent 自己 cd 过去跑 `pnpm doc`，插件对 `@team/docfirst-workflow` 那个包零依赖 | `@team/gwb-docfirst-workflow` |
 
-docfirst 的包是两个：`@godcreator02/docfirst-workflow` 与轨迹包
-`@godcreator02/docfirst-trajectory`。**旧的那批 `@godcreator02/live-doc-*` 不再更新**——看见
+docfirst 的包是两个：`@team/docfirst-workflow` 与轨迹包
+`@team/docfirst-trajectory`。**旧的那批 `@team/live-doc-*` 不再更新**——看见
 哪儿还写着旧包名或 `livedoc init`，那份文档过期了。
 
-**装机面不一样**：`@godcreator02/docfirst-workflow` 是 npm 包，要装进**各仓**的 `node_modules`
+**装机面不一样**：`@team/docfirst-workflow` 是 npm 包，要装进**各仓**的 `node_modules`
 （站构建 import 它的接线、门禁跑它的 check）；两个插件只装进 **home**，各仓的依赖树里
 不该出现它们。
 
@@ -296,7 +296,7 @@ pnpm doc:render     # docfirst render：机读版与挂了 outputs 的生成物�
 `check` 有红时退出码是 1——**那是核对结果，不是命令失败**。`render` 没有 `--target`
 开关（那是旧包线的写法），就一条 `docfirst render`。
 
-跑这几条要仓的 `docs-site` 里装了 `@godcreator02/docfirst-workflow`（它带 `docfirst`
+跑这几条要仓的 `docs-site` 里装了 `@team/docfirst-workflow`（它带 `docfirst`
 这个可执行）；`attach` 铺出来的 `package.json` 里那几条脚本就是上面这三条。
 
 别在插件里进程内 import 一个 CLI——CLI 形态的东西一律经 `gwbNodeCli` / `gwbPyCli` 登记，
@@ -367,9 +367,9 @@ pnpm publish --no-git-checks   # scope 路由自动走对源，别手写 --regis
 
 **五、装进 home 看真效果。** 两条路：
 
-* **正路**：`plugin-manager.install { "pkg": "@godcreator02/gwb-<短名>" }`（可选 `spec` 指定版本）
+* **正路**：`plugin-manager.install { "pkg": "@team/gwb-<短名>" }`（可选 `spec` 指定版本）
   ——真跑 pnpm add，**然后自动加一条条目（默认启用）**，回执带新条目的 `entryId`
-* **手动路**：home 目录里 `pnpm add @godcreator02/gwb-<短名>@<版本>`，再在 `cordis.yml`
+* **手动路**：home 目录里 `pnpm add @team/gwb-<短名>@<版本>`，再在 `cordis.yml`
   手写一条条目。`id` **必须手写**：不写 loader 当场发 8 位随机 hex 且首挂不写回，身份一直漂
 
 **六、全套验一遍**（见「验机」节）。
@@ -429,7 +429,7 @@ dependencies，装进 home 就是第二份实例，Service 身份对不上——
 
 # 能力面菜单
 
-内核给的面就七个名字（`@godcreator02/gwb-plugin-api` ≥0.1.1）：`GwbContext` / `GwbKernelApi` /
+内核给的面就七个名字（`@team/gwb-plugin-api` ≥0.1.1）：`GwbContext` / `GwbKernelApi` /
 `GwbResult` / `GwbWindowApi` / `ShellBoot` / `requireKernel` / `isRecord`。类型住词汇表包，
 运行时值走服务。**0.1.1 起词汇表包还声明了全局 `window.gwb`**——浏览器半写 `window.gwb.command(...)`
 时 TypeScript 认得它，不用翻别人的产物找形状。
@@ -470,7 +470,7 @@ inject 三种写法：`export const inject = [...]` 硬依赖（缺了不挂）�
   的坑，是「一个名字一个提供方」的保证。
 
 只为拿到 `declare module 'cordis'` 里那几个名字的类型时，写空 import 就够：
-`import type {} from '@godcreator02/gwb-commands'`。
+`import type {} from '@team/gwb-commands'`。
 
 **插件不吃 `cordis.yml` 的 `config`。** 一条条目除了 `id` 就没别的要写的了——可改的东西一律
 `gwbSettings.define` 出来，人在「设置」里改、`get` 现读。理由是一份配置只该有一个正本：
@@ -496,7 +496,7 @@ esbuild 打成 `dist/client.js`，只把 `react` / `react/jsx-runtime` / `react-
 
 ```css
 @import 'tailwindcss/theme.css' theme(reference) prefix(<短名>);
-@import '@godcreator02/gwb-tokens/theme.reference.css' theme(reference);
+@import '@team/gwb-tokens/theme.reference.css' theme(reference);
 @import 'tailwindcss/utilities.css' layer(utilities) source(none);
 @import 'tw-animate-css';
 @source "./";
@@ -508,7 +508,7 @@ esbuild 打成 `dist/client.js`，只把 `react` / `react/jsx-runtime` / `react-
 `data-gwb-plugin` 只是身份标记。`components.json` 的 `tailwind.prefix` 填短名，
 `shadcn add` 拉下来的组件类名自带前缀；`cn` 包默认就能正确合并带前缀的类，不用配。
 
-第二行引的令牌映射面，`@godcreator02/gwb-tokens&#x60; **≥0.1.1** 起把插件里用到的 Tailwind 出厂键
+第二行引的令牌映射面，`@team/gwb-tokens&#x60; **≥0.1.1** 起把插件里用到的 Tailwind 出厂键
 （间距、字重字距、白黑、八档阴影、缓动、过渡、容器断点）全部接管到页面变量。插件依赖声明
 `>=0.1.1` 重编后，`dist/style.css` **零字面 fallback**——`calc(var(--<短名>-spacing, 0.25rem)*4)`
 编成 `calc(var(--gwb-spacing)*4)`、`text-white` 查 `--gwb-white`，主题值整页只剩令牌表一份。
@@ -592,7 +592,7 @@ devkit.release {"dir":"<仓根>","packages":["packages/model","packages/engine",
 ```yaml
 # C:\Users\<你>\AppData\Local\pnpm\config\config.yaml
 minimumReleaseAgeExclude:
-  - '@godcreator02/*'
+  - '@team/*'
 ```
 
 **这个文件不在任何仓里**，换机器或重装会丢。症状是「在新机器上突然装不上刚发的包」，
@@ -738,7 +738,7 @@ home 记录里占着的、跳过此刻真有人 listen 的），换了会在回�
 设置、说明书、插件管理、基础窗格皮（七件）加三个共享包（shared-react / tokens / plugin-api），
 写好 `cordis.yml` 条目再拉进程——**开箱就是一个能用的家**。要加别的插件，装完后自己
 `plugin-manager.install`。registry 地址不写死在命令行上：scope 路由住用户级 pnpm 配置
-（`@godcreator02:registry`），`pnpm add` / `pnpm publish` 不带 `--registry` 开关就走那条路。
+（`@team:registry`），`pnpm add` / `pnpm publish` 不带 `--registry` 开关就走那条路。
 
 **开发版会攒。** 本机源与 pnpm 仓里留下一堆一次性版本，攒多了跑一次 `pnpm store prune`。
 
@@ -895,5 +895,5 @@ home 命名、不许复用、四种假验收、清理时机、拿证据——那
 
 自己撞到新墙记进**自己仓**的文档。判据：每一次发现「不伸手进别的仓就做不下去」，
 那就是一堵墙。文档怎么写见 skill「docfirst-docs」，记轨迹卡见 skill「trajectory」——
-两份随 `@godcreator02/docfirst-workflow` 发、由 docfirst 插件挂上，本插件不再代挂。通用开发纪律
-（先盘问、并行派活、代码自解释）在 `@godcreator02/gwb-docfirst-workflow` 随插件发的那三份里。
+两份随 `@team/docfirst-workflow` 发、由 docfirst 插件挂上，本插件不再代挂。通用开发纪律
+（先盘问、并行派活、代码自解释）在 `@team/gwb-docfirst-workflow` 随插件发的那三份里。
