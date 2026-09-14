@@ -106,13 +106,14 @@ description: 动手写一个新 gwb 插件之前读，打算说「验过了 / �
 | 命令                 | 参数                 | 干什么                                                                                                                                                              |
 | ------------------ | ------------------ | ---------------------------------------------------------------------------------------------------------------------------------------------------------------- |
 | `devkit.home.new`  | `{ short }`        | 开一个新 home，名字长成 `<short>-<yyMMddHHmm>`。**先 build 内核**（产物不新就起等于验旧代码，这一步跳不过），**调试端口自动挑**（先沿用这个 home 上次那个，被占了才另挑），所以它起的 home 天然按名字够得到。**回执里带着现有 home 清单**，开新那一刻正好清旧的 |
-| `devkit.home.list` | —                  | 列 home 根下全部：名字、谁还在跑、CDP 端口、命令口（`command-http` 格）                                                                                                                 |
+| `devkit.home.list` | —                  | 列 home 根下全部：名字、谁还在跑、CDP 端口、MCP 门（`mcp` 格；老 home 的 `command-http` 格照报当线索）                                                                                         |
 | `devkit.home.open` | `{ name }`         | 重开已有的，**不 build**。机器重启之后回到原来那个现场只有这一条路——`home.new` 永远造新目录，插件得全部重装一遍                                                                                              |
 | `devkit.home.rm`   | `{ name, force? }` | 删。没在跑的直接删；**还在跑的要 `force`**，那时连停带删（按 `runtime.json` 里的 pid，核对映像名与记录里那个 CDP 端口再杀），停不掉就不删。`default` 是日常那份：不 `force` 不删，**而且它在跑的时候 `force` 也不删**——自己关掉那扇窗再来    |
 
 运行时记录落在每个 home 自己的 `runtime.json` 里（`pid` / `startedAt` / `appDir` / `cdp` /
-`command-http`），home 删了它自然也没了。**写它的是内核与 gwb-command-http 插件，devkit 只读**：
-内核开机整份重写，命令口插件绑上端口之后补自己那个字段。所以**手工起的 home 也有记录**，
+`mcp`），home 删了它自然也没了。**写它的是内核与 gwb-mcp 插件，devkit 只读**：
+内核开机整份重写，门绑上端口之后补自己那个字段（前一门 command-http 补的 `command-http`
+字段在老 home 的记录里还在，当线索看）。所以**手工起的 home 也有记录**，
 「说出名字就够得着它」对所有
 home 都成立。**热重挂不换 pid**——`plugin-manager.update-all` 那套停用再启用只动条目，内核进程还是
 原来那个，记录照旧作数。
@@ -350,10 +351,11 @@ handler 参数是 `unknown`，自己收窄（词汇表包的 `isRecord`）。相
 参数复杂到一行写不下的，回执里带一份完整说明（错误即文档，`devkit.scaffold` 就是这么干的），
 但 description 里那句形状仍然要有。
 
-**要让 agent 在顶层直接看见这条命令，登记时标 `top: true`**（`GwbCommandDef` 的字段）。
-那是**给将来门面留的位**：gwb-command-http 的门只是如实带出这个标记（`/surface` 里看得见），
-没有顶层渲染这一层；MCP 时代的桥拿它挑顶层工具，那条线已随 mcp 搁置。顶层是**写插件时
-定下来的一件事**，不是装进软件之后再批的——所以默认不标，**标之前先问人**。
+**顶层工具位没有申报口子。** MCP 门（2026-09-14 复位起唯一的门）工具面封顶 `surface` /
+`run` 两枚、永不再增——`GwbCommandDef` 的 `top` 字段已随 commands 0.3 退役，登记时
+没有「让 agent 顶层直接看见这条命令」这个动作，一切命令（包括你这条）经 `run` 按名调。
+命令只管把 `description` 的参数形状写清楚，发现面是 `surface` 回执的事。要动那个封顶
+（加第三枚工具）是 major 级的协议变更，**先问人**。
 
 **四、发一版。** 先抬 `package.json` 的版本号，再：
 
@@ -440,15 +442,15 @@ import 一行，IDE 的自动补全就是你的说明书。
 
 生态里每个插件的服务，**按需取**——不上的面就不写 inject，少一条依赖少一处挂不上的可能：
 
-| 面       | 怎么拿                                                      | 什么时候要                                                                                                                            |
-| ------- | -------------------------------------------------------- | -------------------------------------------------------------------------------------------------------------------------------- |
-| 命令总线    | `inject: ['gwbCommands']` → `register`                   | 能力要被调就要（几乎一定）。界面、agent 走的是同一张表                                                                                                   |
-| 说明书     | `skills/` 目录 + `gwbSkills.register`（局部）                  | 有多步流程或坑要讲给 agent 就要。**只挂自己那份**——见上一节的判据与那条撞名的坑。文档写什么读 skill「docfirst-docs」、记轨迹卡读「trajectory」，那两份由 docfirst 插件自己挂                 |
-| 设置      | `gwbSettings.define`（局部）→ `get`/`set`                    | **插件的配置一律走这里，不吃 `cordis.yml` 的 `config`**。类型 `string` / `number` / `boolean` / `secret`。值跟条目走（分区是条目 id 的末段），`shared: true` 才落公共区 |
-| 数据      | `gwbData.readDoc/writeDoc`（局部）                           | 要落盘状态就要。存 `<home>/data/<条目末段>/`                                                                                                  |
-| 窗格      | `gwbShell.registerPane` + client 半                       | 要人看得见就要                                                                                                                          |
-| 外部 CLI  | `gwbNodeCli` / `gwbPyCli` register（局部）                   | 要给外部脚本一个稳定入口就要。**CLI 形态的东西一律走这儿**，不做总线命令、不进程内调                                                                                   |
-| agent 桥 | 不用做——gwb-command-http 把总线开出去：agent 经 `POST /run` 按名调你的命令 | 门就两条路（`GET /surface` 现扫 + `POST /run`），没有顶层清单这回事；`top: true` 是给将来门面留的位                                                           |
+| 面       | 怎么拿                                       | 什么时候要                                                                                                                            |
+| ------- | ----------------------------------------- | -------------------------------------------------------------------------------------------------------------------------------- |
+| 命令总线    | `inject: ['gwbCommands']` → `register`    | 能力要被调就要（几乎一定）。界面、agent 走的是同一张表                                                                                                   |
+| 说明书     | `skills/` 目录 + `gwbSkills.register`（局部）   | 有多步流程或坑要讲给 agent 就要。**只挂自己那份**——见上一节的判据与那条撞名的坑。文档写什么读 skill「docfirst-docs」、记轨迹卡读「trajectory」，那两份由 docfirst 插件自己挂                 |
+| 设置      | `gwbSettings.define`（局部）→ `get`/`set`     | **插件的配置一律走这里，不吃 `cordis.yml` 的 `config`**。类型 `string` / `number` / `boolean` / `secret`。值跟条目走（分区是条目 id 的末段），`shared: true` 才落公共区 |
+| 数据      | `gwbData.readDoc/writeDoc`（局部）            | 要落盘状态就要。存 `<home>/data/<条目末段>/`                                                                                                  |
+| 窗格      | `gwbShell.registerPane` + client 半        | 要人看得见就要                                                                                                                          |
+| 外部 CLI  | `gwbNodeCli` / `gwbPyCli` register（局部）    | 要给外部脚本一个稳定入口就要。**CLI 形态的东西一律走这儿**，不做总线命令、不进程内调                                                                                   |
+| agent 桥 | 不用做——gwb-mcp 把总线开出去：agent 经 `run` 按名调你的命令 | 工具面封顶 `surface` / `run` 两枚，没有顶层清单这回事；发现面是 `surface` 现拼回执                                                                         |
 
 inject 三种写法：`export const inject = [...]` 硬依赖（缺了不挂）；`static inject = [...]`
 （Service 类）；`ctx.inject([...], fn)` 局部可选（缺了主插件照挂）。**inject 是等待不是
@@ -631,8 +633,9 @@ minimumReleaseAgeExclude:
 
 **不重启工作台，也没有回退。** 升坏了就是升坏了，往前修（再发一版再升），别指望它退回去。
 
-**升到 `gwb-command-http` 自己时，在途的那条请求会断**——门跟着它一起重挂，调用方等不到返回。
-那不是失败：**下一发请求自动就好**，之后调 `plugin-manager.list` 核对谁挂上了、版本对不对，别当它没升成又升一次。
+**升到 `gwb-mcp` 自己时，在途的那条调用会断、连接跟着断**——门跟着它一起重挂，调用方等不到
+返回，客户端可能要 `/mcp` 重连一次（工具面封顶后这个件极少发版，这条很少走到）。那不是失败：
+重连后调 `plugin-manager.list` 核对谁挂上了、版本对不对，别当它没升成又升一次。
 
 **升级与重挂在同一条命令里，中间别插别的命令。** 那一段时间里插件正一个个下线上线，
 这时候调任何别的命令，看到的都是半截状态。
@@ -641,11 +644,11 @@ minimumReleaseAgeExclude:
 
 ## 发版收尾：动门必过两道筛
 
-凡这次发版动的是门（gwb-command-http）、任何命令的名字/参数形状、或术语，收尾多两步：
+凡这次发版动的是门（gwb-mcp）、任何命令的名字/参数形状、或术语，收尾多两步：
 
-**一筛旧词。** 拿旧词表——件、井、格、门、gwb\_command\_list、skill\_list、skill\_read，加上
-这次改掉的每一个旧名——筛三处：门的 instructions、各仓 AGENTS 里提到门或命令的段落、
-所有随包 skill 的描述。
+**一筛旧词。** 拿旧词表——件、井、格、门、gwb\_command\_list、gwb\_command\_run、skill\_list、
+skill\_read、command-http，加上这次改掉的每一个旧名——筛三处：门的 instructions、各仓
+AGENTS 里提到门或命令的段落、所有随包 skill 的描述。
 
 **二验指向。** 文档里指名道姓的每个 skill 名与命令名，`skill.list` 与 `/surface?slim=true`
 各现扫一遍；指到不在的，要么修指向、要么补对象。docfirst 守得住「文档对源码」，守不住
@@ -727,7 +730,7 @@ home 记录里占着的、跳过此刻真有人 listen 的），换了会在回�
 是有价值的：人记得住、日志里对得上、开着的检查器不用换地址。
 
 **端口记在哪**：内核开机把 `pid` / `startedAt` / `appDir` / `cdp` 写进 `<home>/runtime.json`，
-命令口插件绑上端口之后补一个 `command-http` 字段。之后说出 home 名就够得着它，不用记那个数。**手工起的 home 没带
+门绑上端口之后补一个 `mcp` 字段。之后说出 home 名就够得着它，不用记那个数。**手工起的 home 没带
 那个开关就够不着**——记录里没有 `cdp` 那个字段，停掉重开一次就有了。记录**进程退了也不删**，
 读的人验活（pid 还在、且那个 pid 真的持着那个端口），下一次开机内核整份重写。
 
@@ -847,9 +850,9 @@ node <devkit 包根>\bin\cdp.mjs <home 名> <动作> [参数…]
 盖住照样打得中，而这套界面最容易出的错正是遮挡）；量颜色前先注一条 `transition: none`，
 读到 `oklab(…)` 格式就是还在过渡中。
 
-**`cmd` 那个动作是不经命令口读写一个 home 的路**：外壳把 `window.gwb.command` 开给页面，于是从
-命令行够得到那个 home 的整张命令面。隔离 home 多半没装 `gwb-command-http`（装了也是随机端口，只有 `default`
-认死 2870），这条路那时是唯一的一条。**只对隔离 home 用，绝不打 `default`**：这儿发的是真操作。
+**`cmd` 那个动作是不经门读写一个 home 的路**：外壳把 `window.gwb.command` 开给页面，于是从
+命令行够得到那个 home 的整张命令面。隔离 home 的底座件集里没有门（门是 default 这个
+生产位的事），这条路对它是日常正道。**只对隔离 home 用，绝不打 `default`**：这儿发的是真操作。
 
 量什么跟着界面走，所以**量表的脚本外置**：一个文件一张表，`eval` 收路径，按**工作目录**解
 （截图落点同理，缺省 `<cwd>\out\cdp\`）。这支脚本自己管的是「怎么把事件发进页面」，那件事一年

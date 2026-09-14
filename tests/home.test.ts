@@ -181,8 +181,13 @@ describe('命名：本地时间的 yyMMddHHmm，撞了退到秒，再撞就拒',
 
 describe('运行时记录与参数收窄', () => {
   it('读得回来的是内核写的那份；半截 JSON、形状不对、pid 不像样都当没有', () => {
-    const full: HomeRecord = { ...RECORD, cdp: 9222, commandHttp: { port: 2870, url: 'http://127.0.0.1:2870' } }
-    expect(parseRecord(JSON.stringify({ ...full, 'command-http': full.commandHttp }))).toEqual(full)
+    const full: HomeRecord = {
+      ...RECORD,
+      cdp: 9222,
+      mcp: { port: 2870, url: 'http://127.0.0.1:2870/mcp' },
+      commandHttp: { port: 2871, url: 'http://127.0.0.1:2871' },
+    }
+    expect(parseRecord(JSON.stringify({ ...full, 'command-http': full.commandHttp, mcp: full.mcp }))).toEqual(full)
     expect(parseRecord(undefined)).toBeUndefined()
     expect(parseRecord('{ half')).toBeUndefined()
     expect(parseRecord('[]')).toBeUndefined()
@@ -190,12 +195,13 @@ describe('运行时记录与参数收窄', () => {
     expect(parseRecord(JSON.stringify({ pid: 4242 }))).toBeUndefined()
   })
 
-  it('缺一格不算坏：cdp 与 command-http 是「那件事没发生」，不是这份记录不能用', () => {
-    // 起的时候没带调试口，或者那个 home 根本没装命令口插件——两样都是常态
+  it('缺一格不算坏：cdp 与两道门是「那件事没发生」，不是这份记录不能用', () => {
+    // 起的时候没带调试口，或者那个 home 根本没装门插件——两样都是常态
     expect(parseRecord(JSON.stringify({ ...RECORD, cdp: 'x' }))).toEqual(RECORD)
-    expect(parseRecord(JSON.stringify({ ...RECORD, 'command-http': { port: 2870 } }))).toEqual(RECORD)
-    expect(parseRecord(JSON.stringify({ ...RECORD, 'command-http': 'nope' }))).toEqual(RECORD)
-    // 老格遗物（mcp/http 时代的写者留的）是认不得的字段，随它去
+    expect(parseRecord(JSON.stringify({ ...RECORD, mcp: { port: 2870 } }))).toEqual(RECORD)
+    expect(parseRecord(JSON.stringify({ ...RECORD, mcp: 'nope' }))).toEqual(RECORD)
+    expect(parseRecord(JSON.stringify({ ...RECORD, 'command-http': { url: 'http://x' } }))).toEqual(RECORD)
+    // 老格遗物（换门时代的写者留的）是认不得的字段，随它去
     expect(parseRecord(JSON.stringify({ ...RECORD, 将来: 1 }))).toEqual(RECORD)
   })
 
@@ -370,17 +376,18 @@ describe('launchHome：先 build、起 electron、落记录、看五秒', () => 
 })
 
 describe('listHomes：谁在跑看记录里的 pid', () => {
-  it('有记录且 pid 认得出的报 running；没记录的就是没在跑，两道口如实报', async () => {
+  it('有记录且 pid 认得出的报 running；没记录的就是没在跑，门那两格如实报', async () => {
     const other = path.join(ROOT, 'shell-2609081430')
-    const commandHttp = { port: 2870, url: 'http://127.0.0.1:2870' }
+    const mcp = { port: 2870, url: 'http://127.0.0.1:2870/mcp' }
+    const commandHttp = { port: 2871, url: 'http://127.0.0.1:2871' }
     const fs = fakeFs(
-      { [recordFile(HOME)]: write({ ...RECORD, cdp: 9222, 'command-http': commandHttp }) },
+      { [recordFile(HOME)]: write({ ...RECORD, cdp: 9222, mcp, 'command-http': commandHttp }) },
       { [ROOT]: [NAME, 'shell-2609081430'] },
     )
     const { deps } = fakeDeps({ fs, processes: { 4242: 'electron.exe' } })
     expect(await listHomes(ROOT, deps)).toEqual([
-      { name: NAME, home: HOME, pid: 4242, running: true, cdp: 9222, commandHttp },
-      { name: 'shell-2609081430', home: other, pid: null, running: false, cdp: null, commandHttp: null },
+      { name: NAME, home: HOME, pid: 4242, running: true, cdp: 9222, mcp, commandHttp },
+      { name: 'shell-2609081430', home: other, pid: null, running: false, cdp: null, mcp: null, commandHttp: null },
     ])
   })
 })

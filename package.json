@@ -1,6 +1,6 @@
 {
   "name": "@godcreator02/gwb-devkit",
-  "version": "0.9.0",
+  "version": "0.9.1",
   "author": {"name": "godcreator"},
   "description": "开发套件：把一个新件的骨架落进一个新文件夹（件那半自带模板，站那半经命令总线转出去——站件 docs-site.create 铺 fumadocs 骨架、docfirst 件 docfirst.attach 装六区，两步，哪个件没装就跳过那步），随件带一份写件手册（只挂自己那份，知识随件走）；测试 home 的开/收、「改一版看一版」那条链（devkit.dev，住控制台那个 home、操作另一个 home）、发正式版（devkit.release：git 树不干净就拒、staging 发 latest、只碰源不碰任何 home）与一条 node CLI（cdp）也在这儿。**不依赖 docfirst 的任何包**",
   "type": "module",
