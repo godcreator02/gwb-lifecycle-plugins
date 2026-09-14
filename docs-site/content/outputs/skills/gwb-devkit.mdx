@@ -236,7 +236,7 @@ scripts」，`pnpm run` 的依赖状态核验自动补装再撞同一块石头�
 
 命令名 `<短名>.<动作>` 的前半也是它。短名的正则是
 `/^[a-z][a-z0-9]*(?:-[a-z0-9]+)*$/`——**段之间只许一个连字符、结尾不留**；松写法会放过
-`x--`，那条尾巴会跟着包名过一辈子。scope 全仓统一是 `@godcreator02`，不做成参数。
+`x--`，那条尾巴会跟着包名过一辈子。scope 全仓统一是 `@team`，不做成参数。
 
 两条落盘纪律，都是「没有干净回滚点」推出来的：整套模板**先在内存里渲染完**再碰盘
 （占位符出错是最可能的失败）；**目标目录必须还不存在**，存在就拒，不覆盖任何东西。
@@ -583,7 +583,7 @@ devkit.release {"dir":"<仓根>","packages":["packages/model","packages/engine",
 一版，先改 `package.json` 的号、提交，再调——抬号是语义行为，跟着版本提交走 git 纪律。
 
 手工那条（`pnpm publish --no-git-checks`，scope 路由自动走对源，别手写 `--registry`；`.npmrc`
-已把 `@godcreator02` 指过去）留给 staging 覆盖不了的场景：要在 publish 前跑仓里的钩子
+已把 `@team` 指过去）留给 staging 覆盖不了的场景：要在 publish 前跑仓里的钩子
 （`prepublishOnly`）——staging 分发形态里没有 `scripts`，钩子一个都不会跑。
 
 **刚发的包为什么装得进去。** pnpm 11 起 `minimumReleaseAge` 默认 1440 分钟——包发布后
