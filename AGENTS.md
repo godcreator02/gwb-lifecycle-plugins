@@ -42,7 +42,7 @@ pnpm build          # tsc 直出 dist/，没有打包器
 直接升日常那份 home，跳过了隔离验证；人点那颗键是最后一步，不是验证的一步。
 
 **发完就去升 default，别攒着。** 手册与命令都随包走，不升＝ agent 读到的还是上一版，
-而它照着过期手册干活**不报错**。新插件第一次装走 `plugins.install`，装完 `/mcp` 重连。
+而它照着过期手册干活**不报错**。新插件第一次装走 `plugin-manager.install`，装完 `/mcp` 重连。
 
 **`files` 白名单五项，一项都不能少**：`dist`、`src`、`template`、`skills`、`bin`。
 

@@ -13,10 +13,10 @@ god 工作台的开发套件，本身就是**一个普通的插件**：装进 ho
 ## 怎么装
 
 ```
-plugins.install {"pkg":"@godcreator02/gwb-devkit"}
+plugin-manager.install {"pkg":"@godcreator02/gwb-devkit"}
 ```
 
-装完 `/mcp` 重连一次，再到设置里填两项：本机源目录与内核仓根。不填，对应那半命令不工作。
+装完 `/mcp` 重连一次，再到设置里填一项：内核仓根。不填，home 那几条命令不工作。
 
 ## 怎么确认它在干活
 

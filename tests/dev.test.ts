@@ -129,7 +129,7 @@ describe('守卫', () => {
   it('目标就是自己所在那个 home 也拒——停用条目会把这条命令自己停掉', () => {
     const out = guardHome({ home: OWN }, OWN, 'win32')
     expect(out).toMatchObject({ ok: false })
-    if (!out.ok) expect(out.error).toContain('plugins.update-all')
+    if (!out.ok) expect(out.error).toContain('plugin-manager.update-all')
   })
 
   it('隔离 home 放行，名字取末段', () => {
@@ -200,8 +200,8 @@ describe('一趟', () => {
   it('装了不重挂比没装还糟，所以停用与启用两条都得发', async () => {
     const deps = fake({ packages: ONE_ENTRY })
     await runDev(input(), deps)
-    expect(deps.calls.filter((one) => one.includes('plugins.disable'))).toHaveLength(1)
-    expect(deps.calls.filter((one) => one.includes('plugins.enable'))).toHaveLength(1)
+    expect(deps.calls.filter((one) => one.includes('plugin-manager.disable'))).toHaveLength(1)
+    expect(deps.calls.filter((one) => one.includes('plugin-manager.enable'))).toHaveLength(1)
   })
 
   it('构建没成就一步都不往下走', async () => {
@@ -223,7 +223,7 @@ describe('一趟', () => {
     const deps = fake({ packages: [] })
     const out = await runDev(input(), deps)
     // 没条目就没东西可判活，但这不是成功——取证那头看不到任何一条活着的条目
-    if (out.ok) expect(out.data.shipped[0]?.note).toContain('plugins.install')
+    if (out.ok) expect(out.data.shipped[0]?.note).toContain('plugin-manager.install')
     else expect(out.error).toBeTruthy()
   })
 
@@ -242,10 +242,10 @@ describe('一趟', () => {
   })
 
   it('停用失败就停下，不接着发启用', async () => {
-    const deps = fake({ packages: ONE_ENTRY, failCdp: 'cmd plugins.disable' })
+    const deps = fake({ packages: ONE_ENTRY, failCdp: 'cmd plugin-manager.disable' })
     const out = await runDev(input(), deps)
     expect(out).toMatchObject({ ok: false })
-    expect(deps.calls.some((one) => one.includes('plugins.enable'))).toBe(false)
+    expect(deps.calls.some((one) => one.includes('plugin-manager.enable'))).toBe(false)
   })
 
   it('取证只看这一趟的日志增量，不看全量', async () => {

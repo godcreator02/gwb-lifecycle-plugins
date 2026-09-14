@@ -104,7 +104,7 @@ export function samePath(a: string, b: string, platform: NodeJS.Platform): boole
  * 2. **`default` 当场拒**。开发版进日常那份 home,号看着跟正式版没两样,而 `plugin-manager.list`
  *    上一点异常都看不出来
  * 3. **目标是自己所在那个 home 就拒**。停用条目那一下会把正在跑的这个 handler 自己停掉。
- *    换 devkit 自己走另一条路:发正式版 + `plugins.update-all`(那是 plugins 件在调,不是
+ *    换 devkit 自己走另一条路:发正式版 + `plugin-manager.update-all`(那是 plugins 件在调,不是
  *    devkit 自己,所以它活得过重挂)
  */
 export function guardHome(probe: HomeProbe, ownHome: string, platform: NodeJS.Platform, expect?: string): HomeGuard {
@@ -123,7 +123,7 @@ export function guardHome(probe: HomeProbe, ownHome: string, platform: NodeJS.Pl
   if (samePath(probe.home, ownHome, platform)) {
     return {
       ok: false,
-      error: `目标就是本件自己住的这个 home(${probe.home})——停用条目那一下会把正在跑的这条命令自己停掉。换 devkit 自己走另一条:发正式版,再 plugins.update-all`,
+      error: `目标就是本件自己住的这个 home(${probe.home})——停用条目那一下会把正在跑的这条命令自己停掉。换 devkit 自己走另一条:发正式版,再 plugin-manager.update-all`,
     }
   }
   return { ok: true, home: probe.home, name }
@@ -178,7 +178,7 @@ export interface EntryView {
 /**
  * `plugin-manager.list` 的回执里,挂着这个包的**全部**条目。
  *
- * **全部,不是第一条**:`plugins.install` 对已经装过的包也照样新建一条条目,于是一个包挂
+ * **全部,不是第一条**:`plugin-manager.install` 对已经装过的包也照样新建一条条目,于是一个包挂
  * 两遍是真会发生的事(实跑撞过 `home:bn-comment` 与 `home:bn-comment-2`)。只重挂其中一条,
  * 另一条还攥着旧模块,表现是「改了一半」——比没换更难查。
  *
@@ -394,7 +394,7 @@ export async function runDev(input: DevInput, deps: DevDeps): Promise<DevOutcome
   const logFile = path.join(guard.home, LOG_FILE)
   const baseline = deps.size(logFile)
   for (const one of shipped) {
-    // **走 pnpm add 不走 plugins.install**:后者对已经装过的包还会再建一条条目,同一个件
+    // **走 pnpm add 不走 plugin-manager.install**:后者对已经装过的包还会再建一条条目,同一个件
     // 挂两遍(同名命令登记两次)。装准确版本,不给范围:范围会把 dev 号解析掉
     const added = await deps.run(pnpmPlan(['add', `${one.pkg}@${one.version}`], guard.home, deps.platform), ADD_TIMEOUT_MS)
     if (!added.ok) return { ok: false, error: `在 ${guard.name} 里装 ${one.pkg}@${one.version} 没成:\n${added.tail}`, data: { shipped } }
@@ -407,14 +407,14 @@ export async function runDev(input: DevInput, deps: DevDeps): Promise<DevOutcome
   for (const one of shipped) {
     const entries = entriesOf(listed.data, one.pkg)
     if (entries.length === 0) {
-      one.note = `装上了,但 ${guard.name} 里没有它的条目,没重挂——第一次装走 plugins.install {"pkg":"${one.pkg}"},或者自己往 cordis.yml 加一条(id 手写)`
+      one.note = `装上了,但 ${guard.name} 里没有它的条目,没重挂——第一次装走 plugin-manager.install {"pkg":"${one.pkg}"},或者自己往 cordis.yml 加一条(id 手写)`
       continue
     }
     for (const entry of entries) {
       // 停用→启用。版本变了路径就变了,这一下 Node 才会真的重新求值
-      const off = receiptOf((await deps.cdp(input.home, ['cmd', 'plugins.disable', JSON.stringify({ entryId: entry.entryId })], CDP_TIMEOUT_MS)).data)
+      const off = receiptOf((await deps.cdp(input.home, ['cmd', 'plugin-manager.disable', JSON.stringify({ entryId: entry.entryId })], CDP_TIMEOUT_MS)).data)
       if (!off.ok) return { ok: false, error: `停用 ${entry.entryId} 没成:${off.error ?? '没说原因'}`, data: { shipped } }
-      const on = receiptOf((await deps.cdp(input.home, ['cmd', 'plugins.enable', JSON.stringify({ entryId: entry.entryId })], CDP_TIMEOUT_MS)).data)
+      const on = receiptOf((await deps.cdp(input.home, ['cmd', 'plugin-manager.enable', JSON.stringify({ entryId: entry.entryId })], CDP_TIMEOUT_MS)).data)
       if (!on.ok) return { ok: false, error: `启用 ${entry.entryId} 没成:${on.error ?? '没说原因'}——件现在是停用状态,盘上是新版,自己去插件窗格启用它`, data: { shipped } }
       one.remounted.push(entry.entryId)
     }
