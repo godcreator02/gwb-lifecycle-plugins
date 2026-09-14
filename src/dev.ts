@@ -1,5 +1,5 @@
 import path from 'node:path'
-import { isRecord } from '@godcreator02/gwb-plugin-api'
+import { isRecord } from '@team/gwb-plugin-api'
 
 /**
  * 「改一版看一版」那条链的纯机:守卫、版本号、发什么装什么、重挂哪几条、拿什么当证据。
@@ -31,7 +31,7 @@ import { isRecord } from '@godcreator02/gwb-plugin-api'
  */
 
 /** 团队源（NAS 上的 Verdaccio，经反代出域名）。跟用户级 `~/.npmrc` 里 `@godcreator02` scope 那行同一个地址 */
-export const DEFAULT_REGISTRY = 'https://npm.tianshen02.online:28377/'
+export const DEFAULT_REGISTRY = 'https://git.tianshen02.online:28377/api/packages/team/npm/'
 
 /** 日常那份 home 的名字。开发版进它就是「悄悄换了日常代码」,所以当场拒 */
 export const DAILY_HOME = 'default'
