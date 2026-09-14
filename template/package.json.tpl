@@ -1,6 +1,7 @@
 {
   "name": "{{pkg}}",
   "version": "0.0.1",
+  "author": {"name": "godcreator"},
   "description": "{{title}}：devkit 模板插件——一格窗格（你好 + 计数）与一条 ping 命令的最小完整形状",
   "type": "module",
   "exports": {
