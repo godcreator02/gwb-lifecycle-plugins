@@ -1,5 +1,5 @@
 import path from 'node:path'
-import { isRecord } from '@godcreator02/gwb-plugin-api'
+import { isRecord } from '@team/gwb-plugin-api'
 import { bareImage, type ProcessProbe } from './probes.js'
 
 /**
@@ -317,20 +317,20 @@ export interface LaunchInput {
  * 要加东西，装完再 `plugin-manager.install`。
  */
 export const BASE_PLUGINS: ReadonlyArray<{ id: string; pkg: string }> = [
-  { id: 'commands', pkg: '@godcreator02/gwb-commands' },
-  { id: 'shell', pkg: '@godcreator02/gwb-shell' },
-  { id: 'data', pkg: '@godcreator02/gwb-data' },
-  { id: 'settings', pkg: '@godcreator02/gwb-settings' },
-  { id: 'skills', pkg: '@godcreator02/gwb-skills' },
-  { id: 'plugin-manager', pkg: '@godcreator02/gwb-plugin-manager' },
-  { id: 'baseui', pkg: '@godcreator02/gwb-baseui' },
+  { id: 'commands', pkg: '@team/gwb-commands' },
+  { id: 'shell', pkg: '@team/gwb-shell' },
+  { id: 'data', pkg: '@team/gwb-data' },
+  { id: 'settings', pkg: '@team/gwb-settings' },
+  { id: 'skills', pkg: '@team/gwb-skills' },
+  { id: 'plugin-manager', pkg: '@team/gwb-plugin-manager' },
+  { id: 'baseui', pkg: '@team/gwb-baseui' },
 ] as const
 
 /** 共享包——不是插件（不进 cordis.yml），但必须是 home 的直接依赖，否则外壳起不来 */
 export const BASE_SHARED: readonly string[] = [
-  '@godcreator02/gwb-shared-react',
-  '@godcreator02/gwb-tokens',
-  '@godcreator02/gwb-plugin-api',
+  '@team/gwb-shared-react',
+  '@team/gwb-tokens',
+  '@team/gwb-plugin-api',
 ] as const
 
 /** 底座的 cordis.yml 内容 */
