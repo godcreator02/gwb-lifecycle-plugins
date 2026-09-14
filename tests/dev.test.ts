@@ -30,7 +30,7 @@ const HOME = 'D:/fake-homes/bn-2609111200'
  * 这儿故意起个别的名字，为的是让「目标就是自己」那道守卫单独演得出来。
  */
 const OWN = 'D:/fake-homes/console-2609111100'
-const PKG = '@team/gwb-fake'
+const PKG = '@godcreator/gwb-fake'
 
 /** 一份最小清单：名字、号、一个产物目录 */
 const MANIFEST = JSON.stringify({ name: PKG, version: '0.3.1', files: ['dist'] })
@@ -164,7 +164,7 @@ describe('清单与条目', () => {
   })
 
   it('没有这个包就是空表', () => {
-    expect(entriesOf({ packages: ONE_ENTRY }, '@team/别的')).toEqual([])
+    expect(entriesOf({ packages: ONE_ENTRY }, '@godcreator/别的')).toEqual([])
   })
 })
 
