@@ -16,7 +16,7 @@
  */
 
 @import 'tailwindcss/theme.css' theme(reference) prefix({{name}});
-@import '@team/gwb-tokens/theme.reference.css' theme(reference);
+@import '@godcreator/gwb-tokens/theme.reference.css' theme(reference);
 @import 'tailwindcss/utilities.css' layer(utilities) source(none);
 @import 'tw-animate-css';
 @source "./";
