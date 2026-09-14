@@ -31,7 +31,7 @@ plugin-manager.install {"pkg":"@team/gwb-devkit"}
 
 **建仓**。`devkit.scaffold` 把一个新插件的骨架落进一个新文件夹，默认连文档站一起建。目标目录必须还不存在。站那半是两步，经命令总线转给站点插件与 docfirst 插件，哪个插件没装就跳过那一步，插件那半照样落盘。参数给错会把整份说明回给你，不必背。
 
-**源**。NAS 上的常驻团队源（`https://git.tianshen02.online:28377/api/packages/team/npm/`），不经本机、无需起停。`@godcreator02` 是 gwb 线的命名空间，发布者锁 `godcreator` 一人；其他人自助注册后发自己的包。
+**源**。NAS 上的常驻团队源（`https://git.tianshen02.online:28377/api/packages/team/npm/`），不经本机、无需起停。`@team` 是 gwb 线的命名空间，发布者锁 `godcreator` 一人；其他人自助注册后发自己的包。
 
 **测试 home**。`devkit.home.new` 开一个新的，名字长成 `<短名>-<时间戳>`，先 build 内核；`devkit.home.list` 列全部与谁在跑，连带两个端口（调试端口与命令口端口）；`devkit.home.open` 重开一个已有的且不 build；`devkit.home.rm` 删。一次验证开一个新 home，清理放在开新的那一刻，回执里本来就带着现有清单。
 
