@@ -8,7 +8,7 @@ import defaultMdxComponents from 'fumadocs-ui/mdx'
 import { File, Files, Folder } from 'fumadocs-ui/components/files'
 import type { MDXComponents } from 'mdx/types'
 import type { ReactNode } from 'react'
-import { DocfirstPre } from '@godcreator02/docfirst-workflow/fumadocs/pre'
+import { DocfirstPre } from '@team/docfirst-workflow/fumadocs/pre'
 import type { ComponentName } from './registry'
 
 type Loose = MDXComponents[string]
