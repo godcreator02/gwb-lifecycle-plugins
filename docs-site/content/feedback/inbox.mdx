@@ -49,7 +49,7 @@ docfirst: none
 来源：同上（同轮验收）。
 
 `devkit.scaffold` 回执的 nextSteps 与模板落盘的 README 都写 `pnpm publish --registry
-https://npm.tianshen02.online:28377/ …`，而 gwb-devkit 说明书（本机 Verdaccio 退役、迁到
+https://git.tianshen02.online:28377/api/packages/team/npm/ …`，而 gwb-devkit 说明书（本机 Verdaccio 退役、迁到
 NAS 团队源之后的正本口径）明说**别手写 --registry**、scope 路由住用户级 `~/.npmrc`。照回执
 做的代理会拿到与说明书相反的指令——本轮代理两头都读了、按说明书走并发布成功，但这三处
 口径该收敛成一份。
@@ -74,7 +74,7 @@ base-plugins 的卡：body 落文件再 `--data-binary @file`，那条归 comman
 来源：同上。
 
 1. client 半 tsconfig `"types": []` 不吃全局声明，`window.gwb` 要在文件头
-   `import type {} from '@godcreator02/gwb-plugin-api'` 才认。说明书里有这条信息
+   `import type {} from '@team/gwb-plugin-api'` 才认。说明书里有这条信息
    （plugin-api ≥0.1.1 声明 `window.gwb`，实测属实），但埋得深——代理是先撞了编译错才回头
    找到的。建议把这一行提前到写码/窗格章节开头明写。
 2. 模板测试里无参调 handler 类型不过（参数 `unknown` 不自动可省），代理把 harness 的
