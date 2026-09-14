@@ -406,7 +406,7 @@ export function apply(ctx: GwbContext): void {
 
   ctx.effect(() =>
     bus.register(
-      { name: 'devkit.home.list', plugin: name, description: '列出 home 根下全部测试 home：名字（带时间戳）、谁还在跑、CDP 口、MCP 口。无参数' },
+      { name: 'devkit.home.list', plugin: name, description: '列出 home 根下全部测试 home：名字（带时间戳）、谁还在跑、CDP 口、命令口（command-http 格）。无参数' },
       async () => {
         const root = homesRoot()
         return { ok: true, data: { root, homes: await listHomes(root, homeDeps) } }

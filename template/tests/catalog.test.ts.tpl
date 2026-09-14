@@ -4,26 +4,29 @@ import { fileURLToPath } from 'node:url'
 import { describe, expect, it } from 'vitest'
 
 /**
- * catalog 身份卡不撒谎：四格都在；node 半登记了的命令，卡上一条不缺。
- * 反向（卡上有、代码没有）由「改代码的人顺手改卡」这条纪律兜着——
- * 加命令不改卡，这条会红；删命令不改卡，读卡的人会去问。
+ * 身份卡防漏：源码 inject 里的每个服务名必须出现在 catalog.md 里。
+ * 防改靠改卡时顺手（将来可挂 docfirst 钉码）；这条管「该写的没写」。
  */
 const here = path.dirname(fileURLToPath(import.meta.url))
-const catalog = fs.readFileSync(path.resolve(here, '../catalog.md'), 'utf8')
-const source = fs.readFileSync(path.resolve(here, '../src/index.ts'), 'utf8')
+const card = fs.readFileSync(path.resolve(here, '../catalog.md'), 'utf8')
 
-describe('catalog：身份卡', () => {
-  it('四格都在（定位 / 提供 / 依赖 / 命令）', () => {
-    for (const head of ['定位', '## 提供', '## 依赖', '## 命令']) expect(catalog).toContain(head)
+function srcText(): string {
+  const dir = path.resolve(here, '../src')
+  return fs.readdirSync(dir).filter((f) => f.endsWith('.ts')).map((f) => fs.readFileSync(path.join(dir, f), 'utf8')).join('\n')
+}
+
+describe('catalog.md：身份卡防漏', () => {
+  it('四段都在（定位 / 提供 / 依赖 / 命令去向）', () => {
+    for (const head of ['定位', '## 提供', '## 依赖']) expect(card).toContain(head)
+    expect(card).toContain('/surface')
   })
 
-  it('登记的命令，卡上一条不缺', () => {
-    const registered = [...source.matchAll(/name: '({{name}}\.[a-z-]+)'/g)].map((m) => m[1])
-    expect(registered.length).toBeGreaterThan(0)
-    for (const cmd of registered) expect(catalog).toContain(cmd)
-  })
-
-  it('卡上说的依赖，inject 里真有', () => {
-    for (const dep of ['gwbCommands', 'gwbShell']) expect(source).toContain(`'${dep}'`)
+  it('源码 inject 的每个服务名，卡上都点名了', () => {
+    const services = new Set<string>()
+    for (const m of srcText().matchAll(/(?:export const inject|static inject)\s*=\s*\[([^\]]*)\]/g))
+      for (const q of m[1]!.matchAll(/'([^']+)'/g)) services.add(q[1])
+    for (const m of srcText().matchAll(/\.inject\(\s*\[([^\]]*)\]/g))
+      for (const q of m[1]!.matchAll(/'([^']+)'/g)) services.add(q[1])
+    for (const s of services) expect(card, s).toContain(s)
   })
 })

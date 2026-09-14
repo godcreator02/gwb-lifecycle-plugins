@@ -22,6 +22,7 @@ export default {
   outputs: {
     'content/outputs/agents.mdx': ['../AGENTS.md'],
     'content/outputs/readme.mdx': ['../README.md'],
+    'content/outputs/catalog-devkit.mdx': ['../catalog.md'],
     'content/outputs/skills/gwb-devkit.mdx': [
       { to: '../skills/gwb-devkit/SKILL.md', frontmatter: ['name', 'description'] },
     ],
