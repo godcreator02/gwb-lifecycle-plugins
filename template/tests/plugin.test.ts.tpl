@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest'
 import { apply, name } from '../src/index.js'
-import type { GwbContext } from '@team/gwb-plugin-api'
+import type { GwbContext } from '@godcreator/gwb-plugin-api'
 
 /**
  * 起手的两条测试：件的身份对不对；挂载时窗格与命令是不是真的登记上了。
