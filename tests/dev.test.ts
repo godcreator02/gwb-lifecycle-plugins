@@ -38,9 +38,9 @@ const MANIFEST = JSON.stringify({ name: PKG, version: '0.3.1', files: ['dist'] }
 interface FakeOptions {
   /** 页面自报的 home。null＝问不出来 */
   home?: string | null
-  /** `plugins.list` 回的那张表 */
+  /** `plugin-manager.list` 回的那张表 */
   packages?: unknown
-  /** 第二趟 `plugins.list`（取证那次）。不给就跟第一趟一样 */
+  /** 第二趟 `plugin-manager.list`（取证那次）。不给就跟第一趟一样 */
   packagesAfter?: unknown
   files?: Record<string, string>
   /** 已经在源上的号 */
@@ -80,7 +80,7 @@ function fake(options: FakeOptions = {}): DevDeps & { calls: string[] } {
         const home = options.home === undefined ? HOME : options.home
         return { ok: home !== null, data: { did: 'home', home, why: home === null ? '没有带 homes 的地址' : undefined }, tail: '' }
       }
-      if (args[0] === 'cmd' && args[1] === 'plugins.list') {
+      if (args[0] === 'cmd' && args[1] === 'plugin-manager.list') {
         listed += 1
         const table = listed > 1 && options.packagesAfter !== undefined ? options.packagesAfter : options.packages
         return { ok: true, data: { 回执: { ok: true, data: { packages: table ?? [] } } }, tail: '' }
@@ -191,10 +191,10 @@ describe('一趟', () => {
     if (!out.ok) return
     expect(out.data.shipped[0]?.remounted).toEqual(['home:fake'])
     expect(out.data.evidence.ok).toBe(true)
-    // 顺序是硬要求：先问 home，最后一趟 plugins.list 是取证
+    // 顺序是硬要求：先问 home，最后一趟 plugin-manager.list 是取证
     expect(deps.calls[0]).toContain('cdp bn-2609111200 home')
     expect(deps.calls.some((one) => one.includes('pnpm build'))).toBe(true)
-    expect(deps.calls.at(-1)).toContain('plugins.list')
+    expect(deps.calls.at(-1)).toContain('plugin-manager.list')
   })
 
   it('装了不重挂比没装还糟，所以停用与启用两条都得发', async () => {

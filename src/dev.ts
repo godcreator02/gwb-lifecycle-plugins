@@ -25,7 +25,7 @@ import { isRecord } from '@godcreator02/gwb-plugin-api'
  *
  * **收尾是取证,不是 reload。** 少了取证这一步,人看到「重挂了、刷新了」就会说验过了——
  * 而件的 `apply` 里一条 async 静默 reject,现象正好是「挂上了但什么都没发生」。所以这条
- * 命令的最后一步是回头看 `plugins.list` 的 `active` 与日志里的新错,取不到就退非零。
+ * 命令的最后一步是回头看 `plugin-manager.list` 的 `active` 与日志里的新错,取不到就退非零。
  *
  * 碰盘、开进程、连 CDP 全走注入(`DevDeps`),于是整条时序在测试里用假件跑得完。
  */
@@ -101,7 +101,7 @@ export function samePath(a: string, b: string, platform: NodeJS.Platform): boole
  *
  * 1. **页面自报不出 home 就停**。问的是正在跑的那张页(它注的样式表与 importmap 都是带着
  *    home 路径的 `file://`),问不出来说明它根本不是工作台的外壳页,继续推就是推给别人
- * 2. **`default` 当场拒**。开发版进日常那份 home,号看着跟正式版没两样,而 `plugins.list`
+ * 2. **`default` 当场拒**。开发版进日常那份 home,号看着跟正式版没两样,而 `plugin-manager.list`
  *    上一点异常都看不出来
  * 3. **目标是自己所在那个 home 就拒**。停用条目那一下会把正在跑的这个 handler 自己停掉。
  *    换 devkit 自己走另一条路:发正式版 + `plugins.update-all`(那是 plugins 件在调,不是
@@ -176,7 +176,7 @@ export interface EntryView {
 }
 
 /**
- * `plugins.list` 的回执里,挂着这个包的**全部**条目。
+ * `plugin-manager.list` 的回执里,挂着这个包的**全部**条目。
  *
  * **全部,不是第一条**:`plugins.install` 对已经装过的包也照样新建一条条目,于是一个包挂
  * 两遍是真会发生的事(实跑撞过 `home:bn-comment` 与 `home:bn-comment-2`)。只重挂其中一条,
@@ -402,8 +402,8 @@ export async function runDev(input: DevInput, deps: DevDeps): Promise<DevOutcome
 
   // ── 五、重挂 ────────────────────────────────────────────────────────────────
   // 盘上换了不等于跑着的换了。**装了不重挂比没装还糟**:盘上是新的,跑着的是旧的
-  const listed = receiptOf((await deps.cdp(input.home, ['cmd', 'plugins.list'], CDP_TIMEOUT_MS)).data)
-  if (!listed.ok) return { ok: false, error: `问不出目标 home 的条目表(plugins.list:${listed.error ?? '没说原因'})`, data: { shipped } }
+  const listed = receiptOf((await deps.cdp(input.home, ['cmd', 'plugin-manager.list'], CDP_TIMEOUT_MS)).data)
+  if (!listed.ok) return { ok: false, error: `问不出目标 home 的条目表(plugin-manager.list:${listed.error ?? '没说原因'})`, data: { shipped } }
   for (const one of shipped) {
     const entries = entriesOf(listed.data, one.pkg)
     if (entries.length === 0) {
@@ -435,7 +435,7 @@ export async function runDev(input: DevInput, deps: DevDeps): Promise<DevOutcome
 /**
  * 取证。两样,合起来才盖得住「看着成了」的那几种:
  *
- * - **条目真活着**。`plugins.list` 的 `active` 判的是 fiber 真 ACTIVE,不是 fiber 建出来了
+ * - **条目真活着**。`plugin-manager.list` 的 `active` 判的是 fiber 真 ACTIVE,不是 fiber 建出来了
  *   ——inject 永远等不到的件也有 fiber,只是到不了 ACTIVE
  * - **日志增量里没有 error**。「挂上了」只说明模块 import 成功、`apply` 被调用了;`apply`
  *   里的 async 一旦静默 reject,现象就是「挂上了但什么都没发生」,那一条只在日志里
@@ -447,7 +447,7 @@ export async function collect(
   baseline: number,
   deps: DevDeps,
 ): Promise<Evidence> {
-  const listed = receiptOf((await deps.cdp(home, ['cmd', 'plugins.list'], CDP_TIMEOUT_MS)).data)
+  const listed = receiptOf((await deps.cdp(home, ['cmd', 'plugin-manager.list'], CDP_TIMEOUT_MS)).data)
   const entries: Evidence['entries'] = []
   const dead: string[] = []
   for (const one of shipped) {
@@ -459,7 +459,7 @@ export async function collect(
   const { errors, warns } = errorLines(deps.slice(logFile, baseline))
   const ok = listed.ok && dead.length === 0 && errors.length === 0
   const note = !listed.ok
-    ? `取不到证:plugins.list 没回(${listed.error ?? '没说原因'})`
+    ? `取不到证:plugin-manager.list 没回(${listed.error ?? '没说原因'})`
     : dead.length > 0
       ? `这几条没挂上(fiber 没到 ACTIVE):${dead.join('、')}——日志里有原因`
       : errors.length > 0
@@ -470,4 +470,4 @@ export async function collect(
 
 // 取证只有 `collect` 这一条路,而且只在 `runDev` 里头走——**判定要基线**:哪些 error 是
 // 这一趟自己惹出来的,只有拿装包之前那个日志长度才分得出来。要现看一眼某个 home 的条目表,
-// `devkit.cdp {"args":["<名>","cmd","plugins.list"]}` 就是,那是看,不是验。
+// `devkit.cdp {"args":["<名>","cmd","plugin-manager.list"]}` 就是,那是看,不是验。
