@@ -34,7 +34,7 @@ pnpm build          # tsc 直出 dist/，没有打包器
 2. 发版走 `devkit.release {"dir":"<本仓根>"}`——仓根 git 树不干净就拒、staging 发 latest、
    不改仓里任何文件。**它不跑 `prepublishOnly`**（staging 分发形态里没有 `scripts`，产物靠
    仓根构建加 `files` 白名单守卫）；真要走仓里钩子的场景才用手工那条：
-   `pnpm publish --registry https://git.tianshen02.online:28377/api/packages/team/npm/ --no-git-checks`——那时
+   `pnpm publish --registry https://git.tianshen02.online:28377/api/packages/godcreator/npm/ --no-git-checks`——那时
    `prepublishOnly` **别删**，少了它会把上一版的 `dist/` 原样发出去而且一声不吭（现象是
    「插件挂上了但新写的东西全没生效」）
 
@@ -94,15 +94,15 @@ config 面——写在 yml 里的那份界面看不见、agent 也不知道有�
 
 `devkit.scaffold` 的站那半**经命令总线按名字转出去**，本包不依赖那两个插件的任何包：
 
-1. `docs-site.create`（站点插件 `@team/gwb-docs-site`）铺 fumadocs 骨架
-2. `docfirst.attach`（docfirst 插件 `@team/gwb-docfirst-workflow`）在**刚铺好的**骨架上装六区
+1. `docs-site.create`（站点插件 `@godcreator/gwb-docs-site`）铺 fumadocs 骨架
+2. `docfirst.attach`（docfirst 插件 `@godcreator/gwb-docfirst-workflow`）在**刚铺好的**骨架上装六区
 
 两条都认**站目录**（`<仓>\docs-site`），不是仓根。**哪个插件没装就跳过那一步**——回执里
 说清怎么补、README 那段话改口，插件那半照样落盘，**不报错终止建仓**。回执里
 `docs.built`（骨架）与 `docs.attached`（六区）两个字段才是真相，`nextSteps` 按它俩分三支。
 
 `docfirst.attach` **只在还没写过内容的骨架上装得了**（它自己守着这条），所以补建的两条
-要连着敲。`devkit.livedoc` 与 `@team/live-doc-cli` 那条依赖 0.3.0 起都没了。
+要连着敲。`devkit.livedoc` 与 `@godcreator/live-doc-cli` 那条依赖 0.3.0 起都没了。
 
 ## 改一版看一版：换插件的工具不许住在被换的进程里
 
