@@ -20,7 +20,7 @@ import path from 'node:path'
 export const NAME_RE = /^[a-z][a-z0-9]*(?:-[a-z0-9]+)*$/
 
 /** 件的包名 scope。命名规矩全仓统一，不做成参数 */
-export const SCOPE = '@godcreator02'
+export const SCOPE = '@team'
 
 /** 模板文件的后缀，落盘时脱掉 */
 export const TEMPLATE_SUFFIX = '.tpl'
