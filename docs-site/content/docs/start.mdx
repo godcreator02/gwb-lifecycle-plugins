@@ -10,7 +10,7 @@ description: 装、配两项设置、六组入口各干什么、门禁跑哪几�
 ## 装
 
 ```
-plugin-manager.install {"pkg":"@godcreator02/gwb-devkit"}
+plugin-manager.install {"pkg":"@team/gwb-devkit"}
 ```
 
 装完下一次 `/surface` 现扫就有——门没有会话，没有重连这个动作。
@@ -31,7 +31,7 @@ plugin-manager.install {"pkg":"@godcreator02/gwb-devkit"}
 
 **建仓**。`devkit.scaffold` 把一个新插件的骨架落进一个新文件夹，默认连文档站一起建。目标目录必须还不存在。站那半是两步，经命令总线转给站点插件与 docfirst 插件，哪个插件没装就跳过那一步，插件那半照样落盘。参数给错会把整份说明回给你，不必背。
 
-**源**。NAS 上的常驻团队源（`https://npm.tianshen02.online:28377/`），不经本机、无需起停。`@godcreator02` 是 gwb 线的命名空间，发布者锁 `godcreator` 一人；其他人自助注册后发自己的包。
+**源**。NAS 上的常驻团队源（`https://git.tianshen02.online:28377/api/packages/team/npm/`），不经本机、无需起停。`@godcreator02` 是 gwb 线的命名空间，发布者锁 `godcreator` 一人；其他人自助注册后发自己的包。
 
 **测试 home**。`devkit.home.new` 开一个新的，名字长成 `<短名>-<时间戳>`，先 build 内核；`devkit.home.list` 列全部与谁在跑，连带两个端口（调试端口与命令口端口）；`devkit.home.open` 重开一个已有的且不 build；`devkit.home.rm` 删。一次验证开一个新 home，清理放在开新的那一刻，回执里本来就带着现有清单。
 
@@ -92,7 +92,7 @@ pnpm build          # 一趟 tsc 直出 dist/，没有打包器
 
 ## 发一版
 
-先抬 `package.json` 的版本号，同一个号永不重发，发之前先问一句它在不在源上。然后 `pnpm publish --registry https://npm.tianshen02.online:28377/ --no-git-checks`。
+先抬 `package.json` 的版本号，同一个号永不重发，发之前先问一句它在不在源上。然后 `pnpm publish --registry https://git.tianshen02.online:28377/api/packages/team/npm/ --no-git-checks`。
 
 发完就去升 default，别攒着：人在插件窗格点「全部更新」，或者调 `plugins.update-all`。手册与命令都随包走，不升等于 agent 读到的还是上一版，而它照着一份过期手册干活不报错。
 
