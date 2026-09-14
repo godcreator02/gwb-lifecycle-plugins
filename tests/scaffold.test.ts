@@ -139,7 +139,7 @@ describe('nextSteps：按站真建到哪一步分三支', () => {
 })
 
 describe('render：占位符', () => {
-  const values = { name: 'hello', title: '打招呼', pkg: '@godcreator02/gwb-hello', pkgName: 'gwb-hello' }
+  const values = { name: 'hello', title: '打招呼', pkg: '@team/gwb-hello', pkgName: 'gwb-hello' }
 
   it('认得的键替换掉', () => {
     expect(render('{{name}} / {{title}} / {{name}}', values)).toBe('hello / 打招呼 / hello')
@@ -195,7 +195,7 @@ describe('包内 template/', () => {
       name: string
       scripts: Record<string, string>
     }
-    expect(pkg.name).toBe('@godcreator02/gwb-hello')
+    expect(pkg.name).toBe('@team/gwb-hello')
     // 红线六：漏了 prepublishOnly，publish 会把上一版的 dist 原样发出去而且一声不吭
     expect(pkg.scripts.prepublishOnly).toBeDefined()
     expect(pkg.scripts.check).toBeDefined()
