@@ -163,14 +163,14 @@ describe('targetRel：脱掉 .tpl', () => {
 describe('包内 template/', () => {
   it('每个文件都带 .tpl 后缀', () => {
     const files = listTemplateFiles(TEMPLATE_ROOT)
-    expect(files.length).toBe(17)
+    expect(files.length).toBe(18)
     expect(files.filter((f) => !f.endsWith('.tpl'))).toEqual([])
   })
 
   it('真渲染一套：占位符一个不剩，包名与插件名都对', () => {
     const files = renderTemplate(TEMPLATE_ROOT, planScaffold({ name: 'hello', dir: 'D:\\tmp\\x', title: '打招呼' }))
     // 一个**能直接开工**的模板插件仓：门禁（oxlint / vitest / 两半 tsconfig）、浏览器半
-    // （client + styles + build.ts）、身份卡、四份测试、README 都在
+    // （client + styles + build.ts）、身份卡、四份测试、README、allowBuilds 都在
     expect(files.map((f) => f.rel).sort()).toEqual([
       '.gitignore',
       '.oxlintrc.json',
@@ -178,6 +178,7 @@ describe('包内 template/', () => {
       'build.ts',
       'catalog.md',
       'package.json',
+      'pnpm-workspace.yaml',
       'src/client/index.tsx',
       'src/client/styles.css',
       'src/client/tsconfig.json',

@@ -183,7 +183,7 @@ README 都改口说「站没铺，装了站点插件之后自己跑 `docs-site.c
 
 | 半 | 装什么 | 模板归谁 |
 | --- | --- | --- |
-| 仓根 | `package.json`（build 三步：tsc + esbuild + tailwindcss；check / prepublishOnly）、`tsconfig.json` 与 `tsconfig.build.json`（node 半）、`src/client/tsconfig.json`（浏览器半，jsx + DOM）、`.oxlintrc.json`（type-aware 那套规则）、`vitest.config.ts`（只认仓根 `tests/`，slow 标签留给真起子进程的用例）、`build.ts`（esbuild 打包，react 四裸名外置）、`src/index.ts`、`src/client/index.tsx`、`src/client/styles.css`、`catalog.md`、`tests/` 四份、`README.md`。**不写 `.npmrc`**——scope 路由住用户级 pnpm 配置 | **本包 `template/`**，17 个 `.tpl` |
+| 仓根 | `package.json`（build 三步：tsc + esbuild + tailwindcss；check / prepublishOnly）、`pnpm-workspace.yaml`（**pnpm 11 的设置家**：allowBuilds 批 esbuild 的构建脚本，package.json 的 pnpm 字段已不读）、`tsconfig.json` 与 `tsconfig.build.json`（node 半）、`src/client/tsconfig.json`（浏览器半，jsx + DOM）、`.oxlintrc.json`（type-aware 那套规则）、`vitest.config.ts`（只认仓根 `tests/`，slow 标签留给真起子进程的用例）、`build.ts`（esbuild 打包，react 四裸名外置）、`src/index.ts`、`src/client/index.tsx`、`src/client/styles.css`、`catalog.md`、`tests/` 四份、`README.md`。**不写 `.npmrc`**——scope 路由住用户级 pnpm 配置 | **本包 `template/`**，18 个 `.tpl` |
 | `docs-site/` | fumadocs 骨架 + docfirst 的六区 | **不归本包**：骨架模板随站点插件发，六区那套随 `@godcreator02/docfirst-workflow` 发 |
 
 **三者互不依赖。** devkit 不依赖站点插件、站点插件不认识 docfirst、docfirst 插件不认识站点插件——
@@ -220,7 +220,7 @@ docfirst.attach  {"dir":"D:\\unitfolders\\<单元>\\<已有仓>\\docs-site"}
 **工作台起不来的时候**：三样都没有离线入口（模板在包里，但那三个包都是插件、不是 CLI）
 ——先按末尾「你改的是内核，不是插件」那四步把工作台起起来。
 
-## 两条从实跑里换来的
+## 三条从实跑里换来的
 
 **一、docfirst 的包一个都不许进 `serverExternalPackages`。** `@godcreator02/docfirst-workflow` 与
 `@godcreator02/docfirst-trajectory` 里都有客户端组件（前者的 `/fumadocs/pre` 是状态点，
@@ -233,6 +233,12 @@ base-ui 的版本，而那儿根本没问题。它们的服务端那半（remark
 
 **二、`oxlint` 的 type-aware 要单独装 `oxlint-tsgolint`。** 少了它 `pnpm lint` 报
 "Failed to find tsgolint executable"。模板里两个都钉了版本。
+
+**三、pnpm 11 的设置家是 `pnpm-workspace.yaml`，package.json 的 `pnpm` 字段已不读。**
+esbuild 的构建脚本要在那儿用 `allowBuilds` 批（独立单包仓也认这个文件，没有 packages
+列表就是「自己一个包的 workspace」）。不批的现象是连环的：install 报「Ignored build
+scripts」，`pnpm run` 的依赖状态核验自动补装再撞同一块石头，最后炸出来的栈在 pnpm 自己
+肚子里——从栈上完全看不出是构建脚本没批。模板自带那份 `pnpm-workspace.yaml`。
 
 ## 名字是怎么派生的
 
