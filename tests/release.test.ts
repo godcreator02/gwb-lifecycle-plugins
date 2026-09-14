@@ -10,8 +10,8 @@ import { dirtyLines, runRelease, type ReleaseDeps } from '../src/release.js'
  */
 
 const REPO = 'D:/fake-repo'
-const A = '@team/gwb-fake-a'
-const B = '@team/gwb-fake-b'
+const A = '@godcreator/gwb-fake-a'
+const B = '@godcreator/gwb-fake-b'
 
 function manifestOf(name: string, version: string, files: string[] = ['dist']): string {
   return JSON.stringify({ name, version, files })
