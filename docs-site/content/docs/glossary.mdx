@@ -18,7 +18,7 @@ description: 这个仓里反复出现的词各指什么、正本在哪
 | 日常 home | 人每天在用的那一个。开发版永远不进它 | 现状区 `dev` 页 |
 | 隔离 home | 为一次验证新开、验完就清的 home。一次验证开一个新的，不复用上一次留下的 | 现状区 `home` 页 |
 | 控制台 home | 改一版看一版那条链自己住的那个 home。它操作别的 home，不操作自己 | 现状区 `dev` 页 |
-| 团队源 | NAS 上常驻的 Verdaccio（反代 `https://npm.tianshen02.online:28377/`）。gwb 线的发版与装机都走它；公共包由它代理 npmjs。运维正本在 NAS 仓的 verdaccio 篇 | — |
+| 团队源 | NAS 上常驻的 Verdaccio（反代 `https://git.tianshen02.online:28377/api/packages/team/npm/`）。gwb 线的发版与装机都走它；公共包由它代理 npmjs。运维正本在 NAS 仓的 verdaccio 篇 | — |
 | 开发版 | 一次性的版本号，只为把这一刻的改动送进一个隔离 home。它不顶掉正式版 | 现状区 `dev` 页 |
 | 重挂 | 把一条条目停用再启用，让它重新求值。换了版本号才真的换得动代码 | 现状区 `dev` 页 |
 | 取证 | 换完之后回头找「它真的在干活」的证据。挂上了不算，日志里没有新错才算 | 现状区 `dev` 页 |
