@@ -1,0 +1,24 @@
+{
+  "name": "@godcreator/gwb-repo-kit",
+  "version": "0.1.0",
+  "author": { "name": "godcreator" },
+  "description": "仓侧工具包（dev-only，装进各插件仓的 devDependencies）：守卫测试的正本。薄壳住各仓 tests/（import + 传参十来行），正本住这儿——修守卫＝发这个包的新版＋各仓抬 dev 钉，devkit.audit-deps 的 behind 清单盯谁没跟。零 dependencies 零 peer：守卫的输入只有仓里的文件与薄壳传进来的 vitest 三件套（describe/it/expect），不重复解析一份 vitest。0.1.0：catalog（身份卡防漏）与 plugin（身份与挂载登记）两份先行；prefix/artifact 守卫与 build 那支 bin 随火车跟进——八仓五代漂移是它们的现状，收敛要逐仓过门禁",
+  "type": "module",
+  "exports": {
+    ".": { "types": "./dist/index.d.ts", "default": "./dist/index.js" },
+    "./package.json": "./package.json"
+  },
+  "files": ["dist", "src"],
+  "scripts": {
+    "build": "tsc -p tsconfig.json",
+    "typecheck": "tsc --noEmit -p tsconfig.json",
+    "test": "vitest run",
+    "check": "pnpm run typecheck && pnpm run test",
+    "prepublishOnly": "pnpm build"
+  },
+  "devDependencies": {
+    "@types/node": "^24.0.0",
+    "typescript": "^7.0.2",
+    "vitest": "^4.1.10"
+  }
+}

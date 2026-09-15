@@ -1,8 +1,8 @@
 # catalog · {{pkgName}}
 
-插件的身份卡：是谁、提供什么、靠谁。命令清单不存卡——现扫 `/surface`。
+插件的身份卡：是谁、提供什么、靠谁。命令清单不存卡——现扫门的 `index`。
 改造成真插件时把这几格改掉；登记面变了（换了依赖、provide 了服务）这张卡要跟着改，
-`tests/catalog.test.ts` 钉着防漏（源码 inject 的服务名必须在卡上）。
+`tests/catalog.test.ts` 钉着防漏（源码 inject 的服务名必须在卡上；正本住 @godcreator/gwb-repo-kit）。
 
 **定位**：模板插件——一格窗格（你好 + 计数）与一条 `{{name}}.ping` 命令，证明装配、窗格注册与命令面全通。
 

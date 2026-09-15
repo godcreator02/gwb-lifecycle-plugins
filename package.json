@@ -1,60 +1,9 @@
 {
-  "name": "@godcreator/gwb-devkit",
-  "version": "0.10.0",
-  "author": {
-    "name": "godcreator"
-  },
-  "description": "开发套件：把一个新件的骨架落进一个新文件夹（件那半自带模板，站那半经命令总线转出去——站件 docs-site.create 铺 fumadocs 骨架、docfirst 件 docfirst.attach 装六区，两步，哪个件没装就跳过那步），随件带一份写件手册（只挂自己那份，知识随件走）；测试 home 的开/收、「改一版看一版」那条链（devkit.dev，住控制台那个 home、操作另一个 home）、发正式版（devkit.release：git 树不干净就拒、staging 发 latest、只碰源不碰任何 home）与一条 node CLI（cdp）也在这儿。**不依赖 docfirst 的任何包**。0.9.2/0.9.3：八条命令拆 description（一句话）与 usage（参数形状）、devkit.cdp 镜像 spec 同步，plugin 改口包名（随 commands 0.4 三枚面迁宽；0.9.3 补上头一版漏掉的 scaffold）。0.9.4：模板 devDeps 五个 @godcreator 钉版对齐个人源现状（迁移只搬各包最新号，模板钉的旧号已 404，新仓 pnpm install 必炸）、nextSteps/README 模板/手册去掉 --registry 手写与 POST /run 旧门口径（改经 MCP 门的 run），手册门描述从 surface/run 两枚改口 index/search/run 三枚。0.9.5：模板加 {{cssPrefix}} 占位符（短名剔除非小写字母）——Tailwind 4 的 prefix() 只收 a-z，带杠短名（audit-probe 这种）原先 build 必炸而 check 全绿；类名/守卫测试/样式入口全换它，catalog.md 的 /surface 旧门口径一并改 index。0.9.6：fresh-eyes 派单改口 MCP 门——agent 直连（只给 /mcp 地址，第一步调 index），curl /surface 那套随 command-http 退役出清。0.10.0：新命令 devkit.audit-deps——全生态依赖对账（只读）：扫容器根各仓的 @godcreator 声明对 registry 现值，抓死钉（钉了源上没有的版本，装必炸）与火车债（dev 钉落后最新），下限一档的水分（floor-unverifiable / floor-mismatch / floor-no-mirror）一并记；判据立场：这个生态只承诺「全家一起最新」，不审兼容多老",
+  "name": "gwb-devkit-workspace",
+  "private": true,
   "type": "module",
-  "//exports": "只剩主入口。**本件没有浏览器半**：它的使用者是 agent，读的是回执，所以既没有窗格也没有 dist/client",
-  "exports": {
-    ".": {
-      "types": "./dist/index.d.ts",
-      "default": "./dist/index.js"
-    },
-    "./package.json": "./package.json"
-  },
-  "files": [
-    "bin",
-    "catalog.md",
-    "dist",
-    "skills",
-    "src",
-    "template"
-  ],
-  "gwb": {
-    "title": "开发套件"
-  },
   "scripts": {
-    "build": "tsc -p tsconfig.json",
-    "typecheck": "tsc --noEmit -p tsconfig.json",
-    "test": "vitest run",
-    "check": "pnpm run typecheck && pnpm run test",
-    "prepublishOnly": "pnpm build"
-  },
-  "//dependencies": "站那半的两条命令（docs-site.create / docfirst.attach）只按名字在命令总线上找——本包不依赖站件与 docfirst 件的任何包，那正是三者互不依赖的判据",
-  "dependencies": {
-    "yaml": "^2.8.0"
-  },
-  "peerDependencies": {
-    "@godcreator/gwb-plugin-api": ">=0.1.0",
-    "@godcreator/gwb-shell": ">=0.1.0"
-  },
-  "devDependencies": {
-    "@godcreator/gwb-plugin-api": "0.1.1",
-    "@godcreator/gwb-commands": "0.4.0",
-    "@godcreator/gwb-node-cli": "0.4.1",
-    "@godcreator/gwb-settings": "0.2.0",
-    "@godcreator/gwb-shell": "0.7.0",
-    "@godcreator/gwb-skills": "0.4.0",
-    "@types/node": "^24.0.0",
-    "cordis": "4.0.0-rc.9",
-    "typescript": "^7.0.2",
-    "vitest": "^4.1.10"
-  },
-  "peerDependenciesMeta": {
-    "@godcreator/gwb-shell": {
-      "optional": true
-    }
+    "build": "pnpm -r build",
+    "check": "pnpm -r --no-bail check"
   }
 }
