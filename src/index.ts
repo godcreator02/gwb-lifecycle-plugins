@@ -473,9 +473,10 @@ export function apply(ctx: GwbContext): void {
     bus.register(
       {
         name: 'devkit.scaffold',
-        plugin: name,
-        description:
-          `把一个新 gwb 件的骨架落进一个新文件夹，默认连文档站一起建：{name（必给，kebab-case 短名）, dir（必给，绝对路径且必须还不存在）, title?, docs?（缺省 true）, port?}。件那半的模板在本包；站那半是两步，都经命令总线转出去——${CREATE_SITE_COMMAND}（站件）铺 fumadocs 骨架，${ATTACH_SITE_COMMAND}（docfirst 件）在骨架上装配六区。哪个件没装就跳过那一步、回执里说怎么补，件那半照样落盘。参数不对会把完整说明回给你`,
+        plugin: '@godcreator/gwb-devkit',
+        description: '把一个新 gwb 件的骨架落进一个新文件夹（默认连文档站）',
+        usage:
+          `{name（必给，kebab-case 短名）, dir（必给，绝对路径且必须还不存在）, title?, docs?（缺省 true）, port?}。件那半的模板在本包；站那半是两步，都经命令总线转出去——${CREATE_SITE_COMMAND}（站件）铺 fumadocs 骨架，${ATTACH_SITE_COMMAND}（docfirst 件）在骨架上装配六区。哪个件没装就跳过那一步、回执里说怎么补，件那半照样落盘。参数不对会把完整说明回给你`,
       },
       async (args) => {
         if (!isRecord(args)) return { ok: false, error: `参数要是个对象。\n${SCAFFOLD_USAGE}` }
