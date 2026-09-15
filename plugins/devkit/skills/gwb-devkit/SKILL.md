@@ -7,7 +7,7 @@ description: 动手写一个新 gwb 插件之前读，打算说「验过了 / �
 
 `@godcreator/gwb-devkit` 是个**普通的 gwb 插件**，装进 home 才有它的命令。它住
 `D:\unitfolders\260908dkv\gwb-devkit`——一个双包 workspace（2026-09-15 起）：
-`packages/devkit` 是插件本体，`packages/repo-kit`（`@godcreator/gwb-repo-kit`）是仓侧
+`plugins/devkit` 是插件本体（件住 plugins/、包住 packages/），`packages/repo-kit`（`@godcreator/gwb-repo-kit`）是仓侧
 dev-only 工具包（守卫测试的正本，薄壳住各仓），`docs-site/` 照旧。同居的判据：模板薄壳
 与守卫工厂是「两处正本必须同步动」的耦合——一个 commit 改两边、一趟 release 发两包。
 「独立起仓」那条路的样例由 notes/timer/counter 那批真独立仓接棒，不再由本件兼职。
@@ -581,7 +581,7 @@ lucide 图标身上的 `lucide lucide-xxx` 是它烤进 SVG 的身份属性，�
 # 发版与装机
 
 发正式版走 `devkit.release`（从哪个 home 调都行；本仓是双包 workspace，要给 `packages`——
-`["packages/repo-kit","packages/devkit"]`，按依赖顺序 repo-kit 在前）：
+`["packages/repo-kit","plugins/devkit"]`，按依赖顺序 repo-kit 在前）：
 
 ```
 devkit.release {"dir":"<仓根>"}

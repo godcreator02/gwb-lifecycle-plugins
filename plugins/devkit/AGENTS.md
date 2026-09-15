@@ -1,6 +1,6 @@
 # gwb-devkit
 
-开发套件，**一个普通的 gwb 插件**：住 `packages/devkit/`，仓是双包 workspace（2026-09-15 起，
+开发套件，**一个普通的 gwb 插件**：住 `plugins/devkit/`，仓是双包 workspace（件住 plugins/、包住 packages/，与 base-plugins 同习俗）（2026-09-15 起，
 `packages/repo-kit` 是仓侧守卫工具包 `@godcreator/gwb-repo-kit`，`docs-site/` 照旧）。发团队源
 （gitea 个人源，**本仓发版要给 packages 参数**），装进 home。
 它管建仓 / 手册 / 测试 home / 改一版看一版四件事，外加一支包内 CLI——`bin/cdp.mjs`（经 `gwbNodeCli` 登记成 `devkit.cdp`）。
