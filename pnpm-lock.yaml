@@ -87,6 +87,9 @@ importers:
       '@godcreator/gwb-plugin-api':
         specifier: 0.1.1
         version: 0.1.1(cordis@4.0.0-rc.9)
+      '@godcreator/gwb-repo-kit':
+        specifier: workspace:*
+        version: link:../../packages/repo-kit
       '@godcreator/gwb-settings':
         specifier: 0.2.0
         version: 0.2.0(@godcreator/gwb-plugin-api@0.1.1(cordis@4.0.0-rc.9))(cordis@4.0.0-rc.9)

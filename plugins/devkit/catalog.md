@@ -18,4 +18,4 @@ export const inject = ['gwbCommands']
 
 ## 命令
 
-命令清单不存卡——**现扫 /surface**（ 取这一组的形状）。
+命令清单不存卡——**现扫门的 `index`**（回执的命令行自带 plugin 包名归属）。
