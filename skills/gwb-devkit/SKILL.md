@@ -230,6 +230,7 @@ scripts」，`pnpm run` 的依赖状态核验自动补装再撞同一块石头�
 | `{{name}}`      | 短名本身                                    | `hello`                 |
 | `{{pkg}}`       | `@godcreator/gwb-<短名>`                  | `@godcreator/gwb-hello` |
 | `{{pkgName}}`   | 插件名 `gwb-<短名>`，即 `export const name` 的值 | `gwb-hello`             |
+| `{{cssPrefix}}` | 短名**剔除非小写字母**——Tailwind 4 的 `prefix()` 只收 a-z，连字符与数字都当场拒（`pnpm build` 才炸，`check` 全绿）；类名前缀只用它，连字符版只做包名与命令名 | `hello`（`audit-probe` → `auditprobe`） |
 | `{{title}}`     | 显示名，缺省用短名                               | `打个招呼`                  |
 | `{{docsBlock}}` | README 里讲文档站的那一段：建了站讲怎么跑，没建讲怎么补         | —                       |
 
@@ -503,14 +504,15 @@ esbuild 打成 `dist/client.js`，只把 `react` / `react/jsx-runtime` / `react-
 ```
 
 产物 `tailwindcss -i src/client/styles.css -o dist/style.css`（`@tailwindcss/cli`）。类名一律
-`<短名>:flex` 这种：规则全页有效但只匹配本插件元素，围栏来自名字唯一，不靠 DOM 祖先关系。
+`<cssPrefix>:flex` 这种（cssPrefix＝短名剔除非小写字母，见「名字是怎么派生的」）：规则全页有效
+但只匹配本插件元素，围栏来自名字唯一，不靠 DOM 祖先关系。
 所以弹层 portal 到 body 照样有样式（shadcn 组件**不打任何 Portal 补丁**），容器上的
-`data-gwb-plugin` 只是身份标记。`components.json` 的 `tailwind.prefix` 填短名，
-`shadcn add` 拉下来的组件类名自带前缀；`cn` 包默认就能正确合并带前缀的类，不用配。
+`data-gwb-plugin` 只是身份标记。`components.json` 的 `tailwind.prefix` 填 cssPrefix（不是短名——
+带杠带数字都会被 Tailwind 拒），`shadcn add` 拉下来的组件类名自带前缀；`cn` 包默认就能正确合并带前缀的类，不用配。
 
 第二行引的令牌映射面，`@godcreator/gwb-tokens&#x60; **≥0.1.1** 起把插件里用到的 Tailwind 出厂键
 （间距、字重字距、白黑、八档阴影、缓动、过渡、容器断点）全部接管到页面变量。插件依赖声明
-`>=0.1.1` 重编后，`dist/style.css` **零字面 fallback**——`calc(var(--<短名>-spacing, 0.25rem)*4)`
+`>=0.1.1` 重编后，`dist/style.css` **零字面 fallback**——`calc(var(--<cssPrefix>-spacing, 0.25rem)*4)`
 编成 `calc(var(--gwb-spacing)*4)`、`text-white` 查 `--gwb-white`，主题值整页只剩令牌表一份。
 
 六条会静默的事：不引令牌映射面颜色类全空；用 Tailwind 内置调色板类（`amber-600` 这种）表达
@@ -519,7 +521,7 @@ esbuild 打成 `dist/client.js`，只把 `react` / `react/jsx-runtime` / `react-
 ——模板自带的 `tests/prefix.test.ts` 钉着，新加的类忘了前缀它当场红；`group` / `peer` 这类**标记类也要带前缀**
 （`logger:group-hover:*` 编出的选择器认的是 `.logger\:group`，标记不带前缀永远不命中，
 守卫抓不到它，因为它本来就编不出规则）；Tailwind 会把内置主题变量名也改掉
-（`--<短名>-spacing`），令牌只能经映射面送值。
+（`--<cssPrefix>-spacing`），令牌只能经映射面送值。
 lucide 图标身上的 `lucide lucide-xxx` 是它烤进 SVG 的身份属性，不是类名泄漏，别去管。
 
 **窗格不是视口**：响应式用容器查询变体 `@sm:` / `@md:`，不用 `sm:`。外壳给每个窗格的容器是

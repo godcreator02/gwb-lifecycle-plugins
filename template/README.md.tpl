@@ -9,7 +9,7 @@
 
 - **node 半**（`src/index.ts`）：挂载、注册一格窗格、登记一条 `{{name}}.ping` 命令；
 - **浏览器半**（`src/client/`）：窗格里「你好 + 计数按钮」，Tailwind 前缀围栏（类名一律
-  `{{name}}:` 开头），react 走页面共享表；
+  `{{cssPrefix}}:` 开头——cssPrefix 是短名剔除非小写字母，Tailwind 的 prefix 只收 a-z），react 走页面共享表；
 - **身份卡**（`catalog.md`）：是谁、提供什么、靠谁、有什么命令；
 - **四份测试**：身份与注册、catalog 不撒谎、类名前缀守卫、产物守卫。
 

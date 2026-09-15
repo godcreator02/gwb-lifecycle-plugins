@@ -7,11 +7,11 @@ import { describe, expect, it } from 'vitest'
 /**
  * **忘加前缀的守卫。**
  *
- * 样式围栏是「类名自带 `{{name}}:` 前缀」，代价是**漏加前缀完全静默**：`flex` 裸写，
+ * 样式围栏是「类名自带 `{{cssPrefix}}:` 前缀」，代价是**漏加前缀完全静默**：`flex` 裸写，
  * 带前缀的编译下一个字节都不出，页面上就是那一处没样式——不报错、构建照样绿。
  *
  * 判法：把 src/client 下所有 tsx 里的字符串字面量抽出来切 token；对每个不以
- * `{{name}}:` 开头的 token，拿件自己的 styles.css（去掉 prefix 再编——带前缀的编译器
+ * `{{cssPrefix}}:` 开头的 token，拿件自己的 styles.css（去掉 prefix 再编——带前缀的编译器
  * 对裸 `flex` 只会回「不认识」，分不出漏没漏）问 Tailwind「编得出规则吗」。
  * 编得出来的，就是本该带前缀而没带的类。模板串的插值段、data-probe 的值、
  * import 说明符这些自然编不出规则，不用特判。
@@ -72,8 +72,8 @@ describe('忘加前缀的守卫', () => {
     expect(files.length).toBeGreaterThan(0)
   })
 
-  it('字符串字面量里没有漏掉 {{name}}: 前缀的类名', async () => {
-    const input = fs.readFileSync(path.join(clientDir, 'styles.css'), 'utf8').replace(' prefix({{name}})', '')
+  it('字符串字面量里没有漏掉 {{cssPrefix}}: 前缀的类名', async () => {
+    const input = fs.readFileSync(path.join(clientDir, 'styles.css'), 'utf8').replace(' prefix({{cssPrefix}})', '')
     // 那一行真的摘干净了才算数（头注里也提到 prefix）
     expect(input.replaceAll(/\/\*[\s\S]*?\*\//g, '')).not.toContain('prefix(')
 
@@ -83,7 +83,7 @@ describe('忘加前缀的守卫', () => {
     for (const file of files) {
       for (const literal of literals(fs.readFileSync(file, 'utf8'))) {
         for (const token of literal.split(/\s+/)) {
-          if (token === '' || token.startsWith('{{name}}:')) continue
+          if (token === '' || token.startsWith('{{cssPrefix}}:')) continue
           tokens.add(token)
         }
       }

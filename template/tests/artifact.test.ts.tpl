@@ -30,7 +30,7 @@ const CSS_COMMENT = /\/\*[\s\S]*?\*\//g
  * 小数（`0.25rem` 的 `.25rem`）也捞成类选择器
  */
 const PRELUDE = /(?:^|[{};])([^{};]*)\{/g
-/** 一个类选择器。转义序列（`.{{name}}\:flex` 里那个 `\:`）整体吃掉 */
+/** 一个类选择器。转义序列（`.{{cssPrefix}}\:flex` 里那个 `\:`）整体吃掉 */
 const CLASS_SELECTOR = /\.(?:\\.|[A-Za-z0-9_-])+/g
 /** 唯一放行的非前缀类：`.dark` 是页面级亮暗标志，只以祖先身份出现 */
 const DARK_FLAG = new Set(['.dark'])
@@ -179,9 +179,9 @@ describe.skipIf(!built)('产物', () => {
     expect([...bare].filter((s) => !ALLOWED_BARE.has(s))).toEqual([])
   })
 
-  it('style.css 里的类选择器一律 .{{name}}\\: 开头——围栏就是前缀本身', () => {
+  it('style.css 里的类选择器一律 .{{cssPrefix}}\\: 开头——围栏就是前缀本身', () => {
     const bad = classSelectors(fs.readFileSync(path.join(distDir, 'style.css'), 'utf8'))
-      .filter((s) => !s.startsWith('.{{name}}\\:') && !DARK_FLAG.has(s))
+      .filter((s) => !s.startsWith('.{{cssPrefix}}\\:') && !DARK_FLAG.has(s))
       .sort()
     expect(bad).toEqual([])
   })

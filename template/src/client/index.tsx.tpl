@@ -4,7 +4,7 @@ import { createRoot } from 'react-dom/client'
 /**
  * 浏览器半——一格窗格：你好 + 计数按钮。
  *
- * 类名一律带 `{{name}}:` 前缀：围栏来自名字唯一，不靠 DOM 祖先关系（弹层 portal 到
+ * 类名一律带 `{{cssPrefix}}:` 前缀：围栏来自名字唯一，不靠 DOM 祖先关系（弹层 portal 到
  * 哪都有样式）。样式入口在 `styles.css`，这五行 import 每一条都不能省，注释在那边。
  * react 走页面的共享表（importmap 解析到 gwb-shared-react），构建时外置——见 build.ts。
  */
@@ -17,20 +17,20 @@ interface PaneArgs {
 function Pane(): ReactElement {
   const [count, setCount] = useState(0)
   return (
-    <div className="{{name}}:h-full {{name}}:space-y-4 {{name}}:p-8">
-      <h1 className="{{name}}:text-2xl {{name}}:font-semibold">你好，{{title}}</h1>
-      <p className="{{name}}:text-sm {{name}}:text-muted-foreground">
+    <div className="{{cssPrefix}}:h-full {{cssPrefix}}:space-y-4 {{cssPrefix}}:p-8">
+      <h1 className="{{cssPrefix}}:text-2xl {{cssPrefix}}:font-semibold">你好，{{title}}</h1>
+      <p className="{{cssPrefix}}:text-sm {{cssPrefix}}:text-muted-foreground">
         模板窗格。这颗按钮走本地状态；命令面那条 {{name}}.ping 在 node 半，经命令总线调。
       </p>
-      <div className="{{name}}:flex {{name}}:items-center {{name}}:gap-3">
+      <div className="{{cssPrefix}}:flex {{cssPrefix}}:items-center {{cssPrefix}}:gap-3">
         <button
           data-probe="bump"
-          className="{{name}}:rounded {{name}}:bg-primary {{name}}:px-3 {{name}}:py-1.5 {{name}}:text-sm {{name}}:text-primary-foreground"
+          className="{{cssPrefix}}:rounded {{cssPrefix}}:bg-primary {{cssPrefix}}:px-3 {{cssPrefix}}:py-1.5 {{cssPrefix}}:text-sm {{cssPrefix}}:text-primary-foreground"
           onClick={() => setCount((n) => n + 1)}
         >
           +1
         </button>
-        <span className="{{name}}:font-mono {{name}}:text-2xl" data-probe="count">
+        <span className="{{cssPrefix}}:font-mono {{cssPrefix}}:text-2xl" data-probe="count">
           {count}
         </span>
       </div>

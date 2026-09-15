@@ -155,6 +155,9 @@ export function placeholders(plan: ScaffoldPlan): Record<string, string> {
     title: plan.title,
     pkg: plan.pkg,
     pkgName: plan.pluginName,
+    // 样式类前缀：短名剔除非小写字母。Tailwind 4 的 prefix() 只收 a-z，短名里的连字符与数字
+    // 都会被当场拒（build 阶段才炸，check 全绿——探针 2026-09-15 实测）；连字符版只做包名与命令名
+    cssPrefix: plan.name.replace(/[^a-z]/g, ''),
     docsBlock: docsBlock(plan),
   }
 }
