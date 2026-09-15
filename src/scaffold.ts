@@ -250,9 +250,9 @@ export function nextSteps(
     )
   }
   steps.push(
-    '发一版：先抬 package.json 的版本号，再 pnpm publish --registry https://git.tianshen02.online:28377/api/packages/godcreator/npm/ --no-git-checks',
+    '发一版：先抬 package.json 的版本号，再 pnpm publish --no-git-checks（scope 路由住用户级 ~/.npmrc，自动走对源，别手写 --registry）',
     `装进隔离 home：plugin-manager.install {"pkg":"${plan.pkg}"}——该进的 peer 会一并装上`,
-    `命令面验证：POST /run {"command":"${plan.name}.ping"} 回 {ok:true,…}；工作台那格窗格「你好」+计数按钮点得动——模板的六步验收走完`,
+    `命令面验证：经 MCP 门的 run 调 {"command":"${plan.name}.ping"} 回 {ok:true,…}；工作台那格窗格「你好」+计数按钮点得动——模板的六步验收走完`,
     '发完就去升 default home（人点「全部更新」或 plugin-manager.update-all）——攒着不升，agent 读到的手册与命令都停在旧版',
     '写件手册：读 skill「gwb-devkit」——红线、能力面菜单、验机都在里面；文档写什么读 skill「docfirst-docs」',
   )

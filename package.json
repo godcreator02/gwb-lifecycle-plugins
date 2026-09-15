@@ -1,10 +1,10 @@
 {
   "name": "@godcreator/gwb-devkit",
-  "version": "0.9.3",
+  "version": "0.9.4",
   "author": {
     "name": "godcreator"
   },
-  "description": "开发套件：把一个新件的骨架落进一个新文件夹（件那半自带模板，站那半经命令总线转出去——站件 docs-site.create 铺 fumadocs 骨架、docfirst 件 docfirst.attach 装六区，两步，哪个件没装就跳过那步），随件带一份写件手册（只挂自己那份，知识随件走）；测试 home 的开/收、「改一版看一版」那条链（devkit.dev，住控制台那个 home、操作另一个 home）、发正式版（devkit.release：git 树不干净就拒、staging 发 latest、只碰源不碰任何 home）与一条 node CLI（cdp）也在这儿。**不依赖 docfirst 的任何包**。0.9.2/0.9.3：八条命令拆 description（一句话）与 usage（参数形状）、devkit.cdp 镜像 spec 同步，plugin 改口包名（随 commands 0.4 三枚面迁宽；0.9.3 补上头一版漏掉的 scaffold）",
+  "description": "开发套件：把一个新件的骨架落进一个新文件夹（件那半自带模板，站那半经命令总线转出去——站件 docs-site.create 铺 fumadocs 骨架、docfirst 件 docfirst.attach 装六区，两步，哪个件没装就跳过那步），随件带一份写件手册（只挂自己那份，知识随件走）；测试 home 的开/收、「改一版看一版」那条链（devkit.dev，住控制台那个 home、操作另一个 home）、发正式版（devkit.release：git 树不干净就拒、staging 发 latest、只碰源不碰任何 home）与一条 node CLI（cdp）也在这儿。**不依赖 docfirst 的任何包**。0.9.2/0.9.3：八条命令拆 description（一句话）与 usage（参数形状）、devkit.cdp 镜像 spec 同步，plugin 改口包名（随 commands 0.4 三枚面迁宽；0.9.3 补上头一版漏掉的 scaffold）。0.9.4：模板 devDeps 五个 @godcreator 钉版对齐个人源现状（迁移只搬各包最新号，模板钉的旧号已 404，新仓 pnpm install 必炸）、nextSteps/README 模板/手册去掉 --registry 手写与 POST /run 旧门口径（改经 MCP 门的 run），手册门描述从 surface/run 两枚改口 index/search/run 三枚",
   "type": "module",
   "//exports": "只剩主入口。**本件没有浏览器半**：它的使用者是 agent，读的是回执，所以既没有窗格也没有 dist/client",
   "exports": {

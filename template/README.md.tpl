@@ -29,13 +29,13 @@ pnpm build          # tsc + esbuild + tailwindcss 三步
 
 ```powershell
 # 先抬 package.json 的版本号，同一个版本号永不重发
-pnpm publish --registry https://git.tianshen02.online:28377/api/packages/godcreator/npm/ --no-git-checks
+pnpm publish --no-git-checks   # scope 路由自动走对源，别手写 --registry
 ```
 
 然后：
 
 1. 装进隔离 home：`plugin-manager.install {"pkg":"{{pkg}}"}`（该进的 peer 会一并装上）；
-2. 命令面验证：`POST /run {"command":"{{name}}.ping"}` 回 `{ok:true, data:{plugin, time}}`；
+2. 命令面验证：经 MCP 门的 `run` 调 `{"command":"{{name}}.ping"}` 回 `{ok:true, data:{plugin, time}}`；
 3. 打开工作台那一格窗格：看见「你好」，点按钮计数 +1；
 4. 发完就去升 default home（人点「全部更新」或 `plugin-manager.update-all`）——攒着不升，
    agent 读到的手册与命令都停在旧版。

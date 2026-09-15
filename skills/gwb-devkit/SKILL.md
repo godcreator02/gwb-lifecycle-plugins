@@ -256,7 +256,7 @@ pnpm build          # tsc + esbuild + tailwindcss 三步
 先 git init 落第一个提交，再在 docs-site 里 pnpm doc:confirm
 发一版：先抬 package.json 的版本号，再 pnpm publish --no-git-checks   # scope 路由自动走对源，别手写 --registry
 装进隔离 home：plugin-manager.install {"pkg":"@godcreator/gwb-<短名>"}——该进的 peer 会一并装上
-命令面验证：POST /run {"command":"<短名>.ping"} 回 {ok:true,…}；工作台那格窗格「你好」+计数按钮点得动——六步验收到这儿走完
+命令面验证：经 MCP 门的 run 调 {"command":"<短名>.ping"} 回 {ok:true,…}；工作台那格窗格「你好」+计数按钮点得动——六步验收到这儿走完
 发完就去升 default home（人点「全部更新」或 plugin-manager.update-all）
 ```
 
@@ -351,11 +351,11 @@ handler 参数是 `unknown`，自己收窄（词汇表包的 `isRecord`）。相
 参数复杂到一行写不下的，回执里带一份完整说明（错误即文档，`devkit.scaffold` 就是这么干的），
 但 description 里那句形状仍然要有。
 
-**顶层工具位没有申报口子。** MCP 门（2026-09-14 复位起唯一的门）工具面封顶 `surface` /
-`run` 两枚、永不再增——`GwbCommandDef` 的 `top` 字段已随 commands 0.3 退役，登记时
+**顶层工具位没有申报口子。** MCP 门（2026-09-14 复位起唯一的门）工具面封顶 `index` /
+`search` / `run` 三枚、永不再增——`GwbCommandDef` 的 `top` 字段已随 commands 0.3 退役，登记时
 没有「让 agent 顶层直接看见这条命令」这个动作，一切命令（包括你这条）经 `run` 按名调。
-命令只管把 `description` 的参数形状写清楚，发现面是 `surface` 回执的事。要动那个封顶
-（加第三枚工具）是 major 级的协议变更，**先问人**。
+命令只管把 `description` 的参数形状写清楚，发现面是 `index` 回执的事。要动那个封顶
+（加第四枚工具）是 major 级的协议变更，**先问人**。
 
 **四、发一版。** 先抬 `package.json` 的版本号，再：
 
@@ -450,7 +450,7 @@ import 一行，IDE 的自动补全就是你的说明书。
 | 数据      | `gwbData.readDoc/writeDoc`（局部）            | 要落盘状态就要。存 `<home>/data/<条目末段>/`                                                                                                  |
 | 窗格      | `gwbShell.registerPane` + client 半        | 要人看得见就要                                                                                                                          |
 | 外部 CLI  | `gwbNodeCli` / `gwbPyCli` register（局部）    | 要给外部脚本一个稳定入口就要。**CLI 形态的东西一律走这儿**，不做总线命令、不进程内调                                                                                   |
-| agent 桥 | 不用做——gwb-mcp 把总线开出去：agent 经 `run` 按名调你的命令 | 工具面封顶 `surface` / `run` 两枚，没有顶层清单这回事；发现面是 `surface` 现拼回执                                                                         |
+| agent 桥 | 不用做——gwb-mcp 把总线开出去：agent 经 `run` 按名调你的命令 | 工具面封顶 `index` / `search` / `run` 三枚，没有顶层清单这回事；发现面是 `index` 现拼回执                                                                         |
 
 inject 三种写法：`export const inject = [...]` 硬依赖（缺了不挂）；`static inject = [...]`
 （Service 类）；`ctx.inject([...], fn)` 局部可选（缺了主插件照挂）。**inject 是等待不是
@@ -617,7 +617,8 @@ minimumReleaseAgeExclude:
 2. **发团队源**（`devkit.release`，上一节）
 3. **升 default home**：人在插件窗格点「全部更新」，或 agent 调 `plugin-manager.update-all`。
    **新插件第一次装**不走这条（它只升已装的），走 `plugin-manager.install {"pkg":"<包名>"}`，
-   装完下一次 `/surface` 现扫就有——门没有会话，**没有重连这个动作**
+   装完下一次 `index` 现拼就有——装的是别的件、门没动，**没有重连这个动作**；只有升到
+   gwb-mcp 门自己那一版，在途连接才断、重连一次（MCP 是会话态的）
 
 **不升的代价**：说明书与命令都停在旧版，而 `gwb-skills` 的「正文现读盘」只对**装进 home
 的那份**生效——仓里改了字、发了版、没升，agent 读到的还是上一版。它照着一份过期手册
@@ -650,7 +651,7 @@ minimumReleaseAgeExclude:
 skill\_read、command-http，加上这次改掉的每一个旧名——筛三处：门的 instructions、各仓
 AGENTS 里提到门或命令的段落、所有随包 skill 的描述。
 
-**二验指向。** 文档里指名道姓的每个 skill 名与命令名，`skill.list` 与 `/surface?slim=true`
+**二验指向。** 文档里指名道姓的每个 skill 名与命令名，`skill.list` 与门的 `index`
 各现扫一遍；指到不在的，要么修指向、要么补对象。docfirst 守得住「文档对源码」，守不住
 这两层；这两层只能靠收尾清单。
 
