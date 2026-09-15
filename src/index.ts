@@ -25,6 +25,8 @@ import {
 import { kill, portOwner, processName } from './node-probe-deps.js'
 import { DEFAULT_REGISTRY, type DevInput, runDev } from './dev.js'
 import { runRelease } from './release.js'
+import { auditManifest, countByKind, type ManifestDeps } from './audit.js'
+import { collectManifests, collectRepos, fetchRegistry } from './node-audit-deps.js'
 import { CDP_ENTRY, devDeps, releaseDeps } from './node-dev-deps.js'
 import { homeFs, makeGuiSpawn, runCaptured } from './node-home-deps.js'
 import {
@@ -463,6 +465,47 @@ export function apply(ctx: GwbContext): void {
         }
         log.info(`devkit.release：${outcome.data.shipped.map((one) => `${one.pkg}@${one.version}`).join('、')} 上了 latest`)
         return outcome
+      },
+    ),
+  )
+
+  // ── 依赖对账 ────────────────────────────────────────────────────────────────
+
+  ctx.effect(() =>
+    bus.register(
+      {
+        name: 'devkit.audit-deps',
+        plugin: '@godcreator/gwb-devkit',
+        description: '全生态依赖对账：各插件仓的 @godcreator 声明对 registry 现值，抓死钉与火车债',
+        usage:
+          '{root?（容器根绝对路径，缺省从 kernel-dir 往上两级推）, registry?（缺省个人源）}。无参数直接调也行。回执 { ok, data: { root, repos, manifests, packages, findings, byKind } }——findings 逐条 { kind, repo, manifest, pkg, detail }；kind：dead-pin（钉了源上没有的版本，装必炸）/ behind（dev 钉落后最新，火车债）/ floor-unverifiable（下限指向源上没有的版本）/ floor-mismatch（下限 ≠ dev 钉）/ floor-no-mirror（peer 无 dev 镜像）/ loose-dev-pin（dev 钉不是精确号）。只读不改：扫仓、读 package.json、问源',
+      },
+      async (args) => {
+        const askedRoot = isRecord(args) && typeof args.root === 'string' ? args.root.trim() : ''
+        const kernelDir = kernelDirOf()
+        const root = askedRoot !== '' ? path.resolve(askedRoot) : kernelDir === undefined ? undefined : path.resolve(kernelDir, '..', '..')
+        if (root === undefined) {
+          return { ok: false, error: '扫哪没说清：给 root（容器根的绝对路径），或把 kernel-dir 设置填上（往上两级就是容器根）' }
+        }
+        if (!fs.existsSync(root)) return { ok: false, error: `${root} 不在——root 给的是容器根（unit.json 们住的那层）` }
+        const registryBase = isRecord(args) && typeof args.registry === 'string' && args.registry.trim() !== '' ? args.registry.trim() : DEFAULT_REGISTRY
+
+        const repoDirs = collectRepos(root)
+        const repoRel = (dir: string): string => path.relative(root, dir).replaceAll('\\', '/')
+        const manifests: { repo: string; manifest: string; deps: ManifestDeps }[] = []
+        for (const dir of repoDirs) {
+          for (const one of collectManifests(dir)) manifests.push({ repo: repoRel(dir), manifest: one.rel, deps: one.deps })
+        }
+        if (manifests.length === 0) return { ok: false, error: `${root} 下面一份带 @godcreator 依赖的 package.json 都没扫到——root 是不是给错了` }
+        const pkgs = [...new Set(manifests.flatMap((m) => [...Object.keys(m.deps.peers), ...Object.keys(m.deps.devs)]))]
+        const registry = await fetchRegistry(pkgs, registryBase)
+        const findings = manifests.flatMap((m) => auditManifest(m.repo, m.manifest, m.deps, registry))
+        const byKind = countByKind(findings)
+        log.info(
+          `devkit.audit-deps：${String(repoDirs.length)} 仓 ${String(manifests.length)} 份 manifest 对 ${String(pkgs.length)} 个包——` +
+            `死钉 ${String(byKind['dead-pin'])}、火车债 ${String(byKind.behind)}、下限水分 ${String(byKind['floor-unverifiable'] + byKind['floor-mismatch'])}`,
+        )
+        return { ok: true, data: { root, registry: registryBase, repos: repoDirs.length, manifests: manifests.length, packages: pkgs.length, findings, byKind } }
       },
     ),
   )
