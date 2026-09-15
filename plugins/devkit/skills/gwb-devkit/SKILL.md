@@ -1,6 +1,6 @@
 ---
 name: gwb-devkit
-description: 动手写一个新 gwb 插件之前读，打算说「验过了 / 跑通了 / 改动生效了」之前也读。开发套件的全部命令与设置项、建仓（devkit.scaffold，插件模板随本包发，站那半两步转给站点插件与 docfirst 插件）、改一版看一版那条内循环（devkit.dev：发开发版、装进隔离 home、重挂、取证）、发正式版（devkit.release：git 树不干净就拒、staging 发 latest、workspace 依赖写成 >= 范围）、从建仓到发版装机升 default 的外循环、八条红线、生态里每个插件的服务什么时候用、一份新说明书该住哪个插件的判据，以及改内核（不是改插件）时验机怎么走。
+description: 动手写一个新 gwb 插件之前读，打算说「验过了 / 跑通了 / 改动生效了」之前也读。开发套件的全部命令、建仓（devkit.scaffold，插件模板随本包发，站那半两步转给站点插件与 docfirst 插件）、改一版看一版那条内循环（devkit.dev：发开发版、装进隔离 home、重挂、取证）、发正式版（devkit.release：git 树不干净就拒、staging 发 latest、workspace 依赖写成 >= 范围）、从建仓到发版装机升 default 的外循环、八条红线、生态里每个插件的服务什么时候用、一份新说明书该住哪个插件的判据，以及改内核（不是改插件）时验机怎么走。
 ---
 
 # 这套东西是什么
@@ -32,11 +32,10 @@ dev-only 工具包（守卫测试的正本，薄壳住各仓），`docs-site/` �
 发版、**去升 default home**（见「发完版就去升 default」），`gwb-skills` 的「正文现读盘」
 只对装进 home 的那份生效。
 
-## 两个设置项（不填对应的半边就不工作）
+## 没有设置项
 
-| key          | 填什么                                                              | 不填的后果                          |
-| ------------ | ---------------------------------------------------------------- | ------------------------------ |
-| `kernel-dir` | 内核仓根（含 `apps/desktop`），即 `D:\unitfolders\26090705ymz\gwb-kernel` | `devkit.home.new` / `open` 不工作 |
+（0.12.0 起 `kernel-dir` 退役——起 home 不再认内核仓，见「已退役的那些名字」。audit-deps 的
+容器根缺省现问命令总线上的 `unit-folder.list`，问不到就必给 `root`。）
 
 # 命令全表
 
@@ -75,7 +74,7 @@ dev-only 工具包（守卫测试的正本，薄壳住各仓），`docs-site/` �
 
 | 命令                | 参数 | 干什么                                                                                                                                                                                     |
 | ----------------- | -- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `devkit.audit-deps` | `{ root?, registry? }` 或无参 | 全生态对账（只读）：扫容器根全部仓的 `@godcreator` 声明（仓根＋plugins/packages/apps＋docs-site），对 registry 现值出清单——**dead-pin**（钉了源上没有的版本，装必炸；gitea 只保证往后有历史，这类谎最容易犯）、**behind**（dev 钉落后最新＝火车债记账，不是催命符）、floor-unverifiable / floor-mismatch / floor-no-mirror（下限那一档的水分）。root 缺省从 kernel-dir 往上两级推。发版前、火车编组、怀疑「升了炸一堆」时跑 |
+| `devkit.audit-deps` | `{ root?, registry? }` 或无参 | 全生态对账（只读）：扫容器根全部仓的 `@godcreator` 声明（仓根＋plugins/packages/apps＋docs-site），对 registry 现值出清单——**dead-pin**（钉了源上没有的版本，装必炸；gitea 只保证往后有历史，这类谎最容易犯）、**behind**（dev 钉落后最新＝火车债记账，不是催命符）、floor-unverifiable / floor-mismatch / floor-no-mirror（下限那一档的水分）。root 缺省现问总线上的 `unit-folder.list`（没装那个件就必给 root）。发版前、火车编组、怀疑「升了炸一堆」时跑 |
 
 **一条外部 CLI**（经 `gwbNodeCli` 登记，自动镜像成同名总线命令）
 
@@ -84,7 +83,7 @@ dev-only 工具包（守卫测试的正本，薄壳住各仓），`docs-site/` �
 | `devkit.cdp` | `{ args: [<home 名>, <动作>, …] }` | 在一个工作台页面里动手。十二个动作分两类：浏览器输入（`move` / `click` / `rclick` / `drag` / `type` / `key` / `scroll` / `shot`）与工作台契约（`cmd <命令名> [JSON]` / `reload [选择器]` / `home` / `eval <文件> [JSON]`）。开关五个：`--target` / `--mod` / `--pad` / `--size` / `--timeout` |
 
 **`eval` 是唯一一条「在页面里跑代码」的路**：`devkit.cdp {"args":["<名>","eval","out/量一下.js"]}`。
-文件路径按**当前工作目录**解，**文件里一律是一个函数表达式** `(args) => 一张表`（想 await 就写
+文件路径按**当前工作目录**解——**经 MCP 门 `run` 调时那个「当前目录」是 devkit 包自己的目录，一律给绝对路径**；**文件里一律是一个函数表达式** `(args) => 一张表`（想 await 就写
 成 async），第二个参数是一段 JSON，不给就按空对象调。只有这一条规则——「是函数就调、不是就直接
 求值」是两条规则伪装成一条，而选错分支那次不报错。
 
@@ -107,6 +106,7 @@ dev-only 工具包（守卫测试的正本，薄壳住各仓），`docs-site/` �
 | `home.new` 的 `cdp` / `skipBuild`、`home.open` 的 `cdp`、`dev` 的 `build` / `registry`、cdp 的 `--repo` / `--homes` | 0.6.0   | 都别给。每一个都是「跳过一道守卫」的机会                                                                                                      |
 | 「插件源」窗格                                                                                                      | 0.6.0   | 没有替代：本插件没有浏览器半了                                                                                                           |
 | `D:\unitfolders\26090520zzv\registry.ps1`                                                                    | 0.6.0   | 已随本机源退役                                                                                                                   |
+| `kernel-dir` 设置与 home 开收里的内核 build                                                                      | 0.12.0  | 起 home 拉宿主自己那个 exe（日常就是安装版）；内核源码的验机归内核仓自己的路（它家 AGENTS「怎么跑」），audit-deps 容器根改问 `unit-folder.list` |
 | `devkit.cdp-eval`                                                                                            | 0.4.0   | `eval` 是 `devkit.cdp` 的一个动作                                                                                               |
 | `devkit.livedoc`                                                                                             | 0.3.0   | 核对 / 确认 / 渲染在仓里发生：`cd <仓>\docs-site` 之后 `pnpm doc` / `pnpm doc:confirm` / `pnpm doc:render`，没有总线命令替你转（见「docfirst 的命令怎么调」） |
 
@@ -114,9 +114,9 @@ dev-only 工具包（守卫测试的正本，薄壳住各仓），`docs-site/` �
 
 | 命令                 | 参数                 | 干什么                                                                                                                                                              |
 | ------------------ | ------------------ | ---------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `devkit.home.new`  | `{ short }`        | 开一个新 home，名字长成 `<short>-<yyMMddHHmm>`。**先 build 内核**（产物不新就起等于验旧代码，这一步跳不过），**调试端口自动挑**（先沿用这个 home 上次那个，被占了才另挑），所以它起的 home 天然按名字够得到。**回执里带着现有 home 清单**，开新那一刻正好清旧的 |
+| `devkit.home.new`  | `{ short }`        | 开一个新 home，名字长成 `<short>-<yyMMddHHmm>`。**拉宿主自己那个 exe**（安装版对 GWB_HOME 同样成立；不 build 内核、不认内核仓，内核版本跟安装包走），**调试端口自动挑**（先沿用这个 home 上次那个，被占了才另挑），所以它起的 home 天然按名字够得到。**回执里带着现有 home 清单**，开新那一刻正好清旧的 |
 | `devkit.home.list` | —                  | 列 home 根下全部：名字、谁还在跑、CDP 端口、MCP 门（`mcp` 格；老 home 的 `command-http` 格照报当线索）                                                                                         |
-| `devkit.home.open` | `{ name }`         | 重开已有的，**不 build**。机器重启之后回到原来那个现场只有这一条路——`home.new` 永远造新目录，插件得全部重装一遍                                                                                              |
+| `devkit.home.open` | `{ name }`         | 重开已有的（拉宿主安装版）。机器重启之后回到原来那个现场只有这一条路——`home.new` 永远造新目录，插件得全部重装一遍                                                                                              |
 | `devkit.home.rm`   | `{ name, force? }` | 删。没在跑的直接删；**还在跑的要 `force`**，那时连停带删（按 `runtime.json` 里的 pid，核对映像名与记录里那个 CDP 端口再杀），停不掉就不删。`default` 是日常那份：不 `force` 不删，**而且它在跑的时候 `force` 也不删**——自己关掉那扇窗再来    |
 
 运行时记录落在每个 home 自己的 `runtime.json` 里（`pid` / `startedAt` / `appDir` / `cdp` /
@@ -212,7 +212,7 @@ docfirst.attach  {"dir":"D:\\unitfolders\\<单元>\\<已有仓>\\docs-site"}
 **工作台起不来的时候**：三样都没有离线入口（模板在包里，但那三个包都是插件、不是 CLI）
 ——先按末尾「你改的是内核，不是插件」那四步把工作台起起来。
 
-## 三条从实跑里换来的
+## 五条从实跑里换来的
 
 **一、docfirst 的包一个都不许进 `serverExternalPackages`。** `@godcreator/docfirst-workflow` 与
 `@godcreator/docfirst-trajectory` 里都有客户端组件（前者的 `/fumadocs/pre` 是状态点，
@@ -231,6 +231,16 @@ esbuild 的构建脚本要在那儿用 `allowBuilds` 批（独立单包仓也认
 列表就是「自己一个包的 workspace」）。不批的现象是连环的：install 报「Ignored build
 scripts」，`pnpm run` 的依赖状态核验自动补装再撞同一块石头，最后炸出来的栈在 pnpm 自己
 肚子里——从栈上完全看不出是构建脚本没批。模板自带那份 `pnpm-workspace.yaml`。
+
+**四、TS 字符串字面量会撞 Tailwind 工具类名，前缀守卫当场红。** 状态值 `'running'` /
+`'paused'` 这类恰好是 Tailwind 4.3 的真实工具类（animation-play-state 一族），前缀守卫扫的是
+源码里的一切类名形状字符串，不区分「类名」与「恰好长成类名的值」——守卫没错（漏前缀静默，
+只能广撒网），改值名绕开（`ticking` / `halted`），别跟守卫犟。
+
+**五、令牌映射面的管辖区有限，出了区用任意值写法。** `@godcreator/gwb-tokens` 的映射面只
+接管到 `text-*` 的 4xl、`container-*` 的 xs/lg——`text-6xl`、`max-w-sm` 这类会烤出字面量
+fallback，零 fallback 守卫当场红。改明示任意值（`text-[3.75rem]`、`max-w-[24rem]`）过，
+别去翻 tokens 包凑映射。
 
 ## 名字是怎么派生的
 
@@ -262,8 +272,8 @@ scripts」，`pnpm run` 的依赖状态核验自动补装再撞同一块石头�
 ```
 cd <dir>
 pnpm install
+pnpm build          # tsc + esbuild + tailwindcss 三步——先 build：check 里的产物守卫吃 dist/
 pnpm check          # typecheck（node 半 + 浏览器半）+ oxlint + vitest，模板自带四份测试
-pnpm build          # tsc + esbuild + tailwindcss 三步
 文档站那半（自己一套依赖，跟插件那半分开装）：cd <dir>\docs-site && pnpm install && pnpm doc
 先 git init 落第一个提交，再在 docs-site 里 pnpm doc:confirm
 发一版：先抬 package.json 的版本号，再 pnpm publish --no-git-checks   # scope 路由自动走对源，别手写 --registry
@@ -331,7 +341,7 @@ pnpm doc:render     # docfirst render：机读版与挂了 outputs 的生成物�
 
 # 从哪儿起手
 
-写一个 gwb 插件，只有一条路：**独立起一个仓（或文件夹），发一版进本机 registry，装进
+写一个 gwb 插件，只有一条路：**独立起一个仓（或文件夹），发一版进团队源，装进
 home**。不存在「把源码摆在内核仓旁边跑起来」的近路——近路绕过了安装这个动作，
 `exports` 漏一个子路径、`files` 少带一个目录，近路上都不显形，装出来才炸。
 
@@ -375,7 +385,7 @@ handler 参数是 `unknown`，自己收窄（词汇表包的 `isRecord`）。相
 pnpm publish --no-git-checks   # scope 路由自动走对源，别手写 --registry
 ```
 
-**同一个版本号永不重发**；发之前先问一句这个号在不在源上。源是 NAS 上的常驻团队源，不经本机、无需起停。
+**同一个版本号永不重发**；发之前先问一句这个号在不在源上。源是 gitea 个人源（常驻，不经本机、无需起停）。
 
 **五、装进 home 看真效果。** 两条路：
 
@@ -688,6 +698,10 @@ devkit.dev {"home":"<home 名>","dir":"D:\\unitfolders\\<单元>\\<仓>","packag
 标 `dev` **不动 latest**）→ 在目标 home 里 `pnpm add` 那个准确号 → 那几条 cordis 条目停用再启用
 → 整页重载 → 取证。中间任何一步失败当场停，回执里带着停在哪一步。
 
+**第一次迭代是两步。** `devkit.dev` 只换**已装**的包；目标 home 还没装过这个件的话，先
+`plugin-manager.install {"pkg":"<包名>","spec":"<dev 号>"}` 建条目（dev 号必须钉准确号——
+latest 上还没有它），下一趟起 `devkit.dev` 就接手了。
+
 `packages` 给的是**相对仓根**的包目录，**按依赖顺序**（被依赖的排前面）；一仓一包一插件的仓不用给。
 同一趟里互相依赖的包，依赖会被钉成这一趟那几个准确号——`>=` 那类范围认不到 dev 号，不钉就是
 「新插件配旧库」。
@@ -795,13 +809,13 @@ home 里验」这一步**。所以**发版前**在一个测试 home 里装一遍
 
 1. **改了插件** → 必须 `pnpm build` **再**发版。插件如果没有 `prepublishOnly`，`pnpm publish`
    会把上一版的 `dist/` 原样发出去——现象是插件挂上了、不报错、新写的东西全没生效
-2. **改了内核** → 必须在 `apps/desktop` 跑 `pnpm build`。不构建，起的是上一次的产物
-   （`devkit.home.new` 每次都帮你做了这一步，跳不过）
+2. **改了内核** → 内核源码的验机归内核仓自己的路（build 了直接起，见末尾「你改的是内核」
+   那节）；`devkit.home.new` 起的是安装版，内核版本跟安装包走，与仓里的源码无关（0.12.0 起）
 3. **改了共享包**（`gwb-tokens` / `gwb-shared-react`）→ 它们装在 home 里，得重发再装
 
 ## 三、插件进 home 只有一条路
 
-抬版本号 → 发本机 registry → 在那个 home 里装 → 落 `cordis.yml` 条目。细节与那两个坑在
+抬版本号 → 发团队源 → 在那个 home 里装 → 落 `cordis.yml` 条目。细节与那两个坑在
 「发版与装机」节，不重复。
 
 **不许走「直接读仓内源码」的近路。** 近路绕开了安装这个动作，于是开发时跑通的和装出来的
@@ -879,7 +893,8 @@ node <devkit 包根>\bin\cdp.mjs <home 名> <动作> [参数…]
 # 你改的是内核，不是插件
 
 上面整份以「你在写插件」为主线。改内核（`D:\unitfolders\26090705ymz\gwb-kernel`）时不一样的
-只有起法——**不发版、不装机，直接 build 了起**：
+只有起法——**不发版、不装机，直接 build 了起**。这正是内核验机的正路（0.12.0 起
+`devkit.home.new` 只起安装版、不 build 内核，内核源码的事 devkit 不代劳）：
 
 ```powershell
 $env:GWB_HOME = 'boot-2609070700'          # <这次验什么>-<yyMMddHHmm>

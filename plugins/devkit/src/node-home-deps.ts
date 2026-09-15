@@ -1,7 +1,8 @@
 import { spawn } from 'node:child_process'
 import { mkdirSync, rmSync } from 'node:fs'
+import path from 'node:path'
 import type { HomeDeps, HomeFs } from './home.js'
-import { BUILD_TAIL_LINES } from './home.js'
+import { hostAppFacts, hostAppSpawnPlan, RUN_TAIL_LINES } from './home.js'
 import { tailLines } from './probes.js'
 import { kill, nodeFs, portOwner, processName } from './node-probe-deps.js'
 
@@ -39,7 +40,21 @@ export function makeGuiSpawn(log: (message: string) => void): HomeDeps['spawn'] 
 }
 
 /**
- * 前台跑一条命令到结束(build 是唯一的使用处):capture 合流输出,到上限杀掉。
+ * `HomeDeps.appSpawnPlan` 的真身:从宿主进程自报的事实拼命令行。
+ * 事实全在 process 上(execPath / argv),不 import `electron`——产物里不许有
+ * 没有依赖兜底的裸名 import,而 electron 不该出现在任何包的依赖表里。
+ */
+export function makeAppSpawnPlan(): HomeDeps['appSpawnPlan'] {
+  return async (cdp) => {
+    const facts = hostAppFacts(process.execPath, process.argv)
+    // argv[1] 可能是 `.` 这种相对写法——起子进程的 cwd 若不是内核自己的 cwd，它就指错地方；先钉成绝对
+    const appPath = facts.appPath === undefined ? undefined : path.resolve(facts.appPath)
+    return hostAppSpawnPlan({ execPath: process.execPath, packaged: facts.packaged, appPath }, cdp)
+  }
+}
+
+/**
+ * 前台跑一条命令到结束(底座安装是唯一的使用处):capture 合流输出,到上限杀掉。
  * **回尾巴不回全量**——全量没人读,build 失败时人要的是最后那段报错。
  */
 export function runCaptured(
@@ -64,7 +79,7 @@ export function runCaptured(
     child.stderr?.on('data', keep)
     const timer = setTimeout(() => {
       child.kill()
-      resolve({ ok: false, tail: `${tailLines(out, BUILD_TAIL_LINES)}\n…(超 ${timeoutMs / 1000} 秒,已杀)` })
+      resolve({ ok: false, tail: `${tailLines(out, RUN_TAIL_LINES)}\n…(超 ${timeoutMs / 1000} 秒,已杀)` })
     }, timeoutMs)
     child.on('error', (err) => {
       clearTimeout(timer)
@@ -72,7 +87,7 @@ export function runCaptured(
     })
     child.on('exit', (code) => {
       clearTimeout(timer)
-      resolve({ ok: code === 0, tail: tailLines(out, BUILD_TAIL_LINES) })
+      resolve({ ok: code === 0, tail: tailLines(out, RUN_TAIL_LINES) })
     })
   })
 }

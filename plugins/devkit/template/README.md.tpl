@@ -19,8 +19,8 @@
 
 ```powershell
 pnpm install
+pnpm build          # tsc + esbuild + tailwindcss 三步——先 build：check 里的产物守卫吃 dist/
 pnpm check          # typecheck（node 半 + 浏览器半）+ oxlint + vitest
-pnpm build          # tsc + esbuild + tailwindcss 三步
 ```
 
 {{docsBlock}}
@@ -40,7 +40,7 @@ pnpm publish --no-git-checks   # scope 路由自动走对源，别手写 --regis
 4. 发完就去升 default home（人点「全部更新」或 `plugin-manager.update-all`）——攒着不升，
    agent 读到的手册与命令都停在旧版。
 
-源是 NAS 上的常驻团队源，无需起停；地址见用户级 `~/.npmrc` 的 `@godcreator` scope 行。
+源是 gitea 个人源（常驻，无需起停）；地址见用户级 `~/.npmrc` 的 `@godcreator` scope 行。
 
 ## 规矩在哪
 

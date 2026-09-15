@@ -10,10 +10,16 @@ import type { GuardVt } from './vitest-context.js'
  */
 
 export interface PluginGuardOptions {
-  /** 被测件的挂载函数（薄壳从 ../src/index.js import 进来） */
-  apply: (ctx: unknown) => void
+  /**
+   * 被测件的挂载函数（薄壳从 ../src/index.js import 进来）。参数收 `never`：消费仓的
+   * apply 各自把参数收窄成 GwbContext，`unknown` 那个形状在逆变下收不下它们，模板
+   * 开箱 check 就红（TS2322）——`never` 是底线类型，谁的参数都装得下
+   */
+  apply: (ctx: never) => void
   /** 件自报的名字：export const name */
   name: string
+  /** 包名 @godcreator/gwb-<短名>——命令登记的 plugin 字段认它（commands 0.4 起的规范） */
+  pkg: string
   /** 包名派生的插件名，gwb-<短名> */
   pkgName: string
   /** 短名：命令前缀 <短名>.<动作> */
@@ -38,7 +44,7 @@ interface CommandDef {
  * effect 立刻跑：挂载路径上的注册马上发生，测试好断言。
  * 导出给消费仓用——本仓特有的挂载断言别抄正本，直接拿它写。
  */
-export function mountHarness(apply: (ctx: unknown) => void): { panes: PaneDef[]; commands: CommandDef[] } {
+export function mountHarness(apply: (ctx: never) => void): { panes: PaneDef[]; commands: CommandDef[] } {
   const panes: PaneDef[] = []
   const commands: CommandDef[] = []
   const ctx = {
@@ -55,7 +61,7 @@ export function mountHarness(apply: (ctx: unknown) => void): { panes: PaneDef[];
       },
     },
   }
-  apply(ctx)
+  apply(ctx as never)
   return { panes, commands }
 }
 
@@ -78,7 +84,7 @@ export function registerPluginGuard(vt: GuardVt, options: PluginGuardOptions): v
       vt.expect(h.commands).toHaveLength(1)
       const cmd = h.commands[0]
       vt.expect(cmd?.name).toBe(`${options.short}.ping`)
-      vt.expect(cmd?.plugin).toBe(options.name)
+      vt.expect(cmd?.plugin).toBe(options.pkg)
       // 描述必须写参数形状（无参数明写「无参数」）——这是命令面的家法
       vt.expect(cmd?.description).toContain('无参数')
     })

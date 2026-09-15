@@ -3,18 +3,16 @@ import { describe, expect, it } from 'vitest'
 import {
   ALIVE_POLL_MS,
   ALIVE_TIMEOUT_MS,
-  BUILD_TIMEOUT_MS,
+  BASE_INSTALL_TIMEOUT_MS,
   CDP_PORT_BASE,
   DAILY_HOME,
-  appDirOf,
   asCdpPort,
   asHomeName,
   bringDownHome,
-  buildPlan,
   composeName,
-  electronBinOf,
   guiChildEnv,
-  guiSpawnPlan,
+  hostAppFacts,
+  hostAppSpawnPlan,
   isHomeProcess,
   launchHome,
   listHomes,
@@ -38,13 +36,11 @@ import {
  * 整条时序在这里跑得完，不必真拉起一扇 electron 窗。
  */
 
-const KERNEL = 'D:/fake-kernel'
-const APP = appDirOf(KERNEL)
 const ROOT = 'D:/fake-homes'
 const NAME = 'data-2609081430'
 const HOME = path.join(ROOT, NAME)
-const BIN = electronBinOf(APP, 'win32')
-const RECORD: HomeRecord = { pid: 4242, startedAt: 1_000, appDir: APP }
+const HOST = 'C:/apps/gwb-kernel.exe'
+const RECORD: HomeRecord = { pid: 4242, startedAt: 1_000, appDir: 'D:/fake-app' }
 
 /** 内核会往 home 里写的那份。**devkit 只读它**，所以测试里由测试自己摆 */
 const write = (record: HomeRecord): string => JSON.stringify(record)
@@ -98,7 +94,9 @@ interface FakeOptions {
   unknownPids?: number[]
   spawnPid?: number | undefined
   spawnFails?: boolean
-  /** build 的答案，按顺序取；用完了重复最后一个 */
+  /** 宿主命令行（argv），appSpawnPlan 的事实来源；缺省＝安装版形态（命令行上只有 exe 自己） */
+  argv?: string[]
+  /** run 的答案，按顺序取；用完了重复最后一个 */
   runs?: { ok: boolean; tail: string }[]
   /** kill 的收场：默认停成了；'gone' 是下手时已经不在，给一个 Error 是它抛 */
   kill?: 'killed' | 'gone' | Error
@@ -118,12 +116,16 @@ function fakeDeps(options: FakeOptions = {}) {
     runCalls: [] as { plan: { command: string; args: string[]; cwd: string }; timeoutMs: number }[],
     slept: [] as number[],
   }
+  const execPath = options.execPath ?? HOST
   const deps: HomeDeps = {
-    fs: options.fs ?? fakeFs({ [BIN]: 'MZ' }),
+    fs: options.fs ?? fakeFs(),
     spawn(plan, env) {
       state.spawned.push({ ...plan, env })
       if (options.spawnFails === true) return undefined
       return options.spawnPid === undefined && !('spawnPid' in options) ? 4242 : options.spawnPid
+    },
+    async appSpawnPlan(cdp) {
+      return hostAppSpawnPlan({ execPath, ...hostAppFacts(execPath, options.argv ?? [execPath]) }, cdp)
     },
     async run(plan, timeoutMs) {
       state.runCalls.push({ plan, timeoutMs })
@@ -150,7 +152,7 @@ function fakeDeps(options: FakeOptions = {}) {
       return Promise.resolve()
     },
     now: () => state.clock,
-    execPath: options.execPath ?? 'C:/apps/electron.exe',
+    execPath,
     env: { PATH: 'x', npm_config_registry: 'http://nope/', ELECTRON_RUN_AS_NODE: '1' },
     platform: options.platform ?? 'win32',
   }
@@ -213,32 +215,33 @@ describe('运行时记录与参数收窄', () => {
   })
 })
 
-describe('启动计划：命令行与环境', () => {
-  it('electron 在 apps/desktop 的 node_modules 里，可执行文件名随平台', () => {
-    expect(appDirOf(KERNEL)).toBe(path.join(KERNEL, 'apps', 'desktop'))
-    expect(electronBinOf(APP, 'win32')).toBe(path.join(APP, 'node_modules', 'electron', 'dist', 'electron.exe'))
-    expect(electronBinOf(APP, 'linux')).toBe(path.join(APP, 'node_modules', 'electron', 'dist', 'electron'))
-  })
-
-  it('起 electron：cwd 给 apps/desktop、应用就是 `.`——手工那几步的原样', () => {
-    expect(guiSpawnPlan(APP, 'win32')).toEqual({ command: BIN, args: ['.'], cwd: APP })
-  })
-
-  it('CDP 走命令行开关不走环境变量——内核不认识任何调试用的环境变量', () => {
-    expect(guiSpawnPlan(APP, 'win32', 9222)).toEqual({
-      command: BIN,
-      args: ['.', '--remote-debugging-port=9222'],
-      cwd: APP,
+describe('启动计划：拉宿主自己那个 exe', () => {
+  it('安装版（exe 不叫 electron）：直起本体，不带应用路径参数', () => {
+    expect(hostAppFacts(HOST, [HOST])).toEqual({ packaged: true })
+    expect(hostAppSpawnPlan({ execPath: HOST, packaged: true }, 9400)).toEqual({
+      command: HOST,
+      args: ['--remote-debugging-port=9400'],
+      cwd: 'C:/apps',
     })
   })
 
-  it('build：内核那条是 pnpm build（tsc 直出）；Windows 借 cmd /c 一层（pnpm 是 .cmd）', () => {
-    expect(buildPlan(APP, 'win32')).toEqual({
-      command: 'cmd',
-      args: ['/c', 'pnpm', 'build'],
-      cwd: APP,
+  it('不带调试口：命令行上就没有那个开关', () => {
+    expect(hostAppSpawnPlan({ execPath: HOST, packaged: true }).args).toEqual([])
+  })
+
+  it('开发态 electron：argv[1] 是应用目录，作为参数带上', () => {
+    const facts = hostAppFacts('C:/apps/electron.exe', ['C:/apps/electron.exe', 'D:/kernel/apps/desktop'])
+    expect(facts).toEqual({ packaged: false, appPath: 'D:/kernel/apps/desktop' })
+    expect(hostAppSpawnPlan({ execPath: 'C:/apps/electron.exe', ...facts }, 9400)).toEqual({
+      command: 'C:/apps/electron.exe',
+      args: ['D:/kernel/apps/desktop', '--remote-debugging-port=9400'],
+      cwd: 'D:/kernel/apps/desktop',
     })
-    expect(buildPlan(APP, 'linux')).toEqual({ command: 'pnpm', args: ['build'], cwd: APP })
+  })
+
+  it('开发态却读不出应用目录：拒——devkit 只从安装版起 home', () => {
+    expect(hostAppFacts('C:/apps/electron.exe', ['C:/apps/electron.exe'])).toEqual({ packaged: false })
+    expect(() => hostAppSpawnPlan({ execPath: 'C:/apps/electron.exe', packaged: false }, 9400)).toThrow(/安装版/)
   })
 
   it('环境剥 ELECTRON_RUN_AS_NODE 与 npm_config_*，给 GWB_HOME', () => {
@@ -263,43 +266,40 @@ describe('启动计划：命令行与环境', () => {
   })
 })
 
-describe('launchHome：先 build、起 electron、落记录、看五秒', () => {
-  it('electron 不在：报「进 apps/desktop pnpm install」，build 都不跑', async () => {
-    const fs = fakeFs({})
-    const { deps, state } = fakeDeps({ fs, runs: [{ ok: true, tail: '' }] })
-    const outcome = await launchHome({ name: NAME, homesRoot: ROOT, kernelDir: KERNEL }, deps)
+describe('launchHome：拼宿主拉起计划、起它、落记录、看五秒', () => {
+  it('开发态 electron 上读不出应用目录：拒，一个动作都不做', async () => {
+    const { deps, state } = fakeDeps({ execPath: 'C:/apps/electron.exe', argv: ['C:/apps/electron.exe'] })
+    const outcome = await launchHome({ name: NAME, homesRoot: ROOT }, deps)
     expect(outcome.ok).toBe(false)
-    if (!outcome.ok) expect(outcome.error).toContain('pnpm install')
-    expect(state.runCalls).toEqual([])
+    if (!outcome.ok) expect(outcome.error).toContain('安装版')
     expect(state.spawned).toEqual([])
-    expect(fs.files.has(recordFile(HOME))).toBe(false)
+    expect(state.runCalls).toEqual([])
   })
 
-  it('build 失败：不起 electron，尾巴带回来', async () => {
+  it('底座装不上：不起宿主，尾巴带回来', async () => {
     const { deps, state } = fakeDeps({ runs: [{ ok: false, tail: 'ERR!坏的' }] })
-    const outcome = await launchHome(
-      { name: NAME, homesRoot: ROOT, kernelDir: KERNEL, build: buildPlan(APP, 'win32') },
-      deps,
-    )
+    const outcome = await launchHome({ name: NAME, homesRoot: ROOT, base: true }, deps)
     expect(outcome.ok).toBe(false)
     if (!outcome.ok) expect(outcome.error).toContain('ERR!坏的')
     expect(state.spawned).toEqual([])
   })
 
-  it('run 的超时上限就是 BUILD_TIMEOUT_MS，跳过 build 时不跑 run', async () => {
-    const { deps, state } = fakeDeps({ runs: [{ ok: true, tail: '' }], processes: { 4242: 'electron.exe' } })
-    await launchHome({ name: NAME, homesRoot: ROOT, kernelDir: KERNEL, build: buildPlan(APP, 'win32') }, deps)
-    expect(state.runCalls).toEqual([{ plan: buildPlan(APP, 'win32'), timeoutMs: BUILD_TIMEOUT_MS }])
-
-    const { deps: skip, state: skipState } = fakeDeps({ processes: { 4242: 'electron.exe' } })
-    await launchHome({ name: NAME, homesRoot: ROOT, kernelDir: KERNEL }, skip)
-    expect(skipState.runCalls).toEqual([])
-    expect(skipState.spawned).toHaveLength(1)
+  it('base：先写 cordis.yml 再 pnpm add 底座（超时上限 BASE_INSTALL_TIMEOUT_MS），然后才拉宿主', async () => {
+    const fs = fakeFs({}, { [ROOT]: [] })
+    const { deps, state } = fakeDeps({ fs, processes: { 4242: 'gwb-kernel.exe' } })
+    const outcome = await launchHome({ name: NAME, homesRoot: ROOT, base: true }, deps)
+    expect(outcome.ok).toBe(true)
+    expect(state.runCalls).toHaveLength(1)
+    expect(state.runCalls[0]?.timeoutMs).toBe(BASE_INSTALL_TIMEOUT_MS)
+    expect(state.runCalls[0]?.plan.cwd).toBe(HOME)
+    expect(state.runCalls[0]?.plan.args).toContain('@godcreator/gwb-commands')
+    expect(deps.fs.exists(path.join(HOME, 'cordis.yml'))).toBe(true)
+    expect(state.spawned).toHaveLength(1)
   })
 
   it('起得来：环境与观察窗全对，记录由内核写、这儿只读回来报给人', async () => {
-    const fs = fakeFs({ [BIN]: 'MZ' })
-    const { deps, state } = fakeDeps({ fs, processes: { 4242: 'electron.exe' } })
+    const fs = fakeFs()
+    const { deps, state } = fakeDeps({ fs, processes: { 4242: 'gwb-kernel.exe' } })
     // 记录是**起来之后**才出现的（内核开机写的那一下），所以让假的 spawn 顺手把它摆上——
     // 一开始就摆在盘上的话，那份记录会被当成「已经有一个实例在跑」
     const spawn = deps.spawn
@@ -308,26 +308,24 @@ describe('launchHome：先 build、起 electron、落记录、看五秒', () => 
       fs.writeText(recordFile(HOME), write({ ...RECORD, cdp: 9222 }))
       return pid
     }
-    const outcome = await launchHome(
-      { name: NAME, homesRoot: ROOT, kernelDir: KERNEL, cdp: 9222, build: buildPlan(APP, 'win32') },
-      deps,
-    )
+    const outcome = await launchHome({ name: NAME, homesRoot: ROOT, cdp: 9222 }, deps)
     expect(outcome).toMatchObject({ ok: true, name: NAME, home: HOME, pid: 4242 })
     if (outcome.ok) {
       expect(outcome.note).toContain('9222')
       expect(outcome.record).toEqual({ ...RECORD, cdp: 9222 })
     }
-    expect(state.spawned[0]?.cwd).toBe(APP)
-    expect(state.spawned[0]?.args).toEqual(['.', '--remote-debugging-port=9222'])
+    expect(state.spawned[0]?.command).toBe(HOST)
+    expect(state.spawned[0]?.cwd).toBe('C:/apps')
+    expect(state.spawned[0]?.args).toEqual(['--remote-debugging-port=9222'])
     expect(state.spawned[0]?.env.GWB_HOME).toBe(NAME)
     expect(state.spawned[0]?.env.ELECTRON_RUN_AS_NODE).toBeUndefined()
     expect(state.slept).toEqual(new Array(ALIVE_TIMEOUT_MS / ALIVE_POLL_MS).fill(ALIVE_POLL_MS))
   })
 
   it('记录没出现不算起失败，但回执要明说——那时按名字定位用不了', async () => {
-    const fs = fakeFs({ [BIN]: 'MZ' })
+    const fs = fakeFs()
     const { deps } = fakeDeps({ fs, processes: { 4242: 'electron.exe' } })
-    const outcome = await launchHome({ name: NAME, homesRoot: ROOT, kernelDir: KERNEL }, deps)
+    const outcome = await launchHome({ name: NAME, homesRoot: ROOT }, deps)
     expect(outcome.ok).toBe(true)
     if (outcome.ok) {
       expect(outcome.record).toBeUndefined()
@@ -336,10 +334,10 @@ describe('launchHome：先 build、起 electron、落记录、看五秒', () => 
   })
 
   it('秒退：立刻报并指向 home 的日志', async () => {
-    const fs = fakeFs({ [BIN]: 'MZ' })
+    const fs = fakeFs()
     // 进程表里没有 4242：spawn 回了 pid，但那个进程转眼就退了
     const { deps, state } = fakeDeps({ fs })
-    const outcome = await launchHome({ name: NAME, homesRoot: ROOT, kernelDir: KERNEL }, deps)
+    const outcome = await launchHome({ name: NAME, homesRoot: ROOT }, deps)
     expect(outcome.ok).toBe(false)
     if (!outcome.ok) {
       expect(outcome.error).toContain('秒退')
@@ -349,11 +347,9 @@ describe('launchHome：先 build、起 electron、落记录、看五秒', () => 
   })
 
   it('同一个 home 已有实例在跑:拒,不起第二个', async () => {
-    const fs = fakeFs(
-      { [BIN]: 'MZ', [recordFile(HOME)]: write(RECORD) },
-    )
+    const fs = fakeFs({ [recordFile(HOME)]: write(RECORD) })
     const { deps, state } = fakeDeps({ fs, processes: { 4242: 'electron.exe' } })
-    const outcome = await launchHome({ name: NAME, homesRoot: ROOT, kernelDir: KERNEL }, deps)
+    const outcome = await launchHome({ name: NAME, homesRoot: ROOT }, deps)
     expect(outcome.ok).toBe(false)
     if (!outcome.ok) expect(outcome.error).toContain('4242')
     expect(state.spawned).toEqual([])
@@ -361,16 +357,16 @@ describe('launchHome：先 build、起 electron、落记录、看五秒', () => 
 
   it('记录陈旧(上一轮的实例早停了):不拦,照常起', async () => {
     // 表里没有 999:记录里那个 pid 已经不在了
-    const fs = fakeFs({ [BIN]: 'MZ', [recordFile(HOME)]: write({ ...RECORD, pid: 999 }) })
+    const fs = fakeFs({ [recordFile(HOME)]: write({ ...RECORD, pid: 999 }) })
     const { deps, state } = fakeDeps({ fs, processes: { 4242: 'electron.exe' } })
-    expect((await launchHome({ name: NAME, homesRoot: ROOT, kernelDir: KERNEL }, deps)).ok).toBe(true)
+    expect((await launchHome({ name: NAME, homesRoot: ROOT }, deps)).ok).toBe(true)
     expect(state.spawned).toHaveLength(1)
   })
 
   it('spawn 拿不到 pid：当场失败', async () => {
-    const fs = fakeFs({ [BIN]: 'MZ' })
+    const fs = fakeFs()
     const { deps } = fakeDeps({ fs, spawnFails: true })
-    expect((await launchHome({ name: NAME, homesRoot: ROOT, kernelDir: KERNEL }, deps)).ok).toBe(false)
+    expect((await launchHome({ name: NAME, homesRoot: ROOT }, deps)).ok).toBe(false)
     expect(fs.files.has(recordFile(HOME))).toBe(false)
   })
 })

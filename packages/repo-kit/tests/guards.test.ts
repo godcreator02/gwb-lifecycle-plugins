@@ -132,13 +132,13 @@ describe('registerPluginGuard + mountHarness', () => {
     }
     c.effect(() => {
       c.gwbShell.registerPane({ id: 'main', client: 'file:///x/dist/client.js', style: 'file:///x/dist/style.css' })
-      c.gwbCommands.register({ name: 'demo.ping', description: '回个话：无参数', plugin: 'gwb-demo' }, () => {})
+      c.gwbCommands.register({ name: 'demo.ping', description: '回个话：无参数', plugin: '@godcreator/gwb-demo' }, () => {})
     })
   }
 
   it('登记齐全：三条用例都过', () => {
     const { vt, cases } = recorder()
-    registerPluginGuard(vt, { apply: goodApply, name: 'gwb-demo', pkgName: 'gwb-demo', short: 'demo' })
+    registerPluginGuard(vt, { apply: goodApply, name: 'gwb-demo', pkg: '@godcreator/gwb-demo', pkgName: 'gwb-demo', short: 'demo' })
     expect(cases).toHaveLength(3)
     const r = replay(cases)
     r.pass('同一个短名')
@@ -147,7 +147,7 @@ describe('registerPluginGuard + mountHarness', () => {
   })
   it('名字与包名不同源：第一条炸', () => {
     const { vt, cases } = recorder()
-    registerPluginGuard(vt, { apply: goodApply, name: 'gwb-other', pkgName: 'gwb-demo', short: 'demo' })
+    registerPluginGuard(vt, { apply: goodApply, name: 'gwb-other', pkg: '@godcreator/gwb-demo', pkgName: 'gwb-demo', short: 'demo' })
     replay(cases).failsWith('同一个短名', '≠')
   })
   it('描述没写参数形状：第三条炸在「无参数」', () => {
@@ -157,11 +157,11 @@ describe('registerPluginGuard + mountHarness', () => {
         gwbCommands: { register(d: unknown, h: unknown): () => void }
       }
       c.effect(() => {
-        c.gwbCommands.register({ name: 'demo.ping', description: '回个话', plugin: 'gwb-demo' }, () => {})
+        c.gwbCommands.register({ name: 'demo.ping', description: '回个话', plugin: '@godcreator/gwb-demo' }, () => {})
       })
     }
     const { vt, cases } = recorder()
-    registerPluginGuard(vt, { apply: badApply, name: 'gwb-demo', pkgName: 'gwb-demo', short: 'demo' })
+    registerPluginGuard(vt, { apply: badApply, name: 'gwb-demo', pkg: '@godcreator/gwb-demo', pkgName: 'gwb-demo', short: 'demo' })
     replay(cases).failsWith('ping 命令', '无参数')
   })
   it('mountHarness 独立可用：注册即发生', () => {

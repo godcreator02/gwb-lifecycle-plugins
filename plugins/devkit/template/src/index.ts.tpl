@@ -36,7 +36,7 @@ export function apply(ctx: GwbContext): void {
       {
         name: '{{name}}.ping',
         description: '模板起手命令：回插件名与时刻，证明这个件活着。无参数',
-        plugin: name,
+        plugin: '{{pkg}}',
       },
       async () => ({ ok: true, data: { plugin: name, time: new Date().toISOString() } }),
     ),

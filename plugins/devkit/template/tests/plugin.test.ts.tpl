@@ -9,6 +9,7 @@ import { apply, name } from '../src/index.js'
 registerPluginGuard({ describe, it, expect }, {
   apply,
   name,
+  pkg: '{{pkg}}',
   pkgName: '{{pkgName}}',
   short: '{{name}}',
 })

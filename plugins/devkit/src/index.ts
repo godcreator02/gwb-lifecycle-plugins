@@ -5,13 +5,10 @@ import { isRecord, requireKernel } from '@godcreator/gwb-plugin-api'
 // 只为激活对方包里的 declare module 'cordis'——ctx 上那几个名字的类型从那儿来
 import type {} from '@godcreator/gwb-commands'
 import type {} from '@godcreator/gwb-node-cli'
-import type {} from '@godcreator/gwb-settings'
 import type {} from '@godcreator/gwb-shell'
 import type {} from '@godcreator/gwb-skills'
 import {
-  appDirOf,
   asHomeName,
-  buildPlan,
   type HomeDeps,
   launchHome,
   listHomes,
@@ -28,7 +25,7 @@ import { runRelease } from './release.js'
 import { auditManifest, countByKind, type ManifestDeps } from './audit.js'
 import { collectManifests, collectRepos, fetchRegistry } from './node-audit-deps.js'
 import { CDP_ENTRY, devDeps, releaseDeps } from './node-dev-deps.js'
-import { homeFs, makeGuiSpawn, runCaptured } from './node-home-deps.js'
+import { homeFs, makeAppSpawnPlan, makeGuiSpawn, runCaptured } from './node-home-deps.js'
 import {
   NAME_RE,
   nextSteps,
@@ -64,7 +61,8 @@ const ATTACH_SITE_COMMAND = 'docfirst.attach'
  *   ——知识随件走，docfirst 的两份归 docfirst 件自己挂（说明书是全局单一命名空间，
  *   代挂第二份只会撞名，而且撞掉的那份很可能是旧版）
  * - **home**：测试 home 的开/列/重开/删（`devkit.home.*`）——实机验证那几步的
- *   命令化（一次验开一个新 home、清理放在开新那一刻）
+ *   命令化（一次验开一个新 home、清理放在开新那一刻）。起 home 拉**宿主自己那个 exe**
+ *   （日常就是安装版），不 build 内核、不认内核仓——内核源码的验机归内核仓自己的路
  *
  * - **改一版看一版**：`devkit.dev` 一条走完「构建 → 发开发版 → 装进隔离 home → 重挂 →
  *   刷新 → 取证」。**这条命令住控制台那个 home，操作另一个 home**：换件那一步要把条目
@@ -93,14 +91,10 @@ const SCAFFOLD_USAGE = [
   '例：{"name":"hello","dir":"D:\\\\tmp\\\\hello","title":"打个招呼"}',
 ].join('\n')
 
-/** 未配置 kernel-dir 时回的那句话 */
-const MISSING_KERNEL_DIR =
-  '未配置 kernel-dir——到「设置」给开发套件填 kernel-dir：内核仓的根（那个含 apps/desktop 的目录）。home 的开与重开用它，列/停/删不用'
-
 /** home 命令的参数说明。参数错的时候连它一起回——错误即文档 */
 const HOME_USAGE = [
   'home 命令的参数：',
-  '  devkit.home.new  { short 必给（kebab-case 短名） }——开 <short>-<yyMMddHHmm> 的新 home。先 build 内核，调试口自动挑',
+  '  devkit.home.new  { short 必给（kebab-case 短名） }——开 <short>-<yyMMddHHmm> 的新 home。拉宿主安装版起窗、自动装底座七件，调试口自动挑',
   '  devkit.home.open { name 必给（完整 home 名） }——重开一个已有的 home，不 build。机器重启之后回到现场走这条',
   '  devkit.home.rm   { name，force? }——删一个 home。没在跑的直接删；还在跑的要 force（连停带删）',
   '                     default 是日常那份：不 force 不删，而且它在跑的时候 force 也不删——自己关掉那扇窗再来',
@@ -159,30 +153,12 @@ export function apply(ctx: GwbContext): void {
     return commands.list().some((entry) => entry.name === command)
   }
 
-  let settings: { get(key: string): unknown } | undefined
-
-  ctx.inject(['gwbSettings'], (scoped) => {
-    scoped.gwbSettings.define({
-      key: 'kernel-dir',
-      title: '内核仓根目录',
-      type: 'string',
-      description: 'gwb-kernel 仓的根（含 apps/desktop）。home 的开与重开用它定位 build 与 electron；不填那两条命令不工作',
-    })
-    settings = scoped.gwbSettings
-  })
-
-  /** 设置里那个内核仓根。**不给默认值**：目录是这台机器的事实，编一个只会是「配置了但不在」的假象 */
-  function kernelDirOf(): string | undefined {
-    const raw = settings?.get('kernel-dir')
-    const dir = typeof raw === 'string' ? raw.trim() : ''
-    return dir === '' ? undefined : path.resolve(dir)
-  }
-
   // ── home 那半 ──────────────────────────────────────────────────────────────
 
   const homeDeps: HomeDeps = {
     fs: homeFs,
     spawn: makeGuiSpawn((message) => log.warn(message)),
+    appSpawnPlan: makeAppSpawnPlan(),
     run: runCaptured,
     processName,
     portOwner,
@@ -233,13 +209,11 @@ export function apply(ctx: GwbContext): void {
       {
         name: 'devkit.home.new',
         plugin: '@godcreator/gwb-devkit',
-        description: '开一个测试 home（先 build 内核、调试口自动挑）',
+        description: '开一个测试 home（拉宿主安装版、铺底座、调试口自动挑）',
         usage:
-          '{short 必给（kebab-case）}——名字长成 <short>-<yyMMddHHmm>，先 build 内核（产物不新就起＝验旧代码），调试口自动挑一个空的。返回里带着现有 home 清单，开新那一刻正好清旧的',
+          '{short 必给（kebab-case）}——名字长成 <short>-<yyMMddHHmm>。拉宿主自己那个 exe 再开一扇窗（安装版对 GWB_HOME 同样成立；不 build 内核、不认内核仓，内核版本跟安装包走），起之前自动装底座七件，调试口自动挑一个空的。返回里带着现有 home 清单，开新那一刻正好清旧的',
       },
       async (args) => {
-        const kernelDir = kernelDirOf()
-        if (kernelDir === undefined) return { ok: false, error: MISSING_KERNEL_DIR }
         if (!isRecord(args)) return { ok: false, error: `参数要是个对象。\n${HOME_USAGE}` }
         const short = asHomeName(args.short)
         if (short === undefined) return { ok: false, error: `short 缺了或不是 kebab-case。\n${HOME_USAGE}` }
@@ -252,18 +226,7 @@ export function apply(ctx: GwbContext): void {
         }
         const port = await cdpFor(root, name)
         if (!port.ok) return { ok: false, error: port.error }
-        // **build 不可跳过**：产物不新就起等于验旧代码，而屏幕上一切正常
-        const outcome = await launchHome(
-          {
-            name,
-            homesRoot: root,
-            kernelDir,
-            cdp: port.cdp,
-            build: buildPlan(appDirOf(kernelDir), homeDeps.platform),
-            base: true,
-          },
-          homeDeps,
-        )
+        const outcome = await launchHome({ name, homesRoot: root, cdp: port.cdp, base: true }, homeDeps)
         if (!outcome.ok) {
           log.warn(`home.new 没成：${outcome.error}`)
           return outcome
@@ -279,12 +242,10 @@ export function apply(ctx: GwbContext): void {
       {
         name: 'devkit.home.open',
         plugin: '@godcreator/gwb-devkit',
-        description: '重开一个已有的测试 home（不 build）',
+        description: '重开一个已有的测试 home（拉宿主安装版）',
         usage: '{name 必给}——调试口自动挑。机器重启之后回到原来那个现场只有这一条路（home.new 永远造新目录，件得全部重装一遍）',
       },
       async (args) => {
-        const kernelDir = kernelDirOf()
-        if (kernelDir === undefined) return { ok: false, error: MISSING_KERNEL_DIR }
         if (!isRecord(args)) return { ok: false, error: `参数要是个对象。\n${HOME_USAGE}` }
         const name = asHomeName(args.name)
         if (name === undefined) return { ok: false, error: `name 缺了或不是 kebab-case。\n${HOME_USAGE}` }
@@ -295,7 +256,7 @@ export function apply(ctx: GwbContext): void {
         const port = await cdpFor(root, name)
         if (!port.ok) return { ok: false, error: port.error }
         const outcome = await launchHome(
-          { name, homesRoot: root, kernelDir, cdp: port.cdp },
+          { name, homesRoot: root, cdp: port.cdp },
           homeDeps,
         )
         if (!outcome.ok) {
@@ -482,10 +443,15 @@ export function apply(ctx: GwbContext): void {
       },
       async (args) => {
         const askedRoot = isRecord(args) && typeof args.root === 'string' ? args.root.trim() : ''
-        const kernelDir = kernelDirOf()
-        const root = askedRoot !== '' ? path.resolve(askedRoot) : kernelDir === undefined ? undefined : path.resolve(kernelDir, '..', '..')
+        let root = askedRoot !== '' ? path.resolve(askedRoot) : undefined
+        if (root === undefined && hasCommand('unit-folder.list')) {
+          // 容器根的知识归 unit-folder 件，devkit 只在总线上按名要——跟建仓转铺站那两条同一个路子
+          const listed = await commands.run('unit-folder.list', {})
+          const container = listed.ok && isRecord(listed.data) && typeof listed.data.container === 'string' ? listed.data.container : ''
+          if (container !== '') root = path.resolve(container)
+        }
         if (root === undefined) {
-          return { ok: false, error: '扫哪没说清：给 root（容器根的绝对路径），或把 kernel-dir 设置填上（往上两级就是容器根）' }
+          return { ok: false, error: '扫哪没说清：给 root（容器根的绝对路径），或在这个 home 装 @godcreator/gwb-unit-folder——它现扫回的 container 就是容器根' }
         }
         if (!fs.existsSync(root)) return { ok: false, error: `${root} 不在——root 给的是容器根（unit.json 们住的那层）` }
         const registryBase = isRecord(args) && typeof args.registry === 'string' && args.registry.trim() !== '' ? args.registry.trim() : DEFAULT_REGISTRY

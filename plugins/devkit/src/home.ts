@@ -34,15 +34,12 @@ export const RECORD_FILE = 'runtime.json'
 /** 日常那份 home 的名字。删它要 `force`——那是人每天住的地方,不是验完就删的 */
 export const DAILY_HOME = 'default'
 
-/** `home.new` 里那条 build 的上限。内核那条 build 是 tsc 直出,平时几秒,三分钟还完不成就是卡了 */
-export const BUILD_TIMEOUT_MS = 180_000
-
 /** 起了之后确认「不是秒退」的观察窗与轮询间隔 */
 export const ALIVE_TIMEOUT_MS = 5_000
 export const ALIVE_POLL_MS = 500
 
-/** build 失败回给人的输出尾巴行数。全量输出没人读,要的是最后那段报错 */
-export const BUILD_TAIL_LINES = 40
+/** 前台命令(底座安装)失败回给人的输出尾巴行数。全量输出没人读,要的是最后那段报错 */
+export const RUN_TAIL_LINES = 40
 
 /**
  * 自动挑调试口时从这儿起找。**避开 9222 与 93xx 那一段**:那几个是人手工起 home 时常敲的数,
@@ -161,47 +158,44 @@ export function nextName(short: string, now: number, exists: (name: string) => b
 
 // ── 启动计划 ──────────────────────────────────────────────────────────────────
 
-/** 内核 GUI 所在的目录:build 在这儿跑,electron 也在这儿 */
-export function appDirOf(kernelDir: string): string {
-  return path.join(kernelDir, 'apps', 'desktop')
-}
-
-/** electron 本体。包名固定、发布形状固定,只有可执行文件名随平台 */
-export function electronBinOf(appDir: string, platform: NodeJS.Platform): string {
-  return path.join(appDir, 'node_modules', 'electron', 'dist', platform === 'win32' ? 'electron.exe' : 'electron')
+/**
+ * 宿主进程自报的两件事实:**是不是打包形态**;开发态时应用目录在哪。
+ *
+ * 判据是映像名:开发态跑的是 electron 包那个二进制(永远叫 electron),安装版的 exe
+ * 叫产品名。开发态的应用目录取 `argv[1]`——`electron <路径>` 起的时候命令行上就有它。
+ * **不 import `electron` 模块**:产物里不许有没有依赖兜底的裸名 import,而 electron
+ * 不该出现在任何包的依赖表里。
+ */
+export function hostAppFacts(execPath: string, argv: readonly string[]): { packaged: boolean; appPath?: string } {
+  if (bareImage(path.basename(execPath)) !== 'electron') return { packaged: true }
+  const appPath = argv[1]
+  return appPath === undefined || appPath === '' ? { packaged: false } : { packaged: false, appPath }
 }
 
 /**
- * 起 electron 的命令行:cwd 给 apps/desktop,应用路径就是 `.`——手工那几步的原样。
+ * 起 home 的命令行:拉**宿主自己那个 exe**,环境里给 `GWB_HOME`——安装版对 `GWB_HOME`
+ * 同样成立(内核仓 AGENTS「怎么跑」),于是同一份安装包再拉一扇窗就是一个新 home。
  *
  * **CDP 调试口走命令行,不走环境变量**:内核不认识任何调试相关的环境变量,
  * `--remote-debugging-port` 是 Chromium 自己的开关,命令行上就生效。
+ *
+ * devkit 不 build 内核、不认内核仓(0.12.0 起):home 跑的永远是宿主正跑着的那个应用,
+ * 日常就是安装版。内核源码改动的验机是内核仓自己的路,这儿不代劳。
  */
-export function guiSpawnPlan(appDir: string, platform: NodeJS.Platform, cdp?: number): {
-  command: string
-  args: string[]
-  cwd: string
-} {
-  return {
-    command: electronBinOf(appDir, platform),
-    args: cdp === undefined ? ['.'] : ['.', `--remote-debugging-port=${String(cdp)}`],
-    cwd: appDir,
+export function hostAppSpawnPlan(
+  facts: { execPath: string; packaged: boolean; appPath?: string },
+  cdp?: number,
+): { command: string; args: string[]; cwd: string } {
+  const flags = cdp === undefined ? [] : [`--remote-debugging-port=${String(cdp)}`]
+  if (facts.packaged) {
+    return { command: facts.execPath, args: flags, cwd: path.dirname(facts.execPath) }
   }
-}
-
-/**
- * build 那条命令。内核的 `pnpm build` 是 tsc 直出到 `dist/`,没有打包器。
- * Windows 上 pnpm 是 `.cmd`,不借 `cmd /c` 一层就 ENOENT。
- */
-export function buildPlan(appDir: string, platform: NodeJS.Platform): {
-  command: string
-  args: string[]
-  cwd: string
-} {
-  const args = ['build']
-  return platform === 'win32'
-    ? { command: 'cmd', args: ['/c', 'pnpm', ...args], cwd: appDir }
-    : { command: 'pnpm', args, cwd: appDir }
+  if (facts.appPath === undefined || facts.appPath === '') {
+    throw new Error(
+      '宿主是开发态 electron,而命令行上读不出应用目录——devkit 只从安装版起 home;内核源码的验机见内核仓 AGENTS「怎么跑」',
+    )
+  }
+  return { command: facts.execPath, args: [facts.appPath, ...flags], cwd: facts.appPath }
 }
 
 /**
@@ -251,6 +245,8 @@ export interface HomeDeps {
   fs: HomeFs
   /** 起一个 detached、**窗口可见**的子进程,回它的 pid;起不来回 undefined */
   spawn(plan: { command: string; args: string[]; cwd: string }, env: NodeJS.ProcessEnv): number | undefined
+  /** 宿主那个应用怎么再拉一份:命令行由宿主进程自报的事实拼出来(见 hostAppSpawnPlan) */
+  appSpawnPlan(cdp?: number): Promise<{ command: string; args: string[]; cwd: string }>
   /** 前台跑一条命令到结束:成没成,加输出尾巴(build 失败时人要看的就是它) */
   run(
     plan: { command: string; args: string[]; cwd: string },
@@ -300,11 +296,8 @@ export type LaunchOutcome =
 export interface LaunchInput {
   name: string
   homesRoot: string
-  kernelDir: string
   /** 带了就在命令行上加 `--remote-debugging-port`——CDP 取证那条路子的入口 */
   cdp?: number
-  /** 给了就先跑,失败即失败;不给(open 的路)就不 build */
-  build?: { command: string; args: string[]; cwd: string }
   /** 给了就在起内核前铺底座：写 cordis.yml 条目 + pnpm add 基础件（只有 home.new 用） */
   base?: boolean
 }
@@ -355,12 +348,12 @@ export function baseInstallPlan(home: string, platform: NodeJS.Platform): {
 export const BASE_INSTALL_TIMEOUT_MS = 300_000
 
 /**
- * 把一个测试 home 拉起来:先 build(要的话)、起 electron、观察五秒确认不是秒退,最后读一眼
- 内核落下的那份记录。
+ * 把一个测试 home 拉起来:拼好宿主的拉起计划、起它、观察五秒确认不是秒退,最后读一眼
+ * 内核落下的那份记录。
  *
- * **build 放在最前面且失败即失败**:「改了内核没 build,起的是上一次的 out/」是实机
- 验证最隐蔽的一种空验——界面看着一切正常,验的是旧代码。所以默认 build 是这条命令的
- 正身,不是可省的 optimization。
+ * **不 build 内核、不认内核仓**(0.12.0 起):home 跑的永远是宿主正跑着的那个应用——
+ * 日常就是安装版,内核版本跟着安装包走。「改了内核没 build 起的是旧产物」这种空验从
+ * 这条链上整个消失了,内核源码的验机归内核仓自己的路。
  *
  * **detached 但不 `windowsHide`**:测试 home 要活过宿主退出,可它也得让人看得见——
  registry 那半 hide 是给后台守护的,这半恰恰相反。子进程 stdio ignore:起得来之后的
@@ -370,22 +363,13 @@ export const BASE_INSTALL_TIMEOUT_MS = 300_000
  只为抓住「秒退」(产物不在、端口被占)这一种最常见的死法;真正成没成,窗与人说了算。
  */
 export async function launchHome(input: LaunchInput, deps: HomeDeps): Promise<LaunchOutcome> {
-  const appDir = appDirOf(input.kernelDir)
-  const electronBin = electronBinOf(appDir, deps.platform)
-  if (!deps.fs.exists(electronBin)) {
-    return {
-      ok: false,
-      error: `${electronBin} 不在——electron 的二进制没装?进 ${appDir} 跑 pnpm install(electron 的二进制靠包里那条显式 postinstall 装)`,
-    }
-  }
-  if (input.build !== undefined) {
-    const done = await deps.run(input.build, BUILD_TIMEOUT_MS)
-    if (!done.ok) {
-      return {
-        ok: false,
-        error: `build 没成,electron 没起——产物不新就起,验的是旧代码,这一下不能省。输出尾巴:\n${done.tail}`,
-      }
-    }
+  // 拉起计划排最前:它可能拒(开发态 electron 上读不出应用目录),而「所有还会摔的步骤
+  // 都排在 spawn 前面」——spawn 之后的失败留下一扇没人管得着的窗
+  let plan: { command: string; args: string[]; cwd: string }
+  try {
+    plan = await deps.appSpawnPlan(input.cdp)
+  } catch (err) {
+    return { ok: false, error: err instanceof Error ? err.message : String(err) }
   }
   const home = path.join(input.homesRoot, input.name)
   // 同一个 home 不许开两个实例:记录里的 pid 还活着就拒——两扇窗写同一份日志、同一个
@@ -413,7 +397,7 @@ export async function launchHome(input: LaunchInput, deps: HomeDeps): Promise<La
       }
     }
   }
-  const pid = deps.spawn(guiSpawnPlan(appDir, deps.platform, input.cdp), guiChildEnv(deps.env, input.name))
+  const pid = deps.spawn(plan, guiChildEnv(deps.env, input.name))
   if (pid === undefined) return { ok: false, error: '起不来:子进程没拿到 pid,看宿主日志' }
 
   const deadline = deps.now() + ALIVE_TIMEOUT_MS
@@ -422,7 +406,7 @@ export async function launchHome(input: LaunchInput, deps: HomeDeps): Promise<La
     if ((await deps.processName(pid)).state === 'gone') {
       return {
         ok: false,
-        error: `起的进程(pid ${pid})秒退了——多半是产物不在(没 build?)或起的时候就错。看 ${path.join(home, 'gwb.log')}`,
+        error: `起的进程(pid ${pid})秒退了——多半是装的东西缺了或起的时候就错。看 ${path.join(home, 'gwb.log')}`,
       }
     }
     await deps.sleep(ALIVE_POLL_MS)
