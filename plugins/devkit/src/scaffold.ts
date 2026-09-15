@@ -233,8 +233,8 @@ export function nextSteps(
   const steps = [
     `cd ${plan.dir}`,
     'pnpm install',
+    'pnpm build          # tsc + esbuild + tailwindcss 三步——先 build：check 里的产物守卫吃 dist/',
     'pnpm check          # typecheck（node 半 + 浏览器半）+ oxlint + vitest，模板自带四份测试',
-    'pnpm build          # tsc + esbuild + tailwindcss 三步',
   ]
   if (built && attached) {
     steps.push(

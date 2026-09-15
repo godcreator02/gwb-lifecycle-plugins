@@ -412,7 +412,8 @@ pnpm publish --no-git-checks   # scope 路由自动走对源，别手写 --regis
 
 写不出测试常常是形状的问题：把判断从副作用里抠出来做成纯函数，测试自然就写得出。
 devkit 自己就是这么分的——`scaffold.ts` / `probes.ts` / `home.ts` / `dev.ts` 纯机可单测，真机器的盘
-与进程另起 `node-*-deps.ts`。
+与进程另起 `node-*-deps.ts`。**node 半的测试别 import 浏览器半的 .tsx**——node 半的 tsc 没开
+jsx，一 import 就 TS6142；要测的逻辑（计时核这种）抽成纯 .ts，两边都吃得到。
 
 模板建出来的仓自带 `vitest` 与一条起手测试（`tests/plugin.test.ts`：插件的身份对不对），
 门禁是 `pnpm check`（typecheck + oxlint + vitest）。真起子进程的用例**必打 `slow` 标签**，
