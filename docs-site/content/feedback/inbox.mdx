@@ -9,6 +9,23 @@ docfirst: none
 **本页回答**：别的仓在用 devkit 的过程中投来了什么意见。一条一节，处理完删——周转区不是档案，
 定下来的判据落轨迹卡。本仓自己反复做的操作候选在 [hatch](/feedback/hatch)。
 
+## 2026-09-17 devkit.dev 同一 patch 的第二趟 dev 版没装进 home，却回 ok:true
+
+来源：总控台 feedback 中转站（ui-plugins 那路换壳修复，隔离 home `shell-swap-2609171833`，pnpm 12.4.2）。
+
+第一趟发 `0.7.2-dev.202609171834` 装上；改代码第二趟发 `0.7.2-dev.202609171837`，回 ok:true（条目全活着、
+日志增量没 error），实查 home：`package.json` 写 `^0.7.2-dev.202609171837`，锁与 `node_modules` 里仍是 `…1834`——
+新代码根本没进 home。另报 pnpm 虚拟仓目录名只到 `@0.7.2_<hash>`，疑同 patch 多趟 dev 版目录相同、file:// 地址
+不变。**期望**：取证加「装上的版本 == 这趟发出的准确号」，对不上 ok:false；「路径必变」要真成立。
+
+## 2026-09-17 devkit.home.rm force 连回两趟「已删」，目录还在
+
+来源：总控台转述 base-plugins 那路实弹（22:4x，home `skills-2609172241`）。
+
+第一次 `devkit.home.rm {"name":…,"force":true}` 回 EPERM（进程还没退净）；第二、三次都回「已删」，目录还在，
+`node_modules` 等 375 项没删，确认进程退完后手工 `Remove-Item` 一次删掉。**期望**：目录真不在了才说已删；
+force 停进程后按 pid 等进程真退再删，删不掉回 ok:false 说清卡在哪。
+
 ## 2026-09-12 devkit 缺一条「往隔离 home 首装件」的路
 
 来源：总控台（试 block-note 测试版 + devkit 调试闭环时撞的）。
