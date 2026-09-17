@@ -5,7 +5,7 @@ description: 开一个干净的 home、列、重开、删、按名字找着它�
 
 # 测试 home
 
-**本页回答**：一个测试 home 是怎么被开起来的、名字为什么长成那样、为什么起之前一定先 build、
+**本页回答**：一个测试 home 是怎么被开起来的、名字为什么长成那样、起的是哪个应用、
 调试端口是从哪儿挑出来的、删一个 home 拦住了什么、以及「我要操作哪个 home」是怎么变成
 一个调试端口的。
 
@@ -19,7 +19,7 @@ description: 开一个干净的 home、列、重开、删、按名字找着它�
 别人的端口上」。
 
 home 建在 `%APPDATA%\gwb-kernel\homes\<名>\`。开哪一个由环境变量 `GWB_HOME` 决定，这块要做的只是
-把 electron 按那个名字拉起来，再从盘上读出它是谁。
+把宿主那个应用按那个名字再拉一份，再从盘上读出它是谁。
 
 ## 不知道什么
 
@@ -37,7 +37,7 @@ home 建在 `%APPDATA%\gwb-kernel\homes\<名>\`。开哪一个由环境变量 `G
 
 一份运行时记录，一个 home 一份，home 删了它自然也没了：
 
-{/* ref file="../src/home.ts" lines="58-76" */}
+{/* ref file="../plugins/devkit/src/home.ts" lines="55-73" */}
 
 **写它的是内核与门插件，不是这块。** 内核开机整份重写前四格，gwb-mcp 绑上端口之后读改写补
 `mcp` 那格（前一门 command-http 补的 `command-http` 格在老 home 的记录里还在，当线索读）。
@@ -47,20 +47,20 @@ home 建在 `%APPDATA%\gwb-kernel\homes\<名>\`。开哪一个由环境变量 `G
 **少一格不是坏记录。** `cdp` 只有起的时候带了那个开关才有，`mcp` 只有装了门且绑成了才有。
 缺哪格就是那件事没发生。
 
-{/* ref file="../src/home.ts" lines="87-94" */}
+{/* ref file="../plugins/devkit/src/home.ts" lines="84-91" */}
 
 **进程退了记录不删**，读的人负责验活。崩溃与被 kill 是常态，「退出时删」在那两种情况下本来就
 不会跑；留着的那份是「上一次它在哪个端口上」的唯一线索，而下一次开机内核会整份重写。
 
 列出来的样子是另一张，`running` 由记录里那个 pid 现查出来：
 
-{/* ref file="../src/home.ts" lines="451-462" */}
+{/* ref file="../plugins/devkit/src/home.ts" lines="435-446" */}
 
 两个端口按记录如实报，**不因为「进程看着不在」就抹掉**：一个陈旧的端口正是人要看见的那条线索。
 
 名字的形状不是这块自己定的：
 
-{/* ref file="../src/home.ts" lines="16-17" */}
+{/* ref file="../plugins/devkit/src/home.ts" lines="16-17" */}
 
 比内核那道严没有意义，名字到头来是它说了算。
 
@@ -70,18 +70,18 @@ home 建在 `%APPDATA%\gwb-kernel\homes\<名>\`。开哪一个由环境变量 `G
 
 **命名是 `<短名>-<yyMMddHHmm>`**，撞了退到秒，再撞就照实拒：
 
-{/* ref file="../src/home.ts" lines="148-160" */}
+{/* ref file="../plugins/devkit/src/home.ts" lines="145-157" */}
 
 不静默加序号，因为名号里每一段都得能读出时间。同一个插件的 home 因此在目录里挨在一起、各自按时间排，
 正好是清理时要的顺序。
 
-**`new` 先 build 内核，而且 build 失败就是失败**：
+**`new` 与 `open` 都不 build 内核、不认内核仓，拉的是宿主自己那个应用**：
 
-{/* ref file="../src/home.ts" lines="357-371" */}
+{/* ref file="../plugins/devkit/src/home.ts" lines="350-364" */}
 
-「改了内核没 build，起的是上一次的产物」是实机验证里最隐蔽的一种空验：界面看着一切正常，验的是旧代码。
-所以 build 是这条命令的正身，不是可省的优化，也没有一个跳过它的参数。`open` 那条不 build，那是另一
-件事：**机器重启之后回到原来那个现场只有它**，`new` 永远造新目录，插件得全部重装一遍。
+home 跑的永远是宿主正跑着的那个应用，日常就是安装版，内核版本跟着安装包走；内核源码改动的验机是内核仓
+自己的路，这块不代劳。`open` 与 `new` 的分别在另一件事上：**机器重启之后回到原来那个现场只有 `open`**，
+`new` 永远造新目录，插件得全部重装一遍。
 
 起进程之前还有一道：同一个 home 不许开两个实例。两扇窗写同一份日志、同一个 home，而按记录停它的那条
 路只认得住记录里那一个。
@@ -90,14 +90,14 @@ home 建在 `%APPDATA%\gwb-kernel\homes\<名>\`。开哪一个由环境变量 `G
 
 起来之后看五秒：
 
-{/* ref file="../src/home.ts" lines="419-429" */}
+{/* ref file="../plugins/devkit/src/home.ts" lines="403-413" */}
 
 「起没起来」没有 ping 可打，进程还活着是此刻唯一拿得到的信号。这五秒只为抓住「秒退」这一种最常见的
 死法（产物不在、端口被占），真正成没成，那扇窗和人说了算。
 
 **观察窗过完再读一眼记录**：
 
-{/* ref file="../src/home.ts" lines="430-438" */}
+{/* ref file="../plugins/devkit/src/home.ts" lines="414-422" */}
 
 记录是内核开机那一下才写的，而它是下游「按名字找得着这个 home」的全部凭据，所以回执里要说清它出没
 出现。**读不到不算起失败**：窗已经在那儿了，只是这个内核版本还不写、或者写晚了。那时按名字定位与
@@ -105,13 +105,13 @@ home 建在 `%APPDATA%\gwb-kernel\homes\<名>\`。开哪一个由环境变量 `G
 
 CDP 调试端口**走命令行，不走环境变量**：
 
-{/* ref file="../src/home.ts" lines="174-190" */}
+{/* ref file="../plugins/devkit/src/home.ts" lines="175-199" */}
 
 内核不认识任何调试相关的环境变量，`--remote-debugging-port` 是 Chromium 自己的开关，命令行上就生效。
 
 **这一趟用哪个端口，起之前自己定，定不出来就不起。**
 
-{/* ref file="../src/index.ts" lines="203-227" */}
+{/* ref file="../plugins/devkit/src/index.ts" lines="203-227" */}
 
 **先沿用这个 home 上次那个端口**，它空着就是它。一个 home 的端口稳定下来是有价值的：人记得住、
 日志里对得上、开着的检查器不用换地址；而重开一次换一个数，除了「每次都得重新问一遍」之外
@@ -121,12 +121,12 @@ CDP 调试端口**走命令行，不走环境变量**：
 那份记录还指着那个数，再分给第二个 home 的话，两份记录会同时声称自己是同一个端口，而按名字定位
 全靠这个数唯一。**自己那份不算**，不然重开一次就被自己上一次的记录挤走。
 
-{/* ref file="../src/home.ts" lines="497-505" */}
+{/* ref file="../plugins/devkit/src/home.ts" lines="481-489" */}
 
 第二道是此刻真有人 listen 的跳过，一个一个问，问到空的就用它。换没换在回执的 `cdpNote` 里
 说一句——不说的话，人会以为端口还是上次那个。
 
-{/* ref file="../src/home.ts" lines="519-532" */}
+{/* ref file="../plugins/devkit/src/home.ts" lines="503-516" */}
 
 **挑完到 electron 真绑上之间有个缝**。那一瞬别人抢走了这个端口，记录里就会写着一个不属于它的数。
 这儿不去赌那个缝，赌不起也补不上；那种情况由下游「端口持有者要等于 pid」那道守卫抓。
@@ -134,7 +134,7 @@ CDP 调试端口**走命令行，不走环境变量**：
 
 给子进程的环境要**剥掉 `ELECTRON_RUN_AS_NODE`**：
 
-{/* ref file="../src/home.ts" lines="207-222" */}
+{/* ref file="../plugins/devkit/src/home.ts" lines="201-216" */}
 
 插件跑在 Electron 主进程里，起 node 子进程的插件会带上这个变量。漏进这儿，起的就不是一扇窗而是一个看不见
 的 node。
@@ -143,11 +143,11 @@ CDP 调试端口**走命令行，不走环境变量**：
 `devkit.dev` 的 `home` 参数经它变成一个调试端口。**那是上游唯一的一条路**：那条命令不收端口，
 给了当场拒，所以这个函数摔了就是真的够不着，没有第二条路绕过去。
 
-{/* ref file="../src/home.ts" lines="536-549" */}
+{/* ref file="../plugins/devkit/src/home.ts" lines="520-533" */}
 
 **三道都要验**，少一道就可能把一趟改动推给另一个进程：
 
-{/* ref file="../src/home.ts" lines="560-576" */}
+{/* ref file="../plugins/devkit/src/home.ts" lines="544-560" */}
 
 记录读得出、pid 还活着且认得出是个 home 进程、那个 pid 真的持着记录里那个端口。端口会被下一个进程占走，
 pid 会被复用，所以「记录里写着 9347」本身不构成凭据。「查不出」与「确凿地不在」分开报：前者不导出
@@ -159,13 +159,13 @@ pid 会被复用，所以「记录里写着 9347」本身不构成凭据。「�
 **`rm` 是删，也是唯一要停一个 home 的地方。** 停一个测试 home 唯一的用处就是接着删它，所以没有
 单独的一条停：
 
-{/* ref file="../src/home.ts" lines="641-651" */}
+{/* ref file="../plugins/devkit/src/home.ts" lines="641-651" */}
 
 `force` 是同一个意思的两面，都是**越过守卫**：一面是「它还在跑，连停带删」，另一面是「`default`
 是日常那份，真要删」。**但这两面不叠加**——`default` 正跑着的时候 `force` 也不停它。一条开发工具
 不该去关人正在用的那扇窗，那不是删一个测试现场，那是把人的桌子掀了；如实说，让人自己关。
 
-{/* ref file="../src/home.ts" lines="656-678" */}
+{/* ref file="../plugins/devkit/src/home.ts" lines="656-678" */}
 
 记录「查不出还在不在」时不删：不知道占没占着目录，下手就是在赌。停不掉也不删——半个目录加一屏
 EBUSY 比一句「没删成」难收拾得多。真停了的话，停的是哪个 pid 跟着回执走：人得知道自己刚才顺手
@@ -173,22 +173,23 @@ EBUSY 比一句「没删成」难收拾得多。真停了的话，停的是哪�
 
 那一停**两道核对再杀**，跟本机源那半同一个道理：
 
-{/* ref file="../src/home.ts" lines="587-621" */}
+{/* ref file="../plugins/devkit/src/home.ts" lines="587-621" */}
 
 **手工起的 home 也在这条路上**：记录归内核写，于是「它是谁」的凭据不再只有 devkit 起的那几个有。
 没有记录仍然如实说没有可停的，不猜、不按名字扫进程。
 
 ## 依赖的接口
 
-{/* ref file="../src/home.ts" lines="250-271" */}
+{/* ref file="../plugins/devkit/src/home.ts" lines="244-267" */}
 
 | 接口 | 用来做什么 | 生产实现 | 测试实现 |
 | --- | --- | --- | --- |
 | `fs` | 读运行时记录、列 home 目录、整目录删 | `node:fs`，删带重试 | 一张内存文件表加一张目录表 |
 | `spawn` | 起 detached 且**看得见**的 electron | `child_process.spawn`，不 `windowsHide` | 记一笔，回假 pid |
-| `run` | 前台跑 build 到结束，回输出尾巴 | 合流 capture，超时杀 | 按脚本回成功或失败 |
+| `appSpawnPlan` | 拼再拉一份宿主应用的命令行：安装版拉那个 exe，开发态 electron 读不出应用目录就拒 | 从宿主进程自报的 `execPath` / `argv` 拼（`hostAppFacts` → `hostAppSpawnPlan`） | 假件回一份计划（或抛），不碰真宿主 |
+| `run` | 前台跑底座安装（`pnpm add`）到结束，回输出尾巴 | 合流 capture，超时杀 | 按脚本回成功或失败 |
 | `processName` / `portOwner` / `kill` | 判活与停 | 跟本机源那半共用同一批 | 直接喂三态与端口持有者 |
-| `execPath` / `env` / `platform` | 拼命令行与子进程环境 | 宿主进程自己那份 | 给死值，两种平台都演得出来 |
+| `execPath` / `env` / `platform` | 认宿主映像名、拼底座安装命令行与子进程环境 | 宿主进程自己那份 | 给死值，两种平台都演得出来 |
 
 判活那几样跟本机源那半共用，因为同一台机器上「查 pid 与停 pid」的坑是同一批。但**映像名的判据不同**：
 这半认 electron 与宿主自己，不认 node。本机源那半的子进程是纯 node，这半不是，把 node 也认进来只会

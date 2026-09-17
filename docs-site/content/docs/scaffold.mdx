@@ -26,7 +26,7 @@ description: 一条命令把新插件的骨架落进一个新文件夹，站那�
 
 三张表，一条流水线：入参 `ScaffoldInput`、算完的 `ScaffoldPlan`、渲染好的 `RenderedFile[]`。
 
-{/* ref file="../src/scaffold.ts" lines="28-63" */}
+{/* ref file="../plugins/devkit/src/scaffold.ts" lines="28-63" */}
 
 `ScaffoldPlan` 是这条链上唯一的真相载体：后面每一步都只看它，不再回头看入参。
 
@@ -38,19 +38,19 @@ description: 一条命令把新插件的骨架落进一个新文件夹，站那�
 
 模块内部导出的是一串纯函数，接线那边按顺序串起来：
 
-{/* ref file="../src/scaffold.ts" lines="85-108" */}
+{/* ref file="../plugins/devkit/src/scaffold.ts" lines="85-108" */}
 
 校验、派生、绝对化、缺省值全在这一处完成，一次都没碰盘。抛出来的每一句都说得出该怎么改。
 
 **整套模板先在内存里渲染完再碰盘。** 占位符出错是这条路上最可能的失败，而目标目录一旦开始写就
 没有干净的回滚点。
 
-{/* ref file="../src/scaffold.ts" lines="162-172" */}
+{/* ref file="../plugins/devkit/src/scaffold.ts" lines="165-175" */}
 
 认不出的占位符当场抛。留一个 `{{typo}}` 在生成的仓里，它会一路活到别人的 `package.json` 里去，
 那时已经没人知道它本来该是什么。所以给模板加了新占位符，`placeholders()` 必须同时加一格。
 
-{/* ref file="../src/scaffold.ts" lines="202-211" */}
+{/* ref file="../plugins/devkit/src/scaffold.ts" lines="205-214" */}
 
 目标目录必须还不存在。建仓是一次性动作，往已有目录里铺文件没有干净的回滚点。
 
@@ -65,7 +65,7 @@ description: 一条命令把新插件的骨架落进一个新文件夹，站那�
 
 **站那半是两步，顺序不能反，中间不许插事。**
 
-{/* ref file="../src/index.ts" lines="590-602" */}
+{/* ref file="../plugins/devkit/src/index.ts" lines="590-602" */}
 
 `docfirst.attach` 只在还没写过内容的骨架上装得了，它自己守着这条。建骨架与装六区连着跑，中间没人
 碰过文件，整个覆盖才是安全的；给一个跑了半年的站自作聪明地 AST 改写不是。`scaffold` 里这两条紧挨着，
@@ -73,12 +73,12 @@ description: 一条命令把新插件的骨架落进一个新文件夹，站那�
 
 **站没建成不算建仓失败。** 插件那半早已落盘，所以回执里那两格才是真相：
 
-{/* ref file="../src/index.ts" lines="530-542" */}
+{/* ref file="../plugins/devkit/src/index.ts" lines="530-542" */}
 
 `built` 说骨架铺没铺，`attached` 说六区装没装，`nextSteps` 按这两格分三支。回执里给一条不存在的
 `cd docs-site` 比不给还坏，所以连生成的 README 里讲站的那段话，都是在渲染之前按「站点插件在不在」定下来的。
 
-{/* ref file="../src/scaffold.ts" lines="110-118" */}
+{/* ref file="../plugins/devkit/src/scaffold.ts" lines="110-118" */}
 
 ## 怎么单独测
 
