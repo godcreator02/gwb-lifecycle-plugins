@@ -55,7 +55,7 @@ plugin-manager.install {"pkg":"@godcreator/gwb-devkit"}
 
 {/* ref file="../src/index.ts" lines="388-395" */}
 
-`devkit.dev` 走的是一条链：仓根构建，给每个包发一个开发版到本机源（号打成 `<patch+1>-dev.<戳>`，标 `dev` 不动 `latest`），在目标 home 里装那个准确的号，把对应条目停用再启用，整页重载，最后取证。取不到证就回 `ok: false`。
+`devkit.dev` 走的是一条链：仓根构建，给每个包发一个开发版到本机源（号打成 `<patch+1>-dev.<戳>`，标 `dev` 不动 `latest`），在目标 home 里装那个准确的号，每条对应条目调一次 `plugin-manager.remount` 重挂（停用再启用在目标进程里一条命令做完，部署 plugin-manager 自己或命令总线也一趟走完；目标 home 的 plugin-manager 要 0.4.0 起），整页重载，最后取证。取不到证就回 `ok: false`。
 
 **构建与源都不可给。** 跳过构建就是发上一版，而回执一切正常；源这台机器上只有一个。少一个参数就少一条「给你一次机会跳过一道守卫」的岔路。
 

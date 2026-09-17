@@ -112,6 +112,10 @@ config 面——写在 yml 里的那份界面看不见、agent 也不知道有�
 页那半（重挂、刷新、取证）经 CDP 送到目标页去。换插件那一步要把条目停用再启用，工具自己跑在目标里
 就会把正在跑的它自己停掉。**目标是 `default` 或本插件自己所在的 home，两种都当场拒**。
 
+**重挂一条条目只发一条 `plugin-manager.remount`，不许拆回 `disable` 加 `enable` 两条**：被换的是
+plugin-manager 自己或命令总线时，第二条没人接，条目卡在 `disabled: true`。回执 `deferred`
+（plugin-manager 重挂自己，回执之后才动手）就轮询 `plugin-manager.list` 到它回来，带超时。
+
 **目标那份运行时记录（`<home>/runtime.json`）本包只读不写。** 写它的是内核（开机整份重写 pid /
 startedAt / appDir / cdp）与 mcp 插件（绑上端口之后补 `mcp` 那个字段）。所以本包里**不许再出现写这份
 文件的代码**——两个写者已经够多了，第三个只会带来一份谁也说不清的真相。读它的规矩有两条：

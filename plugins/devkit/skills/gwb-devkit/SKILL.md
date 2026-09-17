@@ -49,7 +49,7 @@ dev-only 工具包（守卫测试的正本，薄壳住各仓），`docs-site/` �
 
 | 命令           | 参数                                   | 干什么                                                                                               |
 | ------------ | ------------------------------------ | ------------------------------------------------------------------------------------------------- |
-| `devkit.dev` | `{ home, dir, packages?, waitFor? }` | 一条走完：仓根构建 → 发开发版 → 在目标 home 里装那个准确号 → 条目停用再启用重挂 → 整页重载 → 取证。**目标是 `default` 或本插件自己所在的 home 都当场拒** |
+| `devkit.dev` | `{ home, dir, packages?, waitFor? }` | 一条走完：仓根构建 → 发开发版 → 在目标 home 里装那个准确号 → 逐条 `plugin-manager.remount` 重挂 → 整页重载 → 取证。**目标是 `default` 或本插件自己所在的 home 都当场拒**；目标 home 的 plugin-manager 要 ≥0.4.0 |
 
 **构建不可跳过，源也不可给**。产物不新就发，发出去的是上一版，而整条链一路绿灯；源这台机器上
 只有一个。想现看一眼某个 home 的条目表，用
@@ -696,8 +696,14 @@ devkit.dev {"home":"<home 名>","dir":"D:\\unitfolders\\<单元>\\<仓>","packag
 ```
 
 七步一趟：问目标页它是哪个 home → 仓根 `pnpm build` → 逐个包发开发版（`<patch+1>-dev.<戳>`，
-标 `dev` **不动 latest**）→ 在目标 home 里 `pnpm add` 那个准确号 → 那几条 cordis 条目停用再启用
-→ 整页重载 → 取证。中间任何一步失败当场停，回执里带着停在哪一步。
+标 `dev` **不动 latest**）→ 在目标 home 里 `pnpm add` 那个准确号 → 那几条 cordis 条目逐条 `plugin-manager.remount`
+重挂 → 整页重载 → 取证。中间任何一步失败当场停，回执里带着停在哪一步。
+
+**重挂是目标进程里的一条命令**：停用、等拆完、启用、等挂上在 `plugin-manager.remount` 里一次做完，
+所以部署 plugin-manager 自己、命令总线也一趟走完，条目不会卡在 `disabled: true`（拆成停用、启用两条时，
+第二条随被停的件一起没了）。换 plugin-manager 自己时它回执先回（`deferred`）、之后才重挂，`devkit.dev`
+轮询 `plugin-manager.list` 到它回来，60 秒没回来就 `ok: false` 并说清卡在哪。目标 home 的
+plugin-manager 要 **0.4.0 起**，旧的当场报「没有这条命令」——先把那个 home 的 plugin-manager 升上来。
 
 **第一次迭代是两步。** `devkit.dev` 只换**已装**的包；目标 home 还没装过这个件的话，先
 `plugin-manager.install {"pkg":"<包名>","spec":"<dev 号>"}` 建条目（dev 号必须钉准确号——

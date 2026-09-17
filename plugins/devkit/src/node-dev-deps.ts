@@ -281,6 +281,7 @@ export const devDeps: DevDeps = {
     }
   },
   now: () => Date.now(),
+  sleep: (ms) => new Promise((resolve) => setTimeout(resolve, ms)),
   platform: process.platform,
 }
 

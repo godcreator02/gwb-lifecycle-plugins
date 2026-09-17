@@ -1,0 +1,63 @@
+---
+title: 重挂是目标进程里的一条命令，不是这边发的停用加启用
+born-at: 2026-09-17T16:30
+type: choice
+parent: [2026-09-08-gwb-devkit]
+label: 一条命令重挂
+domain: 开发循环
+---
+
+pivots-from:: [改一版看一版进 devkit，工具站在被换的进程外面](2026-09-11-dev-loop-comes-to-devkit.md)
+
+## 背景
+
+`devkit.dev` 的重挂那一步原先是经 CDP 在目标页上连发两条命令：`plugin-manager.disable`，再
+`plugin-manager.enable`。2026-09-17 部署 gwb-base-plugins 的 plugin-manager 到隔离 home 时两次复现
+（`pnpm12-2609171528`、`pnpm12only-2609171546`）：停用的正是提供 `enable` 的那个件，它一停，命令
+随 fiber 一起撤了，第二条回「没有这条命令」，条目留在 `cordis.yml` 的 `disabled: true`。脱困只能
+停进程、手删那一行、重开 home。
+
+照代码推，命令总线本身也中同一个招：它一停，页面桥 `window.gwb.command` 找不到命令服务，
+第二条同样没人接。能动 loader 条目的只有 plugin-manager 一个件，内核不给页面别的口子。
+
+## 结论与边界
+
+- **重挂一条条目只发一条命令 `plugin-manager.remount {entryId}`**。停用、等拆完、启用、等挂上在
+  目标进程里一次做完，处理器活得过它动的那条条目
+- **回执两种成功照着接**：`remounted` 是回执之前就做完了，带重挂后状态，只有 `ACTIVE` 算挂上；
+  `deferred` 是 plugin-manager 重挂它自己，回执先发、下一个宏任务才动手，`devkit.dev` 轮询
+  `plugin-manager.list` 到它重新答话、条目 active，60 秒没等到回 `ok: false` 并说清卡在哪
+- **这条命令归 plugin-manager**（gwb-base-plugins，0.4.0 起），devkit 只是调它；目标 home 的
+  plugin-manager 旧于 0.4.0 时当场报错，不退回两条命令那条路
+- 人拍板（2026-09-17，选 A）
+
+## 否掉的候选
+
+- **devkit 冷重启目标 home**（装完新版停进程、`home.open` 重开）。不动别的仓，但验不到热重挂
+  ——effect 清理、服务撤晚了撞名这类毛病只在热重挂里现形，而 `update-all` 升 default 走的正是热
+  重挂；只对「提供重挂路径的件」冷启动又得写死包名，那是兜底不是根治
+- **devkit 侧拆两条、中间补救**。第二条发出去时接它的件已经没了，这边再怎么等、重试都没用
+
+## 依据
+
+**只有在目标进程里、活过重挂的代码才能把重挂做完。** plugin-manager 的一键热升早就是这么做
+自己那条的（本件排最后、回执之后重挂），`remount` 把同一个时序开成单条命令，devkit 复用这个
+语义，不在进程外面拼两条。
+
+**实机**（gwb-base-plugins d0a55b6，plugin-manager 0.4.0 / commands 0.4.1 为 registry 版）：开发版
+devkit `0.12.2-dev.202609171621` 装进隔离 home `dkhost-2609171620`，从它驱动隔离 home
+`dkremount-2609171620` 连走三趟 `devkit.dev`，都一趟 `ok: true`、无手工脱困：
+
+- plugin-manager `0.4.1-dev.202609171622`：目标日志里依次出现「回执之后重挂」「重挂了：ACTIVE」
+- commands `0.4.2-dev.202609171623`：回执之前做完，命令总线重新就绪
+- data `0.1.2-dev.202609171624`（普通件回归）
+
+三趟之后目标 home 的 `cordis.yml` 里没有 `disabled`，`plugin-manager.list` 七条条目全 active。
+
+## 代价与遗留
+
+- **devkit.dev 对目标 home 多了一个版本前提**：plugin-manager 要 0.4.0 起
+- **轮询认的是 `plugin-manager.list` 重新答话且条目 active**，不区分答话的是旧实例还是新实例。
+  回执之后那一下重挂排在主进程下一个宏任务，而下一趟轮询隔着一次子进程启动才到，实际撞不上
+- **本仓文档站的 `docfirst check` 从 0.11.2 搬家到 `plugins/devkit` 起就整片红**（引用与生成物
+  落点仍指仓根），这一趟的改口是手工同步生成物与 mdx 正本，没法 render

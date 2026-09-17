@@ -116,7 +116,7 @@ const DEV_USAGE = [
   '一个，就是 ' + DEFAULT_REGISTRY,
   '例：{"home":"bn-2609111200","dir":"D:\\\\unitfolders\\\\26090814otr\\\\gwb-block-note","packages":["packages/model","plugins/gwb-bn-core"]}',
   '目标 home 是 default、或者就是本件自己住的那个，都当场拒——前者会把开发版塞进日常那份，',
-  '后者停用条目那一下会把正在跑的这条命令自己停掉。换 devkit 自己：发正式版，再 plugins.update-all',
+  '后者停用条目那一下会把正在跑的这条命令自己停掉。换 devkit 自己：发正式版，再 plugin-manager.update-all',
 ].join('\n')
 
 /** `devkit.release` 的参数说明。参数错的时候连它一起回——错误即文档 */
@@ -359,7 +359,7 @@ export function apply(ctx: GwbContext): void {
         plugin: '@godcreator/gwb-devkit',
         description: '改一版看一版（build→发 dev 版→目标 home 热挂→取证）',
         usage:
-          '{home 必给（目标 home 名，**只认名字不认端口**——口从它的 runtime.json 里查并验活）, dir 必给（仓根绝对路径）, packages?（包目录，相对仓根，按依赖顺序；不给就是仓根自己）, waitFor?（刷新后等这个选择器出现）}。一条走完：仓根 pnpm build → 发开发版（<patch+1>-dev.<戳>，标 dev 不动 latest）→ 在目标 home 里 pnpm add 那个准确号 → 条目停用再启用重挂 → 整页重载 → 取证（条目真 ACTIVE、日志增量里没有 error），取不到证就回 ok:false。**构建与源都不可给**：跳过构建就是发上一版，而这台机器只有一个源。**目标是 default 或本件自己所在的 home 都当场拒；页面自报的名字跟你给的对不上也拒**',
+          '{home 必给（目标 home 名，**只认名字不认端口**——口从它的 runtime.json 里查并验活）, dir 必给（仓根绝对路径）, packages?（包目录，相对仓根，按依赖顺序；不给就是仓根自己）, waitFor?（刷新后等这个选择器出现）}。一条走完：仓根 pnpm build → 发开发版（<patch+1>-dev.<戳>，标 dev 不动 latest）→ 在目标 home 里 pnpm add 那个准确号 → 逐条 plugin-manager.remount 重挂（一条命令做完停用再启用，目标 home 的 plugin-manager 要 ≥0.4.0；重挂 plugin-manager 自己时回执之后才动手，这边轮询到它回来）→ 整页重载 → 取证（条目真 ACTIVE、日志增量里没有 error），取不到证就回 ok:false。**构建与源都不可给**：跳过构建就是发上一版，而这台机器只有一个源。**目标是 default 或本件自己所在的 home 都当场拒；页面自报的名字跟你给的对不上也拒**',
       },
       async (args) => {
         if (!isRecord(args)) return { ok: false, error: `参数要是个对象。\n${DEV_USAGE}` }

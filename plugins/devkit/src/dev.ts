@@ -4,7 +4,7 @@ import { isRecord } from '@godcreator/gwb-plugin-api'
 /**
  * 「改一版看一版」那条链的纯机:守卫、版本号、发什么装什么、重挂哪几条、拿什么当证据。
  *
- * **这条链只能站在被换的那个进程外面。** 换件那一步是把条目停用再启用,工具自己要是跑在
+ * **这条链只能站在被换的那个进程外面。** 换件那一步是重挂条目(停用再启用),工具自己要是跑在
  * 目标那个 home 里,换到总线、外壳、mcp、devkit 自己头上时,调用方跟着下线(升到 gwb-mcp
  * 时回执会丢,是同一件事的一个实例)。所以这条命令住**控制台那个 home**,操作**另一个
  * home**:盘那半(构建、发版、pnpm add)在本进程里做,页那半(重挂、刷新、取证)经 CDP 送到
@@ -265,6 +265,8 @@ export interface DevDeps {
   /** 从某个字节读到末尾。取日志增量用 */
   slice(file: string, from: number): string
   now(): number
+  /** 等一会儿。轮询回执之后才重挂的那一条时用 */
+  sleep(ms: number): Promise<void>
   platform: NodeJS.Platform
 }
 
@@ -411,11 +413,8 @@ export async function runDev(input: DevInput, deps: DevDeps): Promise<DevOutcome
       continue
     }
     for (const entry of entries) {
-      // 停用→启用。版本变了路径就变了,这一下 Node 才会真的重新求值
-      const off = receiptOf((await deps.cdp(input.home, ['cmd', 'plugin-manager.disable', JSON.stringify({ entryId: entry.entryId })], CDP_TIMEOUT_MS)).data)
-      if (!off.ok) return { ok: false, error: `停用 ${entry.entryId} 没成:${off.error ?? '没说原因'}`, data: { shipped } }
-      const on = receiptOf((await deps.cdp(input.home, ['cmd', 'plugin-manager.enable', JSON.stringify({ entryId: entry.entryId })], CDP_TIMEOUT_MS)).data)
-      if (!on.ok) return { ok: false, error: `启用 ${entry.entryId} 没成:${on.error ?? '没说原因'}——件现在是停用状态,盘上是新版,自己去插件窗格启用它`, data: { shipped } }
+      const remounted = await remount(input.home, one.pkg, entry.entryId, deps)
+      if (!remounted.ok) return { ok: false, error: remounted.error, data: { shipped } }
       one.remounted.push(entry.entryId)
     }
   }
@@ -430,6 +429,56 @@ export async function runDev(input: DevInput, deps: DevDeps): Promise<DevOutcome
   const report: DevReport = { home: guard.home, homeName: guard.name, shipped, reload: reloaded.data, evidence }
   if (!evidence.ok) return { ok: false, error: evidence.note, data: report }
   return { ok: true, data: report }
+}
+
+/** 重挂一条条目的那条命令。停用、等拆完、启用、等挂上,在目标进程里一次做完 */
+export const REMOUNT_COMMAND = 'plugin-manager.remount'
+
+/** 重挂之后只有这个状态算挂上 */
+const ACTIVE = 'ACTIVE'
+
+/** 回执之后才重挂的那一条(plugin-manager 自己):轮询 `plugin-manager.list` 的间隔与总上限 */
+export const DEFERRED_POLL_MS = 500
+export const DEFERRED_TIMEOUT_MS = 60_000
+
+/**
+ * 重挂一条条目:**一条命令,不是停用加启用两条**。
+ *
+ * 拆成两条的话,被停用的正好是提供启用那条命令的件(plugin-manager 自己)或命令总线本身时,
+ * 第二条已经没人接,条目留在停用。一条命令的处理器活得过它动的那条条目:普通条目与命令总线
+ * 在回执之前就做完(`remounted`,带重挂后状态);plugin-manager 自己在回执发出之后才动手
+ * (`deferred`),于是轮询 `plugin-manager.list`,等它重新答话、那条条目 active。
+ */
+export async function remount(home: string, pkg: string, entryId: string, deps: DevDeps): Promise<{ ok: true } | { ok: false; error: string }> {
+  const reply = receiptOf((await deps.cdp(home, ['cmd', REMOUNT_COMMAND, JSON.stringify({ entryId })], CDP_TIMEOUT_MS)).data)
+  if (!reply.ok) {
+    return { ok: false, error: `重挂 ${entryId} 没成(${REMOUNT_COMMAND}):${reply.error ?? '没说原因'}——目标 home 的 plugin-manager 要 0.4.0 起才有这条命令` }
+  }
+  const action = isRecord(reply.data) ? reply.data.action : undefined
+  const state = isRecord(reply.data) && typeof reply.data.state === 'string' ? reply.data.state : '没报状态'
+  if (action === 'remounted') {
+    return state === ACTIVE ? { ok: true } : { ok: false, error: `重挂了 ${entryId},但它停在 ${state},没到 ${ACTIVE}——日志里有原因` }
+  }
+  if (action !== 'deferred') {
+    return { ok: false, error: `重挂 ${entryId} 的回执认不出(action=${String(action)}):${JSON.stringify(reply.data)}` }
+  }
+  const tries = Math.ceil(DEFERRED_TIMEOUT_MS / DEFERRED_POLL_MS)
+  let last = '一次都没问到'
+  for (let i = 0; i < tries; i += 1) {
+    await deps.sleep(DEFERRED_POLL_MS)
+    const listed = receiptOf((await deps.cdp(home, ['cmd', 'plugin-manager.list'], CDP_TIMEOUT_MS)).data)
+    if (!listed.ok) {
+      last = `plugin-manager.list 没答话(${listed.error ?? '没说原因'})`
+      continue
+    }
+    const found = entriesOf(listed.data, pkg).find((one) => one.entryId === entryId)
+    if (found?.active === true) return { ok: true }
+    last = found === undefined ? `plugin-manager.list 答话了,表里没有 ${entryId}` : `plugin-manager.list 答话了,${entryId} 还没 active`
+  }
+  return {
+    ok: false,
+    error: `${entryId} 在回执之后才重挂,等了 ${String(DEFERRED_TIMEOUT_MS / 1000)} 秒没等到它回来。卡在:${last}`,
+  }
 }
 
 /**
