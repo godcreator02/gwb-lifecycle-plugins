@@ -22,7 +22,7 @@
 
 ```powershell
 pnpm check          # = typecheck + vitest
-pnpm build          # tsc 直出 dist/，没有打包器
+pnpm build          # 只构建 plugins/* 与 packages/*，tsc 直出 dist/，没有打包器；文档站不在里面
 ```
 
 **`pnpm check` 不构建。** 它吃的是源码，全绿只说明源码站得住，跟「装出来能不能跑」是两件事。
@@ -33,50 +33,53 @@ pnpm build          # tsc 直出 dist/，没有打包器
 ## 发版
 
 1. **先抬 `package.json` 的版本号。** 同一个版本号永不重发；要发新的一版，先抬号、提交，再调
-2. 发版走 `devkit.release {"dir":"<本仓根>"}`——仓根 git 树不干净就拒、staging 发 latest、
+2. 发版走 `devkit.release {"dir":"<本仓根>","packages":["plugins/devkit"]}`（repo-kit 也改了就
+   `["packages/repo-kit","plugins/devkit"]`，按依赖序）——仓根 git 树不干净就拒、staging 发 latest、
    不改仓里任何文件。**它不跑 `prepublishOnly`**（staging 分发形态里没有 `scripts`，产物靠
-   仓根构建加 `files` 白名单守卫）；真要走仓里钩子的场景才用手工那条：
-   `pnpm publish --registry https://git.tianshen02.online:28377/api/packages/godcreator/npm/ --no-git-checks`——那时
+   仓根构建加 `files` 白名单守卫）；真要走仓里钩子的场景才用手工那条：在包目录里
+   `pnpm publish --no-git-checks`（scope 路由住用户级 `~/.npmrc`，**别手写 `--registry`**）——那时
    `prepublishOnly` **别删**，少了它会把上一版的 `dist/` 原样发出去而且一声不吭（现象是
    「插件挂上了但新写的东西全没生效」）
 
-**发版前先在隔离 home 装一遍验完**——`plugins.update-all`（插件窗格那颗「全部更新」）
+**发版前先在隔离 home 装一遍验完**——`plugin-manager.update-all`（插件窗格那颗「全部更新」）
 直接升日常那份 home，跳过了隔离验证；人点那颗键是最后一步，不是验证的一步。
 
 **发完就去升 default，别攒着。** 手册与命令都随包走，不升＝ agent 读到的还是上一版，
-而它照着过期手册干活**不报错**。新插件第一次装走 `plugin-manager.install`，装完 `/mcp` 重连。
+而它照着过期手册干活**不报错**。新插件第一次装走 `plugin-manager.install`，装完下一次调门的
+`index` 现拼就有它的命令。
 
 **`files` 白名单五项，一项都不能少**：`dist`、`src`、`template`、`skills`、`bin`。
 
-| 少了哪项       | 什么当场坏掉                                                                   |
-| ---------- | ------------------------------------------------------------------------ |
-| `dist`     | 插件根本挂不上                                                                  |
-| `template` | `devkit.scaffold` 回「包内 template/ 不在」                                     |
-| `skills`   | 写插件手册装不进 home，agent 那边少一份说明书                                             |
-| `bin`      | `devkit.cdp` 的 entry 指向一个不存在的文件，`devkit.dev` 的重挂与取证三步一起废；工作台没起时起停源那条路也没了 |
-| `src`      | 类型跳转与读源码断掉（不影响运行）                                                        |
+| 少了哪项       | 什么当场坏掉                                                   |
+| ---------- | -------------------------------------------------------- |
+| `dist`     | 插件根本挂不上                                                  |
+| `template` | `devkit.scaffold` 回「包内 template/ 不在」                     |
+| `skills`   | 写插件手册装不进 home，agent 那边少一份说明书                             |
+| `bin`      | `devkit.cdp` 的 entry 指向一个不存在的文件，`devkit.dev` 的重挂与取证三步一起废 |
+| `src`      | 类型跳转与读源码断掉（不影响运行）                                        |
 
 ## 模板
 
-`template/` 下十个 `.tpl`，落盘时脱后缀（`npm pack` 不打 `.gitignore` 是硬行为，
+`template/` 下的文件一律带 `.tpl`，落盘时脱后缀（`npm pack` 不打 `.gitignore` 是硬行为，
 一条规则管所有文件）。
 
-**占位符集合就这五个**：`{{name}}`、`{{title}}`、`{{pkg}}`、`{{pkgName}}`、`{{docsBlock}}`。
+**模板里的 `@godcreator` 钉版跟源走**：dev 钉＝源上 `dist-tags.latest`，peer 下限 `>=` 同号。
+钉旧了新仓开箱就是火车债，钉了源上没有的号新仓 `pnpm install` 当场炸——动模板钉版之前
+`pnpm view <包> dist-tags.latest` 现查。
+
+**占位符集合就这六个**：`{{name}}`、`{{title}}`、`{{pkg}}`、`{{pkgName}}`、`{{cssPrefix}}`、`{{docsBlock}}`。
 **认不出的占位符当场抛**——给模板加了新占位符，`src/scaffold.ts` 的 `placeholders()`
 必须同时加一条，否则下一次建仓整个失败（而不是留一个 `{{typo}}` 活到别人的 package.json 里）。
 
 两条落盘纪律，都是「没有干净回滚点」推出来的：**整套先在内存里渲染完再碰盘**；
 **目标目录必须还不存在**，存在就拒，不覆盖任何东西。
 
-## 两个设置项
+## 没有设置项
 
-| key          | 填什么                    | 不填的后果                                             |
-| ------------ | ---------------------- | ------------------------------------------------- |
-| `kernel-dir` | 内核仓根（含 `apps/desktop`） | `devkit.home.new` / `open` 不工作；`list` / `rm` 不受影响 |
+起 home 拉宿主自己那个 exe，不认内核仓；`devkit.audit-deps` 的容器根缺省现问总线上的
+`unit-folder.list`。所以本插件一项设置都不 `define`。
 
-**两个都不给默认值。** 目录是这台机器的事实，编一个只会得到「配置了但不在」的假象。
-
-**配置一律走 `gwbSettings.define`，不吃 `cordis.yml` 的 `config`。** 新加一项可改的东西就
+**将来真要加，配置一律走 `gwbSettings.define`，不吃 `cordis.yml` 的 `config`。** 新加一项可改的东西就
 `define` 一项（类型 `string` / `number` / `boolean` / `secret`），别在条目上开
 config 面——写在 yml 里的那份界面看不见、agent 也不知道有它。
 
@@ -87,10 +90,9 @@ config 面——写在 yml 里的那份界面看不见、agent 也不知道有�
 `{ name, force? }`），**无参数的明写「无参数」**。参数复杂的，回执里再带完整说明
 （`devkit.scaffold` / home 那几条就是这么干的），但 description 里那句形状仍然要有。
 
-要让一条命令在 agent 那边直接露到顶层，登记时标 `top: true`：**标了就是顶层，桥照它渲染，
-没有运行时名单**——MCP 桥固定开 `gwb_command_list` / `gwb_command_run` 两个，外加所有标了
-`top: true` 的命令。顶层是写插件时定下来的，不是装进软件之后再批的，所以默认不标，
-**标之前先问人**。
+**命令没有「露到顶层」这回事**：MCP 门的工具面封顶 `index` / `search` / `run` 三枚，agent
+经 `index` 看到一句话 description、经 `search` 看到 usage、经 `run` 按名调。所以 description
+写一句话、参数形状写进 `usage`，两样都是 agent 唯一的说明。
 
 ## 建站是两步，两条都不是本包的命令
 
@@ -108,7 +110,7 @@ config 面——写在 yml 里的那份界面看不见、agent 也不知道有�
 
 ## 改一版看一版：换插件的工具不许住在被换的进程里
 
-`devkit.dev` **住控制台那个 home、操作另一个 home**：盘那半（构建、发版、`pnpm add`）在本进程做，
+`devkit.dev` **住控制台那个 home、操作另一个 home**：盘那半（构建、发版、装进目标 home）在本进程做，
 页那半（重挂、刷新、取证）经 CDP 送到目标页去。换插件那一步要把条目停用再启用，工具自己跑在目标里
 就会把正在跑的它自己停掉。**目标是 `default` 或本插件自己所在的 home，两种都当场拒**。
 
@@ -130,10 +132,17 @@ startedAt / appDir / cdp）与 mcp 插件（绑上端口之后补 `mcp` 那个�
 包括图省事的内部调用：链里那七步也是按名字调驱动的，为的就是每一步都白得一次核对。
 
 **不许把产物覆盖进 home 的 `node_modules`**：home 里那些文件是硬链接到 pnpm 全局仓的，覆盖写会
-写穿它；而且 ESM 模块图按 URL 缓存，不换版本号就换不动 node 那半。**版本号变了路径才变**，
+写穿它；而且 ESM 模块图按 URL 缓存，不换版本号就换不动 node 那半。**装上的版本号变了路径才变**
+（pnpm 虚拟仓目录名超长时截成前段加全名哈希，预发布段在哈希里，同 patch 的两个 dev 号目录也不同），
 重挂那一下才真的重新求值。
 
-**收尾是取证不是刷新**：条目要真 ACTIVE、日志增量里不许有 error，取不到就回 `ok: false`。
+**装进目标 home 不许走 `pnpm add <包>@<号>`**：home 清单里已有 `^` 声明时 pnpm 12 写回去的是
+`^<号>`，锁里已解析的同 patch 旧预发布号会被当成满足、不重解析，退出码照样 0。所以是**清单里写死
+准确号再 `pnpm install`**，装完读 `node_modules/<包>/package.json` 核对版本，对不上当场
+`ok: false`、不重挂。
+
+**收尾是取证不是刷新**：装上的是这一趟的号、条目要真 ACTIVE、日志增量里不许有 error，取不到就回
+`ok: false&#x60;。**`devkit.home.rm` 同一个规矩**：回「已删」之前目录必须真不在（删的调用不报错不算数）。
 
 `bin/cdp.mjs` 是**零依赖单文件纯 JS，不进 typecheck**——它得在工作台起不来时也能直接跑，
 那是它的另一个身份。`eval` 那个文件的相对路径与截图落点按**工作目录**算，不按它装在哪算。
@@ -154,5 +163,5 @@ startedAt / appDir / cdp）与 mcp 插件（绑上端口之后补 `mcp` 那个�
 漂了或者没重摆。
 
 被钉住的源码改动过要**先 commit 再 `pnpm doc:confirm`**——git 比较器只对已提交、
-工作区干净的内容钉。轨迹区（`content/docs/trajectory/`）**不钉活代码**：它冻结历史，
+工作区干净的内容钉。轨迹区（`content/trajectory/`）**不钉活代码**：它冻结历史，
 钉了就变成一份会变黄的现状文档。

@@ -6,7 +6,7 @@ import { fileURLToPath } from 'node:url'
 import { tailLines } from './probes.js'
 import { PUBLISH_TIMEOUT_MS, pnpmPlan, type DevDeps, type RunPlan } from './dev.js'
 import type { ReleaseDeps } from './release.js'
-import { runCaptured } from './node-home-deps.js'
+import { removeTree, runCaptured } from './node-home-deps.js'
 
 /**
  * `DevDeps` 的真身:碰盘走 node:fs,开进程走系统,连 CDP 走包里那支驱动。
@@ -231,7 +231,12 @@ async function publishStaged(input: {
   } catch (err) {
     return { ok: false, tail: String(err) }
   } finally {
-    fs.rmSync(stage, { recursive: true, force: true })
+    // 不走 fs.rmSync 的递归删:宿主 Node 会跟进 junction,见 removeTree
+    try {
+      removeTree(stage)
+    } catch {
+      // 临时目录清不掉不影响这一趟的结论,留在 tmp 里
+    }
   }
 }
 
@@ -250,6 +255,14 @@ export const devDeps: DevDeps = {
       return fs.readFileSync(file, 'utf8')
     } catch {
       return undefined
+    }
+  },
+  writeText(file, text) {
+    try {
+      fs.writeFileSync(file, text, 'utf8')
+      return { ok: true }
+    } catch (err) {
+      return { ok: false, error: String(err) }
     }
   },
   exists(target) {

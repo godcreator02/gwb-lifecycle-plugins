@@ -1,0 +1,4 @@
+host  rmSync  node 24.19.0：没抛，目录还在 true；树外 junction 指着的 keep.txt 还在 False
+host  walk    node 24.19.0：没抛，目录还在 false；树外 junction 指着的 keep.txt 还在 True
+node  rmSync  node 24.14.1：没抛，目录还在 false；树外 junction 指着的 keep.txt 还在 True
+node  walk    node 24.14.1：没抛，目录还在 false；树外 junction 指着的 keep.txt 还在 True

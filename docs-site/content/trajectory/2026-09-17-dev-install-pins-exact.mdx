@@ -1,0 +1,69 @@
+---
+title: 开发版装进 home 是清单写准确号再装，装上的号读回核对
+born-at: 2026-09-17T23:30
+type: choice
+parent: [2026-09-08-gwb-devkit]
+label: 准确号装机
+domain: 开发循环
+---
+
+pivots-from:: [改一版看一版进 devkit，工具站在被换的进程外面](2026-09-11-dev-loop-comes-to-devkit.md)
+
+## 背景
+
+总控台中转来一份 feedback：ui-plugins 那路在隔离 home `shell-swap-2609171833` 上连跑两趟 `devkit.dev`
+（pnpm 12.4.2），第一趟发 `gwb-shell@0.7.2-dev.202609171834` 装上了，改完代码第二趟发 `…1837`，回
+`ok: true`（条目全活、日志干净），实查 home：清单写着 `^0.7.2-dev.202609171837`，锁与 `node_modules`
+里还是 `…1834`，新代码根本没进去。投递人还疑心 pnpm 虚拟仓目录名只到 `@0.7.2_<hash>`，同 patch
+的多趟 dev 号目录相同、`file://` 地址不变，建议「dev 号抬 patch 本身」。
+
+当时 `devkit.dev` 装包是 `pnpm add <包>@<准确号>`，取证只看条目 ACTIVE 与日志增量。
+
+## 结论与边界
+
+- **病根在装法，不在号的形状**：home 清单里已有 `^` 声明（`plugin-manager.install` 写出来的就是）时，
+  pnpm 12 的 `pnpm add <包>@<号>` 沿用前缀写回 `^<号>`，`--save-exact` 改不掉；锁里已解析的同 patch
+  旧预发布号被当成满足新范围、不重解析（正式版之间会重解析，病只在预发布号上）；源上有号更大的同 patch
+  版本（别的 dev 号、同号正式版）时范围又解析到它。三种情况退出码都是 0
+- **虚拟仓目录不撞**：目录名超 60 字符时是「前 27 字符 + 全名 sha256 前 32 位」，全名含预发布段与
+  peer 后缀，同 patch 两个 dev 号前段相同、哈希不同。feedback 里看到的「目录没变」是没装上的结果，
+  不是原因。**dev 号形状不改**，手册「版本变了路径才变」照旧成立，改口成「装上的版本变了」
+- **装法改成清单写准确号再 `pnpm install`**：一趟里的包一次写齐、一次装，装没成把清单放回原样
+- **取证加一条「装上的号 == 这一趟发的准确号」**：读 `<home>/node_modules/<包>/package.json`。装完当场
+  核一次，对不上 `ok: false`、不重挂不刷新；收尾取证再核一次，进回执 `evidence.installed`
+
+## 否掉的候选
+
+- **dev 号抬 patch 本身**（feedback 的建议，ui-plugins 那晚的绕法）。换了 patch 恰好让锁里旧号不满足新
+  范围、逼 pnpm 重解析，但 S2/S3 那两种（源上有更大的同 patch 号）照样装错；每趟烧一个 patch 号也
+  污染版本线
+- **`pnpm update <包>@<号>`**。探针三个场景都装对（block-note 那路实弹同样靠它脱困），但清单仍写
+  `^<号>`，这个 home 以后任何一次重解析都可能把它换成别的号；语义是「在范围内升到最新」，装准确号
+  是借了它的副作用
+- **`pnpm remove` 再 `pnpm add`**。新加的预发布号会写成准确号，但两步之间包不在，别的件对它的 peer
+  悬空；第二步失败时 home 里少一个包，比装错还难收拾
+- **只加取证不改装法**。能把假成功变成真失败，但同 patch 第二趟就永远失败，内循环跑不下去
+
+## 依据
+
+**探针** `probes/2609172230_pnpm12-dev-pin-install/`（`results.txt`）：S1 锁在同 patch 旧 dev 号、S2 清单
+`^0.4.1` 且源上有更大的同 patch 号、S3 锁在同号正式版——`pnpm add` / `--save-exact` 全 MISS，`update` 与
+「写准确号 + install」全 HIT；S0 正式版对照 `add` HIT；同 patch 两个 dev 号装进同一项目，按规则算出的目录名
+在盘上、两个目录并存。
+
+**实机对照**（隔离 home，同一仓 gwb-devkit，每趟都是 `0.13.1-dev.<戳>` 同 patch）：
+
+- 修复前：default 里的 devkit 0.13.0 连推 `dkfix-b-2609172256`。第二趟发 `…2258` 回 `ok: true`；home 清单
+  `^0.13.1-dev.202609172258`，锁与 `node_modules` 仍是 `…2257`，`.pnpm` 里没有新目录
+- 修复后：开发版 devkit `0.13.1-dev.202609172259` 装进 `dkfix-a-2609172256`，从它连推 `dkfix-c-2609172259`
+  （起点同样是 `plugin-manager.install` 写的 `^0.13.0`）。两趟 `…2300`、`…2301` 都 `ok: true`，
+  `evidence.installed` 的 expected 与 actual 相同；清单写准确号，`.pnpm` 目录 `@0.13_0547b5…` → `@0.13_a5e092…`，
+  `node_modules/@godcreator/gwb-devkit` 的 junction 跟着换
+
+## 代价与遗留
+
+- **devkit 开始写目标 home 的 `package.json`**（此前只经 pnpm 间接写）。只写依赖那一格、缩进照原样，
+  装没成放回原样；`runtime.json` 仍只读不写
+- **目标 home 的清单里留下准确号**。之后在那个 home 里 `plugin-manager.update` 一类操作按准确号处理，
+  隔离 home 是一次性现场，不修这一层
+- 取证只核包本身的版本，不核同趟兄弟包之间 peer 解析到了谁

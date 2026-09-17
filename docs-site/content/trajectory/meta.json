@@ -9,6 +9,10 @@
     "2026-09-11-port-is-not-an-address",
     "2026-09-13-terminology-rename",
     "2026-09-13-template-becomes-the-plugin",
-    "2026-09-17-remount-is-one-command"
+    "2026-09-14-release-comes-to-devkit",
+    "2026-09-17-remount-is-one-command",
+    "2026-09-17-dev-install-pins-exact",
+    "2026-09-17-home-rm-walks-the-tree",
+    "2026-09-17-audit-deps-counts-what-matters"
   ]
 }

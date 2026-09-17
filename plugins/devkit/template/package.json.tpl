@@ -21,20 +21,20 @@
     "prepublishOnly": "pnpm build"
   },
   "engines": { "node": ">=24" },
-  "//peer": "硬依赖 gwbCommands 与 gwbShell（inject）；tokens 供样式映射面（≥0.1.1 零字面 fallback），shared-react 供页面 importmap。写 >= 不写 ^：caret 在 0.0.x 锁死 patch",
+  "//peer": "硬依赖 gwbCommands 与 gwbShell（inject）；tokens 供样式映射面，shared-react 供页面 importmap。下限＝同名 dev 钉（验过的世界），dev 钉＝源上 dist-tags.latest。写 >= 不写 ^：caret 在 0.0.x 锁死 patch",
   "peerDependencies": {
-    "@godcreator/gwb-plugin-api": ">=0.1.0",
-    "@godcreator/gwb-commands": ">=0.2.0",
-    "@godcreator/gwb-shell": ">=0.1.0",
-    "@godcreator/gwb-tokens": ">=0.1.1",
-    "@godcreator/gwb-shared-react": ">=0.0.2"
+    "@godcreator/gwb-plugin-api": ">=0.1.1",
+    "@godcreator/gwb-commands": ">=0.4.2",
+    "@godcreator/gwb-shell": ">=0.8.0",
+    "@godcreator/gwb-tokens": ">=0.1.3",
+    "@godcreator/gwb-shared-react": ">=0.0.4"
   },
   "devDependencies": {
     "@godcreator/gwb-plugin-api": "0.1.1",
     "@godcreator/gwb-repo-kit": "0.2.0",
-    "@godcreator/gwb-commands": "0.4.0",
-    "@godcreator/gwb-shell": "0.7.0",
-    "@godcreator/gwb-tokens": "0.1.2",
+    "@godcreator/gwb-commands": "0.4.2",
+    "@godcreator/gwb-shell": "0.8.0",
+    "@godcreator/gwb-tokens": "0.1.3",
     "@godcreator/gwb-shared-react": "0.0.4",
     "@tailwindcss/cli": "^4.3.0",
     "@tailwindcss/node": "^4.3.0",

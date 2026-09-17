@@ -18,7 +18,9 @@ import { isRecord } from '@godcreator/gwb-plugin-api'
  *   此后这台机器上任何人装那个版本拿到的都是它,**而且不报错**
  * - **node 那半换不动**。Node 的 ESM 模块图按 URL 缓存,原地覆盖不改路径,cordis 把件停用
  *   再启用,`import()` 回来的还是缓存里那份旧的。发开发版把号打成 `<patch+1>-dev.<戳>`,
- *   **版本变了就是路径变了**,重挂那一下才真的重新求值
+ *   **装上的版本变了就是路径变了**(pnpm 虚拟仓的目录名超长时截成前段加全名哈希,预发布段与
+ *   peer 后缀都在哈希里,同 patch 的两个 dev 号目录也不同),重挂那一下才真的重新求值。前提是
+ *   这一趟的号**真装上了**——所以装完读回 home 里那份 package.json 核对,见 `checkInstalled`
  *
  * 加戳 import 是第三条路,内核仓量过账(`probes/2609101436_esm-cachebust-reload-cost`):
  * 不可逆泄漏,量级约等于件 dist 体积的两倍,Node 24 上没有清模块图的口子。别走。
@@ -198,6 +200,93 @@ export function entriesOf(data: unknown, pkg: string): EntryView[] {
   return []
 }
 
+// ── 装进目标 home ─────────────────────────────────────────────────────────────
+
+/** 目标 home 自己的依赖清单(pnpm 的项目清单,home 根下) */
+export const HOME_MANIFEST = 'package.json'
+
+/** 清单里依赖可能住的几格。home 里的件都在 dependencies,别的格有这个包就改那一格 */
+const DEP_GROUPS = ['dependencies', 'optionalDependencies', 'devDependencies'] as const
+
+export type PinOutcome = { ok: true; text: string } | { ok: false; error: string }
+
+/**
+ * 把目标 home 清单里这个包的声明**写成准确号**(没有就加进 `dependencies`)。
+ *
+ * **不走 `pnpm add <包>@<号>`**:清单里已有 `^x` 声明时,pnpm 沿用那个前缀写成 `^<号>`
+ * (`--save-exact` 也改不掉),而锁里已解析的同 patch 预发布号会被当成满足新范围、不重解析;
+ * 源上有更新的同 patch 号(别的 dev 号、同号正式版)时,范围又会解析到它。三种情况装上的都
+ * 不是这一趟发的号,退出码照样是 0。清单里写死准确号再 `pnpm install`,没有范围可解析。
+ *
+ * 缩进沿用原文件,末尾换行照原样;新加的包按名字排进那一格(pnpm 自己写清单也是排好序的)。
+ */
+export function pinExact(text: string | undefined, pkg: string, version: string): PinOutcome {
+  if (text === undefined) return { ok: false, error: `读不到 ${HOME_MANIFEST}` }
+  let doc: unknown
+  try {
+    doc = JSON.parse(text)
+  } catch (err) {
+    return { ok: false, error: `${HOME_MANIFEST} 不是合法 JSON:${String(err)}` }
+  }
+  if (!isRecord(doc)) return { ok: false, error: `${HOME_MANIFEST} 顶层不是对象` }
+  const manifest = doc
+  const tableOf = (key: string): Record<string, unknown> | undefined => {
+    const table = manifest[key]
+    return isRecord(table) ? table : undefined
+  }
+  const group = DEP_GROUPS.find((key) => tableOf(key)?.[pkg] !== undefined) ?? 'dependencies'
+  const current = tableOf(group) ?? {}
+  const next: Record<string, unknown> =
+    current[pkg] !== undefined
+      ? { ...current, [pkg]: version }
+      : Object.fromEntries(Object.entries({ ...current, [pkg]: version }).sort(([a], [b]) => (a < b ? -1 : a > b ? 1 : 0)))
+  const indent = /^([ \t]+)"/m.exec(text)?.[1] ?? '  '
+  const eol = text.endsWith('\n') ? '\n' : ''
+  return { ok: true, text: JSON.stringify({ ...manifest, [group]: next }, null, indent) + eol }
+}
+
+/** home 里装上的那份包清单在哪。scope 包是两层目录 */
+export function installedManifest(homeDir: string, pkg: string): string {
+  return path.join(homeDir, 'node_modules', ...pkg.split('/'), 'package.json')
+}
+
+export interface InstalledRow {
+  pkg: string
+  /** 这一趟发的号 */
+  expected: string
+  /** home 里实际装上的号。读不到是 null */
+  actual: string | null
+}
+
+/**
+ * 目标 home 里实际装上的版本,逐包对这一趟发出的准确号。
+ *
+ * **读装好的那份 package.json**,不读 home 的清单也不读锁:清单写的是「要什么」、锁写的是
+ * 「解析成什么」,只有 `node_modules` 下那份说的是「重挂时 import 的到底是谁」。
+ */
+export function checkInstalled(
+  homeDir: string,
+  shipped: readonly { pkg: string; version: string }[],
+  readText: (file: string) => string | undefined,
+): { rows: InstalledRow[]; wrong: InstalledRow[] } {
+  const rows = shipped.map((one) => ({
+    pkg: one.pkg,
+    expected: one.version,
+    actual: parseManifest(readText(installedManifest(homeDir, one.pkg)))?.version ?? null,
+  }))
+  return { rows, wrong: rows.filter((row) => row.actual !== row.expected) }
+}
+
+/** 装上的号对不上时那句话 */
+export function installedNote(homeName: string, wrong: readonly InstalledRow[]): string {
+  const lines = wrong.map((row) =>
+    row.actual === null
+      ? `${row.pkg}:这一趟发的是 ${row.expected},${homeName} 的 node_modules 里读不到它的 package.json`
+      : `${row.pkg}:这一趟发的是 ${row.expected},${homeName} 里实际装上的是 ${row.actual}`,
+  )
+  return `新代码没进 ${homeName}——${lines.join(';')}。重挂拿到的会是装上的那一版,别当它验过了`
+}
+
 // ── 日志 ──────────────────────────────────────────────────────────────────────
 
 /**
@@ -259,6 +348,8 @@ export interface DevDeps {
   /** 这个号在源上有没有。问不出来当没有(发的时候源会再拒一次,那才是权威) */
   published(spec: string, registry: string): Promise<boolean>
   readText(file: string): string | undefined
+  /** 整份写一个文本文件。只用来改目标 home 的清单 */
+  writeText(file: string, text: string): { ok: true } | { ok: false; error: string }
   exists(target: string): boolean
   /** 文件现在多大。取日志基线用 */
   size(file: string): number
@@ -308,6 +399,8 @@ export interface DevReport {
 
 export interface Evidence {
   ok: boolean
+  /** 逐包:这一趟发的号与 home 里实际装上的号 */
+  installed: InstalledRow[]
   entries: { pkg: string; entryId: string; active: boolean }[]
   dead: string[]
   errors: string[]
@@ -395,11 +488,39 @@ export async function runDev(input: DevInput, deps: DevDeps): Promise<DevOutcome
   // 日志基线取在装之前:从这一刻起冒出来的每一行,都是这一趟自己惹出来的
   const logFile = path.join(guard.home, LOG_FILE)
   const baseline = deps.size(logFile)
+  // **清单写准确号再 pnpm install,不走 plugin-manager.install 也不走 pnpm add**:前者对已经装过的
+  // 包还会再建一条条目(同一个件挂两遍);后者在已有 ^ 声明上写出来的是范围,见 `pinExact`。
+  // 这一趟的包一次写齐、一次装,同趟兄弟之间的 peer 按新号一起解析
+  const manifestFile = path.join(guard.home, HOME_MANIFEST)
+  const original = deps.readText(manifestFile)
+  if (original === undefined) return { ok: false, error: `读不到 ${guard.name} 的清单(${manifestFile})——这不像一个装过件的 home`, data: { shipped } }
+  let pinnedText = original
   for (const one of shipped) {
-    // **走 pnpm add 不走 plugin-manager.install**:后者对已经装过的包还会再建一条条目,同一个件
-    // 挂两遍(同名命令登记两次)。装准确版本,不给范围:范围会把 dev 号解析掉
-    const added = await deps.run(pnpmPlan(['add', `${one.pkg}@${one.version}`], guard.home, deps.platform), ADD_TIMEOUT_MS)
-    if (!added.ok) return { ok: false, error: `在 ${guard.name} 里装 ${one.pkg}@${one.version} 没成:\n${added.tail}`, data: { shipped } }
+    const pinned = pinExact(pinnedText, one.pkg, one.version)
+    if (!pinned.ok) return { ok: false, error: `改不了 ${guard.name} 的清单(${manifestFile}):${pinned.error}`, data: { shipped } }
+    pinnedText = pinned.text
+  }
+  if (pinnedText !== original) {
+    const written = deps.writeText(manifestFile, pinnedText)
+    if (!written.ok) return { ok: false, error: `写不进 ${manifestFile}:${written.error}`, data: { shipped } }
+  }
+  const installed = await deps.run(pnpmPlan(['install'], guard.home, deps.platform), ADD_TIMEOUT_MS)
+  if (!installed.ok) {
+    // 装没成就把清单放回原样:留着一份「声明了新号、盘上是旧号」的清单,下一个在这个 home 里跑
+    // pnpm 的人会莫名其妙地装上它
+    const restored = pinnedText === original ? { ok: true as const } : deps.writeText(manifestFile, original)
+    const wanted = shipped.map((one) => `${one.pkg}@${one.version}`).join('、')
+    return {
+      ok: false,
+      error: `在 ${guard.name} 里装 ${wanted} 没成${restored.ok ? '(清单已放回原样)' : `,清单也没放回去(${restored.error})——手工把 ${manifestFile} 改回来`}:\n${installed.tail}`,
+      data: { shipped },
+    }
+  }
+  // 退出码 0 不等于装上了这一趟的号。对不上就不往下走:重挂一个旧版本、再报「条目全活着」,
+  // 正是这条链要防的那种「看着成了」
+  const landed = checkInstalled(guard.home, shipped, deps.readText)
+  if (landed.wrong.length > 0) {
+    return { ok: false, error: installedNote(guard.name, landed.wrong), data: { shipped, installed: landed.rows } }
   }
 
   // ── 五、重挂 ────────────────────────────────────────────────────────────────
@@ -425,7 +546,7 @@ export async function runDev(input: DevInput, deps: DevDeps): Promise<DevOutcome
   const reloaded = await deps.cdp(input.home, ['reload', ...(input.waitFor === undefined ? [] : [input.waitFor])], CDP_TIMEOUT_MS)
 
   // ── 七、取证 ────────────────────────────────────────────────────────────────
-  const evidence = await collect(input.home, shipped, logFile, baseline, deps)
+  const evidence = await collect(input.home, guard.home, shipped, logFile, baseline, deps)
   const report: DevReport = { home: guard.home, homeName: guard.name, shipped, reload: reloaded.data, evidence }
   if (!evidence.ok) return { ok: false, error: evidence.note, data: report }
   return { ok: true, data: report }
@@ -482,8 +603,10 @@ export async function remount(home: string, pkg: string, entryId: string, deps: 
 }
 
 /**
- * 取证。两样,合起来才盖得住「看着成了」的那几种:
+ * 取证。三样,合起来才盖得住「看着成了」的那几种:
  *
+ * - **装上的就是这一趟发的号**。读 home 里 `node_modules` 下那份 package.json——pnpm 退出码 0、
+ *   条目全活着、日志干净,跑着的也可能是上一趟的版本
  * - **条目真活着**。`plugin-manager.list` 的 `active` 判的是 fiber 真 ACTIVE,不是 fiber 建出来了
  *   ——inject 永远等不到的件也有 fiber,只是到不了 ACTIVE
  * - **日志增量里没有 error**。「挂上了」只说明模块 import 成功、`apply` 被调用了;`apply`
@@ -491,11 +614,13 @@ export async function remount(home: string, pkg: string, entryId: string, deps: 
  */
 export async function collect(
   home: string,
+  homeDir: string,
   shipped: ShippedPackage[],
   logFile: string,
   baseline: number,
   deps: DevDeps,
 ): Promise<Evidence> {
+  const landed = checkInstalled(homeDir, shipped, deps.readText)
   const listed = receiptOf((await deps.cdp(home, ['cmd', 'plugin-manager.list'], CDP_TIMEOUT_MS)).data)
   const entries: Evidence['entries'] = []
   const dead: string[] = []
@@ -506,15 +631,17 @@ export async function collect(
     }
   }
   const { errors, warns } = errorLines(deps.slice(logFile, baseline))
-  const ok = listed.ok && dead.length === 0 && errors.length === 0
-  const note = !listed.ok
+  const ok = landed.wrong.length === 0 && listed.ok && dead.length === 0 && errors.length === 0
+  const note = landed.wrong.length > 0
+    ? installedNote(path.basename(homeDir), landed.wrong)
+    : !listed.ok
     ? `取不到证:plugin-manager.list 没回(${listed.error ?? '没说原因'})`
     : dead.length > 0
       ? `这几条没挂上(fiber 没到 ACTIVE):${dead.join('、')}——日志里有原因`
       : errors.length > 0
         ? `重挂之后日志里冒出 ${String(errors.length)} 条 error,别当它验过了:\n${errors.join('\n')}`
-        : `${String(entries.length)} 条条目全活着,日志增量里没有 error${warns.length > 0 ? `(有 ${String(warns.length)} 条 warn,另看)` : ''}`
-  return { ok, entries, dead, errors, warns, note }
+        : `装上的是这一趟的号(${landed.rows.map((row) => `${row.pkg}@${row.expected}`).join('、')}),${String(entries.length)} 条条目全活着,日志增量里没有 error${warns.length > 0 ? `(有 ${String(warns.length)} 条 warn,另看)` : ''}`
+  return { ok, installed: landed.rows, entries, dead, errors, warns, note }
 }
 
 // 取证只有 `collect` 这一条路,而且只在 `runDev` 里头走——**判定要基线**:哪些 error 是

@@ -6,6 +6,10 @@ import {
   BASE_INSTALL_TIMEOUT_MS,
   CDP_PORT_BASE,
   DAILY_HOME,
+  EXIT_POLL_MS,
+  EXIT_TIMEOUT_MS,
+  REMOVE_RETRY_MS,
+  REMOVE_TRIES,
   asCdpPort,
   asHomeName,
   bringDownHome,
@@ -50,13 +54,18 @@ function fakeFs(
   files: Record<string, string> = {},
   dirs: Record<string, string[]> = {},
   removeDirError?: string,
-): HomeFs & { files: Map<string, string>; removed: string[] } {
+  /** removeDir 回 ok（或回 removeDirError）、目录却还在（剩下这几个子目录） */
+  leftAfterRemove?: string[],
+  /** 前几次删是上面那样没删掉，之后删得掉；不给＝一直删不掉 */
+  stubbornTimes = Number.POSITIVE_INFINITY,
+): HomeFs & { files: Map<string, string>; removed: string[]; removeCalls: number } {
   const table = new Map(Object.entries(files).map(([k, v]) => [path.resolve(k), v]))
   const dirTable = new Map(Object.entries(dirs).map(([k, v]) => [path.resolve(k), v]))
   const removed: string[] = []
   return {
     files: table,
     removed,
+    removeCalls: 0,
     exists: (target) => {
       const key = path.resolve(target)
       if (table.has(key) || dirTable.has(key)) return true
@@ -77,10 +86,18 @@ function fakeFs(
       dirTable.set(path.resolve(dir), dirTable.get(path.resolve(dir)) ?? [])
     },
     dirs: (target) => dirTable.get(path.resolve(target)) ?? [],
-    removeDir: (dir) => {
-      if (removeDirError !== undefined) return { ok: false, error: removeDirError }
-      removed.push(path.resolve(dir))
-      dirTable.delete(path.resolve(dir))
+    removeDir(dir) {
+      const key = path.resolve(dir)
+      this.removeCalls += 1
+      if (leftAfterRemove !== undefined && this.removeCalls <= stubbornTimes) {
+        dirTable.set(key, leftAfterRemove)
+        return removeDirError === undefined ? { ok: true } : { ok: false, error: removeDirError }
+      }
+      if (removeDirError !== undefined && leftAfterRemove === undefined) return { ok: false, error: removeDirError }
+      removed.push(key)
+      dirTable.delete(key)
+      const parent = dirTable.get(path.dirname(key))
+      if (parent !== undefined) dirTable.set(path.dirname(key), parent.filter((one) => one !== path.basename(key)))
       return { ok: true }
     },
   }
@@ -100,6 +117,8 @@ interface FakeOptions {
   runs?: { ok: boolean; tail: string }[]
   /** kill 的收场：默认停成了；'gone' 是下手时已经不在，给一个 Error 是它抛 */
   kill?: 'killed' | 'gone' | Error
+  /** 停成了之后进程还要被查到几次 running 才真退；Infinity＝一直不退 */
+  exitAfterPolls?: number
   /** CDP 口上 listen 的那个 pid；不给就是「取不出来」（那时只按映像名那道判据走） */
   portOwner?: number
   execPath?: string
@@ -115,6 +134,7 @@ function fakeDeps(options: FakeOptions = {}) {
     spawned: [] as { command: string; args: string[]; cwd: string; env: NodeJS.ProcessEnv }[],
     runCalls: [] as { plan: { command: string; args: string[]; cwd: string }; timeoutMs: number }[],
     slept: [] as number[],
+    pollsAfterKill: 0,
   }
   const execPath = options.execPath ?? HOST
   const deps: HomeDeps = {
@@ -134,6 +154,11 @@ function fakeDeps(options: FakeOptions = {}) {
     processName(pid) {
       if (options.unknownPids?.includes(pid) === true) return Promise.resolve({ state: 'unknown' })
       const name = options.processes?.[pid]
+      if (name !== undefined && state.killed.includes(pid)) {
+        // 停过的进程：再被查到 exitAfterPolls 次 running 之后才不在
+        state.pollsAfterKill += 1
+        if (state.pollsAfterKill > (options.exitAfterPolls ?? 0)) return Promise.resolve({ state: 'gone' })
+      }
       return Promise.resolve(name === undefined ? { state: 'gone' } : { state: 'running', name })
     },
     portOwner(port) {
@@ -564,6 +589,23 @@ describe('bringDownHome：核对映像名再杀', () => {
     expect(outcome).toMatchObject({ ok: true, killed: null })
     expect(state.killed).toEqual([])
   })
+
+  it('发了停止信号要等进程真退：按 pid 轮询到 gone 才算停了', async () => {
+    const fs = fakeFs({ [recordFile(HOME)]: write(RECORD) })
+    const { deps, state } = fakeDeps({ fs, processes: { 4242: 'electron.exe' }, exitAfterPolls: 3 })
+    expect(await bringDownHome(HOME, deps)).toMatchObject({ ok: true, killed: 4242 })
+    expect(state.slept).toEqual([EXIT_POLL_MS, EXIT_POLL_MS, EXIT_POLL_MS])
+  })
+
+  it('信号发了进程到点还不退：ok:false，说清没退', async () => {
+    const fs = fakeFs({ [recordFile(HOME)]: write(RECORD) })
+    const { deps, state } = fakeDeps({ fs, processes: { 4242: 'electron.exe' }, exitAfterPolls: Number.POSITIVE_INFINITY })
+    const outcome = await bringDownHome(HOME, deps)
+    expect(outcome).toMatchObject({ ok: false, killed: null })
+    expect(outcome.note).toContain('还在')
+    expect(state.slept).toHaveLength(Math.ceil(EXIT_TIMEOUT_MS / EXIT_POLL_MS))
+    expect(fs.files.has(recordFile(HOME))).toBe(true)
+  })
 })
 
 describe('removeHome：default 守得住，跑着的要 force 才连停带删', () => {
@@ -649,5 +691,44 @@ describe('removeHome：default 守得住，跑着的要 force 才连停带删', 
     const outcome = await removeHome(HOME, NAME, false, deps)
     expect(outcome.ok).toBe(false)
     expect(outcome.note).toContain('EBUSY')
+  })
+
+  it('删的调用回 ok、目录却一直还在：试满次数不说「已删」，说清还剩什么', async () => {
+    const fs = fakeFs({}, { [ROOT]: [NAME] }, undefined, ['data', 'node_modules'])
+    const { deps, state } = fakeDeps({ fs })
+    const outcome = await removeHome(HOME, NAME, false, deps)
+    expect(outcome.ok).toBe(false)
+    expect(outcome.note).not.toContain('已删')
+    expect(outcome.note).toContain('还在')
+    expect(outcome.note).toContain('node_modules')
+    expect(fs.removeCalls).toBe(REMOVE_TRIES)
+    expect(state.slept).toEqual(Array.from({ length: REMOVE_TRIES - 1 }, () => REMOVE_RETRY_MS))
+  })
+
+  it('第一次删回 ok 却只删了一半（子进程还握着句柄），等一会儿再删掉了：回已删', async () => {
+    const fs = fakeFs({}, { [ROOT]: [NAME] }, undefined, ['node_modules'], 1)
+    const { deps, state } = fakeDeps({ fs })
+    const outcome = await removeHome(HOME, NAME, false, deps)
+    expect(outcome.ok).toBe(true)
+    expect(fs.removeCalls).toBe(2)
+    expect(state.slept).toEqual([REMOVE_RETRY_MS])
+  })
+
+  it('force 连停带删：进程没退净之前不下手删，退了再删', async () => {
+    const fs = fakeFs({ [recordFile(HOME)]: write(RECORD) }, { [ROOT]: [NAME] })
+    const { deps, state } = fakeDeps({ fs, processes: { 4242: 'electron.exe' }, exitAfterPolls: 2 })
+    const outcome = await removeHome(HOME, NAME, true, deps)
+    expect(outcome.ok).toBe(true)
+    expect(state.slept).toEqual([EXIT_POLL_MS, EXIT_POLL_MS])
+    expect(fs.removed).toEqual([path.resolve(HOME)])
+  })
+
+  it('force 停了进程却一直不退：不删，回 ok:false', async () => {
+    const fs = fakeFs({ [recordFile(HOME)]: write(RECORD) }, { [ROOT]: [NAME] })
+    const { deps } = fakeDeps({ fs, processes: { 4242: 'electron.exe' }, exitAfterPolls: Number.POSITIVE_INFINITY })
+    const outcome = await removeHome(HOME, NAME, true, deps)
+    expect(outcome.ok).toBe(false)
+    expect(outcome.note).toContain('停它没成')
+    expect(fs.removed).toEqual([])
   })
 })

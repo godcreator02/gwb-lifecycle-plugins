@@ -1,0 +1,45 @@
+---
+title: 依赖对账只记该记的账：最新认 latest、退役单元不扫、不发布的清单不审下限
+born-at: 2026-09-17T23:40
+type: choice
+parent: [2026-09-08-gwb-devkit]
+label: 对账去噪
+domain: 开发循环
+---
+
+## 背景
+
+`devkit.audit-deps`（0.10.0 起）2026-09-17 晚在全生态跑出 151 条，总控台逐条过时认出三类噪音：
+
+- 「源上最新」取的是版本表里号最大的那个，于是 `gwb-repo-kit` 报最新 `0.2.1-dev.202609151533`
+  （`dist-tags.latest` 是 0.2.0）、`gwb-plugin-manager` 报 `0.4.1-dev.…`（latest 0.4.0）。比较函数按点切段
+  转数字，`1-dev` 转成 NaN，dev 号一律比正式版大
+- 已退役单元（`26090620ufd`、`26091002sgd`，出生证 `status: "retired"`）照扫，报了 7 条 dead-pin
+- `private: true` 的清单（如 base-plugins 里不再发版的 `plugins/command-http`）的 peer 下限也判
+  floor-* 类
+
+## 结论与边界
+
+- **「最新」认 `dist-tags.latest`**。开发版标 dev、不动 latest，号比正式版大，但不是谁该上的车；源上还没有
+  latest（只发过开发版）的包不判火车债。比较函数同时按 semver 认预发布段
+- **退役单元整个不扫**，名字列进回执 `retired`。认退役读单元根的 `unit.json`（出生证正本），读不到或读不懂
+  当没退役——宁可多扫
+- **`private: true` 的清单只查 dev 钉那三类（dead-pin / behind / loose-dev-pin），不查 peer 下限**。
+  下限是写给装这个包的人看的，不发布就没人装，写什么都进不了任何 home；dev 钉照审，因为它决定这个仓自己
+  装不装得上、验的是不是最新（仓根 workspace、文档站都是这一类）
+
+## 否掉的候选
+
+- **退役状态从 `unit-folder.list` 的回执里取**。容器根缺省已经问它要，但回执的嵌套形状归 unit-folder 件、
+  同一晚正在改；出生证是正本，扫仓本来就在读盘，直接读 `unit.json` 少一层依赖
+- **private 清单整份跳过**。docs-site 这类清单的 dev 钉写成范围（`^0.2.0`）或钉到源上没有的号，照样让仓
+  装不上或验旧版本，跳过就漏账
+
+## 依据
+
+判例进 `tests/audit.test.ts`：latest 与更大的开发版并存时钉到 latest 算干净、没有 latest 不判火车债、
+private 清单 peer 下限写 `>=9.9.9` 不报而 dev 钉的死钉与范围照报、出生证 `retired` 才算退役。
+
+实机：开发版 devkit `0.13.1-dev.202609172259` 装进隔离 home `dkfix-a-2609172256`，`devkit.audit-deps
+{"root":"D:/unitfolders"}` 回 23 仓 45 份清单 31 条（behind 25、floor-unverifiable 2、loose-dev-pin 4），
+`retired` 列出 5 个退役单元。151 → 31 里也含同一晚各仓自己追钉版的量，不全是去噪的功劳。

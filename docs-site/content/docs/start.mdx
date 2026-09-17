@@ -1,6 +1,6 @@
 ---
 title: 怎么用
-description: 装、配两项设置、六组入口各干什么、门禁跑哪几条
+description: 装、没有设置项、各组入口各干什么、门禁跑哪几条
 ---
 
 # 怎么用
@@ -13,35 +13,35 @@ description: 装、配两项设置、六组入口各干什么、门禁跑哪几�
 plugin-manager.install {"pkg":"@godcreator/gwb-devkit"}
 ```
 
-装完下一次 `/surface` 现扫就有——门没有会话，没有重连这个动作。
+装完下一次调门的 `index` 现拼就有——门没有会话，没有重连这个动作。
 
-挂上了的证据在 `<home>\gwb.log` 里那句「开发套件就绪」。读那一行，不要读「装完了」这四个字：包装进 `node_modules` 与插件真的挂上是两件事。此刻这个 home 上到底有哪几条命令，以 `/surface` 的回执为准。
+挂上了的证据在 `<home>\gwb.log` 里那句「开发套件就绪」。读那一行，不要读「装完了」这四个字：包装进 `node_modules` 与插件真的挂上是两件事。此刻这个 home 上到底有哪几条命令，以 `index` 的回执为准。
 
-## 一个设置项
+## 没有设置项
 
-{/* ref file="../plugins/devkit/src/index.ts" lines="162-170" */}
+装完什么都不用配。起 home 拉的是宿主自己那个应用，不认内核仓；`devkit.audit-deps` 不给 `root` 时现问命令总线上的 `unit-folder.list`。
 
-`kernel-dir` 是内核仓的根，即含 `apps/desktop` 的那一级。不填，`devkit.home.new` 与 `devkit.home.open` 不工作；列与删不受影响。
+## 各组入口
 
-两项都不给默认值。目录是这台机器的事实，编一个出来只会得到「配置了但不在」的假象，而那种假象要等到第一次真跑才炸。
-
-## 六组入口
-
-参数形状以命令自己的 description 为准。命令总线不带参数 schema，description 那一句就是调用方能看见的全部，所以它写得出形状；这一页只说什么时候用哪一组。
+参数形状以命令自己的 usage 为准。命令总线不带参数 schema，description 那一句与 usage 就是调用方能看见的全部，所以它们写得出形状；这一页只说什么时候用哪一组。
 
 **建仓**。`devkit.scaffold` 把一个新插件的骨架落进一个新文件夹，默认连文档站一起建。目标目录必须还不存在。站那半是两步，经命令总线转给站点插件与 docfirst 插件，哪个插件没装就跳过那一步，插件那半照样落盘。参数给错会把整份说明回给你，不必背。
 
-**源**。NAS 上的常驻团队源（`https://git.tianshen02.online:28377/api/packages/godcreator/npm/`），不经本机、无需起停。`@godcreator` 是 gwb 线的命名空间，发布者锁 `godcreator` 一人；其他人自助注册后发自己的包。
+**源**。常驻的 gitea 个人源（`https://git.tianshen02.online:28377/api/packages/godcreator/npm/`），不经本机、无需起停。`@godcreator` 是 gwb 线的命名空间，scope 路由住用户级 `~/.npmrc`，命令行上不写 `--registry`。
 
-**测试 home**。`devkit.home.new` 开一个新的，名字长成 `<短名>-<时间戳>`，先 build 内核；`devkit.home.list` 列全部与谁在跑，连带两个端口（调试端口与命令口端口）；`devkit.home.open` 重开一个已有的且不 build；`devkit.home.rm` 删。一次验证开一个新 home，清理放在开新的那一刻，回执里本来就带着现有清单。
+**测试 home**。`devkit.home.new` 开一个新的，名字长成 `<短名>-<时间戳>`，拉宿主安装版起窗、不 build 内核；`devkit.home.list` 列全部与谁在跑，连带调试端口与 MCP 门；`devkit.home.open` 重开一个已有的；`devkit.home.rm` 删。一次验证开一个新 home，清理放在开新的那一刻，回执里本来就带着现有清单。
 
 机器重启之后回到原来那个现场只有 `open` 这一条路：`new` 永远造新目录，插件得全部重装一遍。
 
 **调试端口不收，起的时候自己挑**。先沿用这个 home 上次那个端口，被别人占了才另挑，换了会在回执的 `cdpNote` 里说一句。端口稳定下来是有价值的：人记得住、日志里对得上、开着的检查器不用换地址；而收一个手给的端口，剩下的全部用法就只有「敲错一位落在别人的端口上」。
 
-`rm` **没在跑的直接删；还在跑的要 `force`**，那时连停带删，停的是哪个 pid 写在回执里。停它认的是内核开机写下的 `runtime.json`，所以手工敲 electron 起的那些同样停得了。`default` 是日常那份：不 `force` 不删，而且**它正跑着的时候 `force` 也不删**——自己关掉那扇窗再来。
+`rm` **没在跑的直接删；还在跑的要 `force`**，那时连停带删，按 pid 等进程真退了才删，停的是哪个 pid 写在回执里。**回「已删」只在目录真不在了之后**，删不掉回 `ok: false` 并列出还剩什么。停它认的是内核开机写下的 `runtime.json`，所以手工起的 home 同样停得了。`default` 是日常那份：不 `force` 不删，而且**它正跑着的时候 `force` 也不删**——自己关掉那扇窗再来。
 
 **改一版看一版**。`devkit.dev` 一条走完从构建到取证。下一节单独说。
+
+**发正式版**。`devkit.release` 从仓根把包按依赖序发到源（tag latest）：git 树不干净就拒、同号在源上就拒、不改仓里任何文件、不碰任何 home。
+
+**依赖对账**。`devkit.audit-deps` 扫容器根各仓的 `@godcreator` 声明对源上现值，出死钉、火车债、下限水分三样账，只读。「最新」认 `dist-tags.latest`，退役单元不扫，`private` 清单只查 dev 钉。
 
 **在页面里动手**。`devkit.cdp` 是经 `gwbNodeCli` 登记的外部 CLI，连上一个工作台页面发真鼠标、真按键、截图，也能在那张页上跑工作台命令、刷新、问它是哪个 home、把一个文件送进页面里跑（`eval <文件> [JSON 参数]`，文件里写 `(args) => 一张表`）。
 
@@ -55,7 +55,7 @@ plugin-manager.install {"pkg":"@godcreator/gwb-devkit"}
 
 {/* ref file="../plugins/devkit/src/index.ts" lines="388-395" */}
 
-`devkit.dev` 走的是一条链：仓根构建，给每个包发一个开发版到本机源（号打成 `<patch+1>-dev.<戳>`，标 `dev` 不动 `latest`），在目标 home 里装那个准确的号，每条对应条目调一次 `plugin-manager.remount` 重挂（停用再启用在目标进程里一条命令做完，部署 plugin-manager 自己或命令总线也一趟走完；目标 home 的 plugin-manager 要 0.4.0 起），整页重载，最后取证。取不到证就回 `ok: false`。
+`devkit.dev` 走的是一条链：仓根构建，给每个包发一个开发版到源（号打成 `<patch+1>-dev.<戳>`，标 `dev` 不动 `latest`），在目标 home 的清单里写那个准确的号再 `pnpm install`、读回装上的号核对（对不上当场 `ok: false`），每条对应条目调一次 `plugin-manager.remount` 重挂（停用再启用在目标进程里一条命令做完，部署 plugin-manager 自己或命令总线也一趟走完；目标 home 的 plugin-manager 要 0.4.0 起），整页重载，最后取证。取不到证就回 `ok: false`。
 
 **构建与源都不可给。** 跳过构建就是发上一版，而回执一切正常；源这台机器上只有一个。少一个参数就少一条「给你一次机会跳过一道守卫」的岔路。
 
@@ -73,7 +73,7 @@ plugin-manager.install {"pkg":"@godcreator/gwb-devkit"}
 
 两道守卫会当场拒：目标是 `default`，或者目标就是本插件自己所在的那个 home。前者是开发版进了日常那份 home，号看着跟正式版没两样而界面上一点异常都看不出来；后者是这条命令把自己停掉。换 devkit 自己走另一条路：发正式版，再 `plugin-manager.update-all`。
 
-取证这一步不能省。重挂了、刷新了都不等于验过了：插件的 `apply` 里一条 async 静默 reject，现象正好是「挂上了但什么都没发生」。所以最后回头看两样，条目是不是真的 ACTIVE，以及这一趟的日志增量里有没有 error。
+取证这一步不能省。重挂了、刷新了都不等于验过了：pnpm 退出码 0 装上的可能还是上一趟的号，插件的 `apply` 里一条 async 静默 reject，现象正好是「挂上了但什么都没发生」。所以最后回头看三样：装上的是不是这一趟发的号、条目是不是真的 ACTIVE、这一趟的日志增量里有没有 error。
 
 **取证只发生在链里头那一次**，因为判定要基线：哪些 error 是这一趟自己惹出来的，只有拿装包之前那个日志长度才分得出来。要现看一眼某个 home 的条目表，`devkit.cdp {"args":["<名>","cmd","plugin-manager.list"]}` 就是，那是看，不是验。
 
@@ -83,17 +83,17 @@ plugin-manager.install {"pkg":"@godcreator/gwb-devkit"}
 
 ```
 pnpm check          # typecheck + vitest
-pnpm build          # 一趟 tsc 直出 dist/，没有打包器
+pnpm build          # 仓根跑：只构建 plugins/* 与 packages/*，一趟 tsc 直出 dist/，没有打包器
 ```
 
-**`pnpm check` 不构建。** 它吃的是源码，全绿只说明源码站得住，跟「装出来能不能跑」是两件事。发版前那次构建靠 `prepublishOnly` 这条脚本兜着，删了它，publish 会把上一版的 `dist/` 原样发出去而且一声不吭，现象是插件挂上了但新写的东西全没生效。
+**`pnpm check` 不构建。** 它吃的是源码，全绿只说明源码站得住，跟「装出来能不能跑」是两件事。手工 `pnpm publish` 时发版前那次构建靠 `prepublishOnly` 这条脚本兜着，删了它，publish 会把上一版的 `dist/` 原样发出去而且一声不吭，现象是插件挂上了但新写的东西全没生效。
 
 文档站的检查不在 `pnpm check` 里，它要起文档站的解析链，太慢。单独在 `docs-site` 里跑：`pnpm doc` 核对，`pnpm doc:confirm` 重钉（先 commit，git 比较器只认已提交的内容），`pnpm doc:render` 重摆生成物。
 
 ## 发一版
 
-先抬 `package.json` 的版本号，同一个号永不重发，发之前先问一句它在不在源上。然后 `pnpm publish --registry https://git.tianshen02.online:28377/api/packages/godcreator/npm/ --no-git-checks`。
+先抬 `package.json` 的版本号并提交，同一个号永不重发。然后 `devkit.release {"dir":"<本仓根>","packages":["plugins/devkit"]}`（repo-kit 也改了就把 `packages/repo-kit` 排在前面）。
 
-发完就去升 default，别攒着：人在插件窗格点「全部更新」，或者调 `plugins.update-all`。手册与命令都随包走，不升等于 agent 读到的还是上一版，而它照着一份过期手册干活不报错。
+发完就去升 default，别攒着：人在插件窗格点「全部更新」，或者调 `plugin-manager.update-all`。手册与命令都随包走，不升等于 agent 读到的还是上一版，而它照着一份过期手册干活不报错。
 
 整条路的细节、发版前先在隔离 home 验那一步、以及验机的几条纪律，在说明书 `gwb-devkit` 里，这一页不复述。

@@ -1,6 +1,6 @@
 import fs from 'node:fs'
 import path from 'node:path'
-import type { ManifestDeps, RegistryInfo } from './audit.js'
+import { unitRetired, type ManifestDeps, type RegistryInfo } from './audit.js'
 
 /**
  * `audit.ts` 纯机的环境胶水：扫容器根找仓、读各仓的 package.json、向 registry 问现值。
@@ -10,11 +10,22 @@ import type { ManifestDeps, RegistryInfo } from './audit.js'
 /** 一个人工排除的包：样例探针（fresh-eyes / 验收用，钉的版本随模板走，不算生态账） */
 const PKG_EXEMPT = new Set(['@godcreator/gwb-hello'])
 
-/** 找一个容器根下面全部 git 仓：单元根或单元根下一层（unit.json + 一层仓目录的习俗） */
-export function collectRepos(root: string): string[] {
+/** 单元的出生证 */
+const UNIT_JSON = 'unit.json'
+
+/**
+ * 找一个容器根下面全部 git 仓：单元根或单元根下一层（unit.json + 一层仓目录的习俗）。
+ * 出生证 `status` 是 `retired` 的单元整个跳过，名字收进 `retired`。
+ */
+export function collectRepos(root: string): { repos: string[]; retired: string[] } {
   const repos: string[] = []
+  const retired: string[] = []
   for (const unit of sortedEntries(root)) {
     if (!unit.isDirectory()) continue
+    if (unitRetired(readText(path.join(unit.full, UNIT_JSON)))) {
+      retired.push(unit.name)
+      continue
+    }
     if (fs.existsSync(path.join(unit.full, '.git'))) {
       repos.push(unit.full)
       continue
@@ -23,7 +34,7 @@ export function collectRepos(root: string): string[] {
       if (child.isDirectory() && fs.existsSync(path.join(child.full, '.git'))) repos.push(child.full)
     }
   }
-  return repos
+  return { repos, retired }
 }
 
 /** 一个仓里审得到的 manifest：仓根 + 各包目录 + docs-site，凡带 @godcreator 依赖的才收 */
@@ -39,11 +50,11 @@ export function collectManifests(repoDir: string): { rel: string; deps: Manifest
   candidates.push(path.join('docs-site', 'package.json'))
   const out: { rel: string; deps: ManifestDeps }[] = []
   for (const rel of candidates) {
-    const full = path.join(repoDir, rel)
-    if (!fs.existsSync(full)) continue
+    const text = readText(path.join(repoDir, rel))
+    if (text === undefined) continue
     let parsed: Record<string, unknown>
     try {
-      parsed = JSON.parse(fs.readFileSync(full, 'utf8')) as Record<string, unknown>
+      parsed = JSON.parse(text) as Record<string, unknown>
     } catch {
       continue
     }
@@ -69,10 +80,10 @@ function extractDeps(pkg: Record<string, unknown>): ManifestDeps | undefined {
   }
   const peers = pick('peerDependencies')
   const devs = pick('devDependencies')
-  return Object.keys(peers).length + Object.keys(devs).length > 0 ? { peers, devs } : undefined
+  return Object.keys(peers).length + Object.keys(devs).length > 0 ? { peers, devs, private: pkg.private === true } : undefined
 }
 
-/** 问源：packument 的 versions 键就是全部版本号。404＝源上没这个包 */
+/** 问源：packument 的 versions 键是全部版本号，dist-tags.latest 是正式最新。404＝源上没这个包 */
 export async function fetchRegistry(
   pkgs: string[],
   registryBase: string,
@@ -85,15 +96,24 @@ export async function fetchRegistry(
         const res = await fetch(url, { signal: AbortSignal.timeout(15_000) })
         if (res.status === 404) return [pkg, { versions: [] }] as const
         if (!res.ok) throw new Error(`registry 回了 ${String(res.status)}`)
-        const doc = JSON.parse(await res.text()) as { versions?: Record<string, unknown> }
+        const doc = JSON.parse(await res.text()) as { versions?: Record<string, unknown>; 'dist-tags'?: Record<string, unknown> }
         const versions = Object.keys(doc.versions ?? {})
-        return [pkg, { versions }] as const
+        const latest = doc['dist-tags']?.latest
+        return [pkg, { versions, ...(typeof latest === 'string' ? { latest } : {}) }] as const
       } catch (err) {
         throw new Error(`问不到 ${pkg}（${url}）：${String(err)}`)
       }
     }),
   )
   return Object.fromEntries(entries)
+}
+
+function readText(file: string): string | undefined {
+  try {
+    return fs.readFileSync(file, 'utf8')
+  } catch {
+    return undefined
+  }
 }
 
 function sortedEntries(dir: string): { name: string; full: string; isDirectory(): boolean }[] {

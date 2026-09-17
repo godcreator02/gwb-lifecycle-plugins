@@ -1,5 +1,5 @@
 import { spawn } from 'node:child_process'
-import { mkdirSync, rmSync } from 'node:fs'
+import { chmodSync, lstatSync, mkdirSync, readdirSync, rmdirSync, unlinkSync } from 'node:fs'
 import path from 'node:path'
 import type { HomeDeps, HomeFs } from './home.js'
 import { hostAppFacts, hostAppSpawnPlan, RUN_TAIL_LINES } from './home.js'
@@ -93,8 +93,44 @@ export function runCaptured(
 }
 
 /**
- * 整目录删。**maxRetries 是给 Windows 的**:electron 刚停,子进程偶尔还握着目录几秒,
- * EBUSY 重试几次常能自愈;真被占死的让错误走出去——吞了它,「删掉了」就是句谎话。
+ * 一棵目录树自底向上删:文件 unlink、目录清空后 rmdir、**链接(pnpm 在 Windows 上的 junction)只删
+ * 链接本身、不进去**。任何一步的错误原样抛出。
+ *
+ * **不用 `fs.rmSync({ recursive: true })`**:宿主 electron 带的 Node(24.19)在 Windows 上会**跟进
+ * junction 删掉它指向的内容**(指向树外的也删),删到悬空的 junction 又静默停手、不抛错。pnpm 装过包
+ * 的 home 里全是 junction:轻则删一半回成功,重则 link 进来的仓被删穿。自己走一遍树,链接不跟、
+ * 错误不吞。
+ */
+export function removeTree(target: string): void {
+  let stat
+  try {
+    stat = lstatSync(target)
+  } catch (err) {
+    if ((err as NodeJS.ErrnoException).code === 'ENOENT') return
+    throw err
+  }
+  if (stat.isSymbolicLink()) {
+    unlinkSync(target)
+    return
+  }
+  if (stat.isDirectory()) {
+    for (const name of readdirSync(target)) removeTree(path.join(target, name))
+    rmdirSync(target)
+    return
+  }
+  try {
+    unlinkSync(target)
+  } catch (err) {
+    // 只读文件在 Windows 上 unlink 回 EPERM:去掉只读再删一次,还不行就是真被占着,抛
+    if ((err as NodeJS.ErrnoException).code !== 'EPERM') throw err
+    chmodSync(target, 0o666)
+    unlinkSync(target)
+  }
+}
+
+/**
+ * 整目录删。错误原样带回:EBUSY/EPERM 是「还有进程握着里面的文件」的线索,吞了它「删掉了」
+ * 就是句谎话。重试与「删完目录真不在」的核对在 home.ts 的 `removeHome` 里。
  */
 export const homeFs: HomeFs = {
   ...nodeFs,
@@ -103,7 +139,7 @@ export const homeFs: HomeFs = {
   },
   removeDir(dir) {
     try {
-      rmSync(dir, { recursive: true, force: true, maxRetries: 5, retryDelay: 200 })
+      removeTree(dir)
       return { ok: true }
     } catch (err) {
       return { ok: false, error: err instanceof Error ? err.message : String(err) }

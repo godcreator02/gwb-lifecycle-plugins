@@ -1,0 +1,45 @@
+---
+title: 删 home 自己走树、按 pid 等进程退、删完问盘
+born-at: 2026-09-17T23:35
+type: choice
+parent: [2026-09-08-gwb-devkit]
+label: 删了才算删
+domain: 开发循环
+---
+
+## 背景
+
+base-plugins 那路实弹（2026-09-17 22:4x，home `skills-2609172241`）：`devkit.home.rm {"force":true}`
+第一次回 EPERM（进程还没退净），第二、三次都回「已删」，目录还在，`node_modules` 等 375 项没动；确认进程
+退完后手工 `Remove-Item` 一次删掉。当时 `removeHome` 是「按记录停 → `fs.rmSync(recursive, force,
+maxRetries)` → 没抛就回已删」，停只发信号不等退。
+
+## 结论与边界
+
+- **「停了」是按 pid 查到进程不在**：发信号后每 250ms 查一次，15 秒还在或一直查不出就回停不掉、不删
+- **「已删」只认盘**：删一次问一次 `exists`，还在就隔 1 秒再删，5 次还在回 `ok: false` 并列出还剩的子目录
+- **删树不用 `fs.rmSync` 的递归删**，自己自底向上走：文件 unlink（只读的去掉只读再删）、目录清空后
+  rmdir、junction 只删链接本身不进去，错误原样上交。`devkit.dev` 发版用的临时 staging 目录同样换成它
+
+## 依据
+
+**病根是宿主的 Node，不是进程没退。** 实机上新代码（按 pid 等退 + 删后问盘，仍用 `rmSync`）从隔离 home
+`dkfix-a-2609172256` 删 `dkfix-c-2609172259` 与 `dkfix-b-2609172256`：进程确认已退，5 次重试之后
+`node_modules` 仍在，而此时没有任何进程握着它。剩下的目录按名字序停在 `.pnpm` 里 plugin-manager 那一项——
+它里面的 junction 指向同一趟里先删掉的 plugin-api 目录。用宿主 exe 以 `ELECTRON_RUN_AS_NODE` 跑同样的
+`rmSync` 再删一次：Node 24.19.0 不抛、149 项一项没少；手写的走树一次删净。
+
+**探针** `probes/2609172320_rmsync-dangling-junction/`（`results.txt`）把形状缩到四个条目：宿主 Node 24.19.0 的
+`rmSync` 不抛、目录还在，**而且跟进了指向树外的 junction，把树外的文件删了**；系统 Node 24.14.1 的 `rmSync`
+与两边的走树都删净、树外文件都在。
+
+改成走树之后同一台机器上从 `dkfix-a` 删新开的 `dkfix-d-2609172320`（479 项、38 个 junction）：一次回
+`ok: true`、「已停 pid 124648（进程已退）」，目录不在。
+
+## 代价与遗留
+
+- **宿主 Node 的 `fs.rmSync` 递归删跟进 junction 是全生态的隐患**：任何跑在 electron 主进程里的件用它删
+  一个含 junction 的目录（pnpm 装过包的目录都是），轻则删一半回成功，重则删穿 link 进来的仓。本仓只修了
+  自己的两处，别的件归各自的仓
+- 走树比 `rmSync` 慢一点，一个 home 几百项，秒级
+- 5 × 1 秒的重试只兜「子进程晚几秒放手」，终端或编辑器开在 home 里时照实回删不掉

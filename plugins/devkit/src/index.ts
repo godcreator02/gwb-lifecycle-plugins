@@ -72,7 +72,7 @@ const ATTACH_SITE_COMMAND = 'docfirst.attach'
  *   git 树不干净就拒、只碰源不碰任何 home——没有自停问题，从哪个 home 调都行
  *
  * 外加一条经 `gwbNodeCli` 登记的外部 CLI：`devkit.cdp`（在一个工作台页面里动手，
- * 从取证到点按拖拽都是它；`eval` 是它的一个动词，退役的 `devkit.cdp-eval` 是它的祖先）。
+ * 从取证到点按拖拽都是它；在页面里跑代码是它的 `eval` 动作）。
  *
  * `apply` 里只剩接线；建仓的校验、渲染、落盘在 `scaffold.ts`；home 的时序在 `home.ts`、
  * 改一版看一版那条链在 `dev.ts`、进程探测的纯机在 `probes.ts`（皆纯机，可单测），
@@ -96,7 +96,7 @@ const HOME_USAGE = [
   'home 命令的参数：',
   '  devkit.home.new  { short 必给（kebab-case 短名） }——开 <short>-<yyMMddHHmm> 的新 home。拉宿主安装版起窗、自动装底座七件，调试口自动挑',
   '  devkit.home.open { name 必给（完整 home 名） }——重开一个已有的 home，不 build。机器重启之后回到现场走这条',
-  '  devkit.home.rm   { name，force? }——删一个 home。没在跑的直接删；还在跑的要 force（连停带删）',
+  '  devkit.home.rm   { name，force? }——删一个 home。没在跑的直接删；还在跑的要 force（连停带删，等进程真退再删）；目录真不在了才回已删',
   '                     default 是日常那份：不 force 不删，而且它在跑的时候 force 也不删——自己关掉那扇窗再来',
   '  devkit.home.list {}——列出 home 根下全部 home 与谁在跑',
   '例：{"short":"data"}、{"name":"data-2609081430"}',
@@ -276,7 +276,7 @@ export function apply(ctx: GwbContext): void {
         plugin: '@godcreator/gwb-devkit',
         description: '删一个测试 home',
         usage:
-          '{name，force?}——没在跑的直接删；**还在跑的要 force**，那时连停带删（按它 runtime.json 里的 pid，核对映像名与记录里那个 CDP 端口再杀）。default 是日常那份：不 force 不删，而且它在跑的时候 force 也不删，自己关掉那扇窗再来',
+          '{name，force?}——没在跑的直接删；**还在跑的要 force**，那时连停带删（按它 runtime.json 里的 pid，核对映像名与记录里那个 CDP 端口再杀，按 pid 等进程真退了才删）。**回「已删」只在目录真不在了之后**，没删掉回 ok:false 并列出还剩什么。default 是日常那份：不 force 不删，而且它在跑的时候 force 也不删，自己关掉那扇窗再来',
       },
       async (args) => {
         if (!isRecord(args)) return { ok: false, error: `参数要是个对象。\n${HOME_USAGE}` }
@@ -359,7 +359,7 @@ export function apply(ctx: GwbContext): void {
         plugin: '@godcreator/gwb-devkit',
         description: '改一版看一版（build→发 dev 版→目标 home 热挂→取证）',
         usage:
-          '{home 必给（目标 home 名，**只认名字不认端口**——口从它的 runtime.json 里查并验活）, dir 必给（仓根绝对路径）, packages?（包目录，相对仓根，按依赖顺序；不给就是仓根自己）, waitFor?（刷新后等这个选择器出现）}。一条走完：仓根 pnpm build → 发开发版（<patch+1>-dev.<戳>，标 dev 不动 latest）→ 在目标 home 里 pnpm add 那个准确号 → 逐条 plugin-manager.remount 重挂（一条命令做完停用再启用，目标 home 的 plugin-manager 要 ≥0.4.0；重挂 plugin-manager 自己时回执之后才动手，这边轮询到它回来）→ 整页重载 → 取证（条目真 ACTIVE、日志增量里没有 error），取不到证就回 ok:false。**构建与源都不可给**：跳过构建就是发上一版，而这台机器只有一个源。**目标是 default 或本件自己所在的 home 都当场拒；页面自报的名字跟你给的对不上也拒**',
+          '{home 必给（目标 home 名，**只认名字不认端口**——口从它的 runtime.json 里查并验活）, dir 必给（仓根绝对路径）, packages?（包目录，相对仓根，按依赖顺序；不给就是仓根自己）, waitFor?（刷新后等这个选择器出现）}。一条走完：仓根 pnpm build → 发开发版（<patch+1>-dev.<戳>，标 dev 不动 latest）→ 目标 home 的 package.json 写那个准确号再 pnpm install，读回 node_modules 里装上的号核对（对不上当场 ok:false，不重挂）→ 逐条 plugin-manager.remount 重挂（一条命令做完停用再启用，目标 home 的 plugin-manager 要 ≥0.4.0；重挂 plugin-manager 自己时回执之后才动手，这边轮询到它回来）→ 整页重载 → 取证（装上的是这一趟的号、条目真 ACTIVE、日志增量里没有 error），取不到证就回 ok:false。**构建与源都不可给**：跳过构建就是发上一版，而这台机器只有一个源。**目标是 default 或本件自己所在的 home 都当场拒；页面自报的名字跟你给的对不上也拒**',
       },
       async (args) => {
         if (!isRecord(args)) return { ok: false, error: `参数要是个对象。\n${DEV_USAGE}` }
@@ -439,7 +439,7 @@ export function apply(ctx: GwbContext): void {
         plugin: '@godcreator/gwb-devkit',
         description: '全生态依赖对账：各插件仓的 @godcreator 声明对 registry 现值，抓死钉与火车债',
         usage:
-          '{root?（容器根绝对路径，缺省从 kernel-dir 往上两级推）, registry?（缺省个人源）}。无参数直接调也行。回执 { ok, data: { root, repos, manifests, packages, findings, byKind } }——findings 逐条 { kind, repo, manifest, pkg, detail }；kind：dead-pin（钉了源上没有的版本，装必炸）/ behind（dev 钉落后最新，火车债）/ floor-unverifiable（下限指向源上没有的版本）/ floor-mismatch（下限 ≠ dev 钉）/ floor-no-mirror（peer 无 dev 镜像）/ loose-dev-pin（dev 钉不是精确号）。只读不改：扫仓、读 package.json、问源',
+          '{root?（容器根绝对路径，缺省现问命令总线 unit-folder.list 回的 container）, registry?（缺省个人源）}。无参数直接调也行。回执 { ok, data: { root, registry, repos, manifests, packages, retired, findings, byKind } }——findings 逐条 { kind, repo, manifest, pkg, detail }；kind：dead-pin（钉了源上没有的版本，装必炸）/ behind（dev 钉落后源上 dist-tags.latest，火车债；dev 号不算最新）/ floor-unverifiable（下限指向源上没有的版本）/ floor-mismatch（下限 ≠ dev 钉）/ floor-no-mirror（peer 无 dev 镜像）/ loose-dev-pin（dev 钉不是精确号）。退役单元（unit.json 的 status 是 retired）整个不扫，名字列在 retired；private: true 的清单不发布，只查 dev 钉那三类、不查 peer 下限。只读不改：扫仓、读 package.json、问源',
       },
       async (args) => {
         const askedRoot = isRecord(args) && typeof args.root === 'string' ? args.root.trim() : ''
@@ -456,7 +456,7 @@ export function apply(ctx: GwbContext): void {
         if (!fs.existsSync(root)) return { ok: false, error: `${root} 不在——root 给的是容器根（unit.json 们住的那层）` }
         const registryBase = isRecord(args) && typeof args.registry === 'string' && args.registry.trim() !== '' ? args.registry.trim() : DEFAULT_REGISTRY
 
-        const repoDirs = collectRepos(root)
+        const { repos: repoDirs, retired } = collectRepos(root)
         const repoRel = (dir: string): string => path.relative(root, dir).replaceAll('\\', '/')
         const manifests: { repo: string; manifest: string; deps: ManifestDeps }[] = []
         for (const dir of repoDirs) {
@@ -468,10 +468,10 @@ export function apply(ctx: GwbContext): void {
         const findings = manifests.flatMap((m) => auditManifest(m.repo, m.manifest, m.deps, registry))
         const byKind = countByKind(findings)
         log.info(
-          `devkit.audit-deps：${String(repoDirs.length)} 仓 ${String(manifests.length)} 份 manifest 对 ${String(pkgs.length)} 个包——` +
+          `devkit.audit-deps：${String(repoDirs.length)} 仓 ${String(manifests.length)} 份 manifest 对 ${String(pkgs.length)} 个包（退役单元 ${String(retired.length)} 个不扫）——` +
             `死钉 ${String(byKind['dead-pin'])}、火车债 ${String(byKind.behind)}、下限水分 ${String(byKind['floor-unverifiable'] + byKind['floor-mismatch'])}`,
         )
-        return { ok: true, data: { root, registry: registryBase, repos: repoDirs.length, manifests: manifests.length, packages: pkgs.length, findings, byKind } }
+        return { ok: true, data: { root, registry: registryBase, repos: repoDirs.length, manifests: manifests.length, packages: pkgs.length, retired, findings, byKind } }
       },
     ),
   )
@@ -582,7 +582,7 @@ export function apply(ctx: GwbContext): void {
         attached: false,
         note: hasCommand(CREATE_SITE_COMMAND)
           ? '没建站：调用时给了 docs: false'
-          : `没建站：这个 home 没装站件（命令总线上没有 ${CREATE_SITE_COMMAND}）。件那半已经落盘了——装上 @godcreator/gwb-docs-site（plugins.install）之后自己补两步：${CREATE_SITE_COMMAND} {"dir":"${siteDir}","title":"${plan.title}"} 铺骨架，再 ${attachHint} 装六区`,
+          : `没建站：这个 home 没装站件（命令总线上没有 ${CREATE_SITE_COMMAND}）。件那半已经落盘了——装上 @godcreator/gwb-docs-site（plugin-manager.install）之后自己补两步：${CREATE_SITE_COMMAND} {"dir":"${siteDir}","title":"${plan.title}"} 铺骨架，再 ${attachHint} 装六区`,
       }
     }
     const created = await commands.run(CREATE_SITE_COMMAND, {

@@ -5,13 +5,16 @@ import {
   DEFAULT_REGISTRY,
   DEFERRED_POLL_MS,
   DEFERRED_TIMEOUT_MS,
+  checkInstalled,
   collect,
   devVersion,
   entriesOf,
   errorLines,
   guardHome,
+  installedManifest,
   literalArtifacts,
   parseManifest,
+  pinExact,
   pnpmPlan,
   runDev,
   samePath,
@@ -56,18 +59,37 @@ interface FakeOptions {
   remount?: (entryId: string) => unknown
   /** remount 之后头几趟 `plugin-manager.list` 没人答（plugin-manager 自己正在回执之后重挂） */
   silentLists?: number
+  /**
+   * `pnpm install` 退出码 0 却没换号：node_modules 里留着上一版。pnpm 12 在已有 `^` 声明、锁里是
+   * 同 patch 旧预发布号时就是这样（实测）
+   */
+  staleInstall?: boolean
 }
 
-function fake(options: FakeOptions = {}): DevDeps & { calls: string[] } {
+/** 目标 home 的清单：装过这个包，声明是 `^` 范围（plugin-manager.install 写出来的样子） */
+const HOME_MANIFEST_TEXT = `${JSON.stringify({ name: 'bn-2609111200', dependencies: { '@godcreator/gwb-commands': '^0.4.1', [PKG]: '^0.3.1' } }, null, 2)}\n`
+
+function fake(options: FakeOptions = {}): DevDeps & { calls: string[]; files: Record<string, string> } {
   const calls: string[] = []
   let listed = 0
   let silent = 0
-  const files: Record<string, string> = { [path.resolve(REPO, 'package.json')]: MANIFEST, ...options.files }
+  const files: Record<string, string> = {
+    [path.resolve(REPO, 'package.json')]: MANIFEST,
+    [path.resolve(HOME, 'package.json')]: HOME_MANIFEST_TEXT,
+    [path.resolve(installedManifest(HOME, PKG))]: JSON.stringify({ name: PKG, version: '0.3.1' }),
+    ...options.files,
+  }
   return {
     calls,
+    files,
     platform: 'win32',
     now: () => Date.UTC(2026, 8, 11, 12, 0),
     readText: (file) => files[path.resolve(file)],
+    writeText(file, text) {
+      calls.push(`write ${path.resolve(file)}`)
+      files[path.resolve(file)] = text
+      return { ok: true }
+    },
     // 产物照 `files` 白名单问，测试里 dist 一律当在
     exists: (target) => path.resolve(target) in files || target.endsWith('dist') || path.resolve(target) === path.resolve(REPO),
     size: () => 0,
@@ -78,6 +100,13 @@ function fake(options: FakeOptions = {}): DevDeps & { calls: string[] } {
     async run(plan, _timeoutMs) {
       calls.push(`run ${plan.args.join(' ')} @${plan.cwd}`)
       const ok = options.failRun === undefined || !plan.args.join(' ').includes(options.failRun)
+      // 假 pnpm install：照 home 清单把声明的号摆进 node_modules（范围去掉前缀当它解析成了下限）
+      if (ok && plan.args.includes('install') && !options.staleInstall) {
+        const doc = JSON.parse(files[path.resolve(plan.cwd, 'package.json')] ?? '{}') as { dependencies?: Record<string, string> }
+        for (const [name, spec] of Object.entries(doc.dependencies ?? {})) {
+          files[path.resolve(installedManifest(plan.cwd, name))] = JSON.stringify({ name, version: spec.replace(/^[\^~]/, '') })
+        }
+      }
       return { ok, tail: ok ? '' : '假的失败' }
     },
     async cdp(port, args, _timeoutMs) {
@@ -278,9 +307,98 @@ describe('一趟', () => {
 
   it('取证只看这一趟的日志增量，不看全量', async () => {
     const deps = fake({ packages: ONE_ENTRY })
-    const evidence = await collect('bn-2609111200', [{ pkg: PKG, version: '0.3.2-dev.x', dir: REPO, remounted: [] }], 'D:/h/gwb.log', 0, deps)
+    const evidence = await collect('bn-2609111200', HOME, [{ pkg: PKG, version: '0.3.1', dir: REPO, remounted: [] }], 'D:/h/gwb.log', 0, deps)
     expect(evidence.ok).toBe(true)
     expect(evidence.entries).toHaveLength(1)
+    expect(evidence.installed).toEqual([{ pkg: PKG, expected: '0.3.1', actual: '0.3.1' }])
+  })
+
+  it('取证里装上的号对不上这一趟发的，条目再活也判失败', async () => {
+    const deps = fake({ packages: ONE_ENTRY })
+    const evidence = await collect('bn-2609111200', HOME, [{ pkg: PKG, version: '0.3.2-dev.202609111200', dir: REPO, remounted: [] }], 'D:/h/gwb.log', 0, deps)
+    expect(evidence.ok).toBe(false)
+    expect(evidence.note).toContain('0.3.2-dev.202609111200')
+    expect(evidence.note).toContain('0.3.1')
+  })
+})
+
+describe('装进目标 home', () => {
+  it('清单里已有 ^ 声明：改写成准确号，缩进与末尾换行照原样', () => {
+    const out = pinExact(HOME_MANIFEST_TEXT, PKG, '0.3.2-dev.202609111200')
+    expect(out.ok).toBe(true)
+    if (!out.ok) return
+    expect(JSON.parse(out.text)).toMatchObject({ dependencies: { [PKG]: '0.3.2-dev.202609111200', '@godcreator/gwb-commands': '^0.4.1' } })
+    expect(out.text.endsWith('}\n')).toBe(true)
+    expect(out.text).toContain('\n  "dependencies"')
+  })
+
+  it('清单里还没有这个包：加进 dependencies，按名字排好', () => {
+    const out = pinExact('{\n    "dependencies": { "@godcreator/gwb-zz": "^1.0.0" }\n}', '@godcreator/gwb-aa', '0.1.1-dev.1')
+    expect(out.ok).toBe(true)
+    if (!out.ok) return
+    expect(Object.keys((JSON.parse(out.text) as { dependencies: object }).dependencies)).toEqual(['@godcreator/gwb-aa', '@godcreator/gwb-zz'])
+    expect(out.text).toContain('\n    "dependencies"')
+    expect(out.text.endsWith('\n')).toBe(false)
+  })
+
+  it('包住在别的格就改那一格，不另加一份', () => {
+    const out = pinExact(JSON.stringify({ devDependencies: { [PKG]: '^0.3.1' } }), PKG, '0.3.2-dev.1')
+    expect(out.ok).toBe(true)
+    if (out.ok) expect(JSON.parse(out.text)).toEqual({ devDependencies: { [PKG]: '0.3.2-dev.1' } })
+  })
+
+  it('清单读不到或不是 JSON 就不写', () => {
+    expect(pinExact(undefined, PKG, '1.0.0')).toMatchObject({ ok: false })
+    expect(pinExact('半截', PKG, '1.0.0')).toMatchObject({ ok: false })
+  })
+
+  it('核对装上的号：对得上、对不上、读不到三种', () => {
+    const files: Record<string, string> = {
+      [path.resolve(installedManifest(HOME, '@godcreator/gwb-a'))]: JSON.stringify({ name: '@godcreator/gwb-a', version: '0.7.2-dev.202609171837' }),
+      [path.resolve(installedManifest(HOME, '@godcreator/gwb-b'))]: JSON.stringify({ name: '@godcreator/gwb-b', version: '0.7.2-dev.202609171834' }),
+    }
+    const out = checkInstalled(
+      HOME,
+      [
+        { pkg: '@godcreator/gwb-a', version: '0.7.2-dev.202609171837' },
+        { pkg: '@godcreator/gwb-b', version: '0.7.2-dev.202609171837' },
+        { pkg: '@godcreator/gwb-c', version: '1.0.0' },
+      ],
+      (file) => files[path.resolve(file)],
+    )
+    expect(out.rows.map((row) => row.actual)).toEqual(['0.7.2-dev.202609171837', '0.7.2-dev.202609171834', null])
+    expect(out.wrong.map((row) => row.pkg)).toEqual(['@godcreator/gwb-b', '@godcreator/gwb-c'])
+  })
+
+  it('一趟里是「清单写准确号 + pnpm install」，不跑 pnpm add', async () => {
+    const deps = fake({ packages: ONE_ENTRY })
+    const out = await runDev(input(), deps)
+    expect(out.ok).toBe(true)
+    const version = devVersion('0.3.1', Date.UTC(2026, 8, 11, 12, 0))
+    expect(JSON.parse(deps.files[path.resolve(HOME, 'package.json')] ?? '{}')).toMatchObject({ dependencies: { [PKG]: version } })
+    expect(deps.calls.some((one) => one.endsWith(`pnpm install @${HOME}`))).toBe(true)
+    expect(deps.calls.some((one) => one.includes('pnpm add'))).toBe(false)
+    if (out.ok) expect(out.data.evidence.installed).toEqual([{ pkg: PKG, expected: version, actual: version }])
+  })
+
+  it('pnpm 退出码 0 却没换号（上一趟的号还在）：当场 ok:false，说清两个号，不重挂不刷新', async () => {
+    const deps = fake({ packages: ONE_ENTRY, staleInstall: true })
+    const out = await runDev(input(), deps)
+    expect(out).toMatchObject({ ok: false })
+    if (!out.ok) {
+      expect(out.error).toContain(devVersion('0.3.1', Date.UTC(2026, 8, 11, 12, 0)))
+      expect(out.error).toContain('实际装上的是 0.3.1')
+    }
+    expect(deps.calls.some((one) => one.includes('plugin-manager.remount'))).toBe(false)
+    expect(deps.calls.some((one) => one.includes(' reload'))).toBe(false)
+  })
+
+  it('pnpm install 没成：清单放回原样', async () => {
+    const deps = fake({ packages: ONE_ENTRY, failRun: 'install' })
+    const out = await runDev(input(), deps)
+    expect(out).toMatchObject({ ok: false })
+    if (!out.ok) expect(out.error).toContain('放回原样')
+    expect(deps.files[path.resolve(HOME, 'package.json')]).toBe(HOME_MANIFEST_TEXT)
   })
 })
 

@@ -568,6 +568,27 @@ export interface StopOutcome {
   note: string
 }
 
+/** 发了停止信号之后等进程真退:轮询间隔与总上限 */
+export const EXIT_POLL_MS = 250
+export const EXIT_TIMEOUT_MS = 15_000
+
+/**
+ * 等一个 pid 真退。**「信号发出去了」不等于「进程没了」**:electron 收到信号到放开 home 里
+ * 那些文件要一会儿,这时候删目录只会撞 EPERM。按 pid 验活,查到 `gone` 才算退了;到点还
+ * 在(或一直查不出)就回最后看到的状态。
+ */
+export async function waitExited(pid: number, deps: HomeDeps): Promise<{ ok: true } | { ok: false; last: 'running' | 'unknown' }> {
+  const tries = Math.ceil(EXIT_TIMEOUT_MS / EXIT_POLL_MS)
+  let last: 'running' | 'unknown' = 'running'
+  for (let i = 0; i <= tries; i += 1) {
+    const probe = await deps.processName(pid)
+    if (probe.state === 'gone') return { ok: true }
+    last = probe.state
+    if (i < tries) await deps.sleep(EXIT_POLL_MS)
+  }
+  return { ok: false, last }
+}
+
 /**
  * 按 home 里的启动记录停。**两道核对再杀**,与 registry 的 bringDown 同一个道理:
  * pid 会被复用,光「有这个进程」不作数;映像名认过之后,记录里带 CDP 口的再对一次
@@ -612,7 +633,18 @@ export async function bringDownHome(homeDir: string, deps: HomeDeps): Promise<St
   if (killed === 'gone') {
     return { ok: true, killed: null, note: `pid ${record.pid} 已陈旧(下手时进程已经不在了)` }
   }
-  return { ok: true, killed: record.pid, note: `已停 pid ${record.pid}` }
+  const exited = await waitExited(record.pid, deps)
+  if (!exited.ok) {
+    return {
+      ok: false,
+      killed: null,
+      note:
+        exited.last === 'running'
+          ? `给 pid ${record.pid} 发了停止信号,等了 ${String(EXIT_TIMEOUT_MS / 1000)} 秒它还在——进程没退(记录留着)`
+          : `给 pid ${record.pid} 发了停止信号,之后 ${String(EXIT_TIMEOUT_MS / 1000)} 秒一直查不出它还在不在——不当它退了(记录留着)`,
+    }
+  }
+  return { ok: true, killed: record.pid, note: `已停 pid ${record.pid}(进程已退)` }
 }
 
 // ── 删 ────────────────────────────────────────────────────────────────────────
@@ -621,6 +653,10 @@ export interface RemoveOutcome {
   ok: boolean
   note: string
 }
+
+/** 删目录最多试几次、两次之间等多久。握着句柄的是刚停的 home 的子进程时,几秒内就放手 */
+export const REMOVE_TRIES = 5
+export const REMOVE_RETRY_MS = 1_000
 
 /**
  * 删一个测试 home。**还在跑的先停再删**:单独停一个 home 唯一的用处就是接着删它。
@@ -661,11 +697,20 @@ export async function removeHome(homeDir: string, name: string, force: boolean, 
       stoppedNote = stopped.note
     }
   }
-  const done = deps.fs.removeDir(homeDir)
-  if (!done.ok) {
+  // **「已删」只认盘**:删的调用不报错不等于目录没了。每删一次都核对目录还在不在;还在就隔一会儿
+  // 再删(刚停的 home 的子进程晚几秒才放开句柄),试满次数还在就如实回没删掉
+  let done = deps.fs.removeDir(homeDir)
+  for (let attempt = 1; attempt < REMOVE_TRIES && deps.fs.exists(homeDir); attempt += 1) {
+    await deps.sleep(REMOVE_RETRY_MS)
+    done = deps.fs.removeDir(homeDir)
+  }
+  if (deps.fs.exists(homeDir)) {
+    const left = deps.fs.dirs(homeDir)
+    const rest = left.length === 0 ? '' : `(还剩 ${left.slice(0, 5).join('、')}${left.length > 5 ? ' 等' : ''})`
+    const stopped = stoppedNote === undefined ? '' : `删之前停了它:${stoppedNote}。`
     return {
       ok: false,
-      note: `删没成:${done.error}——多半还有进程占着目录(electron 的子进程偶尔晚退几秒),稍等再试`,
+      note: `没删掉:删了 ${String(REMOVE_TRIES)} 次(每次间隔 ${String(REMOVE_RETRY_MS / 1000)} 秒),${homeDir} 还在${rest}。${stopped}${done.ok ? '最后一次删的调用没报错,可目录没走' : `最后一次删的调用报:${done.error}`}——还有进程握着里面的文件(终端、编辑器开在里面,或者这个 home 的 electron 子进程没退),关掉再删`,
     }
   }
   return { ok: true, note: `已删 ${name}(${homeDir})${stoppedNote === undefined ? '' : `——删之前先停了它:${stoppedNote}`}` }
