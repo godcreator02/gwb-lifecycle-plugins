@@ -111,7 +111,7 @@ CDP 调试端口**走命令行，不走环境变量**：
 
 **这一趟用哪个端口，起之前自己定，定不出来就不起。**
 
-{/* ref file="../plugins/devkit/src/index.ts" lines="203-227" */}
+{/* ref file="../plugins/devkit/src/index.ts" lines="181-205" */}
 
 **先沿用这个 home 上次那个端口**，它空着就是它。一个 home 的端口稳定下来是有价值的：人记得住、
 日志里对得上、开着的检查器不用换地址；而重开一次换一个数，除了「每次都得重新问一遍」之外
@@ -159,13 +159,13 @@ pid 会被复用，所以「记录里写着 9347」本身不构成凭据。「�
 **`rm` 是删，也是唯一要停一个 home 的地方。** 停一个测试 home 唯一的用处就是接着删它，所以没有
 单独的一条停：
 
-{/* ref file="../plugins/devkit/src/home.ts" lines="641-651" */}
+{/* ref file="../plugins/devkit/src/home.ts" lines="661-671" */}
 
 `force` 是同一个意思的两面，都是**越过守卫**：一面是「它还在跑，连停带删」，另一面是「`default`
 是日常那份，真要删」。**但这两面不叠加**——`default` 正跑着的时候 `force` 也不停它。一条开发工具
 不该去关人正在用的那扇窗，那不是删一个测试现场，那是把人的桌子掀了；如实说，让人自己关。
 
-{/* ref file="../plugins/devkit/src/home.ts" lines="656-678" */}
+{/* ref file="../plugins/devkit/src/home.ts" lines="676-698" */}
 
 记录「查不出还在不在」时不删：不知道占没占着目录，下手就是在赌。停不掉也不删——半个目录加一屏
 EBUSY 比一句「没删成」难收拾得多。真停了的话，停的是哪个 pid 跟着回执走：人得知道自己刚才顺手
@@ -183,7 +183,7 @@ home 的子进程晚几秒才放开句柄），试满次数还在就回没删掉
 
 那一停**两道核对再杀**，跟本机源那半同一个道理：
 
-{/* ref file="../plugins/devkit/src/home.ts" lines="587-621" */}
+{/* ref file="../plugins/devkit/src/home.ts" lines="592-626" */}
 
 **手工起的 home 也在这条路上**：记录归内核写，于是「它是谁」的凭据不再只有 devkit 起的那几个有。
 没有记录仍然如实说没有可停的，不猜、不按名字扫进程。
@@ -194,7 +194,7 @@ home 的子进程晚几秒才放开句柄），试满次数还在就回没删掉
 
 | 接口 | 用来做什么 | 生产实现 | 测试实现 |
 | --- | --- | --- | --- |
-| `fs` | 读运行时记录、列 home 目录、整目录删 | `node:fs`，删带重试 | 一张内存文件表加一张目录表 |
+| `fs` | 读运行时记录、列 home 目录、整目录删 | `node:fs`，删是自己走树（见下） | 一张内存文件表加一张目录表，删可以演「回成功目录还在」 |
 | `spawn` | 起 detached 且**看得见**的 electron | `child_process.spawn`，不 `windowsHide` | 记一笔，回假 pid |
 | `appSpawnPlan` | 拼再拉一份宿主应用的命令行：安装版拉那个 exe，开发态 electron 读不出应用目录就拒 | 从宿主进程自报的 `execPath` / `argv` 拼（`hostAppFacts` → `hostAppSpawnPlan`） | 假件回一份计划（或抛），不碰真宿主 |
 | `run` | 前台跑底座安装（`pnpm add`）到结束，回输出尾巴 | 合流 capture，超时杀 | 按脚本回成功或失败 |

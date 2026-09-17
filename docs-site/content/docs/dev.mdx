@@ -15,7 +15,7 @@ description: 一条命令换掉另一个 home 里正在跑的插件，最后一�
 顺序是七步，一步都不能省：问目标页它是哪个 home、仓根构建、发开发版、在目标 home 里装那个准确
 号并读回核对、重挂条目、整页重载、取证。中间任何一步失败当场停，回执里带着停在哪一步。
 
-{/* ref file="../plugins/devkit/src/dev.ts" lines="332-351" */}
+{/* ref file="../plugins/devkit/src/dev.ts" lines="427-446" */}
 
 **重挂是目标进程里的一条命令，不是这边发的两条。** 每条条目调一次 `plugin-manager.remount`，
 停用、等拆完、启用、等挂上都在那条命令里做完。拆成停用、启用两条的话，被换的正好是提供启用那条
@@ -25,7 +25,7 @@ plugin-manager 重挂它自己，回执先发、下一个宏任务才动手，�
 等它重新答话、那条条目 active，到点没等到回 `ok: false` 并说清卡在哪。所以目标 home 的
 plugin-manager 要 0.4.0 起。
 
-@@docfirst ref ../plugins/devkit/src/dev.ts:555-603 @@
+{/* ref file="../plugins/devkit/src/dev.ts" lines="555-603" */}
 
 **装是「目标 home 清单写准确号，再 `pnpm install`」，装完读回核对。** 不走 `pnpm add <包>@<号>`：
 清单里已有 `^` 声明时（`plugin-manager.install` 写出来的就是），pnpm 沿用那个前缀写回 `^<号>`，
@@ -33,7 +33,7 @@ plugin-manager 要 0.4.0 起。
 它——装上的都不是这一趟发的号，退出码照样 0。清单里写死准确号就没有范围可解析。装完读
 `node_modules/<包>/package.json` 的 `version`，对不上当场 `ok: false`、不重挂：
 
-@@docfirst ref ../plugins/devkit/src/dev.ts:491-525 @@
+{/* ref file="../plugins/devkit/src/dev.ts" lines="491-525" */}
 
 **版本号必须变，那是这条链的机制本身。** Node 的 ESM 模块图按 URL 缓存，同一个 URL 永远是同一
 个模块实例；原地覆盖产物不改路径，于是 cordis 把插件停用再启用，`import()` 回来的还是旧的。发一个
@@ -41,14 +41,14 @@ plugin-manager 要 0.4.0 起。
 的多趟 dev 号也成立：pnpm 虚拟仓目录名超长时截成前段加全名哈希，预发布段与 peer 后缀都在哈希里。
 前提是这一趟的号真装上了，所以上一段那道核对不能省。
 
-{/* ref file="../plugins/devkit/src/dev.ts" lines="57-75" */}
+{/* ref file="../plugins/devkit/src/dev.ts" lines="59-77" */}
 
 **覆盖 dist 那条近路不走。** home 里 `node_modules` 下的文件是硬链接到 pnpm
 全局 store 的，覆盖写写的是共享那个 inode，store 里那份从此变成开发构建——此后这台机器上
 任何人装那个版本拿到的都是它，而且不报错。加戳 import 是第三条路：不可逆泄漏，量级约等于插件 dist
 体积的两倍。两条都不如发一个新号。
 
-{/* ref file="../plugins/devkit/src/dev.ts" lines="14-24" */}
+{/* ref file="../plugins/devkit/src/dev.ts" lines="14-26" */}
 
 **最后一步是取证，不是刷新。** 少了它，人看到「重挂了、刷新了」就会说验过了。三样合起来才盖得
 住那几种「看着成了」：装上的就是这一趟发的号（pnpm 退出码 0、条目全活、日志干净，跑着的也可能是
@@ -56,14 +56,14 @@ plugin-manager 要 0.4.0 起。
 不许有 error（`apply` 里一条 async 静默 reject，现象正好是「挂上了但什么都没发生」，那一条只在
 日志里）。
 
-{/* ref file="../plugins/devkit/src/dev.ts" lines="435-468" */}
+{/* ref file="../plugins/devkit/src/dev.ts" lines="605-644" */}
 
 **目标用名字指，端口是查出来的。** 给 `home` 名，端口从那个 home 的 `runtime.json` 里查（内核开机
 写的那份），顺带验活：pid 还活着、且那个 pid 真的持着记录里那个端口。**两头都要**：记录回答
 「你要的是哪个」，页面回答「你连上的实际是哪个」，不符当场拒——端口会被下一个进程占走，
 只信记录就会把一趟改动静默推给另一个现场。
 
-{/* ref file="../plugins/devkit/src/dev.ts" lines="115-119" */}
+{/* ref file="../plugins/devkit/src/dev.ts" lines="117-121" */}
 
 ## 不知道什么
 
@@ -86,7 +86,7 @@ home 路径的 `file://` 地址，所以问一趟正在跑的那张页就有答�
 （目标 home、发了哪几个包哪几个号、重挂了哪几条条目、刷新结果、取证），以及取证本身（逐包的
 发出号与装上号、条目表、没活过来的那几条、日志增量里的 error 与 warn）。
 
-{/* ref file="../plugins/devkit/src/dev.ts" lines="273-316" */}
+{/* ref file="../plugins/devkit/src/dev.ts" lines="366-411" */}
 
 输入里没有「要不要构建」，也没有源地址。**构建是这条链的正身**：产物不新就发等于发的是上一版，
 而回执从头到尾一切正常；源这台机器上只有一个，收一个参数只会多出一条「发去了别处」的岔路。
@@ -99,7 +99,7 @@ home 路径的 `file://` 地址，所以问一趟正在跑的那张页就有答�
 只有拿装包之前那个日志长度才分得出来。单独摆一眼现状的东西不该长成一条命令——它没有基线，看到的
 error 可能是几天前的，而人会拿它的绿色当验收，那正好是这条链防的那件事。
 
-{/* ref file="../plugins/devkit/src/dev.ts" lines="471-473" */}
+{/* ref file="../plugins/devkit/src/dev.ts" lines="647-649" */}
 
 要现看一眼某个 home 的条目表，`devkit.cdp {"args":["<名>","cmd","plugin-manager.list"]}` 就是，
 那是看，不是验。
@@ -115,7 +115,7 @@ error 可能是几天前的，而人会拿它的绿色当验收，那正好是�
 | 盘那几条 | 读清单、问产物在不在、写目标 home 的清单、读回装上的包清单、取日志基线与增量 | `node:fs` | 内存里的文件表；假 `pnpm install` 照清单摆 `node_modules`，也能演「退出码 0 却没换号」 |
 | `sleep` | 轮询回执之后才重挂的那一条时，两趟之间等一会儿 | `setTimeout` | 只记一行、不真等 |
 
-{/* ref file="../plugins/devkit/src/dev.ts" lines="235-269" */}
+{/* ref file="../plugins/devkit/src/dev.ts" lines="324-362" */}
 
 **为什么 CDP 那条是起子进程，不是进程内连。** 那支驱动必须能在工作台没起的时候独立跑，那是它
 的另一个身份；所以它是一支零依赖单文件的脚本，不是一个可 import 的模块。一趟循环多五六次进程
@@ -136,7 +136,7 @@ error 可能是几天前的，而人会拿它的绿色当验收，那正好是�
 守卫那几道是这条链上最该测的：它们决定「拒不拒」，而一旦拒错了，代价是开发版进了日常那份 home、
 这条命令把正在跑的自己停掉，或者一趟改动推给了另一个隔离现场。
 
-{/* ref file="../plugins/devkit/src/dev.ts" lines="99-130" */}
+{/* ref file="../plugins/devkit/src/dev.ts" lines="101-132" */}
 
 ## 代码地图
 
