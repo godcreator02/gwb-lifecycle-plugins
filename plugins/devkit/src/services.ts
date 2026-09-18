@@ -36,7 +36,13 @@ function asString(value: unknown): string | undefined {
   return typeof value === 'string' && value !== '' ? value : undefined
 }
 
-/** 一个 fiber 上挂着的那几张服务表 → 提供者。条目优先，退回件自报的名字 */
+/**
+ * 一个 fiber 上挂着的那几张服务表 → 提供者。条目优先，退回件自报的名字。
+ *
+ * **只收「本 fiber 自己提供的」**：注入作用域的 fiber 里也放着一份解析来的 impl（那是它
+ * 消费的服务），判据用 cordis 自己那条——`impl.fiber === fiber` 才算这儿提供的
+ * （编译产物里服务解析就靠这句分辨归属）。少了这道，消费方会被报成提供方。
+ */
 function ownersOf(fiber: Record<string, unknown>, into: Map<string, ServiceOwner>): void {
   const store = asRecord(fiber['store'])
   if (store === undefined) return
@@ -48,6 +54,7 @@ function ownersOf(fiber: Record<string, unknown>, into: Map<string, ServiceOwner
   for (const impl of Object.values(store)) {
     const record = asRecord(impl)
     if (record === undefined) continue
+    if (asRecord(record['fiber']) !== fiber) continue
     const service = asString(record['name'])
     if (service === undefined) continue
     const owner: ServiceOwner = {
