@@ -23,16 +23,16 @@ description: 在一个真工作台页面里动手：发真事件、跑工作台�
 设防的地方行为两样。这儿发的是浏览器层的事件，命中测试是浏览器自己做的，打不中时它把挡路的那条
 祖先链和目标的 `pointer-events` 一起报出来。
 
-{/* ref file="../plugins/devkit/bin/cdp.mjs" lines="298-311" */}
+{/* ref file="../plugins/devkit/bin/cdp.mjs" lines="374-387" */}
 
 **问一张页它是哪个 home**，靠的是页面上那些 `file://` 地址里带着的 home 路径（外壳注的样式表与
 importmap 都是）。不用配置、不用猜；出现不止一个 home 就说不猜，不挑一个。
 
-{/* ref file="../plugins/devkit/bin/cdp.mjs" lines="408-437" */}
+{/* ref file="../plugins/devkit/bin/cdp.mjs" lines="477-506" */}
 
 这一问不只是 `home` 那个动词的正身，**每一趟都要问一次**：连上之后先拿它跟你给的名字对，不符就停。
 
-{/* ref file="../plugins/devkit/bin/cdp.mjs" lines="669-686" */}
+{/* ref file="../plugins/devkit/bin/cdp.mjs" lines="739-756" */}
 
 记录只说「它起的时候用的是这个端口」，不说「此刻这个端口上还是它」。进程可能已经退了、端口被下一个
 进程占走，而记录还躺在那儿指着那个数。名字是唯一的地址之后，这道核对就是「地址对不对」的最后一关；
@@ -47,7 +47,7 @@ importmap 都是）。不用配置、不用猜；出现不止一个 home 就说�
 把事件发进页面，那件事一年也不该变一次。混在一起，稳的那半会跟着不稳的那半一起动。所以要量一张表
 就写一个文件，`eval <文件> [JSON 参数]` 把它送进去跑。
 
-{/* ref file="../plugins/devkit/bin/cdp.mjs" lines="381-406" */}
+{/* ref file="../plugins/devkit/bin/cdp.mjs" lines="450-475" */}
 
 **文件里一律是一个函数表达式**，`(args) => 一张表`，想 await 就写成 async；不给参数就按空对象调。
 只有这一条规则——「是函数就调、不是就直接求值」是两条规则伪装成一条，而选错分支的那次不报错，只是
@@ -66,7 +66,7 @@ importmap 都是）。不用配置、不用猜；出现不止一个 home 就说�
 
 **不查 pid，也不问端口归谁。** 它只把端口读出来就去连，连不上就照实说连不上：
 
-{/* ref file="../plugins/devkit/bin/cdp.mjs" lines="151-165" */}
+{/* ref file="../plugins/devkit/bin/cdp.mjs" lines="227-241" */}
 
 裸的 `ECONNREFUSED` 会把人引去查网络，而这种情况压倒性的原因是那个 home 已经
 退了、记录还留着（记录进程退了不删，那是故意的）。**真正的验活在上游**：`devkit.dev` 那条链动手
@@ -90,7 +90,7 @@ importmap 都是）。不用配置、不用猜；出现不止一个 home 就说�
 **第一个位置只收 home 名**，端口从 `<home 根>/<名>/runtime.json` 里查出来。给数字当场拒，不静默
 改道：
 
-{/* ref file="../plugins/devkit/bin/cdp.mjs" lines="90-121" */}
+{/* ref file="../plugins/devkit/bin/cdp.mjs" lines="173-200" */}
 
 **端口不是地址。** 它是一个没有语义的数，敲错一位就落在另一个现场，而那个现场会老老实实收下你
 发的事件，事后也看不出哪儿不对。名字有拼写、有记录、连上之后还能跟页面自报的名字对一次，三样
@@ -105,7 +105,7 @@ importmap 都是）。不用配置、不用猜；出现不止一个 home 就说�
 一个」，两句都带着那几张页的标题与地址。所以不必先另跑一条命令去列页——那条命令回的东西，正好是
 出错时本来就会打出来的那份。
 
-{/* ref file="../plugins/devkit/bin/cdp.mjs" lines="169-178" */}
+{/* ref file="../plugins/devkit/bin/cdp.mjs" lines="245-254" */}
 
 **这是它必须是零依赖单文件、必须是纯 JS 的全部理由。** 第二条路径是它存在的一半：工作台起不来
 的时候，人还得有办法问那扇窗到底怎么了。要它进 typecheck，就得让它变成要先构建的东西，而要先
@@ -121,7 +121,7 @@ importmap 都是）。不用配置、不用猜；出现不止一个 home 就说�
 可能在装依赖、在构建，十几秒回不来是常态，按十五秒掐掉的话，掐的是一条正在干活的命令，而那头
 不会因此停下，回执从此没人接。输入与求值那几档还是十五秒，它们要么立刻回，要么就是页面真卡住了。
 
-{/* ref file="../plugins/devkit/bin/cdp.mjs" lines="139-145" */}
+{/* ref file="../plugins/devkit/bin/cdp.mjs" lines="215-221" */}
 
 五个开关：`--target` 页面不止一个时按标题或地址挑、`--mod` 带修饰键、`--pad` 给 `shot` 的裁剪留边、
 `--size` 把视口当成这么大（会话级，必须跟动作同一句）、`--timeout` 改那条看门狗。
