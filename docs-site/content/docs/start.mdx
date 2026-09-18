@@ -45,7 +45,7 @@ plugin-manager.install {"pkg":"@godcreator/gwb-devkit"}
 
 **依赖对账**。`devkit.audit-deps` 扫容器根各仓的 `@godcreator` 声明对源上现值，只读。dev 钉：死钉（源上没有）、`behind`（落后 latest 但还在 `^<dev 钉>` 范围内）、`out-of-range`（latest 出了范围，必须追）、非精确钉；peer：`peer-not-caret`（还写 `>=` 或别的写法）、下限在源上没有、下限 ≠ dev 钉、没有 dev 镜像。「最新」认 `dist-tags.latest`，退役单元不扫，`private` 清单只查 dev 钉。
 
-{/* ref file="../plugins/devkit/src/audit.ts" lines="150-215" */}
+{/* ref file="../plugins/devkit/src/audit.ts" lines="161-226" */}
 
 **在页面里动手**。`devkit.cdp` 是经 `gwbNodeCli` 登记的外部 CLI，连上一个工作台页面发真鼠标、真按键、截图，也能在那张页上跑工作台命令、刷新、问它是哪个 home、把一个文件送进页面里跑（`eval <文件> [JSON 参数]`，文件里写 `(args) => 一张表`）。路径一概不看工作目录：截图缺省落被截那个 home 自己的 `out\cdp\`，给输出与 `eval` 的文件都只收绝对路径。
 
