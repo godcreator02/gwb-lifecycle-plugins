@@ -34,7 +34,7 @@ import {
   renderTemplate,
   writeRepo,
 } from './scaffold.js'
-import { serviceOwners } from './services.js'
+import { serviceSight } from './services.js'
 
 export const name = 'gwb-devkit'
 export const inject = ['gwbCommands']
@@ -311,16 +311,19 @@ export function apply(ctx: GwbContext): void {
         plugin: '@godcreator/gwb-devkit',
         description: '这台 home 里有哪些 cordis 服务、各是谁提供的——现问运行时，不读清单',
         usage:
-          '无参数。回 { services: [{ service, entryId?, pkg? }] }——entryId 是 cordis.yml 里的条目名，pkg 是包名；两个都没有的是内核自己挂的服务。拿不到运行时那张表时回空表加一句 note（cordis 换了内部形状、或这个宿主不是 cordis）',
+          '无参数。回 { services: [{ service, entryId?, pkg? }] }——entryId 是 cordis.yml 里的条目名，pkg 是包名；两个都没有的是内核自己挂的服务。拿不到运行时的服务表时回空表加 note 与 saw（看见了几层 fiber 链、几个件、几张服务表）——用来分辨「这个宿主不是 cordis」和「cordis 换了形状」',
       },
       async () => {
-        const services = serviceOwners(ctx.reflect)
+        const { owners, saw } = serviceSight(ctx)
         return {
           ok: true,
           data: {
-            services,
-            ...(services.length === 0
-              ? { note: '运行时没给出服务表：要么这个宿主不是 cordis，要么 cordis 换了内部形状（reflect.store）' }
+            services: owners,
+            ...(owners.length === 0
+              ? {
+                  note: `运行时没给出服务表——看见的东西：自己的 fiber 链 ${String(saw.chainDepth)} 层、件 ${String(saw.runtimes)} 个、fiber ${String(saw.fibers)} 条、服务表 ${String(saw.stores)} 张。全是 0 说明这个 ctx 上没有 cordis 的 fiber/registry；有 fiber 而表是 0 张，多半是 cordis 换了形状`,
+                  saw,
+                }
               : {}),
           },
         }

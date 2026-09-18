@@ -63,14 +63,29 @@ function ownersOf(fiber: Record<string, unknown>, into: Map<string, ServiceOwner
 /** 链往上走的层数上限——正常 home 就几层，防形状认错时转圈 */
 const MAX_DEPTH = 32
 
-/** 这一趟问出来的全部服务 → 提供者。按包名、服务名排，读回执的人好对 */
-export function serviceOwners(ctx: unknown): ServiceOwner[] {
+/** 这一趟看见了多少东西——回空表时靠它说清「是没看见，还是看见了但表是空的」 */
+export interface ServiceSight {
+  /** 从自己的 fiber 沿 parent 往上走了几层 */
+  chainDepth: number
+  /** `registry.entries()` 里的件数 */
+  runtimes: number
+  /** 这些件的 fiber 数 */
+  fibers: number
+  /** 看见的服务表张数（`Fiber.store` 存在的 fiber 数量，含链上的） */
+  stores: number
+}
+
+/** 这一趟问出来的全部服务 → 提供者，外加「看见了多少」 */
+export function serviceSight(ctx: unknown): { owners: ServiceOwner[]; saw: ServiceSight } {
   const root = asRecord(ctx)
-  if (root === undefined) return []
+  const saw: ServiceSight = { chainDepth: 0, runtimes: 0, fibers: 0, stores: 0 }
+  if (root === undefined) return { owners: [], saw }
   const out = new Map<string, ServiceOwner>()
 
   let fiber = asRecord(root['fiber'])
   for (let depth = 0; fiber !== undefined && depth < MAX_DEPTH; depth++) {
+    saw.chainDepth = depth + 1
+    if (asRecord(fiber['store']) !== undefined) saw.stores += 1
     ownersOf(fiber, out)
     fiber = asRecord(asRecord(fiber['parent'])?.['fiber'])
   }
@@ -80,16 +95,28 @@ export function serviceOwners(ctx: unknown): ServiceOwner[] {
   if (typeof entries === 'function') {
     for (const row of entries.call(registry) as Iterable<unknown>) {
       const runtime = Array.isArray(row) ? asRecord(row[1]) : asRecord(row)
-      const fibers = runtime?.['fibers']
+      if (runtime === undefined) continue
+      saw.runtimes += 1
+      const fibers = runtime['fibers']
       if (fibers === undefined || fibers === null) continue
       for (const one of fibers as Iterable<unknown>) {
         const record = asRecord(one)
-        if (record !== undefined) ownersOf(record, out)
+        if (record === undefined) continue
+        saw.fibers += 1
+        if (asRecord(record['store']) !== undefined) saw.stores += 1
+        ownersOf(record, out)
       }
     }
   }
 
-  return [...out.values()].sort(
+  const owners = [...out.values()].sort(
     (a, b) => (a.pkg ?? '').localeCompare(b.pkg ?? '') || a.service.localeCompare(b.service),
   )
+  return { owners, saw }
 }
+
+/** 只要表。回空表时另用 `serviceSight` 拿「看见了多少」 */
+export function serviceOwners(ctx: unknown): ServiceOwner[] {
+  return serviceSight(ctx).owners
+}
+
