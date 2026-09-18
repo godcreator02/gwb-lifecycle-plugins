@@ -440,7 +440,7 @@ export function apply(ctx: GwbContext): void {
         plugin: '@godcreator/gwb-devkit',
         description: '全生态依赖对账：各插件仓的 @godcreator 声明对 registry 现值，抓死钉与火车债',
         usage:
-          '{root?（容器根绝对路径，缺省现问命令总线 unit-folder.list 回的 container）, registry?（缺省个人源）}。无参数直接调也行。回执 { ok, data: { root, registry, repos, manifests, packages, retired, findings, byKind } }——findings 逐条 { kind, repo, manifest, pkg, detail }；kind：dead-pin（钉了源上没有的版本，装必炸）/ behind（dev 钉落后源上 dist-tags.latest 但还在 ^<dev 钉> 范围内，提示，等各自下次发版；dev 号不算最新）/ out-of-range（最新已出 ^ 范围，上游出了破坏版，必须追）/ peer-not-caret（peer 不是 ^x.y.z——还写 >= 或别的写法，迁移欠账，发版检票会拒）/ floor-unverifiable（peer 下限指向源上没有的版本）/ floor-mismatch（peer 下限 ≠ dev 钉）/ floor-no-mirror（peer 无 dev 镜像）/ loose-dev-pin（dev 钉不是精确号）。退役单元（unit.json 的 status 是 retired）整个不扫，名字列在 retired；private: true 的清单不发布，只查 dev 钉那三类、不查 peer 下限。只读不改：扫仓、读 package.json、问源',
+          '{root?（容器根绝对路径，缺省现问命令总线 unit-folder.list 回的 container）, registry?（缺省个人源）}。无参数直接调也行。回执 { ok, data: { root, registry, repos, manifests, packages, retired, testUnits, findings, byKind } }——findings 逐条 { kind, repo, manifest, pkg, detail }；kind：dead-pin（钉了源上没有的版本，装必炸）/ behind（dev 钉落后源上 dist-tags.latest 但还在 ^<dev 钉> 范围内，提示，等各自下次发版；dev 号不算最新）/ out-of-range（最新已出 ^ 范围，上游出了破坏版，必须追）/ peer-not-caret（peer 不是 ^x.y.z——还写 >= 或别的写法，迁移欠账，发版检票会拒）/ floor-unverifiable（peer 下限指向源上没有的版本）/ floor-mismatch（peer 下限 ≠ dev 钉）/ floor-no-mirror（peer 无 dev 镜像）/ loose-dev-pin（dev 钉不是精确号）。退役单元（unit.json 的 status 是 retired）与**测试件**（kind 是「测试件」的单元，测试用途的示范件）整个不扫，名字分别列在 retired 与 testUnits；private: true 的清单不发布，只查 dev 钉那三类、不查 peer 下限。只读不改：扫仓、读 package.json、问源',
       },
       async (args) => {
         const askedRoot = isRecord(args) && typeof args.root === 'string' ? args.root.trim() : ''
@@ -457,7 +457,7 @@ export function apply(ctx: GwbContext): void {
         if (!fs.existsSync(root)) return { ok: false, error: `${root} 不在——root 给的是容器根（unit.json 们住的那层）` }
         const registryBase = isRecord(args) && typeof args.registry === 'string' && args.registry.trim() !== '' ? args.registry.trim() : DEFAULT_REGISTRY
 
-        const { repos: repoDirs, retired } = collectRepos(root)
+        const { repos: repoDirs, retired, testUnits } = collectRepos(root)
         const repoRel = (dir: string): string => path.relative(root, dir).replaceAll('\\', '/')
         const manifests: { repo: string; manifest: string; deps: ManifestDeps }[] = []
         for (const dir of repoDirs) {
@@ -469,10 +469,10 @@ export function apply(ctx: GwbContext): void {
         const findings = manifests.flatMap((m) => auditManifest(m.repo, m.manifest, m.deps, registry))
         const byKind = countByKind(findings)
         log.info(
-          `devkit.audit-deps：${String(repoDirs.length)} 仓 ${String(manifests.length)} 份 manifest 对 ${String(pkgs.length)} 个包（退役单元 ${String(retired.length)} 个不扫）——` +
+          `devkit.audit-deps：${String(repoDirs.length)} 仓 ${String(manifests.length)} 份 manifest 对 ${String(pkgs.length)} 个包（退役单元 ${String(retired.length)} 个、测试件 ${String(testUnits.length)} 个不扫）——` +
             `死钉 ${String(byKind['dead-pin'])}、必须追 ${String(byKind['out-of-range'])}、范围内落后 ${String(byKind.behind)}、peer 未迁 ^ ${String(byKind['peer-not-caret'])}、下限水分 ${String(byKind['floor-unverifiable'] + byKind['floor-mismatch'])}`,
         )
-        return { ok: true, data: { root, registry: registryBase, repos: repoDirs.length, manifests: manifests.length, packages: pkgs.length, retired, findings, byKind } }
+        return { ok: true, data: { root, registry: registryBase, repos: repoDirs.length, manifests: manifests.length, packages: pkgs.length, retired, testUnits, findings, byKind } }
       },
     ),
   )

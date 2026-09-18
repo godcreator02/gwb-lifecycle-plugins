@@ -1,6 +1,6 @@
 import fs from 'node:fs'
 import path from 'node:path'
-import { unitRetired, type ManifestDeps, type RegistryInfo } from './audit.js'
+import { unitRetired, unitTest, type ManifestDeps, type RegistryInfo } from './audit.js'
 
 /**
  * `audit.ts` 纯机的环境胶水：扫容器根找仓、读各仓的 package.json、向 registry 问现值。
@@ -15,15 +15,22 @@ const UNIT_JSON = 'unit.json'
 
 /**
  * 找一个容器根下面全部 git 仓：单元根或单元根下一层（unit.json + 一层仓目录的习俗）。
- * 出生证 `status` 是 `retired` 的单元整个跳过，名字收进 `retired`。
+ * 出生证 `status` 是 `retired` 的单元整个跳过，名字收进 `retired`；`kind` 是「测试件」的
+ * 同样跳（测试用途的示范件不算生态账），名字收进 `testUnits`。
  */
-export function collectRepos(root: string): { repos: string[]; retired: string[] } {
+export function collectRepos(root: string): { repos: string[]; retired: string[]; testUnits: string[] } {
   const repos: string[] = []
   const retired: string[] = []
+  const testUnits: string[] = []
   for (const unit of sortedEntries(root)) {
     if (!unit.isDirectory()) continue
-    if (unitRetired(readText(path.join(unit.full, UNIT_JSON)))) {
+    const birth = readText(path.join(unit.full, UNIT_JSON))
+    if (unitRetired(birth)) {
       retired.push(unit.name)
+      continue
+    }
+    if (unitTest(birth)) {
+      testUnits.push(unit.name)
       continue
     }
     if (fs.existsSync(path.join(unit.full, '.git'))) {
@@ -34,7 +41,7 @@ export function collectRepos(root: string): { repos: string[]; retired: string[]
       if (child.isDirectory() && fs.existsSync(path.join(child.full, '.git'))) repos.push(child.full)
     }
   }
-  return { repos, retired }
+  return { repos, retired, testUnits }
 }
 
 /** 一个仓里审得到的 manifest：仓根 + 各包目录 + docs-site，凡带 @godcreator 依赖的才收 */

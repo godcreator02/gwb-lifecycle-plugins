@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { auditManifest, caretCeiling, caretFloor, compareVersions, countByKind, inCaret, unitRetired, type ManifestDeps } from '../src/audit'
+import { auditManifest, caretCeiling, caretFloor, compareVersions, countByKind, inCaret, unitRetired, unitTest, type ManifestDeps } from '../src/audit'
 
 /** 对账的判例。registry 现值全是喂的——这层不碰网，判定逻辑单测钉死 */
 const reg = (versions: string[], latest: string | undefined = versions.filter((v) => !v.includes('-')).at(-1)) => ({
@@ -197,6 +197,19 @@ describe('unitRetired：出生证说退役的单元整个不扫', () => {
     expect(unitRetired(undefined)).toBe(false)
     expect(unitRetired('半截')).toBe(false)
     expect(unitRetired('null')).toBe(false)
+  })
+})
+
+describe('unitTest：出生证 kind 是「测试件」的单元同样整个不扫', () => {
+  it('kind 正好是「测试件」才算（retired 的走 retired 那一档）', () => {
+    expect(unitTest(JSON.stringify({ kind: '测试件', status: 'active' }))).toBe(true)
+    expect(unitTest(JSON.stringify({ kind: '插件仓', status: 'active' }))).toBe(false)
+    expect(unitTest(JSON.stringify({ kind: '参考仓', status: 'retired' }))).toBe(false)
+  })
+  it('没有出生证、读不懂都当不是——宁可多扫', () => {
+    expect(unitTest(undefined)).toBe(false)
+    expect(unitTest('半截')).toBe(false)
+    expect(unitTest('null')).toBe(false)
   })
 })
 

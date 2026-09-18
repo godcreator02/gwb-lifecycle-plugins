@@ -9,6 +9,11 @@
     "./package.json": "./package.json"
   },
   "files": ["dist", "src", "catalog.md"],
+  "gwb": {
+    "plugin": true,
+    "title": "{{title}}"
+  },
+  "//repository": "发到 gitea 后补上这一条：{ type: git, url: https://git.tianshen02.online:28377/godcreator/<仓>.git }——gitea 发布时读它把包链到仓（2026-09-18 实测：整包上链、跨 owner 也解析）",
   "scripts": {
     "//build": "三步：node 半 tsc、浏览器半 esbuild（react 外置走 importmap）、样式 tailwindcss 前缀直出",
     "build": "tsc -p tsconfig.build.json && node build.ts && tailwindcss -i src/client/styles.css -o dist/style.css",
@@ -24,18 +29,18 @@
   "//peer": "硬依赖 gwbCommands 与 gwbShell（inject）；tokens 供样式映射面，shared-react 供页面 importmap。peer 写 ^<dev 钉>，dev 钉＝源上 dist-tags.latest（发版检票 devkit.release 照这条拒）",
   "peerDependencies": {
     "@godcreator/gwb-plugin-api": "^0.1.2",
-    "@godcreator/gwb-commands": "^0.4.2",
-    "@godcreator/gwb-shell": "^0.9.0",
+    "@godcreator/gwb-commands": "^0.4.3",
+    "@godcreator/gwb-shell": "^0.9.1",
     "@godcreator/gwb-tokens": "^0.1.3",
-    "@godcreator/gwb-shared-react": "^0.0.4"
+    "@godcreator/gwb-shared-react": "^0.1.0"
   },
   "devDependencies": {
     "@godcreator/gwb-plugin-api": "0.1.2",
     "@godcreator/gwb-repo-kit": "0.2.0",
-    "@godcreator/gwb-commands": "0.4.2",
-    "@godcreator/gwb-shell": "0.9.0",
+    "@godcreator/gwb-commands": "0.4.3",
+    "@godcreator/gwb-shell": "0.9.1",
     "@godcreator/gwb-tokens": "0.1.3",
-    "@godcreator/gwb-shared-react": "0.0.4",
+    "@godcreator/gwb-shared-react": "0.1.0",
     "@tailwindcss/cli": "^4.3.0",
     "@tailwindcss/node": "^4.3.0",
     "@types/node": "^24.0.0",

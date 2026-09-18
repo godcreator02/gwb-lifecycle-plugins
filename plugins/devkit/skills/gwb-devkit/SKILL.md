@@ -25,6 +25,12 @@ description: 写或改 gwb 插件时读——建仓、改一版看一版（devki
 写插件只有一条路：**独立一个仓，发进团队源，装进 home**。装这个动作本身就在验：`exports`
 漏一个子路径、`files` 少带一个目录，只有装出来才现形。
 
+**名字与身份**（2026-09-18 起）：是不是「件」**不看名字**——manifest 里 `gwb.plugin: true`
+声明它（`devkit.scaffold` 的模板已带上），`plugin-manager` 的「可装」表按这个字段筛：
+`true` 列、`false` 与没声明过的不列，没有名字回退（lib / 共享包 / 词汇表包要么不声明、要么
+显式写 `false`）。包名与 scope 因此是自由的——第三方可以用自己的 scope 发件。清单里另有
+一条 `repository`（模板里留了注释）：填 gitea 上那个仓的地址，发布时 gitea 读它把包链到仓。
+
 1. **建仓**：`devkit.scaffold {"name":"<kebab 短名>","dir":"<还不存在的绝对路径>","title":"<显示名>"}`。
    默认连文档站一起铺（`docs-site.create` 再 `docfirst.attach`，两条连着跑）。回执的
    `docs.built` / `docs.attached` 是真相，照 `nextSteps` 做到底。第一次 `pnpm doc:render`

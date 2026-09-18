@@ -106,15 +106,26 @@ export function compareVersions(a: string, b: string): number {
   return 0
 }
 
-/** 单元的出生证（unit.json 原文）说它退役了没有。读不到、认不出都当没退役——宁可多扫 */
-export function unitRetired(text: string | undefined): boolean {
-  if (text === undefined) return false
+/** 出生证原文里读一个字段。读不到、认不出都回 undefined——宁可多扫 */
+function unitField(text: string | undefined, key: string): unknown {
+  if (text === undefined) return undefined
   try {
     const doc = JSON.parse(text) as unknown
-    return typeof doc === 'object' && doc !== null && (doc as Record<string, unknown>).status === 'retired'
+    if (typeof doc !== 'object' || doc === null) return undefined
+    return (doc as Record<string, unknown>)[key]
   } catch {
-    return false
+    return undefined
   }
+}
+
+/** 单元的出生证（unit.json 原文）说它退役了没有。读不到、认不出都当没退役——宁可多扫 */
+export function unitRetired(text: string | undefined): boolean {
+  return unitField(text, 'status') === 'retired'
+}
+
+/** 出生证 `kind` 是「测试件」的单元（测试用途的示范件）：与退役同等处理——整个不扫，名字单列一档 */
+export function unitTest(text: string | undefined): boolean {
+  return unitField(text, 'kind') === '测试件'
 }
 
 const EXACT = /^\d+\.\d+\.\d+$/
