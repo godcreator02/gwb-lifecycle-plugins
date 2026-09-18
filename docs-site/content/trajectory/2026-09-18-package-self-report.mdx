@@ -1,0 +1,42 @@
+---
+born-at: 2026-09-18T18:05
+type: choice
+parent: [2026-09-08-gwb-devkit]
+label: 自报家门
+domain: 生态规范
+---
+
+## 背景
+
+「可装」表（`plugin-manager` 的检索）要在一张 registry 搜索回执里认出哪些包是件。先后试过三条路：
+
+- **包名前缀**（`gwb-` / `@godcreator`）——把生态绑死在一个命名惯例上，第三方做自己的件要么改名、
+  要么进不了表；
+- **源上镜像**（给包补打一枚 dist-tag 当标记）——manifest 里不写，就得发布之后再补一步，且读的地方
+  要摸 packument；
+- **自创 manifest 字段**（`gwb.plugin: true`）——**gitea 上根本读不到**：实测 packument 的 version 条目
+  被裁到 `_id / name / version / description / author / repository / peerDependencies /
+  peerDependenciesMeta / readme / dist`，自定义字段没有，**keywords 也没有**。
+
+同一轮里还看到另一件：几乎所有包的 `description` 都在当变更日志写（「0.3：… 0.4：…」），
+registry 的搜索面上每条一眼读不完。
+
+## 结论与边界
+
+**判据落在 manifest 的 `keywords`**（2026-09-18 起）：件写 `["gwb", "gwb-plugin"]`，库与共享包写
+`["gwb"]` 标生态归属。`plugin-manager.search` 按 `gwb-plugin` 这枚词筛，**没有名字回退**——没写这枚
+词的包不进「可装」表（模板 `devkit.scaffold` 已带上）。
+
+- **这一格只有搜索回执（`/-/v1/search`）带**，packument 连 keywords 一起裁掉（2026-09-18 实测）——
+  所以判据在 registry 侧读得到、且只有一处：一趟检索请求认完，不用逐包再问。
+- **包名与 scope 因此是自由的**：第三方可以用自己的 scope 发件。
+- 清单里另一格 `repository` 填 gitea 仓地址——发布时源读它把包链到仓。
+- 自创的 `gwb.plugin` 删净；`gwb.title` / `gwb.shared` 留下（那是运行时要读的，不是身份）。
+
+**简介一条**：`<它是什么>：<它干什么>`，再加服务面 / 几份说明书 / 几条命令这几个数，不展开。
+**版本史不进简介**——它住轨迹卡与 README；这一轮 37 个 manifest 的简介照此重写。
+清单里的 `//` 说明只留真判据（发版陷阱、依赖为什么这么写），策略类改成指路（正本在
+[发版规则](2026-09-18-release-rules.md)与 `gwb-release` 手册）或直接删。
+
+边界：这套只治「自报身份」与「自述的写法」，不动包名与 scope；三个测试件（pomodoro / glm-quota /
+reimburse）照写关键词但不上传、不进表。
