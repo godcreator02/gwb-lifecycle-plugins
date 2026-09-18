@@ -34,6 +34,7 @@ import {
   renderTemplate,
   writeRepo,
 } from './scaffold.js'
+import { serviceOwners } from './services.js'
 
 export const name = 'gwb-devkit'
 export const inject = ['gwbCommands']
@@ -297,6 +298,32 @@ export function apply(ctx: GwbContext): void {
       async () => {
         const root = homesRoot()
         return { ok: true, data: { root, homes: await listHomes(root, homeDeps) } }
+      },
+    ),
+  )
+
+  // 「谁提供这个服务」——问 cordis 自己的 reflect 表，答案现算（理由在 services.ts）。
+  // 这条服务写件的人用：服务是件与件之间的面，agent 调不动它，所以不挂到门上
+  ctx.effect(() =>
+    bus.register(
+      {
+        name: 'devkit.services',
+        plugin: '@godcreator/gwb-devkit',
+        description: '这台 home 里有哪些 cordis 服务、各是谁提供的——现问运行时，不读清单',
+        usage:
+          '无参数。回 { services: [{ service, entryId?, pkg? }] }——entryId 是 cordis.yml 里的条目名，pkg 是包名；两个都没有的是内核自己挂的服务。拿不到运行时那张表时回空表加一句 note（cordis 换了内部形状、或这个宿主不是 cordis）',
+      },
+      async () => {
+        const services = serviceOwners(ctx.reflect)
+        return {
+          ok: true,
+          data: {
+            services,
+            ...(services.length === 0
+              ? { note: '运行时没给出服务表：要么这个宿主不是 cordis，要么 cordis 换了内部形状（reflect.store）' }
+              : {}),
+          },
+        }
       },
     ),
   )
