@@ -28,8 +28,8 @@ description: 写或改 gwb 插件时读——建仓、改一版看一版（devki
 **名字与身份**（2026-09-18 起）：是不是「件」**不看名字**——包在 manifest 的 `keywords` 里
 自报家门：件写 `["gwb", "gwb-plugin"]`（`devkit.scaffold` 的模板已带上；lib / 共享包这类
 只写 `["gwb"]` 标生态归属）。`plugin-manager` 的「可装」表按 `gwb-plugin` 这枚词筛，
-**没有名字回退**——没写这枚词的包不进表。这一格 registry 的搜索回执直接带（packument 会裁
-自定义字段、keywords 留着，2026-09-18 实测），所以判据在 registry 侧读得到，且只有一处。
+**没有名字回退**——没写这枚词的包不进表。这一格**只有 registry 的搜索回执（`/-/v1/search`）
+带**——packument 连 keywords 一起裁掉（2026-09-18 实测），所以判据在 registry 侧读得到，且只有一处。
 包名与 scope 因此是自由的——第三方可以用自己的 scope 发件。清单里另有一条 `repository`
 （模板里留了注释）：填 gitea 上那个仓的地址，发布时 gitea 读它把包链到仓。
 
