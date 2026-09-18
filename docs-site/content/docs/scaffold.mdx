@@ -93,6 +93,15 @@ description: 一条命令把新插件的骨架落进一个新文件夹，站那�
 模板文件清单那一条是这里最容易被忽略的守卫：`files` 白名单漏掉 `template`，包照发、也照装得上，
 直到有人调 `devkit.scaffold` 才报「包内 template/ 不在」。
 
+## 模板里两处看着多余、其实少不了
+
+- **`pnpm-workspace.yaml` 里的 `allowBuilds`**：pnpm 11 起设置住这个文件，`package.json` 的 `pnpm` 字段
+  不再读；esbuild 的构建脚本要在这儿批。独立单包仓也认它（没有 packages 列表就是「自己一个包的 workspace」）。
+  不批的现象是连环的：install 报「Ignored build scripts」，`pnpm run` 的依赖核验自动补装再撞同一块石头，
+  最后的栈在 pnpm 自己肚子里，看不出是构建脚本没批
+- **`oxlint-tsgolint`**：`oxlint` 的 type-aware 规则要它，少了 `pnpm lint` 报 "Failed to find tsgolint executable"。
+  模板里它与 `oxlint` 两个都钉版
+
 ## 代码地图
 
 **在哪**：纯机全在 `src/scaffold.ts`，接线与站那半在 `src/index.ts` 的 `devkit.scaffold` 那一段与

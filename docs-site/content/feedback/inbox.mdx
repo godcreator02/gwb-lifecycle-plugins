@@ -28,7 +28,9 @@ docfirst: none
    报错文案说清，或 `home.new` 提供带底座件的选项。
 3. agent 侧绕法值得进说明书：**devkit 命令里凡传 Windows 路径一律用正斜杠**（`D:/unitfolders/...`）——
    ZCode 的 MCP 参数会把 `\\` 吃掉一层，进 JSON 就是 `\u` 坏转义，报错只说 Bad Unicode escape 不指根因。
-\n
+
+**进展**（09-18）：顺带第 1 条 0.14.1 修了（`home.new` / `open` 带调试口就带遮挡开关）；第 2 条由
+`home.new` 自动铺底座解决。剩主诉「首装自动化」与第 3 条（见下面 09-14 那条正斜杠）。
 
 ## 2026-09-14 前缀与变体的顺序写反了静默编不出规则——手册只暗示没明说，守卫也测不到
 
@@ -44,18 +46,7 @@ docfirst: none
 **投来的建议**：手册明写一句「前缀永远排最前；顺序写反不报错，只是没有规则」；更进一步，
 模板产物守卫加一层「源码里出现的全类名 ⊆ 产物规则」的覆盖检查，把这类静默失败拦进门禁。
 
-## 2026-09-14 scaffold 回执与模板 README 的发版指引过时：还在教 `--registry`
-
-来源：同上（同轮验收）。
-
-`devkit.scaffold` 回执的 nextSteps 与模板落盘的 README 都写 `pnpm publish --registry
-https://git.tianshen02.online:28377/api/packages/godcreator/npm/ …`，而 gwb-devkit 说明书（本机 Verdaccio 退役、迁到
-NAS 团队源之后的正本口径）明说**别手写 --registry**、scope 路由住用户级 `~/.npmrc`。照回执
-做的代理会拿到与说明书相反的指令——本轮代理两头都读了、按说明书走并发布成功，但这三处
-口径该收敛成一份。
-
-**投来的建议**：改 `src/scaffold.ts` 里 nextSteps 的文案与 README 的 mdx 正本
-（`outputs/readme.mdx`），render 重摆后同一个提交发版。
+**进展**（09-18）：说明书那半写进了附件 `references/ui.md`；剩覆盖检查那半。
 
 ## 2026-09-14 「路径一律正斜杠」对 `devkit.scaffold` 不成立
 
@@ -68,18 +59,6 @@ base-plugins 的卡：body 落文件再 `--data-binary @file`，那条归 comman
 
 **投来的建议**：scaffold 与一切收路径参数的 devkit 命令统一吃正斜杠（入口处归一），让
 「一律正斜杠」这条绕法全线成立。
-
-## 2026-09-14（晚） `devkit.home.open` 丢遮挡开关：09-12 那条的复发，症状升格
-
-来源：总控台（block-note 底部抖动取证，隔离 home 实机）。
-
-09-12「顺带三条」第 1 条的复发，且症状比「陈旧帧」重：整机 kill 后 `devkit.home.open` 重开的
-home，其进程命令行实测只有 `--remote-debugging-port`、没有 `--disable-backgrounding-occluded-windows`。
-窗口被遮/最小化时 `devkit.cdp` 的 **`Input.dispatchMouseEvent` 看门狗直接挂死**（15 秒超时）——
-click / scroll / type 全军覆没，eval 反而活着（不需要帧）。同日早些时候 `devkit.home.new` 起的
-home 取证正常，疑似 new 已带开关、open 没跟上。绕法：kill 后经内核仓 `apps/desktop` 手动
-`electron . --remote-debugging-port=<口> --disable-backgrounding-occluded-windows` + `GWB_HOME`
-指回原目录。**建议**：open 与 new 走同一条起进程路，开关统一带上（09-12 卡的正主就是这条）。
 
 ## 2026-09-14 三条小的：client 半 import type 行给得太晚、测试 harness 的无参类型、首装条目复验
 
@@ -94,3 +73,5 @@ home 取证正常，疑似 new 已带开关、open 没跟上。绕法：kill 后
 3. 本仓 09-12「往隔离 home 首装件」卡的复验结论：`devkit.home.new` **自动铺底座已管用**
    （基座七件，`devkit.dev` 不再因空 home 退）；首装仍要按 `devkit.dev` 回执里的指引手写
    `plugin-manager.add-entry`——指引清楚，但离那张卡要的自动化还差最后一步，建议那条不撤。
+
+**进展**（09-18）：第 1 条写进了附件 `references/ui.md`「浏览器半」开头；剩第 2、3 条。

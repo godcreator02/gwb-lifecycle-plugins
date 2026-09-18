@@ -14,10 +14,9 @@ description: plugins/devkit/AGENTS.md 由这一页摆出去——每次会话都
 
 ## 文档站是正本，六区
 
-`AGENTS.md` 与 `README.md` 与包内 `skills/gwb-devkit/SKILL.md` **三份都是生成物，别手改**——
-正本分别是 `docs-site/content/outputs/` 下的 `agents.mdx` / `readme.mdx` /
-`skills/gwb-devkit.mdx`。改完在 `docs-site` 跑 `pnpm doc:render` 重摆，mdx 源、生成物、
-`.ledger.json` 同一个提交。
+`AGENTS.md`、`README.md`、`catalog.md` 与包内 `skills/` 下的说明书**全是生成物，别手改**——
+正本在 `docs-site/content/outputs/`，映射表在 `docs-site/docfirst.config.mjs` 的 `outputs`。
+改完在 `docs-site` 跑 `pnpm doc:render` 重摆，mdx 源、生成物、`.ledger.json` 同一个提交。
 
 六区各是什么：`content/docs` 现状（**钉码只在这一区**与 outputs）、`trajectory` 轨迹卡（只增
 不改、**不钉活代码**）、`spec` 在途交接（有页就是有活在路上，做完拆解归梁后删页）、`future`
@@ -36,6 +35,8 @@ pnpm build          # 只构建 plugins/* 与 packages/*，tsc 直出 dist/，�
 `docs-site` 里 `pnpm doc`（`docfirst check`）与 `pnpm doc:confirm`。
 
 ## 发版
+
+抬哪一位、依赖怎么写、什么时候跟上游，照本包的说明书「gwb-release」——全生态同一套，本仓不另立。
 
 1. **先抬 `package.json` 的版本号。** 同一个版本号永不重发；要发新的一版，先抬号、提交，再调
 2. 发版走 `devkit.release {"dir":"<本仓根>","packages":["plugins/devkit"]}`（repo-kit 也改了就
@@ -59,7 +60,7 @@ pnpm build          # 只构建 plugins/* 与 packages/*，tsc 直出 dist/，�
 | --- | --- |
 | `dist` | 插件根本挂不上 |
 | `template` | `devkit.scaffold` 回「包内 template/ 不在」 |
-| `skills` | 写插件手册装不进 home，agent 那边少一份说明书 |
+| `skills` | 写插件手册与发版规则装不进 home，agent 那边少两份说明书 |
 | `bin` | `devkit.cdp` 的 entry 指向一个不存在的文件，`devkit.dev` 的重挂与取证三步一起废 |
 | `src` | 类型跳转与读源码断掉（不影响运行） |
 
@@ -154,9 +155,16 @@ startedAt / appDir / cdp）与 mcp 插件（绑上端口之后补 `mcp` 那个�
 
 ## 说明书只挂自己那份
 
-**手册正本是 `docs-site/content/outputs/skills/gwb-devkit.mdx`**（render 摆成包内
-`skills/gwb-devkit/SKILL.md`），随包发、经 `gwbSkills` 挂给 agent。八条红线、能力面菜单、
-发版装机、实机验机全在那儿——**这份不复述，那份也不往这儿搬**。
+本包挂三份说明书，正本都在 `docs-site/content/outputs/skills/`，随包发、经 `gwbSkills` 挂给 agent：
+
+| 说明书 | 正本 | 管什么 |
+| --- | --- | --- |
+| `gwb-devkit` | `gwb-devkit.mdx`，附件 `gwb-devkit-evidence.mdx` / `gwb-devkit-ui.mdx`（摆成 `references/`） | 写插件的路、内循环、测试 home、验机、红线、能力面 |
+| `gwb-release` | `gwb-release.mdx` | 全生态的发版规则：抬哪一位、依赖怎么写、什么时候跟、发版流程 |
+| `fresh-eyes` | 包内 `skills/fresh-eyes/SKILL.md`（手写） | 生态自举验收 |
+
+主文件只放每次写插件都要的；只有部分场景用得上的放附件，经 `skill.read {name, file}` 读。
+这份 AGENTS 不复述说明书，说明书也不往这儿搬。
 
 **别替别的插件代挂说明书。** 说明书是全局单一命名空间，撞名的那份直接不挂、只留一行
 警告，而被撞掉的常常是新那份——症状是 agent 读到旧的、照着做但做错了，最难查。

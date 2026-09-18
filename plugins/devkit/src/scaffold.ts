@@ -253,11 +253,11 @@ export function nextSteps(
     )
   }
   steps.push(
-    '发一版：先抬 package.json 的版本号，再 pnpm publish --no-git-checks（scope 路由住用户级 ~/.npmrc，自动走对源，别手写 --registry）',
-    `装进隔离 home：plugin-manager.install {"pkg":"${plan.pkg}"}——该进的 peer 会一并装上`,
-    `命令面验证：经 MCP 门的 run 调 {"command":"${plan.name}.ping"} 回 {ok:true,…}；工作台那格窗格「你好」+计数按钮点得动——模板的六步验收走完`,
-    '发完就去升 default home（人点「全部更新」或 plugin-manager.update-all）——攒着不升，agent 读到的手册与命令都停在旧版',
-    '写件手册：读 skill「gwb-devkit」——红线、能力面菜单、验机都在里面；文档写什么读 skill「docfirst-docs」',
+    `进隔离 home：devkit.home.new 开一个，devkit.dev {"home":"<名>","dir":"${plan.dir}"} 发出开发版并装进去（回执说没有条目可挂）`,
+    `建条目：plugin-manager.install {"pkg":"${plan.pkg}","spec":"<回执里那个 dev 号>"}；之后每改一版走 devkit.dev`,
+    `验收：${plan.name}.ping 回 {ok:true,…}；那格窗格「你好」+计数按钮点得动`,
+    '发正式版照 skill「gwb-release」：抬号、提交、devkit.release，发完当场升 default',
+    '写插件读 skill「gwb-devkit」；文档写什么读 skill「docfirst-docs」',
   )
   return steps
 }

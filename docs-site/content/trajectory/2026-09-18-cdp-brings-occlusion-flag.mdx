@@ -1,0 +1,24 @@
+---
+title: 开调试口就带遮挡开关
+born-at: 2026-09-18T12:50
+type: choice
+parent: [2026-09-08-gwb-devkit]
+label: 遮挡开关
+domain: 测试 home
+---
+
+pivots-from:: [按名字够一个 home](2026-09-11-address-a-home-by-name.md)
+
+## 背景
+
+`devkit.home.new` / `open` 起进程只带 `--remote-debugging-port`。窗口被整个盖住或最小化时 Chromium
+判定不可见、停止产帧：截图拿陈旧帧，`Input.dispatchMouseEvent` 的看门狗直接挂死（15 秒超时），
+click / scroll / type 全废，只有 eval 活着。09-12 与 09-14 两次投进 inbox；手册却一直写着「两个开关
+缺一不可」「home.new / open 自动带上」，与代码不符——09-18 手册瘦身逐句核对时才看出来。
+
+## 结论与边界
+
+起进程的命令行计划 `hostAppSpawnPlan` 里，带了调试口就一并带 `--disable-backgrounding-occluded-windows`；
+`new` 与 `open` 走的是同一个计划，一处改两边都生效。单测钉住三处：安装版、开发态、`launchHome` 起进程的实参。
+
+边界：没带调试口（不打算取证）的起法不带这个开关——不取证就不需要窗口在被盖住时还产帧。

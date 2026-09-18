@@ -245,9 +245,15 @@ describe('启动计划：拉宿主自己那个 exe', () => {
     expect(hostAppFacts(HOST, [HOST])).toEqual({ packaged: true })
     expect(hostAppSpawnPlan({ execPath: HOST, packaged: true }, 9400)).toEqual({
       command: HOST,
-      args: ['--remote-debugging-port=9400'],
+      args: ['--remote-debugging-port=9400', '--disable-backgrounding-occluded-windows'],
       cwd: 'C:/apps',
     })
+  })
+
+  it('带调试口必带遮挡开关：窗口被盖住时 Chromium 停止产帧，取证的输入与截图会挂住或拿陈旧帧', () => {
+    expect(hostAppSpawnPlan({ execPath: HOST, packaged: true }, 9400).args).toContain(
+      '--disable-backgrounding-occluded-windows',
+    )
   })
 
   it('不带调试口：命令行上就没有那个开关', () => {
@@ -259,7 +265,7 @@ describe('启动计划：拉宿主自己那个 exe', () => {
     expect(facts).toEqual({ packaged: false, appPath: 'D:/kernel/apps/desktop' })
     expect(hostAppSpawnPlan({ execPath: 'C:/apps/electron.exe', ...facts }, 9400)).toEqual({
       command: 'C:/apps/electron.exe',
-      args: ['D:/kernel/apps/desktop', '--remote-debugging-port=9400'],
+      args: ['D:/kernel/apps/desktop', '--remote-debugging-port=9400', '--disable-backgrounding-occluded-windows'],
       cwd: 'D:/kernel/apps/desktop',
     })
   })
@@ -341,7 +347,7 @@ describe('launchHome：拼宿主拉起计划、起它、落记录、看五秒', 
     }
     expect(state.spawned[0]?.command).toBe(HOST)
     expect(state.spawned[0]?.cwd).toBe('C:/apps')
-    expect(state.spawned[0]?.args).toEqual(['--remote-debugging-port=9222'])
+    expect(state.spawned[0]?.args).toEqual(['--remote-debugging-port=9222', '--disable-backgrounding-occluded-windows'])
     expect(state.spawned[0]?.env.GWB_HOME).toBe(NAME)
     expect(state.spawned[0]?.env.ELECTRON_RUN_AS_NODE).toBeUndefined()
     expect(state.slept).toEqual(new Array(ALIVE_TIMEOUT_MS / ALIVE_POLL_MS).fill(ALIVE_POLL_MS))

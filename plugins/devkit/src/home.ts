@@ -177,7 +177,9 @@ export function hostAppFacts(execPath: string, argv: readonly string[]): { packa
  * 同样成立(内核仓 AGENTS「怎么跑」),于是同一份安装包再拉一扇窗就是一个新 home。
  *
  * **CDP 调试口走命令行,不走环境变量**:内核不认识任何调试相关的环境变量,
- * `--remote-debugging-port` 是 Chromium 自己的开关,命令行上就生效。
+ * `--remote-debugging-port` 是 Chromium 自己的开关,命令行上就生效。开了调试口就一并带
+ * `--disable-backgrounding-occluded-windows`:窗口被整个盖住时 Chromium 停止产帧,
+ * 取证的输入派发会挂住、截图拿到陈旧帧。
  *
  * devkit 不 build 内核、不认内核仓(0.12.0 起):home 跑的永远是宿主正跑着的那个应用,
  * 日常就是安装版。内核源码改动的验机是内核仓自己的路,这儿不代劳。
@@ -186,7 +188,8 @@ export function hostAppSpawnPlan(
   facts: { execPath: string; packaged: boolean; appPath?: string },
   cdp?: number,
 ): { command: string; args: string[]; cwd: string } {
-  const flags = cdp === undefined ? [] : [`--remote-debugging-port=${String(cdp)}`]
+  const flags =
+    cdp === undefined ? [] : [`--remote-debugging-port=${String(cdp)}`, '--disable-backgrounding-occluded-windows']
   if (facts.packaged) {
     return { command: facts.execPath, args: flags, cwd: path.dirname(facts.execPath) }
   }

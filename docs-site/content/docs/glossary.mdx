@@ -18,7 +18,7 @@ description: 这个仓里反复出现的词各指什么、正本在哪
 | 日常 home | 人每天在用的那一个。开发版永远不进它 | 现状区 `dev` 页 |
 | 隔离 home | 为一次验证新开、验完就清的 home。一次验证开一个新的，不复用上一次留下的 | 现状区 `home` 页 |
 | 控制台 home | 改一版看一版那条链自己住的那个 home。它操作别的 home，不操作自己 | 现状区 `dev` 页 |
-| 团队源 | NAS 上常驻的 Verdaccio（反代 `https://git.tianshen02.online:28377/api/packages/godcreator/npm/`）。gwb 线的发版与装机都走它；公共包由它代理 npmjs。运维正本在 NAS 仓的 verdaccio 篇 | — |
+| 团队源 | gitea 个人源 `https://git.tianshen02.online:28377/api/packages/godcreator/npm/`，常驻、2026-09-14 起唯一的源。gwb 线的发版与装机都走它；scope 行与发布 token 住用户级 `~/.npmrc` | 说明书「gwb-release」 |
 | 开发版 | 一次性的版本号，只为把这一刻的改动送进一个隔离 home。它不顶掉正式版 | 现状区 `dev` 页 |
 | 重挂 | 把一条条目停用再启用，让它重新求值。换了版本号才真的换得动代码 | 现状区 `dev` 页 |
 | 取证 | 换完之后回头找「它真的在干活」的证据。挂上了不算，日志里没有新错才算 | 现状区 `dev` 页 |
@@ -44,3 +44,20 @@ description: 这个仓里反复出现的词各指什么、正本在哪
 | **口** | 多数是端口（调试口、CDP 口、MCP 口、随机口、挑口），少数是入口（装机口、能被 agent 调到的口） |
 | **门** | 入口（「cdp 是门」＝「cdp 是入口」；「开门」＝开调试端口） |
 | **格** | 窗格（如旧卡里的「状态格」）。指记录里一个字段的那种「格」（「记录里那格」）是正常用法，没退 |
+
+## 退役的命令与参数
+
+别的文档里还写着这些名字，那份文档过期了。为什么砍见[砍掉没人用的那一半](/trajectory/2026-09-11-cut-the-half-nobody-uses)。
+
+| 名字 | 从哪一版起没有 | 现在怎么办 |
+| --- | --- | --- |
+| `registry.log` | 0.6.0 | 源是常驻的 gitea 个人源，没有起停 |
+| `devkit.dev-check` | 0.6.0 | `devkit.cdp {"args":["<名>","cmd","plugin-manager.list"]}`，那是看不是验 |
+| `devkit.home.stop` | 0.6.0 | 并进 `devkit.home.rm`：`force` 连停带删 |
+| cdp 的 `targets` / `raise` / `probe` / `probes` | 0.6.0 | 连不上时错话里带着候选页；`shot` 自己抬窗；量表并进 `eval` |
+| `home.new` 的 `cdp` / `skipBuild`、`home.open` 的 `cdp`、`dev` 的 `build` / `registry`、cdp 的 `--repo` / `--homes` | 0.6.0 | 都不收：每一个都是跳过一道守卫的机会 |
+| 「插件源」窗格 | 0.6.0 | 本插件没有浏览器半了 |
+| `D:\unitfolders\26090520zzv\registry.ps1` | 0.6.0 | 随本机源退役 |
+| `kernel-dir` 设置与 home 开收里的内核 build | 0.12.0 | 起 home 拉宿主安装版；内核源码的验机走内核仓 AGENTS「怎么跑」；audit-deps 的容器根问 `unit-folder.list` |
+| `devkit.cdp-eval` | 0.4.0 | `eval` 是 `devkit.cdp` 的一个动作 |
+| `devkit.livedoc` | 0.3.0 | 核对 / 确认 / 渲染在仓里跑：`cd <仓>\docs-site` 之后 `pnpm doc` / `pnpm doc:confirm` / `pnpm doc:render` |

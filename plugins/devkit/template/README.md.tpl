@@ -2,7 +2,7 @@
 
 `{{pkg}}` —— gwb 内核线的模板插件。插件名 `{{pkgName}}`，命令名前缀 `{{name}}`。
 
-一仓一包一插件，仓根即包根。发团队源（NAS registry），装进 home。**scope 路由住用户级 pnpm 配置**
+一仓一包一插件，仓根即包根。发团队源（gitea 个人源），装进 home。**scope 路由住用户级配置**
 （`@godcreator:registry`），本仓不写 `.npmrc`。
 
 ## 这是什么形状
@@ -25,26 +25,18 @@ pnpm check          # typecheck（node 半 + 浏览器半）+ oxlint + vitest
 
 {{docsBlock}}
 
-## 发版与装机（六步验收）
+## 第一次装进工作台（验收）
 
-```powershell
-# 先抬 package.json 的版本号，同一个版本号永不重发
-pnpm publish --no-git-checks   # scope 路由自动走对源，别手写 --registry
-```
-
-然后：
-
-1. 装进隔离 home：`plugin-manager.install {"pkg":"{{pkg}}"}`（该进的 peer 会一并装上）；
-2. 命令面验证：经 MCP 门的 `run` 调 `{"command":"{{name}}.ping"}` 回 `{ok:true, data:{plugin, time}}`；
-3. 打开工作台那一格窗格：看见「你好」，点按钮计数 +1；
-4. 发完就去升 default home（人点「全部更新」或 `plugin-manager.update-all`）——攒着不升，
-   agent 读到的手册与命令都停在旧版。
-
-源是 gitea 个人源（常驻，无需起停）；地址见用户级 `~/.npmrc` 的 `@godcreator` scope 行。
+1. `devkit.home.new` 开一个隔离 home，`devkit.dev` 发出开发版并装进去（回执说没有条目可挂）；
+2. `plugin-manager.install {"pkg":"{{pkg}}","spec":"<回执里那个 dev 号>"}` 建条目；
+3. 命令面：`{{name}}.ping` 回 `{ok:true, data:{plugin, time}}`；
+4. 窗格：看见「你好」，点按钮计数 +1；
+5. 之后每改一版走 `devkit.dev`，发正式版走 `devkit.release`，发完当场升 default。
 
 ## 规矩在哪
 
-红线七条、能力面菜单、发版装机、实机验机——全在 skill「gwb-devkit」里（随
-`@godcreator/gwb-devkit` 分发），不在这儿复述。文档写什么见 skill「docfirst-docs」，
-记轨迹卡见 skill「trajectory」——两份随 `@godcreator/gwb-docfirst-workflow` 件分发。
-不描述任何代码的通用开发纪律（先盘问、并行派活、代码自解释）也随那个件发。
+- 写插件的路、内循环、验机、红线、能力面：说明书「gwb-devkit」
+- 发版、抬版本号、依赖版本怎么写：说明书「gwb-release」
+- 文档站怎么写、记轨迹卡：说明书「docfirst-docs」「trajectory」
+
+说明书经工作台 `skill.read {"name":"<名>"}` 读，这儿不复述。

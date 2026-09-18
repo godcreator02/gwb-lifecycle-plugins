@@ -136,6 +136,16 @@ describe('nextSteps：按站真建到哪一步分三支', () => {
     // 计划里要建站 = 两步都走，走到底那一支
     expect(nextSteps(plan).join('\n')).toContain('doc:confirm')
   })
+
+  it('发版指到 devkit.release 与说明书 gwb-release，首装走 devkit.dev 再建条目', () => {
+    const steps = nextSteps(plan).join('\n')
+    expect(steps).toContain('devkit.release')
+    expect(steps).toContain('gwb-release')
+    expect(steps).toContain('devkit.dev')
+    expect(steps).toContain('plugin-manager.install')
+    expect(steps).not.toContain('pnpm publish')
+    expect(steps).not.toContain('--registry')
+  })
 })
 
 describe('render：占位符', () => {

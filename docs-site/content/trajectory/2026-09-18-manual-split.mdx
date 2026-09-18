@@ -1,0 +1,36 @@
+---
+title: 写插件手册瘦身：主文件留每次都要的，其余成附件或归位
+born-at: 2026-09-18T12:40
+type: choice
+parent: [2026-09-08-gwb-devkit]
+label: 手册瘦身
+domain: 说明书
+---
+
+pivots-from:: [说明书与模板随包走](2026-09-09-skills-and-templates-ride-package.md)
+
+## 背景
+
+说明书「gwb-devkit」的正本长到 952 行，description 两百多字、每个会话的 `index` 地图上都占着。按「写给
+agent 的文档」那套看，毛病是三样：
+
+- **环境的副本**：命令全表是 `search` 回执的副本，「建出来是什么」是模板目录的副本，「建完之后」是
+  scaffold 回执 `nextSteps` 的副本——都会悄悄过期
+- **只有部分场景用得上的细节摊在主文件里**：页面取证、Tailwind 围栏与令牌、模板占位符派生表
+- **放错了地方**：UI 规矩描述的是外壳与令牌；「你改的是内核」内核仓 AGENTS 已有；发版与装机是全生态的规矩；
+  退役名表是历史
+
+## 结论与边界
+
+- 主文件约 150 行：写一个插件的路（每步带完成判据）、内循环、测试 home、验机、红线、能力面、说明书住哪；
+  命令全表换成一句「`search {"plugin":"@godcreator/gwb-devkit"}`，usage 是正本」
+- 附件两份，经 `skill.read {"name":"gwb-devkit","file":"references/…"}` 按需读：`evidence.md`（页面取证）、
+  `ui.md`（带界面的插件）
+- 发版与装机并进新说明书「gwb-release」，与发版规则一处（见同日「发版规则成文」）
+- 退役名表挪进本站术语表；模板里 `allowBuilds` 与 `oxlint-tsgolint` 两处写进现状区建仓页；代码分层、
+  为什么不覆盖 dist、Chromium 开关本来就在现状区
+- description 压成一句触发语
+
+边界：`ui.md` 是过渡落点——它描述外壳与令牌，正主是 UI 平台仓；外壳那边手上的活完了之后，整份挪进外壳包
+一份独立说明书，devkit 这边只留指路。内核仓文档站 `dev-loop` 页有一处指向旧手册「你改的是内核」一节，
+那一节已删，已记在总控台中转站待投。

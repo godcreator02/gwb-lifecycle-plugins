@@ -1,952 +1,140 @@
 ---
 title: 写插件手册（SKILL 正本）
 name: gwb-devkit
-description: 动手写一个新 gwb 插件之前读，打算说「验过了 / 跑通了 / 改动生效了」之前也读。开发套件的全部命令、建仓（devkit.scaffold，插件模板随本包发，站那半两步转给站点插件与 docfirst 插件）、改一版看一版那条内循环（devkit.dev：发开发版、装进隔离 home、重挂、取证）、发正式版（devkit.release：git 树不干净就拒、staging 发 latest、workspace 依赖写成 >= 范围）、从建仓到发版装机升 default 的外循环、八条红线、生态里每个插件的服务什么时候用、一份新说明书该住哪个插件的判据，以及改内核（不是改插件）时验机怎么走。
+description: 写或改 gwb 插件时读——建仓、改一版看一版（devkit.dev）、测试 home、验机取证；说「验过了」之前也读。
 ---
 
-# 这套东西是什么
+# 写 gwb 插件
 
-`@godcreator/gwb-devkit` 是个**普通的 gwb 插件**，装进 home 才有它的命令。它住
-`D:\unitfolders\260908dkv\gwb-devkit`——一个双包 workspace（2026-09-15 起）：
-`plugins/devkit` 是插件本体（件住 plugins/、包住 packages/），`packages/repo-kit`（`@godcreator/gwb-repo-kit`）是仓侧
-dev-only 工具包（守卫测试的正本，薄壳住各仓），`docs-site/` 照旧。同居的判据：模板薄壳
-与守卫工厂是「两处正本必须同步动」的耦合——一个 commit 改两边、一趟 release 发两包。
-「独立起仓」那条路的样例由 notes/timer/counter 那批真独立仓接棒，不再由本件兼职。
+`@godcreator/gwb-devkit` 是个普通插件，管四件事：建仓（`devkit.scaffold`）、测试 home 的开收
+（`devkit.home.*`）、改一版看一版（`devkit.dev`）、发正式版（`devkit.release`）；外加一支 CLI
+`devkit.cdp`，在工作台页面里动手取证。全部命令与参数形状：`search {"plugin":"@godcreator/gwb-devkit"}`
+——usage 是正本，参数给错时回执会把完整说明回给你。
 
-它管四件事：**建仓**（`devkit.scaffold`）、**手册**（就是这一份，随包分发经 gwb-skills 挂载）、
-**测试 home 的开收**（`devkit.home.*`）、**改一版看一版**（`devkit.dev`）。
+按活找说明书：
 
-外加一支包内 CLI，经 `gwbNodeCli` 登记成总线命令 `devkit.cdp`（在一个工作台页面里动手：
-取证、点按拖拽、跑一条工作台命令、问那张页是哪个 home）。
-
-**本插件没有浏览器半**，没有窗格：它的使用者是 agent，读的是回执。
-
-**它不管文档站。** 站的一生归站点插件、站里内容的正确性归 docfirst 插件——见「两个插件各管什么」。
-本包**不依赖那两个插件的任何包**：建仓时要用它们，只按名字在命令总线上找那两条命令。
-
-代码分层：`src/index.ts` 只剩接线；建仓的校验渲染落盘在 `scaffold.ts`，home 的时序在
-`home.ts`，改一版看一版那条链在 `dev.ts`，进程探测的纯机在 `probes.ts`（皆纯机、可单测），真机器的盘与
-进程在 `node-probe-deps.ts` / `node-home-deps.ts` / `node-dev-deps.ts`。包内唯一一支 CLI
-`bin/cdp.mjs` 是零依赖单文件纯 JS、连包都不用装就能跑。
-
-**源码改了这份就过期**——对不上时以源码为准，回来改这儿。这份随包发：改一个字也要抬版本、
-发版、**去升 default home**（见「发完版就去升 default」），`gwb-skills` 的「正文现读盘」
-只对装进 home 的那份生效。
-
-## 没有设置项
-
-（0.12.0 起 `kernel-dir` 退役——起 home 不再认内核仓，见「已退役的那些名字」。audit-deps 的
-容器根缺省现问命令总线上的 `unit-folder.list`，问不到就必给 `root`。）
-
-# 命令全表
-
-**建仓**
-
-| 命令 | 参数 |
+| 要干什么 | 读哪 |
 | --- | --- |
-| `devkit.scaffold` | `{ name, dir, title?, docs?, port? }`——`name` 必给（kebab-case 短名），`dir` 必给（绝对路径，**必须还不存在**），`title` 可选显示名，`docs` 缺省 `true`（连文档站一起建，两步），`port` 可选站端口。**参数不对会把完整说明回给你**（错误即文档），不必背 |
+| 发版、抬版本号、改依赖版本号 | skill「gwb-release」 |
+| 写带窗格、带界面的插件 | 本说明书的附件 `skill.read {"name":"gwb-devkit","file":"references/ui.md"}` |
+| 在页面里取证（点、量、截图、跑脚本） | 附件 `references/evidence.md` |
+| 写文档站、记轨迹卡 | skill「docfirst-docs」「trajectory」；铺站与起停读「docs-site」 |
+| 改内核本身 | 内核仓 AGENTS「怎么跑」 |
 
-**改一版看一版**（内循环，整节在「改一版看一版」）
+## 写一个插件的路
 
-| 命令 | 参数 | 干什么 |
-| --- | --- | --- |
-| `devkit.dev` | `{ home, dir, packages?, waitFor? }` | 一条走完：仓根构建 → 发开发版 → 目标 home 清单写准确号再 `pnpm install`、读回装上的号核对（对不上当场 `ok: false`）→ 逐条 `plugin-manager.remount` 重挂 → 整页重载 → 取证（装上的是这一趟的号、条目真 ACTIVE、日志增量无 error）。**目标是 `default` 或本插件自己所在的 home 都当场拒**；目标 home 的 plugin-manager 要 ≥0.4.0 |
+写插件只有一条路：**独立一个仓，发进团队源，装进 home**。装这个动作本身就在验：`exports`
+漏一个子路径、`files` 少带一个目录，只有装出来才现形。
 
-**构建不可跳过，源也不可给**。产物不新就发，发出去的是上一版，而整条链一路绿灯；源这台机器上
-只有一个。想现看一眼某个 home 的条目表，用
-`devkit.cdp {"args":["<名>","cmd","plugin-manager.list"]}`——**那是看，不是验**。验只发生在
-`devkit.dev` 里头那一次，因为只有它手上有「这一趟之前」的日志基线。
+1. **建仓**：`devkit.scaffold {"name":"<kebab 短名>","dir":"<还不存在的绝对路径>","title":"<显示名>"}`。
+   默认连文档站一起铺（`docs-site.create` 再 `docfirst.attach`，两条连着跑）。回执的
+   `docs.built` / `docs.attached` 是真相，照 `nextSteps` 做到底。第一次 `pnpm doc:render`
+   之前，先把手写 README 里要留的内容搬进 `content/outputs/readme.mdx`——render 会覆盖它
+2. **先写测试**：能不起进程、不开窗、只喂输入看输出的逻辑，抽成纯函数写进 `tests/`；
+   要起子进程、要 Electron 的，走下面的验机。node 半的测试只 import `.ts`（node 半的 tsc 没开 jsx）；
+   真起子进程的用例打 `slow` 标签
+3. **写 node 半**（`src/index.ts`）：`export const name = 'gwb-<短名>'` 加 `apply(ctx)`。能力挂到命令总线：
 
-**目标只用 home 名指，这一层不收端口**。端口是从那个 home 的 `runtime.json` 里查的
-（内核开机写的那份），查的时候顺带验活：pid 还在、且那个 pid 真的持着那个端口。给了 `cdp` 当场拒
-并告诉你新写法，不静默改道。
+   ```ts
+   ctx.inject(['gwbCommands'], (c) => {
+     c.effect(() => c.gwbCommands.register(
+       { name: '<短名>.<动作>', plugin: '@godcreator/gwb-<短名>', description: '一句话', usage: '{ entryId, enabled? }' },
+       handler))
+   })
+   ```
 
-**为什么端口不是地址**：它是一个没有语义的数，敲错一位就落在另一个现场，而那个现场会老老实实
-收下你这一趟的发版、装包与重挂。名字有拼写、有记录、有交叉核对，三样端口都没有。代价也说清：
-**记录坏了或起它的内核太旧的 home 够不着**，那时停掉重开一次就有了。
+   `plugin` 写包名。`usage` 写出一眼能抄的参数形状，无参数就写「无参数」——agent 只看得见这一句。
+   handler 的参数是 `unknown`，用词汇表包的 `isRecord` 收窄
+4. **内循环**：`devkit.dev` 进隔离 home，见下一节。完成＝回执 `ok: true`
+5. **验机**：见「验机」一节。完成＝四种假验收一条不沾
+6. **发版**：照 skill「gwb-release」
 
-**发正式版**（整节在「发版与装机」）
-
-| 命令 | 参数 | 干什么 |
-| --- | --- | --- |
-| `devkit.release` | `{ dir, packages? }` | 从仓根把包按序发到团队源（tag latest）：仓根 git 树干净守卫（有未提交改动就拒，一个都不发）→ 仓根构建 → 照 `files` 白名单验产物 → 同号已在源上就拒 → staging 发版。**号在仓里抬**，这条不改仓里任何文件；**只碰源不碰任何 home**，从哪个 home 调都行 |
-
-**依赖对账**
-
-| 命令 | 参数 | 干什么 |
-| --- | --- | --- |
-| `devkit.audit-deps` | `{ root?, registry? }` 或无参 | 全生态对账（只读）：扫容器根全部仓的 `@godcreator` 声明（仓根＋plugins/packages/apps＋docs-site），对 registry 现值出清单——**dead-pin**（钉了源上没有的版本，装必炸；gitea 只保证往后有历史，这类谎最容易犯）、**behind**（dev 钉落后源上 `dist-tags.latest`＝火车债记账，不是催命符；dev 号不算最新）、floor-unverifiable / floor-mismatch / floor-no-mirror（下限那一档的水分）。**退役单元（`unit.json` 的 `status` 是 `retired`）整个不扫**，名字列在回执 `retired`；**`private: true` 的清单（仓根 workspace、文档站、不再发版的件）只查 dev 钉那三类**，peer 下限没人装、不审。root 缺省现问总线上的 `unit-folder.list`（没装那个件就必给 root）。发版前、火车编组、怀疑「升了炸一堆」时跑 |
-
-**一条外部 CLI**（经 `gwbNodeCli` 登记，自动镜像成同名总线命令）
-
-| 命令 | 参数 | 干什么 |
-| --- | --- | --- |
-| `devkit.cdp` | `{ args: [<home 名>, <动作>, …] }` | 在一个工作台页面里动手。十二个动作分两类：浏览器输入（`move` / `click` / `rclick` / `drag` / `type` / `key` / `scroll` / `shot`）与工作台契约（`cmd <命令名> [JSON]` / `reload [选择器]` / `home` / `eval <文件> [JSON]`）。开关五个：`--target` / `--mod` / `--pad` / `--size` / `--timeout` |
-
-**`eval` 是唯一一条「在页面里跑代码」的路**：`devkit.cdp {"args":["<名>","eval","out/量一下.js"]}`。
-文件路径按**当前工作目录**解——**经 MCP 门 `run` 调时那个「当前目录」是 devkit 包自己的目录，一律给绝对路径**；**文件里一律是一个函数表达式** `(args) => 一张表`（想 await 就写
-成 async），第二个参数是一段 JSON，不给就按空对象调。只有这一条规则——「是函数就调、不是就直接
-求值」是两条规则伪装成一条，而选错分支那次不报错。
-
-量一张表的脚本**落哪儿是你的纪律，不是它的**：一次性的落 `out/`（那儿 gitignore 着，本来就随时
-可以清空）。提交进仓的那种会跟着界面一起变黄，而且不报错——跟一句没钉码的论断是同一种病。
-
-## 已退役的那些名字
-
-看见别的文档里还写着它们，那份文档过期了。为什么砍在轨迹卡
-「砍掉没人用的那一半，起停收成一份实现两个入口」里，这儿只列名字。
-
-| 名字 | 从哪一版起没有 | 现在怎么办 |
-| --- | --- | --- |
-| `registry.log` | 0.6.0 | 起停已整体退役：源是常驻的 gitea 个人源 |
-| `devkit.dev-check` | 0.6.0 | `devkit.cdp {"args":["<名>","cmd","plugin-manager.list"]}`，那是看不是验 |
-| `devkit.home.stop` | 0.6.0 | 并进 `devkit.home.rm`：`force` 连停带删 |
-| cdp 的 `targets` | 0.6.0 | 连不上时错话里已经带着候选页整张表 |
-| cdp 的 `raise` | 0.6.0 | `shot` 自己会抬窗 |
-| cdp 的 `probe` / `probes` | 0.6.0 | 并进 `eval`：给路径，文件里写 `(args) => 一张表` |
-| `home.new` 的 `cdp` / `skipBuild`、`home.open` 的 `cdp`、`dev` 的 `build` / `registry`、cdp 的 `--repo` / `--homes` | 0.6.0 | 都别给。每一个都是「跳过一道守卫」的机会 |
-| 「插件源」窗格 | 0.6.0 | 没有替代：本插件没有浏览器半了 |
-| `D:\unitfolders\26090520zzv\registry.ps1` | 0.6.0 | 已随本机源退役 |
-| `kernel-dir` 设置与 home 开收里的内核 build | 0.12.0 | 起 home 拉宿主自己那个 exe（日常就是安装版）；内核源码的验机归内核仓自己的路（它家 AGENTS「怎么跑」），audit-deps 容器根改问 `unit-folder.list` |
-| `devkit.cdp-eval` | 0.4.0 | `eval` 是 `devkit.cdp` 的一个动作 |
-| `devkit.livedoc` | 0.3.0 | 核对 / 确认 / 渲染在仓里发生：`cd <仓>\docs-site` 之后 `pnpm doc` / `pnpm doc:confirm` / `pnpm doc:render`，没有总线命令替你转（见「docfirst 的命令怎么调」） |
-
-**测试 home**
-
-| 命令 | 参数 | 干什么 |
-| --- | --- | --- |
-| `devkit.home.new` | `{ short }` | 开一个新 home，名字长成 `<short>-<yyMMddHHmm>`。**拉宿主自己那个 exe**（安装版对 GWB_HOME 同样成立；不 build 内核、不认内核仓，内核版本跟安装包走），**调试端口自动挑**（先沿用这个 home 上次那个，被占了才另挑），所以它起的 home 天然按名字够得到。**回执里带着现有 home 清单**，开新那一刻正好清旧的 |
-| `devkit.home.list` | — | 列 home 根下全部：名字、谁还在跑、CDP 端口、MCP 门（`mcp` 格；老 home 的 `command-http` 格照报当线索） |
-| `devkit.home.open` | `{ name }` | 重开已有的（拉宿主安装版）。机器重启之后回到原来那个现场只有这一条路——`home.new` 永远造新目录，插件得全部重装一遍 |
-| `devkit.home.rm` | `{ name, force? }` | 删。没在跑的直接删；**还在跑的要 `force`**，那时连停带删（按 `runtime.json` 里的 pid，核对映像名与记录里那个 CDP 端口再杀，**按 pid 等进程真退了才删**），停不掉就不删。**回「已删」只在目录真不在了之后**：删一次核对一次，还在就隔一秒再删，五次还在回 `ok: false` 并列出还剩什么（多半是终端、编辑器开在里面）。`default` 是日常那份：不 `force` 不删，**而且它在跑的时候 `force` 也不删**——自己关掉那扇窗再来 |
-
-运行时记录落在每个 home 自己的 `runtime.json` 里（`pid` / `startedAt` / `appDir` / `cdp` /
-`mcp`），home 删了它自然也没了。**写它的是内核与 gwb-mcp 插件，devkit 只读**：
-内核开机整份重写，门绑上端口之后补自己那个字段（前一门 command-http 补的 `command-http`
-字段在老 home 的记录里还在，当线索看）。所以**手工起的 home 也有记录**，
-「说出名字就够得着它」对所有
-home 都成立。**热重挂不换 pid**——`plugin-manager.update-all` 那套停用再启用只动条目，内核进程还是
-原来那个，记录照旧作数。
-
-**前提**：`devkit.home.*` 要 devkit 本身跑在一个活着的 home 里——它是个插件，宿主不在它也起不了。
-一个 home 都没活着的时候只能手工起，见末尾「你改的是内核，不是插件」那四步（插件作者同样能用）。
-
-# 建仓：`devkit.scaffold` 一条命令
+## 改一版看一版：`devkit.dev`
 
 ```
-devkit.scaffold {"name":"hello","dir":"D:\\unitfolders\\<单元>\\gwb-hello","title":"打个招呼"}
+devkit.dev {"home":"<home 名>","dir":"<仓根>","packages":["plugins/demo"]}
 ```
 
-校验：kebab-case 短名、**目标目录必须还不存在**、认不出的占位符当场抛、**整套先在内存渲染完
-再碰盘**（目录一旦开始写就没有干净的回滚点）。
-
-**默认连文档站一起建，而建站是两步**：
-
-| 步 | 命令 | 谁提供 | 干什么 |
-| --- | --- | --- | --- |
-| 一 | `docs-site.create` | 站点插件 `@godcreator/gwb-docs-site` | 铺一个标准 fumadocs 骨架：单集合、一条路由、一页 index，端口从邻居没占的里挑 |
-| 二 | `docfirst.attach` | docfirst 插件 `@godcreator/gwb-docfirst-workflow` | 在**刚铺好的**骨架上装配六区：六个集合六条路由、`docfirst.config.mjs`、mdx 接线、投影块与术语组件、名册脚本、`doc` 那几条脚本 |
-
-两条都认**站目录**（`<仓>\docs-site`），不是仓根——这跟退役的 `livedoc init --dir <仓>`
-正好差一层，别顺手抄旧的。`devkit.scaffold` 把这两步连着跑完；`port` 参数手给的一律
-让给你，不给就是站点插件挑。`docs: false` 就只建插件那半——但别轻易用：人记得事后补命令的
-概率，跟容器里那一堆仓至今没有站是同一个概率。
-
-**只在刚铺好的骨架上装配。** `docfirst.attach` 自己守着这条：站里已经有
-`docfirst.config.mjs`、或 `content/` 下已经有骨架之外的内容，它报一句「这个站已有内容，
-请人工接线」退非零，一个字都不改写。判据是：建骨架与装六区连着跑，中间没人改过文件，
-所以整个覆盖是安全的；给一个跑了半年的站自作聪明地 AST 改写不是。**所以补建的两条命令
-要连着敲**，别铺完骨架先去写内容。
-
-**站没建成不算建仓失败。** 哪个插件没装、哪条命令自己失败，插件那半照样在盘上；回执里
-`docs.note` 写明卡在哪一步、怎么补。回执里有两个字段才是真相，`docs.built` 说骨架铺没铺、
-`docs.attached` 说六区装没装，`nextSteps` 按这两个字段分三支，不按你要不要建分。
-
-**没装站点插件的时候**：`devkit.scaffold` 不报错、不终止，插件那半正常落盘，回执与生成的
-README 都改口说「站没铺，装了站点插件之后自己跑 `docs-site.create`」。装：
-`plugin-manager.install {"pkg":"@godcreator/gwb-docs-site"}`，docfirst 插件同理。
-
-## 建出来是什么
-
-一个**起手即可验证运行**的模板插件仓：node 半（挂载 + 一格窗格注册 + 一条 `<短名>.ping`
-命令）、浏览器半（「你好 + 计数按钮」的窗格，Tailwind 前缀围栏）、身份卡（`catalog.md`）、
-四份守卫测试——**catalog（身份卡防漏）与 plugin（身份与挂载登记）是薄壳，正本住
-`@godcreator/gwb-repo-kit`**（升那个包即修守卫）；prefix（类名前缀）与 artifact（产物）
-暂为全份，随火车迁。两半各有各的依赖：
-
-| 半 | 装什么 | 模板归谁 |
-| --- | --- | --- |
-| 仓根 | `package.json`（build 三步：tsc + esbuild + tailwindcss；check / prepublishOnly）、`pnpm-workspace.yaml`（**pnpm 11 的设置家**：allowBuilds 批 esbuild 的构建脚本，package.json 的 pnpm 字段已不读）、`tsconfig.json` 与 `tsconfig.build.json`（node 半）、`src/client/tsconfig.json`（浏览器半，jsx + DOM）、`.oxlintrc.json`（type-aware 那套规则）、`vitest.config.ts`（只认仓根 `tests/`，slow 标签留给真起子进程的用例）、`build.ts`（esbuild 打包，react 四裸名外置）、`src/index.ts`、`src/client/index.tsx`、`src/client/styles.css`、`catalog.md`、`tests/` 四份、`README.md`。**不写 `.npmrc`**——scope 路由住用户级 pnpm 配置 | **本包 `template/`**，18 个 `.tpl` |
-| `docs-site/` | fumadocs 骨架 + docfirst 的六区 | **不归本包**：骨架模板随站点插件发，六区那套随 `@godcreator/docfirst-workflow` 发 |
-
-**三者互不依赖。** devkit 不依赖站点插件、站点插件不认识 docfirst、docfirst 插件不认识站点插件——
-建仓时那两步是**按名字在命令总线上找**，找不到就跳过那一步。这不是偷懒，是拆分的
-判据本身：一个不需要钉码的 fumadocs 站（比如那个 TypeScript 交互教学站）凭什么
-先装一套钉码机制。
-
-往**已有仓**里加站是同样两条命令（前置条件正好相反：建新仓要求目标目录还不存在，
-加站要求仓已经在、而 `<仓>\docs-site` 还不在）：
-
-```
-docs-site.create {"dir":"D:\\unitfolders\\<单元>\\<已有仓>\\docs-site","title":"<显示名>"}
-docfirst.attach  {"dir":"D:\\unitfolders\\<单元>\\<已有仓>\\docs-site"}
-```
-
-**建完仓第一次 `pnpm doc:render` 之前先看一眼 README。** 插件模板落了一份手写的
-`README.md`，而六区里 `content/outputs/` 预置了 `readme.mdx` → `../README.md` 的映射
-——第一次 render 会**覆盖**那份手写的。`attach` 的输出里就有这句警告。要留内容就先把它
-搬进 `content/outputs/readme.mdx`（那才是正本），再 render。`AGENTS.md` 同理，只是新仓
-里本来还没有。
-
-装完在 `docs-site` 里 `pnpm install`、`pnpm doc:render`、`pnpm doc`。起手页里预置一条
-**草稿记号**钉着 `src/index.ts` 里 `export const name` 那一行（行号是现找的，不写死）
-——`git init` 落第一个提交、在 `docs-site` 里 `pnpm doc:confirm`，它转成正式记号、
-状态点变绿。这条闭环走一遍，这套机制就摸清了。
-
-两条命令都**只写文件**：不跑 `pnpm install`（替人装依赖，出错时现场在哪都不好找）、
-不 commit。
-
-模板文件一律带 `.tpl` 后缀、落盘时脱掉：`npm pack` 不打 `.gitignore` 是硬行为，一条规则管
-所有文件，不必记哪几个特殊。**这儿不抄模板正文**——抄一份就是第二份真相，要看就看
-`<devkit 包>/template/` 本身。
-
-**工作台起不来的时候**：三样都没有离线入口（模板在包里，但那三个包都是插件、不是 CLI）
-——先按末尾「你改的是内核，不是插件」那四步把工作台起起来。
-
-## 五条从实跑里换来的
-
-**一、docfirst 的包一个都不许进 `serverExternalPackages`。** `@godcreator/docfirst-workflow` 与
-`@godcreator/docfirst-trajectory` 里都有客户端组件（前者的 `/fumadocs/pre` 是状态点，
-后者的 `./react` 是星轨盘），外置之后 Next 走 Node 单独加载它们、跟站打包的 React 分了家。
-**报错完全不指根因**——预渲染报 `Cannot read properties of null (reading 'use')`，或者
-构建期报 `ERR_PACKAGE_IMPORT_NOT_DEFINED` 指着 `@base-ui/react` 里的文件，会把人引去查
-base-ui 的版本，而那儿根本没问题。它们的服务端那半（remark 插件、读盘调 git 的那些）
-走 fumadocs-mdx 的 loader，本来就是 Node 直载、不经打包器，不需要外置。
-`docfirst.attach` 铺出来的 `next.config.mjs` 里那个字段就是空表，别往里加。
-
-**二、`oxlint` 的 type-aware 要单独装 `oxlint-tsgolint`。** 少了它 `pnpm lint` 报
-"Failed to find tsgolint executable"。模板里两个都钉了版本。
-
-**三、pnpm 11 的设置家是 `pnpm-workspace.yaml`，package.json 的 `pnpm` 字段已不读。**
-esbuild 的构建脚本要在那儿用 `allowBuilds` 批（独立单包仓也认这个文件，没有 packages
-列表就是「自己一个包的 workspace」）。不批的现象是连环的：install 报「Ignored build
-scripts」，`pnpm run` 的依赖状态核验自动补装再撞同一块石头，最后炸出来的栈在 pnpm 自己
-肚子里——从栈上完全看不出是构建脚本没批。模板自带那份 `pnpm-workspace.yaml`。
-
-**四、TS 字符串字面量会撞 Tailwind 工具类名，前缀守卫当场红。** 状态值 `'running'` /
-`'paused'` 这类恰好是 Tailwind 4.3 的真实工具类（animation-play-state 一族），前缀守卫扫的是
-源码里的一切类名形状字符串，不区分「类名」与「恰好长成类名的值」——守卫没错（漏前缀静默，
-只能广撒网），改值名绕开（`ticking` / `halted`），别跟守卫犟。
-
-**五、令牌映射面的管辖区有限，出了区用任意值写法。** `@godcreator/gwb-tokens` 的映射面只
-接管到 `text-*` 的 4xl、`container-*` 的 xs/lg——`text-6xl`、`max-w-sm` 这类会烤出字面量
-fallback，零 fallback 守卫当场红。改明示任意值（`text-[3.75rem]`、`max-w-[24rem]`）过，
-别去翻 tokens 包凑映射。
-
-## 名字是怎么派生的
-
-一个短名派生出全部：
-
-| 占位符 | 值 | 例（`name: "hello"`） |
-| --- | --- | --- |
-| `{{name}}` | 短名本身 | `hello` |
-| `{{pkg}}` | `@godcreator/gwb-<短名>` | `@godcreator/gwb-hello` |
-| `{{pkgName}}` | 插件名 `gwb-<短名>`，即 `export const name` 的值 | `gwb-hello` |
-| `{{cssPrefix}}` | 短名**剔除非小写字母**——Tailwind 4 的 `prefix()` 只收 a-z，连字符与数字都当场拒（`pnpm build` 才炸，`check` 全绿）；类名前缀只用它，连字符版只做包名与命令名 | `hello`（`audit-probe` → `auditprobe`） |
-| `{{title}}` | 显示名，缺省用短名 | `打个招呼` |
-| `{{docsBlock}}` | README 里讲文档站的那一段：建了站讲怎么跑，没建讲怎么补 | — |
-
-命令名 `<短名>.<动作>` 的前半也是它。短名的正则是
-`/^[a-z][a-z0-9]*(?:-[a-z0-9]+)*$/`——**段之间只许一个连字符、结尾不留**；松写法会放过
-`x--`，那条尾巴会跟着包名过一辈子。scope 全仓统一是 `@godcreator`，不做成参数。
-
-两条落盘纪律，都是「没有干净回滚点」推出来的：整套模板**先在内存里渲染完**再碰盘
-（占位符出错是最可能的失败）；**目标目录必须还不存在**，存在就拒，不覆盖任何东西。
-模板里留一个认不出的 `{{typo}}` 会当场抛——不然它一路活到别人的 package.json 里，
-那时已经没人知道它本来该是什么。**给模板加了新占位符，`scaffold.ts` 的 `placeholders()`
-就得同时加一条**，不然下一次建仓当场抛。
-
-## 建完之后
-
-回执自带下一步，不用再问：
-
-```
-cd <dir>
-pnpm install
-pnpm build          # tsc + esbuild + tailwindcss 三步——先 build：check 里的产物守卫吃 dist/
-pnpm check          # typecheck（node 半 + 浏览器半）+ oxlint + vitest，模板自带四份测试
-文档站那半（自己一套依赖，跟插件那半分开装）：cd <dir>\docs-site && pnpm install && pnpm doc
-先 git init 落第一个提交，再在 docs-site 里 pnpm doc:confirm
-发一版：先抬 package.json 的版本号，再 pnpm publish --no-git-checks   # scope 路由自动走对源，别手写 --registry
-装进隔离 home：plugin-manager.install {"pkg":"@godcreator/gwb-<短名>"}——该进的 peer 会一并装上
-命令面验证：经 MCP 门的 run 调 {"command":"<短名>.ping"} 回 {ok:true,…}；工作台那格窗格「你好」+计数按钮点得动——六步验收到这儿走完
-发完就去升 default home（人点「全部更新」或 plugin-manager.update-all）
-```
-
-# 两个插件各管什么
-
-docfirst 那条线曾拆成三个插件又并回两个——讲通用纪律的说明书要跟钉码写法与六区对得上号，
-分两个仓存两份必然漂而漂了不报错（拆分与并回的了断在 docfirst 仓站的轨迹区）。现在是
-**两个插件，各自独立发版、互不依赖**：
-
-| 插件 | 管什么 | 包 |
-| --- | --- | --- |
-| **站点插件** | 一个 fumadocs 站的**一生**：铺标准骨架、扫容器根找站、判构建新鲜度、现挑空端口起停、到点自动关、一个窗格。**只认 fumadocs**，不认识 docfirst | `@godcreator/gwb-docs-site` |
-| **docfirst 插件** | 站里**内容的正确性**：在骨架上装配六区与接线（`docfirst.attach`，插件里就这一条命令），外加六份说明书——讲机制的三份（`docfirst` 装六区 / `docfirst-docs` 写文档 / `trajectory` 记卡）加讲通用开发纪律的三份（`spec-grill` 先盘问 / `parallel-by-module` 并行派活 / `docs-governance` 文档与注释治理，含代码自解释扫描）。核对 / 确认 / 渲染**不经插件**——那是仓里的事，agent 自己 cd 过去跑 `pnpm doc`，插件对 `@godcreator/docfirst-workflow` 那个包零依赖 | `@godcreator/gwb-docfirst-workflow` |
-
-docfirst 的包是两个：`@godcreator/docfirst-workflow` 与轨迹包
-`@godcreator/docfirst-trajectory`。**旧的那批 `@godcreator/live-doc-*` 不再更新**——看见
-哪儿还写着旧包名或 `livedoc init`，那份文档过期了。
-
-**装机面不一样**：`@godcreator/docfirst-workflow` 是 npm 包，要装进**各仓**的 `node_modules`
-（站构建 import 它的接线、门禁跑它的 check）；两个插件只装进 **home**，各仓的依赖树里
-不该出现它们。
-
-## docfirst 的命令怎么调
-
-**总线上只有 `docfirst.attach` 一条**（装六区，见「建仓」那节）。核对 / 确认 / 渲染
-**没有总线命令**，插件也不替你转发、不起子进程——判据是「这件事在哪儿发生」：那三件事
-要读仓里的源码、调仓里的 git、写仓里的 `.ledger.json`，都是**仓**里的事，所以
-`cd` 过去在仓里跑：
-
-```
-cd <仓>\docs-site
-pnpm doc            # docfirst check：论断跟源码脱节了会报黄
-pnpm doc:confirm    # docfirst confirm：重钉，先 commit 再跑
-pnpm doc:render     # docfirst render：机读版与挂了 outputs 的生成物重摆
-```
-
-`check` 有红时退出码是 1——**那是核对结果，不是命令失败**。`render` 没有 `--target`
-开关（那是旧包线的写法），就一条 `docfirst render`。
-
-跑这几条要仓的 `docs-site` 里装了 `@godcreator/docfirst-workflow`（它带 `docfirst`
-这个可执行）；`attach` 铺出来的 `package.json` 里那几条脚本就是上面这三条。
-
-别在插件里进程内 import 一个 CLI——CLI 形态的东西一律经 `gwbNodeCli` / `gwbPyCli` 登记，
-不做总线命令、不进程内调。
-
-## 写一个新插件时，说明书该住哪个插件
-
-**知识跟着它描述的代码走。** 判据只有一句：**这份说明书会不会因为某行代码改动而过期？**
-
-- 会 → 它必须跟那段代码**同仓同提交**，随那个包发。「六区怎么写」在六区从六个变七个的
-  那一刻当场过期，所以它跟六区同仓
-- 不会（换个生态照样成立，比如「接到需求先盘问」）→ 它不描述任何代码，归讲通用纪律的
-  那三份一起走——它们随 docfirst 插件发
-- 一份说明书点名了某个宿主能力（比如 `AskUserQuestion`）而不是某段代码 → 它是宿主的
-  纪律，住宿主那边（总控台的 `.claude/skills/`），不随插件
-
-**说明书是全局单一命名空间。** 两个插件挂同名的那份，后来的直接不挂、只留一行警告——
-症状是 agent 读到的可能是旧那份、照着做但做错了，最难查。**所以别替别的插件代挂它的
-说明书**：知识随插件走，由它描述的代码所在仓的插件自己挂。
-
-# 从哪儿起手
-
-写一个 gwb 插件，只有一条路：**独立起一个仓（或文件夹），发一版进团队源，装进
-home**。不存在「把源码摆在内核仓旁边跑起来」的近路——近路绕过了安装这个动作，
-`exports` 漏一个子路径、`files` 少带一个目录，近路上都不显形，装出来才炸。
-
-# 七步
-
-**一、建仓。** `devkit.scaffold`（见上面那节），接着 `pnpm install && pnpm build`。
-装不上依赖不挡交货，仓已经在盘上了，依赖可以事后重来。
-
-**二、写 node 半**（`src/index.ts`）：`export const name = 'gwb-<短名>'` + `apply(ctx)`。
-**动手写逻辑之前先看下一节「先写测试」。** 每改一步就重启内核看一眼日志——
-`[host] 挂上 gwb-<短名>` 出来再往下写。
-
-**三、要给人或 agent 调的能力，挂到命令总线上。** 用**局部注入**（可选依赖写法——
-总线插件不在，你的插件照常挂）：
-
-```ts
-ctx.inject(['gwbCommands'], (c) => {
-  c.effect(() => c.gwbCommands.register(
-    { name: '<短名>.<动作>', plugin: '<短名>', description: '干什么：{ entryId: string, enabled?: boolean }' },
-    handler))
-})
-```
-
-handler 参数是 `unknown`，自己收窄（词汇表包的 `isRecord`）。相对 import 带 `.js`。
-
-**`description` 必须写出参数形状。** 命令总线不带参数 schema，agent 看得见的只有这一句：
-它得只看它就知道参数怎么给。写成 `{ entryId }`、`{ name, force? }` 这种一眼能抄的形状，
-**无参数就明写「无参数」**——省略等于让调用方去猜，猜的结果是先错一次再读回执。
-参数复杂到一行写不下的，回执里带一份完整说明（错误即文档，`devkit.scaffold` 就是这么干的），
-但 description 里那句形状仍然要有。
-
-**顶层工具位没有申报口子。** MCP 门（2026-09-14 复位起唯一的门）工具面封顶 `index` /
-`search` / `run` 三枚、永不再增——`GwbCommandDef` 的 `top` 字段已随 commands 0.3 退役，登记时
-没有「让 agent 顶层直接看见这条命令」这个动作，一切命令（包括你这条）经 `run` 按名调。
-命令只管把 `description` 的参数形状写清楚，发现面是 `index` 回执的事。要动那个封顶
-（加第四枚工具）是 major 级的协议变更，**先问人**。
-
-**四、发一版。** 先抬 `package.json` 的版本号，再：
-
-```
-pnpm publish --no-git-checks   # scope 路由自动走对源，别手写 --registry
-```
-
-**同一个版本号永不重发**；发之前先问一句这个号在不在源上。源是 gitea 个人源（常驻，不经本机、无需起停）。
-
-**五、装进 home 看真效果。** 两条路：
-
-- **正路**：`plugin-manager.install { "pkg": "@godcreator/gwb-<短名>" }`（可选 `spec` 指定版本）
-  ——真跑 pnpm add，**然后自动加一条条目（默认启用）**，回执带新条目的 `entryId`
-- **手动路**：home 目录里 `pnpm add @godcreator/gwb-<短名>@<版本>`，再在 `cordis.yml`
-  手写一条条目。`id` **必须手写**：不写 loader 当场发 8 位随机 hex 且首挂不写回，身份一直漂
-
-**六、全套验一遍**（见「验机」节）。
-
-**七、上市场——不用做。** 市场页（`plugins` 插件的市场标签）**直接搜本机源**
-（`plugin-manager.search`，基址由 node 半从 pnpm 配置解析：装从哪条源来，搜就到哪去），
-发上去就搜得到。没有白名单要登记——早先手册写的 `market/src/catalog.ts` 是老写法，
-那个文件不存在。
-
-已装的插件市场不给「再装一份」按钮：多数插件是服务提供方，第二条条目会抛
-`service ... has been registered` 根本挂不上。真要第二条走 `plugins.add-entry`。
-
-# 先写测试
-
-**动手写逻辑之前先写测试。** 判据只有一条：**这段逻辑能不能不起进程、不开窗、只喂输入
-看输出**。能，就写成测试；不能（要起子进程、要 Electron、要真装进 home），那不是不测，
-是走「验机」那条路——两者不互相替代。
-
-写不出测试常常是形状的问题：把判断从副作用里抠出来做成纯函数，测试自然就写得出。
-devkit 自己就是这么分的——`scaffold.ts` / `probes.ts` / `home.ts` / `dev.ts` 纯机可单测，真机器的盘
-与进程另起 `node-*-deps.ts`。**node 半的测试别 import 浏览器半的 .tsx**——node 半的 tsc 没开
-jsx，一 import 就 TS6142；要测的逻辑（计时核这种）抽成纯 .ts，两边都吃得到。
-
-模板建出来的仓自带 `vitest` 与一条起手测试（`tests/plugin.test.ts`：插件的身份对不对），
-门禁是 `pnpm check`（typecheck + oxlint + vitest）。真起子进程的用例**必打 `slow` 标签**，
-日常 `pnpm test` 用 `--tags-filter=!slow` 跳过它们。
-
-# 红线
-
-比代码风格都上位的几条：
-
-**一、源码里不许有任何路径指回别的仓。** 没有 tsconfig `paths`，没有 `link:` /
-`workspace:`。（本地包经 `file:` 装进 home 是**安装动作**，不算——但发版上架仍是正路。）
-
-**二、cordis 不写进 dependencies，写 dev。** 它只在 `apply` 的参数类型里用到；写进
-dependencies，装进 home 就是第二份实例，Service 身份对不上——插件挂不上，报错完全不指根因。
-
-**三、依赖三档。** 运行时真 import → `peer`；只 import type 但**出现在导出的类型面**
-→ `peer`（消费方必须解析得到）；只在实现内部用类型、不占导出面 → `dev`。
-
-**四、产物两条硬要求。** 产物给 node 直接加载（loader 不打包），所以：相对 import
-必须带 `.js`；产物里不许有没有依赖兜底的裸名 import——每一条裸名都得是 `package.json`
-里声明过的 `dependencies` / `peerDependencies`。
-
-**五、`requireKernel(ctx)` 不写进 `inject`。** `gwbKernel` 在根上下文 provide、永不撤销；
-写进去只多一处挂不上的可能。
-
-**六、`prepublishOnly` 别漏。** `pnpm typecheck` 不构建；少了这条，publish 把上一版的
-`dist/` 原样发出去而且一声不吭——现象是「插件挂上了但新写的东西全没生效」。
-（模板里已经有了，别删。）
-
-**七、类的私有字段用 TS `private` 不用 `#`。** cordis 给消费者派生 `Object.create(this)`，
-`#` 槽不在原型链上，派生对象上一读就炸。
-
-**八、不许把产物覆盖进 home 的 `node_modules`。** 那条近路写穿 pnpm 全局仓（那些文件是硬链接），
-而且换不动 node 那半（ESM 模块图按 URL 缓存）。要「改一版看一版」走 `devkit.dev`，理由整节在
-「改一版看一版」。
-
-# 能力面菜单
-
-内核给的面就七个名字（`@godcreator/gwb-plugin-api` ≥0.1.1）：`GwbContext` / `GwbKernelApi` /
-`GwbResult` / `GwbWindowApi` / `ShellBoot` / `requireKernel` / `isRecord`。类型住词汇表包，
-运行时值走服务。**0.1.1 起词汇表包还声明了全局 `window.gwb`**——浏览器半写 `window.gwb.command(...)`
-时 TypeScript 认得它，不用翻别人的产物找形状。
-`gwbKernel` 上只有三样：`dataDir` / `emit(payload)` / `setShell(url)`——
-三样的语义、页面交接与边界，正本在内核仓文档站的「内核契约面」页。
-
-**各面的方法签名：`import type {} from '<那个包>'`——TypeScript 会告诉你一切。**
-不用翻 `.d.ts` 文件、不用读源码、不用猜：每个服务提供方都在自己的包里导出了完整的接口类型，
-import 一行，IDE 的自动补全就是你的说明书。
-
-生态里每个插件的服务，**按需取**——不上的面就不写 inject，少一条依赖少一处挂不上的可能：
+一趟七步：核对目标页是哪个 home → 仓根 `pnpm build` → 逐包发开发版（`<patch+1>-dev.<戳>`，
+tag `dev`，不动 `latest`）→ 目标 home 清单写准确号再 `pnpm install`，读回装上的号 → 逐条
+`plugin-manager.remount` 重挂 → 整页重载 → 取证。回执 `ok: true` 才算换上了：装上的是这一趟的号
+（`evidence.installed`）、条目真 ACTIVE、日志增量里没有 error。
+
+- **第一次**：目标 home 还没有这个件的条目时，`devkit.dev` 照样发出开发版、装进去，回执 note 说没有条目可挂；
+  再调 `plugin-manager.install {"pkg":"<包名>","spec":"<回执里那个 dev 号>"}` 建条目，之后每趟 `devkit.dev`
+- **`packages`** 相对仓根、按依赖序；一仓一包不用给。同一趟互相依赖的包，依赖钉成这一趟的准确号
+- **目标只说 home 名**：端口从那个 home 的 `runtime.json` 查、验活，连上后再拿页面自报的名字核对
+- **开发版只进隔离 home**：目标是 `default` 或 devkit 自己所在的 home，当场拒。换 devkit 自己走发版加一键更新
+- **构建与取证都不可跳过**：`files` 白名单里有通配正条目时这条链拒发，走 `devkit.release`
+- 想现看某个 home 的条目表：`devkit.cdp {"args":["<名>","cmd","plugin-manager.list"]}`——那是看，
+  不是验；验只发生在 `devkit.dev` 里，它手上有「这一趟之前」的日志基线
+
+## 测试 home
+
+一次验证开一个新 home：`devkit.home.new {"short":"<被测插件短名或这次验什么>"}`，名字长成
+`<short>-<yyMMddHHmm>`。它起的是安装版宿主，自动挑调试端口，自动铺底座（命令总线、外壳、数据、
+设置、说明书、插件管理、基础窗格，加三个共享包），其余件自己 `plugin-manager.install`。
+
+- 重开已有的：`devkit.home.open {"name"}`；列全部：`devkit.home.list`
+- 删：`devkit.home.rm {"name","force?"}`——还在跑的要 `force`；回「已删」时目录已经真不在了
+- **清理放在开新的那一刻**：验完的 home 留给人看，`home.new` 回执里带着现有清单，那时再删旧的
+- 日志在 `%APPDATA%\gwb-kernel\homes\<名>\gwb.log`，内核、插件、渲染层三路都在这一份里
+
+## 验机
+
+typecheck 与 vitest 吃源码，全绿只说明源码站得住；装出来能不能跑，靠隔离 home 里的这一步。
+
+**开验之前，产物是新的**：改了插件 → build 再发（模板带 `prepublishOnly`，别删）；
+改了共享包（tokens、shared-react）→ 重发再装；改了内核 → 走内核仓自己的验机路子。
+
+**四种「看着成了」**，一条都别沾：
+
+1. **拿 `default` 验**——它是日常那份，验一次就不干净了
+2. **只看「挂上了」**——`挂上 xxx` 只说明 import 成功、`apply` 被调了；`apply` 里的 async 自己 catch
+   并打日志，再看它真干了活。谁挂上了看 `plugin-manager.list` 的 `active`（判的是 fiber 真 ACTIVE）
+3. **量颜色时读到过渡中的值**——先注 `transition: none` 再读；读到 `oklab(…)` 就是还在过渡
+4. **验的是上一版**——上面「产物是新的」那三条漏一条，界面全对、验的却是旧代码
+
+## 红线
+
+1. **源码里没有指回别的仓的路径**：没有 tsconfig `paths`、`link:`、跨仓 `workspace:`
+2. **cordis 写在 dev**：写进 dependencies，home 里就有第二份实例，Service 身份对不上、挂不上，报错不指根因
+3. **依赖三档**：运行时真 import → peer；只 import type 但出现在导出的类型面 → peer；只在实现内部用类型 → dev
+4. **产物给 node 直接加载**：相对 import 带 `.js`；每个裸名 import 都在 `dependencies` / `peerDependencies` 里
+5. **`requireKernel(ctx)` 直接取**：`gwbKernel` 在根上下文、永不撤销，不写进 `inject`
+6. **`prepublishOnly: pnpm build` 留着**：少了它 publish 会把上一版 `dist/` 原样发出去
+7. **类的私有字段用 TS `private`**：cordis 派生 `Object.create(this)`，`#` 槽在派生对象上读就炸
+8. **home 里的包只经安装换**：覆盖 `dist/` 进 `node_modules` 会写穿 pnpm 全局仓（硬链接），
+   node 半也换不动（ESM 按 URL 缓存）——改一版看一版走 `devkit.dev`
+
+## 能力面
+
+内核给的面在词汇表包 `@godcreator/gwb-plugin-api`：`gwbKernel` 上四样——`dataDir` /
+`version` / `emit(payload)` / `setShell(url)`；页面上的 `window.gwb` 类型也在那儿。各服务的方法签名：
+`import type {} from '<那个包>'`，补全就是说明书。
 
 | 面 | 怎么拿 | 什么时候要 |
 | --- | --- | --- |
-| 命令总线 | `inject: ['gwbCommands']` → `register` | 能力要被调就要（几乎一定）。界面、agent 走的是同一张表 |
-| 说明书 | `skills/` 目录 + `gwbSkills.register`（局部） | 有多步流程或坑要讲给 agent 就要。**只挂自己那份**——见上一节的判据与那条撞名的坑。文档写什么读 skill「docfirst-docs」、记轨迹卡读「trajectory」，那两份由 docfirst 插件自己挂 |
-| 设置 | `gwbSettings.define`（局部）→ `get`/`set` | **插件的配置一律走这里，不吃 `cordis.yml` 的 `config`**。类型 `string` / `number` / `boolean` / `secret`。值跟条目走（分区是条目 id 的末段），`shared: true` 才落公共区 |
-| 数据 | `gwbData.readDoc/writeDoc`（局部） | 要落盘状态就要。存 `<home>/data/<条目末段>/` |
-| 窗格 | `gwbShell.registerPane` + client 半 | 要人看得见就要 |
-| 外部 CLI | `gwbNodeCli` / `gwbPyCli` register（局部） | 要给外部脚本一个稳定入口就要。**CLI 形态的东西一律走这儿**，不做总线命令、不进程内调 |
-| agent 桥 | 不用做——gwb-mcp 把总线开出去：agent 经 `run` 按名调你的命令 | 工具面封顶 `index` / `search` / `run` 三枚，没有顶层清单这回事；发现面是 `index` 现拼回执 |
-
-inject 三种写法：`export const inject = [...]` 硬依赖（缺了不挂）；`static inject = [...]`
-（Service 类）；`ctx.inject([...], fn)` 局部可选（缺了主插件照挂）。**inject 是等待不是
-建议**：硬依赖写了，服务不在你的插件就**不挂**，cordis 替你等到底——要可选就走局部那行。
-
-## 服务：命名与 provide
-
-- 服务名一律 `gwb` 开头的小驼峰，默认跟插件名对应（`gwb-commands` 插件 → `ctx.gwbCommands`）。
-  例外只有 cordis 官方自己的服务（`timer`、`loader`）——那不是这个生态的东西。全加而不是
-  「通用名才加」是代价不对称：该加没加，将来撞名，所有消费方的 `inject` 与 `ctx.xxx` 跟着
-  改，是破坏性变更；不该加而加了，只是名字长几个字符。顺带白得一条反向信息：看到
-  `ctx.foo` 没前缀，就知道它不是这个生态的。
-- provide 包在 `ctx.effect` 里：`ctx.effect(() => ctx.provide('gwbThing', api))`——插件
-  卸载时服务自动撤销，不包的话名字被已卸载的插件占着。类服务用 `Service` 基类，
-  `super(ctx, 'gwbThing')` 一句就是 provide。
-- **撞名是硬错误**：第二个 provide 同名服务的插件挂不上，日志里明说撞的是谁。这不是要防
-  的坑，是「一个名字一个提供方」的保证。
-
-只为拿到 `declare module 'cordis'` 里那几个名字的类型时，写空 import 就够：
-`import type {} from '@godcreator/gwb-commands'`。
-
-**插件不吃 `cordis.yml` 的 `config`。** 一条条目除了 `id` 就没别的要写的了——可改的东西一律
-`gwbSettings.define` 出来，人在「设置」里改、`get` 现读。理由是一份配置只该有一个正本：
-写在 yml 里的那份界面看不见、agent 也不知道有它，人只能靠记得。
-
-条目重挂（cordis 的 reconfigure）时模块不重载、只重跑 `apply`：要「重挂就该清掉」的状态放
-`apply` 里，要「只要没换代码就该留着」的放模块顶层——放错地方两种都不报错。
-
-# 带界面的插件：浏览器半与样式
-
-**样板就是模板本身**：`devkit.scaffold` 落出来的就是带窗格的完整形状（浏览器半、前缀
-围栏、两道产物守卫、esbuild 构建线全在），照着改就行；要看更活的用例，UI 平台仓的 baseui
-（`D:\unitfolders\26091217uiz\gwb-ui-plugins`）是运行中的样。要点：
-
-**浏览器半**：`src/client/index.tsx` 导出 `mountPane(args, container) => { dispose() }`；
-esbuild 打成 `dist/client.js`，只把 `react` / `react/jsx-runtime` / `react-dom` /
-`react-dom/client` 四个裸名 external（页面 importmap 解析到共享包），其余一律打进本束——
-外置错一个就是运行期 `Failed to resolve module specifier`。node 半注册窗格时自报
-`client` 与 `style` 的 `file://` 地址，从自己的 `import.meta.url` 算。
-
-**窗格图标写 lucide 的正名，kebab-case**（`registerPane({ id, title, icon: 'layout-grid' })`，
-`describeSelf` 同一套），lucide 全集都认（shell 0.8.0 起）。**认不出不报错**：窗格照挂、标签上
-画一个 `#`，登记当下日志里一条 warn——所以写完看一眼日志。怎么认、名单从哪来，正本在 UI 平台仓
-文档站 shell 页「图标名怎么认」（`D:\unitfolders\26091217uiz\gwb-ui-plugins\docs-site\content\docs\shell.mdx`）。
-
-**样式围栏是 Tailwind 前缀，不是选择器 scope。** 插件自己就是一个完整的 Tailwind 入口，
-`src/client/styles.css` 五行：
-
-```css
-@import 'tailwindcss/theme.css' theme(reference) prefix(<短名>);
-@import '@godcreator/gwb-tokens/theme.reference.css' theme(reference);
-@import 'tailwindcss/utilities.css' layer(utilities) source(none);
-@import 'tw-animate-css';
-@source "./";
-```
-
-产物 `tailwindcss -i src/client/styles.css -o dist/style.css`（`@tailwindcss/cli`）。类名一律
-`<cssPrefix>:flex` 这种（cssPrefix＝短名剔除非小写字母，见「名字是怎么派生的」）：规则全页有效
-但只匹配本插件元素，围栏来自名字唯一，不靠 DOM 祖先关系。
-所以弹层 portal 到 body 照样有样式（shadcn 组件**不打任何 Portal 补丁**），容器上的
-`data-gwb-plugin` 只是身份标记。`components.json` 的 `tailwind.prefix` 填 cssPrefix（不是短名——
-带杠带数字都会被 Tailwind 拒），`shadcn add` 拉下来的组件类名自带前缀；`cn` 包默认就能正确合并带前缀的类，不用配。
-
-第二行引的令牌映射面，`@godcreator/gwb-tokens` **≥0.1.1** 起把插件里用到的 Tailwind 出厂键
-（间距、字重字距、白黑、八档阴影、缓动、过渡、容器断点）全部接管到页面变量。插件依赖声明
-`>=0.1.1` 重编后，`dist/style.css` **零字面 fallback**——`calc(var(--<cssPrefix>-spacing, 0.25rem)*4)`
-编成 `calc(var(--gwb-spacing)*4)`、`text-white` 查 `--gwb-white`，主题值整页只剩令牌表一份。
-
-六条会静默的事：不引令牌映射面颜色类全空；用 Tailwind 内置调色板类（`amber-600` 这种）表达
-语义色——编得出来、看着也对，**换主题时颜色不跟随**，漂在令牌表外没人报；不引
-`tw-animate-css` 则 `animate-in` 一族全部不生成、菜单永不动画；**忘加前缀的类一个字节都不出**
-——模板自带的 `tests/prefix.test.ts` 钉着，新加的类忘了前缀它当场红；`group` / `peer` 这类**标记类也要带前缀**
-（`logger:group-hover:*` 编出的选择器认的是 `.logger\:group`，标记不带前缀永远不命中，
-守卫抓不到它，因为它本来就编不出规则）；Tailwind 会把内置主题变量名也改掉
-（`--<cssPrefix>-spacing`），令牌只能经映射面送值。
-lucide 图标身上的 `lucide lucide-xxx` 是它烤进 SVG 的身份属性，不是类名泄漏，别去管。
-
-**窗格不是视口**：响应式用容器查询变体 `@sm:` / `@md:`，不用 `sm:`。外壳给每个窗格的容器是
-容器查询根（shell 0.1.1 起）。
-
-**颜色三条纪律**（判据与规矩正本：UI 平台仓文档站「令牌与颜色：共享规则」，
-`D:\unitfolders\26091217uiz\gwb-ui-plugins\docs-site\content\docs\tokens.mdx`；这儿只写操作要点）：
-
-- **语义色一律语义类**，含 `warning`（亮暗两套，0.1.1 起）。不许拿 Tailwind 内置
-  调色板类（`amber-600` 这种）表达语义色，也不许写死颜色字面量
-- **纯装饰色走插件域令牌两段制**，值只住一处：值段 `src/client/tokens.css`（变量带插件前缀挂
-  `:root`——挂 `:root` 而非容器类，弹层 portal 到哪都读得到；值桥接优先如 `var(--accent)`，
-  `.dark` 里可覆盖），映射段在样式入口尾部 `@theme inline` 注册插件域工具类。活例：baseui 的
-  日志来源点色
-- **一次性装饰**可以任意值语法明示写死（`bg-[#abc]`）——写死要看得见是写死
-
-插件域两段制的最小形状：
-
-```css
-/* 值段 src/client/tokens.css：变量带插件前缀挂 :root */
-:root { --<短名>-src-plugin: oklch(0.623 0.214 259.815); }
-
-/* 映射段 src/client/styles.css 尾部：注册 <短名>:bg-src-plugin 这一族 */
-@theme inline { --color-src-plugin: var(--<短名>-src-plugin); }
-```
-
-**产物守卫两条断言**，模板自带的 `tests/artifact.test.ts` 已经钉着（零字面 fallback 与
-前缀选择器；要加**颜色类白名单**那条，照 UI 平台仓 baseui 的同名文件补——色名 ∈ 令牌包
-映射面的 `--color-*` 条目 ∪ 本插件入口 `@theme` 自注册，两边现扫、不手写名单）：
-
-- **零字面 fallback**：`dist/style.css` 里 `var()` 的第二参只认 `var()` 引用、`currentcolor`、
-  空；tw-animate-css 烤在包里的机制缺省豁免（`--tw-animation-*` / `--tw-enter-*` /
-  `--tw-exit-*`，及 `--tw-ease,ease` / `--tw-duration,.15s`）。红了多半是升了令牌没重编
-- **颜色类白名单**：色名 ∈ 令牌包映射面的 `--color-*` 条目 ∪ 本插件入口 `@theme` 自注册，
-  两边现扫、不手写名单；`transparent` / `inherit` / `current` 与非色形态（`text-sm` 那类
-  字号与对齐）豁免
-
-升 Tailwind 大版本时按令牌包映射面头注的提示重核键名——映射面是出厂主题的镜像，新键与
-改名都在那儿现形。
-
-**组件的共享不用操心。** 官方 registry 与自建 registry 是同一份协议——官方只是第一个
-实现，CLI 拉取时按插件自己的 `tailwind.prefix` 改写类名。所以将来真要生态自己的组件源头，
-今天这套纪律原样够用、零架构变更；在那之前各拉各的。机制、版本化与启动信号
-见 UI 平台仓文档站「样式与组件」（`gwb-ui-plugins/docs-site`，从基础件仓迁过去的）。
-
-# 发版与装机
-
-发正式版走 `devkit.release`（从哪个 home 调都行；本仓是双包 workspace，要给 `packages`——
-`["packages/repo-kit","plugins/devkit"]`，按依赖顺序 repo-kit 在前）：
-
-```
-devkit.release {"dir":"<仓根>"}
-devkit.release {"dir":"<仓根>","packages":["packages/model","packages/engine","plugins/gwb-bn-core"]}
-```
-
-（第二行是多包工作区的样子，`packages` 按依赖序排。）
-
-一条走完：仓根 git 树干净守卫（有未提交改动就拒，一个都不发）→ 仓根 `pnpm build` → 照
-`files` 白名单验产物 → 同号已在源上就拒 → staging 发版（tag latest；不改仓里任何文件；
-`workspace:` 依赖写成 `>=` 范围，这一趟同发的写成 `>= 新号`）。**号在仓里抬**：要发新的
-一版，先改 `package.json` 的号、提交，再调——抬号是语义行为，跟着版本提交走 git 纪律。
-
-手工那条（`pnpm publish --no-git-checks`，scope 路由自动走对源，别手写 `--registry`；`.npmrc`
-已把 `@godcreator` 指过去）留给 staging 覆盖不了的场景：要在 publish 前跑仓里的钩子
-（`prepublishOnly`）——staging 分发形态里没有 `scripts`，钩子一个都不会跑。
-
-**刚发的包为什么装得进去。** pnpm 11 起 `minimumReleaseAge` 默认 1440 分钟——包发布后
-要放够一天才准装，刚 publish 的包年龄是 0 分钟，本该每次都被拦。这台机器在**用户级配置**
-里放行了整个 scope：
-
-```yaml
-# C:\Users\<你>\AppData\Local\pnpm\config\config.yaml
-minimumReleaseAgeExclude:
-  - '@godcreator/*'
-```
-
-**这个文件不在任何仓里**，换机器或重装会丢。症状是「在新机器上突然装不上刚发的包」，
-报错只说版本太新，不会提醒你少了这份配置。`pnpm config get globalconfig` 报的就是它的位置。
-
-**坑：home 里的 `pnpm-workspace.yaml` 会整份盖掉全局，不合并。** 那批老 home 里留着的
-逐版本 `minimumReleaseAgeExclude` 清单，正好把全局那条通配挡在门外——在那种 home 里
-装新版本仍会被拦，还得手动补一条。**开新 home 时别建这个文件**，让它吃全局的。
-
-装完看日志：`[host] 挂上 gwb-<短名>`；没挂上看 `[loader]` 那行——它带
-`ERR_MODULE_NOT_FOUND` 之类带完整路径的原因。
-
-## 发完版就去升 default home，别攒着
-
-这一节讲的是**外循环**。一轮改完了才走它；改一行看一眼那几十趟走内循环（`devkit.dev`，
-开发版进隔离 home，**永不进 `default`**）。
-
-整条路是三段，**一段都不能省，最后一段最容易忘**：
-
-1. **发版前在隔离 home 里验**（`devkit.home.new`，见「验机」）——`plugin-manager.update-all`
-   直接升日常那份，跳过了这一步
-2. **发团队源**（`devkit.release`，上一节）
-3. **升 default home**：人在插件窗格点「全部更新」，或 agent 调 `plugin-manager.update-all`。
-   **新插件第一次装**不走这条（它只升已装的），走 `plugin-manager.install {"pkg":"<包名>"}`，
-   装完下一次 `index` 现拼就有——装的是别的件、门没动，**没有重连这个动作**；只有升到
-   gwb-mcp 门自己那一版，在途连接才断、重连一次（MCP 是会话态的）
-
-**不升的代价**：说明书与命令都停在旧版，而 `gwb-skills` 的「正文现读盘」只对**装进 home
-的那份**生效——仓里改了字、发了版、没升，agent 读到的还是上一版。它照着一份过期手册
-干活**还不报错**，那正是最难查的一种。攒着几个版本一起升不会更省事，只会让「现在装的
-到底是哪一版」变成一道要现查的题。
-
-## 一键更新是怎么走的
-
-发完（可能是好几个插件的好几版）之后，把 home 里那份升上来只有一个动作：人在插件窗格点
-那颗**「全部更新」**键，或 agent 经命令口调 `plugin-manager.update-all`（无参数）。它一条命令走完：
-查新版本 → 一次 `pnpm` 全升 → 升了的条目**逐条停用再启用**（即热重挂，plugin-manager 自己
-排最后）→ 调 `shell.reload` 整页重载。回执按包报 `from → to`，并逐条说挂上了没有。
-
-**不重启工作台，也没有回退。** 升坏了就是升坏了，往前修（再发一版再升），别指望它退回去。
-
-**升到 `gwb-mcp` 自己时，在途的那条调用会断、连接跟着断**——门跟着它一起重挂，调用方等不到
-返回，客户端可能要 `/mcp` 重连一次（工具面封顶后这个件极少发版，这条很少走到）。那不是失败：
-重连后调 `plugin-manager.list` 核对谁挂上了、版本对不对，别当它没升成又升一次。
-
-**升级与重挂在同一条命令里，中间别插别的命令。** 那一段时间里插件正一个个下线上线，
-这时候调任何别的命令，看到的都是半截状态。
-
-整页重载单独也能要：`shell.reload`（无参数）。
-
-## 发版收尾：动门必过两道筛
-
-凡这次发版动的是门（gwb-mcp）、任何命令的名字/参数形状、或术语，收尾多两步：
-
-**一筛旧词。** 拿旧词表——件、井、格、门、gwb_command_list、gwb_command_run、skill_list、
-skill_read、command-http，加上这次改掉的每一个旧名——筛三处：门的 instructions、各仓
-AGENTS 里提到门或命令的段落、所有随包 skill 的描述。
-
-**二验指向。** 文档里指名道姓的每个 skill 名与命令名，`skill.list` 与门的 `index`
-各现扫一遍；指到不在的，要么修指向、要么补对象。docfirst 守得住「文档对源码」，守不住
-这两层；这两层只能靠收尾清单。
-
-# 改一版看一版
-
-**两条循环，别混着用。**
-
-- **内循环**：改一行、看一眼。发**开发版**，装进**隔离 home**，重挂，取证。一天几十趟。
-  开发版**永远不进 `default`**
-- **外循环**：一轮改完了，抬版本号发**正式版**，升 `default`（人点「全部更新」或
-  `plugin-manager.update-all`）。见「发完版就去升 default home」
-
-内循环就是一条命令：
-
-```
-devkit.dev {"home":"<home 名>","dir":"D:\\unitfolders\\<单元>\\<仓>","packages":["plugins/demo"]}
-```
-
-七步一趟：问目标页它是哪个 home → 仓根 `pnpm build` → 逐个包发开发版（`<patch+1>-dev.<戳>`，
-标 `dev` **不动 latest**）→ 目标 home 的 `package.json` 写那个准确号再 `pnpm install`，读回装上的号核对
-→ 那几条 cordis 条目逐条 `plugin-manager.remount` 重挂 → 整页重载 → 取证。中间任何一步失败当场停，
-回执里带着停在哪一步。
-
-**装上的号对不上这一趟发的，当场 `ok: false`、不重挂。** 回执里 `evidence.installed` 逐包列着
-`expected`（这一趟发的）与 `actual`（`<home>\node_modules\<包>\package.json` 里的）。**别自己在
-home 里 `pnpm add <包>@<dev 号>`**：清单里已有 `^` 声明时 pnpm 12 写回去的是 `^<dev 号>`，锁里上一趟
-的同 patch dev 号会被当成满足这个范围、不重解析（源上有更新的同 patch 号时又会解析到它），退出码
-照样 0——装上的不是你发的那个，而重挂、日志一路干净。
-
-**重挂是目标进程里的一条命令**：停用、等拆完、启用、等挂上在 `plugin-manager.remount` 里一次做完，
-所以部署 plugin-manager 自己、命令总线也一趟走完，条目不会卡在 `disabled: true`（拆成停用、启用两条时，
-第二条随被停的件一起没了）。换 plugin-manager 自己时它回执先回（`deferred`）、之后才重挂，`devkit.dev`
-轮询 `plugin-manager.list` 到它回来，60 秒没回来就 `ok: false` 并说清卡在哪。目标 home 的
-plugin-manager 要 **0.4.0 起**，旧的当场报「没有这条命令」——先把那个 home 的 plugin-manager 升上来。
-
-**第一次迭代是两步。** `devkit.dev` 只换**已装**的包；目标 home 还没装过这个件的话，先
-`plugin-manager.install {"pkg":"<包名>","spec":"<dev 号>"}` 建条目（dev 号必须钉准确号——
-latest 上还没有它），下一趟起 `devkit.dev` 就接手了。
-
-`packages` 给的是**相对仓根**的包目录，**按依赖顺序**（被依赖的排前面）；一仓一包一插件的仓不用给。
-同一趟里互相依赖的包，依赖会被钉成这一趟那几个准确号——`>=` 那类范围认不到 dev 号，不钉就是
-「新插件配旧库」。
-
-## 五道守卫，每道都有人撞过
-
-1. **点了名就得对得上。** 给了 `home` 的话，页面自报的名字必须是它——**记录回答「你要的是
-   哪个」，页面回答「你连上的实际是哪个」**。端口会被下一个进程占走、记录会陈旧，只信一头
-   就会把一趟改动静默推给另一个隔离 home
-2. **目标是 `default` 就拒。** 开发版的号看着跟正式版没两样，进了日常那份 home 就悄悄换了代码，
-   而 `plugin-manager.list` 上一点异常都看不出来
-3. **目标是本插件自己所在的 home 就拒。** 停用条目那一下会把正在跑的这条命令自己停掉。
-   **换 devkit 自己走外循环**：发正式版，再 `plugin-manager.update-all`（那条是 plugins 插件在调，
-   活得过 devkit 的重挂）
-4. **产物不全就不发。** 照 `package.json` 的 `files` 白名单问，不另列一份名单。否定式
-   （`!py/**/__pycache__`）与通配不算产物；`files` 里有**通配的正条目**时这条链当场拒，
-   它只认字面路径，让你去走正路发
-5. **取不到证就回 `ok: false`。** 装上的是这一趟的号、条目要真 ACTIVE、日志增量里不许有 error
-
-## 为什么不覆盖 dist
-
-覆盖 `dist/` 到 home 的 `node_modules` 快四倍（十几秒对一分钟），**两条都别走**：
-
-- **写穿 pnpm 的全局仓。** home 里那些文件是**硬链接**到 `AppData\Local\pnpm\store` 的，覆盖写是
-  就地截断重写，写的是共享那个 inode。于是 store 里按原始内容哈希命名的文件，内容变成了你的开发
-  构建，此后这台机器上任何人装那个版本拿到的都是它，**不报错**
-- **换不动 node 那半。** Node 的 ESM 模块图按 URL 缓存，原地覆盖不改路径，停用再启用拿回来的还是
-  缓存里那份旧的。浏览器半（client.js、样式表）换得动，node 半（命令、引擎、窗格注册、招募）
-  换不动——**而换不动的那一半，也就验不到**
-
-加戳 import（`import(url + '?v=' + 戳)`）是第三条路：不可逆泄漏，量级约等于插件 dist
-体积的两倍，Node 24 上没有清模块图的路子。也别走。
-
-**版本号必须变，是因为装上的版本变了路径才变**，重挂那一下 Node 才会真的重新求值。这不是发版仪式，
-是这条链的机制本身。同 patch 的多趟 dev 号也成立：pnpm 虚拟仓的目录名超长时截成前段加全名哈希
-（home 里看到的 `@godcreator+gwb-shell@0.7.2_212ce…` 就是），预发布段与 peer 后缀都在哈希里，号一变
-目录就变，`file://` 地址跟着变。前提是**这一趟的号真装上了**——看目录名前段一样就以为「路径没变」、
-或者看回执绿就以为「装上了」，都以 `evidence.installed` 为准。
-
-## 目标 home 怎么准备
-
-隔离 home 起的时候**两个 Chromium 开关缺一不可**：
-
-```
---remote-debugging-port=<端口>  --disable-backgrounding-occluded-windows
-```
-
-前一个开调试端口；后一个：窗口被别的窗口整个盖住时 Chromium 判定不可见、停止产帧，
-截图拿到陈旧帧、`requestAnimationFrame` 一次都不回。**发事件从来不需要窗口在前台**，看画面才
-需要它没被判定隐藏。
-
-**`devkit.home.new` / `open` 自动定那个端口**，定不出来就不起。所以它起的 home 天然按名字够得到。
-**这两条也不收人给的端口**：自动那条比手给的准，收下一个手给的，剩下的用法就只有「敲错一位落在
-别人的端口上」。
-
-自动那条**先沿用这个 home 上次那个端口**（记录里的 `cdp`），被别人占了才另挑（另挑时跳过别的
-home 记录里占着的、跳过此刻真有人 listen 的），换了会在回执的 `cdpNote` 里说一句。端口稳定下来
-是有价值的：人记得住、日志里对得上、开着的检查器不用换地址。
-
-**端口记在哪**：内核开机把 `pid` / `startedAt` / `appDir` / `cdp` 写进 `<home>/runtime.json`，
-门绑上端口之后补一个 `mcp` 字段。之后说出 home 名就够得着它，不用记那个数。**手工起的 home 没带
-那个开关就够不着**——记录里没有 `cdp` 那个字段，停掉重开一次就有了。记录**进程退了也不删**，
-读的人验活（pid 还在、且那个 pid 真的持着那个端口），下一次开机内核整份重写。
-
-**底座自动铺（0.7.6 起）。** `devkit.home.new` 在起内核前会自动装底座：命令总线、外壳、数据、
-设置、说明书、插件管理、基础窗格皮（七件）加三个共享包（shared-react / tokens / plugin-api），
-写好 `cordis.yml` 条目再拉进程——**开箱就是一个能用的家**。要加别的插件，装完后自己
-`plugin-manager.install`。registry 地址不写死在命令行上：scope 路由住用户级 pnpm 配置
-（`@godcreator:registry`），`pnpm add` / `pnpm publish` 不带 `--registry` 开关就走那条路。
-
-**开发版会攒。** 本机源与 pnpm 仓里留下一堆一次性版本，攒多了跑一次 `pnpm store prune`。
-
-## 想单看一眼
-
-`devkit.cdp {"args":["<名>","cmd","plugin-manager.list"]}` 回条目表，日志自己 Read
-`<home>\gwb.log`。**这是看，不是验**：单看一眼时没有「这一趟之前」的基线，日志里那些 error
-可能是几天前的。判定只发生在 `devkit.dev` 里头那一次，它手上有基线。
-
-（`devkit.dev-check` 已没有这条命令，见「已退役的那些名字」。）
-
-# 验机
-
-`pnpm typecheck` / `vitest` 全绿只说明源码站得住——它们**不依赖 build 产物**，吃的都是源码。
-装出来能不能跑是另一件事，这一节管后者。
-
-**「一键更新」不替这一节。** `plugin-manager.update-all` 直接升日常那份 home，**跳过了「先在隔离
-home 里验」这一步**。所以**发版前**在一个测试 home 里装一遍、按下面几条验完，仍然是 agent
-的责任；人点「全部更新」是最后一步，不是验证的一步。
-
-## 一、每次验开自己的 home
-
-**一次验证一个新 home，不复用上一次留下的。** home 建在
-`%APPDATA%\gwb-kernel\homes\<名>\`，**不用先创建**；不给名字就是 `default`——那是日常
-那份，**别拿它验东西**。
-
-**命名 `<被测插件短名>-<yyMMddHHmm>`**：`data-2609070700`、`shell-2609071130`。这样列目录时
-同一个插件的挨在一起、各自按时间排，正好是清理时要的顺序。**不冲着某个插件的验证**
-（验从零装机、验没有外壳时的留白）前缀用一个说清这次验什么的短词：`boot-2609070700`、
-`empty-2609070700`。名字得是 kebab-case——内核会当场拒掉不合规的（`../../x` 那种能跳出
-`homes/`）。
-
-**为什么不许复用**：一个 home 用上两天，里面就是十几个不同时刻装进去的版本快照，外加几个
-仓里已经删掉、home 里还跑着的插件。那时你不知道自己在验什么。
-
-## 二、开之前：产物是不是新的
-
-三条，漏一条就是在验旧代码，**而且界面看着一切正常**：
-
-1. **改了插件** → 必须 `pnpm build` **再**发版。插件如果没有 `prepublishOnly`，`pnpm publish`
-   会把上一版的 `dist/` 原样发出去——现象是插件挂上了、不报错、新写的东西全没生效
-2. **改了内核** → 内核源码的验机归内核仓自己的路（build 了直接起，见末尾「你改的是内核」
-   那节）；`devkit.home.new` 起的是安装版，内核版本跟安装包走，与仓里的源码无关（0.12.0 起）
-3. **改了共享包**（`gwb-tokens` / `gwb-shared-react`）→ 它们装在 home 里，得重发再装
-
-## 三、插件进 home 只有一条路
-
-抬版本号 → 发团队源 → 在那个 home 里装 → 落 `cordis.yml` 条目。细节与那两个坑在
-「发版与装机」节，不重复。
-
-**不许走「直接读仓内源码」的近路。** 近路绕开了安装这个动作，于是开发时跑通的和装出来的
-不是同一条路：`exports` 漏一个子路径、`files` 少带一个目录，在近路上都不显形，装出来才炸。
-
-## 四、几种「看着成了」其实什么都没验
-
-1. **拿日常 `default` 验**。验完那个 home 里就多了几个只为验证装的插件、改过的 `cordis.yml`、
-   落下的 `data/`——下次再验时它已经不干净了
-2. **只看「挂上了」不看插件真干了活**。日志里 `[host] 挂上 xxx` 只说明模块 import 成功、
-   `apply` 被调用了。`apply` 里的 async 一旦静默 reject，现象就是「挂上了但什么都没发生」——
-   **插件里那条链必须自己 catch 并打出来**
-3. **量颜色靠「等过渡跑完」**。窗口最小化时 Chromium 节流后台动画，等多久都可能读到起点值。
-   先注一条 `transition:none` 再读；返回 `oklab(…)` 格式就是「还在过渡中」的指纹
-4. **改了插件没重发 / 改了内核没重 build**。第二节那三条，最隐蔽的一种：界面全对，验的是上一版
-
-谁挂上了看 `plugin-manager.list`——它的 `active` 判的是 fiber 真 ACTIVE，不是 fiber 建出来了
-（inject 永远等不到的插件也有 fiber，但 `active: false`）。
-
-## 五、清理放在开新的那一刻
-
-验完的 home 留着——人要亲自看一眼。但每次一个，一周就是二十个。所以清理动作**放在开新的
-那一刻**，不是验完就清：`devkit.home.new` 的回执里本来就带着现有清单，先看一眼再
-`devkit.home.rm` 旧的（或 `Remove-Item %APPDATA%\gwb-kernel\homes\<旧的> -Recurse -Force`）。
-
-这样人永远有机会看，也永远不会积压超过一轮。成本不在盘上（`.pnpm` 是硬链接到全局 store，
-实际增量很小），在你自己看不过来。
-
-## 六、拿证据
-
-**日志在 `%APPDATA%\gwb-kernel\homes\<名>\gwb.log`**——跟着 home 走，所以测试 home 的
-日志天然是分开的。内核自己的话、插件的、渲染层 `console-message` 转来的，三路都汇在这一份里
-（单进程内核之后没有宿主子进程，也就没有 `logs\` 子目录）。
-
-**从页面里动手走 node CLI `devkit.cdp`**：起内核时带 `--remote-debugging-port=<端口>` 与
-`--disable-backgrounding-occluded-windows`（Chromium 开关在命令行上就生效，内核不管它；9222 是
-别的实例常用的，换一个；`devkit.home.new` / `open` 起的不用管这一步，它自己挑端口），然后
-
-```
-devkit.cdp {"args":["<home 名>","eval","out\\量一下.js"]}
-devkit.cdp {"args":["<home 名>","cmd","plugin-manager.list"]}
-devkit.cdp {"args":["<home 名>","home"]}
-devkit.cdp {"args":["<home 名>","click",".dv-tab@=日志"]}
-```
-
-**第一个位置只收 home 名，给数字当场拒**。端口它自己去 `runtime.json` 里查，
-**连上之后还会问一句这张页自报的 home 名对不对得上**——记录只说「它起的时候用的是这个端口」，
-不说「此刻这个端口上还是它」。所以这支驱动从此只驱动得了 gwb 的窗口：连不了别的 Chromium 页，
-也连不了记录坏掉的 home，那两种情况下先把那个 home 停掉重开。
-
-工作台没起的时候它的身体也能直接跑：
-
-```powershell
-node <devkit 包根>\bin\cdp.mjs <home 名> <动作> [参数…]
-```
-
-`eval` 那个文件里写一个函数表达式 `(args) => 一张表`，返回值即读数，想 await 就写成 async。
-**放文件不放命令行**——PowerShell 的引号会截断它；一次性的落 `out/`，那儿 gitignore 着。
-两条实机的规矩：dockview 只渲染激活的那个窗格，取证前先
-`click` 它的 `.dv-tab`（**发真事件，不在页面里自己造**：造出来的事件不做命中测试，目标被浮层
-盖住照样打得中，而这套界面最容易出的错正是遮挡）；量颜色前先注一条 `transition: none`，
-读到 `oklab(…)` 格式就是还在过渡中。
-
-**`cmd` 那个动作是不经门读写一个 home 的路**：外壳把 `window.gwb.command` 开给页面，于是从
-命令行够得到那个 home 的整张命令面。隔离 home 的底座件集里没有门（门是 default 这个
-生产位的事），这条路对它是日常正道。**只对隔离 home 用，绝不打 `default`**：这儿发的是真操作。
-
-量什么跟着界面走，所以**量表的脚本外置**：一个文件一张表，`eval` 收路径，按**工作目录**解
-（截图落点同理，缺省 `<cwd>\out\cdp\`）。这支脚本自己管的是「怎么把事件发进页面」，那件事一年
-也不该变一次；把量什么写进它，稳的那半就会跟着不稳的那半一起动。
-
-**没有「探针目录」这个约定**：落哪儿是你的纪律。一次性的落 `out/`——提交进仓的那种会跟着界面
-一起变黄，而且不报错。
-
-# 你改的是内核，不是插件
-
-上面整份以「你在写插件」为主线。改内核（`D:\unitfolders\26090705ymz\gwb-kernel`）时不一样的
-只有起法——**不发版、不装机，直接 build 了起**。这正是内核验机的正路（0.12.0 起
-`devkit.home.new` 只起安装版、不 build 内核，内核源码的事 devkit 不代劳）：
-
-```powershell
-$env:GWB_HOME = 'boot-2609070700'          # <这次验什么>-<yyMMddHHmm>
-cd D:\unitfolders\26090705ymz\gwb-kernel\apps\desktop
-pnpm build                                 # tsc 直出 dist/，没有打包器（electron-vite 已不在）
-.\node_modules\electron\dist\electron.exe . --remote-debugging-port=9334
-```
-
-**别用 `run.cmd` 转发 Chromium 参数。** `.\run.cmd --remote-debugging-port=9334` 那条
-在 cmd 那一层会把参数切断，输出里冒出一行 `'g-port' is not recognized as an internal or
-external command`。Electron 最终**仍然收到了**那个开关（不挡验机），但那行报错会把人
-引去查一个根本不存在的问题。直接调 `node_modules\electron\dist\electron.exe .` 绕开那层
-转发，不带调试端口时 `run.cmd` 照用不误。
-
-这四步同时是**所有人的兜底**：`devkit.home.*` 那套要 devkit 跑在一个活着的 home 里，
-一个 home 都没活着的时候，命令化那半也起不来，只能走这里。
-
-home 命名、不许复用、四种假验收、清理时机、拿证据——那几节两边通用，不另写一套。
-
-# 撞墙记录不在这
-
-手册随包分发，把别处的一手记录抄进来只会得到一份靠人记得重发版才更新的副本。正本：
-
-- 本包自己的文档站 `<devkit 包根>/docs-site`（依赖方向、模板占位符、docfirst 那条命令的形状）
-- 内核仓文档站 `D:\unitfolders\26090705ymz\gwb-kernel\docs-site`（`trajectory/`：baseUrl
-  为什么挂根 ctx、热挂载的形态、装机入口为什么拆、知识随插件走）
-- 插件仓文档站 `D:\unitfolders\26090709qzp\gwb-base-plugins\docs-site`（walls 与各插件页）
-
-自己撞到新墙记进**自己仓**的文档。判据：每一次发现「不伸手进别的仓就做不下去」，
-那就是一堵墙。文档怎么写见 skill「docfirst-docs」，记轨迹卡见 skill「trajectory」——
-两份随 `@godcreator/docfirst-workflow` 发、由 docfirst 插件挂上，本插件不再代挂。通用开发纪律
-（先盘问、并行派活、代码自解释）在 `@godcreator/gwb-docfirst-workflow` 随插件发的那三份里。
+| 命令总线 | `gwbCommands.register` | 能力要被调（几乎一定） |
+| 说明书 | `skills/<名>/SKILL.md` + `gwbSkills.register`（局部） | 有流程或坑要讲给 agent |
+| 设置 | `gwbSettings.define` → `get` / `set`（局部） | 插件的一切可配项；值跟条目走，`shared: true` 才落公共区 |
+| 数据 | `gwbData.readDoc` / `writeDoc`（局部） | 要落盘状态，存 `<home>/data/<条目末段>/` |
+| 窗格 | `gwbShell.registerPane` + 浏览器半 | 要人看得见，读附件 `references/ui.md` |
+| 外部 CLI | `gwbNodeCli` / `gwbPyCli` 登记（局部） | CLI 形态的东西，自动镜像成总线命令 |
+
+- **inject 三种写法**：`export const inject = [...]` 硬依赖，服务不在插件就不挂；`static inject`（Service 类）；
+  `ctx.inject([...], fn)` 局部可选，缺了主插件照挂
+- **服务名** `gwb` 开头的小驼峰，跟插件名对应；provide 包在 `ctx.effect` 里（卸载时自动撤）。同名第二个 provide 挂不上
+- **配置一律 `gwbSettings.define`**，条目上只写 `id`
+- **重挂只重跑 `apply`**：该随重挂清掉的状态放 `apply` 里，该跨重挂留着的放模块顶层
+
+## 说明书住哪个插件
+
+知识跟着它描述的代码走——**会因为某行代码改动而过期的说明书，跟那段代码同仓同提交**，随那个包发。
+不描述代码的通用纪律随 docfirst 插件发；点名宿主能力的纪律住宿主那边。说明书是全局单一命名空间，
+每个插件只挂自己的那份。
+
+## 原理与撞墙
+
+为什么这么定、撞过什么，在 devkit 仓的文档站（`D:\unitfolders\260908dkv\gwb-devkit\docs-site`）；
+退役的命令与参数名在它的术语表。自己撞到的新墙记进自己仓的文档站。

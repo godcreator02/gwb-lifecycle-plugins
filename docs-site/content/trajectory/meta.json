@@ -13,6 +13,9 @@
     "2026-09-17-remount-is-one-command",
     "2026-09-17-dev-install-pins-exact",
     "2026-09-17-home-rm-walks-the-tree",
-    "2026-09-17-audit-deps-counts-what-matters"
+    "2026-09-17-audit-deps-counts-what-matters",
+    "2026-09-18-release-rules",
+    "2026-09-18-manual-split",
+    "2026-09-18-cdp-brings-occlusion-flag"
   ]
 }
