@@ -39,7 +39,7 @@ description: 发版、抬版本号、改依赖版本号之前读——抬哪一�
 | peer | `^<dev 钉>`，如 `^0.8.3` | 下限＝验过的那一版；上限＝下一个破坏边界 |
 | 同仓的包之间 | dev 写 `workspace:*`；peer 写 `^<仓里当前版本>` | 同上 |
 | 生态外的依赖（cordis、react…） | 照各自原有写法 | — |
-| 内核安装包的种子 | `>=` 下限 | 打包取最新，npm 解析出冲突就不出包 |
+| 内核安装包 | 不带插件 | 装机由 agent 照内核仓 `INSTALL.md` 做：写 home 的 `package.json`（插件不写版本，取 latest）与 `cordis.yml`，`pnpm install` |
 | home 的 `package.json` | 不管 | 一键更新按准确号装 |
 
 **迁移期**：peer 还写着 `>=` 的仓，在它下次发版时改成 `^`；没迁的 `>=` 没有上限、不会报冲突。
