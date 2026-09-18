@@ -49,7 +49,7 @@ plugin-manager.install {"pkg":"@godcreator/gwb-devkit"}
 
 **在页面里动手**。`devkit.cdp` 是经 `gwbNodeCli` 登记的外部 CLI，连上一个工作台页面发真鼠标、真按键、截图，也能在那张页上跑工作台命令、刷新、问它是哪个 home、把一个文件送进页面里跑（`eval <文件> [JSON 参数]`，文件里写 `(args) => 一张表`）。路径一概不看工作目录：截图缺省落被截那个 home 自己的 `out\cdp\`，给输出与 `eval` 的文件都只收绝对路径。
 
-{/* ref file="../plugins/devkit/src/index.ts" lines="315-324" */}
+{/* ref file="../plugins/devkit/src/index.ts" lines="316-325" */}
 
 十二个动作与五个开关的表在 `bin/cdp.mjs` 的文件头，那份随包发，是唯一的真相。**第一个位置只收 home 名**，给数字当场拒；端口从那个 home 的记录里查，连上之后还要拿页面自报的名字核对一次。**只对隔离 home 用，绝不打 `default`**：这儿发的是真操作，会真往库里写。内核起的时候要带 `--remote-debugging-port=<端口>` 与 `--disable-backgrounding-occluded-windows`，后一个不带，窗口被别的窗口盖住时 Chromium 停止产帧，截图拿到的是陈旧帧。
 
@@ -57,7 +57,7 @@ plugin-manager.install {"pkg":"@godcreator/gwb-devkit"}
 
 ## 改一版看一版
 
-{/* ref file="../plugins/devkit/src/index.ts" lines="355-363" */}
+{/* ref file="../plugins/devkit/src/index.ts" lines="356-364" */}
 
 `devkit.dev` 走的是一条链：仓根构建，给每个包发一个开发版到源（号打成 `<patch+1>-dev.<戳>`，标 `dev` 不动 `latest`），在目标 home 的清单里写那个准确的号再 `pnpm install`、读回装上的号核对（对不上当场 `ok: false`），每条对应条目调一次 `plugin-manager.remount` 重挂（停用再启用在目标进程里一条命令做完，部署 plugin-manager 自己或命令总线也一趟走完；目标 home 的 plugin-manager 要 0.4.0 起），整页重载，最后取证。取不到证就回 `ok: false`。
 
@@ -65,7 +65,7 @@ plugin-manager.install {"pkg":"@godcreator/gwb-devkit"}
 
 **目标只有一种指法：说出 home 名。** 这条命令不收端口，给了 `cdp` 当场拒，回一句教新写法的话：
 
-{/* ref file="../plugins/devkit/src/index.ts" lines="335-347" */}
+{/* ref file="../plugins/devkit/src/index.ts" lines="336-348" */}
 
 端口是查出来的，查的时候顺带验活：记录读得出、pid 还活着、那个 pid 真的持着那个端口，三道都过才动手。
 
