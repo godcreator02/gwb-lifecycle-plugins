@@ -1,0 +1,49 @@
+---
+born-at: 2026-09-18T19:20
+type: choice
+parent: [2026-09-08-gwb-devkit]
+label: 卡退休
+domain: 生态规范
+---
+
+## 背景
+
+每个件根上都躺着一张「身份卡」`catalog.md`（三段：定位 / 提供 / 依赖 + 一句「命令清单现扫门的
+`index`」）。2026-09-18 清点到：**22 个包有卡、7 个是手写、15 个有 `outputs/catalog-*.mdx` 正本**，
+而全生态 35 个包里另外十几个（block-note 九件、mcp、mineru、windows-backup、repo-kit…）**从来没有过卡**
+——模板自己写着「可删可改」。半采用的机制。
+
+同时看了一遍卡到底在替谁说话：**没有任何运行时读者**（全仓 grep 只有它自己的测试 + 一个同名不同事的
+「图标目录」）。卡的三段，每一段都有别处的家：
+
+- **定位** ↔ `package.json` 的 `description`（registry 搜索面读的就是它；卡里那句是同一句话的第二个写法，
+  而且已经在漂——unit-folder 的描述写「树里看文件」、卡写「按状态与种类过滤、展开文件、点文件读原文」）
+- **提供**（服务面）↔ description 的服务名 + 站现状区（带钉码）+ `.d.ts`（真契约）
+- **依赖** ↔ 硬依赖在 `peerDependencies`（机器读，pnpm 也读）；软的只有卡与代码
+- **命令** ↔ 已经是「现扫门的 `index`」——卡里早就不存清单了
+
+而 MCP 门那边给 agent 的只有两张平表（那次真调 `index` 的读数：114 条命令、25 份说明书，
+每行 `{name, plugin, description}`）——**没有「件」这一级**：不报 description、不报服务、不报窗格，
+纯界面件（baseui 0 命令）与库在门里等于隐形。
+
+## 结论与边界
+
+**卡退休，能力概述归两处**：件级一句话归 `description`（唯一随包的自述），接线事实归站现状区与代码。
+
+- 卡里**定位**并进 description（格式：`<是什么>：<干什么>。服务 X；skill N 份；命令 M 条。`）；
+  **依赖**并进站现状区并**钉上 inject 那几行**（docfirst 钉码接管「改了码 check 变黄」这道防线，
+  原来靠卡的 mdx 正本钉）；**立场/关系**的话并进站或 AGENTS；命令段删。
+- 守卫换代：`repo-kit` 的 `registerCatalogGuard` → `registerSelfReportGuard`（0.2.1），
+  薄壳由 `tests/catalog.test.ts` → `tests/self-report.test.ts`。守四件：描述三格齐全、
+  源码 `super(ctx, '<名>')` 提供的服务名必须点名、`skills/` 份数对上描述、源码 inject 的服务名
+  必须出现在站现状区（薄壳要显式传 `docsDir`，多包仓的站在仓根）。
+  **条数不守**：源码里命令名有字面量、常量、模板串、条件注册四种形态，扫出来的数与运行时对不上
+  （实测 devkit 源码 10 / 运行时 9，shell 源码 4 / 运行时 10）——只做「`命令 <数字> 条` 或 `命令无`」的形状校验。
+- 新命令 `devkit.services`：现问 cordis 的 fiber 表（`Fiber.store` 是公开字段，`impl.fiber === fiber`
+  才算本 fiber 提供），报「这台的每个服务是谁提供的」。探针与三段读数在
+  `probes/2609181846_cordis-service-owner/`。服务是件与件之间的面、agent 调不动，所以**落 devkit 不落门**。
+- devkit 模板不再铺卡，改铺自述守卫薄壳（`scaffold.test.ts` 的产物清单同步）。
+- **件级概述还欠一格**：门（`mcp`）的 `index` 该多一节「件」表（pkg + 版本 + description）——
+  那是改回执形状、major 级协议变更，另做。
+- 边界：库（`keywords` 里没 `gwb-plugin`）不适用三格口径，守卫跳过；测试件照做但不上传；
+  命令条数的真伪只有运行时知道，别拿静态扫描当判据。
