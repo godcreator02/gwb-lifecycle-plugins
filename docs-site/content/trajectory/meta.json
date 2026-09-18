@@ -18,6 +18,7 @@
     "2026-09-18-manual-split",
     "2026-09-18-cdp-brings-occlusion-flag",
     "2026-09-18-cdp-paths-ignore-cwd",
-    "2026-09-18-caret-ticket-strict-peer"
+    "2026-09-18-caret-ticket-strict-peer",
+    "2026-09-18-drop-strict-peer"
   ]
 }

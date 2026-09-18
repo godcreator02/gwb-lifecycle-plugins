@@ -71,8 +71,7 @@ pnpm build          # 只构建 plugins/* 与 packages/*，tsc 直出 dist/，�
 
 **模板里的 `@godcreator` 钉版跟源走**：dev 钉＝源上 `dist-tags.latest`，peer 写 `^<dev 钉>`。
 钉旧了新仓开箱就是火车债、第一次发版就被检票拦下，钉了源上没有的号新仓 `pnpm install` 当场炸——
-动模板钉版之前 `pnpm view <包> dist-tags.latest` 现查。模板起始号 0.1.0（0.0.x 过不了检票），
-`pnpm-workspace.yaml` 开 `strictPeerDependencies: true`。
+动模板钉版之前 `pnpm view <包> dist-tags.latest` 现查。模板起始号 0.1.0（0.0.x 过不了检票）。
 
 **占位符集合就这六个**：`{{name}}`、`{{title}}`、`{{pkg}}`、`{{pkgName}}`、`{{cssPrefix}}`、`{{docsBlock}}`。
 **认不出的占位符当场抛**——给模板加了新占位符，`src/scaffold.ts` 的 `placeholders()`

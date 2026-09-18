@@ -31,10 +31,7 @@ plugin-manager 要 0.4.0 起。
 清单里已有 `^` 声明时（`plugin-manager.install` 写出来的就是），pnpm 沿用那个前缀写回 `^<号>`，
 锁里已解析的同 patch 旧预发布号被当成满足新范围、不重解析；源上有更新的同 patch 号时范围又解析到
 它——装上的都不是这一趟发的号，退出码照样 0。清单里写死准确号就没有范围可解析。装完读
-`node_modules/<包>/package.json` 的 `version`，对不上当场 `ok: false`、不重挂。那条 `pnpm install`
-不带严格与否的参数，走目标 home 自己的配置：隔离 home 不放 `pnpm-workspace.yaml`，就是 pnpm 默认的不严格。
-开发版的号带预发布段，semver 不拿它满足别的件对它的 `^` peer，只出一行 peer 警告；严格了这一趟必拒
-（default home 靠它自己那份 `pnpm-workspace.yaml` 开严格，开发版本来也进不了 default）：
+`node_modules/<包>/package.json` 的 `version`，对不上当场 `ok: false`、不重挂：
 
 {/* ref file="../plugins/devkit/src/dev.ts" lines="491-526" */}
 

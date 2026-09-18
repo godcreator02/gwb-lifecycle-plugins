@@ -64,8 +64,6 @@ tag `dev`，不动 `latest`）→ 目标 home 清单写准确号再 `pnpm instal
 * **第一次**：目标 home 还没有这个件的条目时，`devkit.dev` 照样发出开发版、装进去，回执 note 说没有条目可挂；
   再调 `plugin-manager.install {"pkg":"<包名>","spec":"<回执里那个 dev 号>"}` 建条目，之后每趟 `devkit.dev`
 * **`packages`** 相对仓根、按依赖序；一仓一包不用给。同一趟互相依赖的包，依赖钉成这一趟的准确号
-* **装进目标 home 走 pnpm 默认、不严格**：开发版的号带预发布段，semver 不拿它满足别的件的 `^` peer，
-  只出一行 peer 警告，不是故障。严格 peer 只在开发仓与 default home 各自的 `pnpm-workspace.yaml` 里
 * **目标只说 home 名**：端口从那个 home 的 `runtime.json` 查、验活，连上后再拿页面自报的名字核对
 * **开发版只进隔离 home**：目标是 `default` 或 devkit 自己所在的 home，当场拒。换 devkit 自己走发版加一键更新
 * **构建与取证都不可跳过**：`files` 白名单里有通配正条目时这条链拒发，走 `devkit.release`
@@ -82,8 +80,7 @@ tag `dev`，不动 `latest`）→ 目标 home 清单写准确号再 `pnpm instal
 * 删：`devkit.home.rm {"name","force?"}`——还在跑的要 `force`；回「已删」时目录已经真不在了
 * **清理放在开新的那一刻**：验完的 home 留给人看，`home.new` 回执里带着现有清单，那时再删旧的
 * 日志在 `%APPDATA%\gwb-kernel\homes\<名>\gwb.log`，内核、插件、渲染层三路都在这一份里
-* **隔离 home 里不放 `pnpm-workspace.yaml`**：default home 靠它那份开严格 peer，隔离 home 要装开发版，
-  严格了装不进去。任何 `pnpm-workspace.yaml` 里都别写 `minimumReleaseAgeExclude`——它逐项盖掉用户级同名那项
+* 任何 `pnpm-workspace.yaml` 里都别写 `minimumReleaseAgeExclude`——它逐项盖掉用户级同名那项
 
 ## 验机
 

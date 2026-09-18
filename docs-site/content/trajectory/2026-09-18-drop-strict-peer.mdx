@@ -1,0 +1,68 @@
+---
+title: 全生态不开严格 peer，守门交还 ^ 与发版检票
+born-at: 2026-09-18T14:40
+type: choice
+parent: [2026-09-08-gwb-devkit]
+label: 撤严格 peer
+domain: 发版
+---
+
+supersedes:: [工具对齐 ^：发版检票强制迁，严格 peer 分两条路](2026-09-18-caret-ticket-strict-peer.md)
+
+## 背景
+
+上一张卡把严格 peer 落进了配置文件：本仓、文档站、模板的 `pnpm-workspace.yaml` 写 `strictPeerDependencies: true`，
+default home 也靠自己那份开严格，一键更新遇到没追上的下游就整趟拒；隔离 home 不严格，理由是「开发版的预发布号满足
+不了任何 `^`」。那张卡里 `^` 写法、发版检票、对账认 `^` 这几条不受本卡影响，被取代的只是严格 peer 那一条。
+
+plugin-manager 要照这个做「装正式版严格、装开发版不严格」，base-plugins 仓为此跑了一组探针，结果把严格 peer 本身
+推翻了。
+
+## 结论与边界
+
+用户拍板：**全生态撤掉 `strictPeerDependencies`，pnpm 走默认——peer 不匹配只警告、照装。** 版本规矩一字不动：
+peer 写 `^<dev 钉>`、破坏抬次版本号、dev 钉＝源上 latest、`devkit.release` 上车检票、`devkit.audit-deps` 对账——
+这几样才是真正的防线。
+
+- **严格失败不是原子的**：pnpm 12.4.2 严格没过时退出码 1，但 `package.json` 没动、`pnpm-lock.yaml` 已写进新包、
+  `node_modules` 顶层已链上它；之后再跑普通 `pnpm install` 回「Already up to date」、不收回。一次拒装留下的是一个
+  清单与盘面对不上的 home
+- **一处残留冲突拦住所有不相干的严格安装**：带着一条 shell 冲突的 home 里严格装 `gwb-data`，照报那条 shell 冲突、
+  退 1。一个 home 一旦带上冲突，严格就把整个 home 卡死
+- **插件仓里严格是重复的**：发版检票已经在发之前逐包拦 peer 不是 `^`、dev 钉不等于 latest、peer 下限不等于 dev 钉，
+  开发仓里 `pnpm install` 再严格一遍拦不到新东西
+- **plugin-manager 那边**：不再带严格参数，把 pnpm 的 peer 警告作为回执里的 `peerWarnings` 转给调用方，不当失败
+  （那是另一个仓的活）
+
+本仓落地：仓根、`docs-site`、模板三份 `pnpm-workspace.yaml` 删掉 `strictPeerDependencies` 与它的注释；
+说明书 gwb-release 删掉两行严格配置与「严格 peer 从哪来」一段，第四节「发之后」改成「只警告、照装，升 default 之前先追
+下游」；gwb-devkit 删掉「装进目标 home 不严格」一条，「隔离 home 不放 `pnpm-workspace.yaml`」收成只剩别写
+`minimumReleaseAgeExclude`；AGENTS、现状页 dev、`devkit.dev` 装包处的注释跟上。
+
+**顺带更正一条错话**：上一张卡与两份说明书都说「开发版的预发布号满足不了任何 `^`」。在 pnpm 的 peer 检查里不成立——
+同一线的开发版满足：registry 上的 `@godcreator/gwb-shell@0.9.1-dev.202609181108` 对 `^0.9.0` 严格下照过、不严格下
+连警告都没有。破坏线的开发版（`0.10.0-dev.1` 对 `^0.9.0`）不满足，那是 `^0.9.0` 的上界 `<0.10.0-0` 管的。
+上一张卡「开发版 `1.0.1-dev.…` 对 `^1.0.0` 严格退 1」是夹具造成的：`file:` 装进来的包 pnpm 报的 `Installed:` 是
+`file:` 说明符而不是版本号，连 `1.0.0` 对 `^1.0.0` 都判不满足。
+
+另一条话是对的、留着：**pnpm 从源上解析一个范围时不挑预发布号**，所以 `devkit.dev` 往 home 清单里写准确 dev 号、
+同趟兄弟的依赖钉准确 dev 号——那是解析，不是 peer 检查。
+
+边界：
+
+- 第三方包之间的 peer 不匹配从此也只是警告，不再有 `peerDependencyRules` 点名放行这一步
+- default home 那份 `pnpm-workspace.yaml` 与内核仓 `INSTALL.md` 不归本仓，由各自的仓撤
+- 上一张卡里「`pnpm-workspace.yaml` 对用户级配置逐项覆盖」「模板起始号 0.1.0」与检票、对账各条照旧成立
+
+## 依据
+
+base-plugins 仓 `probes/2609181305_strict-peer/`（pnpm 12.4.2，不在本仓）：
+
+- a、b、m、n：严格没过退 1、错误码 `ERR_PNPM_PEER_DEP_ISSUES`，`package.json` 不动而锁文件与 `node_modules` 已动；
+  j：之后普通 `pnpm install` 回「Already up to date」、不收回
+- f：带冲突的 home 里严格装不相干的包，照报旧冲突、退 1
+- k、l：registry 上的 `0.9.1-dev.…` 对 `^0.9.0`，严格退 0、不严格无警告
+- n 用的也是 `file:` 夹具，只证明了 `file:` 不满足，破坏线开发版不满足这一条无物证、按 semver 推
+
+`probes/2609181423_file-peer-and-prerelease/`：`file:` 目录与 `file:` tgz 两种形态、正式号与开发号，严格下一律退 1、
+`Installed:` 报的都是 `file:` 说明符——`probes/2609181310_pnpm-strict-peer/` 第二组的结论因此作废。

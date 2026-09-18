@@ -7,9 +7,6 @@ packages:
   # 文档站：自己的依赖树，不进根 check
   - docs-site
 
-# peer 对不上就当场报错。第三方包之间的不匹配用 peerDependencyRules 在这儿点名放行，别关严格
-strictPeerDependencies: true
-
 allowBuilds:
   # docs-site 那半拖来的；件的构建是一次性的
   '@parcel/watcher': false

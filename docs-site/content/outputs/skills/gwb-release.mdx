@@ -41,14 +41,9 @@ description: 发版、抬版本号、改依赖版本号之前读——抬哪一�
 | 生态外的依赖（cordis、react…） | 照各自原有写法 | — |
 | 内核安装包 | 不带插件 | 装机由 agent 照内核仓 `INSTALL.md` 做：写 home 的 `package.json`（插件不写版本，取 latest）与 `cordis.yml`，`pnpm install` |
 | home 的 `package.json` | 不管 | 一键更新按准确号装 |
-| 开发仓的 `pnpm-workspace.yaml` | `strictPeerDependencies: true` | 仓里 `pnpm install` 遇 peer 不匹配当场报错 |
-| default home 的 `pnpm-workspace.yaml` | `strictPeerDependencies: true`（内核仓 `INSTALL.md` 铺） | 一键更新遇 peer 不匹配当场报错 |
 
-**严格 peer 从哪来**：开发仓靠自己的 `pnpm-workspace.yaml`；default home 靠它自己的 `pnpm-workspace.yaml`；
-隔离 home（`devkit.home.new` 开的）不放这个文件、不严格——`devkit.dev` 往里装的开发版号带预发布段，semver 不拿它
-满足任何 `^`。devkit 的命令一概不带严格与否的参数。键名只认驼峰（写成 `strict-peer-dependencies` 会被忽略，
-只出一行警告）。撞上第三方包之间的 peer 不匹配，在同一个文件里用 pnpm 的 `peerDependencyRules` 点名放行
-（如 `allowAny: [<包名>]`），别关严格。
+**pnpm 走默认**：peer 不匹配只警告、照装，仓与 home 的 `pnpm-workspace.yaml` 都不写 `strictPeerDependencies`。
+守 peer 的是上面的 `^` 写法与发版检票（第三节）。
 
 **发版检票强制迁**：peer 还写着 `>=` 的仓，下次发版时 `devkit.release` 的检票就拒，改成 `^` 才发得出去。
 不去一次性改全生态，每个仓发版时自己迁。`devkit.release` 发出去的 `workspace:` 依赖写成 `^`：同一趟发的写
@@ -81,9 +76,8 @@ description: 发版、抬版本号、改依赖版本号之前读——抬哪一�
 
 1. **发之前**：跑 `devkit.audit-deps`，找出 peer 会被甩出范围的下游，往各自仓站 feedback 区的
    `inbox.mdx` 投一条「要追 X 0.9」。还写 `>=` 的下游（`peer-not-caret`）没有上限、不会报冲突，逐个确认
-2. **发之后**：default home 开着严格 peer 检查（它自己的 `pnpm-workspace.yaml`，见第二节），一键更新遇到
-   `^` 没追上的下游，这一趟 `pnpm` 报 peer 冲突、装不上——先追下游，或 `plugin-manager.update-all {"only":[…]}` 只升别的。
-   隔离 home 不严格，开发版照样装得进去
+2. **发之后**：一键更新遇到 `^` 没追上的下游，pnpm 只出 peer 警告、照装，那个下游就配着出了它范围的上游跑。
+   升 default 之前先追下游，或 `plugin-manager.update-all {"only":[…]}` 只升别的
 
 ## 五、发版流程
 

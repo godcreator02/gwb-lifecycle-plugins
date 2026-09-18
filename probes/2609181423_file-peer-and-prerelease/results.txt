@@ -1,0 +1,10 @@
+pnpm 12.4.2
+--- 一、bb 以 file: 目录装（严格）
+dir      1.0.0                      对 ^1.0.0   exit=1  [ERR_PNPM_PEER_DEP_ISSUES] Unmet peer dependencies | Installed: file:../b
+dir      1.0.1-dev.202609181300     对 ^1.0.0   exit=1  [ERR_PNPM_PEER_DEP_ISSUES] Unmet peer dependencies | Installed: file:../b
+--- 二、bb 以 file: 打好的 tgz 装（严格）
+tgz      1.0.0                      对 ^1.0.0   exit=1  [ERR_PNPM_PEER_DEP_ISSUES] Unmet peer dependencies | Installed: file:../bb-1.0.0.tgz
+tgz      1.0.1-dev.202609181300     对 ^1.0.0   exit=1  [ERR_PNPM_PEER_DEP_ISSUES] Unmet peer dependencies | Installed: file:../bb-1.0.1-dev.202609181300.tgz
+tgz      0.9.1-dev.202609181300     对 ^0.9.0   exit=1  [ERR_PNPM_PEER_DEP_ISSUES] Unmet peer dependencies | Installed: file:../bb-0.9.1-dev.202609181300.tgz
+tgz      0.10.0-dev.1               对 ^0.9.0   exit=1  [ERR_PNPM_PEER_DEP_ISSUES] Unmet peer dependencies | Installed: file:../bb-0.10.0-dev.1.tgz
+tgz      1.0.0                      对 ^2.0.0   exit=1  [ERR_PNPM_PEER_DEP_ISSUES] Unmet peer dependencies | Installed: file:../bb-1.0.0.tgz

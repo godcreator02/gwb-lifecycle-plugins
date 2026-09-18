@@ -1,6 +1,3 @@
-# peer 对不上就当场报错。第三方包之间的不匹配用 peerDependencyRules 在这儿点名放行，别关严格
-strictPeerDependencies: true
-
 allowBuilds:
   esbuild: true
 onlyBuiltDependencies:
