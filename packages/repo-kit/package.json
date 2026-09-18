@@ -24,5 +24,6 @@
   "repository": {
     "type": "git",
     "url": "https://git.tianshen02.online:28377/godcreator/gwb-devkit.git"
-  }
+  },
+  "keywords": ["gwb"]
 }
