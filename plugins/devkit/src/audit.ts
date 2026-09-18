@@ -6,8 +6,10 @@
  * 一律拉最新、gitea 只保证往后有历史），所以**不审「兼容多老」，只审三样账**：
  *
  * - 声明装得来（死钉：钉了源上没有的版本——迁移只搬了各包最新号，这类谎最容易犯）
- * - 火车债（dev 钉落后源上的正式最新——该上车的记账，不是催命符）
- * - 声明 ≠ 验证过的世界（下限与 dev 钉不同步；规矩是 floor = dev 钉）
+ * - 火车债（dev 钉落后源上的正式最新）：还在 `^<dev 钉>` 范围内是 `behind`，等各自下次发版；
+ *   最新已出范围是 `out-of-range`，上游出了破坏版，必须追
+ * - 声明 ≠ 验证过的世界（peer 写 `^<dev 钉>`：写法不是 `^` 记 `peer-not-caret`，下限与 dev 钉
+ *   不同步记 `floor-mismatch`）
  *
  * 三样账各有各的对象：
  *
@@ -40,6 +42,8 @@ export interface RegistryInfo {
 export type FindingKind =
   | 'dead-pin'
   | 'behind'
+  | 'out-of-range'
+  | 'peer-not-caret'
   | 'floor-unverifiable'
   | 'floor-mismatch'
   | 'floor-no-mirror'
@@ -114,10 +118,34 @@ export function unitRetired(text: string | undefined): boolean {
 }
 
 const EXACT = /^\d+\.\d+\.\d+$/
-const FLOOR = /^>=(\d+\.\d+\.\d+)$/
+const CARET = /^\^(\d+\.\d+\.\d+)$/
+const GTE = /^>=(\d+\.\d+\.\d+)$/
+
+/** `^x.y.z` 的下限；别的写法回 undefined */
+export function caretFloor(range: string): string | undefined {
+  return CARET.exec(range.trim())?.[1]
+}
+
+/** `^<floor>` 的上限（不含）：第一个非零段进一，其后归零。0.0.z 锁补丁号、0.y.z 锁次版本号 */
+export function caretCeiling(floor: string): string {
+  const [major = 0, minor = 0, patch = 0] = floor.split('.').map((one) => Number.parseInt(one, 10) || 0)
+  if (major > 0) return `${String(major + 1)}.0.0`
+  if (minor > 0) return `0.${String(minor + 1)}.0`
+  return `0.0.${String(patch + 1)}`
+}
+
+/** 正式号 `version` 落不落在 `^<floor>` 里。带预发布段的号一概不算（semver 不拿预发布号满足不带预发布的范围） */
+export function inCaret(floor: string, version: string): boolean {
+  if (version.includes('-')) return false
+  return compareVersions(version, floor) >= 0 && compareVersions(version, caretCeiling(floor)) < 0
+}
 
 /**
  * 一份 manifest 的判定。versions 空表（源上没这个包）时，钉了什么都是死钉。
+ *
+ * 落后分两类，范围是 `^<dev 钉>`（规矩里 peer 就写它）：最新还在范围内是 `behind`（提示，
+ * 等各自下次发版），出了范围是 `out-of-range`（待办，先适配再抬）。只有 peer、没有 dev 钉的，
+ * 拿 peer 的 `^` 范围判出没出。
  */
 export function auditManifest(
   repo: string,
@@ -147,7 +175,11 @@ export function auditManifest(
       continue
     }
     if (info.latest !== undefined && compareVersions(raw, info.latest) < 0) {
-      push('behind', pkg, `钉 ${raw}，源上最新 ${info.latest}——火车债`)
+      if (inCaret(raw, info.latest)) {
+        push('behind', pkg, `钉 ${raw}，源上最新 ${info.latest}，还在 ^${raw} 范围内——火车债，下次发版时跟上`)
+      } else {
+        push('out-of-range', pkg, `钉 ${raw}，源上最新 ${info.latest} 已出 ^${raw} 范围——上游出了破坏版，必须追：先适配代码，dev 钉与 peer 一起抬`)
+      }
     }
   }
 
@@ -156,20 +188,27 @@ export function auditManifest(
   for (const [pkg, raw] of Object.entries(deps.peers)) {
     const info = registry[pkg]
     if (info === undefined) continue
-    const floor = FLOOR.exec(raw)?.[1]
-    if (floor === undefined) {
-      push('floor-unverifiable', pkg, `下限写法认不出：${raw}（约好 ">=x.y.z" 精确下限）`)
-      continue
-    }
-    if (info.versions.length === 0 || !info.versions.includes(floor)) {
-      push('floor-unverifiable', pkg, `下限 >=${floor}，源上没有这个版本——声明了一个装不进来、无法验证的世界`)
-      continue
-    }
     const dev = deps.devs[pkg]
+    const devExact = dev !== undefined && EXACT.test(dev) ? dev : undefined
+    const caret = caretFloor(raw)
+    const floor = caret ?? GTE.exec(raw.trim())?.[1]
+    if (caret === undefined) {
+      const want = devExact ?? floor
+      push('peer-not-caret', pkg, `peer 写的是 "${raw}"，规矩是 ^<dev 钉>${want === undefined ? '' : `：改成 "^${want}"`}（迁移欠账，下次发版时 devkit.release 检票会拒）`)
+    }
+    // 认不出下限的写法到此为止；`>=x.y.z` 的下限照样往下审
+    if (floor === undefined) continue
+    if (info.versions.length === 0 || !info.versions.includes(floor)) {
+      push('floor-unverifiable', pkg, `下限 ${floor}（${raw}），源上没有这个版本——声明了一个装不进来、无法验证的世界`)
+      continue
+    }
     if (dev === undefined) {
       push('floor-no-mirror', pkg, `peer 有声明、dev 没钉镜像——这个面从没在本仓验证过`)
-    } else if (EXACT.test(dev) && dev !== floor) {
-      push('floor-mismatch', pkg, `下限 >=${floor} ≠ dev 钉 ${dev}（规矩：floor ＝验证过的世界）`)
+      if (caret !== undefined && info.latest !== undefined && !inCaret(caret, info.latest)) {
+        push('out-of-range', pkg, `peer ${raw}，源上最新 ${info.latest} 已出范围——上游出了破坏版，必须追`)
+      }
+    } else if (devExact !== undefined && devExact !== floor) {
+      push('floor-mismatch', pkg, `下限 ${floor}（${raw}）≠ dev 钉 ${devExact}（规矩：下限＝验证过的世界）`)
     }
   }
   return out
@@ -180,6 +219,8 @@ export function countByKind(findings: Finding[]): Record<FindingKind, number> {
   const counts = {
     'dead-pin': 0,
     behind: 0,
+    'out-of-range': 0,
+    'peer-not-caret': 0,
     'floor-unverifiable': 0,
     'floor-mismatch': 0,
     'floor-no-mirror': 0,

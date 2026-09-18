@@ -52,20 +52,20 @@ describe('分发清单', () => {
     expect(out.dependencies?.['@godcreator/gwb-sibling']).toBe('0.4.0-dev.202609131200')
   })
 
-  it('正式版那趟给的是 >= 范围，原样写进去——消费方跟得进后续 patch', () => {
-    const out = distManifest(MANIFEST, '0.4.0', { '@godcreator/gwb-sibling': '>=0.4.0' }, WORKSPACE)
-    expect(out.dependencies?.['@godcreator/gwb-sibling']).toBe('>=0.4.0')
+  it('正式版那趟给的是 ^ 范围，原样写进去——消费方跟得进破坏边界以内的后续版本', () => {
+    const out = distManifest(MANIFEST, '0.4.0', { '@godcreator/gwb-sibling': '^0.4.0' }, WORKSPACE)
+    expect(out.dependencies?.['@godcreator/gwb-sibling']).toBe('^0.4.0')
   })
 
-  it('不是兄弟的 workspace: 换成工作区里那个真号；工作区里没有就 >=0.0.0', () => {
+  it('不是兄弟的 workspace: 换成 ^<工作区里那个号>；工作区里没有就 ^0.0.0', () => {
     const out = distManifest(
       { ...MANIFEST, dependencies: { '@godcreator/gwb-sibling': 'workspace:^', '@godcreator/gwb-stranger': 'workspace:*' } },
       '0.4.0-dev.202609131200',
       {},
       WORKSPACE,
     )
-    expect(out.dependencies?.['@godcreator/gwb-sibling']).toBe('>=0.3.9')
-    expect(out.dependencies?.['@godcreator/gwb-stranger']).toBe('>=0.0.0')
+    expect(out.dependencies?.['@godcreator/gwb-sibling']).toBe('^0.3.9')
+    expect(out.dependencies?.['@godcreator/gwb-stranger']).toBe('^0.0.0')
   })
 
   it('普通范围原样过，外来包不掺和', () => {
@@ -80,7 +80,7 @@ describe('分发清单', () => {
       SIBLINGS,
       WORKSPACE,
     )
-    expect(out.peerDependencies?.['@godcreator/gwb-sibling']).toBe('>=0.3.9')
+    expect(out.peerDependencies?.['@godcreator/gwb-sibling']).toBe('^0.3.9')
     expect(out.peerDependencies?.['@godcreator/gwb-plugin-api']).toBe('>=0.1.0')
   })
 })

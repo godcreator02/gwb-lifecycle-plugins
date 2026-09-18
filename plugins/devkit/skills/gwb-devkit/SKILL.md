@@ -46,7 +46,9 @@ description: 写或改 gwb 插件时读——建仓、改一版看一版（devki
    handler 的参数是 `unknown`，用词汇表包的 `isRecord` 收窄
 4. **内循环**：`devkit.dev` 进隔离 home，见下一节。完成＝回执 `ok: true`
 5. **验机**：见「验机」一节。完成＝四种假验收一条不沾
-6. **发版**：照 skill「gwb-release」
+6. **发版**：照 skill「gwb-release」。`devkit.release` 构建之后先上车检票（自己不在 0.0.x、`@godcreator`
+   的 peer 写 `^<dev 钉>`、dev 钉＝源上 latest），没过一个都不发、回执一次列全；发之前想看全生态谁欠着，
+   `devkit.audit-deps`（`out-of-range` 必须追，`behind` 范围内落后，`peer-not-caret` 还没迁 `^`）
 
 ## 改一版看一版：`devkit.dev`
 
@@ -62,6 +64,8 @@ tag `dev`，不动 `latest`）→ 目标 home 清单写准确号再 `pnpm instal
 * **第一次**：目标 home 还没有这个件的条目时，`devkit.dev` 照样发出开发版、装进去，回执 note 说没有条目可挂；
   再调 `plugin-manager.install {"pkg":"<包名>","spec":"<回执里那个 dev 号>"}` 建条目，之后每趟 `devkit.dev`
 * **`packages`** 相对仓根、按依赖序；一仓一包不用给。同一趟互相依赖的包，依赖钉成这一趟的准确号
+* **装进目标 home 走 pnpm 默认、不严格**：开发版的号带预发布段，semver 不拿它满足别的件的 `^` peer，
+  只出一行 peer 警告，不是故障。严格 peer 只在开发仓与 default home 各自的 `pnpm-workspace.yaml` 里
 * **目标只说 home 名**：端口从那个 home 的 `runtime.json` 查、验活，连上后再拿页面自报的名字核对
 * **开发版只进隔离 home**：目标是 `default` 或 devkit 自己所在的 home，当场拒。换 devkit 自己走发版加一键更新
 * **构建与取证都不可跳过**：`files` 白名单里有通配正条目时这条链拒发，走 `devkit.release`
@@ -78,6 +82,8 @@ tag `dev`，不动 `latest`）→ 目标 home 清单写准确号再 `pnpm instal
 * 删：`devkit.home.rm {"name","force?"}`——还在跑的要 `force`；回「已删」时目录已经真不在了
 * **清理放在开新的那一刻**：验完的 home 留给人看，`home.new` 回执里带着现有清单，那时再删旧的
 * 日志在 `%APPDATA%\gwb-kernel\homes\<名>\gwb.log`，内核、插件、渲染层三路都在这一份里
+* **隔离 home 里不放 `pnpm-workspace.yaml`**：default home 靠它那份开严格 peer，隔离 home 要装开发版，
+  严格了装不进去。任何 `pnpm-workspace.yaml` 里都别写 `minimumReleaseAgeExclude`——它逐项盖掉用户级同名那项
 
 ## 验机
 

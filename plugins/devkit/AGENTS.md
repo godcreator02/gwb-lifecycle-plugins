@@ -35,8 +35,8 @@ pnpm build          # 只构建 plugins/* 与 packages/*，tsc 直出 dist/，�
 
 1. **先抬 `package.json` 的版本号。** 同一个版本号永不重发；要发新的一版，先抬号、提交，再调
 2. 发版走 `devkit.release {"dir":"<本仓根>","packages":["plugins/devkit"]}`（repo-kit 也改了就
-   `["packages/repo-kit","plugins/devkit"]`，按依赖序）——仓根 git 树不干净就拒、staging 发 latest、
-   不改仓里任何文件。**它不跑 `prepublishOnly`**（staging 分发形态里没有 `scripts`，产物靠
+   `["packages/repo-kit","plugins/devkit"]`，按依赖序）——仓根 git 树不干净就拒、构建之后上车检票（规矩见「gwb-release」）没过就拒、
+   staging 发 latest、不改仓里任何文件。**手工那条不检票**，检票是 `devkit.release` 的事。**它不跑 `prepublishOnly`**（staging 分发形态里没有 `scripts`，产物靠
    仓根构建加 `files` 白名单守卫）；真要走仓里钩子的场景才用手工那条：在包目录里
    `pnpm publish --no-git-checks`（scope 路由住用户级 `~/.npmrc`，**别手写 `--registry`**）——那时
    `prepublishOnly` **别删**，少了它会把上一版的 `dist/` 原样发出去而且一声不吭（现象是
@@ -64,9 +64,10 @@ pnpm build          # 只构建 plugins/* 与 packages/*，tsc 直出 dist/，�
 `template/` 下的文件一律带 `.tpl`，落盘时脱后缀（`npm pack` 不打 `.gitignore` 是硬行为，
 一条规则管所有文件）。
 
-**模板里的 `@godcreator` 钉版跟源走**：dev 钉＝源上 `dist-tags.latest`，peer 下限 `>=` 同号。
-钉旧了新仓开箱就是火车债，钉了源上没有的号新仓 `pnpm install` 当场炸——动模板钉版之前
-`pnpm view <包> dist-tags.latest` 现查。
+**模板里的 `@godcreator` 钉版跟源走**：dev 钉＝源上 `dist-tags.latest`，peer 写 `^<dev 钉>`。
+钉旧了新仓开箱就是火车债、第一次发版就被检票拦下，钉了源上没有的号新仓 `pnpm install` 当场炸——
+动模板钉版之前 `pnpm view <包> dist-tags.latest` 现查。模板起始号 0.1.0（0.0.x 过不了检票），
+`pnpm-workspace.yaml` 开 `strictPeerDependencies: true`。
 
 **占位符集合就这六个**：`{{name}}`、`{{title}}`、`{{pkg}}`、`{{pkgName}}`、`{{cssPrefix}}`、`{{docsBlock}}`。
 **认不出的占位符当场抛**——给模板加了新占位符，`src/scaffold.ts` 的 `placeholders()`

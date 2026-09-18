@@ -1,0 +1,64 @@
+---
+title: 工具对齐 ^：发版检票强制迁，严格 peer 分两条路
+born-at: 2026-09-18T13:50
+type: choice
+parent: [2026-09-08-gwb-devkit]
+label: ^ 与检票
+domain: 发版
+---
+
+pivots-from:: [发版规则成文](2026-09-18-release-rules.md)
+
+## 背景
+
+「gwb-release」当天成文：peer 写 `^<dev 钉>`、发版前上车检票、0.0.x 先提到 0.1.0。可 devkit 自己的工具全按
+`>=` 在写在查——`devkit.release` 把同趟兄弟与 workspace 依赖写成 `>= 号`，`devkit.audit-deps` 只认
+`>=x.y.z`（`^` 被报「写法认不出」），模板 peer 全是 `>=`。全生态 121 条 `@godcreator` peer 声明全是 `>=`，
+规则说「下次发版时迁」，工具让这件事做不成。
+
+同一天总控台投来一条：说明书说「一键更新遇到没追上的下游会整趟拒」，实际 pnpm 12 默认不开严格 peer，
+不匹配只警告、退出码 0；要开严格又会撞开发版——预发布号满足不了任何 `^`。
+
+## 结论与边界
+
+用户拍板：工具对齐规则，迁移靠发版检票推着走，不去一次性改全生态。
+
+- **发出去写 `^`**：`devkit.release` 同趟兄弟写 `^新号`、其余 workspace 依赖写 `^工作区现号`；`devkit.dev`
+  同趟钉准确 dev 号那条不变
+- **检票机械化、拒绝式**：`devkit.release` 构建之后、发第一个包之前逐包检——自己在 0.0.x、peer 不是
+  `^x.y.z`、dev 精确钉不等于源上 `dist-tags.latest`（分范围内 / 出范围两种说法）、peer 下限不等于 dev 钉，
+  四类拒；peer 指向的上游自己还在 0.0.x 只提醒。一次列全，不一条一条挤——改一条来一趟、每趟都白跑一次构建
+- **对账认 `^`**：`behind` 只留范围内落后（提示），新增 `out-of-range`（必须追）与 `peer-not-caret`（迁移欠账）；
+  「范围」取 `^<dev 钉>`，只有 peer 没 dev 的取 peer 的 `^`
+- **严格 peer 落在配置文件、不落在命令行**：开发仓在自己的 `pnpm-workspace.yaml` 写
+  `strictPeerDependencies: true`（本仓、文档站、模板都加上）；default home 也靠它自己那份 `pnpm-workspace.yaml`
+  （内核仓 `INSTALL.md` 铺），插件管理不带参数；隔离 home 不放这个文件、不严格——开发版满足不了 `^`。devkit 的
+  命令（`devkit.dev` 装开发版、`devkit.home.new` 铺底座）不带任何严格与否的参数。中途一度做成 devkit 显式带
+  `--strict-peer-dependencies=false` / 底座带 `--strict-peer-dependencies`，随即撤掉：pnpm 默认本就不严格，
+  显式写一遍是多余的防御，严格与否该由那个目录自己的配置说了算。第三方包之间的 peer 不匹配用
+  `peerDependencyRules` 点名放行，不关严格
+- **`pnpm-workspace.yaml` 对用户级配置逐项覆盖、不是整份盖掉**：只写 `strictPeerDependencies` 的目录里照读用户级
+  `minimumReleaseAgeExclude`。本仓那份里重复写的 `@godcreator/*` 放行删掉；说明书里「home 里不放这个文件、它整份
+  盖掉全局」改口成「别在里面写 `minimumReleaseAgeExclude`」——老 home 出事是因为它们自己写了一份同名项
+- **模板起始号改 0.1.0**：0.0.x 过不了检票，新仓第一次发版就会被拦
+
+边界：
+
+- 检票只看 `@godcreator/*` 的 peer 与 dev；`dependencies` 里的不检
+- 手工 `pnpm publish` 那条路不检票
+- `workspace:` 在工作区里找不到号时仍写成 `^0.0.0`，装的那头会当场报不满足
+
+## 依据
+
+`probes/2609181310_pnpm-strict-peer/`（pnpm 12.4.2）：
+
+- 真不匹配时默认退出码 0 只警告；`--strict-peer-dependencies`、`--config.strict-peer-dependencies=true`、
+  环境变量 `pnpm_config_strict_peer_dependencies=true`、yaml `strictPeerDependencies: true` 都退 1
+- yaml 只认驼峰：`strict-peer-dependencies: true` 被忽略、出一行警告
+- 命令行 `--strict-peer-dependencies=false` 压得过 yaml 与环境变量的 `true`
+- `peerDependencyRules.allowAny` 放行成功；`allowedVersions` 在 `file:` 夹具里没放行（registry 包未验）
+- 开发版 `1.0.1-dev.…` 对 `^1.0.0`：默认警告，严格退 1
+
+逐项覆盖：本仓 `pnpm-workspace.yaml` 删掉 `minimumReleaseAgeExclude` 之后，仓根与 `docs-site` 里
+`pnpm config get minimumReleaseAgeExclude` 都读到用户级那份（`@godcreator/*` 等三项），`strictPeerDependencies`
+读到 `true`，`pnpm install` 退 0（2026-09-18，pnpm 12.4.2，未另存探针）。

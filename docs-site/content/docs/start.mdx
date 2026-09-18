@@ -39,9 +39,13 @@ plugin-manager.install {"pkg":"@godcreator/gwb-devkit"}
 
 **改一版看一版**。`devkit.dev` 一条走完从构建到取证。下一节单独说。
 
-**发正式版**。`devkit.release` 从仓根把包按依赖序发到源（tag latest）：git 树不干净就拒、同号在源上就拒、不改仓里任何文件、不碰任何 home。
+**发正式版**。`devkit.release` 从仓根把包按依赖序发到源（tag latest）：git 树不干净就拒、同号在源上就拒、构建之后上车检票没过就拒、不改仓里任何文件、不碰任何 home。检票查每个要发的包：自己不在 0.0.x、`@godcreator` 的 peer 写 `^<dev 钉>`、dev 精确钉等于源上 `dist-tags.latest`；没过一个都不发，回执按包一次列全，peer 指向的上游还在 0.0.x 只在 `reminders` 里提醒。发出去的 `workspace:` 依赖写 `^`：同趟兄弟 `^新号`，其余 `^<工作区里那个号>`。
 
-**依赖对账**。`devkit.audit-deps` 扫容器根各仓的 `@godcreator` 声明对源上现值，出死钉、火车债、下限水分三样账，只读。「最新」认 `dist-tags.latest`，退役单元不扫，`private` 清单只查 dev 钉。
+{/* ref file="../plugins/devkit/src/release.ts" lines="142-200" */}
+
+**依赖对账**。`devkit.audit-deps` 扫容器根各仓的 `@godcreator` 声明对源上现值，只读。dev 钉：死钉（源上没有）、`behind`（落后 latest 但还在 `^<dev 钉>` 范围内）、`out-of-range`（latest 出了范围，必须追）、非精确钉；peer：`peer-not-caret`（还写 `>=` 或别的写法）、下限在源上没有、下限 ≠ dev 钉、没有 dev 镜像。「最新」认 `dist-tags.latest`，退役单元不扫，`private` 清单只查 dev 钉。
+
+{/* ref file="../plugins/devkit/src/audit.ts" lines="150-215" */}
 
 **在页面里动手**。`devkit.cdp` 是经 `gwbNodeCli` 登记的外部 CLI，连上一个工作台页面发真鼠标、真按键、截图，也能在那张页上跑工作台命令、刷新、问它是哪个 home、把一个文件送进页面里跑（`eval <文件> [JSON 参数]`，文件里写 `(args) => 一张表`）。路径一概不看工作目录：截图缺省落被截那个 home 自己的 `out\cdp\`，给输出与 `eval` 的文件都只收绝对路径。
 

@@ -130,9 +130,11 @@ function workspaceVersions(repoDir: string, depth = 2): Map<string, string> {
  * - **号换成这一趟那个**
  * - **`scripts` 与 `devDependencies` 删掉**:分发包里没人跑它们,留着只会让装的那头去解析
  *   一堆开发期依赖
- * - **`workspace:` 换成真号**。临时目录不在工作区里,pnpm 不会替我们换,留着它装不上
- * - **这一趟同时发的那几个包,依赖一律钉成它们的 dev 号**。不钉的话 `>=x` 认不到 dev 版
- *   (semver 不拿预发布版满足不带预发布的范围),装出来就是「新件配旧库」,而且不报错
+ * - **`workspace:` 换成 `^<工作区里那个号>`**。临时目录不在工作区里,pnpm 不会替我们换,留着它
+ *   装不上
+ * - **这一趟同时发的那几个包(`siblings`),dependencies 一律换成它给的写法**:开发版给准确
+ *   dev 号(`^x` 认不到 dev 版——semver 不拿预发布版满足不带预发布的范围,不钉装出来就是
+ *   「新件配旧库」,而且不报错),正式版给 `^新号`
  */
 export function distManifest(
   manifest: DistManifest,
@@ -149,7 +151,7 @@ export function distManifest(
     for (const [name, range] of Object.entries(table)) {
       const sibling = siblings[name]
       if (pinSiblings && sibling !== undefined) next[name] = sibling
-      else if (range.startsWith('workspace:')) next[name] = `>=${workspace.get(name) ?? '0.0.0'}`
+      else if (range.startsWith('workspace:')) next[name] = `^${workspace.get(name) ?? '0.0.0'}`
       else next[name] = range
     }
     return next
@@ -167,8 +169,8 @@ export function distManifest(
  * 的话,中途摔了就留下一个号被动过的工作区,而那是最难认出来的现场。
  *
  * 开发版与正式版只差两处,都由调用方给:**打哪个 tag**(dev 不动 latest / latest)与
- * **同趟兄弟的依赖写什么**(开发版钉准确号,semver 的范围认不到预发布号;正式版给 `>=`
- * 范围,消费方跟得进后续 patch)。
+ * **同趟兄弟的依赖写什么**(开发版钉准确号,semver 的范围认不到预发布号;正式版给 `^`
+ * 范围,消费方跟得进破坏边界以内的后续版本)。
  *
  * 带进分发包的东西**取自 `files` 白名单**,不在这儿另列一份——两份名单必然漂。
  */
@@ -326,6 +328,13 @@ export const releaseDeps: ReleaseDeps = {
     const seen = await runCaptured(pnpmPlan(['view', spec, 'version', '--registry', registry], os.tmpdir(), process.platform), 60_000)
     return seen.ok
   },
+  latest: async (pkg, registry) => {
+    const seen = await runCaptured(pnpmPlan(['view', pkg, 'dist-tags.latest', '--registry', registry], os.tmpdir(), process.platform), 60_000)
+    if (!seen.ok) return undefined
+    const lines = seen.tail.split(/\r?\n/).map((line) => line.trim())
+    return lines.reverse().find((line) => /^\d+\.\d+\.\d+(?:-[0-9A-Za-z.-]+)?$/.test(line))
+  },
+  workspaceVersions: (repoDir) => Object.fromEntries(workspaceVersions(repoDir)),
   gitStatus: gitStatusOf,
   readText(file) {
     try {

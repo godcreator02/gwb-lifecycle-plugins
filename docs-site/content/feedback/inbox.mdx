@@ -75,22 +75,3 @@ base-plugins 的卡：body 落文件再 `--data-binary @file`，那条归 comman
    `plugin-manager.add-entry`——指引清楚，但离那张卡要的自动化还差最后一步，建议那条不撤。
 
 **进展**（09-18）：第 1 条写进了附件 `references/ui.md`「浏览器半」开头；剩第 2、3 条。
-
-## 2026-09-18 gwb-release「一键更新遇到没追上的下游会整趟拒」与 pnpm 实际行为不符
-
-来源：总控台（外壳 0.9.0、词汇表 0.1.2 发版当天，对照 pnpm 12.4.2 实测）。
-
-- 说明书第四节第 2 步与 `2026-09-18-release-rules` 卡说：发了破坏版之后，default 的一键更新遇到
-  没追上的下游会整趟拒。实际上 `strict-peer-dependencies` 在用户级 pnpm 配置与 default home 里都
-  没设，pnpm 12 默认关，**peer 不满足只警告、不拒**。现场：ui-plugins 仓 `pnpm install` 时外壳 0.9.0
-  要词汇表 `>=0.1.2`、装着的是 0.1.1——只出 `[WARN] Issues with peer dependencies found`，退出码 0；
-  plugin-manager 的 update-all 里也没有任何 peer 判断。所以这层保护今天不存在，迁成 `^` 也只是多几条 warn。
-- 要让它成真（开 strict）会撞开发版：semver 的预发布号只满足带同一个 x.y.z 预发布标记的范围，
-  `0.9.1-dev.…` 既不满足 `^0.9.0` 也不满足 `>=0.9.0`（semver 7.8.5 实测）。开了 strict 后，
-  `devkit.dev` 往隔离 home 装上游件的开发版，已装下游的 `^` peer 全不满足、安装被拒。两件事得一起
-  设计——比如 strict 只加在 default 的一键更新上，`devkit.dev` 装隔离 home 时显式关掉。
-- 同一张表里「种子 `>=` 下限，npm 解析出冲突就不出包」这句成立：种子走 npm install，npm 7 起遇
-  peer 冲突默认报 ERESOLVE。
-
-**投来的建议**：说明书第四节第 2 步与那张卡改成现状（只警告）；要不要做成硬拒、怎么跟开发版共存，
-是一个待定方向，进 spec 区谈。

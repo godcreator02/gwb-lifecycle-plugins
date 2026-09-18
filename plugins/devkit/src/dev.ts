@@ -504,6 +504,8 @@ export async function runDev(input: DevInput, deps: DevDeps): Promise<DevOutcome
     const written = deps.writeText(manifestFile, pinnedText)
     if (!written.ok) return { ok: false, error: `写不进 ${manifestFile}:${written.error}`, data: { shipped } }
   }
+  // 不带严格与否的参数,走目标 home 自己的配置:隔离 home 不放 pnpm-workspace.yaml,就是 pnpm 默认
+  // 的不严格——开发版的号带预发布段,semver 不拿它满足别的件的 `^` peer,严格了这一趟必拒
   const installed = await deps.run(pnpmPlan(['install'], guard.home, deps.platform), ADD_TIMEOUT_MS)
   if (!installed.ok) {
     // 装没成就把清单放回原样:留着一份「声明了新号、盘上是旧号」的清单,下一个在这个 home 里跑

@@ -126,6 +126,7 @@ const RELEASE_USAGE = [
   '  packages  可选，要发的包目录，相对仓根，**按依赖顺序**（被依赖的排前面）。不给就是仓根自己',
   '**号在仓里抬**：发的是 package.json 里声明的那个号，同号在源上就拒——要发新的一版，先抬号、提交，再来',
   '**仓根 git 树不干净就拒**：正式版只从提交过的状态发',
+  '**上车检票没过就拒**：自己不在 0.0.x、@godcreator 的 peer 写 ^<dev 钉>、dev 钉＝源上 dist-tags.latest（规矩见说明书 gwb-release）',
   '**这条链只碰源、不碰任何 home**，从哪个 home 调都行；升 default 是下一步的事，走 plugin-manager.update-all',
   '例：{"dir":"D:\\\\unitfolders\\\\26090814otr\\\\gwb-block-note","packages":["packages/model","packages/engine","packages/client","plugins/gwb-bn-core","plugins/gwb-bn-comment"]}',
 ].join('\n')
@@ -404,9 +405,9 @@ export function apply(ctx: GwbContext): void {
       {
         name: 'devkit.release',
         plugin: '@godcreator/gwb-devkit',
-        description: '发正式版到团队源（树干净守卫→build→验产物→staging 发）',
+        description: '发正式版到团队源（树干净守卫→build→验产物→上车检票→staging 发）',
         usage:
-          '{dir 必给（仓根绝对路径）, packages?（包目录，相对仓根，按依赖顺序；不给就是仓根自己）}。一条走完：仓根 git 树干净守卫（有未提交改动就拒，一个都不发）→ 仓根 pnpm build → 照 files 白名单验产物 → 同号已在源上就拒 → staging 发版（不改仓里任何文件；tag latest；workspace: 依赖写成 >= 范围，这一趟同发的写成 >= 新号）→ 按给定顺序发完。**号在仓里抬**（改 package.json 提交），同号永不重发。只碰源不碰任何 home；升 default 走 plugin-manager.update-all',
+          '{dir 必给（仓根绝对路径）, packages?（包目录，相对仓根，按依赖顺序；不给就是仓根自己）}。一条走完：仓根 git 树干净守卫（有未提交改动就拒，一个都不发）→ 仓根 pnpm build → 照 files 白名单验产物 → 同号已在源上就拒 → 上车检票（每个要发的包：自己不在 0.0.x；@godcreator 的 peer 全写 ^x.y.z 且下限＝dev 钉；dev 精确钉全等于源上 dist-tags.latest，workspace: 跳过。没过就一个都不发，回执按包一次列全「把哪条改成什么」，落后的分范围内/出范围两种说法；peer 指向的上游还在 0.0.x 只提醒，带在回执 reminders 里）→ staging 发版（不改仓里任何文件；tag latest；workspace: 依赖写成 ^<工作区里那个号>，这一趟同发的写成 ^新号）→ 按给定顺序发完。**号在仓里抬**（改 package.json 提交），同号永不重发。只碰源不碰任何 home；升 default 走 plugin-manager.update-all',
       },
       async (args) => {
         if (!isRecord(args)) return { ok: false, error: `参数要是个对象。\n${RELEASE_USAGE}` }
@@ -439,7 +440,7 @@ export function apply(ctx: GwbContext): void {
         plugin: '@godcreator/gwb-devkit',
         description: '全生态依赖对账：各插件仓的 @godcreator 声明对 registry 现值，抓死钉与火车债',
         usage:
-          '{root?（容器根绝对路径，缺省现问命令总线 unit-folder.list 回的 container）, registry?（缺省个人源）}。无参数直接调也行。回执 { ok, data: { root, registry, repos, manifests, packages, retired, findings, byKind } }——findings 逐条 { kind, repo, manifest, pkg, detail }；kind：dead-pin（钉了源上没有的版本，装必炸）/ behind（dev 钉落后源上 dist-tags.latest，火车债；dev 号不算最新）/ floor-unverifiable（下限指向源上没有的版本）/ floor-mismatch（下限 ≠ dev 钉）/ floor-no-mirror（peer 无 dev 镜像）/ loose-dev-pin（dev 钉不是精确号）。退役单元（unit.json 的 status 是 retired）整个不扫，名字列在 retired；private: true 的清单不发布，只查 dev 钉那三类、不查 peer 下限。只读不改：扫仓、读 package.json、问源',
+          '{root?（容器根绝对路径，缺省现问命令总线 unit-folder.list 回的 container）, registry?（缺省个人源）}。无参数直接调也行。回执 { ok, data: { root, registry, repos, manifests, packages, retired, findings, byKind } }——findings 逐条 { kind, repo, manifest, pkg, detail }；kind：dead-pin（钉了源上没有的版本，装必炸）/ behind（dev 钉落后源上 dist-tags.latest 但还在 ^<dev 钉> 范围内，提示，等各自下次发版；dev 号不算最新）/ out-of-range（最新已出 ^ 范围，上游出了破坏版，必须追）/ peer-not-caret（peer 不是 ^x.y.z——还写 >= 或别的写法，迁移欠账，发版检票会拒）/ floor-unverifiable（peer 下限指向源上没有的版本）/ floor-mismatch（peer 下限 ≠ dev 钉）/ floor-no-mirror（peer 无 dev 镜像）/ loose-dev-pin（dev 钉不是精确号）。退役单元（unit.json 的 status 是 retired）整个不扫，名字列在 retired；private: true 的清单不发布，只查 dev 钉那三类、不查 peer 下限。只读不改：扫仓、读 package.json、问源',
       },
       async (args) => {
         const askedRoot = isRecord(args) && typeof args.root === 'string' ? args.root.trim() : ''
@@ -469,7 +470,7 @@ export function apply(ctx: GwbContext): void {
         const byKind = countByKind(findings)
         log.info(
           `devkit.audit-deps：${String(repoDirs.length)} 仓 ${String(manifests.length)} 份 manifest 对 ${String(pkgs.length)} 个包（退役单元 ${String(retired.length)} 个不扫）——` +
-            `死钉 ${String(byKind['dead-pin'])}、火车债 ${String(byKind.behind)}、下限水分 ${String(byKind['floor-unverifiable'] + byKind['floor-mismatch'])}`,
+            `死钉 ${String(byKind['dead-pin'])}、必须追 ${String(byKind['out-of-range'])}、范围内落后 ${String(byKind.behind)}、peer 未迁 ^ ${String(byKind['peer-not-caret'])}、下限水分 ${String(byKind['floor-unverifiable'] + byKind['floor-mismatch'])}`,
         )
         return { ok: true, data: { root, registry: registryBase, repos: repoDirs.length, manifests: manifests.length, packages: pkgs.length, retired, findings, byKind } }
       },

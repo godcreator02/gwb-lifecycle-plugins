@@ -1,6 +1,6 @@
 {
   "name": "{{pkg}}",
-  "version": "0.0.1",
+  "version": "0.1.0",
   "author": {"name": "godcreator"},
   "description": "{{title}}：devkit 模板插件——一格窗格（你好 + 计数）与一条 ping 命令的最小完整形状",
   "type": "module",
@@ -21,19 +21,19 @@
     "prepublishOnly": "pnpm build"
   },
   "engines": { "node": ">=24" },
-  "//peer": "硬依赖 gwbCommands 与 gwbShell（inject）；tokens 供样式映射面，shared-react 供页面 importmap。下限＝同名 dev 钉（验过的世界），dev 钉＝源上 dist-tags.latest。写 >= 不写 ^：caret 在 0.0.x 锁死 patch",
+  "//peer": "硬依赖 gwbCommands 与 gwbShell（inject）；tokens 供样式映射面，shared-react 供页面 importmap。peer 写 ^<dev 钉>，dev 钉＝源上 dist-tags.latest（发版检票 devkit.release 照这条拒）",
   "peerDependencies": {
-    "@godcreator/gwb-plugin-api": ">=0.1.1",
-    "@godcreator/gwb-commands": ">=0.4.2",
-    "@godcreator/gwb-shell": ">=0.8.0",
-    "@godcreator/gwb-tokens": ">=0.1.3",
-    "@godcreator/gwb-shared-react": ">=0.0.4"
+    "@godcreator/gwb-plugin-api": "^0.1.2",
+    "@godcreator/gwb-commands": "^0.4.2",
+    "@godcreator/gwb-shell": "^0.9.0",
+    "@godcreator/gwb-tokens": "^0.1.3",
+    "@godcreator/gwb-shared-react": "^0.0.4"
   },
   "devDependencies": {
-    "@godcreator/gwb-plugin-api": "0.1.1",
+    "@godcreator/gwb-plugin-api": "0.1.2",
     "@godcreator/gwb-repo-kit": "0.2.0",
     "@godcreator/gwb-commands": "0.4.2",
-    "@godcreator/gwb-shell": "0.8.0",
+    "@godcreator/gwb-shell": "0.9.0",
     "@godcreator/gwb-tokens": "0.1.3",
     "@godcreator/gwb-shared-react": "0.0.4",
     "@tailwindcss/cli": "^4.3.0",
