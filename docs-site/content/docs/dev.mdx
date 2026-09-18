@@ -25,7 +25,7 @@ plugin-manager 重挂它自己，回执先发、下一个宏任务才动手，�
 等它重新答话、那条条目 active，到点没等到回 `ok: false` 并说清卡在哪。所以目标 home 的
 plugin-manager 要 0.4.0 起。
 
-{/* ref file="../plugins/devkit/src/dev.ts" lines="557-605" */}
+{/* ref file="../plugins/devkit/src/dev.ts" lines="555-603" */}
 
 **装是「目标 home 清单写准确号，再 `pnpm install`」，装完读回核对。** 不走 `pnpm add <包>@<号>`：
 清单里已有 `^` 声明时（`plugin-manager.install` 写出来的就是），pnpm 沿用那个前缀写回 `^<号>`，
@@ -33,7 +33,7 @@ plugin-manager 要 0.4.0 起。
 它——装上的都不是这一趟发的号，退出码照样 0。清单里写死准确号就没有范围可解析。装完读
 `node_modules/<包>/package.json` 的 `version`，对不上当场 `ok: false`、不重挂：
 
-{/* ref file="../plugins/devkit/src/dev.ts" lines="491-526" */}
+{/* ref file="../plugins/devkit/src/dev.ts" lines="491-524" */}
 
 **版本号必须变，那是这条链的机制本身。** Node 的 ESM 模块图按 URL 缓存，同一个 URL 永远是同一
 个模块实例；原地覆盖产物不改路径，于是 cordis 把插件停用再启用，`import()` 回来的还是旧的。发一个
@@ -56,7 +56,7 @@ plugin-manager 要 0.4.0 起。
 不许有 error（`apply` 里一条 async 静默 reject，现象正好是「挂上了但什么都没发生」，那一条只在
 日志里）。
 
-{/* ref file="../plugins/devkit/src/dev.ts" lines="607-646" */}
+{/* ref file="../plugins/devkit/src/dev.ts" lines="605-644" */}
 
 **目标用名字指，端口是查出来的。** 给 `home` 名，端口从那个 home 的 `runtime.json` 里查（内核开机
 写的那份），顺带验活：pid 还活着、且那个 pid 真的持着记录里那个端口。**两头都要**：记录回答
@@ -99,7 +99,7 @@ home 路径的 `file://` 地址，所以问一趟正在跑的那张页就有答�
 只有拿装包之前那个日志长度才分得出来。单独摆一眼现状的东西不该长成一条命令——它没有基线，看到的
 error 可能是几天前的，而人会拿它的绿色当验收，那正好是这条链防的那件事。
 
-{/* ref file="../plugins/devkit/src/dev.ts" lines="649-651" */}
+{/* ref file="../plugins/devkit/src/dev.ts" lines="647-649" */}
 
 要现看一眼某个 home 的条目表，`devkit.cdp {"args":["<名>","cmd","plugin-manager.list"]}` 就是，
 那是看，不是验。
