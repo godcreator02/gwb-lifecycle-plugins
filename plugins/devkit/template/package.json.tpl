@@ -10,9 +10,9 @@
   },
   "files": ["dist", "src", "catalog.md"],
   "gwb": {
-    "plugin": true,
     "title": "{{title}}"
   },
+  "keywords": ["gwb", "gwb-plugin"],
   "//repository": "发到 gitea 后补上这一条：{ type: git, url: https://git.tianshen02.online:28377/godcreator/<仓>.git }——gitea 发布时读它把包链到仓（2026-09-18 实测：整包上链、跨 owner 也解析）",
   "scripts": {
     "//build": "三步：node 半 tsc、浏览器半 esbuild（react 外置走 importmap）、样式 tailwindcss 前缀直出",
