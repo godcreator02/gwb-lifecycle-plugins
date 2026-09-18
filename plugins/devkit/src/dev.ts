@@ -530,7 +530,7 @@ export async function runDev(input: DevInput, deps: DevDeps): Promise<DevOutcome
   for (const one of shipped) {
     const entries = entriesOf(listed.data, one.pkg)
     if (entries.length === 0) {
-      one.note = `装上了,但 ${guard.name} 里没有它的条目,没重挂——第一次装走 plugin-manager.install {"pkg":"${one.pkg}"},或者自己往 cordis.yml 加一条(id 手写)`
+      one.note = `装上了,但 ${guard.name} 里没有它的条目,没重挂——第一次建条目走 plugin-manager.install {"pkg":"${one.pkg}","spec":"${one.version}"}(钉这一趟的号,不给 spec 会装成 latest),之后每趟 devkit.dev`
       continue
     }
     for (const entry of entries) {

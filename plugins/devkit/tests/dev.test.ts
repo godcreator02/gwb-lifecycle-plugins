@@ -276,6 +276,14 @@ describe('一趟', () => {
     else expect(out.error).toBeTruthy()
   })
 
+  it('没条目时教的建条目写法钉着这一趟的准确号——不给 spec 就装成 latest，把刚装的开发版换掉', async () => {
+    const out = await runDev(input(), fake({ packages: [] }))
+    expect(out.ok).toBe(true)
+    if (!out.ok) return
+    const one = out.data.shipped[0]
+    expect(one?.note).toContain(`"spec":"${one?.version ?? ''}"`)
+  })
+
   it('重挂之后条目没活过来，当场判失败——这正是「看着成了」的那一种', async () => {
     const deps = fake({ packages: ONE_ENTRY, packagesAfter: [{ pkg: PKG, entries: [{ entryId: 'home:fake', active: false }] }] })
     const out = await runDev(input(), deps)
