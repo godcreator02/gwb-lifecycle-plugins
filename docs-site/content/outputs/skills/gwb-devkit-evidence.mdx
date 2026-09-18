@@ -15,6 +15,7 @@ description: gwb-devkit 说明书的附件——在隔离 home 的页面里点�
 
 ```
 devkit.cdp {"args":["<home 名>","eval","D:\\…\\out\\量一下.js"]}
+devkit.cdp {"args":["<home 名>","shot"]}
 devkit.cdp {"args":["<home 名>","cmd","plugin-manager.list"]}
 devkit.cdp {"args":["<home 名>","home"]}
 devkit.cdp {"args":["<home 名>","click",".dv-tab@=日志"]}
@@ -30,10 +31,17 @@ devkit.cdp {"args":["<home 名>","click",".dv-tab@=日志"]}
 
 - 文件里是**一个函数表达式** `(args) => 一张表`，想 await 就写 async；第二个参数是一段 JSON，
   不给按空对象调。返回值就是读数
-- **路径给绝对路径**：相对路径按当前工作目录解，经 MCP 门调时那个目录是 devkit 包自己的目录
+- **文件只收绝对路径**，相对的当场拒：`devkit.cdp` 不看工作目录（走总线时那是 devkit 包自己的目录）。
+  PowerShell 里 `(Resolve-Path <文件>).Path` 拿绝对路径
 - 表达式放文件：命令行上 PowerShell 的引号会截断它
-- 一次性的量表脚本落 `out/`（gitignore）；提交进仓的会跟着界面一起变黄，而且不报错。
-  截图落点同样按工作目录算，缺省 `<cwd>\out\cdp\`
+- 一次性的量表脚本落你自己仓的 `out/`（gitignore）；提交进仓的会跟着界面一起变黄，而且不报错
+
+## `shot`
+
+- 缺省落**被截的那个 home 自己的目录** `<home>\out\cdp\shot-<时刻>.png`，回执 `file` 是绝对路径。
+  它是那个现场的证据，`devkit.home.rm` 删 home 时跟着没
+- 要落别处：`shot <绝对路径.png> [选择器]`，相对路径当场拒
+- 落点在 devkit 包目录或任何 `node_modules` 里也拒——那是装好的包，写进去弄脏它
 
 ## 两条实机规矩
 

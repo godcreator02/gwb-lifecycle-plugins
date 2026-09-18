@@ -42,8 +42,7 @@ function runCdp(home: string, args: string[], timeoutMs: number): Promise<{ ok: 
         // 件跑在 Electron 主进程里,`process.execPath` 是 electron.exe:**不带
         // `ELECTRON_RUN_AS_NODE` 它会去开一扇窗,而不是跑那个 js**(node-cli 件同一个绕法)
         env: { ...process.env, ELECTRON_RUN_AS_NODE: '1' },
-        // 这几个动作一个都不写盘(写盘的只有 shot 与 probe),所以给个中性的工作目录,
-        // 别把内核的 cwd 带进去
+        // 那支驱动的路径一概不看工作目录;给个中性的,别把内核的 cwd 带进去
         cwd: os.tmpdir(),
       })
     } catch (error) {

@@ -1,0 +1,21 @@
+== 基线：0.14.1 已发版（0.14.1）
+node v24.14.1 · pkg=C:\Users\godamericatb14\AppData\Roaming\gwb-kernel\homes\cdpshot-2609181138\node_modules\.pnpm\@godcreator+gwb-devkit@0.14_2a5ee6a7bd792d989d6a6feac73b14f4\node_modules\@godcreator\gwb-devkit · work=C:\Users\GODAME~1\AppData\Local\Temp\cdp-paths-260918114356
+[shot 缺省] exit=0 "file": "C:\\Users\\godamericatb14\\AppData\\Roaming\\gwb-kernel\\homes\\cdpshot-2609181138\\node_modules\\.pnpm\\@godcreator+gwb-devkit@0.14_2a5ee6a7bd792d989d6a6feac73b14f4\\node_modules\\@godcreator\\gwb-devkit\\bin\\out\\cdp\\shot-2026-09-18T03-43-57.png",
+[shot 绝对] exit=0 "file": "C:\\Users\\GODAME~1\\AppData\\Local\\Temp\\cdp-paths-260918114356\\given.png",
+[shot 相对] exit=0 "file": "C:\\Users\\godamericatb14\\AppData\\Roaming\\gwb-kernel\\homes\\cdpshot-2609181138\\node_modules\\.pnpm\\@godcreator+gwb-devkit@0.14_2a5ee6a7bd792d989d6a6feac73b14f4\\node_modules\\@godcreator\\gwb-devkit\\bin\\rel\\given.png",
+[shot 进 node_modules] exit=0 "file": "C:\\Users\\godamericatb14\\AppData\\Roaming\\gwb-kernel\\homes\\cdpshot-2609181138\\node_modules\\.pnpm\\@godcreator+gwb-devkit@0.14_2a5ee6a7bd792d989d6a6feac73b14f4\\node_modules\\@godcreator\\gwb-devkit\\x.png",
+[eval 相对] exit=1 Error: C:\Users\godamericatb14\AppData\Roaming\gwb-kernel\homes\cdpshot-2609181138\node_modules\.pnpm\@godcreator+gwb-devkit@0.14_2a5ee6a7bd792d989d6a6feac73b14f4\node_modules\@godcreator\gwb-devkit\bin\probe.js 不在——eval 收的是一个文件路径（相对路径按当前工作目录算）
+[eval 绝对] exit=0 "文件": "C:\\Users\\GODAME~1\\AppData\\Local\\Temp\\cdp-paths-260918114356\\probe.js",
+包目录文件数 前=63 后=66 多出=3
+work 下：given.png, probe.js
+
+== 改后：0.15.1-dev.202609181139
+node v24.14.1 · pkg=C:\Users\godamericatb14\AppData\Roaming\gwb-kernel\homes\cdpshot-2609181138\node_modules\.pnpm\@godcreator+gwb-devkit@0.15_9b5dc2786508b56ab507655094ce233b\node_modules\@godcreator\gwb-devkit · work=C:\Users\GODAME~1\AppData\Local\Temp\cdp-paths-260918114358
+[shot 缺省] exit=0 "file": "C:\\Users\\godamericatb14\\AppData\\Roaming\\gwb-kernel\\homes\\cdpshot-260918113836\\out\\cdp\\shot-2026-09-18T03-43-58.png",
+[shot 绝对] exit=0 "file": "C:\\Users\\GODAME~1\\AppData\\Local\\Temp\\cdp-paths-260918114358\\given.png",
+[shot 相对] exit=1 Error: shot 的输出只收绝对路径，给的是 rel\given.png。不给就落这个 home 自己的 C:\Users\godamericatb14\AppData\Roaming\gwb-kernel\homes\cdpshot-260918113836\out\cdp
+[shot 进 node_modules] exit=1 Error: 落点 C:\Users\godamericatb14\AppData\Roaming\gwb-kernel\homes\cdpshot-2609181138\node_modules\.pnpm\@godcreator+gwb-devkit@0.15_9b5dc2786508b56ab507655094ce233b\node_modules\@godcreator\gwb-devkit\x.png 在 devkit 包目录 C:\Users\godamericatb14\AppData\Roaming\gwb-kernel\homes\cdpshot-2609181138\node_modules\.pnpm\@godcreator+gwb-devkit@0.15_9b5dc2786508b56ab507655094ce233b\node_modules\@godcreator\gwb-devkit 里——那是装好的包，写进去弄脏它、升级之后也找不回来
+[eval 相对] exit=1 Error: eval 的文件只收绝对路径，给的是 probe.js。这支脚本不看工作目录：走总线时那是 devkit 包自己的目录，直接 node 跑时是 shell 的，同一个相对路径两条路指两样东西。PowerShell 里 (Resolve-Path <文件>).Path 拿绝对路径
+[eval 绝对] exit=0 "文件": "C:\\Users\\GODAME~1\\AppData\\Local\\Temp\\cdp-paths-260918114358\\probe.js",
+包目录文件数 前=63 后=63 多出=0
+work 下：given.png, probe.js

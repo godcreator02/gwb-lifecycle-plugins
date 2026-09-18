@@ -1,0 +1,53 @@
+---
+title: cdp 的路径不看工作目录：截图落被截的 home，eval 只收绝对路径
+born-at: 2026-09-18T11:45
+type: choice
+parent: [2026-09-08-gwb-devkit]
+label: 路径不看 cwd
+domain: 开发循环
+---
+
+pivots-from:: [改一版看一版进 devkit，工具站在被换的进程外面](2026-09-11-dev-loop-comes-to-devkit.md)
+
+## 背景
+
+`bin/cdp.mjs` 从块笔记搬进本包时定的是「截图落点与 `eval` 文件的相对路径按工作目录算」——那时它主要被人
+在 shell 里 `node` 直接跑，工作目录就是人站的那个仓。后来它经 `gwbNodeCli` 登记成 `devkit.cdp`，经 MCP 门
+`run` 调成了常态，而 node-cli 运行器不给按次 cwd 时，工作目录缺省是 **entry 自己旁边**，也就是 home 里装的
+那个 devkit 包的 `bin/`。2026-09-18 实测 `devkit.cdp {"args":["<home>","shot","footer"]}` 把截图写进了
+`default` 的 `node_modules\.pnpm\@godcreator+gwb-devkit@0.14_…\…\gwb-devkit\bin\out\cdp\`：弄脏日常那份 home 的
+已装包，升级换了目录之后截图也找不到了。手册只能靠一句「经门调时一律给绝对路径」补 `eval`，`shot` 的缺省落点
+连给路径的口子都没有。
+
+## 结论与边界
+
+**这支脚本的路径一概不看工作目录**，两条到达路径（总线、直接 node）同一个规矩：
+
+- **截图缺省落被截的那个 home 自己的目录** `<home>\out\cdp\shot-<时刻>.png`。截图是那个现场的证据，
+  跟着现场走：`devkit.home.rm` 删 home 时一起没，不在任何仓里积灰。要落别处给**绝对**路径，相对的当场拒
+- **`eval` 的文件只收绝对路径**，相对的当场拒，错话里说为什么、给 `(Resolve-Path <文件>).Path` 的写法
+- **写盘前过一道守卫**：落点要是完整的绝对路径（Windows 上 `\foo` 这种挂在当前盘上的也算相对）、不在本包
+  目录里、不在任何 `node_modules` 里，过不了就抛、一个字节都不落。缺省与显式两条都过它
+- 落点怎么算抽成纯函数，文件被 import 时只交出它们、文件尾只在被 node 直接起时动手（`import.meta.main`，
+  老 Node 退回比 argv[1] 与模块的真实路径）；单测钉住落点，外加一条「整个文件不出现 `process.cwd()`」
+
+**为什么 `eval` 不是「相对目标 home 解」**：量表脚本是调用方的输入，住在调用方的仓或临时目录里，从来不住在
+被量的 home 里；相对 home 解等于换一个同样猜不中的基准。截图反过来——它是 home 的产物，落 home 是对的。
+
+**为什么不靠 node-cli 的按次 `cwd`**：那是调用方每次都要记得给的参数，忘了就回到写进包目录；而且直接 `node`
+跑时同一个相对路径又是另一个意思。不看 cwd 是一条规矩管两条路。
+
+**这是破坏**：原先收的相对路径现在拒、缺省落点换了地方，按发版规则抬次版本（0.15.0）。
+
+## 依据
+
+`probes/2609181139_cdp-paths-ignore-cwd/`（`results.txt`）：照运行器的样子（工作目录＝cdp.mjs 所在的 `bin/`）
+对同一个隔离 home 里装的两版各跑六个场景。基线 0.14.1：缺省截图、相对输出、落进包目录三趟都写进了已装包，
+包目录文件 63 → 66；`eval` 相对路径去包的 `bin/` 下找。改后 0.15.1-dev：缺省截图落目标 home 的 `out\cdp\`，
+相对输出、相对 `eval`、落进包目录三趟当场拒并说清，包目录文件 63 → 63。经总线那条路（default → 隔离 home A
+的总线 → A 装的 `devkit.cdp` 截隔离 home B）同样落 B 的 `out\cdp\`，A 的包目录没多文件。
+
+## 代价与遗留
+
+- 人在 shell 里直接跑时不能再写 `eval out\量一下.js`，要写绝对路径——多敲几个字，换两条路一个意思
+- `shot` 的缺省截图住进 home 目录，不删 home 就一直在；这正是它该在的地方，但攒多了要靠清 home 收拾

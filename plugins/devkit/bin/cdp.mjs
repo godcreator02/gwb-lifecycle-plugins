@@ -9,10 +9,13 @@
 // `devkit.cdp {"args":["<home 名>","<动作>",…]}`（经 gwbNodeCli 登记，见本包 src/index.ts）。
 // `devkit.dev` 那条链里，重挂、刷新、取证三步也是起它的子进程做的。
 //
-// **落点按工作目录算**，不按这个文件在哪算：截图落 `<cwd>/out/cdp/`，`eval` 那个文件
-// 按 cwd 解相对路径。这支脚本住在 node_modules 里，拿它自己的位置去解，只会在别人的
-// 依赖树里翻。量一张表的脚本落哪儿是调用方的纪律，一次性的就落 `out/`（那儿 gitignore
-// 着，本来就是随时可以清空的地方）——提交进仓的那种会跟着界面一起变黄，而且不报错。
+// **路径一概不看工作目录**：走总线时进程的工作目录是这支脚本自己所在的包目录，直接 node 跑时
+// 是敲命令那个 shell 的目录，同一个相对路径在两条路上指两样东西。所以截图缺省落**被截的那个
+// home 自己的目录** `<home>\out\cdp\`（那个现场的证据，跟着 home 走），要落别处给绝对路径；
+// `eval` 那个文件只收绝对路径。写盘的落点一律不许在本包目录与任何 `node_modules` 里——这支脚本
+// 装在 home 的 node_modules 里，往那儿写是弄脏一份装好的包。
+// 量一张表的脚本落哪儿是调用方的纪律，一次性的就落调用方自己的 `out/`（gitignore 着，本来就是
+// 随时可以清空的地方）——提交进仓的那种会跟着界面一起变黄，而且不报错。
 //
 // 为什么不在页面里自己造事件（`el.dispatchEvent(new PointerEvent(…))`）：
 // 造出来的事件**不做命中测试**，目标被浮层盖住照样打得中，而遮挡正是这套界面最容易出的错；
@@ -27,8 +30,8 @@
 // 口」，不说「此刻这个口上还是它」。
 // 端口是个没有语义的数，敲错一位就落在另一个现场，而那个现场会老老实实收下你发的事件。
 //
-//   eval   <文件> [JSON 参数]         在页面里跑一个函数：文件里写 `(args) => 一张表`
-//   shot   [输出.png] [选择器]        截图；给选择器就裁到它
+//   eval   <文件> [JSON 参数]         在页面里跑一个函数：文件里写 `(args) => 一张表`；文件只收绝对路径
+//   shot   [输出.png] [选择器]        截图；给选择器就裁到它。缺省落 `<home>\out\cdp\`，给输出就给绝对路径
 //   move   <点>                       悬停——这套界面一半东西是悬停才出现的
 //   click  <点>                       命中检查过了才点
 //   rclick <点>                       右键（块菜单挂在 contextmenu 上，左键点不出来）
@@ -84,7 +87,87 @@ for (const arg of process.argv.slice(2)) {
   else rest.push(arg)
 }
 const [home, verb, ...args] = rest
-if (!home || !verb) throw new Error('用法：node <本文件> <home 名> <动作> [参数…]，动作见文件头')
+
+// ---------------------------------------------------------------------------
+// 落点：一概不看工作目录（这一段全是纯函数，单测直接 import）
+// ---------------------------------------------------------------------------
+
+/** 本包的根（`bin/` 的上一层）。写盘的落点不许在它里面 */
+export const PACKAGE_ROOT = path.dirname(path.dirname(fileURLToPath(import.meta.url)))
+
+/** home 根。只在 Windows 上认得出：`%APPDATA%\gwb-kernel\homes`；别处回 undefined，不猜 */
+export function homesRootOf(env = process.env, platform = process.platform) {
+  return platform === 'win32' && env.APPDATA ? path.join(env.APPDATA, 'gwb-kernel', 'homes') : undefined
+}
+
+/** home 名 → 那个 home 的目录。`root` 是 `homesRootOf()` 的结果 */
+export function homeDirOf(name, root) {
+  if (root === undefined) throw new Error('认不出 home 根在哪——这支只在 Windows 上认得出 home 根')
+  return path.join(root, name)
+}
+
+/**
+ * 完整的绝对路径。Windows 上 `\foo` 也算 isAbsolute，可它挂在「进程当前那个盘」上、还是要看
+ * 进程在哪，所以那边要带盘符或是 UNC。
+ */
+export function isFullPath(p) {
+  if (typeof p !== 'string' || !path.isAbsolute(p)) return false
+  return process.platform !== 'win32' || /^(?:[a-zA-Z]:[\\/]|[\\/]{2}[^\\/])/.test(p)
+}
+
+/**
+ * 写盘前的守卫：完整的绝对路径、不在本包目录里、不在任何 `node_modules` 里。过不了就抛，
+ * 一个字节都不落。回规整过的路径。
+ */
+export function assertWritable(file, pkgRoot = PACKAGE_ROOT) {
+  if (!isFullPath(file)) throw new Error(`落点 ${file} 不是完整的绝对路径——这支脚本不看工作目录，相对路径没有「相对于谁」`)
+  const norm = path.normalize(file)
+  const rel = path.relative(pkgRoot, norm)
+  if (rel === '' || (rel !== '..' && !rel.startsWith(`..${path.sep}`) && !path.isAbsolute(rel))) {
+    throw new Error(`落点 ${norm} 在 devkit 包目录 ${pkgRoot} 里——那是装好的包，写进去弄脏它、升级之后也找不回来`)
+  }
+  if (norm.split(/[\\/]/).some((seg) => seg.toLowerCase() === 'node_modules')) {
+    throw new Error(`落点 ${norm} 在 node_modules 里——那是装好的依赖树，不是放产物的地方`)
+  }
+  return norm
+}
+
+/** `shot` 的两个位置参数：第一个以 .png 结尾就是输出路径、后面跟选择器；否则它就是选择器 */
+export function shotArgsOf(list) {
+  const out = list[0] !== undefined && list[0].toLowerCase().endsWith('.png')
+  return { given: out ? list[0] : undefined, sel: out ? list[1] : list[0] }
+}
+
+/**
+ * 截图落哪。缺省落**被截的那个 home 自己的目录**：`<home>\out\cdp\shot-<时刻>.png`；给了输出就
+ * 只收完整的绝对路径。两条都过 `assertWritable`。
+ */
+export function shotFileOf(given, homeDir, now = new Date(), pkgRoot = PACKAGE_ROOT) {
+  if (given === undefined) {
+    const stamp = now.toISOString().replace(/[:.]/g, '-').slice(0, 19)
+    return assertWritable(path.join(homeDir, 'out', 'cdp', `shot-${stamp}.png`), pkgRoot)
+  }
+  if (!isFullPath(given)) {
+    throw new Error(`shot 的输出只收绝对路径，给的是 ${given}。不给就落这个 home 自己的 ${path.join(homeDir, 'out', 'cdp')}`)
+  }
+  return assertWritable(given, pkgRoot)
+}
+
+/** `eval` 那个文件：只收完整的绝对路径，回规整过的路径 */
+export function evalFileOf(given) {
+  if (given === undefined) throw new Error('eval 要一个文件的绝对路径，文件里写 `(args) => 一张表`')
+  if (!isFullPath(given)) {
+    throw new Error(
+      `eval 的文件只收绝对路径，给的是 ${given}。这支脚本不看工作目录：走总线时那是 devkit 包自己的目录，` +
+        '直接 node 跑时是 shell 的，同一个相对路径两条路指两样东西。PowerShell 里 (Resolve-Path <文件>).Path 拿绝对路径',
+    )
+  }
+  return path.normalize(given)
+}
+
+// ---------------------------------------------------------------------------
+// 找到那个 home
+// ---------------------------------------------------------------------------
 
 /**
  * 第一个位置是 **home 名，不是端口**（0.5.0 起）。口从那个 home 的 `runtime.json` 里查
@@ -94,17 +177,13 @@ if (!home || !verb) throw new Error('用法：node <本文件> <home 名> <动�
  * 收下你发的事件。名字有拼写、有记录、连上之后还能跟页面自报的名字对一次（见 `assertHome`），
  * 三样端口都没有。给了数字当场拒，不静默改道。
  *
- * home 根：Windows 是 `%APPDATA%\gwb-kernel\homes`。
+ * `dir` 是那个 home 的目录（`homeDirOf`）。
  */
-function portOf(name) {
+function portOf(name, dir) {
   if (/^\d+$/.test(name)) {
     throw new Error(`第一个位置要 home 名，不是端口（给的是 ${name}）。哪个 home 在跑、口在哪，看 devkit.home.list`)
   }
-  const root = process.platform === 'win32' && process.env.APPDATA
-    ? path.join(process.env.APPDATA, 'gwb-kernel', 'homes')
-    : undefined
-  if (root === undefined) throw new Error('认不出 home 根在哪——这支只在 Windows 上认得出 home 根')
-  const file = path.join(root, name, 'runtime.json')
+  const file = path.join(dir, 'runtime.json')
   if (!fs.existsSync(file)) throw new Error(`${file} 不在——${name} 没起过，或者起它的内核版本还不写这份记录。停掉重开一次`)
   let record
   try {
@@ -119,7 +198,9 @@ function portOf(name) {
   return String(cdp)
 }
 
-const port = portOf(home)
+/** 目标 home 的目录与调试口。直接跑的时候才填（见文件尾），被 import 时一直是 undefined */
+let homeDir
+let port
 
 /** CDP 的修饰键是位掩码，不是名字 */
 const MOD_BIT = { alt: 1, ctrl: 2, meta: 4, shift: 8 }
@@ -129,11 +210,6 @@ const modifiers = (opts.mod ?? '')
   .reduce((sum, name) => sum | (MOD_BIT[name.trim().toLowerCase()] ?? 0), 0)
 
 const pad = Number(opts.pad ?? 0)
-/**
- * 相对路径与截图落点按**工作目录**算，不按这个文件在哪算。这支脚本装在 home 的
- * `node_modules` 里，照文件位置解，解出来的是别人依赖树里的路径。
- */
-const cwd = process.cwd()
 
 /**
  * 一条 CDP 消息等多久。看门狗防的是**页面卡住**，不是「这条命令干的活久」——所以
@@ -366,13 +442,6 @@ async function press(send, name) {
   await send('Input.dispatchKeyEvent', { type: 'keyUp', ...common })
 }
 
-/** 截图落盘。默认落 out/cdp/，那儿 gitignore 着 */
-function shotPath(given) {
-  if (given !== undefined && given.toLowerCase().endsWith('.png')) return path.resolve(given)
-  const stamp = new Date().toISOString().replace(/[:.]/g, '-').slice(0, 19)
-  return path.join(cwd, 'out', 'cdp', `shot-${stamp}.png`)
-}
-
 // ---------------------------------------------------------------------------
 // 在页面里跑一个文件
 // ---------------------------------------------------------------------------
@@ -387,11 +456,11 @@ function shotPath(given) {
  * **量什么不住这个文件**：界面改一版就要添一段、改一段，而这支脚本管的是「怎么把事件
  * 发进页面」，那件事一年也不该变一次。混在一起，稳的那半会跟着不稳的那半一起动。
  * 文件落哪儿是调用方的纪律：一次性的落 `out/`（gitignore 着），那儿本来就随时可以清空。
+ * `target` 是 `evalFileOf` 过过的绝对路径。
  */
-function callExpressionOf(file, rawArgs) {
-  const target = path.resolve(cwd, file)
+function callExpressionOf(target, rawArgs) {
   if (!fs.existsSync(target)) {
-    throw new Error(`${target} 不在——eval 收的是一个文件路径（相对路径按当前工作目录算）`)
+    throw new Error(`${target} 不在——eval 收的是一个文件的绝对路径`)
   }
   let args = {}
   if (rawArgs !== undefined) {
@@ -488,8 +557,8 @@ function insist(spot) {
 async function run(send, target) {
   switch (verb) {
     case 'eval': {
-      if (args[0] === undefined) throw new Error('eval 要一个文件路径，文件里写 `(args) => 一张表`')
-      return { did: 'eval', 文件: path.resolve(cwd, args[0]), 表: await evaluate(send, callExpressionOf(args[0], args[1])) }
+      const file = evalFileOf(args[0])
+      return { did: 'eval', 文件: file, 表: await evaluate(send, callExpressionOf(file, args[1])) }
     }
 
     case 'move': {
@@ -632,11 +701,12 @@ async function run(send, target) {
       return { did: 'home', ...homeOf(await evaluate(send, HOME_EXPR)) }
 
     case 'shot': {
+      // 落点先算：给错了就在抬窗、截图之前停
+      const { given, sel } = shotArgsOf(args)
+      const file = shotFileOf(given, homeDir)
       await send('Page.enable')
       // 只有截图这一件真的要画面，所以只有它去抬窗口
       const seen = await visibility(send, true)
-      const file = shotPath(args[0])
-      const sel = args[0] !== undefined && !args[0].toLowerCase().endsWith('.png') ? args[0] : args[1]
       /*
        * 裁剪只要那个盒子，**不要命中检查**。命中检查是给点击用的：要点中一个东西，它得
        * 真的在那个点的最上面。裁图不点任何东西——一段长正文的中心点落在状态栏上是常态
@@ -686,7 +756,26 @@ async function assertHome(send) {
 
 // ---------------------------------------------------------------------------
 
-{
+/**
+ * 被 `node <本文件>` 起的时候才动手；被 import 时（单测）只交出上面那几个纯函数。
+ * `import.meta.main` 是 Node 24.2 起的；更老的 Node 上它不在，退回拿 argv[1] 比真实路径——
+ * home 里的包路径经 pnpm 的 junction，两头都得过 realpath 才比得上。
+ */
+function invokedDirectly() {
+  if (typeof import.meta.main === 'boolean') return import.meta.main
+  const entry = process.argv[1]
+  if (entry === undefined) return false
+  try {
+    return fs.realpathSync.native(entry) === fs.realpathSync.native(fileURLToPath(import.meta.url))
+  } catch {
+    return false
+  }
+}
+
+if (invokedDirectly()) {
+  if (!home || !verb) throw new Error('用法：node <本文件> <home 名> <动作> [参数…]，动作见文件头')
+  homeDir = homeDirOf(home, homesRootOf())
+  port = portOf(home, homeDir)
   const { ws, send, page } = await connect()
   try {
     await assertHome(send)

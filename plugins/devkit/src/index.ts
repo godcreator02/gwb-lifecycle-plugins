@@ -318,7 +318,7 @@ export function apply(ctx: GwbContext): void {
       plugin: '@godcreator/gwb-devkit',
       description: '在一个工作台页面里动手（CDP 直达，只对隔离 home 用）',
       usage:
-        '{"args":["<home 名>","<动作>","<参数…>"]}。**第一个位置只收 home 名，给数字当场拒**——口从那个 home 的 runtime.json 里查，连上之后还拿页面自报的名字核对一次。动作 eval <文件> [JSON 参数] / shot [图.png] [选择器] / move / click / rclick / drag / type / key / scroll <点> / cmd <命令名> [JSON 参数] / reload [选择器] [秒] / home。点写成 .sel、.sel@=文字、.a@=文字 >> .b，或 x,y。开关 --target / --mod / --pad / --size / --timeout。**只对隔离 home 用，绝不打 default**：这儿发的是真操作。够不着的 home 是起的时候没带 --remote-debugging-port，停掉重开一次',
+        '{"args":["<home 名>","<动作>","<参数…>"]}。**第一个位置只收 home 名，给数字当场拒**——口从那个 home 的 runtime.json 里查，连上之后还拿页面自报的名字核对一次。动作 eval <文件绝对路径> [JSON 参数] / shot [图.png 绝对路径] [选择器] / move / click / rclick / drag / type / key / scroll <点> / cmd <命令名> [JSON 参数] / reload [选择器] [秒] / home。点写成 .sel、.sel@=文字、.a@=文字 >> .b，或 x,y。开关 --target / --mod / --pad / --size / --timeout。**路径不看工作目录**：截图缺省落被截那个 home 自己的 out\\cdp\\，要落别处给绝对路径；eval 的文件只收绝对路径，相对的当场拒；落点在本包目录或任何 node_modules 里也拒。**只对隔离 home 用，绝不打 default**：这儿发的是真操作。够不着的 home 是起的时候没带 --remote-debugging-port，停掉重开一次',
       entry: CDP_ENTRY,
     })
   })
