@@ -10,10 +10,10 @@
 - **node 半**（`src/index.ts`）：挂载、注册一格窗格、登记一条 `{{name}}.ping` 命令；
 - **浏览器半**（`src/client/`）：窗格里「你好 + 计数按钮」，Tailwind 前缀围栏（类名一律
   `{{cssPrefix}}:` 开头——cssPrefix 是短名剔除非小写字母，Tailwind 的 prefix 只收 a-z），react 走页面共享表；
-- **身份卡**（`catalog.md`）：是谁、提供什么、靠谁、有什么命令；
-- **四份测试**：身份与注册、catalog 不撒谎、类名前缀守卫、产物守卫。
+- **自述**（`package.json` 的 description）：是什么、干什么 + 服务 / skill / 命令三格——`tests/self-report.test.ts` 钉着防漏（正本住 @godcreator/gwb-repo-kit）；
+- **四份测试**：身份与注册、自述不撒谎、类名前缀守卫、产物守卫。
 
-改造成真插件：把窗格与 ping 换成你的东西——**可删可改，删了命令记得连 tests/catalog.test.ts 一起改**。
+改造成真插件：把窗格与 ping 换成你的东西——**改掉命令就顺手改 description 的三格**（服务 / skill / 命令），守卫会红。
 
 ## 跑起来
 

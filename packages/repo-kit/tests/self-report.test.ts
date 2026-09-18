@@ -2,7 +2,7 @@ import fs from 'node:fs'
 import os from 'node:os'
 import path from 'node:path'
 import { afterAll, describe, expect, it } from 'vitest'
-import { injectServicesOf, registerCatalogGuard } from '../src/catalog-guard.js'
+import { injectServicesOf, providedServicesOf, registerSelfReportGuard } from '../src/self-report-guard.js'
 import { mountHarness, registerPluginGuard } from '../src/plugin-guard.js'
 import type { GuardVt } from '../src/vitest-context.js'
 
@@ -73,18 +73,31 @@ afterAll(() => {
   for (const dir of tmps) fs.rmSync(dir, { recursive: true, force: true })
 })
 
-/** 造一个迷你仓：catalog.md + src/index.ts */
-function fixtureRepo(card: string, src: string): string {
+/** 造一个迷你包：package.json + src/index.ts（+ 可选 skills/ 与站现状区） */
+function fixtureRepo(description: string, src: string, extra: { skills?: number; docs?: string } = {}): string {
   const root = fs.mkdtempSync(path.join(os.tmpdir(), 'repo-kit-'))
   tmps.push(root)
   fs.mkdirSync(path.join(root, 'src'))
-  fs.writeFileSync(path.join(root, 'catalog.md'), card)
+  fs.writeFileSync(path.join(root, 'package.json'), JSON.stringify({ name: '@godcreator/gwb-demo', version: '1.0.0', description, keywords: ['gwb', 'gwb-plugin'] }))
   fs.writeFileSync(path.join(root, 'src', 'index.ts'), src)
+  for (let i = 0; i < (extra.skills ?? 0); i++) {
+    fs.mkdirSync(path.join(root, 'skills', `s${String(i)}`), { recursive: true })
+    fs.writeFileSync(path.join(root, 'skills', `s${String(i)}`, 'SKILL.md'), '# s\n')
+  }
+  if (extra.docs !== undefined) {
+    fs.mkdirSync(path.join(root, 'docs-site/content/docs'), { recursive: true })
+    fs.writeFileSync(path.join(root, 'docs-site/content/docs/index.mdx'), extra.docs)
+  }
   return root
 }
 
-const GOOD_CARD = ['插件的身份卡。', '**定位**：模板插件的最小完整形状。', '## 提供', '## 依赖', '命令清单不存卡——现扫门的 index。', '用到 gwbCommands 与 gwbShell。', ''].join('\n')
-const GOOD_SRC = "import { ctx } from './x.js'\nexport const inject = ['gwbCommands', 'gwbShell']\n"
+const GOOD_DESC = '演示件：最小完整形状。服务 gwbDemo；skill 1 份；命令 1 条。'
+const GOOD_SRC = [
+  "import { ctx } from './x.js'",
+  "export const inject = ['gwbCommands', 'gwbShell']",
+  "class GwbDemo { constructor(ctx) { super(ctx, 'gwbDemo') } }",
+].join('\n')
+const GOOD_DOCS = '## 服务 ctx.gwbDemo\n\n用了 gwbCommands 与 gwbShell。\n'
 
 describe('injectServicesOf：三种 inject 写法都扫到', () => {
   it('export const 与 static 与局部 ctx.inject', () => {
@@ -100,26 +113,50 @@ describe('injectServicesOf：三种 inject 写法都扫到', () => {
   })
 })
 
-describe('registerCatalogGuard', () => {
-  it('卡齐全：两条用例都过', () => {
+describe('providedServicesOf：super(ctx, <名>) 一种写法', () => {
+  it('扫到提供的服务名；没有就是空表', () => {
+    expect([...providedServicesOf("class A { constructor(ctx) { super(ctx, 'gwbA') } }")]).toEqual(['gwbA'])
+    expect(providedServicesOf('export const name = 1')).toEqual(new Set())
+  })
+})
+
+describe('registerSelfReportGuard', () => {
+  it('自述齐全：四条用例都过', () => {
     const { vt, cases } = recorder()
-    registerCatalogGuard(vt, { root: fixtureRepo(GOOD_CARD, GOOD_SRC) })
-    expect(cases).toHaveLength(2)
+    registerSelfReportGuard(vt, { root: fixtureRepo(GOOD_DESC, GOOD_SRC, { skills: 1, docs: GOOD_DOCS }) })
+    expect(cases).toHaveLength(4)
     const r = replay(cases)
-    r.pass('三段都在')
-    r.pass('服务名')
+    r.pass('三格齐全')
+    r.pass('提供的服务名')
+    r.pass('说明书份数')
+    r.pass('站现状区')
   })
-  it('卡漏了一个服务：点名那条炸，且报出漏的名字', () => {
-    const card = GOOD_CARD.replace('gwbShell。', '。')
+  it('description 没提提供的服务：点名那条炸，且报出名字', () => {
     const { vt, cases } = recorder()
-    registerCatalogGuard(vt, { root: fixtureRepo(card, GOOD_SRC) })
-    replay(cases).failsWith('服务名', 'gwbShell')
+    registerSelfReportGuard(vt, { root: fixtureRepo(GOOD_DESC.replace('服务 gwbDemo；', '服务无；'), GOOD_SRC, { skills: 1, docs: GOOD_DOCS }) })
+    replay(cases).failsWith('提供的服务名', 'gwbDemo')
   })
-  it('命令去向还指着旧门：第一条炸', () => {
-    const card = GOOD_CARD.replace('现扫门的 index', '现扫 /surface')
+  it('说明书份数对不上：那条炸', () => {
     const { vt, cases } = recorder()
-    registerCatalogGuard(vt, { root: fixtureRepo(card, GOOD_SRC) })
-    replay(cases).failsWith('三段都在', 'index')
+    registerSelfReportGuard(vt, { root: fixtureRepo(GOOD_DESC, GOOD_SRC, { skills: 2, docs: GOOD_DOCS }) })
+    replay(cases).failsWith('说明书份数', 'skill 2 份')
+  })
+  it('inject 的服务没进站现状区：那条炸', () => {
+    const { vt, cases } = recorder()
+    registerSelfReportGuard(vt, { root: fixtureRepo(GOOD_DESC, GOOD_SRC, { skills: 1, docs: '## 服务 ctx.gwbDemo\n\n只写了 gwbCommands。\n' }) })
+    replay(cases).failsWith('站现状区', 'gwbShell')
+  })
+  it('库（keywords 里没有 gwb-plugin）跳过：一条用例都不注册', () => {
+    const root = fixtureRepo('演示库：不属于件。', GOOD_SRC, { skills: 0 })
+    fs.writeFileSync(path.join(root, 'package.json'), JSON.stringify({ name: '@godcreator/gwb-demo', version: '1.0.0', description: '演示库：不属于件。', keywords: ['gwb'] }))
+    const { vt, cases } = recorder()
+    registerSelfReportGuard(vt, { root })
+    expect(cases).toHaveLength(0)
+  })
+  it('description 三格缺一：第一条炸', () => {
+    const { vt, cases } = recorder()
+    registerSelfReportGuard(vt, { root: fixtureRepo('演示件：最小完整形状。', GOOD_SRC, { skills: 1, docs: GOOD_DOCS }) })
+    replay(cases).failsWith('三格齐全', '服务')
   })
 })
 

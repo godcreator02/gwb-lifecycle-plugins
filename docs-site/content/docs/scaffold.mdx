@@ -65,7 +65,7 @@ description: 一条命令把新插件的骨架落进一个新文件夹，站那�
 
 **站那半是两步，顺序不能反，中间不许插事。**
 
-{/* ref file="../plugins/devkit/src/index.ts" lines="607-619" */}
+{/* ref file="../plugins/devkit/src/index.ts" lines="637-649" */}
 
 `docfirst.attach` 只在还没写过内容的骨架上装得了，它自己守着这条。建骨架与装六区连着跑，中间没人
 碰过文件，整个覆盖才是安全的；给一个跑了半年的站自作聪明地 AST 改写不是。`scaffold` 里这两条紧挨着，
@@ -73,7 +73,7 @@ description: 一条命令把新插件的骨架落进一个新文件夹，站那�
 
 **站没建成不算建仓失败。** 插件那半早已落盘，所以回执里那两格才是真相：
 
-{/* ref file="../plugins/devkit/src/index.ts" lines="547-559" */}
+{/* ref file="../plugins/devkit/src/index.ts" lines="577-589" */}
 
 `built` 说骨架铺没铺，`attached` 说六区装没装，`nextSteps` 按这两格分三支。回执里给一条不存在的
 `cd docs-site` 比不给还坏，所以连生成的 README 里讲站的那段话，都是在渲染之前按「站点插件在不在」定下来的。

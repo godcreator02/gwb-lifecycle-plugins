@@ -14,7 +14,7 @@ description: plugins/devkit/AGENTS.md 由这一页摆出去——每次会话都
 
 ## 文档站是正本，六区
 
-`AGENTS.md`、`README.md`、`catalog.md` 与包内 `skills/` 下的说明书**全是生成物，别手改**——
+`AGENTS.md`、`README.md` 与包内 `skills/` 下的说明书**全是生成物，别手改**——
 正本在 `docs-site/content/outputs/`，映射表在 `docs-site/docfirst.config.mjs` 的 `outputs`。
 改完在 `docs-site` 跑 `pnpm doc:render` 重摆，mdx 源、生成物、`.ledger.json` 同一个提交。
 

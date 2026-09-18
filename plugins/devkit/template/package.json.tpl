@@ -2,13 +2,13 @@
   "name": "{{pkg}}",
   "version": "0.1.0",
   "author": {"name": "godcreator"},
-  "description": "{{title}}：devkit 模板插件——一格窗格（你好 + 计数）与一条 ping 命令的最小完整形状",
+  "description": "{{title}}：devkit 模板插件——一格窗格（你好 + 计数）与一条 ping 命令的最小完整形状。服务无；skill 0 份；命令 1 条。",
   "type": "module",
   "exports": {
     ".": { "types": "./dist/index.d.ts", "default": "./dist/index.js" },
     "./package.json": "./package.json"
   },
-  "files": ["dist", "src", "catalog.md"],
+  "files": ["dist", "src"],
   "gwb": {
     "title": "{{title}}"
   },
@@ -36,7 +36,7 @@
   },
   "devDependencies": {
     "@godcreator/gwb-plugin-api": "0.1.2",
-    "@godcreator/gwb-repo-kit": "0.2.0",
+    "@godcreator/gwb-repo-kit": "0.2.1",
     "@godcreator/gwb-commands": "0.4.3",
     "@godcreator/gwb-shell": "0.9.1",
     "@godcreator/gwb-tokens": "0.1.3",

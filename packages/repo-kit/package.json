@@ -1,6 +1,6 @@
 {
   "name": "@godcreator/gwb-repo-kit",
-  "version": "0.2.0",
+  "version": "0.2.1",
   "author": { "name": "godcreator" },
   "description": "仓侧守卫工具包：catalog 与 plugin 两份守卫的正本，件模板的薄壳测试对着它跑。",
   "type": "module",
