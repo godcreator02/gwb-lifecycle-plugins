@@ -1,0 +1,10 @@
+（第二趟：改读自己的 fiber 链 + registry 各件的 runtime.fibers。服务出来了，归属错。原样抄下的前几条）
+
+{"service": "gwbKernel"}
+{"service": "gwbPluginManager", "entryId": "home:baseui", "pkg": "@godcreator/gwb-baseui"}   ← 错：baseui 不提供它
+{"service": "gwbShell",         "entryId": "home:baseui", "pkg": "@godcreator/gwb-baseui"}   ← 错
+{"service": "gwbCommands",      "entryId": "home:commands", "pkg": "@godcreator/gwb-commands"}
+{"service": "gwbSkills",        "entryId": "home:commands", "pkg": "@godcreator/gwb-commands"} ← 错
+{"service": "gwbCommands",      "entryId": "home:devkit",  "pkg": "@godcreator/gwb-devkit"}   ← 错：devkit 消费 commands
+
+原因：注入作用域的 fiber 的 store 里放着它解析来的 impl（消费的东西）。判据要加 impl.fiber === fiber。

@@ -1,0 +1,59 @@
+ok=true exit=0
+{
+  "page": "gwb",
+  "在哪个home": "lightup-2609181749",
+  "did": "cmd",
+  "命令": "devkit.services",
+  "回执": {
+    "ok": true,
+    "data": {
+      "services": [
+        {
+          "service": "gwbKernel"
+        },
+        {
+          "service": "gwbCommands",
+          "entryId": "home:commands",
+          "pkg": "@godcreator/gwb-commands"
+        },
+        {
+          "service": "gwbData",
+          "entryId": "home:data",
+          "pkg": "@godcreator/gwb-data"
+        },
+        {
+          "service": "gwbPluginManager",
+          "entryId": "home:plugin-manager",
+          "pkg": "@godcreator/gwb-plugin-manager"
+        },
+        {
+          "service": "gwbSettings",
+          "entryId": "home:settings",
+          "pkg": "@godcreator/gwb-settings"
+        },
+        {
+          "service": "gwbShell",
+          "entryId": "home:shell",
+          "pkg": "@godcreator/gwb-shell"
+        },
+        {
+          "service": "gwbSkills",
+          "entryId": "home:skills",
+          "pkg": "@godcreator/gwb-skills"
+        },
+        {
+          "service": "gwbUnitFolder",
+          "entryId": "home:unit-folder",
+          "pkg": "@godcreator/gwb-unit-folder"
+        },
+        {
+          "service": "loader",
+          "pkg": "Loader"
+        }
+      ]
+    }
+  }
+}
+
+stderr: [0918/184614.918:ERROR:third_party\crashpad\crashpad\util\win\registration_protocol_win.cc:108] CreateFile: The system cannot find the file specified. (0x2)
+

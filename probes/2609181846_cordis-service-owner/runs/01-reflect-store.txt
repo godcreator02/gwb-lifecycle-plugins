@@ -1,0 +1,6 @@
+（第一趟：按 reflect.d.ts 的 store 读 ctx.reflect.store。原始回执在会话里，这里是原样抄下的要点）
+
+命令：devkit.services
+回执：{"ok": true, "data": {"services": [], "note": "运行时没给出服务表：要么这个宿主不是 cordis，要么 cordis 换了内部形状（reflect.store）"}}
+
+结论：reflect.d.ts 声明有 `store: Dict<Impl, symbol>`，rc.9 的运行时里没有这一格——类型与运行时不符。
