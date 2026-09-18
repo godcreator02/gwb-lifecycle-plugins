@@ -75,3 +75,15 @@ base-plugins 的卡：body 落文件再 `--data-binary @file`，那条归 comman
    `plugin-manager.add-entry`——指引清楚，但离那张卡要的自动化还差最后一步，建议那条不撤。
 
 **进展**（09-18）：第 1 条写进了附件 `references/ui.md`「浏览器半」开头；剩第 2、3 条。
+
+## 2026-09-18 audit-deps 全生态回执过大，经 MCP 工具调用会被客户端截断
+
+来源：总控台（全生态依赖清账会话：12 个仓、30 余包发版，逐仓清账时反复要读这份账）。
+
+现场：全生态 23 仓 / 45 清单 / 166 findings 时，`run devkit.audit-deps` 的回执 JSON 约 50KB——
+经 MCP 门（`run`）调用超出客户端单次回执预算，**尾部被截断**：本会话第一次调用就丢了后半段
+（gwb-reimburse / gwb-pomodoro 两段与 `byKind` 汇总）。绕法是把 `bin/client.mjs` 拿到命令行直跑、
+重定向落文件再读（`run mcp.client` 那份说明书里有这支 CLI），全量拿得到——但得先知道要绕。
+
+**投来的建议**：给 audit-deps 加一个可选过滤参数（如 `{ repo?: "<单元>/<仓>" }`，或 `{ only: [...] }`），
+或让回执分两档（摘要 + 按仓索取）。清账的 agent 一轮能读完自己那一仓的账，不必落文件再解析。
