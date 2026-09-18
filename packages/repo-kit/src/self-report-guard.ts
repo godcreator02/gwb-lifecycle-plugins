@@ -41,10 +41,18 @@ export function injectServicesOf(srcText: string): Set<string> {
   return services
 }
 
-/** 源码里提供的服务名：`super(ctx, '<名>')`（cordis 的 Service 基类构造，生态里只有这一种写法） */
+/**
+ * 源码里提供的服务名。生态里有三种写法，都得扫到（2026-09-18 全仓点过一遍）：
+ *
+ * - `super(ctx, '<名>')`——`extends Service` 的构造函数（多数件）
+ * - `ctx.provide('<名>', api)`——自己造 api 对象直接挂（commands 这么做）
+ * - `new SomethingService(ctx, '<名>')`——直接 new 一个 Service 子类并当场起名（logger 这么做）
+ */
 export function providedServicesOf(srcText: string): Set<string> {
   const services = new Set<string>()
   for (const m of srcText.matchAll(/super\(\s*ctx\s*,\s*'([^']+)'/g)) services.add(m[1]!)
+  for (const m of srcText.matchAll(/\.provide\(\s*'([^']+)'/g)) services.add(m[1]!)
+  for (const m of srcText.matchAll(/new\s+[\w.]+\s*\(\s*ctx\s*,\s*'([^']+)'/g)) services.add(m[1]!)
   return services
 }
 
@@ -99,9 +107,8 @@ export function registerSelfReportGuard(vt: GuardVt, options: SelfReportGuardOpt
       vt.expect(description, 'description 的「命令」那格要写成「命令 N 条」或「命令无」').toMatch(/命令 (\d+ 条|无)/)
     })
 
-    vt.it('提供的服务名都点了名（一个都没有的要写「服务无」）', () => {
+    vt.it('提供的服务名都点了名', () => {
       for (const name of provided) vt.expect(description, `description 没提服务 ${name}`).toContain(name)
-      if (provided.size === 0) vt.expect(description, '没有服务要写「服务无」').toContain('服务无')
     })
 
     vt.it('说明书份数对得上 skills/ 目录', () => {

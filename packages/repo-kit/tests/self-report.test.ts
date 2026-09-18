@@ -113,9 +113,14 @@ describe('injectServicesOf：三种 inject 写法都扫到', () => {
   })
 })
 
-describe('providedServicesOf：super(ctx, <名>) 一种写法', () => {
-  it('扫到提供的服务名；没有就是空表', () => {
-    expect([...providedServicesOf("class A { constructor(ctx) { super(ctx, 'gwbA') } }")]).toEqual(['gwbA'])
+describe('providedServicesOf：三种写法都扫到', () => {
+  it('super / provide / new', () => {
+    const src = [
+      "class A { constructor(ctx) { super(ctx, 'gwbA') } }",
+      "ctx.provide('gwbB', api)",
+      "new GwbLogger(ctx, 'gwbC')",
+    ].join('\n')
+    expect([...providedServicesOf(src)].sort()).toEqual(['gwbA', 'gwbB', 'gwbC'])
     expect(providedServicesOf('export const name = 1')).toEqual(new Set())
   })
 })
