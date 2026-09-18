@@ -31,13 +31,13 @@ description: 拆成哪几块、各住哪、依赖方向是什么、先读哪块
 
 ## 依赖方向
 
-**硬依赖只有一条：命令总线。**
+**硬依赖只有一条：命令总线 `gwbCommands`。**（本件注入的五个名字：`gwbCommands` 是硬等待；`gwbShell`、`gwbNodeCli`、`gwbSkills`、`gwbSettings` 都是同一条子 fiber 上的局部注入。）
 
 {/* ref file="../plugins/devkit/src/index.ts" lines="39-40" */}
 
 没有命令总线，这个插件登记的一切都出不了这个进程，那时它确实不该挂上。别的服务全走
 `ctx.inject([...], fn)` 这种局部注入：外壳、node CLI、说明书三个面各开一条子 fiber，
-缺哪个，那条 fiber 停在 PENDING，主插件照常挂。少一条硬依赖就少一处挂不上的可能。
+缺哪个，那条 fiber 停在 PENDING，主插件照常挂——`gwbShell`（报名字）、`gwbNodeCli`（登记 CLI 那条 devkit.cdp）、`gwbSkills`（挂三份手册）、`gwbSettings`（看 home 的根在哪）四件走这条路。少一条硬依赖就少一处挂不上的可能。
 
 **本插件没有浏览器半。** 它的使用者是 agent，读的是回执，所以外壳那条子 fiber 里只有一句
 `describeSelf`——报一个给人看的名字，好让它在插件清单里认得出来。没有窗格，也就没有
