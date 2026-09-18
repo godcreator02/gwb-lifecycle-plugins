@@ -54,7 +54,7 @@ home 建在 `%APPDATA%\gwb-kernel\homes\<名>\`。开哪一个由环境变量 `G
 
 列出来的样子是另一张，`running` 由记录里那个 pid 现查出来：
 
-{/* ref file="../plugins/devkit/src/home.ts" lines="435-446" */}
+{/* ref file="../plugins/devkit/src/home.ts" lines="438-449" */}
 
 两个端口按记录如实报，**不因为「进程看着不在」就抹掉**：一个陈旧的端口正是人要看见的那条线索。
 
@@ -77,7 +77,7 @@ home 建在 `%APPDATA%\gwb-kernel\homes\<名>\`。开哪一个由环境变量 `G
 
 **`new` 与 `open` 都不 build 内核、不认内核仓，拉的是宿主自己那个应用**：
 
-{/* ref file="../plugins/devkit/src/home.ts" lines="350-364" */}
+{/* ref file="../plugins/devkit/src/home.ts" lines="353-367" */}
 
 home 跑的永远是宿主正跑着的那个应用，日常就是安装版，内核版本跟着安装包走；内核源码改动的验机是内核仓
 自己的路，这块不代劳。`open` 与 `new` 的分别在另一件事上：**机器重启之后回到原来那个现场只有 `open`**，
@@ -90,14 +90,14 @@ home 跑的永远是宿主正跑着的那个应用，日常就是安装版，内
 
 起来之后看五秒：
 
-{/* ref file="../plugins/devkit/src/home.ts" lines="403-413" */}
+{/* ref file="../plugins/devkit/src/home.ts" lines="406-416" */}
 
 「起没起来」没有 ping 可打，进程还活着是此刻唯一拿得到的信号。这五秒只为抓住「秒退」这一种最常见的
 死法（产物不在、端口被占），真正成没成，那扇窗和人说了算。
 
 **观察窗过完再读一眼记录**：
 
-{/* ref file="../plugins/devkit/src/home.ts" lines="414-422" */}
+{/* ref file="../plugins/devkit/src/home.ts" lines="417-425" */}
 
 记录是内核开机那一下才写的，而它是下游「按名字找得着这个 home」的全部凭据，所以回执里要说清它出没
 出现。**读不到不算起失败**：窗已经在那儿了，只是这个内核版本还不写、或者写晚了。那时按名字定位与
@@ -105,7 +105,7 @@ home 跑的永远是宿主正跑着的那个应用，日常就是安装版，内
 
 CDP 调试端口**走命令行，不走环境变量**：
 
-{/* ref file="../plugins/devkit/src/home.ts" lines="175-199" */}
+{/* ref file="../plugins/devkit/src/home.ts" lines="175-202" */}
 
 内核不认识任何调试相关的环境变量，`--remote-debugging-port` 是 Chromium 自己的开关，命令行上就生效。
 开了调试口就一并带 `--disable-backgrounding-occluded-windows`：窗口被整个盖住时 Chromium 停止产帧，
@@ -123,12 +123,12 @@ CDP 调试端口**走命令行，不走环境变量**：
 那份记录还指着那个数，再分给第二个 home 的话，两份记录会同时声称自己是同一个端口，而按名字定位
 全靠这个数唯一。**自己那份不算**，不然重开一次就被自己上一次的记录挤走。
 
-{/* ref file="../plugins/devkit/src/home.ts" lines="481-489" */}
+{/* ref file="../plugins/devkit/src/home.ts" lines="484-492" */}
 
 第二道是此刻真有人 listen 的跳过，一个一个问，问到空的就用它。换没换在回执的 `cdpNote` 里
 说一句——不说的话，人会以为端口还是上次那个。
 
-{/* ref file="../plugins/devkit/src/home.ts" lines="503-516" */}
+{/* ref file="../plugins/devkit/src/home.ts" lines="506-519" */}
 
 **挑完到 electron 真绑上之间有个缝**。那一瞬别人抢走了这个端口，记录里就会写着一个不属于它的数。
 这儿不去赌那个缝，赌不起也补不上；那种情况由下游「端口持有者要等于 pid」那道守卫抓。
@@ -136,7 +136,7 @@ CDP 调试端口**走命令行，不走环境变量**：
 
 给子进程的环境要**剥掉 `ELECTRON_RUN_AS_NODE`**：
 
-{/* ref file="../plugins/devkit/src/home.ts" lines="201-216" */}
+{/* ref file="../plugins/devkit/src/home.ts" lines="204-219" */}
 
 插件跑在 Electron 主进程里，起 node 子进程的插件会带上这个变量。漏进这儿，起的就不是一扇窗而是一个看不见
 的 node。
@@ -145,11 +145,11 @@ CDP 调试端口**走命令行，不走环境变量**：
 `devkit.dev` 的 `home` 参数经它变成一个调试端口。**那是上游唯一的一条路**：那条命令不收端口，
 给了当场拒，所以这个函数摔了就是真的够不着，没有第二条路绕过去。
 
-{/* ref file="../plugins/devkit/src/home.ts" lines="520-533" */}
+{/* ref file="../plugins/devkit/src/home.ts" lines="523-536" */}
 
 **三道都要验**，少一道就可能把一趟改动推给另一个进程：
 
-{/* ref file="../plugins/devkit/src/home.ts" lines="544-560" */}
+{/* ref file="../plugins/devkit/src/home.ts" lines="547-563" */}
 
 记录读得出、pid 还活着且认得出是个 home 进程、那个 pid 真的持着记录里那个端口。端口会被下一个进程占走，
 pid 会被复用，所以「记录里写着 9347」本身不构成凭据。「查不出」与「确凿地不在」分开报：前者不导出
@@ -161,13 +161,13 @@ pid 会被复用，所以「记录里写着 9347」本身不构成凭据。「�
 **`rm` 是删，也是唯一要停一个 home 的地方。** 停一个测试 home 唯一的用处就是接着删它，所以没有
 单独的一条停：
 
-{/* ref file="../plugins/devkit/src/home.ts" lines="661-671" */}
+{/* ref file="../plugins/devkit/src/home.ts" lines="664-674" */}
 
 `force` 是同一个意思的两面，都是**越过守卫**：一面是「它还在跑，连停带删」，另一面是「`default`
 是日常那份，真要删」。**但这两面不叠加**——`default` 正跑着的时候 `force` 也不停它。一条开发工具
 不该去关人正在用的那扇窗，那不是删一个测试现场，那是把人的桌子掀了；如实说，让人自己关。
 
-{/* ref file="../plugins/devkit/src/home.ts" lines="676-698" */}
+{/* ref file="../plugins/devkit/src/home.ts" lines="679-701" */}
 
 记录「查不出还在不在」时不删：不知道占没占着目录，下手就是在赌。停不掉也不删——半个目录加一屏
 EBUSY 比一句「没删成」难收拾得多。真停了的话，停的是哪个 pid 跟着回执走：人得知道自己刚才顺手
@@ -176,23 +176,23 @@ EBUSY 比一句「没删成」难收拾得多。真停了的话，停的是哪�
 **「停了」是进程真退了，不是信号发出去了。** 发完信号按 pid 轮询到查得「不在」才算停，到点还在或
 一直查不出就回停不掉：
 
-{/* ref file="../plugins/devkit/src/home.ts" lines="575-590" */}
+{/* ref file="../plugins/devkit/src/home.ts" lines="578-593" */}
 
 **「已删」只认盘。** 删的调用回成功不算数，删一次核对一次目录还在不在；还在就隔一会儿再删（刚停的
 home 的子进程晚几秒才放开句柄），试满次数还在就回没删掉、列出还剩什么：
 
-{/* ref file="../plugins/devkit/src/home.ts" lines="700-716" */}
+{/* ref file="../plugins/devkit/src/home.ts" lines="703-719" */}
 
 那一停**两道核对再杀**，跟本机源那半同一个道理：
 
-{/* ref file="../plugins/devkit/src/home.ts" lines="592-626" */}
+{/* ref file="../plugins/devkit/src/home.ts" lines="595-629" */}
 
 **手工起的 home 也在这条路上**：记录归内核写，于是「它是谁」的凭据不再只有 devkit 起的那几个有。
 没有记录仍然如实说没有可停的，不猜、不按名字扫进程。
 
 ## 依赖的接口
 
-{/* ref file="../plugins/devkit/src/home.ts" lines="244-267" */}
+{/* ref file="../plugins/devkit/src/home.ts" lines="247-270" */}
 
 | 接口 | 用来做什么 | 生产实现 | 测试实现 |
 | --- | --- | --- | --- |
