@@ -23,6 +23,7 @@
     "template"
   ],
   "gwb": {
+    "plugin": true,
     "title": "开发套件"
   },
   "scripts": {
@@ -56,5 +57,9 @@
     "@godcreator/gwb-shell": {
       "optional": true
     }
+  },
+  "repository": {
+    "type": "git",
+    "url": "https://git.tianshen02.online:28377/godcreator/gwb-devkit.git"
   }
 }
