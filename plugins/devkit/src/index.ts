@@ -39,6 +39,7 @@ import {
   writeRepo,
 } from './scaffold.js'
 import { joinProvides, serviceSight } from './services.js'
+import { importFacesOf } from './capabilities.js'
 
 export const name = 'gwb-devkit'
 export const inject = ['gwbCommands']
@@ -369,6 +370,47 @@ export function apply(ctx: GwbContext): void {
           },
         }
       },
+    ),
+  )
+
+  // 「开发一个新插件能基于什么」的单一入口：inject 面 + import 面 + 一句指路。事实
+  // （入口/身份/shared/d.ts）现算自各包 package.json，意图（怎么接）是 gwb.provides
+  const capabilitiesData = async (): Promise<unknown> => {
+    const home = requireKernel(ctx).dataDir
+    const readManifest = async (pkg: string): Promise<unknown> => {
+      try {
+        return JSON.parse(await fs.promises.readFile(path.join(home, 'node_modules', pkg, 'package.json'), 'utf8')) as unknown
+      } catch {
+        return undefined
+      }
+    }
+    const inject = await joinProvides(serviceSight(ctx).owners, readManifest)
+    let deps: string[] = []
+    try {
+      const homeManifest: unknown = JSON.parse(await fs.promises.readFile(path.join(home, 'package.json'), 'utf8'))
+      const dependencies = isRecord(homeManifest) ? homeManifest['dependencies'] : undefined
+      if (isRecord(dependencies)) deps = Object.keys(dependencies)
+    } catch {
+      // home 清单读不到：import 段空表，inject 段照常——两条腿互不拖
+    }
+    const faces = await importFacesOf(deps, (pkg) => readManifest(pkg))
+    return {
+      inject,
+      import: faces,
+      commands: '件暴露的命令面不在这儿重复——search {"plugin":"<包名>"} 按件查，那是命令的家',
+    }
+  }
+
+  ctx.effect(() =>
+    bus.register(
+      {
+        name: 'devkit.capabilities',
+        plugin: '@godcreator/gwb-devkit',
+        description: '开发一个新插件能基于什么：可 inject 的服务、可 import 的包与入口、类型正本在哪——一站看全，别孤零零从零做',
+        usage:
+          '无参数。回 { inject, import, commands } 三段。inject：这台 home 现挂的 cordis 服务，带各包 gwb.provides 自述（要接一面照 usage 写）。import：home 已装包逐个列——身份（件/库/第三方）、import 时写的入口说明符、d.ts 路径（符号级看原文，命令不摘抄）、importmap 外置名（shared，react 系那种）与意图自述。commands：指 search。事实现算不抄；没声明的入口照样列、只是少一句人话',
+      },
+      async () => ({ ok: true, data: await capabilitiesData() }),
     ),
   )
 

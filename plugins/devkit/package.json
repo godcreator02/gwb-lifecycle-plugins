@@ -1,10 +1,10 @@
 {
   "name": "@godcreator/gwb-devkit",
-  "version": "0.18.1",
+  "version": "0.18.2",
   "author": {
     "name": "godcreator"
   },
-  "description": "开发套件：建仓（scaffold）、往薄壳仓加件（scaffold.plugin）、结构体检（audit-structure）、测试 home 的开收、改一版看一版（devkit.dev）、发正式版（devkit.release）；随件带写件与发版两份手册。服务无；skill 3 份；命令 12 条。",
+  "description": "开发套件：建仓（scaffold）、往薄壳仓加件（scaffold.plugin）、结构体检（audit-structure）、测试 home 的开收、改一版看一版（devkit.dev）、发正式版（devkit.release）；随件带写件与发版两份手册。服务无；skill 3 份；命令 13 条。",
   "type": "module",
   "exports": {
     ".": {

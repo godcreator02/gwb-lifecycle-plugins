@@ -144,14 +144,21 @@ typecheck 与 vitest 吃源码，全绿只说明源码站得住；装出来能�
 
 ## 能力面
 
+**开发一个新插件能基于什么，先问 `devkit.capabilities`**——一站回三段，别孤零零从零做：
+
+- `inject`：这台 home 现挂的 cordis 服务，各带 `{ summary, usage }`（各包 `package.json` 的
+  `gwb.provides` 声明）——要接一面照 usage 写 `inject`
+- `import`：home 已装包逐个列——身份（件 / 库 / 第三方）、import 时写的入口说明符、
+  d.ts 路径（**符号级读原文**，命令不摘抄）、importmap 外置名（`shared`）与意图自述
+- `commands`：件暴露的命令面指 `search {"plugin":"<包名>"}`——那是命令的家，不重复
+
+事实现算不抄（`exports` / `keywords` / `gwb.shared` / d.ts 全部从包的 `package.json` 现读）；
+意图才是声明的——**自己要提供新面时照同一口径写 `gwb.provides`**：件按服务名做键（repo-kit
+的自述守卫钉着互为充要，漂了 `pnpm check` 红），包按 import 时写的模块说明符做键
+（主入口=包名、子路径=`包名/子路径`）。
+
 内核给的面在词汇表包 `@godcreator/gwb-plugin-api`：`gwbKernel` 上四样——`dataDir` /
 `version` / `emit(payload)` / `setShell(url)`；页面上的 `window.gwb` 类型也在那儿。
-
-件与件之间的面（设置、数据、命令总线、说明书、CLI……）**先问 `devkit.services`**：回这台
-home 现挂的每个服务、谁提供的、怎么用——用法那半从各包自家 `package.json` 的
-`gwb.provides` 声明 join 进来（`{ summary, usage }`），装了什么就报什么；没声明的服务
-照样列，只是不带用法。**自己要提供新服务时**照同一口径写 `gwb.provides`：键与源码提供的
-服务名互为充要、summary / usage 非空——repo-kit 的自述守卫钉着这条，漂了 `pnpm check` 红。
 
 | 面 | 服务 | 什么时候要 |
 | --- | --- | --- |
