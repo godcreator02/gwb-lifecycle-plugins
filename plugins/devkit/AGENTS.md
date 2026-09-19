@@ -3,7 +3,7 @@
 开发套件，**一个普通的 gwb 插件**：住 `plugins/devkit/`，仓是双包 workspace（件住 plugins/、包住 packages/，与 base-plugins 同习俗）（2026-09-15 起，
 `packages/repo-kit` 是仓侧守卫工具包 `@godcreator/gwb-repo-kit`，`docs-site/` 照旧）。发团队源
 （gitea 个人源，**本仓发版要给 packages 参数**），装进 home。
-它管建仓 / 加件 / 手册 / 测试 home / 改一版看一版五件事，外加一支包内 CLI——`bin/cdp.mjs`（经 `gwbNodeCli` 登记成 `devkit.cdp`）。
+它管建仓 / 加件 / 结构体检 / 手册 / 测试 home / 改一版看一版六件事，外加一支包内 CLI——`bin/cdp.mjs`（经 `gwbNodeCli` 登记成 `devkit.cdp`）。
 **本插件没有浏览器半**：它的使用者是 agent，读的是回执。设计与原理在文档站（`docs-site/`，
 六区），这份只装**不知道就会做错事**的硬约束。
 
@@ -65,8 +65,10 @@ pnpm build          # 只构建 plugins/* 与 packages/*，tsc 直出 dist/，�
 `packages/`（按需）。「单件仓」只是 plugins/ 下恰好一个目录。模板分两区：`template/repo/`
 铺仓根（薄壳半），`template/pkg/` 铺件包（**唯一正本**——建仓 `devkit.scaffold` 与加件
 `devkit.scaffold.plugin` 落的是同一份，单多格式统一靠这个，不靠纪律）。件包自足：tsconfig /
-vitest / oxlint 配置全在包内，搬到哪个仓形状不变（oxlint 认 cwd 命中，所以 `.oxlintrc.json`
-跟件包走、不住仓根）。在役的老裸根单件仓随触随迁，不专门迁。
+vitest / oxlint 配置全在包内，搬到哪个仓形状不变（oxlint 认 cwd 命中，所以 `.oxlintrc.json&#x60;
+跟件包走、不住仓根）。在役的老裸根单件仓随触随迁，不专门迁——**「触」用 `devkit.audit-structure {"dir":"<仓根>"}`**：
+findings 里那条 info 按实际文件名拼好了 git mv 清单；改既有仓前后各跑一次，error 级必须清零再动。
+规则的这条投影与模板靠 round-trip 测试焊着（模板产物零 findings），改模板形必须连带过那条测试。
 
 `template/` 下的文件一律带 `.tpl`，落盘时脱后缀（`npm pack` 不打 `.gitignore` 是硬行为，
 一条规则管所有文件）；**每个文件都得声明住哪一区**——`landRel` 对区外文件当场抛，

@@ -1,0 +1,78 @@
+---
+title: 结构体检
+description: 只读地回答一个仓（或全生态）离标准形多远——形状与静态红线，不管版本、自述、产物
+---
+
+# 结构体检
+
+**本页回答**：`devkit.audit-structure` 查什么、不查什么（分工比检查本身更要紧）、规则怎么跟模板焊住不漂。
+
+## 管什么
+
+模板定形（只有一种仓形）之后马上要有人看着：谁离标准形多远、裸根仓迁移照哪份清单迁、
+手工长出来的目录有没有断派生链——这些没有判具的话，「随触随迁」就只是一句方针。
+
+这条命令只读地回答它。入口与 `devkit.audit-deps` 同一个形状：给了 `dir` 体检单仓，给了/缺省
+`root` 扫全生态（退役单元与测试件跳过，`collectRepos` 现成）。
+
+**findings 分三级**：error（长不成 / 装不上 / 必炸）、warn（活得下去但偏离当前形）、
+info（提示——裸根单件仓给一条按实际文件名拼好的迁移清单，「随触随迁」的那个「触」就是这条命令）。
+
+## 不管什么（分工）
+
+| 不管的 | 归谁 |
+| --- | --- |
+| 依赖钉版、peer 规矩 | `devkit.audit-deps` 与发版检票 |
+| 自述三格 / 服务名 / skill 数 | repo-kit 的 self-report 守卫（住各仓 tests） |
+| 文档论断 | docfirst |
+| 产物形状 | 各仓 artifact 测试 |
+
+多立一个正本只会多一处漂——结构体检只管**形状与静态红线**：仓形、件包自足、短名派生链、
+`files` 白名单、`prepublishOnly`，外加两条机械可判的红线（`cordis` 写在 dependencies、
+tsconfig `paths` 与 `link:` / `file:` 依赖）。跨仓 `workspace:` 的判定第一期不做。
+
+**不挂发版检票**：检票是门禁，这是日常体检；warn 卡发版会把工具逼到没人用。
+
+## 数据结构
+
+{/* ref file="../plugins/devkit/src/structure.ts" lines="27-74" */}
+
+`MemberScan` 是检查的最小单元：薄壳仓的 `plugins/*` 与 `packages/*`，裸根单件仓的根自己（`dir` 记 `.`）。
+
+## 扫描与规则
+
+扫描只看三层的名字与几个关键文件（manifest、`src/index.ts`、tsconfig），不进 node_modules、
+不进 docs-site——体检吃的是形状，不是内容：
+
+{/* ref file="../plugins/devkit/src/structure.ts" lines="134-164" */}
+
+薄壳的判据与 `scaffold.plugin` 收不收仓是**同一条**（`yamlHasPluginsZone`），不会出现
+「加件收了、体检说不薄壳」的两张嘴。
+
+规则机是纯函数，喂扫描回报告：
+
+{/* ref file="../plugins/devkit/src/structure.ts" lines="231-258" */}
+
+裸根单件仓不判死刑：形照报、清单照给——`git mv` 的文件清单按这个仓的实际条目现拼，
+不是一份通用模板话。
+
+## 正本焊接：模板是唯一正本
+
+规则与模板是同一件事的两份描述，必然漂。焊法是 round-trip 测试：`renderTemplate` /
+`renderPlugin` 的产物直接落临时目录、扫描、过检，**断言零 findings**。模板改了形而检查器
+没跟上，当场红；检查器加了规则而模板产物过不了，也当场红——两边谁也不能单独走。
+
+## 怎么单独测
+
+`tests/structure.test.ts` 真写临时目录（scan 本来就是走盘的）：round-trip 两条（建仓、加件）；
+仓形判定（裸根 info 迁移清单、非插件仓静默、plugins/ 在而 yaml 没那条的 shape-unknown、
+薄壳根三条 warn）；件包层逐 kind 一条（派生链两环、全名目录、住错区、白名单、
+prepublishOnly、自足、浏览器半）；静态红线三条（cordis 位置、paths 非空才报、本地协议依赖）。
+
+## 代码地图
+
+**在哪**：扫描与规则全在 `src/structure.ts`，接线在 `src/index.ts` 的 `devkit.audit-structure` 段。
+
+**先读**：`auditStructure` 的形状判定那几行——后面的规则全挂在那三个分支上。
+
+**可跳过**：`migrationDetail`（裸根仓的迁移话术），要改文案直接看它。

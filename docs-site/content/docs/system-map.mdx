@@ -21,6 +21,7 @@ description: 拆成哪几块、各住哪、依赖方向是什么、先读哪块
 | 改一版看一版 | `src/dev.ts` + `src/node-dev-deps.ts` | 发开发版、装进目标 home 并核对装上的号、重挂、取证 | [改一版看一版](/docs/dev) |
 | 发正式版 | `src/release.ts` + `src/node-dev-deps.ts` | 树干净守卫、构建、验产物、上车检票、staging 发 latest（依赖写 `^`） | 本页 |
 | 依赖对账 | `src/audit.ts` + `src/node-audit-deps.ts` | 各仓 `@godcreator` 声明对源上现值：死钉、范围内落后与出范围、peer 未迁 `^`、下限水分 | 本页 |
+| 结构体检 | `src/structure.ts` | 仓形、件包自足、派生链、白名单、静态红线（cordis 位置 / paths / link:）——只读，模板是正本 | [结构体检](/docs/structure) |
 | 问服务 | `src/services.ts` | 现问 cordis 的 fiber 表：这台 home 有哪些服务、各是谁提供的（拿不到就回空表加 saw） | 本页 |
 | 页面驱动 | `bin/cdp.mjs` | 连 CDP 在一张工作台页面里动手 | [页面驱动](/docs/cdp) |
 | 接线 | `src/index.ts` | 命令登记、参数收窄、回执形状 | 本页 |
@@ -71,7 +72,7 @@ docfirst 插件。本包不引它们的任何包，只在命令总线上按名�
 
 判据只有一句：**这段逻辑能不能不起进程、不开窗、只喂输入看输出。**
 
-能的那半是纯机，住 `scaffold.ts`、`probes.ts`、`home.ts`、`dev.ts`、`release.ts`、`audit.ts`。时序、
+能的那半是纯机，住 `scaffold.ts`、`structure.ts`、`probes.ts`、`home.ts`、`dev.ts`、`release.ts`、`audit.ts`。时序、
 守卫、命名、版本号、「查不出算不算不在」、「装上的是不是这一趟的号」、「哪条钉版算火车债」这类判断全在
 这儿，测试拿假插件把整条路跑完。
 

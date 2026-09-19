@@ -24,6 +24,7 @@ import { DEFAULT_REGISTRY, type DevInput, runDev } from './dev.js'
 import { runRelease } from './release.js'
 import { auditManifest, countByKind, type ManifestDeps } from './audit.js'
 import { collectManifests, collectRepos, fetchRegistry } from './node-audit-deps.js'
+import { auditStructure, scanRepo, tallyKinds, type StructureFinding } from './structure.js'
 import { CDP_ENTRY, devDeps, releaseDeps } from './node-dev-deps.js'
 import { homeFs, makeAppSpawnPlan, makeGuiSpawn, runCaptured } from './node-home-deps.js'
 import {
@@ -57,13 +58,15 @@ const CREATE_SITE_COMMAND = 'docs-site.create'
 const ATTACH_SITE_COMMAND = 'docfirst.attach'
 
 /**
- * 开发套件。五件事，全服务同一个理由——「在新文件夹里开发新件」这条路的地基：
+ * 开发套件。六件事，全服务同一个理由——「在新文件夹里开发新件」这条路的地基：
  *
  * - **建仓**：`devkit.scaffold` 把一个新件的骨架落进一个新文件夹（站那半经命令总线
  *   转给站件与 docfirst 件，两步）。**只有一种仓形**：薄壳 workspace——根壳 +
  *   `plugins/<短名>/` 件包；「单件仓」只是 plugins/ 下恰好一个目录
  * - **加件**：`devkit.scaffold.plugin` 往既有薄壳仓的 `plugins/` 再铺一个件包，
  *   落的是建仓时同一份件包模板——格式统一靠同一份正本，不靠纪律
+ * - **结构体检**：`devkit.audit-structure` 只读地回答一个仓（或全生态）离标准形多远。
+ *   规则正本仍是 scaffold 模板——round-trip 测试「模板产物零 findings」焊着两边
  * - **手册**：`skills/gwb-devkit/SKILL.md` 随件分发，经 gwb-skills 挂载。**只挂自己那份**
  *   ——知识随件走，docfirst 的两份归 docfirst 件自己挂（说明书是全局单一命名空间，
  *   代挂第二份只会撞名，而且撞掉的那份很可能是旧版）
@@ -106,6 +109,19 @@ const SCAFFOLD_PLUGIN_USAGE = [
   '  title  可选，显示名，缺省用 name',
   '件包落在 <repo>/plugins/<短名>/，必须还不存在（存在就拒，不覆盖任何东西）。根壳、workspace、文档站一概不碰——一份站盖全仓，件清单的更新归 docfirst（回执 nextSteps 里提醒）',
   '例：{"repo":"D:\\\\tmp\\\\hello","name":"world","title":"第二件"}',
+].join('\n')
+
+/** `devkit.audit-structure` 的参数说明。参数错的时候连它一起回——错误即文档 */
+const STRUCTURE_USAGE = [
+  'devkit.audit-structure 的参数：',
+  '  dir   可选，单仓的绝对路径——只体检这一个仓',
+  '  root  可选，容器根的绝对路径——扫全生态（unit-folder.list 现问缺省）。',
+  '        dir 与 root 都不给就是全生态',
+  '只读。管形状与静态红线（仓形 / 件包自足 / 短名派生链 / files 白名单 / prepublishOnly /',
+  'cordis 位置 / tsconfig paths / link:·file: 依赖），不管版本（那是 audit-deps 与发版检票）、',
+  '不管自述三格（repo-kit 守卫）、不管产物（各仓 artifact 测试）。',
+  'findings 分级：error 长不成或装不上、warn 偏离当前形、info 提示（裸根单件仓给迁移清单）。',
+  '例：{"dir":"D:\\\\unitfolders\\\\26090814otr\\\\gwb-block-note"}',
 ].join('\n')
 
 /** home 命令的参数说明。参数错的时候连它一起回——错误即文档 */
@@ -519,6 +535,79 @@ export function apply(ctx: GwbContext): void {
             `死钉 ${String(byKind['dead-pin'])}、必须追 ${String(byKind['out-of-range'])}、范围内落后 ${String(byKind.behind)}、peer 未迁 ^ ${String(byKind['peer-not-caret'])}、下限水分 ${String(byKind['floor-unverifiable'] + byKind['floor-mismatch'])}`,
         )
         return { ok: true, data: { root, registry: registryBase, repos: repoDirs.length, manifests: manifests.length, packages: pkgs.length, retired, testUnits, findings, byKind } }
+      },
+    ),
+  )
+
+  // ── 结构体检 ───────────────────────────────────────────────────────────────
+
+  /**
+   * 只读的结构体检，与 `devkit.audit-deps` 同一个入口形状：给了 dir 体检单仓，
+   * 给了/缺省 root 扫全生态（退役单元与测试件跳过）。规则正本是 scaffold 模板——
+   * 「模板产物零 findings」的 round-trip 测试焊着两边。
+   */
+  ctx.effect(() =>
+    bus.register(
+      {
+        name: 'devkit.audit-structure',
+        plugin: '@godcreator/gwb-devkit',
+        description: '结构体检（只读）：仓形、件包自足、短名派生链、files 白名单、静态红线（cordis 位置 / tsconfig paths / link: 依赖）',
+        usage:
+          '{dir?（单仓绝对路径）, root?（容器根，缺省现问 unit-folder.list）}。dir 与 root 都不给就是全生态。只读，回 { shape, findings:[{kind,level,path,detail}], byKind }——level：error（长不成/装不上/必炸）、warn（偏离当前形）、info（提示；裸根单件仓给按实际文件拼好的迁移清单）。**不管的**：依赖钉版与 peer（audit-deps 与发版检票）、自述三格（repo-kit 守卫）、产物形状（各仓 artifact 测试）。不挂发版检票——那是门禁，这是日常体检。参数不对会把完整说明回给你',
+      },
+      async (args) => {
+        if (!isRecord(args)) return { ok: false, error: `参数要是个对象。\n${STRUCTURE_USAGE}` }
+        const dir = typeof args.dir === 'string' && args.dir.trim() !== '' ? path.resolve(args.dir.trim()) : ''
+        if (dir !== '') {
+          if (!fs.existsSync(dir)) return { ok: false, error: `${dir} 不在——dir 给的是仓根的绝对路径` }
+          const report = auditStructure(scanRepo(dir))
+          log.info(
+            `devkit.audit-structure：${dir}（${report.shape}，${String(report.findings.length)} 条：` +
+              Object.entries(tallyKinds(report.findings)).map(([kind, n]) => `${kind} ${String(n)}`).join('、') + '）',
+          )
+          return {
+            ok: true,
+            data: { repoDir: dir, shape: report.shape, findings: report.findings, byKind: tallyKinds(report.findings) },
+          }
+        }
+        // 与 audit-deps 同一条路：容器根的知识归 unit-folder 件，devkit 只在总线上按名要
+        const askedRoot = typeof args.root === 'string' ? args.root.trim() : ''
+        let root = askedRoot !== '' ? path.resolve(askedRoot) : undefined
+        if (root === undefined && hasCommand('unit-folder.list')) {
+          const listed = await commands.run('unit-folder.list', {})
+          const container = listed.ok && isRecord(listed.data) && typeof listed.data.container === 'string' ? listed.data.container : ''
+          if (container !== '') root = path.resolve(container)
+        }
+        if (root === undefined) {
+          return { ok: false, error: '扫哪没说清：给 dir（单仓）或 root（容器根），或在这个 home 装 @godcreator/gwb-unit-folder——它现扫回的 container 就是容器根' }
+        }
+        if (!fs.existsSync(root)) return { ok: false, error: `${root} 不在——root 给的是容器根（unit.json 们住的那层）` }
+        const { repos: repoDirs, retired, testUnits } = collectRepos(root)
+        const repos: { repo: string; shape: string; findings: StructureFinding[] }[] = []
+        for (const one of repoDirs) {
+          const report = auditStructure(scanRepo(one))
+          repos.push({ repo: path.basename(one), shape: report.shape, findings: report.findings })
+        }
+        const findings = repos.flatMap((one) => one.findings.map((finding) => ({ repo: one.repo, ...finding })))
+        const shapeTally = repos.reduce<Record<string, number>>((acc, one) => {
+          acc[one.shape] = (acc[one.shape] ?? 0) + 1
+          return acc
+        }, {})
+        log.info(
+          `devkit.audit-structure：${String(repos.length)} 仓（${Object.entries(shapeTally).map(([s, n]) => `${s} ${String(n)}`).join('、')}；退役 ${String(retired.length)}、测试件 ${String(testUnits.length)} 个不扫）——findings ${String(findings.length)} 条`,
+        )
+        return {
+          ok: true,
+          data: {
+            root,
+            repos: repos.length,
+            shape: shapeTally,
+            retired,
+            testUnits,
+            findings,
+            byKind: tallyKinds(findings),
+          },
+        }
       },
     ),
   )

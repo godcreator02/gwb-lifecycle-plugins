@@ -1,0 +1,36 @@
+---
+title: 结构体检来了：audit-structure 只读回答「离标准形多远」
+born-at: 2026-09-19T10:55
+type: choice
+parent: [2026-09-19-one-shape-workspace-always]
+label: 结构体检
+domain: 模板
+---
+
+pivots-from:: [单一仓形](2026-09-19-one-shape-workspace-always.md)
+
+## 背景
+
+仓形定成「只有一种」之后，巡检侧没有判具：`audit-deps` 管依赖钉版、repo-kit 守卫管自述、
+docfirst 管文档论断——布局形状、命名派生链、件包自足性是真空。8 座裸根仓等着随触随迁，
+连「迁得对不对」都没东西回答，「随触随迁」实际只是一句方针。
+
+## 结论与边界
+
+- 新命令 `devkit.audit-structure {"dir?","root?"}`：与 `audit-deps` 同一个入口形状，单仓或
+  全生态（退役与测试件跳过），只读；findings 分 error / warn / info 三级
+- 检查面两层：**形状层**（仓形、件包自足、短名派生链三环、`files` 白名单按目录在不在动态判、
+  `prepublishOnly`、件住错区）+ **静态红线层**（`cordis` 写在 dependencies、tsconfig `paths`
+  非空、`link:`/`file:` 依赖）。跨仓 `workspace:` 判定绕，第一期不做
+- **边界即纪律**：不管版本（audit-deps 与检票）、不管自述三格（repo-kit）、不管产物
+  （artifact 测试）——多立正本只会多一处漂
+- 裸根仓不判死刑：info 级 finding 按实际文件名现拼 git mv 迁移清单——「触」有了工具
+- **正本焊接**：round-trip 测试断言 scaffold 模板产物（建仓 + 加件）零 findings——模板是
+  唯一正本，检查器是被焊住不漂的投影
+- 不挂发版检票：门禁与体检混了，warn 会把工具逼到没人用
+
+## 撞墙与验证
+
+- 检查器会抓到 devkit 自己的两处历史形状（根 yaml 收了 docs-site、件包不自足带 oxlint 配置）
+  ——按 design 这是 warn 级「存量偏差照实报」，不是要立刻改
+- 17 条规则用例真写临时目录；round-trip 两条钉住模板与检查器；全生态试跑见隔离 home 验证

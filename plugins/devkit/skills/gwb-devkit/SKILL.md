@@ -5,21 +5,23 @@ description: 写或改 gwb 插件时读——建仓、改一版看一版（devki
 
 # 写 gwb 插件
 
-`@godcreator/gwb-devkit` 是个普通插件，管五件事：建仓（`devkit.scaffold`）、往薄壳仓加件
-（`devkit.scaffold.plugin`）、测试 home 的开收（`devkit.home.*`）、改一版看一版（`devkit.dev`）、
-发正式版（`devkit.release`）；外加一支 CLI `devkit.cdp`，在工作台页面里动手取证。全部命令与
+`@godcreator/gwb-devkit` 是个普通插件，管六件事：建仓（`devkit.scaffold`）、往薄壳仓加件
+（`devkit.scaffold.plugin`）、结构体检（`devkit.audit-structure`）、测试 home 的开收
+（`devkit.home.*`）、改一版看一版（`devkit.dev`）、发正式版（`devkit.release`）；外加一支 CLI
+`devkit.cdp`，在工作台页面里动手取证。全部命令与
 参数形状：`search {"plugin":"@godcreator/gwb-devkit"}`——usage 是正本，参数给错时回执会把完整
 说明回给你。
 
 按活找说明书：
 
-| 要干什么               | 读哪                                                                   |
-| ------------------ | -------------------------------------------------------------------- |
-| 发版、抬版本号、改依赖版本号     | skill「gwb-release」                                                   |
-| 写带窗格、带界面的插件        | 本说明书的附件 `skill.read {"name":"gwb-devkit","file":"references/ui.md"}` |
-| 在页面里取证（点、量、截图、跑脚本） | 附件 `references/evidence.md`                                          |
-| 写文档站、记轨迹卡          | skill「docfirst-docs」「trajectory」；铺站与起停读「docs-site」                   |
-| 改内核本身              | 内核仓 AGENTS「怎么跑」                                                      |
+| 要干什么                    | 读哪                                                                           |
+| ----------------------- | ---------------------------------------------------------------------------- |
+| 发版、抬版本号、改依赖版本号          | skill「gwb-release」                                                           |
+| 看一个仓（或全生态）离标准形多远、裸根仓怎么迁 | `devkit.audit-structure`——只读，findings 分级，裸根仓的 info 就是迁移清单；usage 在 `search` 里 |
+| 写带窗格、带界面的插件             | 本说明书的附件 `skill.read {"name":"gwb-devkit","file":"references/ui.md"}`         |
+| 在页面里取证（点、量、截图、跑脚本）      | 附件 `references/evidence.md`                                                  |
+| 写文档站、记轨迹卡               | skill「docfirst-docs」「trajectory」；铺站与起停读「docs-site」                           |
+| 改内核本身                   | 内核仓 AGENTS「怎么跑」                                                              |
 
 ## 写一个插件的路
 
@@ -73,6 +75,10 @@ description: 写或改 gwb 插件时读——建仓、改一版看一版（devki
 6. **发版**：照 skill「gwb-release」。`devkit.release` 构建之后先上车检票（自己不在 0.0.x、`@godcreator`
    的 peer 写 `^<dev 钉>`、dev 钉＝源上 latest），没过一个都不发、回执一次列全；发之前想看全生态谁欠着，
    `devkit.audit-deps`（`out-of-range` 必须追，`behind` 范围内落后，`peer-not-caret` 还没迁 `^`）
+
+**改既有仓（加件、迁移、重构）前后各跑一次 `devkit.audit-structure`**：error 级清零再动手，
+收工时零 error 才算完；裸根仓收到的 info 迁移清单照着迁，迁完应零 findings。它只读、不管版本
+（那是 audit-deps 与检票）、不管自述三格（repo-kit 守卫）、不管产物（artifact 测试）。
 
 ## 改一版看一版：`devkit.dev`
 
