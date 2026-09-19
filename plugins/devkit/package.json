@@ -36,14 +36,14 @@
   },
   "peerDependencies": {
     "@godcreator/gwb-plugin-api": "^0.1.2",
-    "@godcreator/gwb-shell": "^0.12.2"
+    "@godcreator/gwb-shell": "^0.13.0"
   },
   "devDependencies": {
     "@godcreator/gwb-plugin-api": "0.1.2",
-    "@godcreator/gwb-commands": "0.4.3",
-    "@godcreator/gwb-node-cli": "0.4.3",
-    "@godcreator/gwb-shell": "0.12.2",
-    "@godcreator/gwb-skills": "0.4.1",
+    "@godcreator/gwb-commands": "0.4.4",
+    "@godcreator/gwb-node-cli": "0.4.4",
+    "@godcreator/gwb-shell": "0.13.0",
+    "@godcreator/gwb-skills": "0.4.2",
     "@types/node": "^24.0.0",
     "cordis": "4.0.0-rc.9",
     "typescript": "^7.0.2",
