@@ -51,10 +51,12 @@ tsconfig `paths` 与 `link:` / `file:` 依赖）。跨仓 `workspace:` 的判定
 
 规则机是纯函数，喂扫描回报告：
 
-{/* ref file="../plugins/devkit/src/structure.ts" lines="231-258" */}
+{/* ref file="../plugins/devkit/src/structure.ts" lines="234-261" */}
 
 裸根单件仓不判死刑：形照报、清单照给——`git mv` 的文件清单按这个仓的实际条目现拼，
-不是一份通用模板话。
+不是一份通用模板话。派生链第三环只核 `export const name` 形的件；**Service 形**
+（`export default class … extends Service`，base-plugins 的 data 那批）没有也不需要
+那个导出，第三环无从核，只核入口在不在——拿形态当判据只会造误报。
 
 ## 正本焊接：模板是唯一正本
 

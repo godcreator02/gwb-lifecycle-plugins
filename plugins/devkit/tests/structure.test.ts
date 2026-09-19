@@ -156,6 +156,12 @@ describe('件包层', () => {
     expect(audit(build(workspaceFiles('foo', { 'src/index.ts': null }))).kinds).toEqual(['name-chain'])
   })
 
+  it('Service 形（default export）不是断链——第三环无从核，放过；双引号也认', () => {
+    // base-plugins 的 data 那批是真 Service 形件，拿引号风格或形态当判据只会造误报
+    expect(audit(build(workspaceFiles('x', { 'src/index.ts': 'export default class X extends Service {}\n' }))).findings).toEqual([])
+    expect(audit(build(workspaceFiles('x', { 'src/index.ts': 'export const name = "gwb-x"\n' }))).findings).toEqual([])
+  })
+
   it('plugins/ 目录用全名（gwb- 前缀）→ warn，block-note 式历史形状', () => {
     // 短名取 'gwb-foo'：包名跟着目录派生（@godcreator/gwb-gwb-foo），链是扣上的，
     // 单独把「目录名带前缀」这条 warn 摘出来

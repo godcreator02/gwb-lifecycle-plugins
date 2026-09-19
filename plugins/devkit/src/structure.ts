@@ -204,10 +204,13 @@ function isPluginMember(member: MemberScan): boolean {
   return keywordsOf(member.manifest).includes('gwb-plugin')
 }
 
-/** `src/index.ts` 里 `export const name = '…'` 的值，不在就是 null */
+/**
+ * `src/index.ts` 里 `export const name = '…'` 的值，不在就是 null。单双引号都认——
+ * 引号风格不是派生链的一环，拿它当判据只会造误报
+ */
 function entryNameOf(source: string | null): string | null {
   if (source === null) return null
-  const m = /export const name = '([^']+)'/.exec(source)
+  const m = /export const name = ['"]([^'"]+)['"]/.exec(source)
   return m === null ? null : (m[1] ?? null)
 }
 
@@ -307,11 +310,14 @@ export function auditStructure(scan: RepoScan): StructureReport {
     }
     const entryName = entryNameOf(member.entrySource)
     const expectedEntry = shortFromPkg === '' ? null : `gwb-${shortFromPkg}`
+    // Service 形（export default class … extends Service）：没有也不需要 export const name，
+    // 名字住 super(ctx, "…") 那格里——第三环无从核，只核入口在不在（base-plugins 的 data 那批）
+    const serviceForm = member.entrySource !== null && entryName === null && /export default/.test(member.entrySource)
     if (member.entrySource === null) {
       add('name-chain', 'error', `${member.dir}/src/index.ts`, '缺 src/index.ts——件包的 node 半入口')
-    } else if (entryName === null) {
-      add('name-chain', 'error', `${member.dir}/src/index.ts`, "src/index.ts 里没有 `export const name = '…'`——cordis 靠它认件")
-    } else if (expectedEntry !== null && entryName !== expectedEntry) {
+    } else if (entryName === null && !serviceForm) {
+      add('name-chain', 'error', `${member.dir}/src/index.ts`, "src/index.ts 里既没有 `export const name = '…'` 也不是 Service 形的 default export——cordis 靠其中之一认件")
+    } else if (entryName !== null && expectedEntry !== null && entryName !== expectedEntry) {
       add('name-chain', 'error', `${member.dir}/src/index.ts`, `插件名 ${entryName} 与包名 ${pkgName} 派生出的 ${expectedEntry ?? '?'} 对不上——名字三环（短名/包名/插件名）必须一环扣一环`)
     }
 
