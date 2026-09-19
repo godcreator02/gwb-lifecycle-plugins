@@ -30,17 +30,17 @@
   "peerDependencies": {
     "@godcreator/gwb-plugin-api": "^0.1.2",
     "@godcreator/gwb-commands": "^0.4.3",
-    "@godcreator/gwb-shell": "^0.9.1",
-    "@godcreator/gwb-tokens": "^0.1.3",
-    "@godcreator/gwb-shared-react": "^0.1.0"
+    "@godcreator/gwb-shell": "^0.9.2",
+    "@godcreator/gwb-tokens": "^0.1.4",
+    "@godcreator/gwb-shared-react": "^0.1.1"
   },
   "devDependencies": {
     "@godcreator/gwb-plugin-api": "0.1.2",
-    "@godcreator/gwb-repo-kit": "0.2.1",
+    "@godcreator/gwb-repo-kit": "0.2.3",
     "@godcreator/gwb-commands": "0.4.3",
-    "@godcreator/gwb-shell": "0.9.1",
-    "@godcreator/gwb-tokens": "0.1.3",
-    "@godcreator/gwb-shared-react": "0.1.0",
+    "@godcreator/gwb-shell": "0.9.2",
+    "@godcreator/gwb-tokens": "0.1.4",
+    "@godcreator/gwb-shared-react": "0.1.1",
     "@tailwindcss/cli": "^4.3.0",
     "@tailwindcss/node": "^4.3.0",
     "@types/node": "^24.0.0",
