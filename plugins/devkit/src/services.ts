@@ -24,6 +24,17 @@ export interface ServiceOwner {
   entryId?: string
   /** 提供者的包名（挂载条目上的 `name`）；条目不在时退回件自报的名字 */
   pkg?: string
+  /**
+   * 那个包在自家 `package.json` 的 `gwb.provides` 里声明的自述（summary + usage）。
+   * 声明是可选装饰：没写的服务照样列出来，只是不带用法
+   */
+  provides?: ServiceProvides
+}
+
+/** `gwb.provides` 里一条声明的形状 */
+export interface ServiceProvides {
+  summary: string
+  usage: string
 }
 
 function asRecord(value: unknown): Record<string, unknown> | undefined {
@@ -125,5 +136,48 @@ export function serviceSight(ctx: unknown): { owners: ServiceOwner[]; saw: Servi
 /** 只要表。回空表时另用 `serviceSight` 拿「看见了多少」 */
 export function serviceOwners(ctx: unknown): ServiceOwner[] {
   return serviceSight(ctx).owners
+}
+
+function providesAsRecord(value: unknown): Record<string, unknown> | undefined {
+  return typeof value === 'object' && value !== null && !Array.isArray(value)
+    ? (value as Record<string, unknown>)
+    : undefined
+}
+
+/**
+ * 把包声明的 `gwb.provides` 贴到服务表上。声明住各包自己的 `package.json`——
+ * 谁提供、怎么用，真相在它自己的代码旁边，这儿只做 join。
+ *
+ * `readManifest` 收包名回那份 `package.json` 解析出来的对象（读不到回 undefined）；
+ * 注入进来是为了让测试不必碰盘。读不到、形状不对、summary / usage 不是非空字符串，
+ * 一律当那一格没声明——**绝不因声明写得坏而让整条命令失败**。
+ */
+export async function joinProvides(
+  owners: readonly ServiceOwner[],
+  readManifest: (pkg: string) => Promise<unknown>,
+): Promise<ServiceOwner[]> {
+  const manifests = new Map<string, unknown>()
+  const read = async (pkg: string): Promise<unknown> => {
+    if (!manifests.has(pkg)) manifests.set(pkg, await readManifest(pkg))
+    return manifests.get(pkg)
+  }
+  const out: ServiceOwner[] = []
+  for (const owner of owners) {
+    if (owner.pkg === undefined) {
+      out.push(owner)
+      continue
+    }
+    const manifest = await read(owner.pkg)
+    const declared = providesAsRecord(providesAsRecord(providesAsRecord(manifest)?.['gwb'])?.['provides'])?.[owner.service]
+    const entry = providesAsRecord(declared)
+    const summary = typeof entry?.['summary'] === 'string' ? entry['summary'] : undefined
+    const usage = typeof entry?.['usage'] === 'string' ? entry['usage'] : undefined
+    out.push(
+      summary !== undefined && summary !== '' && usage !== undefined && usage !== ''
+        ? { ...owner, provides: { summary, usage } }
+        : owner,
+    )
+  }
+  return out
 }
 

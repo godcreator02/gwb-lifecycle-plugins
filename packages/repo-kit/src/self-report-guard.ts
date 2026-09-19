@@ -10,6 +10,8 @@ import type { GuardVt } from './vitest-context.js'
  * - **格式**：`description` 里得有「服务 / skill / 命令」三格——缺了就是没按口径写
  * - **服务**：源码里 `super(ctx, '<名>')` 提供的服务名，description 必须点名；
  *   一个服务都没有的件要写「服务无」（两边互斥）
+ * - **provides**：`gwb.provides` 的键与源码提供的服务名互为充要，每条 `summary` / `usage`
+ *   非空——`devkit.services` 靠它把用法带进回执，撒谎等于误导每一个写件的人
  * - **skill**：`skills/` 下带 `SKILL.md` 的目录数 == description 里那个数
  * - **inject 防漏**：源码里注入的服务名必须出现在站现状区（默认 `docs-site/content/docs`）——
  *   这条原来盯卡（「该写的没写」），现在盯站；没有文档站的包跳过
@@ -82,6 +84,24 @@ function skillCount(root: string): number {
     .filter((e) => e.isDirectory() && fs.existsSync(path.join(dir, e.name, 'SKILL.md'))).length
 }
 
+export function asRecord(value: unknown): Record<string, unknown> | undefined {
+  return typeof value === 'object' && value !== null && !Array.isArray(value)
+    ? (value as Record<string, unknown>)
+    : undefined
+}
+
+/** `gwb.provides` 的声明表；字段形状不对当没写那一条 */
+function providesOf(manifest: unknown): Map<string, Record<string, unknown>> {
+  const out = new Map<string, Record<string, unknown>>()
+  const provides = asRecord(asRecord(asRecord(manifest)?.['gwb'])?.['provides'])
+  if (provides === undefined) return out
+  for (const [key, value] of Object.entries(provides)) {
+    const entry = asRecord(value)
+    if (entry !== undefined) out.set(key, entry)
+  }
+  return out
+}
+
 export function registerSelfReportGuard(vt: GuardVt, options: SelfReportGuardOptions): void {
   const root = options.root
   const manifest = JSON.parse(fs.readFileSync(path.join(root, 'package.json'), 'utf8')) as {
@@ -94,13 +114,14 @@ export function registerSelfReportGuard(vt: GuardVt, options: SelfReportGuardOpt
   const srcText = srcTextOf(root)
   const provided = providedServicesOf(srcText)
   const injected = injectServicesOf(srcText)
+  const provides = providesOf(manifest)
   const skills = skillCount(root)
   const docsDir = path.resolve(root, options.docsDir ?? 'docs-site/content/docs')
   const docsText = readTree(docsDir, (f) => f.endsWith('.mdx'))
     .map((f) => fs.readFileSync(f, 'utf8'))
     .join('\n')
 
-  vt.describe('自述防漏：description 与站现状区', () => {
+  vt.describe('自述防漏：description、provides 与站现状区', () => {
     vt.it('description 三格齐全（服务 / skill / 命令）', () => {
       vt.expect(description, 'description 少了「服务」那格').toContain('服务')
       vt.expect(description, 'description 少了「skill」那格').toContain('skill')
@@ -109,6 +130,17 @@ export function registerSelfReportGuard(vt: GuardVt, options: SelfReportGuardOpt
 
     vt.it('提供的服务名都点了名', () => {
       for (const name of provided) vt.expect(description, `description 没提服务 ${name}`).toContain(name)
+    })
+
+    vt.it('gwb.provides 与源码提供的服务互为充要，summary / usage 非空', () => {
+      for (const name of provided) {
+        vt.expect(provides.has(name), `源码提供 ${name}，但 gwb.provides 里没声明——devkit.services 带不出它的用法`).toBe(true)
+      }
+      for (const [name, entry] of provides) {
+        vt.expect(provided.has(name), `gwb.provides 声明了 ${name}，源码里并不提供`).toBe(true)
+        vt.expect(typeof entry['summary'] === 'string' && entry['summary'] !== '', `gwb.provides.${name}.summary 要是非空字符串`).toBe(true)
+        vt.expect(typeof entry['usage'] === 'string' && entry['usage'] !== '', `gwb.provides.${name}.usage 要是非空字符串`).toBe(true)
+      }
     })
 
     vt.it('说明书份数对得上 skills/ 目录', () => {

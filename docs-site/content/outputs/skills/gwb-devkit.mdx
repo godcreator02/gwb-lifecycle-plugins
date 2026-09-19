@@ -145,17 +145,26 @@ typecheck 与 vitest 吃源码，全绿只说明源码站得住；装出来能�
 ## 能力面
 
 内核给的面在词汇表包 `@godcreator/gwb-plugin-api`：`gwbKernel` 上四样——`dataDir` /
-`version` / `emit(payload)` / `setShell(url)`；页面上的 `window.gwb` 类型也在那儿。各服务的方法签名：
-`import type {} from '<那个包>'`，补全就是说明书。
+`version` / `emit(payload)` / `setShell(url)`；页面上的 `window.gwb` 类型也在那儿。
 
-| 面 | 怎么拿 | 什么时候要 |
+件与件之间的面（设置、数据、命令总线、说明书、CLI……）**先问 `devkit.services`**：回这台
+home 现挂的每个服务、谁提供的、怎么用——用法那半从各包自家 `package.json` 的
+`gwb.provides` 声明 join 进来（`{ summary, usage }`），装了什么就报什么；没声明的服务
+照样列，只是不带用法。**自己要提供新服务时**照同一口径写 `gwb.provides`：键与源码提供的
+服务名互为充要、summary / usage 非空——repo-kit 的自述守卫钉着这条，漂了 `pnpm check` 红。
+
+| 面 | 服务 | 什么时候要 |
 | --- | --- | --- |
-| 命令总线 | `gwbCommands.register` | 能力要被调（几乎一定） |
-| 说明书 | `skills/<名>/SKILL.md` + `gwbSkills.register`（局部） | 有流程或坑要讲给 agent |
-| 设置 | `gwbSettings.define` → `get` / `set`（局部） | 插件的一切可配项；值跟条目走，`shared: true` 才落公共区 |
-| 数据 | `gwbData.readDoc` / `writeDoc`（局部） | 要落盘状态，存 `<home>/data/<条目末段>/` |
-| 窗格 | `gwbShell.registerPane` + 浏览器半 | 要人看得见，读附件 `references/ui.md` |
-| 外部 CLI | `gwbNodeCli` / `gwbPyCli` 登记（局部） | CLI 形态的东西，自动镜像成总线命令 |
+| 命令总线 | `gwbCommands` | 能力要被调（几乎一定） |
+| 说明书 | `gwbSkills` | 有流程或坑要讲给 agent |
+| 设置 | `gwbSettings` | 插件的一切可配项 |
+| 数据 | `gwbData` | 要落盘状态 |
+| 窗格 | `gwbShell` | 要人看得见，读附件 `references/ui.md` |
+| 外部 CLI | `gwbNodeCli` / `gwbPyCli` | CLI 形态的东西，自动镜像成总线命令 |
+| 日志 | `ctx.logger(name)`（cordis 面，不 inject） | 件说话的正规出口，进 gwb.log 与日志窗格 |
+
+深一层的方法签名：`import type {} from '<那个包>'`，补全就是说明书（包都发 `src`，
+读源码同效）。
 
 - **inject 三种写法**：`export const inject = [...]` 硬依赖，服务不在插件就不挂；`static inject`（Service 类）；
   `ctx.inject([...], fn)` 局部可选，缺了主插件照挂

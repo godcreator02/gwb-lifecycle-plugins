@@ -74,11 +74,18 @@ afterAll(() => {
 })
 
 /** 造一个迷你包：package.json + src/index.ts（+ 可选 skills/ 与站现状区） */
-function fixtureRepo(description: string, src: string, extra: { skills?: number; docs?: string } = {}): string {
+function fixtureRepo(description: string, src: string, extra: { skills?: number; docs?: string; provides?: Record<string, unknown> } = {}): string {
   const root = fs.mkdtempSync(path.join(os.tmpdir(), 'repo-kit-'))
   tmps.push(root)
   fs.mkdirSync(path.join(root, 'src'))
-  fs.writeFileSync(path.join(root, 'package.json'), JSON.stringify({ name: '@godcreator/gwb-demo', version: '1.0.0', description, keywords: ['gwb', 'gwb-plugin'] }))
+  const manifest: Record<string, unknown> = {
+    name: '@godcreator/gwb-demo',
+    version: '1.0.0',
+    description,
+    keywords: ['gwb', 'gwb-plugin'],
+    ...(extra.provides === undefined ? {} : { gwb: { provides: extra.provides } }),
+  }
+  fs.writeFileSync(path.join(root, 'package.json'), JSON.stringify(manifest))
   fs.writeFileSync(path.join(root, 'src', 'index.ts'), src)
   for (let i = 0; i < (extra.skills ?? 0); i++) {
     fs.mkdirSync(path.join(root, 'skills', `s${String(i)}`), { recursive: true })
@@ -98,6 +105,7 @@ const GOOD_SRC = [
   "class GwbDemo { constructor(ctx) { super(ctx, 'gwbDemo') } }",
 ].join('\n')
 const GOOD_DOCS = '## 服务 ctx.gwbDemo\n\n用了 gwbCommands 与 gwbShell。\n'
+const GOOD_PROVIDES = { gwbDemo: { summary: '演示服务', usage: 'ctx.gwbDemo.demo()' } }
 
 describe('injectServicesOf：三种 inject 写法都扫到', () => {
   it('export const 与 static 与局部 ctx.inject', () => {
@@ -126,15 +134,39 @@ describe('providedServicesOf：三种写法都扫到', () => {
 })
 
 describe('registerSelfReportGuard', () => {
-  it('自述齐全：四条用例都过', () => {
+  it('自述齐全：五条用例都过', () => {
     const { vt, cases } = recorder()
-    registerSelfReportGuard(vt, { root: fixtureRepo(GOOD_DESC, GOOD_SRC, { skills: 1, docs: GOOD_DOCS }) })
-    expect(cases).toHaveLength(4)
+    registerSelfReportGuard(vt, { root: fixtureRepo(GOOD_DESC, GOOD_SRC, { skills: 1, docs: GOOD_DOCS, provides: GOOD_PROVIDES }) })
+    expect(cases).toHaveLength(5)
     const r = replay(cases)
     r.pass('三格齐全')
     r.pass('提供的服务名')
+    r.pass('gwb.provides')
     r.pass('说明书份数')
     r.pass('站现状区')
+  })
+  it('gwb.provides 漏声明源码提供的服务：那条炸，且报出名字', () => {
+    const { vt, cases } = recorder()
+    registerSelfReportGuard(vt, { root: fixtureRepo(GOOD_DESC, GOOD_SRC, { skills: 1, docs: GOOD_DOCS }) })
+    replay(cases).failsWith('gwb.provides', 'gwbDemo')
+  })
+  it('gwb.provides 声明了源码不提供的服务：那条炸', () => {
+    const { vt, cases } = recorder()
+    registerSelfReportGuard(vt, {
+      root: fixtureRepo(GOOD_DESC, GOOD_SRC, {
+        skills: 1,
+        docs: GOOD_DOCS,
+        provides: { ...GOOD_PROVIDES, gwbGhost: { summary: '没有的服务', usage: 'x' } },
+      }),
+    })
+    replay(cases).failsWith('gwb.provides', 'gwbGhost')
+  })
+  it('gwb.provides 的 usage 是空串：那条炸', () => {
+    const { vt, cases } = recorder()
+    registerSelfReportGuard(vt, {
+      root: fixtureRepo(GOOD_DESC, GOOD_SRC, { skills: 1, docs: GOOD_DOCS, provides: { gwbDemo: { summary: '演示服务', usage: '' } } }),
+    })
+    replay(cases).failsWith('gwb.provides', 'usage')
   })
   it('description 没提提供的服务：点名那条炸，且报出名字', () => {
     const { vt, cases } = recorder()

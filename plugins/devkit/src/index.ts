@@ -38,7 +38,7 @@ import {
   renderTemplate,
   writeRepo,
 } from './scaffold.js'
-import { serviceSight } from './services.js'
+import { joinProvides, serviceSight } from './services.js'
 
 export const name = 'gwb-devkit'
 export const inject = ['gwbCommands']
@@ -334,27 +334,36 @@ export function apply(ctx: GwbContext): void {
     ),
   )
 
-  // 「谁提供这个服务」——问 cordis 自己的 reflect 表，答案现算（理由在 services.ts）。
-  // 这条服务写件的人用：服务是件与件之间的面，agent 调不动它，所以不挂到门上
+  // 「谁提供这个服务」——问 cordis 自己的 reflect 表，答案现算（理由在 services.ts）；
+  // 用法那半从各包自带的 gwb.provides 声明 join 进来——真相在各自的 package.json 里，这儿不抄
   ctx.effect(() =>
     bus.register(
       {
         name: 'devkit.services',
         plugin: '@godcreator/gwb-devkit',
-        description: '这台 home 里有哪些 cordis 服务、各是谁提供的——现问运行时，不读清单',
+        description: '这台 home 里有哪些 cordis 服务、各是谁提供的、怎么用——运行时现问，用法从各包 gwb.provides 声明 join',
         usage:
-          '无参数。回 { services: [{ service, entryId?, pkg? }] }——entryId 是 cordis.yml 里的条目名，pkg 是包名；两个都没有的是内核自己挂的服务。拿不到运行时的服务表时回空表加 note 与 saw（看见了几层 fiber 链、几个件、几张服务表）——用来分辨「这个宿主不是 cordis」和「cordis 换了形状」',
+          '无参数。回 { services: [{ service, entryId?, pkg?, provides? }] }——entryId 是 cordis.yml 里的条目名，pkg 是包名；两个都没有的是内核自己挂的服务。provides 是那个包在自家 package.json 的 gwb.provides 里声明的 { summary, usage }，写插件要接一面时照它用——没声明的服务照样列，只是不带用法。拿不到运行时的服务表时回空表加 note 与 saw（看见了几层 fiber 链、几个件、几张服务表）——用来分辨「这个宿主不是 cordis」和「cordis 换了形状」',
       },
       async () => {
-        const { owners, saw } = serviceSight(ctx)
+        const sight = serviceSight(ctx)
+        const home = requireKernel(ctx).dataDir
+        const services = await joinProvides(sight.owners, async (pkg) => {
+          try {
+            return JSON.parse(await fs.promises.readFile(path.join(home, 'node_modules', pkg, 'package.json'), 'utf8')) as unknown
+          } catch {
+            return undefined
+          }
+        })
+        const owners = sight.owners
         return {
           ok: true,
           data: {
-            services: owners,
+            services,
             ...(owners.length === 0
               ? {
-                  note: `运行时没给出服务表——看见的东西：自己的 fiber 链 ${String(saw.chainDepth)} 层、件 ${String(saw.runtimes)} 个、fiber ${String(saw.fibers)} 条、服务表 ${String(saw.stores)} 张。全是 0 说明这个 ctx 上没有 cordis 的 fiber/registry；有 fiber 而表是 0 张，多半是 cordis 换了形状`,
-                  saw,
+                  note: `运行时没给出服务表——看见的东西：自己的 fiber 链 ${String(sight.saw.chainDepth)} 层、件 ${String(sight.saw.runtimes)} 个、fiber ${String(sight.saw.fibers)} 条、服务表 ${String(sight.saw.stores)} 张。全是 0 说明这个 ctx 上没有 cordis 的 fiber/registry；有 fiber 而表是 0 张，多半是 cordis 换了形状`,
+                  saw: sight.saw,
                 }
               : {}),
           },

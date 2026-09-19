@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { serviceOwners, serviceSight } from '../src/services.js'
+import { joinProvides, serviceOwners, serviceSight, type ServiceOwner } from '../src/services.js'
 
 /** 造一截 fiber：store 里每条 impl 的 `fiber` 指回自己（＝本 fiber 提供的服务） */
 function fiber(store: Record<string, string>, opts: { id?: string; name?: string; runtime?: string } = {}): Record<string, unknown> {
@@ -88,5 +88,57 @@ describe('devkit.services：问运行时要服务表', () => {
     expect(serviceOwners({ fiber: '不是对象', registry: { entries: '不是函数' } })).toEqual([])
     expect(serviceOwners({ fiber: { store: '不是对象' }, registry: { entries: () => [[0, { fibers: '不是数组' }]] } })).toEqual([])
     expect(serviceSight(undefined).saw).toEqual({ chainDepth: 0, runtimes: 0, fibers: 0, stores: 0 })
+  })
+})
+
+describe('joinProvides：把包声明的 gwb.provides 贴上服务表', () => {
+  const owners: ServiceOwner[] = [
+    { service: 'gwbKernel' },
+    { service: 'gwbData', entryId: 'home:data', pkg: '@godcreator/gwb-data' },
+    { service: 'gwbX', entryId: 'home:x', pkg: 'pkg-x' },
+  ]
+
+  it('声明了的贴上 { summary, usage }；没声明的、没有 pkg 的原样', async () => {
+    const out = await joinProvides(owners, (pkg) =>
+      Promise.resolve(
+        pkg === '@godcreator/gwb-data'
+          ? { gwb: { provides: { gwbData: { summary: '件的落盘状态', usage: 'readDoc / writeDoc / dir' } } } }
+          : pkg === 'pkg-x'
+            ? { name: 'pkg-x' }
+            : undefined,
+      ),
+    )
+    expect(out).toEqual([
+      { service: 'gwbKernel' },
+      { service: 'gwbData', entryId: 'home:data', pkg: '@godcreator/gwb-data', provides: { summary: '件的落盘状态', usage: 'readDoc / writeDoc / dir' } },
+      { service: 'gwbX', entryId: 'home:x', pkg: 'pkg-x' },
+    ])
+  })
+
+  it('summary / usage 空串或不是字符串：当没声明，不炸', async () => {
+    const out = await joinProvides([{ service: 'gwbBad', pkg: 'pkg-bad' }], () =>
+      Promise.resolve({ gwb: { provides: { gwbBad: { summary: '', usage: 3 } } } }),
+    )
+    expect(out).toEqual([{ service: 'gwbBad', pkg: 'pkg-bad' }])
+  })
+
+  it('manifest 读不到或不是对象：原样', async () => {
+    const out = await joinProvides([{ service: 'gwbData', pkg: '@godcreator/gwb-data' }], () => Promise.resolve('不是对象'))
+    expect(out).toEqual([{ service: 'gwbData', pkg: '@godcreator/gwb-data' }])
+  })
+
+  it('同一个包的多条服务只读一次 manifest', async () => {
+    let reads = 0
+    const two: ServiceOwner[] = [
+      { service: 'gwbA', pkg: 'pkg-same' },
+      { service: 'gwbB', pkg: 'pkg-same' },
+    ]
+    const out = await joinProvides(two, (pkg) => {
+      reads += 1
+      return Promise.resolve({ gwb: { provides: { gwbA: { summary: 'a', usage: 'a' }, gwbB: { summary: 'b', usage: 'b' } } } })
+    })
+    expect(reads).toBe(1)
+    expect(out[0]?.provides).toEqual({ summary: 'a', usage: 'a' })
+    expect(out[1]?.provides).toEqual({ summary: 'b', usage: 'b' })
   })
 })
