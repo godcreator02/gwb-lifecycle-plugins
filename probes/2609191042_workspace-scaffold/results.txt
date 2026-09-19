@@ -1,0 +1,65 @@
+Θô║σÑ╜Σ║å 18 Σ╕¬µûçΣ╗╢ ΓåÆ D:\unitfolders\260908dkv\gwb-devkit\probes\2609191042_workspace-scaffold\gen\ws-probe
+  plugins/probe-hello/.oxlintrc.json
+  plugins/probe-hello/build.ts
+  plugins/probe-hello/package.json
+  plugins/probe-hello/src/client/index.tsx
+  plugins/probe-hello/src/client/styles.css
+  plugins/probe-hello/src/client/tsconfig.json
+  plugins/probe-hello/src/index.ts
+  plugins/probe-hello/tests/artifact.test.ts
+  plugins/probe-hello/tests/plugin.test.ts
+  plugins/probe-hello/tests/prefix.test.ts
+  plugins/probe-hello/tests/self-report.test.ts
+  plugins/probe-hello/tsconfig.build.json
+  plugins/probe-hello/tsconfig.json
+  plugins/probe-hello/vitest.config.ts
+  .gitignore
+  package.json
+  pnpm-workspace.yaml
+  README.md
+
+== pnpm install ==
+
+Scope: all 2 workspace projects
+Packages are hard linked from the content-addressable store to the virtual store.
+  Content-addressable store is at: D:\.pnpm-store\v11
+  Virtual store is at:             node_modules/.pnpm
+Progress: resolved 83, reused 95, downloaded 0, added 70
+Packages: +95
+++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++
+Progress: resolved 95, reused 95, downloaded 0, added 95, done
+Done in 2s using pnpm v12.4.2
+
+== pnpm build ==
+
+$ pnpm -r --filter "./plugins/*" build
+$ tsc -p tsconfig.build.json && node build.ts && tailwindcss -i src/client/styles.css -o dist/style.css
+[probe-hello] dist/client.js ΓåÉ src/client/index.tsx
+Γëê tailwindcss v4.3.3
+
+Done in 47ms
+
+== pnpm check ==
+
+$ pnpm -r --no-bail check
+$ pnpm run typecheck && pnpm run lint && pnpm run test
+$ tsc --noEmit -p tsconfig.json && tsc --noEmit -p src/client/tsconfig.json
+$ oxlint . --deny-warnings
+Found 0 warnings and 0 errors.
+Finished in 339ms on 7 files with 16 rules using 16 threads.
+$ vitest run --passWithNoTests --tags-filter=!slow
+
+[1m[30m[46m RUN [49m[39m[22m [36mv4.1.11 [39m[90mD:/unitfolders/260908dkv/gwb-devkit/probes/2609191042_workspace-scaffold/gen/ws-probe/plugins/probe-hello[39m
+
+ [32mΓ£ô[39m tests/artifact.test.ts [2m([22m[2m6 tests[22m[2m)[22m[32m 10[2mms[22m[39m
+ [32mΓ£ô[39m tests/prefix.test.ts [2m([22m[2m2 tests[22m[2m)[22m[32m 41[2mms[22m[39m
+ [32mΓ£ô[39m tests/self-report.test.ts [2m([22m[2m4 tests[22m[2m)[22m[32m 2[2mms[22m[39m
+ [32mΓ£ô[39m tests/plugin.test.ts [2m([22m[2m3 tests[22m[2m)[22m[32m 3[2mms[22m[39m
+
+[2m Test Files [22m [1m[32m4 passed[39m[22m[90m (4)[39m
+[2m      Tests [22m [1m[32m15 passed[39m[22m[90m (15)[39m
+[2m   Start at [22m 10:42:57
+[2m   Duration [22m 1.78s[2m (transform 59ms, setup 0ms, import 281ms, tests 57ms, environment 0ms)[22m
+
+
+全部过。

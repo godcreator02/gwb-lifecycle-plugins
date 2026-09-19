@@ -5,10 +5,11 @@ description: 写或改 gwb 插件时读——建仓、改一版看一版（devki
 
 # 写 gwb 插件
 
-`@godcreator/gwb-devkit` 是个普通插件，管四件事：建仓（`devkit.scaffold`）、测试 home 的开收
-（`devkit.home.*`）、改一版看一版（`devkit.dev`）、发正式版（`devkit.release`）；外加一支 CLI
-`devkit.cdp`，在工作台页面里动手取证。全部命令与参数形状：`search {"plugin":"@godcreator/gwb-devkit"}`
-——usage 是正本，参数给错时回执会把完整说明回给你。
+`@godcreator/gwb-devkit` 是个普通插件，管五件事：建仓（`devkit.scaffold`）、往薄壳仓加件
+（`devkit.scaffold.plugin`）、测试 home 的开收（`devkit.home.*`）、改一版看一版（`devkit.dev`）、
+发正式版（`devkit.release`）；外加一支 CLI `devkit.cdp`，在工作台页面里动手取证。全部命令与
+参数形状：`search {"plugin":"@godcreator/gwb-devkit"}`——usage 是正本，参数给错时回执会把完整
+说明回给你。
 
 按活找说明书：
 
@@ -37,6 +38,21 @@ description: 写或改 gwb 插件时读——建仓、改一版看一版（devki
    默认连文档站一起铺（`docs-site.create` 再 `docfirst.attach`，两条连着跑）。回执的
    `docs.built` / `docs.attached` 是真相，照 `nextSteps` 做到底。第一次 `pnpm doc:render`
    之前，先把手写 README 里要留的内容搬进 `content/outputs/readme.mdx`——render 会覆盖它
+
+   **只有一种仓形**：薄壳 workspace——根是 private 壳（`pnpm build` / `pnpm check` 在仓根递归），
+   件住 `plugins/<短名>/`，包内自足：
+
+   ```
+   repo/
+   ├── package.json            # 薄壳：gwb-<名>-workspace，private，无代码
+   ├── pnpm-workspace.yaml     # plugins/*（长出非件包再加 packages/*）；docs-site 不收
+   ├── AGENTS.md / README.md   # 仓级，住根
+   ├── plugins/<短名>/         # 件包：src/ tests/ tsconfig* vitest oxlint 全在包内
+   └── docs-site/              # 一份站盖全仓，自己一套依赖
+   ```
+
+   加第二个件：`devkit.scaffold.plugin {"repo":"<仓根>","name":"<短名>"}`——落的是同一份件包
+   模板，不碰根壳与站；老裸根单件仓（仓根即包根）会被它当场拒，先迁成薄壳再来
 2. **先写测试**：能不起进程、不开窗、只喂输入看输出的逻辑，抽成纯函数写进 `tests/`；
    要起子进程、要 Electron 的，走下面的验机。node 半的测试只 import `.ts`（node 半的 tsc 没开 jsx）；
    真起子进程的用例打 `slow` 标签
@@ -71,7 +87,9 @@ tag `dev`，不动 `latest`）→ 目标 home 清单写准确号再 `pnpm instal
 
 * **第一次**：目标 home 还没有这个件的条目时，`devkit.dev` 照样发出开发版、装进去，回执 note 说没有条目可挂；
   再调 `plugin-manager.install {"pkg":"<包名>","spec":"<回执里那个 dev 号>"}` 建条目，之后每趟 `devkit.dev`
-* **`packages`** 相对仓根、按依赖序；一仓一包不用给。同一趟互相依赖的包，依赖钉成这一趟的准确号
+* **`packages`** 相对仓根、按依赖序；**薄壳仓必给**（新仓都是薄壳，单件也写
+  `["plugins/<短名>"]`）——不给就是仓根自己，那是老裸根单件仓的语义。同一趟互相依赖的包，
+  依赖钉成这一趟的准确号
 * **目标只说 home 名**：端口从那个 home 的 `runtime.json` 查、验活，连上后再拿页面自报的名字核对
 * **开发版只进隔离 home**：目标是 `default` 或 devkit 自己所在的 home，当场拒。换 devkit 自己走发版加一键更新
 * **构建与取证都不可跳过**：`files` 白名单里有通配正条目时这条链拒发，走 `devkit.release`

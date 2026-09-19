@@ -1,7 +1,7 @@
 import { defineConfig } from 'vitest/config'
 
 /**
- * 一仓一包一插件：测试只认仓根的 `tests/`，`src/` 里不放用例。
+ * 件包自足：测试只认包内的 `tests/`，`src/` 里不放用例。
  *
  * 「slow」标签：**凡真起子进程的用例必打标**（`pnpm build` / `pnpm pack` 那种）。
  * 日常 `pnpm test` 想跳过它们就加 `--tags-filter=!slow`。

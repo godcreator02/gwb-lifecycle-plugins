@@ -5,21 +5,27 @@ import { fileURLToPath } from 'node:url'
 import { afterEach, describe, expect, it } from 'vitest'
 import {
   NAME_RE,
+  PKG_ZONE,
+  REPO_ZONE,
   SCOPE,
+  landRel,
   listTemplateFiles,
   nextSteps,
+  nextStepsPlugin,
   packageRoot,
   placeholders,
   planScaffold,
+  planScaffoldPlugin,
   render,
+  renderPlugin,
   renderTemplate,
   targetRel,
   writeRepo,
 } from '../src/scaffold.js'
 
 /**
- * 建仓的纯机。**落盘那几条真写临时目录**——`writeRepo` 的活就是往盘上放文件，
- * 拿替身测等于没测。
+ * 建仓与加件的纯机。**落盘那几条真写临时目录**——`writeRepo` 的活就是往盘上放文件，
+ * 拿替身测等于没测。`planScaffoldPlugin` 要验仓的形状，也是在临时目录里现搭。
  */
 
 const TEMPLATE_ROOT = path.join(path.dirname(fileURLToPath(import.meta.url)), '..', 'template')
@@ -33,6 +39,14 @@ function sandbox(): string {
 afterEach(() => {
   for (const dir of sandboxes.splice(0)) fs.rmSync(dir, { recursive: true, force: true })
 })
+
+/** 临时目录里搭一个薄壳仓（pnpm-workspace.yaml 带 plugins/ 那条） */
+function fakeWorkspace(yaml = 'packages:\n  - plugins/*\n'): string {
+  const dir = path.join(sandbox(), 'repo')
+  fs.mkdirSync(dir, { recursive: true })
+  fs.writeFileSync(path.join(dir, 'pnpm-workspace.yaml'), yaml, 'utf8')
+  return dir
+}
 
 describe('短名校验', () => {
   it('kebab-case 过，别的都拒——段间一个连字符、结尾不留', () => {
@@ -82,7 +96,32 @@ describe('planScaffold：校验与派生', () => {
   })
 })
 
-describe('docsBlock：README 里讲站的那一段', () => {
+describe('planScaffoldPlugin：往薄壳仓加件', () => {
+  it('派生同一套身份，dir 直指 <repo>/plugins/<短名>', () => {
+    const repo = fakeWorkspace()
+    const plan = planScaffoldPlugin({ name: 'world', repo, title: '第二件' })
+    expect(plan.pkg).toBe(`${SCOPE}/gwb-world`)
+    expect(plan.pluginName).toBe('gwb-world')
+    expect(plan.repoDir).toBe(repo)
+    expect(plan.dir).toBe(path.join(repo, 'plugins', 'world'))
+    expect(plan.title).toBe('第二件')
+  })
+
+  it('repo 不在、yaml 不在（老裸根单件仓）、yaml 没有 plugins/ 那条，三种都拒，话里带路', () => {
+    expect(() => planScaffoldPlugin({ name: 'x', repo: path.join(sandbox(), 'nope') })).toThrow(/不在/)
+    const bare = path.join(sandbox(), 'bare')
+    fs.mkdirSync(bare, { recursive: true })
+    expect(() => planScaffoldPlugin({ name: 'x', repo: bare })).toThrow(/薄壳 workspace/)
+    const noPlugins = fakeWorkspace('packages:\n  - docs-site\n')
+    expect(() => planScaffoldPlugin({ name: 'x', repo: noPlugins })).toThrow(/薄壳 workspace/)
+    for (const bad of ['', 'Hello', 'x--']) {
+      expect(() => planScaffoldPlugin({ name: bad, repo: fakeWorkspace() })).toThrow(/kebab-case/)
+    }
+    expect(() => planScaffoldPlugin({ name: 'x', repo: '   ' })).toThrow(/repo/)
+  })
+})
+
+describe('docsBlock：README 里讲站的那段', () => {
   it('建了站就讲怎么跑；端口给了才敢写死，没给只说去哪儿看', () => {
     const withPort = placeholders(planScaffold({ name: 'x', dir: 'D:\\tmp\\x', port: 4321 })).docsBlock ?? ''
     expect(withPort).toContain('cd docs-site')
@@ -137,14 +176,22 @@ describe('nextSteps：按站真建到哪一步分三支', () => {
     expect(nextSteps(plan).join('\n')).toContain('doc:confirm')
   })
 
-  it('发版指到 devkit.release 与说明书 gwb-release，首装走 devkit.dev 再建条目', () => {
+  it('薄壳仓的 dev 与 release 都带 packages 指到 plugins/ 下——packages 缺省只属于老裸根仓', () => {
     const steps = nextSteps(plan).join('\n')
+    expect(steps).toContain('"packages":["plugins/x"]')
     expect(steps).toContain('devkit.release')
     expect(steps).toContain('gwb-release')
-    expect(steps).toContain('devkit.dev')
     expect(steps).toContain('plugin-manager.install')
     expect(steps).not.toContain('pnpm publish')
     expect(steps).not.toContain('--registry')
+  })
+
+  it('nextStepsPlugin：没有站那半，尾巴是把新件写进 README 与站的正本', () => {
+    const repo = fakeWorkspace()
+    const steps = nextStepsPlugin(planScaffoldPlugin({ name: 'w', repo })).join('\n')
+    expect(steps).toContain('"packages":["plugins/w"]')
+    expect(steps).toContain('doc:render')
+    expect(steps).not.toContain('docs-site.create')
   })
 })
 
@@ -160,68 +207,99 @@ describe('render：占位符', () => {
   })
 })
 
-describe('targetRel：脱掉 .tpl', () => {
+describe('targetRel 与 landRel：后缀与两区落点', () => {
   it('带后缀的脱掉，不带的原样', () => {
     expect(targetRel('package.json.tpl')).toBe('package.json')
-    expect(targetRel('src/index.ts.tpl')).toBe('src/index.ts')
     // npm pack 不打 .gitignore，模板里那份必须带后缀存着
     expect(targetRel('.gitignore.tpl')).toBe('.gitignore')
     expect(targetRel('README.md')).toBe('README.md')
   })
+
+  it('repo/ 铺仓根，pkg/ 铺 plugins/<短名>/，区外当场抛', () => {
+    expect(landRel('repo/package.json.tpl', 'hello')).toBe('package.json')
+    expect(landRel('repo/.gitignore.tpl', 'hello')).toBe('.gitignore')
+    expect(landRel('pkg/src/index.ts.tpl', 'hello')).toBe('plugins/hello/src/index.ts')
+    expect(landRel('pkg/.oxlintrc.json.tpl', 'hello')).toBe('plugins/hello/.oxlintrc.json')
+    expect(() => landRel('src/index.ts.tpl', 'hello')).toThrow(/两区/)
+  })
 })
 
-describe('包内 template/', () => {
-  it('每个文件都带 .tpl 后缀', () => {
+describe('包内 template/：两区', () => {
+  it('每个文件都带 .tpl 后缀，且都声明了自己住哪一区', () => {
     const files = listTemplateFiles(TEMPLATE_ROOT)
-    expect(files.length).toBe(17)
     expect(files.filter((f) => !f.endsWith('.tpl'))).toEqual([])
+    for (const zone of [REPO_ZONE, PKG_ZONE]) {
+      expect(files.some((f) => f.startsWith(`${zone}/`)), `${zone}/ 区是空的`).toBe(true)
+    }
+    // 没声明落点的文件过不了 landRel——模板里长出一棵没人认领的树，建仓当场炸
+    for (const file of files) expect(() => landRel(file, 'x')).not.toThrow()
   })
 
-  it('真渲染一套：占位符一个不剩，包名与插件名都对', () => {
+  it('真渲染一套：占位符一个不剩，薄壳根 + 件包的树形都对', () => {
     const files = renderTemplate(TEMPLATE_ROOT, planScaffold({ name: 'hello', dir: 'D:\\tmp\\x', title: '打招呼' }))
-    // 一个**能直接开工**的模板插件仓：门禁（oxlint / vitest / 两半 tsconfig）、浏览器半
-    // （client + styles + build.ts）、四份测试、README、allowBuilds 都在
     expect(files.map((f) => f.rel).sort()).toEqual([
       '.gitignore',
-      '.oxlintrc.json',
       'README.md',
-      'build.ts',
       'package.json',
+      'plugins/hello/.oxlintrc.json',
+      'plugins/hello/build.ts',
+      'plugins/hello/package.json',
+      'plugins/hello/src/client/index.tsx',
+      'plugins/hello/src/client/styles.css',
+      'plugins/hello/src/client/tsconfig.json',
+      'plugins/hello/src/index.ts',
+      'plugins/hello/tests/artifact.test.ts',
+      'plugins/hello/tests/plugin.test.ts',
+      'plugins/hello/tests/prefix.test.ts',
+      'plugins/hello/tests/self-report.test.ts',
+      'plugins/hello/tsconfig.build.json',
+      'plugins/hello/tsconfig.json',
+      'plugins/hello/vitest.config.ts',
       'pnpm-workspace.yaml',
-      'src/client/index.tsx',
-      'src/client/styles.css',
-      'src/client/tsconfig.json',
-      'src/index.ts',
-      'tests/artifact.test.ts',
-      'tests/plugin.test.ts',
-      'tests/prefix.test.ts',
-      'tests/self-report.test.ts',
-      'tsconfig.build.json',
-      'tsconfig.json',
-      'vitest.config.ts',
     ])
-    const pkg = JSON.parse(files.find((f) => f.rel === 'package.json')?.text ?? '') as {
+    const shell = JSON.parse(files.find((f) => f.rel === 'package.json')?.text ?? '') as {
+      name: string
+      private: boolean
+      scripts: Record<string, string>
+    }
+    // 根是薄壳：private、无依赖、build 只递归 plugins/*（fresh 仓没有 packages/，过滤器不带它）
+    expect(shell.name).toBe('gwb-hello-workspace')
+    expect(shell.private).toBe(true)
+    expect(shell.scripts.build).toContain('./plugins/*')
+    expect(files.find((f) => f.rel === 'pnpm-workspace.yaml')?.text ?? '').toContain('- plugins/*')
+
+    const pkg = JSON.parse(files.find((f) => f.rel === 'plugins/hello/package.json')?.text ?? '') as {
       name: string
       scripts: Record<string, string>
     }
     expect(pkg.name).toBe('@godcreator/gwb-hello')
-    // 红线六：漏了 prepublishOnly，publish 会把上一版的 dist 原样发出去而且一声不吭
+    // 红线六：漏了 prepublishOnly，publish 会把上一版的 dist/ 原样发出去而且一声不吭
     expect(pkg.scripts.prepublishOnly).toBeDefined()
     expect(pkg.scripts.check).toBeDefined()
-    const entry = files.find((f) => f.rel === 'src/index.ts')?.text ?? ''
+    const entry = files.find((f) => f.rel === 'plugins/hello/src/index.ts')?.text ?? ''
     expect(entry).toContain("export const name = 'gwb-hello'")
     for (const file of files) expect(file.text).not.toContain('{{')
   })
 
+  it('renderPlugin 只渲染件包那半：rel 相对件包根，仓半的文件一个都不在', () => {
+    const repo = fakeWorkspace()
+    const files = renderPlugin(TEMPLATE_ROOT, planScaffoldPlugin({ name: 'world', repo }))
+    expect(files.length).toBeGreaterThan(0)
+    // 仓半不在：根壳、README、workspace 是建仓的事，加件不碰
+    expect(files.some((f) => f.rel === 'pnpm-workspace.yaml' || f.rel === 'README.md')).toBe(false)
+    expect(files.some((f) => f.rel.startsWith('plugins/'))).toBe(false)
+    for (const file of files) expect(file.text).not.toContain('{{')
+  })
+
   it('模板里的占位符全在 placeholders 的表上——认不出的当场抛，那正是这条要钉的', () => {
-    // docsBlock 是后加的一格：模板加了新占位符而这边没加，renderTemplate 会抛
     expect(() => renderTemplate(TEMPLATE_ROOT, planScaffold({ name: 'x', dir: 'D:\\tmp\\x', docs: false }))).not.toThrow()
+    expect(() => renderPlugin(TEMPLATE_ROOT, planScaffoldPlugin({ name: 'x', repo: fakeWorkspace() }))).not.toThrow()
   })
 })
 
 describe('writeRepo：真写临时目录', () => {
   it('落下去的文件与正文都对', () => {
-    // 目标目录本身必须还不存在——建仓是一次性动作，所以往沙盒里的一个新子目录落
+    // 目标目录本身必须还不存在——建仓与加件都是一次性动作，所以往沙盒里的一个新子目录落
     const dir = path.join(sandbox(), 'repo')
     writeRepo(dir, [
       { rel: 'package.json', text: '{}\n' },
@@ -236,6 +314,15 @@ describe('writeRepo：真写临时目录', () => {
     fs.writeFileSync(path.join(dir, 'keep.txt'), '原有', 'utf8')
     expect(() => writeRepo(dir, [{ rel: 'x', text: 'y' }])).toThrow(/已经存在/)
     expect(fs.readFileSync(path.join(dir, 'keep.txt'), 'utf8')).toBe('原有')
+  })
+
+  it('端到端：薄壳仓里加一件，盘上长出 plugins/world/ 那半', () => {
+    const repo = fakeWorkspace()
+    const plan = planScaffoldPlugin({ name: 'world', repo })
+    writeRepo(plan.dir, renderPlugin(TEMPLATE_ROOT, plan))
+    expect(fs.readFileSync(path.join(repo, 'plugins', 'world', 'package.json'), 'utf8')).toContain('@godcreator/gwb-world')
+    // 仓根原样：只有搭仓时写的那份 yaml，件那半没往根上放任何东西
+    expect(fs.readdirSync(repo).sort()).toEqual(['plugins', 'pnpm-workspace.yaml'])
   })
 })
 

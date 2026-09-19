@@ -1,0 +1,44 @@
+---
+title: 文件树模板定形：只有一种仓形——薄壳 workspace，单多同格式
+born-at: 2026-09-19T10:40
+type: choice
+parent: [2026-09-13-template-becomes-the-plugin]
+label: 单一仓形
+domain: 模板
+---
+
+pivots-from:: [模板即插件](2026-09-13-template-becomes-the-plugin.md)
+
+## 背景
+
+`devkit.scaffold` 的模板只会铺裸根单件仓（仓根即包根），多件仓的摆法（base-plugins、
+ui-plugins、block-note、devkit 自己四座）各有出入，没有任何一处收成模板或手册。要补一个
+「文件树模板」，先要回答单插件与多插件怎么统一格式。
+
+讨论里摆过两条路：统一在包形状、仓形保留两种（裸根 + 薄壳），或单件也统一成薄壳。选了后者——
+它反而更便宜：加第二件永远是一条命令，不存在「建小了要迁移」的悬崖；AGENTS/README 永远住仓根；
+`pnpm-workspace.yaml` 永远有真 packages 列表；`devkit.release` / `devkit.dev` 本来就是
+「仓根 build + packages 列表、缺省 `['.']`」，薄壳是一等形状，工具面零新增。
+
+## 结论与边界
+
+- **只有一种仓形**：薄壳 workspace——根 private 壳（build/check 递归，自己无代码），件住
+  `plugins/<短名>/`，非件包住 `packages/`（按需）；「单件仓」只是 plugins/ 下恰好一个目录
+- 模板两区：`template/repo/`（薄壳半）+ `template/pkg/`（件包半，唯一正本）——建仓与加件落
+  同一份件包形状，格式统一是物理事实，不是纪律约定（两套平行模板必然漂而漂了不报错）
+- 新命令 `devkit.scaffold.plugin {"repo","name","title?"}`：往既有薄壳仓的 plugins/ 铺件包；
+  件包目录必须还不存在；yaml 里没有 `plugins/` 那条当场拒（老裸根仓），报错带迁移的路
+- 拍板过的三处：plugins/ 目录用短名（三比一多数派，派生链顺）；tsconfig/vitest 包自足
+  （单成员仓铺根基底是零复用的间接层）；存量**随触随迁**，不专门迁
+- 一处与讨论树的偏差：`.oxlintrc.json` 跟件包走、不住仓根——oxlint 认 cwd 命中配置，
+  仓根一份在薄壳下没人保证找得到，静默降级比重复配置坏
+
+## 撞墙与验证
+
+新根形在真实 pnpm 里站不站得住，单元测试答不了。探针 `probes/2609191042_workspace-scaffold/`
+用构建产物真铺了一个仓跑完 install / build / check：单成员的 `--filter "./plugins/*"` 照跑、
+oxlint 从件包 cwd 命中包内配置、根壳 check 递归、四份测试 15 条全绿。
+
+代价两笔，都认账：在役 8 座裸根单件仓短期与新模板并存（工具双形兼容，破的只是读仓预期，
+随退役衰减）；薄壳仓发版与 dev 循环从此必带 `packages`，缺省 `['.']` 变成只属于存量仓的
+历史语义。

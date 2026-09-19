@@ -29,8 +29,11 @@ import { homeFs, makeAppSpawnPlan, makeGuiSpawn, runCaptured } from './node-home
 import {
   NAME_RE,
   nextSteps,
+  nextStepsPlugin,
   packageRoot,
   planScaffold,
+  planScaffoldPlugin,
+  renderPlugin,
   renderTemplate,
   writeRepo,
 } from './scaffold.js'
@@ -54,10 +57,13 @@ const CREATE_SITE_COMMAND = 'docs-site.create'
 const ATTACH_SITE_COMMAND = 'docfirst.attach'
 
 /**
- * 开发套件。四件事，全服务同一个理由——「在新文件夹里开发新件」这条路的地基：
+ * 开发套件。五件事，全服务同一个理由——「在新文件夹里开发新件」这条路的地基：
  *
  * - **建仓**：`devkit.scaffold` 把一个新件的骨架落进一个新文件夹（站那半经命令总线
- *   转给站件与 docfirst 件，两步）
+ *   转给站件与 docfirst 件，两步）。**只有一种仓形**：薄壳 workspace——根壳 +
+ *   `plugins/<短名>/` 件包；「单件仓」只是 plugins/ 下恰好一个目录
+ * - **加件**：`devkit.scaffold.plugin` 往既有薄壳仓的 `plugins/` 再铺一个件包，
+ *   落的是建仓时同一份件包模板——格式统一靠同一份正本，不靠纪律
  * - **手册**：`skills/gwb-devkit/SKILL.md` 随件分发，经 gwb-skills 挂载。**只挂自己那份**
  *   ——知识随件走，docfirst 的两份归 docfirst 件自己挂（说明书是全局单一命名空间，
  *   代挂第二份只会撞名，而且撞掉的那份很可能是旧版）
@@ -85,11 +91,21 @@ const SCAFFOLD_USAGE = [
   'devkit.scaffold 的参数：',
   // 规则从 NAME_RE 现取，不在这儿手抄一份——抄的那份必然跟真源漂开
   `  name   必给，短名，kebab-case（${String(NAME_RE)}）。它派生出包名 @godcreator/gwb-<短名>、插件名 gwb-<短名>、命令名 <短名>.<动作> 的前半`,
-  '  dir    必给，目标目录的绝对路径，必须还不存在（存在就拒，不覆盖任何东西）',
+  '  dir    必给，目标目录的绝对路径，必须还不存在（存在就拒，不覆盖任何东西）。落下去只有一个仓形：薄壳 workspace——根壳 + plugins/<短名>/ 件包',
   '  title  可选，显示名，缺省用 name',
   `  docs   可选，缺省 true——件那半落盘之后顺带建站，两步：${CREATE_SITE_COMMAND} 铺 fumadocs 骨架、${ATTACH_SITE_COMMAND} 在骨架上装配六区。两条都经命令总线找，没装那个件就跳过那一步（回执里说怎么补），不算建仓失败。false 就只建件那半`,
   '  port   可选，文档站端口。不给由站件自己挑（扫邻居已占的，从 4310 起找空位）',
   '例：{"name":"hello","dir":"D:\\\\tmp\\\\hello","title":"打个招呼"}',
+].join('\n')
+
+/** `devkit.scaffold.plugin` 的参数说明。参数错的时候连它一起回——错误即文档 */
+const SCAFFOLD_PLUGIN_USAGE = [
+  'devkit.scaffold.plugin 的参数：',
+  `  name   必给，短名，kebab-case（${String(NAME_RE)}）。派生规则同 devkit.scaffold`,
+  '  repo   必给，薄壳仓根的绝对路径（pnpm-workspace.yaml 住的那层）。yaml 里得有 plugins/ 那条——老裸根单件仓（仓根即包根）先迁成薄壳再来，报错里带路',
+  '  title  可选，显示名，缺省用 name',
+  '件包落在 <repo>/plugins/<短名>/，必须还不存在（存在就拒，不覆盖任何东西）。根壳、workspace、文档站一概不碰——一份站盖全仓，件清单的更新归 docfirst（回执 nextSteps 里提醒）',
+  '例：{"repo":"D:\\\\tmp\\\\hello","name":"world","title":"第二件"}',
 ].join('\n')
 
 /** home 命令的参数说明。参数错的时候连它一起回——错误即文档 */
@@ -549,7 +565,7 @@ export function apply(ctx: GwbContext): void {
         } catch (err) {
           return { ok: false, error: `建仓没成：${err instanceof Error ? err.message : String(err)}` }
         }
-        log.info(`devkit.scaffold：${plan.pkg} → ${plan.dir}（${files.length} 个文件）`)
+        log.info(`devkit.scaffold：${plan.pkg} → ${path.join(plan.dir, 'plugins', plan.name)}（${files.length} 个文件）`)
 
         // ── 站那半：知识不在本包，两步都经总线转出去 ──────────────────────
         // **件那半已经在盘上了，站没建成不算建仓失败**——回执里说清楚，人补一条命令就是
@@ -558,6 +574,7 @@ export function apply(ctx: GwbContext): void {
           ok: true,
           data: {
             repoDir: plan.dir,
+            pluginDir: path.join(plan.dir, 'plugins', plan.name),
             pkg: plan.pkg,
             name: plan.name,
             title: plan.title,
@@ -568,6 +585,59 @@ export function apply(ctx: GwbContext): void {
               attached: docs.attached,
               ...(docs.port === undefined ? {} : { port: docs.port }),
             }),
+          },
+        }
+      },
+    ),
+  )
+
+  // ── 加件那半：往既有薄壳仓的 plugins/ 再铺一个件包 ─────────────────────────
+
+  ctx.effect(() =>
+    bus.register(
+      {
+        name: 'devkit.scaffold.plugin',
+        plugin: '@godcreator/gwb-devkit',
+        description: '往既有薄壳仓的 plugins/ 再铺一个件包（同一份件包模板，不碰根壳与站）',
+        usage:
+          '{name 必给（kebab-case 短名，派生规则同 devkit.scaffold）, repo 必给（薄壳仓根绝对路径——pnpm-workspace.yaml 里得有 plugins/ 那条，老裸根单件仓报错里带迁移的路）, title?}。件包落在 <repo>/plugins/<短名>/，必须还不存在。与建仓落的是同一份件包模板（template/pkg/）——单多格式统一靠这个。参数不对会把完整说明回给你',
+      },
+      async (args) => {
+        if (!isRecord(args)) return { ok: false, error: `参数要是个对象。\n${SCAFFOLD_PLUGIN_USAGE}` }
+        const root = packageRoot()
+        const templateRoot = root === null ? null : path.join(root, 'template')
+        if (templateRoot === null || !fs.existsSync(path.join(templateRoot, 'pkg'))) {
+          return { ok: false, error: '包内 template/pkg/ 不在——这一版没把它带进包（files 白名单漏了），换一版' }
+        }
+        let plan
+        try {
+          plan = planScaffoldPlugin({
+            name: typeof args.name === 'string' ? args.name : '',
+            repo: typeof args.repo === 'string' ? args.repo : '',
+            ...(typeof args.title === 'string' && args.title.trim() !== '' ? { title: args.title } : {}),
+          })
+        } catch (err) {
+          return { ok: false, error: `${err instanceof Error ? err.message : String(err)}\n\n${SCAFFOLD_PLUGIN_USAGE}` }
+        }
+        // 与建仓同一条纪律：先在内存里渲染完，目标子目录必须还不存在
+        let files
+        try {
+          files = renderPlugin(templateRoot, plan)
+          writeRepo(plan.dir, files)
+        } catch (err) {
+          return { ok: false, error: `加件没成：${err instanceof Error ? err.message : String(err)}` }
+        }
+        log.info(`devkit.scaffold.plugin：${plan.pkg} → ${plan.dir}（${files.length} 个文件）`)
+        return {
+          ok: true,
+          data: {
+            repoDir: plan.repoDir,
+            pluginDir: plan.dir,
+            pkg: plan.pkg,
+            name: plan.name,
+            title: plan.title,
+            files: files.length,
+            nextSteps: nextStepsPlugin(plan),
           },
         }
       },
