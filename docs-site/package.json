@@ -24,7 +24,7 @@
   },
   "devDependencies": {
     "@godcreator/docfirst-trajectory": "0.1.1",
-    "@godcreator/docfirst-workflow": "0.2.1",
+    "@godcreator/docfirst-workflow": "0.2.2",
     "@tailwindcss/postcss": "^4.3.3",
     "@types/mdx": "^2.0.14",
     "@types/node": "^26.2.0",
