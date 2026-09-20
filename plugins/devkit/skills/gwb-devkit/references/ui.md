@@ -3,7 +3,7 @@
 `skill.read {"name":"gwb-devkit","file":"references/ui.md"}` 读到的就是这一份。主文件是 skill「gwb-devkit」。
 
 **样板就是模板本身**：`devkit.scaffold` 落出来的就是带窗格的完整形状（浏览器半、前缀围栏、两道产物守卫、
-esbuild 构建线），照着改。更活的用例是 UI 平台仓的 baseui（`D:\unitfolders\26091217uiz\gwb-ui-plugins`）。
+esbuild 构建线），照着改。更活的用例是 UI 平台仓的 baseui（`D:\unitfolders\s28bv-gwbbase\gwb-ui-plugins`）。
 
 ## 浏览器半
 
