@@ -36,13 +36,13 @@
   },
   "peerDependencies": {
     "@godcreator/gwb-plugin-api": "^0.1.2",
-    "@godcreator/gwb-shell": "^0.13.1"
+    "@godcreator/gwb-shell": "^0.13.2"
   },
   "devDependencies": {
     "@godcreator/gwb-plugin-api": "0.1.2",
     "@godcreator/gwb-commands": "0.4.5",
     "@godcreator/gwb-node-cli": "0.4.5",
-    "@godcreator/gwb-shell": "0.13.1",
+    "@godcreator/gwb-shell": "0.13.2",
     "@godcreator/gwb-skills": "0.4.3",
     "@types/node": "^24.0.0",
     "cordis": "4.0.0-rc.9",
