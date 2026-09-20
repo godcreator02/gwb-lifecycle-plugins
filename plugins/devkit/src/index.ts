@@ -122,7 +122,7 @@ const STRUCTURE_USAGE = [
   'cordis 位置 / tsconfig paths / link:·file: 依赖），不管版本（那是 audit-deps 与发版检票）、',
   '不管自述三格（repo-kit 守卫）、不管产物（各仓 artifact 测试）。',
   'findings 分级：error 长不成或装不上、warn 偏离当前形、info 提示（裸根单件仓给迁移清单）。',
-  '例：{"dir":"D:\\\\unitfolders\\\\26090814otr\\\\gwb-block-note"}',
+  '例：{"dir":"D:\\\\unitfolders\\\\evew5-gwbapps\\\\gwb-block-note"}',
 ].join('\n')
 
 /** home 命令的参数说明。参数错的时候连它一起回——错误即文档 */
@@ -148,7 +148,7 @@ const DEV_USAGE = [
   '  waitFor   可选，刷新之后等页面上这个选择器出现才算刷回来了',
   '**构建不可跳过**：产物不新就发＝发的是上一版，而回执一切正常。源也不收：这台机器上只有',
   '一个，就是 ' + DEFAULT_REGISTRY,
-  '例：{"home":"bn-2609111200","dir":"D:\\\\unitfolders\\\\26090814otr\\\\gwb-block-note","packages":["packages/model","plugins/gwb-bn-core"]}',
+  '例：{"home":"bn-2609111200","dir":"D:\\\\unitfolders\\\\evew5-gwbapps\\\\gwb-block-note","packages":["packages/model","plugins/gwb-bn-core"]}',
   '目标 home 是 default、或者就是本件自己住的那个，都当场拒——前者会把开发版塞进日常那份，',
   '后者停用条目那一下会把正在跑的这条命令自己停掉。换 devkit 自己：发正式版，再 plugin-manager.update-all',
 ].join('\n')
@@ -162,7 +162,7 @@ const RELEASE_USAGE = [
   '**仓根 git 树不干净就拒**：正式版只从提交过的状态发',
   '**上车检票没过就拒**：自己不在 0.0.x、@godcreator 的 peer 写 ^<dev 钉>、dev 钉＝源上 dist-tags.latest（规矩见说明书 gwb-release）',
   '**这条链只碰源、不碰任何 home**，从哪个 home 调都行；升 default 是下一步的事，走 plugin-manager.update-all',
-  '例：{"dir":"D:\\\\unitfolders\\\\26090814otr\\\\gwb-block-note","packages":["packages/model","packages/engine","packages/client","plugins/gwb-bn-core","plugins/gwb-bn-comment"]}',
+  '例：{"dir":"D:\\\\unitfolders\\\\evew5-gwbapps\\\\gwb-block-note","packages":["packages/model","packages/engine","packages/client","plugins/gwb-bn-core","plugins/gwb-bn-comment"]}',
 ].join('\n')
 
 export function apply(ctx: GwbContext): void {
