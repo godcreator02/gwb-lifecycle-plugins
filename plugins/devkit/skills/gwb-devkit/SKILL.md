@@ -18,7 +18,7 @@ description: 写或改 gwb 插件时读——建仓、改一版看一版（devki
 | ----------------------- | ---------------------------------------------------------------------------- |
 | 发版、抬版本号、改依赖版本号          | skill「gwb-release」                                                           |
 | 看一个仓（或全生态）离标准形多远、裸根仓怎么迁 | `devkit.audit-structure`——只读，findings 分级，裸根仓的 info 就是迁移清单；usage 在 `search` 里 |
-| 写带窗格、带界面的插件             | 本说明书的附件 `skill.read {"name":"gwb-devkit","file":"references/ui.md"}`         |
+| 写带窗格、带界面的插件             | 先读 shell 随包发布的 `skill.read {"name":"gwb-shell"}`，再用本件脚手架                     |
 | 在页面里取证（点、量、截图、跑脚本）      | 附件 `references/evidence.md`                                                  |
 | 写文档站、记轨迹卡               | skill「docfirst-docs」「trajectory」；铺站与起停读「docs-site」                           |
 | 改内核本身                   | 内核仓 AGENTS「怎么跑」                                                              |
@@ -159,15 +159,15 @@ typecheck 与 vitest 吃源码，全绿只说明源码站得住；装出来能�
 内核给的面在词汇表包 `@godcreator/gwb-plugin-api`：`gwbKernel` 上四样——`dataDir` /
 `version` / `emit(payload)` / `setShell(url)`；页面上的 `window.gwb` 类型也在那儿。
 
-| 面      | 服务                                    | 什么时候要                        |
-| ------ | ------------------------------------- | ---------------------------- |
-| 命令总线   | `gwbCommands`                         | 能力要被调（几乎一定）                  |
-| 说明书    | `gwbSkills`                           | 有流程或坑要讲给 agent               |
-| 设置     | `gwbSettings`                         | 插件的一切可配项                     |
-| 数据     | `gwbData`                             | 要落盘状态                        |
-| 窗格     | `gwbShell`                            | 要人看得见，读附件 `references/ui.md` |
-| 外部 CLI | `gwbNodeCli` / `gwbPyCli`             | CLI 形态的东西，自动镜像成总线命令          |
-| 日志     | `ctx.logger(name)`（cordis 面，不 inject） | 件说话的正规出口，进 gwb.log 与日志窗格     |
+| 面      | 服务                                    | 什么时候要                     |
+| ------ | ------------------------------------- | ------------------------- |
+| 命令总线   | `gwbCommands`                         | 能力要被调（几乎一定）               |
+| 说明书    | `gwbSkills`                           | 有流程或坑要讲给 agent            |
+| 设置     | `gwbSettings`                         | 插件的一切可配项                  |
+| 数据     | `gwbData`                             | 要落盘状态                     |
+| 窗格     | `gwbShell`                            | 要人看得见，先读 skill「gwb-shell」 |
+| 外部 CLI | `gwbNodeCli` / `gwbPyCli`             | CLI 形态的东西，自动镜像成总线命令       |
+| 日志     | `ctx.logger(name)`（cordis 面，不 inject） | 件说话的正规出口，进 gwb.log 与日志窗格  |
 
 深一层的方法签名：`import type {} from '<那个包>'`，补全就是说明书（包都发 `src`，
 读源码同效）。

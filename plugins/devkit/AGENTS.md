@@ -166,13 +166,14 @@ startedAt / appDir / cdp）与 mcp 插件（绑上端口之后补 `mcp` 那个�
 
 本包挂三份说明书，正本都在 `docs-site/content/outputs/skills/`，随包发、经 `gwbSkills` 挂给 agent：
 
-| 说明书           | 正本                                                                                    | 管什么                            |
-| ------------- | ------------------------------------------------------------------------------------- | ------------------------------ |
-| `gwb-devkit`  | `gwb-devkit.mdx`，附件 `gwb-devkit-evidence.mdx` / `gwb-devkit-ui.mdx`（摆成 `references/`） | 写插件的路、内循环、测试 home、验机、红线、能力面    |
-| `gwb-release` | `gwb-release.mdx`                                                                     | 全生态的发版规则：抬哪一位、依赖怎么写、什么时候跟、发版流程 |
-| `fresh-eyes`  | 包内 `skills/fresh-eyes/SKILL.md`（手写）                                                   | 生态自举验收                         |
+| 说明书           | 正本                                                                               | 管什么                            |
+| ------------- | -------------------------------------------------------------------------------- | ------------------------------ |
+| `gwb-devkit`  | `gwb-devkit.mdx`，验机附件 `gwb-devkit-evidence.mdx`；`gwb-devkit-ui.mdx` 仅保留 UI 旧入口指路 | 写插件的路、内循环、测试 home、验机、红线、能力面    |
+| `gwb-release` | `gwb-release.mdx`                                                                | 全生态的发版规则：抬哪一位、依赖怎么写、什么时候跟、发版流程 |
+| `fresh-eyes`  | 包内 `skills/fresh-eyes/SKILL.md`（手写）                                              | 生态自举验收                         |
 
 主文件只放每次写插件都要的；只有部分场景用得上的放附件，经 `skill.read {name, file}` 读。
+UI 接入规则由 shell 的 `gwb-shell` skill 维护，本包只引用；模板按该规则接线。
 这份 AGENTS 不复述说明书，说明书也不往这儿搬。
 
 **别替别的插件代挂说明书。** 说明书是全局单一命名空间，撞名的那份直接不挂、只留一行

@@ -18,6 +18,9 @@
 
 改造成真插件：把窗格与 ping 换成你的东西——**改掉命令就顺手改 description 的三格**（服务 / skill / 命令），守卫会红。
 
+开发界面前读 `skill.read {"name":"gwb-shell"}`：shadcn 官方组件配置、tokens、样式前缀、
+多桌面浮层与视觉验收都以 shell 的说明书为准。此模板提供最小窗格，按该说明书补齐组件接入。
+
 ## 跑起来（仓根）
 
 ```powershell

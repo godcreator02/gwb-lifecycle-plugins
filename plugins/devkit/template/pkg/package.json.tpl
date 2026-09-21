@@ -29,16 +29,16 @@
   "//peer": "硬依赖 gwbCommands 与 gwbShell（inject）；tokens 供样式映射面，shared-react 供页面 importmap。peer 写 ^<dev 钉>，dev 钉＝源上 dist-tags.latest（发版检票 devkit.release 照这条拒）",
   "peerDependencies": {
     "@godcreator/gwb-plugin-api": "^0.1.2",
-    "@godcreator/gwb-commands": "^0.4.3",
-    "@godcreator/gwb-shell": "^0.9.2",
+    "@godcreator/gwb-commands": "^0.4.5",
+    "@godcreator/gwb-shell": "^0.13.3",
     "@godcreator/gwb-tokens": "^0.1.4",
     "@godcreator/gwb-shared-react": "^0.1.1"
   },
   "devDependencies": {
     "@godcreator/gwb-plugin-api": "0.1.2",
-    "@godcreator/gwb-repo-kit": "0.2.3",
-    "@godcreator/gwb-commands": "0.4.3",
-    "@godcreator/gwb-shell": "0.9.2",
+    "@godcreator/gwb-repo-kit": "0.3.0",
+    "@godcreator/gwb-commands": "0.4.5",
+    "@godcreator/gwb-shell": "0.13.3",
     "@godcreator/gwb-tokens": "0.1.4",
     "@godcreator/gwb-shared-react": "0.1.1",
     "@tailwindcss/cli": "^4.3.0",
