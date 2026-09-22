@@ -70,7 +70,8 @@ description: 写或改 gwb 插件时读——建仓、改一版看一版（devki
    ```
 
    `plugin` 写包名。`usage` 写出一眼能抄的参数形状，无参数就写「无参数」——agent 只看得见这一句。
-   handler 的参数是 `unknown`，用词汇表包的 `isRecord` 收窄
+   handler 的参数是 `unknown`，用 `isRecord` 收窄——词汇表包 0.2 起是纯类型面、不再导出它，
+   在件内自带一份（devkit 自己的 `src/vocab.ts` 就是样子：`isRecord` 与 `requireKernel` 两个无状态小函数）
 4. **内循环**：`devkit.dev` 进隔离 home，见下一节。完成＝回执 `ok: true`
 5. **验机**：见「验机」一节。完成＝四种假验收一条不沾
 6. **发版**：照 skill「gwb-release」。`devkit.release` 构建之后先上车检票（自己不在 0.0.x、`@godcreator`
@@ -107,7 +108,8 @@ tag `dev`，不动 `latest`）→ 目标 home 清单写准确号再 `pnpm instal
 
 一次验证开一个新 home：`devkit.home.new {"short":"<被测插件短名或这次验什么>"}`，名字长成
 `<short>-<yyMMddHHmm>`。它起的是安装版宿主，自动挑调试端口，自动铺底座（命令总线、外壳、数据、
-设置、说明书、插件管理、基础窗格，加三个共享包），其余件自己 `plugin-manager.install`。
+设置、说明书、插件管理、基础窗格，加词汇表包；react 系与令牌表随 shell 包来），其余件自己
+`plugin-manager.install`。
 
 - 重开已有的：`devkit.home.open {"name"}`；列全部：`devkit.home.list`
 - 删：`devkit.home.rm {"name","force?"}`——还在跑的要 `force`；回「已删」时目录已经真不在了
@@ -120,7 +122,8 @@ tag `dev`，不动 `latest`）→ 目标 home 清单写准确号再 `pnpm instal
 typecheck 与 vitest 吃源码，全绿只说明源码站得住；装出来能不能跑，靠隔离 home 里的这一步。
 
 **开验之前，产物是新的**：改了插件 → build 再发（模板带 `prepublishOnly`，别删）；
-改了共享包（tokens、shared-react）→ 重发再装；改了内核 → 走内核仓自己的验机路子。
+改了共享包（带 `gwb.shared` 的包，如 shell 的 react 系与令牌表、`block-note`）→ 重发再装；
+改了内核 → 走内核仓自己的验机路子。
 
 **四种「看着成了」**，一条都别沾：
 
@@ -136,7 +139,8 @@ typecheck 与 vitest 吃源码，全绿只说明源码站得住；装出来能�
 2. **cordis 写在 dev**：写进 dependencies，home 里就有第二份实例，Service 身份对不上、挂不上，报错不指根因
 3. **依赖三档**：运行时真 import → peer；只 import type 但出现在导出的类型面 → peer；只在实现内部用类型 → dev
 4. **产物给 node 直接加载**：相对 import 带 `.js`；每个裸名 import 都在 `dependencies` / `peerDependencies` 里
-5. **`requireKernel(ctx)` 直接取**：`gwbKernel` 在根上下文、永不撤销，不写进 `inject`
+5. **`requireKernel(ctx)` 直接取**（件内自带那份，词汇表包 0.2 起不导出值）：`gwbKernel` 在根上下文、
+   永不撤销，不写进 `inject`
 6. **`prepublishOnly: pnpm build` 留着**：少了它 publish 会把上一版 `dist/` 原样发出去
 7. **类的私有字段用 TS `private`**：cordis 派生 `Object.create(this)`，`#` 槽在派生对象上读就炸
 8. **home 里的包只经安装换**：覆盖 `dist/` 进 `node_modules` 会写穿 pnpm 全局仓（硬链接），
