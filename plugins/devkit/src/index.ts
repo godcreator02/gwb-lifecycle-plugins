@@ -1,7 +1,7 @@
 import fs from 'node:fs'
 import path from 'node:path'
 import type { GwbContext } from '@godcreator/gwb-plugin-api'
-import { isRecord, requireKernel } from '@godcreator/gwb-plugin-api'
+import { isRecord, requireKernel } from './vocab.js'
 // 只为激活对方包里的 declare module 'cordis'——ctx 上那几个名字的类型从那儿来
 import type {} from '@godcreator/gwb-commands'
 import type {} from '@godcreator/gwb-node-cli'

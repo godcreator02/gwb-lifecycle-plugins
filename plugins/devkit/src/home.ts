@@ -1,5 +1,5 @@
 import path from 'node:path'
-import { isRecord } from '@godcreator/gwb-plugin-api'
+import { isRecord } from './vocab.js'
 import { bareImage, type ProcessProbe } from './probes.js'
 
 /**
