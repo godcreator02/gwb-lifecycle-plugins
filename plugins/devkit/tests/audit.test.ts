@@ -78,8 +78,8 @@ describe('auditManifest：dev 钉那一档', () => {
     expect(auditManifest('r', '.', pub({}, { '@godcreator/gwb-paper-fetch': '0.1.0' }), registry)).toEqual([])
   })
 
-  it('workspace:* 是同仓包，跳过；非精确钉版记一笔 loose', () => {
-    const got = auditManifest('r', '.', pub({}, { '@godcreator/gwb-skills': 'workspace:*', '@godcreator/gwb-data': '^0.1.0' }), {
+  it('workspace:* 是同仓包，跳过；^ 现在合法（范围内静默），认不出的写法记一笔 loose', () => {
+    const got = auditManifest('r', '.', pub({}, { '@godcreator/gwb-skills': 'workspace:*', '@godcreator/gwb-data': '~0.1.0' }), {
       '@godcreator/gwb-skills': reg(['0.4.0']),
       '@godcreator/gwb-data': reg(['0.1.1']),
     })
@@ -179,7 +179,7 @@ describe('auditManifest：private 清单', () => {
     const got = auditManifest(
       'r',
       'docs-site',
-      { peers: {}, devs: { '@godcreator/gwb-shell': '0.7.1', '@godcreator/gwb-commands': '0.4.1', '@godcreator/docfirst-workflow': '^0.2.0' }, private: true },
+      { peers: {}, devs: { '@godcreator/gwb-shell': '0.7.1', '@godcreator/gwb-commands': '0.4.1', '@godcreator/docfirst-workflow': '~0.2.0' }, private: true },
       registry,
     )
     expect(got.map((f) => `${f.kind} ${f.pkg}`)).toEqual(['dead-pin @godcreator/gwb-shell', 'loose-dev-pin @godcreator/docfirst-workflow'])

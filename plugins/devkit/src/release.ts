@@ -27,7 +27,8 @@ import { caretFloor, compareVersions, inCaret } from './audit.js'
  * 这一趟同发的兄弟写成 `^新号`,没跟着发的 workspace 依赖写成 `^工作区里那个号`。
  *
  * **上车检票在构建之后、发第一个包之前**(`checkTicket`):自己不在 0.0.x、`@godcreator` 的
- * peer 全是 `^<dev 钉>`、dev 钉全等于源上 `dist-tags.latest`。没过就一个都不发,回执一次列全。
+ * peer 全是 `^<dev 下限>`、dev 范围罩得住源上 `dist-tags.latest`(范围内落后不追——对上游
+ * semver 的信任就是范围声明的含义;出范围必追)。没过就一个都不发,回执一次列全。
  */
 
 /** git 树的状态。`dirty` 里是 porcelain 条目原文(两列状态加路径) */
@@ -136,8 +137,9 @@ export function ticketManifestOf(text: string | undefined): TicketManifest | und
  * 上车检票,纯函数。`latest` 是各 `@godcreator` 包在源上的 `dist-tags.latest`(问不出的缺席),
  * `workspace` 是工作区各包现号。
  *
- * 拒的四类:自己在 0.0.x;peer 不是 `^x.y.z`;dev 钉不等于 latest(分范围内/出范围两种说法);
- * peer 下限不等于 dev 钉。提醒一类:peer 指向的上游自己还在 0.0.x。
+ * 拒的四类:自己在 0.0.x;peer 不是 `^x.y.z`;dev 写法认不出下限、或下限比源上 latest 还新、
+ * 或 latest 已出 dev 范围(出范围必追);peer 下限不等于 dev 下限。提醒一类:peer 指向的上游
+ * 自己还在 0.0.x。范围内落后(含相等)一律放行。
  */
 export function checkTicket(
   manifest: TicketManifest,
@@ -151,32 +153,32 @@ export function checkTicket(
     problems.push(`自己的号是 ${manifest.version}:0.0.x 上 ^ 锁死补丁号,先把 version 抬到 0.1.0`)
   }
 
-  /** dev 那一格给出的「验过的那一版」:workspace: 取工作区现号,精确钉取它自己 */
+  /** dev 那一格给出的「验过的下限」:workspace: 取工作区现号,精确钉取自身,^ 范围取其下限 */
   const mirrorOf = (pkg: string): string | undefined => {
     const dev = manifest.devs[pkg]
     if (dev === undefined) return undefined
     if (dev.startsWith('workspace:')) return workspace[pkg]
-    return EXACT.test(dev) ? dev : undefined
+    return EXACT.test(dev) ? dev : caretFloor(dev)
   }
 
   for (const [pkg, raw] of Object.entries(manifest.devs)) {
     if (raw.startsWith('workspace:')) continue
     const now = latest[pkg]
-    if (!EXACT.test(raw)) {
-      problems.push(`dev ${pkg} 写的是 "${raw}":dev 钉要写精确号${now === undefined ? '' : `,改成 "${now}"`}`)
+    const pin = EXACT.test(raw) ? raw : caretFloor(raw)
+    if (pin === undefined) {
+      problems.push(`dev ${pkg} 写的是 "${raw}":dev 要写 ^<验过的号>(或精确号)`)
       continue
     }
     if (now === undefined) {
-      problems.push(`dev ${pkg} 钉 ${raw}:问不出源上的 dist-tags.latest(源不通,或它还没发过正式版),检不了票`)
+      problems.push(`dev ${pkg} 是 "${raw}":问不出源上的 dist-tags.latest(源不通,或它还没发过正式版),检不了票`)
       continue
     }
-    if (raw === now) continue
-    if (compareVersions(raw, now) > 0) {
-      problems.push(`dev ${pkg} 钉 ${raw},比源上 latest ${now} 还新——钉了一个没发的号,改回 "${now}"`)
-    } else if (inCaret(raw, now)) {
-      problems.push(`dev ${pkg} 钉 ${raw},源上 latest ${now}(范围内):dev 钉跟到 "${now}"、peer 同号 "^${now}",跑 check`)
+    if (compareVersions(pin, now) > 0) {
+      problems.push(`dev ${pkg} 是 "${raw}",比源上 latest ${now} 还新——写了一个没发的号,改回 "^${now}"`)
+    } else if (inCaret(pin, now)) {
+      // 范围内落后(含相等)放行:对上游 semver 的信任就是范围声明的含义,不设强制刷新
     } else {
-      problems.push(`dev ${pkg} 钉 ${raw},源上 latest ${now}(出范围:上游出了破坏版):先适配代码,再把 dev 钉抬到 "${now}"、peer 抬到 "^${now}",跑 check`)
+      problems.push(`dev ${pkg} 是 "${raw}",源上 latest ${now}(出范围:上游出了破坏版):先适配代码,再把 dev 抬到 "^${now}",跑 check`)
     }
   }
 
@@ -188,7 +190,7 @@ export function checkTicket(
     if (floor === undefined) {
       problems.push(`peer ${pkg} 写的是 "${raw}":peer 要写 ^<dev 钉>${target === undefined ? '' : `,改成 "^${target}"`}`)
     } else if (mirror !== undefined && floor !== mirror) {
-      problems.push(`peer ${pkg} 下限 ${floor} ≠ dev 钉 ${mirror}:下限＝验过的那一版${target === undefined ? '' : `,两边都写到 ${target}(peer "^${target}")`}`)
+      problems.push(`peer ${pkg} 下限 ${floor} ≠ dev 下限 ${mirror}:下限＝验过的那一版${target === undefined ? '' : `,两边都写到 ${target}(peer "^${target}")`}`)
     }
     const upstream = workspace[pkg] ?? latest[pkg] ?? floor
     if (upstream !== undefined && /^0\.0\.\d+$/.test(upstream)) {

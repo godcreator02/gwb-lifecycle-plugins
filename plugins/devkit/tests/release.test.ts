@@ -54,28 +54,28 @@ describe('checkTicket：上车检票', () => {
     expect(got.problems[2]).toContain('"^0.1.0"')
   })
 
-  it('dev 钉落后 latest：范围内与出范围两种说法', () => {
-    const inRange = checkTicket(T({ [SHELL]: '^0.8.0' }, { [SHELL]: '0.8.0' }), { [SHELL]: '0.8.3' }, {})
-    expect(inRange.problems).toHaveLength(1)
-    expect(inRange.problems[0]).toContain('范围内')
-    expect(inRange.problems[0]).toContain('"^0.8.3"')
+  it('dev 范围罩住 latest 即放行（精确钉与 ^ 皆可）；出范围才拒', () => {
+    const exactInRange = checkTicket(T({ [SHELL]: '^0.8.0' }, { [SHELL]: '0.8.0' }), { [SHELL]: '0.8.3' }, {})
+    expect(exactInRange.problems).toEqual([])
+    const caretDev = checkTicket(T({ [SHELL]: '^0.8.0' }, { [SHELL]: '^0.8.0' }), { [SHELL]: '0.8.3' }, {})
+    expect(caretDev.problems).toEqual([])
     const outRange = checkTicket(T({ [SHELL]: '^0.8.0' }, { [SHELL]: '0.8.0' }), { [SHELL]: '0.9.0' }, {})
     expect(outRange.problems[0]).toContain('出范围')
     expect(outRange.problems[0]).toContain('先适配代码')
   })
 
-  it('dev 钉比 latest 新、问不出 latest、dev 不是精确号：都拒', () => {
-    const got = checkTicket(T({}, { [SHELL]: '0.9.1', [API]: '0.1.2', [REACT]: '^0.0.4' }), { [SHELL]: '0.9.0', [REACT]: '0.0.4' }, {})
+  it('dev 比 latest 新、问不出 latest、dev 写法认不出：都拒', () => {
+    const got = checkTicket(T({}, { [SHELL]: '0.9.1', [API]: '0.1.2', [REACT]: '~0.0.4' }), { [SHELL]: '0.9.0', [REACT]: '0.0.4' }, {})
     expect(got.problems).toEqual([
       expect.stringContaining('没发的号'),
       expect.stringContaining('问不出'),
-      expect.stringContaining('精确号'),
+      expect.stringContaining('要写 ^<验过的号>'),
     ])
   })
 
-  it('peer 下限 ≠ dev 钉：拒（dev 钉已是 latest 也拒）', () => {
+  it('peer 下限 ≠ dev 下限：拒（dev 下限已是 latest 也拒）', () => {
     const got = checkTicket(T({ [SHELL]: '^0.9.0' }, { [SHELL]: '0.9.2' }), { [SHELL]: '0.9.2' }, {})
-    expect(got.problems).toEqual([expect.stringContaining('下限 0.9.0 ≠ dev 钉 0.9.2')])
+    expect(got.problems).toEqual([expect.stringContaining('下限 0.9.0 ≠ dev 下限 0.9.2')])
   })
 
   it('peer 指向的上游自己还在 0.0.x：不拒，只提醒', () => {
@@ -175,7 +175,7 @@ describe('发正式版', () => {
 
   it('检票没过：构建之后、发之前拒，一个都不发，所有包的问题一次列全', async () => {
     const deps = fake({
-      latest: { [SHELL]: '0.9.0', [API]: '0.1.2' },
+      latest: { [SHELL]: '0.9.0', [API]: '0.2.0' },
       files: {
         [path.resolve(REPO, 'a/package.json')]: full(A, '0.0.3', { [SHELL]: '>=0.8.0' }, { [SHELL]: '0.8.0' }),
         [path.resolve(REPO, 'b/package.json')]: full(B, '0.2.0', { [API]: '^0.1.1' }, { [API]: '0.1.1' }),
@@ -191,7 +191,6 @@ describe('发正式版', () => {
     expect(out.error).toContain('抬到 0.1.0')
     expect(out.error).toContain('"^0.9.0"')
     expect(out.error).toContain('出范围')
-    expect(out.error).toContain('范围内')
     expect(out.error).toContain('2 个包 4 条')
   })
 

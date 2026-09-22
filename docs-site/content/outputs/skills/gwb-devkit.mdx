@@ -74,7 +74,7 @@ description: 写或改 gwb 插件时读——建仓、改一版看一版（devki
 4. **内循环**：`devkit.dev` 进隔离 home，见下一节。完成＝回执 `ok: true`
 5. **验机**：见「验机」一节。完成＝四种假验收一条不沾
 6. **发版**：照 skill「gwb-release」。`devkit.release` 构建之后先上车检票（自己不在 0.0.x、`@godcreator`
-   的 peer 写 `^<dev 钉>`、dev 钉＝源上 latest），没过一个都不发、回执一次列全；发之前想看全生态谁欠着，
+   的 peer 写 `^<dev 下限>`、dev 范围罩得住源上 latest——范围内不追、出范围必追），没过一个都不发、回执一次列全；发之前想看全生态谁欠着，
    `devkit.audit-deps`（`out-of-range` 必须追，`behind` 范围内落后，`peer-not-caret` 还没迁 `^`）
 
 **改既有仓（加件、迁移、重构）前后各跑一次 `devkit.audit-structure`**：error 级清零再动手，

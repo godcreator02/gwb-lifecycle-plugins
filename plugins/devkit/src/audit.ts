@@ -173,23 +173,25 @@ export function auditManifest(
     const info = registry[pkg]
     if (info === undefined) continue
     if (raw === 'workspace:*') continue // 同仓包走本地解析，源上本来就没有
-    if (!EXACT.test(raw)) {
-      push('loose-dev-pin', pkg, `dev 钉版不是精确号：${raw}（约好钉死，火车才好对账）`)
+    /** dev 的「验过下限」：精确号取自身，^ 范围取其下限（实施 Spec §4：范围内落后不追） */
+    const pin = EXACT.test(raw) ? raw : caretFloor(raw)
+    if (pin === undefined) {
+      push('loose-dev-pin', pkg, `dev 版本既不是精确号也不是 ^ 范围：${raw}`)
       continue
     }
     if (info.versions.length === 0) {
-      push('dead-pin', pkg, `钉 ${raw}，源上没有这个包——装必炸`)
+      push('dead-pin', pkg, `钉 ${pin}，源上没有这个包——装必炸`)
       continue
     }
-    if (!info.versions.includes(raw)) {
-      push('dead-pin', pkg, `钉 ${raw}，源上只有 ${info.versions.join('、')}——装必炸`)
+    if (!info.versions.includes(pin)) {
+      push('dead-pin', pkg, `钉 ${pin}，源上只有 ${info.versions.join('、')}——装必炸`)
       continue
     }
-    if (info.latest !== undefined && compareVersions(raw, info.latest) < 0) {
-      if (inCaret(raw, info.latest)) {
-        push('behind', pkg, `钉 ${raw}，源上最新 ${info.latest}，还在 ^${raw} 范围内——火车债，下次发版时跟上`)
+    if (info.latest !== undefined && compareVersions(pin, info.latest) < 0) {
+      if (inCaret(pin, info.latest)) {
+        push('behind', pkg, `钉 ${pin}，源上最新 ${info.latest}，还在 ^${pin} 范围内——无需动作，对上游 semver 的信任就是范围声明的含义`)
       } else {
-        push('out-of-range', pkg, `钉 ${raw}，源上最新 ${info.latest} 已出 ^${raw} 范围——上游出了破坏版，必须追：先适配代码，dev 钉与 peer 一起抬`)
+        push('out-of-range', pkg, `钉 ${pin}，源上最新 ${info.latest} 已出 ^${pin} 范围——上游出了破坏版，必须追：先适配代码，dev 与 peer 一起抬`)
       }
     }
   }
@@ -200,7 +202,7 @@ export function auditManifest(
     const info = registry[pkg]
     if (info === undefined) continue
     const dev = deps.devs[pkg]
-    const devExact = dev !== undefined && EXACT.test(dev) ? dev : undefined
+    const devExact = dev !== undefined ? (EXACT.test(dev) ? dev : caretFloor(dev)) : undefined
     const caret = caretFloor(raw)
     const floor = caret ?? GTE.exec(raw.trim())?.[1]
     if (caret === undefined) {
