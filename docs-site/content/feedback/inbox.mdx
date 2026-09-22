@@ -95,3 +95,21 @@ base-plugins 的卡：body 落文件再 `--data-binary @file`，那条归 comman
 shell 0.10.0 按 gwb-release 抬了次版本号：开窗格的行为变了（本桌优先、从不切桌面，新窗格落在来源旁边，预览每组一个），
 插件调用面只增不减。`plugins/devkit` 对外壳是可选 peer（`^0.9.2`），装上 0.10.0 会出 peer 警告。本仓不调开窗格，
 追法就是 dev 钉与 peer 下限抬到 `0.10.0`、跑 check，下次发版时带上。
+
+## 2026-09-22 页面加载后才补装的 peer 不进 importmap——devkit.dev 首装流的重载时机偏早
+
+来源：gwb-block-note（v2 引擎线第 2 单验收，隔离 home bn-v2-2609222003）。
+
+现场：`devkit.dev` 首装（回执 note 指引走 `plugin-manager.install` 建条目）之后，install 发现缺 peer
+（`@godcreator/block-note`）顺手补装——但**整页重载在 devkit.dev 那一步早就做完了**，importmap 是页面
+加载那一刻按当时的 node_modules 拼的快照，后补的 peer 不在表里。首开窗格，浏览器端产物里
+`import "@godcreator/block-note"` 解析不到，窗格里一整行红：「加载失败：TypeError: Failed to resolve
+module specifier "@godcreator/block-note"」。整页重载一次即愈（快照重拼）。两个坑上加坑的点：node 侧
+日志**全程无 error**——它只在渲染层现形，devkit.dev 的日志基线测不到；且窗格源码没错、装也没错，纯看
+「挂上了 / 条目 ACTIVE」全绿。
+
+**投来的建议**（修的落点在 plugin-manager 那半，devkit 这边至少要把话写进说明书）：`plugin-manager.install`
+补装过 peer 后自己触发一次整页重载（与 update-all 同款），或 devkit.dev 的回执 note 在「首装建条目」那句后面
+带上「install 若补装了 peer，建完条目再整页重载一次」。顺带给验收纪律补一句：带浏览器端的件，实装验证要配
+截图或窗格渲染取证——这类坑只有渲染层会喊。
+
