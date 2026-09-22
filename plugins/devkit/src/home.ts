@@ -322,10 +322,9 @@ export const BASE_PLUGINS: ReadonlyArray<{ id: string; pkg: string }> = [
   { id: 'baseui', pkg: '@godcreator/gwb-baseui' },
 ] as const
 
-/** 共享包——不是插件（不进 cordis.yml），但必须是 home 的直接依赖，否则外壳起不来 */
+/** 共享包——不是插件（不进 cordis.yml），但必须是 home 的直接依赖，否则外壳起不来。
+ * react 系与令牌已随 shell 包发（实施 Spec D7），底座不再单装两个共享包 */
 export const BASE_SHARED: readonly string[] = [
-  '@godcreator/gwb-shared-react',
-  '@godcreator/gwb-tokens',
   '@godcreator/gwb-plugin-api',
 ] as const
 
