@@ -9,6 +9,7 @@ import {
   type RunPlan,
 } from './dev.js'
 import { caretFloor, compareVersions, inCaret } from './audit.js'
+import { declaredTestedKernel, kernelVersionLine, testedOnSameKernelLine } from './tested-kernel.js'
 
 /**
  * 发正式版那条链的纯机:守卫、号从哪来、依赖写成什么、按什么顺序发。
@@ -29,6 +30,9 @@ import { caretFloor, compareVersions, inCaret } from './audit.js'
  * **上车检票在构建之后、发第一个包之前**(`checkTicket`):自己不在 0.0.x、`@godcreator` 的
  * peer 全是 `^<dev 下限>`、dev 范围罩得住源上 `dist-tags.latest`(范围内落后不追——对上游
  * semver 的信任就是范围声明的含义;出范围必追)。没过就一个都不发,回执一次列全。
+ *
+ * 同一步还检查每个插件包(`keywords` 含 `gwb-plugin`)的 `gwb.testedKernel`(`testedKernelProblems`):
+ * 必须写了、是合法版本号、并且和运行中的内核在同一条版本线上——发出去的插件至少在当前内核上验过。
  */
 
 /** git 树的状态。`dirty` 里是 porcelain 条目原文(两列状态加路径) */
@@ -61,6 +65,8 @@ export interface ReleaseInput {
   repoDir: string
   /** 要发的包目录,相对仓根,按依赖顺序(被依赖的排前面)。空表＝仓根自己(一仓一包一插件的常态) */
   packages: string[]
+  /** 运行中的内核版本号(devkit 自己的 `gwbKernel.version`),插件包的 `gwb.testedKernel` 和它比对 */
+  runningKernel: string
 }
 
 export interface ReleasedPackage {
@@ -95,12 +101,16 @@ export function dirtyLines(tail: string): string[] {
 const SCOPE = '@godcreator/'
 const EXACT = /^\d+\.\d+\.\d+$/
 
-/** 检票要看的那部分清单:包自己的号,加 `@godcreator/*` 的 peer 与 dev */
+/** 检票要看的那部分清单:包自己的号,`@godcreator/*` 的 peer 与 dev,是不是插件,测过的内核版本 */
 export interface TicketManifest {
   name: string
   version: string
   peers: Record<string, string>
   devs: Record<string, string>
+  /** `keywords` 里有 `gwb-plugin` */
+  plugin: boolean
+  /** `gwb.testedKernel` 的值;没写或不是字符串时是 undefined */
+  testedKernel: string | undefined
 }
 
 /** 一个包的检票结论。`problems` 非空就拒;`reminders` 只提醒不拒 */
@@ -120,7 +130,7 @@ export function ticketManifestOf(text: string | undefined): TicketManifest | und
     return undefined
   }
   if (typeof doc !== 'object' || doc === null) return undefined
-  const { name, version, peerDependencies, devDependencies } = doc as Record<string, unknown>
+  const { name, version, peerDependencies, devDependencies, keywords } = doc as Record<string, unknown>
   if (typeof name !== 'string' || typeof version !== 'string') return undefined
   const scoped = (table: unknown): Record<string, string> => {
     const out: Record<string, string> = {}
@@ -130,7 +140,33 @@ export function ticketManifestOf(text: string | undefined): TicketManifest | und
     }
     return out
   }
-  return { name, version, peers: scoped(peerDependencies), devs: scoped(devDependencies) }
+  return {
+    name,
+    version,
+    peers: scoped(peerDependencies),
+    devs: scoped(devDependencies),
+    plugin: Array.isArray(keywords) && keywords.includes('gwb-plugin'),
+    testedKernel: declaredTestedKernel(doc),
+  }
+}
+
+/**
+ * 插件包的 `gwb.testedKernel` 检查,纯函数。不是插件包的(库、工具包)不查。
+ * 拒的三类:没写;不是合法版本号;和运行中的内核不在同一条版本线上(主版本号为 0 比前两位,≥1 只比主版本号)。
+ */
+export function testedKernelProblems(manifest: TicketManifest, runningKernel: string): string[] {
+  if (!manifest.plugin) return []
+  const tested = manifest.testedKernel
+  if (testedOnSameKernelLine(tested, runningKernel)) return []
+  if (tested === undefined) {
+    return [`没写 gwb.testedKernel:在运行中的内核 ${runningKernel} 上验过之后,在 package.json 的 gwb 字段里写 "testedKernel": "${runningKernel}"`]
+  }
+  if (kernelVersionLine(tested) === undefined) {
+    return [`gwb.testedKernel 是 "${tested}",不是合法的版本号:要写成 x.y.z,如 "${runningKernel}"`]
+  }
+  return [
+    `gwb.testedKernel 是 ${tested},和运行中的内核 ${runningKernel} 不在同一条版本线上(主版本号为 0 比前两位,≥1 只比主版本号):在 ${runningKernel} 上验过之后,改成 "${runningKernel}"`,
+  ]
 }
 
 /**
@@ -275,7 +311,11 @@ export async function runRelease(input: ReleaseInput, deps: ReleaseDeps): Promis
   }
   const latest: Record<string, string | undefined> = {}
   for (const pkg of upstreams) latest[pkg] = await deps.latest(pkg, DEFAULT_REGISTRY)
-  const tickets = ticketed.flatMap((one) => (one === undefined ? [] : [checkTicket(one, latest, workspace)]))
+  const tickets = ticketed.flatMap((one) => {
+    if (one === undefined) return []
+    const ticket = checkTicket(one, latest, workspace)
+    return [{ ...ticket, problems: [...ticket.problems, ...testedKernelProblems(one, input.runningKernel)] }]
+  })
   const reminders = tickets.flatMap((one) => one.reminders.map((line) => `${one.pkg}:${line}`))
   if (tickets.some((one) => one.problems.length > 0)) {
     const tail = reminders.length > 0 ? `\n另有提醒(不拒):\n${reminders.map((line) => `  - ${line}`).join('\n')}` : ''

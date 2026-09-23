@@ -1,7 +1,15 @@
 import path from 'node:path'
 import { describe, expect, it } from 'vitest'
 import { DEFAULT_REGISTRY } from '../src/dev.js'
-import { checkTicket, dirtyLines, runRelease, ticketRefusal, type ReleaseDeps } from '../src/release.js'
+import {
+  checkTicket,
+  dirtyLines,
+  runRelease,
+  testedKernelProblems,
+  ticketManifestOf,
+  ticketRefusal,
+  type ReleaseDeps,
+} from '../src/release.js'
 
 /**
  * 发正式版这条链比开发版多一道「git 树干净」的守卫、少一整个 home 那半——测的就是这些
@@ -17,6 +25,8 @@ const SHELL = '@godcreator/gwb-shell'
 const API = '@godcreator/gwb-plugin-api'
 const REACT = '@godcreator/gwb-shared-react'
 
+const KERNEL = '0.2.7'
+
 function manifestOf(name: string, version: string, files: string[] = ['dist']): string {
   return JSON.stringify({ name, version, files })
 }
@@ -25,7 +35,12 @@ function full(name: string, version: string, peerDependencies: Record<string, st
   return JSON.stringify({ name, version, files: ['dist'], peerDependencies, devDependencies })
 }
 
-const T = (peers: Record<string, string>, devs: Record<string, string>, version = '0.3.0') => ({ name: A, version, peers, devs })
+/** 插件包的清单：keywords 含 gwb-plugin；gwb 给了才写 */
+function pluginManifestOf(name: string, version: string, gwb?: Record<string, unknown>): string {
+  return JSON.stringify({ name, version, files: ['dist'], keywords: ['gwb', 'gwb-plugin'], ...(gwb === undefined ? {} : { gwb }) })
+}
+
+const T = (peers: Record<string, string>, devs: Record<string, string>, version = '0.3.0') => ({ name: A, version, peers, devs, plugin: false, testedKernel: undefined })
 
 describe('checkTicket：上车检票', () => {
   it('全按规矩：^<dev 钉>、dev 钉＝latest、workspace:* 跳过——干净', () => {
@@ -95,6 +110,50 @@ describe('checkTicket：上车检票', () => {
   })
 })
 
+describe('ticketManifestOf：是不是插件、测过的内核版本', () => {
+  it('keywords 含 gwb-plugin 的是插件，gwb.testedKernel 原样读出', () => {
+    expect(ticketManifestOf(pluginManifestOf(A, '0.3.0', { testedKernel: '0.2.7' }))).toMatchObject({ plugin: true, testedKernel: '0.2.7' })
+  })
+
+  it('没有 gwb-plugin 的不是插件；gwb.testedKernel 没写或不是字符串时是 undefined', () => {
+    expect(ticketManifestOf(manifestOf(A, '0.3.0'))).toMatchObject({ plugin: false, testedKernel: undefined })
+    expect(ticketManifestOf(pluginManifestOf(A, '0.3.0', { testedKernel: 27 }))).toMatchObject({ plugin: true, testedKernel: undefined })
+  })
+})
+
+describe('testedKernelProblems：插件包的 gwb.testedKernel', () => {
+  const P = (testedKernel: string | undefined, plugin = true) => ({ name: A, version: '0.3.0', peers: {}, devs: {}, plugin, testedKernel })
+
+  it('和运行中的内核在同一条版本线上：放行（0.x 比前两位，≥1 只比主版本号）', () => {
+    expect(testedKernelProblems(P('0.2.1'), '0.2.7')).toEqual([])
+    expect(testedKernelProblems(P('1.0.0'), '1.9.4')).toEqual([])
+  })
+
+  it('不是插件包：不查', () => {
+    expect(testedKernelProblems(P(undefined, false), '0.2.7')).toEqual([])
+  })
+
+  it('没写：拒，说在哪儿写、写什么', () => {
+    expect(testedKernelProblems(P(undefined), '0.2.7')).toEqual([expect.stringContaining('没写 gwb.testedKernel')])
+    expect(testedKernelProblems(P(undefined), '0.2.7')[0]).toContain('"testedKernel": "0.2.7"')
+  })
+
+  it('不是合法版本号：拒', () => {
+    expect(testedKernelProblems(P('^0.2.0'), '0.2.7')).toEqual([expect.stringContaining('不是合法的版本号')])
+  })
+
+  it('版本线不同：拒，说改成运行中的内核版本', () => {
+    const got = testedKernelProblems(P('0.1.9'), '0.2.7')
+    expect(got).toEqual([expect.stringContaining('不在同一条版本线上')])
+    expect(got[0]).toContain('"0.2.7"')
+    expect(testedKernelProblems(P('1.9.4'), '2.0.0')).toHaveLength(1)
+  })
+
+  it('运行中的内核版本号不合法：直接抛错', () => {
+    expect(() => testedKernelProblems(P('0.2.7'), 'dev')).toThrow(/运行中的内核版本号/)
+  })
+})
+
 interface FakeOptions {
   files?: Record<string, string>
   published?: string[]
@@ -158,7 +217,7 @@ describe('porcelain 认脏', () => {
 describe('发正式版', () => {
   it('守卫在最前、构建次之、按给定顺序发、范围是 ^新号', async () => {
     const deps = fake()
-    const out = await runRelease({ repoDir: REPO, packages: ['a', 'b'] }, deps)
+    const out = await runRelease({ repoDir: REPO, runningKernel: KERNEL, packages: ['a', 'b'] }, deps)
     expect(out.ok).toBe(true)
     if (!out.ok) return
     expect(deps.calls[0]).toContain('git status')
@@ -181,7 +240,7 @@ describe('发正式版', () => {
         [path.resolve(REPO, 'b/package.json')]: full(B, '0.2.0', { [API]: '^0.1.1' }, { [API]: '0.1.1' }),
       },
     })
-    const out = await runRelease({ repoDir: REPO, packages: ['a', 'b'] }, deps)
+    const out = await runRelease({ repoDir: REPO, runningKernel: KERNEL, packages: ['a', 'b'] }, deps)
     expect(out.ok).toBe(false)
     if (out.ok) return
     expect(deps.calls.some((one) => one.includes('pnpm build'))).toBe(true)
@@ -199,14 +258,38 @@ describe('发正式版', () => {
       latest: { [REACT]: '0.0.4' },
       files: { [path.resolve(REPO, 'a/package.json')]: full(A, '0.1.0', { [REACT]: '^0.0.4' }, { [REACT]: '0.0.4' }) },
     })
-    const out = await runRelease({ repoDir: REPO, packages: ['a'] }, deps)
+    const out = await runRelease({ repoDir: REPO, runningKernel: KERNEL, packages: ['a'] }, deps)
     expect(out.ok).toBe(true)
     if (out.ok) expect(out.data.reminders.join('\n')).toContain('0.0.4')
   })
 
+  it('插件包的 gwb.testedKernel 不对：构建之后、发之前拒，一个都不发，每个包的问题一次列全', async () => {
+    const deps = fake({
+      files: {
+        [path.resolve(REPO, 'a/package.json')]: pluginManifestOf(A, '0.1.0'),
+        [path.resolve(REPO, 'b/package.json')]: pluginManifestOf(B, '0.2.0', { testedKernel: '0.1.4' }),
+      },
+    })
+    const out = await runRelease({ repoDir: REPO, runningKernel: KERNEL, packages: ['a', 'b'] }, deps)
+    expect(out.ok).toBe(false)
+    if (out.ok) return
+    expect(deps.calls.some((one) => one.includes('pnpm build'))).toBe(true)
+    expect(deps.calls.some((one) => one.startsWith('publish'))).toBe(false)
+    expect(out.error).toContain('2 个包 2 条')
+    expect(out.error).toContain(`${A}@0.1.0:\n  - 没写 gwb.testedKernel`)
+    expect(out.error).toContain(`${B}@0.2.0:\n  - gwb.testedKernel 是 0.1.4`)
+  })
+
+  it('插件包的 gwb.testedKernel 和运行中的内核同线：照常发', async () => {
+    const deps = fake({ files: { [path.resolve(REPO, 'a/package.json')]: pluginManifestOf(A, '0.1.0', { testedKernel: '0.2.3' }) } })
+    const out = await runRelease({ repoDir: REPO, runningKernel: KERNEL, packages: ['a'] }, deps)
+    expect(out.ok).toBe(true)
+    expect(deps.calls).toContain(`publish 0.1.0 @${path.resolve(REPO, 'a')}`)
+  })
+
   it('git 树不干净就拒，构建都不跑', async () => {
     const deps = fake({ dirty: [' M src/x.ts', '?? out/'] })
-    const out = await runRelease({ repoDir: REPO, packages: ['a'] }, deps)
+    const out = await runRelease({ repoDir: REPO, runningKernel: KERNEL, packages: ['a'] }, deps)
     expect(out).toMatchObject({ ok: false })
     if (!out.ok) expect(out.error).toContain('M src/x.ts')
     expect(deps.calls.some((one) => one.includes('pnpm build'))).toBe(false)
@@ -215,21 +298,21 @@ describe('发正式版', () => {
 
   it('问不出 git 状态也拒——正式版只从 git 仓里发', async () => {
     const deps = fake({ gitError: true })
-    const out = await runRelease({ repoDir: REPO, packages: ['a'] }, deps)
+    const out = await runRelease({ repoDir: REPO, runningKernel: KERNEL, packages: ['a'] }, deps)
     expect(out).toMatchObject({ ok: false })
     if (!out.ok) expect(out.error).toContain('git')
   })
 
   it('仓根不是个能发的包时说清「包目录给的是相对仓根的路径」', async () => {
     const deps = fake()
-    const out = await runRelease({ repoDir: REPO, packages: [] }, deps)
+    const out = await runRelease({ repoDir: REPO, runningKernel: KERNEL, packages: [] }, deps)
     expect(out).toMatchObject({ ok: false })
     if (!out.ok) expect(out.error).toContain('相对仓根')
   })
 
   it('声明的号已经在源上就拒，话里带着「先抬号」', async () => {
     const deps = fake({ published: [`${A}@0.1.0`] })
-    const out = await runRelease({ repoDir: REPO, packages: ['a'] }, deps)
+    const out = await runRelease({ repoDir: REPO, runningKernel: KERNEL, packages: ['a'] }, deps)
     expect(out).toMatchObject({ ok: false })
     if (!out.ok) expect(out.error).toContain('先抬')
     expect(deps.calls.some((one) => one.startsWith('publish'))).toBe(false)
@@ -237,21 +320,21 @@ describe('发正式版', () => {
 
   it('产物不全都拦在发之前', async () => {
     const deps = fake({ files: { [path.resolve(REPO, 'a/package.json')]: manifestOf(A, '0.1.0', ['nope']) } })
-    const out = await runRelease({ repoDir: REPO, packages: ['a'] }, deps)
+    const out = await runRelease({ repoDir: REPO, runningKernel: KERNEL, packages: ['a'] }, deps)
     expect(out).toMatchObject({ ok: false })
     if (!out.ok) expect(out.error).toContain('nope')
   })
 
   it('构建没成就一个都不发', async () => {
     const deps = fake({ failRun: 'build' })
-    const out = await runRelease({ repoDir: REPO, packages: ['a'] }, deps)
+    const out = await runRelease({ repoDir: REPO, runningKernel: KERNEL, packages: ['a'] }, deps)
     expect(out).toMatchObject({ ok: false })
     expect(deps.calls.some((one) => one.startsWith('publish'))).toBe(false)
   })
 
   it('第二个包发失败：回执里带上已经发出去的那一个', async () => {
     const deps = fake({ failPublish: path.normalize('/b') })
-    const out = await runRelease({ repoDir: REPO, packages: ['a', 'b'] }, deps)
+    const out = await runRelease({ repoDir: REPO, runningKernel: KERNEL, packages: ['a', 'b'] }, deps)
     expect(out).toMatchObject({ ok: false })
     expect(out.ok === false && out.data?.shipped).toHaveLength(1)
   })

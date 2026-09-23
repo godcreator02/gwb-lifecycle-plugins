@@ -161,6 +161,7 @@ const RELEASE_USAGE = [
   '**号在仓里抬**：发的是 package.json 里声明的那个号，同号在源上就拒——要发新的一版，先抬号、提交，再来',
   '**仓根 git 树不干净就拒**：正式版只从提交过的状态发',
   '**上车检票没过就拒**：自己不在 0.0.x、@godcreator 的 peer 写 ^<dev 钉>、dev 钉＝源上 dist-tags.latest（规矩见说明书 gwb-release）',
+  '**插件包没写对 gwb.testedKernel 就拒**：keywords 含 gwb-plugin 的包，package.json 的 gwb.testedKernel 必须写了、是合法版本号、并且和运行中的内核在同一条版本线上（主版本号为 0 比前两位，≥1 只比主版本号）',
   '**这条链只碰源、不碰任何 home**，从哪个 home 调都行；升 default 是下一步的事，走 plugin-manager.update-all',
   '例：{"dir":"D:\\\\unitfolders\\\\evew5-gwbapps\\\\gwb-block-note","packages":["packages/model","packages/engine","packages/client","plugins/gwb-bn-core","plugins/gwb-bn-comment"]}',
 ].join('\n')
@@ -520,7 +521,7 @@ export function apply(ctx: GwbContext): void {
         plugin: '@godcreator/gwb-devkit',
         description: '发正式版到团队源（树干净守卫→build→验产物→上车检票→staging 发）',
         usage:
-          '{dir 必给（仓根绝对路径）, packages?（包目录，相对仓根，按依赖顺序；不给就是仓根自己）}。一条走完：仓根 git 树干净守卫（有未提交改动就拒，一个都不发）→ 仓根 pnpm build → 照 files 白名单验产物 → 同号已在源上就拒 → 上车检票（每个要发的包：自己不在 0.0.x；@godcreator 的 peer 全写 ^x.y.z 且下限＝dev 钉；dev 精确钉全等于源上 dist-tags.latest，workspace: 跳过。没过就一个都不发，回执按包一次列全「把哪条改成什么」，落后的分范围内/出范围两种说法；peer 指向的上游还在 0.0.x 只提醒，带在回执 reminders 里）→ staging 发版（不改仓里任何文件；tag latest；workspace: 依赖写成 ^<工作区里那个号>，这一趟同发的写成 ^新号）→ 按给定顺序发完。**号在仓里抬**（改 package.json 提交），同号永不重发。只碰源不碰任何 home；升 default 走 plugin-manager.update-all',
+          '{dir 必给（仓根绝对路径）, packages?（包目录，相对仓根，按依赖顺序；不给就是仓根自己）}。一条走完：仓根 git 树干净守卫（有未提交改动就拒，一个都不发）→ 仓根 pnpm build → 照 files 白名单验产物 → 同号已在源上就拒 → 上车检票（每个要发的包：自己不在 0.0.x；@godcreator 的 peer 全写 ^x.y.z 且下限＝dev 钉；dev 精确钉全等于源上 dist-tags.latest，workspace: 跳过。没过就一个都不发，回执按包一次列全「把哪条改成什么」，落后的分范围内/出范围两种说法；peer 指向的上游还在 0.0.x 只提醒，带在回执 reminders 里；keywords 含 gwb-plugin 的包还要检查 package.json 的 gwb.testedKernel：必须写了、是合法版本号、并且和运行中的内核 gwbKernel.version 在同一条版本线上——主版本号为 0 比前两位，≥1 只比主版本号，不满足的同样列进回执、一个都不发）→ staging 发版（不改仓里任何文件；tag latest；workspace: 依赖写成 ^<工作区里那个号>，这一趟同发的写成 ^新号）→ 按给定顺序发完。**号在仓里抬**（改 package.json 提交），同号永不重发。只碰源不碰任何 home；升 default 走 plugin-manager.update-all',
       },
       async (args) => {
         if (!isRecord(args)) return { ok: false, error: `参数要是个对象。\n${RELEASE_USAGE}` }
@@ -531,7 +532,7 @@ export function apply(ctx: GwbContext): void {
           ? args.packages.filter((one): one is string => typeof one === 'string' && one.trim() !== '')
           : []
         log.info(`devkit.release：仓 ${path.resolve(dir)}（${packages.length === 0 ? '仓根自己' : packages.join('、')}）`)
-        const outcome = await runRelease({ repoDir: path.resolve(dir), packages }, releaseDeps)
+        const outcome = await runRelease({ repoDir: path.resolve(dir), packages, runningKernel: requireKernel(ctx).version }, releaseDeps)
         if (!outcome.ok) {
           log.warn(`devkit.release 没成：${outcome.error}`)
           return outcome.data === undefined
