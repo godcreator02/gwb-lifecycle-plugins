@@ -105,7 +105,7 @@ describe('撞名加数字后缀', () => {
 describe('选 id：连磁盘上的归属记录一起看', () => {
   const none = new Set<string>()
 
-  it('盘上什么都没有：跟默认 id 一样', () => {
+  it('磁盘上什么都没有：用默认 id', () => {
     expect(pickId('@a/gwb-foo', none, {})).toBe('foo')
   })
 
@@ -113,7 +113,7 @@ describe('选 id：连磁盘上的归属记录一起看', () => {
     expect(pickId('@b/foo', none, { foo: ['@a/gwb-foo', '@a/gwb-foo'] })).toBe('foo-2')
   })
 
-  it('数据与设置只要有一本归别人就算占着', () => {
+  it('数据与设置只要有一份属于别的包就算被占', () => {
     expect(pickId('@b/foo', none, { foo: ['@b/foo', '@a/gwb-foo'] })).toBe('foo-2')
   })
 
