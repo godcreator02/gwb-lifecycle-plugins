@@ -90,6 +90,9 @@ function spawnPnpm(file: string, cwd: string, args: readonly string[]): ChildPro
  *
  * **不设超时**：装一个大包本来就可能几分钟，猜一个时限只会在慢网络上误杀一次正常的安装；
  * 网络层的超时 pnpm 自己有。真卡住了，由用户去结束进程。
+ *
+ * **本插件卸载时不结束正在运行的 pnpm**（关键判据 K7 的例外）：pnpm 正在改 home 的 `package.json` 与
+ * `node_modules`，中途结束会留下装了一半的 home，比让它跑完更难收拾。它跑完之后回执没人接，改动照样生效
  */
 export function runPnpm(opts: { pnpm: string; cwd: string; args: readonly string[] }): Promise<PnpmResult> {
   return new Promise((resolve) => {
@@ -123,11 +126,6 @@ export function runPnpm(opts: { pnpm: string; cwd: string; args: readonly string
     // 用 close 而不是 exit：等两条管道都读完再返回，否则 tail 可能缺最后一段——而失败原因正在那里
     proc.on('close', (code) => done(code))
   })
-}
-
-/** 在 home 里运行一次 `pnpm add`。不带任何 peer 相关参数：peer 不匹配时 pnpm 照装、只打 WARN */
-export function addToHome(opts: { pnpm: string; home: string; specs: readonly string[] }): Promise<PnpmResult> {
-  return runPnpm({ pnpm: opts.pnpm, cwd: opts.home, args: ['add', ...opts.specs] })
 }
 
 /** 一次 add 失败 → 回执里的一句 `error` 与 `tail`。`what` 是给人看的那次操作的描述（`pnpm add a@1 b@2`） */
