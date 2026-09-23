@@ -92,7 +92,7 @@ importers:
         version: link:../../packages/repo-kit
       '@godcreator/gwb-shell':
         specifier: 0.13.3
-        version: 0.13.3(@godcreator/gwb-commands@0.4.5(@godcreator/gwb-plugin-api@0.2.7(cordis@4.0.0-rc.9)))(@godcreator/gwb-data@0.1.5(@godcreator/gwb-plugin-api@0.2.7(cordis@4.0.0-rc.9))(cordis@4.0.0-rc.9))(@godcreator/gwb-plugin-api@0.2.7(cordis@4.0.0-rc.9))(@godcreator/gwb-shared-react@0.1.1)(@godcreator/gwb-tokens@0.1.4)(cordis@4.0.0-rc.9)
+        version: 0.13.3(@godcreator/gwb-commands@0.4.5(@godcreator/gwb-plugin-api@0.2.7(cordis@4.0.0-rc.9)))(@godcreator/gwb-data@0.1.6(@godcreator/gwb-plugin-api@0.2.7(cordis@4.0.0-rc.9))(cordis@4.0.0-rc.9))(@godcreator/gwb-plugin-api@0.2.7(cordis@4.0.0-rc.9))(@godcreator/gwb-shared-react@0.1.1)(@godcreator/gwb-tokens@0.1.4)(cordis@4.0.0-rc.9)
       '@godcreator/gwb-skills':
         specifier: 0.4.3
         version: 0.4.3(@godcreator/gwb-commands@0.4.5(@godcreator/gwb-plugin-api@0.2.7(cordis@4.0.0-rc.9)))(@godcreator/gwb-plugin-api@0.2.7(cordis@4.0.0-rc.9))(cordis@4.0.0-rc.9)
@@ -102,6 +102,45 @@ importers:
       cordis:
         specifier: 4.0.0-rc.9
         version: 4.0.0-rc.9
+      typescript:
+        specifier: ^7.0.2
+        version: 7.0.2
+      vitest:
+        specifier: ^4.1.10
+        version: 4.1.11(@types/node@24.13.4)(vite@8.3.0(@types/node@24.13.4)(esbuild@0.28.2)(jiti@2.7.0)(yaml@2.9.1))
+
+  plugins/plugin-manager:
+    devDependencies:
+      '@godcreator/gwb-commands':
+        specifier: ^0.4.6
+        version: 0.4.6(@godcreator/gwb-plugin-api@0.2.7(cordis@4.0.0-rc.9))
+      '@godcreator/gwb-data':
+        specifier: ^0.1.6
+        version: 0.1.6(@godcreator/gwb-plugin-api@0.2.7(cordis@4.0.0-rc.9))(cordis@4.0.0-rc.9)
+      '@godcreator/gwb-plugin-api':
+        specifier: ^0.2.7
+        version: 0.2.7(cordis@4.0.0-rc.9)
+      '@godcreator/gwb-repo-kit':
+        specifier: workspace:*
+        version: link:../../packages/repo-kit
+      '@godcreator/gwb-settings':
+        specifier: ^0.3.2
+        version: 0.3.2(@godcreator/gwb-plugin-api@0.2.7(cordis@4.0.0-rc.9))(cordis@4.0.0-rc.9)
+      '@godcreator/gwb-skills':
+        specifier: ^0.4.4
+        version: 0.4.4(@godcreator/gwb-plugin-api@0.2.7(cordis@4.0.0-rc.9))(cordis@4.0.0-rc.9)
+      '@types/node':
+        specifier: ^24.0.0
+        version: 24.13.4
+      cordis:
+        specifier: 4.0.0-rc.9
+        version: 4.0.0-rc.9
+      oxlint:
+        specifier: 1.81.0
+        version: 1.81.0(oxlint-tsgolint@7.0.2001)
+      oxlint-tsgolint:
+        specifier: 7.0.2001
+        version: 7.0.2001
       typescript:
         specifier: ^7.0.2
         version: 7.0.2
@@ -392,10 +431,15 @@ packages:
     peerDependencies:
       '@godcreator/gwb-plugin-api': ^0.1.2
 
-  '@godcreator/gwb-data@0.1.5':
-    resolution: {integrity: sha512-DIPvq9JlO2d5R37Fd5S+TyTjZlL0mRokFfS2E7XGRGsyonC2wJBwLP6f0eTp8HBBrWvgXyCskDk8o2gYbfDkKA==, tarball: https://git.tianshen02.online:28377/api/packages/godcreator/npm/%40godcreator%2Fgwb-data/-/0.1.5/gwb-data-0.1.5.tgz}
+  '@godcreator/gwb-commands@0.4.6':
+    resolution: {integrity: sha512-/tbM7a5+ikX6GwGt1tyAtaDQbPcdoB1yHGM8c3JtoPNRfKw9qINSbcQIVkJ5cdsu58jLFNdCh9hGq6w12n61fg==, tarball: https://git.tianshen02.online:28377/api/packages/godcreator/npm/%40godcreator%2Fgwb-commands/-/0.4.6/gwb-commands-0.4.6.tgz}
     peerDependencies:
-      '@godcreator/gwb-plugin-api': ^0.1.2
+      '@godcreator/gwb-plugin-api': ^0.2.7
+
+  '@godcreator/gwb-data@0.1.6':
+    resolution: {integrity: sha512-DTwGPjj7+TS8fKjJbQqXVIWRhRG5R3jGPNk/h/GCr8Jz8yCQK54ehVfolxL7LVpCJ5VAJ6LiDTD11/TMpyhdyQ==, tarball: https://git.tianshen02.online:28377/api/packages/godcreator/npm/%40godcreator%2Fgwb-data/-/0.1.6/gwb-data-0.1.6.tgz}
+    peerDependencies:
+      '@godcreator/gwb-plugin-api': ^0.2.7
       cordis: ^4.0.0-rc.9
 
   '@godcreator/gwb-node-cli@0.4.5':
@@ -408,6 +452,12 @@ packages:
   '@godcreator/gwb-plugin-api@0.2.7':
     resolution: {integrity: sha512-PHqqy71X5jL6mziHVAWt7SRJJgioWlkZPXnv4CZFk2fV8BvuAgTcBGu2ekEqcYLoD7Ft+UcBcRZAizEuAVxxOQ==, tarball: https://git.tianshen02.online:28377/api/packages/godcreator/npm/%40godcreator%2Fgwb-plugin-api/-/0.2.7/gwb-plugin-api-0.2.7.tgz}
     peerDependencies:
+      cordis: ^4.0.0-rc.9
+
+  '@godcreator/gwb-settings@0.3.2':
+    resolution: {integrity: sha512-0GA0wYYroQP8pEOY9/1CzcMyI9TEH7E+FOmwTogVYe3scqEq/fYkg00FS3dPLYa9Odwq315QX3l8Eo9LRPiwGw==, tarball: https://git.tianshen02.online:28377/api/packages/godcreator/npm/%40godcreator%2Fgwb-settings/-/0.3.2/gwb-settings-0.3.2.tgz}
+    peerDependencies:
+      '@godcreator/gwb-plugin-api': ^0.2.7
       cordis: ^4.0.0-rc.9
 
   '@godcreator/gwb-shared-react@0.1.1':
@@ -428,6 +478,12 @@ packages:
     peerDependencies:
       '@godcreator/gwb-commands': ^0.4.5
       '@godcreator/gwb-plugin-api': ^0.1.2
+      cordis: ^4.0.0-rc.9
+
+  '@godcreator/gwb-skills@0.4.4':
+    resolution: {integrity: sha512-7iBg5JdT1od8OmQOE/p2rjpWOzY518JWjXughla28X1XByVflViz0OSd5K/1adHqf4aW7ltEVE5bmdTS5n0LnA==, tarball: https://git.tianshen02.online:28377/api/packages/godcreator/npm/%40godcreator%2Fgwb-skills/-/0.4.4/gwb-skills-0.4.4.tgz}
+    peerDependencies:
+      '@godcreator/gwb-plugin-api': ^0.2.7
       cordis: ^4.0.0-rc.9
 
   '@godcreator/gwb-tokens@0.1.4':
@@ -671,6 +727,158 @@ packages:
 
   '@oxc-project/types@0.149.0':
     resolution: {integrity: sha512-Efcc+iF0j3Bf67YjEqIqWXbX5XddXoK/Mw4K1/JuXwRCZ8N16VR7iT23nlCc9XrveFVh/E5Rqs2StT0V8v9LdA==}
+
+  '@oxlint-tsgolint/darwin-arm64@7.0.2001':
+    resolution: {integrity: sha512-CUJEdbSZ54+Xy9OXqOhWLTKZKV0BBiV7C2i/ygyVmXtkUNXx5YCzN8DpSSshTAKktoL7S+tnQ/ftFG/i7X896w==}
+    cpu: [arm64]
+    os: [darwin]
+
+  '@oxlint-tsgolint/darwin-x64@7.0.2001':
+    resolution: {integrity: sha512-pXfBb5BqONCcgrXQNUZWXgiYmRSWJzd97S8i41VVOh6ut0tyo+cJ5FKFpczDHxiVNfj/3e7c9B4MtztNdpIVCw==}
+    cpu: [x64]
+    os: [darwin]
+
+  '@oxlint-tsgolint/linux-arm64@7.0.2001':
+    resolution: {integrity: sha512-roP7zujb/QDPzDwEKsFFpzNHHy91/Y7oX9vQXk78ekyZtcQj1QXDIMH33gjDdHBfRl4K9pZ36xhRgrP4Zr+R8A==}
+    cpu: [arm64]
+    os: [linux]
+
+  '@oxlint-tsgolint/linux-x64@7.0.2001':
+    resolution: {integrity: sha512-UDezNqdECVmngu2TPnjaS1YoAmcTaBoI5lV9vk3VahBxoi+I5r9k3iJTT7qZoYWOXTD/7T7bNcwRgrocR6BscQ==}
+    cpu: [x64]
+    os: [linux]
+
+  '@oxlint-tsgolint/win32-arm64@7.0.2001':
+    resolution: {integrity: sha512-uJZhqB6pdXLuN+AD1F5082byyQti/NPmJA77GtcFlmT2HzRelqbNls3SaIqxpjdFgvSBF9g0yOKGBkGFg7kX8Q==}
+    cpu: [arm64]
+    os: [win32]
+
+  '@oxlint-tsgolint/win32-x64@7.0.2001':
+    resolution: {integrity: sha512-FkDRm8hx9OwzGQqyWG1tO5QrTLRApff9DzSgpz9QZau37BR8d1VYKOxMLGf6shPZntJFoTwIIJYT68VndYDCog==}
+    cpu: [x64]
+    os: [win32]
+
+  '@oxlint/binding-android-arm-eabi@1.81.0':
+    resolution: {integrity: sha512-IcCRsXiedJoJopY6mpZUBEeVFsUrutmrG7dZ87zMuKJlhg70Ora9bBl1WcCxZQtyI10YpnVdEso5oCg7YcfSHw==}
+    engines: {node: ^20.19.0 || >=22.12.0}
+    cpu: [arm]
+    os: [android]
+
+  '@oxlint/binding-android-arm64@1.81.0':
+    resolution: {integrity: sha512-GRrIPyTGVhx3L3h+0T5xT2A0jFAcdPv4+IfuXpGDLIdl6XeYhgg/zw72A5ILZoUgRqZuM8F1y+V/gfDriXSxzQ==}
+    engines: {node: ^20.19.0 || >=22.12.0}
+    cpu: [arm64]
+    os: [android]
+
+  '@oxlint/binding-darwin-arm64@1.81.0':
+    resolution: {integrity: sha512-qNQ9tXRgLuKbqSV1S2h9h4KPHjbovO7RRR2/enUOtHzTkFZ7B9X5zqqHJua8dRyc7dBy7Aoyq5pqTSLFVcAzGQ==}
+    engines: {node: ^20.19.0 || >=22.12.0}
+    cpu: [arm64]
+    os: [darwin]
+
+  '@oxlint/binding-darwin-x64@1.81.0':
+    resolution: {integrity: sha512-q0QTm32jWga2Gv4j7IaVZN0jYMi9UV73sWVgFtDA4iIfqwMCLLZ3ve+9KwfYtsaKZSgQhmPaogeZWqDZpcY1Pw==}
+    engines: {node: ^20.19.0 || >=22.12.0}
+    cpu: [x64]
+    os: [darwin]
+
+  '@oxlint/binding-freebsd-x64@1.81.0':
+    resolution: {integrity: sha512-/+8wVWDXEC7wHVAhOc59Fw/SkMc1arLkFD8iQCaSsmzenK1X4doFqquL9H1wrtGUzaiycVqkf/sSpcILK6W1UA==}
+    engines: {node: ^20.19.0 || >=22.12.0}
+    cpu: [x64]
+    os: [freebsd]
+
+  '@oxlint/binding-linux-arm-gnueabihf@1.81.0':
+    resolution: {integrity: sha512-4xt422FEgioRq9hAL4Tq7fujGUWnc8z1BJ+Oi8RN8vB8axaP+sdK6a2xdlcQCCYnJg9QMuMFS0AucuIFx/EacA==}
+    engines: {node: ^20.19.0 || >=22.12.0}
+    cpu: [arm]
+    os: [linux]
+
+  '@oxlint/binding-linux-arm-musleabihf@1.81.0':
+    resolution: {integrity: sha512-u3vna8KdGplH4DRCW9K54D68fcMo7IxVrkCJWwXnIhwtBdnDnYrmzOUA/XjmBlPpcLsgw9Z5BNdY4za9+Dj+MQ==}
+    engines: {node: ^20.19.0 || >=22.12.0}
+    cpu: [arm]
+    os: [linux]
+
+  '@oxlint/binding-linux-arm64-gnu@1.81.0':
+    resolution: {integrity: sha512-3j9k+gsYsE7nv71GWotXsqsa2l9/aJenD7dVHNt/CBvsb0SgRjSMnHFeP59IXUAl1wvVFhqGl2wJNMwWU3UBlA==}
+    engines: {node: ^20.19.0 || >=22.12.0}
+    cpu: [arm64]
+    os: [linux]
+    libc: [glibc]
+
+  '@oxlint/binding-linux-arm64-musl@1.81.0':
+    resolution: {integrity: sha512-k5iAp3dNxW0/uDCBY+WSm8jKB2szu7SkEQZdgRRpDXvuDd69vvDcqhB3A/pWCfCwXyenjNjFn9Td1fVoyAc+Yg==}
+    engines: {node: ^20.19.0 || >=22.12.0}
+    cpu: [arm64]
+    os: [linux]
+    libc: [musl]
+
+  '@oxlint/binding-linux-ppc64-gnu@1.81.0':
+    resolution: {integrity: sha512-TFqLja3uYmVSte6nof9GWrex9Z8WgdZrNiLC6Te5rXGDqXB2y4j/26iFhwosXiAFqDhE9JJVuuCkDKLwptTn1g==}
+    engines: {node: ^20.19.0 || >=22.12.0}
+    cpu: [ppc64]
+    os: [linux]
+    libc: [glibc]
+
+  '@oxlint/binding-linux-riscv64-gnu@1.81.0':
+    resolution: {integrity: sha512-UEcySvGS0NOVo7h7n7CYyJL9+6gFAh7Zc/ToDXVScFvzHSTIxtzkMVU30rmQ6+nQ1LF+UdiRDdJajpDu+OylLg==}
+    engines: {node: ^20.19.0 || >=22.12.0}
+    cpu: [riscv64]
+    os: [linux]
+    libc: [glibc]
+
+  '@oxlint/binding-linux-riscv64-musl@1.81.0':
+    resolution: {integrity: sha512-H+diDbhD00+wI1IRP8Kz88x/lat+DgtoBJzoTthS16xkTJGNaEkfb8gzmd1rzc/2uDQQMl7GNl+JFUacVeWxIA==}
+    engines: {node: ^20.19.0 || >=22.12.0}
+    cpu: [riscv64]
+    os: [linux]
+    libc: [musl]
+
+  '@oxlint/binding-linux-s390x-gnu@1.81.0':
+    resolution: {integrity: sha512-8znJ/5TekjOKg1j1Acho4PJMdiAHLtlcXuWEiipOhAMV6rQcXdmDdXCbheyDczN6TjBwiNfjcP81k4AthrKRzw==}
+    engines: {node: ^20.19.0 || >=22.12.0}
+    cpu: [s390x]
+    os: [linux]
+    libc: [glibc]
+
+  '@oxlint/binding-linux-x64-gnu@1.81.0':
+    resolution: {integrity: sha512-Q2Wj70yFsvn5QjlmifFzbj4H+kJy53bwqc41o1fzoM7MpLV1NIbhg/LpWXRfC6KOkSAdUx1Wd8VJsdPmhp/HRA==}
+    engines: {node: ^20.19.0 || >=22.12.0}
+    cpu: [x64]
+    os: [linux]
+    libc: [glibc]
+
+  '@oxlint/binding-linux-x64-musl@1.81.0':
+    resolution: {integrity: sha512-cPInHp/ddEe5qkyK2IiyQ8Q3Mp2oLLEhhsGgTK2oZx4L6+llGam1H1yBvJZ7qHfOXj8N3hxBS8sj4tO+gtFlIg==}
+    engines: {node: ^20.19.0 || >=22.12.0}
+    cpu: [x64]
+    os: [linux]
+    libc: [musl]
+
+  '@oxlint/binding-openharmony-arm64@1.81.0':
+    resolution: {integrity: sha512-0CQxSX4ajqm07AHBf5U33qQzXKdd7wtq/oTL/7vpY6RNNuxrRi8W4bqUV1Jyu/vj+9KmxQyDhxfeVX1nQL6kfg==}
+    engines: {node: ^20.19.0 || >=22.12.0}
+    cpu: [arm64]
+    os: [openharmony]
+
+  '@oxlint/binding-win32-arm64-msvc@1.81.0':
+    resolution: {integrity: sha512-l0hbeISm9673hVrrQU8j/p2M7YH9Ouoj7p7E/QM55NTrKVLP+P3PF8hLu+OY+x0VtGRW+ggiQKZqmdYps9H+TA==}
+    engines: {node: ^20.19.0 || >=22.12.0}
+    cpu: [arm64]
+    os: [win32]
+
+  '@oxlint/binding-win32-ia32-msvc@1.81.0':
+    resolution: {integrity: sha512-ksqPP5jbFXcYreEQ7zdJh06rJQBymCTyGRCdaXjfcf2aG4f8KxUWY5wcgYHmaTK+FJ4bPG5sUAdOX+6trnH1JA==}
+    engines: {node: ^20.19.0 || >=22.12.0}
+    cpu: [ia32]
+    os: [win32]
+
+  '@oxlint/binding-win32-x64-msvc@1.81.0':
+    resolution: {integrity: sha512-IZuUCwGw9emG5JtCp+fYGB+Z4OWEoeEcM8R5BA1pYw63/ieYFVdcU2ylxTpHbVHSenZnsYE+ZZ20uHAJszQ4cA==}
+    engines: {node: ^20.19.0 || >=22.12.0}
+    cpu: [x64]
+    os: [win32]
 
   '@rolldown/binding-android-arm-eabi@1.2.8':
     resolution: {integrity: sha512-tN5aztYkKCte4i5SIrrz5yK/HMjEuCqCSCJa418jOV8tZ1cBY3YF2otxB1ktPxzsLA1BeTqwapK0bfjxNvHJVw==}
@@ -1932,6 +2140,23 @@ packages:
   oniguruma-to-es@4.3.6:
     resolution: {integrity: sha512-csuQ9x3Yr0cEIs/Zgx/OEt9iBw9vqIunAPQkx19R/fiMq2oGVTgcMqO/V3Ybqefr1TBvosI6jU539ksaBULJyA==}
 
+  oxlint-tsgolint@7.0.2001:
+    resolution: {integrity: sha512-KjK/XLcXr1DSyonKhsuFqJRiuKqcyG9j3LJ8nkOsrLzGvodBPqzHOKauy10asLMDI0sUpvb+1sxlzff3udZvfg==}
+    hasBin: true
+
+  oxlint@1.81.0:
+    resolution: {integrity: sha512-HyrJYqeoOCL0iqaLEzGewGT48ZX99P3hxYh8udAF9RGGIghSamkXE4ClUyBpEDNqasamThgmlPbuMOe7SAZmHg==}
+    engines: {node: ^20.19.0 || >=22.12.0}
+    hasBin: true
+    peerDependencies:
+      oxlint-tsgolint: '>=7.0.2001'
+      vite-plus: '*'
+    peerDependenciesMeta:
+      oxlint-tsgolint:
+        optional: true
+      vite-plus:
+        optional: true
+
   parse-entities@4.0.2:
     resolution: {integrity: sha512-GG2AQYWoLgL877gQIKeRPGO1xF9+eG1ujIb5soS5gPvLQ1y2o8FL90w2QWNdf9I361Mpp7726c+lj3U0qK1uGw==}
 
@@ -2538,7 +2763,11 @@ snapshots:
     dependencies:
       '@godcreator/gwb-plugin-api': 0.2.7(cordis@4.0.0-rc.9)
 
-  '@godcreator/gwb-data@0.1.5(@godcreator/gwb-plugin-api@0.2.7(cordis@4.0.0-rc.9))(cordis@4.0.0-rc.9)':
+  '@godcreator/gwb-commands@0.4.6(@godcreator/gwb-plugin-api@0.2.7(cordis@4.0.0-rc.9))':
+    dependencies:
+      '@godcreator/gwb-plugin-api': 0.2.7(cordis@4.0.0-rc.9)
+
+  '@godcreator/gwb-data@0.1.6(@godcreator/gwb-plugin-api@0.2.7(cordis@4.0.0-rc.9))(cordis@4.0.0-rc.9)':
     dependencies:
       '@godcreator/gwb-plugin-api': 0.2.7(cordis@4.0.0-rc.9)
       cordis: 4.0.0-rc.9
@@ -2553,12 +2782,17 @@ snapshots:
     dependencies:
       cordis: 4.0.0-rc.9
 
+  '@godcreator/gwb-settings@0.3.2(@godcreator/gwb-plugin-api@0.2.7(cordis@4.0.0-rc.9))(cordis@4.0.0-rc.9)':
+    dependencies:
+      '@godcreator/gwb-plugin-api': 0.2.7(cordis@4.0.0-rc.9)
+      cordis: 4.0.0-rc.9
+
   '@godcreator/gwb-shared-react@0.1.1': {}
 
-  '@godcreator/gwb-shell@0.13.3(@godcreator/gwb-commands@0.4.5(@godcreator/gwb-plugin-api@0.2.7(cordis@4.0.0-rc.9)))(@godcreator/gwb-data@0.1.5(@godcreator/gwb-plugin-api@0.2.7(cordis@4.0.0-rc.9))(cordis@4.0.0-rc.9))(@godcreator/gwb-plugin-api@0.2.7(cordis@4.0.0-rc.9))(@godcreator/gwb-shared-react@0.1.1)(@godcreator/gwb-tokens@0.1.4)(cordis@4.0.0-rc.9)':
+  '@godcreator/gwb-shell@0.13.3(@godcreator/gwb-commands@0.4.5(@godcreator/gwb-plugin-api@0.2.7(cordis@4.0.0-rc.9)))(@godcreator/gwb-data@0.1.6(@godcreator/gwb-plugin-api@0.2.7(cordis@4.0.0-rc.9))(cordis@4.0.0-rc.9))(@godcreator/gwb-plugin-api@0.2.7(cordis@4.0.0-rc.9))(@godcreator/gwb-shared-react@0.1.1)(@godcreator/gwb-tokens@0.1.4)(cordis@4.0.0-rc.9)':
     dependencies:
       '@godcreator/gwb-commands': 0.4.5(@godcreator/gwb-plugin-api@0.2.7(cordis@4.0.0-rc.9))
-      '@godcreator/gwb-data': 0.1.5(@godcreator/gwb-plugin-api@0.2.7(cordis@4.0.0-rc.9))(cordis@4.0.0-rc.9)
+      '@godcreator/gwb-data': 0.1.6(@godcreator/gwb-plugin-api@0.2.7(cordis@4.0.0-rc.9))(cordis@4.0.0-rc.9)
       '@godcreator/gwb-plugin-api': 0.2.7(cordis@4.0.0-rc.9)
       '@godcreator/gwb-shared-react': 0.1.1
       '@godcreator/gwb-tokens': 0.1.4
@@ -2567,6 +2801,11 @@ snapshots:
   '@godcreator/gwb-skills@0.4.3(@godcreator/gwb-commands@0.4.5(@godcreator/gwb-plugin-api@0.2.7(cordis@4.0.0-rc.9)))(@godcreator/gwb-plugin-api@0.2.7(cordis@4.0.0-rc.9))(cordis@4.0.0-rc.9)':
     dependencies:
       '@godcreator/gwb-commands': 0.4.5(@godcreator/gwb-plugin-api@0.2.7(cordis@4.0.0-rc.9))
+      '@godcreator/gwb-plugin-api': 0.2.7(cordis@4.0.0-rc.9)
+      cordis: 4.0.0-rc.9
+
+  '@godcreator/gwb-skills@0.4.4(@godcreator/gwb-plugin-api@0.2.7(cordis@4.0.0-rc.9))(cordis@4.0.0-rc.9)':
+    dependencies:
       '@godcreator/gwb-plugin-api': 0.2.7(cordis@4.0.0-rc.9)
       cordis: 4.0.0-rc.9
 
@@ -2755,6 +2994,81 @@ snapshots:
     optional: true
 
   '@oxc-project/types@0.149.0': {}
+
+  '@oxlint-tsgolint/darwin-arm64@7.0.2001':
+    optional: true
+
+  '@oxlint-tsgolint/darwin-x64@7.0.2001':
+    optional: true
+
+  '@oxlint-tsgolint/linux-arm64@7.0.2001':
+    optional: true
+
+  '@oxlint-tsgolint/linux-x64@7.0.2001':
+    optional: true
+
+  '@oxlint-tsgolint/win32-arm64@7.0.2001':
+    optional: true
+
+  '@oxlint-tsgolint/win32-x64@7.0.2001':
+    optional: true
+
+  '@oxlint/binding-android-arm-eabi@1.81.0':
+    optional: true
+
+  '@oxlint/binding-android-arm64@1.81.0':
+    optional: true
+
+  '@oxlint/binding-darwin-arm64@1.81.0':
+    optional: true
+
+  '@oxlint/binding-darwin-x64@1.81.0':
+    optional: true
+
+  '@oxlint/binding-freebsd-x64@1.81.0':
+    optional: true
+
+  '@oxlint/binding-linux-arm-gnueabihf@1.81.0':
+    optional: true
+
+  '@oxlint/binding-linux-arm-musleabihf@1.81.0':
+    optional: true
+
+  '@oxlint/binding-linux-arm64-gnu@1.81.0':
+    optional: true
+
+  '@oxlint/binding-linux-arm64-musl@1.81.0':
+    optional: true
+
+  '@oxlint/binding-linux-ppc64-gnu@1.81.0':
+    optional: true
+
+  '@oxlint/binding-linux-riscv64-gnu@1.81.0':
+    optional: true
+
+  '@oxlint/binding-linux-riscv64-musl@1.81.0':
+    optional: true
+
+  '@oxlint/binding-linux-s390x-gnu@1.81.0':
+    optional: true
+
+  '@oxlint/binding-linux-x64-gnu@1.81.0':
+    optional: true
+
+  '@oxlint/binding-linux-x64-musl@1.81.0':
+    optional: true
+
+  '@oxlint/binding-openharmony-arm64@1.81.0':
+    optional: true
+
+  '@oxlint/binding-win32-arm64-msvc@1.81.0':
+    optional: true
+
+  '@oxlint/binding-win32-ia32-msvc@1.81.0':
+    optional: true
+
+  '@oxlint/binding-win32-x64-msvc@1.81.0':
+    optional: true
 
   '@rolldown/binding-android-arm-eabi@1.2.8':
     optional: true
@@ -4123,6 +4437,38 @@ snapshots:
       oniguruma-parser: 0.12.2
       regex: 6.1.0
       regex-recursion: 6.0.2
+
+  oxlint-tsgolint@7.0.2001:
+    optionalDependencies:
+      '@oxlint-tsgolint/darwin-arm64': 7.0.2001
+      '@oxlint-tsgolint/darwin-x64': 7.0.2001
+      '@oxlint-tsgolint/linux-arm64': 7.0.2001
+      '@oxlint-tsgolint/linux-x64': 7.0.2001
+      '@oxlint-tsgolint/win32-arm64': 7.0.2001
+      '@oxlint-tsgolint/win32-x64': 7.0.2001
+
+  oxlint@1.81.0(oxlint-tsgolint@7.0.2001):
+    optionalDependencies:
+      '@oxlint/binding-android-arm-eabi': 1.81.0
+      '@oxlint/binding-android-arm64': 1.81.0
+      '@oxlint/binding-darwin-arm64': 1.81.0
+      '@oxlint/binding-darwin-x64': 1.81.0
+      '@oxlint/binding-freebsd-x64': 1.81.0
+      '@oxlint/binding-linux-arm-gnueabihf': 1.81.0
+      '@oxlint/binding-linux-arm-musleabihf': 1.81.0
+      '@oxlint/binding-linux-arm64-gnu': 1.81.0
+      '@oxlint/binding-linux-arm64-musl': 1.81.0
+      '@oxlint/binding-linux-ppc64-gnu': 1.81.0
+      '@oxlint/binding-linux-riscv64-gnu': 1.81.0
+      '@oxlint/binding-linux-riscv64-musl': 1.81.0
+      '@oxlint/binding-linux-s390x-gnu': 1.81.0
+      '@oxlint/binding-linux-x64-gnu': 1.81.0
+      '@oxlint/binding-linux-x64-musl': 1.81.0
+      '@oxlint/binding-openharmony-arm64': 1.81.0
+      '@oxlint/binding-win32-arm64-msvc': 1.81.0
+      '@oxlint/binding-win32-ia32-msvc': 1.81.0
+      '@oxlint/binding-win32-x64-msvc': 1.81.0
+      oxlint-tsgolint: 7.0.2001
 
   parse-entities@4.0.2:
     dependencies:
