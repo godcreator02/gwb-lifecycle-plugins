@@ -1,0 +1,95 @@
+---
+title: 依赖怎么写
+description: 按「运行时这份代码由谁提供」决定写 peer、dev、dependencies 还是不写；构建产物里只能留下哪几类包名 import
+---
+
+# 依赖怎么写
+
+**本页回答**：插件 `package.json` 里每个依赖该写进 peer、dev、`dependencies` 还是不写；构建产物里允许留下哪些包名 import；类型引用到的包怎么列；清单和构建还有哪几条硬要求。
+
+## 规则
+
+**peer 只写由宿主（内核）提供、插件在构建产物里按值 import 的 `cordis`；其余一律写 dev。** 按值 import 指 import 的是运行时的值，不只是类型。
+
+构建产物里剩下的包名 import（直接写包名、不带相对路径的 import，比如 `from 'cordis'`）只能是：
+
+- node 侧代码：node 内置模块、`electron`、`cordis`
+- 浏览器侧代码：importmap 里的名字（见[页面代码与 importmap](/docs/rules/importmap)）
+
+判据只看构建产物，不管用什么构建：tsc 直接输出也好、esbuild 打包也好，构建产物里多出一个别的包名 import 就是违反。
+
+## 按运行时由谁提供来决定
+
+| 运行时由谁提供 | 写法 |
+| --- | --- |
+| 宿主提供、插件按值 import（`extends Service` 这类） | peer `cordis`，dev 里也写一份给本地构建和类型检查 |
+| 运行环境自带（node 内置模块、`electron`） | 不声明 |
+| 页面通过 importmap 提供（react 的四个包名） | dev；浏览器侧代码构建时外置 |
+| 另一个插件 | dev，只取类型；运行时经 inject 和命令使用（见[插件之间怎么交互](/docs/rules/interaction)） |
+| 本插件运行时自己用的库、接口定义包 | dev；打包进构建产物，产物里不留它的包名 import |
+| 构建时才用到的输入（样式映射文件、tailwind 之类） | dev |
+| 打包不进构建产物的自用库（原生可执行文件、运行时按路径读自己文件的包） | `dependencies`，在清单里写明原因 |
+| 外部程序、python 环境 | 不声明；用的时候检测它在不在 |
+
+「按值 import」和「只 import 类型」的区别，看编译后留不留下东西：
+
+```ts
+// 按值 import：Service 是一个类，运行时要用到它，构建产物里原样留下这一句——写 peer cordis
+import { Service } from 'cordis'
+export default class MyPlugin extends Service { /* … */ }
+
+// 只 import 类型：编译后整句消失，构建产物里没有 cordis——不写 peer，cordis 写 dev
+import type { Context } from 'cordis'
+export function apply(ctx: Context) {
+  ctx.gwbCommands!.register(/* … */)   // ctx 是 cordis 交给插件的，不用 import
+}
+```
+
+**peer 的意思是「运行时要从 home 里解析到这个包」**，所以只看构建产物里有没有这个包名 import。d.ts 里有 `declare module 'cordis'` 也不写 peer：那只是类型，用这些类型的一方自己在 dev 里列 `cordis`。插件照样依赖 cordis 的协议，但这份兼容性不靠 peer 表达：宿主换 cordis 大版本是内核的破坏性版本，内核的版本线跟着变，所有插件都要在新内核上重新验过、改写 `gwb.testedKernel`（见[在哪个内核上测过](/docs/rules/tested-kernel)）。
+
+**`cordis` 不写进 `dependencies`**：那等于插件自带一份 cordis。provide、inject、跟着依赖一起重新加载照常工作，但跨拷贝的 `instanceof` 判断为 false，出错时报错也不指向根因。同一个道理，代码里不写 `instanceof Service`。
+
+**插件需要另一个插件已经装上，这一点不写进清单。** 没装时它停在「等待缺少的服务」的状态，`plugin-manager.list` 里看得到。
+
+## 类型引用到的包由使用方列全
+
+本插件做类型检查时引用到的别的包的类型，包括上游 d.ts 里又引用到的包，都写进本插件的 dev。类型检查关掉 `skipLibCheck` 跑一遍：缺哪个包它会报「找不到模块」并写出包名；不关的话那段类型会不报错地变成 any。
+
+**只引类型时写 `import type`。** `import { type X }` 在 `verbatimModuleSyntax` 下会在构建产物里留下一句空 import。
+
+## 清单与构建的硬要求
+
+- **源码里不指回别的仓**：不开 tsconfig `paths`，不写 `link:`、`file:` 依赖，不写跨仓的 `workspace:`。映射出来的路径只在本机成立，发出去没人装得上
+- **留着 `prepublishOnly: pnpm build`**：`pnpm check` 不构建，少了它手工 `pnpm publish` 会把上一版的 `dist/` 原样发出去，而且不报错
+- **`files` 白名单列全**：少一项，装包那一刻就少东西，也不报错
+- **node 侧用 tsc 直接输出时，相对 import 带 `.js`**：构建产物给 node 直接加载，ESM 不补扩展名
+
+## 例子：插件管理的清单
+
+插件管理不按值 import `cordis`（它的服务用 `ctx.provide` 提供一个普通对象），所以一条 peer 都没有。它自带的 pnpm 是一个原生可执行文件，运行时按路径找到它、打包不进构建产物，所以写在 `dependencies`；别的插件、词汇表包、`cordis`、loader 全在 dev：
+
+{/* ref file="../plugins/plugin-manager/package.json" lines="32-50" */}
+
+它对别的插件只 import 类型，构建产物里这几句整句消失：
+
+{/* ref file="../plugins/plugin-manager/src/index.ts" lines="1-9" */}
+
+## 这个仓里还没照做的
+
+模板生成的清单还是旧写法：把词汇表包、`gwb-commands`、`gwb-shell` 和已经不再发新版的 `gwb-tokens`、`gwb-shared-react` 写成了 peer：
+
+{/* ref file="../plugins/devkit/template/pkg/package.json.tpl" lines="29-36" */}
+
+模板带的产物测试按旧规矩查 node 侧的包名 import：只放行词汇表包，没有放行 `cordis`：
+
+{/* ref file="../plugins/devkit/template/pkg/tests/artifact.test.ts.tpl" lines="19-21" */}
+
+devkit 插件自己的清单把词汇表包和 `gwb-shell` 写成了 peer，`dependencies` 里的 `yaml` 在源码里没有用到：
+
+{/* ref file="../plugins/devkit/package.json" lines="35-41" */}
+
+## 为什么
+
+- cordis 靠 `Symbol.for` 协议键在多份拷贝之间工作，插件自带一份也好、home 里另有一份也好，只有跨拷贝的 `instanceof` 为 false。实测记录在内核仓 `probes/2609231600_cordis-multi-copy/`
+- 只写 dev 时，类型引用到的包靠 pnpm 默认的提升来解析，少列一个就悄悄变成 any，关掉 `skipLibCheck` 才报出来。实测记录在内核仓 `probes/2609231600_types-without-peer/`
+- peer 只警告、不拦截，也管不到运行时实际解析到哪个版本；把它收窄成「宿主提供」这一种含义，依赖就只剩两种写法

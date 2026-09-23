@@ -1,0 +1,40 @@
+---
+title: 页面代码与 importmap
+description: importmap 只放整个页面必须只有一份的运行时代码，提供方只能是插件；浏览器侧代码怎么外置、别的依赖怎么打包
+---
+
+# 页面代码与 importmap
+
+**本页回答**：插件的浏览器侧代码里哪些包由页面的 importmap 提供、哪些要自己打包；什么东西能进 importmap、谁能提供；外置名单从哪来。
+
+## 规则
+
+**importmap 只放整个页面必须只有一份的运行时代码**，现在就是 react 的四个包名（`react`、`react/jsx-runtime`、`react-dom`、`react-dom/client`）；提供方只能是在 `cordis.yml` 里有条目的插件。
+
+## 怎么判
+
+同一个模块在页面上出现两份就会出错（全局单例、hooks、跨组件树的 context 这类），才进 importmap。只是体积大、或者好几个插件都用，不进，各自打包进构建产物——页面从本机 `file://` 加载，重复几百 KB 可以接受。
+
+进了 importmap 之后：
+
+- **提供方只能是有条目的插件**，在自己清单的 `gwb.shared` 里声明；库不声明 `gwb.shared`
+- **一个包名只有一个提供方**：两个插件声明同一个名字，内核计算 importmap 时全部拒绝
+- **外置名单只从提供方读**：外置名单是构建时不打包、留给 importmap 提供的包名清单。提供方导出一个构建时用的函数返回它，各插件的构建脚本调用，不手抄
+- **共享的运行时升大版本，是提供方的破坏性版本**：react 升大版本就是 shell 升 x
+- **插件之间共享 React context**，只能通过 importmap 的提供方，或者通过 props 传；各插件自带的库里的 context 在插件之间不通
+
+用到 importmap 里名字的插件，把那几个包写进 dev（见[依赖怎么写](/docs/rules/deps)）：构建时外置，运行时由页面解析。浏览器侧代码里的其余依赖一律打包进构建产物，外置成包名而 importmap 里没有这个名字，运行时就是「Failed to resolve module specifier」。
+
+## 这个仓里还没照做的
+
+模板的浏览器侧构建脚本手抄了那四个包名。shell 还没有导出外置名单时，照这四个名字写，并记作待改：
+
+{/* ref file="../plugins/devkit/template/pkg/build.ts.tpl" lines="11-17" */}
+
+模板的样式入口还从已经不再发新版的 `gwb-tokens` 引样式映射文件 `theme.reference.css`：
+
+{/* ref file="../plugins/devkit/template/pkg/src/client/styles.css.tpl" lines="19-22" */}
+
+## 为什么
+
+importmap 是页面级的运行时服务，放什么由提供方声明、由内核在页面加载时计算。提供方限定为插件，提供方就一定是 home 里有条目的包、有人管它的升级；库没有条目，能进 importmap 只是因为它碰巧被装成了 home 的直接依赖。

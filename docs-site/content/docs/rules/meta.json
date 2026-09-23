@@ -1,0 +1,4 @@
+{
+  "title": "写插件的规矩",
+  "pages": ["index", "deps", "importmap", "services", "interaction", "dispose", "tested-kernel"]
+}
