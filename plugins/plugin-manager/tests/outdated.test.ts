@@ -38,7 +38,7 @@ describe('parseOutdated', () => {
     expect(parseOutdated('42')).toBeUndefined()
   })
 
-  it('**单条缺 current 或 latest 只跳过那一条**，别的一律照收——形状漂移不该一票否决', () => {
+  it('单条缺 current 或 latest 只跳过那一条，其余照收', () => {
     const got = parseOutdated(
       raw({
         a: { current: '1.0.0' },

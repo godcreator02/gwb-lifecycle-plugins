@@ -29,8 +29,8 @@ function entry(opts: { id: string; pkg: string; state?: number; disabled?: boole
   }
 }
 
-describe('entriesForPackage：卸载摘哪些条目', () => {
-  it('同包多条全归一堆——卸载是包级动作，漏一条就留一个 ghost', () => {
+describe('entriesForPackage：卸载删哪些条目', () => {
+  it('同一个包的多条条目全部删——漏一条就留下一条指向没装的包的条目', () => {
     const ids = entriesForPackage(
       fakeStore([
         entry({ id: 'hello', pkg: '@x/gwb-hello', state: 2 }),
@@ -42,7 +42,7 @@ describe('entriesForPackage：卸载摘哪些条目', () => {
     expect(ids).toEqual(['hello', 'hello-2'])
   })
 
-  it('停用没停用、挂上没挂上，都不影响归属——摘的是条目，不是「活着的条目」', () => {
+  it('停用的、没加载成功的条目也一起删', () => {
     const ids = entriesForPackage(
       fakeStore([
         entry({ id: 'a', pkg: 'p' }),

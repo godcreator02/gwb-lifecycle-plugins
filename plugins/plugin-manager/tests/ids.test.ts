@@ -29,7 +29,7 @@ describe('条目 id 的字符集', () => {
     expect(() => assertId('Commands')).toThrow(/kebab-case/)
   })
 
-  it('跟 gwb-data / gwb-settings 那两份是同一套——发得出去的 id 那边必须存得下数据', () => {
+  it('和 gwb-data、gwb-settings 的校验是同一套——生成的 id 在那边要存得下数据', () => {
     // 那两个件按 id 的末段分区，字符集松了就等于发了一条谁也存不下东西的条目
     expect(isValidId('py-cli')).toBe(true)
     expect(isValidId('py_cli')).toBe(false)
@@ -102,14 +102,14 @@ describe('撞名加数字后缀', () => {
   })
 })
 
-describe('挑 id：连盘上的户主章一起看', () => {
+describe('选 id：连磁盘上的归属记录一起看', () => {
   const none = new Set<string>()
 
   it('盘上什么都没有：跟默认 id 一样', () => {
     expect(pickId('@a/gwb-foo', none, {})).toBe('foo')
   })
 
-  it('scope 不同、短名相同：前一个包卸了、数据留盘，后来的包不拿那个 id——这就是要挡的事故', () => {
+  it('scope 不同、默认 id 相同：前一个包卸载后数据留在磁盘上，后来的包不拿这个 id', () => {
     expect(pickId('@b/foo', none, { foo: ['@a/gwb-foo', '@a/gwb-foo'] })).toBe('foo-2')
   })
 
@@ -117,7 +117,7 @@ describe('挑 id：连盘上的户主章一起看', () => {
     expect(pickId('@b/foo', none, { foo: ['@b/foo', '@a/gwb-foo'] })).toBe('foo-2')
   })
 
-  it('本包装过又卸了：接回自己的旧 id，数据与设置原样接上', () => {
+  it('本包装过又卸了：沿用自己的旧 id，数据与设置原样接上', () => {
     // @a 卸了之后 @b 占了 foo-2；@a 装回来还是 foo，不会被挤成 foo-3
     expect(pickId('@a/gwb-foo', new Set(['foo-2']), { foo: ['@a/gwb-foo'], 'foo-2': ['@b/foo'] })).toBe('foo')
   })
@@ -131,7 +131,7 @@ describe('挑 id：连盘上的户主章一起看', () => {
     expect(pickId('@a/gwb-foo', new Set(['foo']), { 'foo-3': ['@a/gwb-foo'], 'foo-2': ['@a/gwb-foo'] })).toBe('foo-2')
   })
 
-  it('树上挂着的不接——那是同一个包正在用的另一条条目', () => {
+  it('条目树上正被占着的不沿用——那是同一个包正在用的另一条条目', () => {
     expect(pickId('@a/gwb-foo', new Set(['foo']), { foo: ['@a/gwb-foo'] })).toBe('foo-2')
   })
 
@@ -140,12 +140,12 @@ describe('挑 id：连盘上的户主章一起看', () => {
   })
 })
 
-describe('手给的 id', () => {
-  it('树上被占：拒', () => {
+describe('手动给的 id', () => {
+  it('条目树上已被占用：拒绝', () => {
     expect(() => assertIdUsable('foo', '@a/foo', new Set(['foo']), {})).toThrow(/被占/)
   })
 
-  it('盘上归别的包：拒，错话里点名户主与过户命令', () => {
+  it('磁盘上属于别的包：拒绝，错误里写明属于谁与 transfer-owner', () => {
     expect(() => assertIdUsable('foo', '@b/foo', new Set(), { foo: ['@a/foo'] })).toThrow(/@a\/foo[\s\S]*transfer-owner/)
   })
 
@@ -165,7 +165,7 @@ describe('包名与版本范围', () => {
     expect(() => assertPkgName('a.b_c-d~e')).not.toThrow()
   })
 
-  it('以 - 开头的不认——那会被 pnpm 读成开关', () => {
+  it('以 - 开头的包名不认——pnpm 会把它当成命令行选项', () => {
     expect(() => assertPkgName('--force')).toThrow()
     expect(() => assertPkgName('-r')).toThrow()
   })
@@ -189,7 +189,7 @@ describe('包名与版本范围', () => {
     }
   })
 
-  it('拼 pnpm add 的那个参数', () => {
+  it('拼出 pnpm add 的参数', () => {
     expect(installSpec('@godcreator/gwb-commands')).toBe('@godcreator/gwb-commands')
     expect(installSpec('@godcreator/gwb-commands', '0.0.3')).toBe('@godcreator/gwb-commands@0.0.3')
   })

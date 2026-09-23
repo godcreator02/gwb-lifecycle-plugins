@@ -38,7 +38,7 @@ describe('home 的 package.json 收窄', () => {
 })
 
 describe('显示名文档收窄', () => {
-  it('坏的那格丢掉，不废掉整份', () => {
+  it('格式不对的项丢掉，不作废整份', () => {
     expect(toLabels({ a: '命令总线', b: 3, c: '' })).toEqual({ a: '命令总线' })
   })
 
@@ -111,7 +111,7 @@ describe('包与条目对照', () => {
     expect(rows[0]?.entries).toEqual([])
   })
 
-  it('条目引着一个没装的包：报 installed false,不静默丢掉', () => {
+  it('条目指向一个没装的包：报 installed false，不丢掉', () => {
     const rows = reconcile({}, [snapshot('ghost', '@x/gone')], {})
     expect(rows[0]).toMatchObject({ pkg: '@x/gone', installed: false })
     expect(rows[0]).not.toHaveProperty('spec')

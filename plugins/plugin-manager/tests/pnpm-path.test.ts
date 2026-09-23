@@ -39,7 +39,7 @@ const WITH_12: Disk = { files: [`${NPM_GLOBAL}\\pnpm.cmd`, EXE, EXE_OPTIONAL], p
 const WITH_11: Disk = { files: [`${NPM_GLOBAL}\\pnpm.cmd`, `${PKG}\\bin\\pnpm.cjs`], packages: { [PKG]: '11.21.0' } }
 
 describe('从 PATH 里找 pnpm', () => {
-  it('垫片旁边推出原生 pnpm.exe', () => {
+  it('从垫片推出原生 pnpm.exe', () => {
     const lookup = win(WITH_12, { pathEnv: `C:\\Windows\\system32;${NPM_GLOBAL}` })
     expect(findPnpm(lookup)).toEqual({ ok: true, file: EXE, version: '12.4.2', from: 'path' })
   })
@@ -56,7 +56,7 @@ describe('从 PATH 里找 pnpm', () => {
     expect(result.ok ? '' : result.error).toMatch(/原生二进制.*win32-x64/)
   })
 
-  it('版本 <12 明确报错、说清要装 12+，不试着跑它的 pnpm.cjs', () => {
+  it('版本低于 12 明确报错、说清要装 12 以上，不试着运行', () => {
     const result = findPnpm(win(WITH_11, { pathEnv: NPM_GLOBAL }))
     expect(result.ok).toBe(false)
     expect(result.ok ? '' : result.error).toMatch(/pnpm 11\.21\.0.*只支持 pnpm 12 及以上/)
@@ -78,7 +78,7 @@ describe('从 PATH 里找 pnpm', () => {
     expect(findPnpm(lookup)).toEqual({ ok: true, file: `${home}\\pnpm.exe`, from: 'path' })
   })
 
-  it('第一个命中的垫片推不出 pnpm 包时继续往后扫——corepack/volta 的垫片不是这个布局', () => {
+  it('第一个垫片推不出 pnpm 包时接着往后找——corepack、volta 的垫片不是这种布局', () => {
     const lookup = win({ ...WITH_12, files: ['C:\\volta\\bin\\pnpm.cmd', ...(WITH_12.files ?? [])] }, {
       pathEnv: `C:\\volta\\bin;${NPM_GLOBAL}`,
     })
@@ -150,7 +150,7 @@ describe('设置项那一路', () => {
     expect(findPnpm(win(WITH_12, { configured: PKG }))).toMatchObject({ ok: true, file: EXE })
   })
 
-  it('填了就不再回退去扫 PATH——填错了要当场看见,不是悄悄用了另一份', () => {
+  it('填了设置项就不再回退 PATH——填错了要立即看到，而不是悄悄用了另一个', () => {
     const result = findPnpm(win(WITH_12, { configured: 'D:\\nope\\pnpm.exe', pathEnv: NPM_GLOBAL }))
     expect(result.ok).toBe(false)
     expect(result.ok ? '' : result.error).toMatch(/pnpm-path.*不存在/)
@@ -161,10 +161,10 @@ describe('设置项那一路', () => {
   })
 })
 
-describe('怎么起', () => {
+describe('怎么启动', () => {
   const env = { PATH: 'x', ELECTRON_RUN_AS_NODE: '1', HOME: 'h' }
 
-  it('直接起可执行，环境原样透传但不带 ELECTRON_RUN_AS_NODE', () => {
+  it('直接启动可执行文件，环境原样传下去，只去掉 ELECTRON_RUN_AS_NODE', () => {
     expect(spawnPlan(EXE, ['outdated', '--json'], env)).toEqual({
       command: EXE,
       args: ['outdated', '--json'],

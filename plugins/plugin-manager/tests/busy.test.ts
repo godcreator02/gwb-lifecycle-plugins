@@ -1,8 +1,8 @@
 import { describe, expect, it } from 'vitest'
 import { BusyGate, BUSY_MESSAGE } from '../src/busy'
 
-describe('BusyGate：变更互斥', () => {
-  it('门开着时照跑，跑完放门', async () => {
+describe('BusyGate：同一时刻只允许一个改动', () => {
+  it('没有改动在运行时照常执行，执行完释放标志', async () => {
     const gate = new BusyGate()
     const out = await gate.run(() => ({ ok: true, data: 1 }))
     expect(out).toEqual({ ok: true, data: 1 })
@@ -10,7 +10,7 @@ describe('BusyGate：变更互斥', () => {
     expect(again).toEqual({ ok: true, data: 2 })
   })
 
-  it('占门期间重入回 BUSY，fn 不执行', async () => {
+  it('有改动在运行时重入回 BUSY，不执行', async () => {
     const gate = new BusyGate()
     let inner = 0
     let release!: () => void
@@ -30,7 +30,7 @@ describe('BusyGate：变更互斥', () => {
     expect(await first).toEqual({ ok: true, data: 0 })
   })
 
-  it('fn 抛了也放门，下一趟能跑', async () => {
+  it('执行中抛错也释放标志，下一次能执行', async () => {
     const gate = new BusyGate()
     await expect(gate.run(() => { throw new Error('炸了') })).rejects.toThrow('炸了')
     const out = await gate.run(() => ({ ok: true }))

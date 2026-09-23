@@ -48,8 +48,8 @@ const outdated = {
   [COMMANDS]: { current: '0.2.0', latest: '0.2.2' },
 }
 
-describe('planUpdateAll：一趟 pnpm，精确版本', () => {
-  it('pnpm 参数是一趟 add，每个包钉 outdated 回的 latest——不是 @latest 标签', () => {
+describe('planUpdateAll：一次 pnpm add，精确版本', () => {
+  it('pnpm 参数是一次 add，每个包用 outdated 查到的版本号，不用 @latest 标签', () => {
     const plan = planUpdateAll(outdated, store, 'home:plugin-manager')
     expect(plan.pnpmArgs).toEqual(['add', `${COMMANDS}@0.2.2`, `${HELLO}@0.2.1`, `${MANAGER}@0.3.0`])
   })
@@ -60,7 +60,7 @@ describe('planUpdateAll：一趟 pnpm，精确版本', () => {
   })
 })
 
-describe('planUpdateAll：重挂顺序，自己最后', () => {
+describe('planUpdateAll：重新加载的顺序，插件管理自己最后', () => {
   it('包按名排、自己所在的包挪到最后；包内自己那条条目也在最后', () => {
     const plan = planUpdateAll(outdated, store, 'home:plugin-manager')
     expect(plan.packages.map((p) => p.pkg)).toEqual([COMMANDS, HELLO, MANAGER])
@@ -84,8 +84,8 @@ describe('planUpdateAll：重挂顺序，自己最后', () => {
   })
 })
 
-describe('planUpdateAll：每条条目怎么处置', () => {
-  it('停用着的条目带 disabled 标——执行时保持停用，不重挂', () => {
+describe('planUpdateAll：每条条目怎么处理', () => {
+  it('停用的条目带 disabled——执行时保持停用，不重新加载', () => {
     const plan = planUpdateAll(outdated, store, 'home:plugin-manager')
     const hello = plan.packages.find((p) => p.pkg === HELLO)!
     expect(hello.entries).toEqual([
@@ -95,7 +95,7 @@ describe('planUpdateAll：每条条目怎么处置', () => {
     expect(hello).toMatchObject({ from: '0.2.0', to: '0.2.1', self: false })
   })
 
-  it('装了包一条条目都没挂的（共享包）照样升，entries 空；分组条目不归任何包', () => {
+  it('装了包、一条条目都没有的照样升，entries 为空；分组条目不归任何包', () => {
     const plan = planUpdateAll({ ...outdated, '@x/gwb-tokens': { current: '0.0.5', latest: '0.0.6' } }, store, 'home:plugin-manager')
     expect(plan.packages.find((p) => p.pkg === '@x/gwb-tokens')).toEqual({
       pkg: '@x/gwb-tokens',
@@ -124,7 +124,7 @@ describe('planUpdateAll：only 限定', () => {
   })
 })
 
-describe('fiberStateOf：重挂后到哪一步', () => {
+describe('fiberStateOf：重新加载后到哪一步', () => {
   it('照 cordis FiberState 的原名报', () => {
     expect(fiberStateOf({ fiber: { state: 2 } })).toBe('ACTIVE')
     expect(fiberStateOf({ fiber: { state: 0 } })).toBe('PENDING')
@@ -139,13 +139,13 @@ describe('fiberStateOf：重挂后到哪一步', () => {
   })
 })
 
-describe('settleFiber：等 fiber 把手头的事做完，到点就走', () => {
+describe('settleFiber：等 fiber 把手头的事做完，最多等到时限', () => {
   it('await 回来就回来；抛了也回来（状态另外读）', async () => {
     await expect(settleFiber({ await: () => Promise.resolve() }, 1000)).resolves.toBeUndefined()
     await expect(settleFiber({ await: () => Promise.reject(new Error('apply 抛了')) }, 1000)).resolves.toBeUndefined()
   })
 
-  it('永远不回来的 await 到点就走', async () => {
+  it('永远不结束的 await：到了时限就继续', async () => {
     const started = Date.now()
     await settleFiber({ await: () => new Promise(() => undefined) }, 20)
     expect(Date.now() - started).toBeGreaterThanOrEqual(15)

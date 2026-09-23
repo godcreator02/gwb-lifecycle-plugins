@@ -72,15 +72,15 @@ function manualSchedule(): { schedule: Schedule; flush: () => void; pending: () 
 
 const OWN = 'plugin-manager'
 
-describe('remountOne：普通条目在这一趟里做完', () => {
-  it('停用再启用、回 remounted 带重挂后的状态', async () => {
+describe('remountOne：别的条目在这条命令里做完', () => {
+  it('停用再启用，回 remounted 和重新加载后的状态', async () => {
     const tree = fakeTree([OWN, 'hello'])
     const result = await remountOne(tree, 'hello', OWN, quietLog(), manualSchedule().schedule, 10)
     expect(result).toEqual({ id: 'hello', action: 'remounted', state: 'ACTIVE' })
     expect(tree.calls).toEqual(['hello off', 'hello on'])
   })
 
-  it('本来停用的条目：终态是启用', async () => {
+  it('原本停用的条目：最后是启用的', async () => {
     const tree = fakeTree([OWN, 'hello'])
     await tree.update('hello', { disabled: true })
     tree.calls.length = 0
@@ -96,8 +96,8 @@ describe('remountOne：普通条目在这一趟里做完', () => {
   })
 })
 
-describe('remountOne：目标是本件自己', () => {
-  it('当下回 deferred（动手前的状态），一下都没动；下一个宏任务才重挂', async () => {
+describe('remountOne：目标是插件管理自己', () => {
+  it('先回 deferred（动手前的状态），什么都没动；下一个宏任务才重新加载', async () => {
     const tree = fakeTree([OWN, 'hello'])
     const timers = manualSchedule()
     const log = quietLog()
@@ -112,8 +112,8 @@ describe('remountOne：目标是本件自己', () => {
   })
 })
 
-describe('remountOne：目标是命令总线', () => {
-  it('总线停用时撤掉全部命令（连 remount 这条），处理器那条链照样做完、条目回到启用', async () => {
+describe('remountOne：目标是命令插件', () => {
+  it('命令插件停用时全部命令都撤掉（包括 remount），这条 await 链照样做完，条目回到启用', async () => {
     const bus = new Map<string, (args: { entryId: string }) => Promise<unknown>>()
     const tree = fakeTree([OWN, 'commands'], (id) => {
       if (id === 'commands') bus.clear()
