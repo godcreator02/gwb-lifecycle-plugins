@@ -13,7 +13,7 @@ import { assertId, assertIdUsable, assertPkgName, bareId, installSpec, pickId, t
 import { isLibraryManifest, readEntries, reconcile, toLabels, type PluginPackageView } from './inventory.js'
 import { peerKindOf, planPeers, toPeerDependencies, type PeerKind } from './peers.js'
 import type { PeerWarning } from './peer-warnings.js'
-import { addToHome, checkPeers, describeAddFailure, describePnpm, locatePnpm, runPnpm, runPnpmCapture, type PnpmResult } from './pnpm.js'
+import { checkPeers, describeAddFailure, describePnpm, locatePnpm, runPnpm, runPnpmCapture, type PnpmResult } from './pnpm.js'
 import { parseOutdated, type UpdateInfo } from './outdated.js'
 import { entriesForPackage } from './uninstall.js'
 import { ownEntryId, treeOf, type EntryTreeLike } from './tree.js'
@@ -584,7 +584,7 @@ export default class GwbPluginManager extends Service implements GwbPluginManage
     }
 
     this.info(`用 ${describePnpm(found)} 装 ${target}`)
-    const run = await this.addQueued(found.file, [target])
+    const run = await this.applyToHome(found.file, { add: [target] })
     if (!run.ok) {
       const failure = describeAddFailure(`pnpm add ${target}`, run)
       this.warn(`${failure.error}\n${failure.tail ?? ''}`)
@@ -688,7 +688,7 @@ export default class GwbPluginManager extends Service implements GwbPluginManage
         peers.push(item.note === undefined ? stay : { ...stay, note: item.note })
         continue
       }
-      const run = await this.addQueued(pnpm, [item.pkg])
+      const run = await this.applyToHome(pnpm, { add: [item.pkg] })
       if (run.ok) {
         this.info(`${pkg} 的 peer ${item.pkg}（清单写 ${item.range}）装成了 home 的直接依赖`)
         peers.push({ pkg: item.pkg, range: item.range, action: 'installed' })
@@ -750,7 +750,7 @@ export default class GwbPluginManager extends Service implements GwbPluginManage
     }
 
     this.info(`用 ${describePnpm(found)} 把 ${pkg} 升到最新`)
-    const run = await this.addQueued(found.file, [`${pkg}@latest`])
+    const run = await this.applyToHome(found.file, { add: [`${pkg}@latest`] })
     if (!run.ok) {
       const failure = describeAddFailure(`pnpm add ${pkg}@latest`, run)
       this.warn(`${failure.error}\n${failure.tail ?? ''}`)
@@ -785,7 +785,7 @@ export default class GwbPluginManager extends Service implements GwbPluginManage
     // 一趟装完：pnpm 是读-改-写 home 的 package.json，逐包起进程跟并发 install 一样会互相盖
     const specs = plan.pnpmArgs.slice(1)
     this.info(`用 ${describePnpm(found)} 一趟装 ${specs.join(' ')}`)
-    const run = await this.addQueued(found.file, specs)
+    const run = await this.applyToHome(found.file, { add: specs })
     if (!run.ok) {
       const failure = describeAddFailure(`pnpm ${plan.pnpmArgs.join(' ')}`, run)
       // 失败发生在重挂之前：条目一条都没动
@@ -871,7 +871,7 @@ export default class GwbPluginManager extends Service implements GwbPluginManage
       this.warn(`卸不了 ${pkg}：条目已摘（${ids.length} 条），${found.error}`)
       return { ok: false, pkg, removedEntries: ids, error: found.error }
     }
-    const run = await this.queue(() => runPnpm({ pnpm: found.file, cwd: this.home, args: ['remove', pkg] }))
+    const run = await this.applyToHome(found.file, { remove: [pkg] })
     if (!run.ok) {
       // 不回滚：条目已摘是正当落点，包进「已装、没挂条目」那一区看得见、重试挂条目就行
       const error = `pnpm remove ${pkg} 没成（退出码 ${String(run.exitCode)}）。条目已摘 ${ids.length} 条，包还在 home 里`
@@ -1035,9 +1035,13 @@ export default class GwbPluginManager extends Service implements GwbPluginManage
     return cut === -1 ? bare : `${own.slice(0, cut + 1)}${bare}`
   }
 
-  /** 往 home 装一趟，排进串行队列 */
-  private addQueued(pnpm: string, specs: readonly string[]): Promise<PnpmResult> {
-    return this.queue(() => addToHome({ pnpm, home: this.home, specs }))
+  /**
+   * 改 home 的唯一入口：安装、升级、卸载都经这里运行 pnpm，排进同一个串行队列。
+   * pnpm 每次都读-改-写 home 的 package.json，两次同时运行，后写的会覆盖前一次加进去的依赖
+   */
+  private applyToHome(pnpm: string, change: { add: readonly string[] } | { remove: readonly string[] }): Promise<PnpmResult> {
+    const args = 'add' in change ? ['add', ...change.add] : ['remove', ...change.remove]
+    return this.queue(() => runPnpm({ pnpm, cwd: this.home, args }))
   }
 
   private queue<T>(task: () => Promise<T>): Promise<T> {
