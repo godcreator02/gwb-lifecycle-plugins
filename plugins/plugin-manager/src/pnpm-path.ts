@@ -1,8 +1,8 @@
 /**
- * pnpm 装在哪——零 I/O 纯逻辑：盘上的事由调用方给三个判定（`stat` / `realpath` /
- * `pnpmVersion`），于是可测。真去查盘、真去起进程的那一层在 `pnpm.ts`。
+ * pnpm 装在哪——零 I/O 纯逻辑：磁盘上的信息由调用方通过三个函数提供（`stat` / `realpath` /
+ * `pnpmVersion`），所以可测。实际查磁盘、启动进程的部分在 `pnpm.ts`。
  *
- * 查找的落点是 **pnpm 的原生可执行文件**，直接 spawn。只支持 pnpm 12 起的原生 pnpm：npm 包的
+ * 查找的目标是 **pnpm 的原生可执行文件**，直接 spawn。只支持 pnpm 12 起的原生 pnpm：npm 包的
  * `bin` 指 `pnpm.exe`，二进制来自可选依赖 `@pnpm/exe.<平台>-<架构>`。查到的 pnpm 包大版本低于
  * 12 时明确报错，不试着跑。
  */
@@ -11,7 +11,7 @@
 export const MIN_PNPM_MAJOR = 12
 
 export interface Lookup {
-  /** 设置项 `pnpm-path` 的值。没装设置件、或者没填，就是 undefined */
+  /** 设置项 `pnpm-path` 的值。没装设置插件、或者没填，就是 undefined */
   configured?: string
   /** `process.env.PATH` 的原文 */
   pathEnv?: string
@@ -23,9 +23,9 @@ export interface Lookup {
   platform: string
   /** `process.arch` */
   arch: string
-  /** 盘上这个路径是文件、目录，还是不存在 */
+  /** 磁盘上这个路径是文件、目录，还是不存在 */
   stat(file: string): 'file' | 'dir' | undefined
-  /** 解软链后的真实路径；解不了原样回 */
+  /** 解析软链接后的真实路径；解析不了就原样返回 */
   realpath(file: string): string
   /** `<dir>/package.json` 的 name 是 `pnpm` 时回它的 version，否则 undefined */
   pnpmVersion(dir: string): string | undefined
@@ -38,7 +38,7 @@ export type LookupResult =
 type Found = { ok: true; file: string; version?: string }
 type Step = Found | { ok: false; why: string }
 
-/** 拼路径。不用 `node:path` —— 这个模块要在测试里喂假分隔符 */
+/** 拼路径。不用 `node:path` —— 这个模块要在测试里传入假分隔符 */
 function join(sep: string, ...parts: readonly string[]): string {
   return parts.join(sep)
 }
@@ -98,8 +98,8 @@ function fromPackage(pkgDir: string, lookup: Lookup): Step {
 
 /**
  * 一个放 pnpm 垫片的目录（npm 全局的 bin 目录）→ 原生可执行文件。
- * Windows 上 npm 全局布局是 `<目录>/node_modules/pnpm`；别的平台垫片是软链，解开它落到的
- * 那个 pnpm 包排前面。
+ * Windows 上 npm 全局布局是 `<目录>/node_modules/pnpm`；其他平台上垫片是软链接，解析后指向的
+ * 那个 pnpm 包优先。
  */
 function fromBinDir(dir: string, lookup: Lookup): Step {
   const { sep } = lookup
@@ -133,7 +133,7 @@ function fromSetting(value: string, lookup: Lookup): Step {
 /**
  * PATH 那一路，按 PATH 顺序逐个目录找：Windows 上目录里的 `pnpm.exe` 直接用；
  * `pnpm.cmd`（别的平台是 `pnpm`）是垫片，从它推 npm 全局布局里的那个 pnpm 包。
- * **推不出来不算完**，继续往后扫；一条都不成就把每一处为什么不成带回去。
+ * **推断不出也不停下**，继续往后找；一处都不成就把每一处失败的原因带回去。
  */
 function fromPath(lookup: Lookup): { found?: Found; misses: string[] } {
   const misses: string[] = []
@@ -159,8 +159,8 @@ const SETTING_FORMS =
   '能填的：pnpm 原生可执行文件（npm 全局装的在 node_modules\\pnpm\\pnpm.exe，非 Windows 是 pnpm）、npm 全局的垫片（pnpm.cmd）或垫片所在的目录、pnpm 包目录本身'
 
 /**
- * 找 pnpm，两路：**设置项优先，PATH 兜底，都不成回一句明确的错。**
- * 填了设置项就不再回退去扫 PATH——填错了要当场看见，不是悄悄用了另一份。
+ * 找 pnpm，两条途径：**设置项优先，PATH 作为回退，都不成就回一句明确的错误。**
+ * 填了设置项就不再回退去扫 PATH——填错了要立即看到，而不是悄悄用了另一份。
  */
 export function findPnpm(lookup: Lookup): LookupResult {
   if (lookup.configured !== undefined && lookup.configured !== '') {
@@ -179,7 +179,7 @@ export function findPnpm(lookup: Lookup): LookupResult {
   }
 }
 
-/** 一趟 spawn 的三样：跑哪个文件、带什么参数、什么环境 */
+/** 一次 spawn 需要的三样：运行哪个文件、带什么参数、什么环境 */
 export interface SpawnPlan {
   command: string
   args: string[]
@@ -187,8 +187,8 @@ export interface SpawnPlan {
 }
 
 /**
- * pnpm 可执行文件 → spawn 参数。直接起那个可执行，环境原样透传，只**去掉**
- * `ELECTRON_RUN_AS_NODE`——它只对 electron 有意义，留着会漏进 pnpm 起的依赖构建脚本里。
+ * pnpm 可执行文件 → spawn 参数。直接启动那个可执行文件，环境原样透传，只**去掉**
+ * `ELECTRON_RUN_AS_NODE`——它只对 electron 有意义，留着会传给 pnpm 启动的依赖构建脚本。
  */
 export function spawnPlan(file: string, args: readonly string[], env: Readonly<Record<string, string | undefined>>): SpawnPlan {
   const copy = { ...env }

@@ -1,27 +1,27 @@
 /**
- * home 里 peer 对不上的那几处，从 `pnpm peers check --json` 读成回执里的 `peerWarnings`——零 I/O
- * 纯逻辑。真去跑 pnpm 的那半在 `pnpm.ts`。
+ * home 里 peer 不匹配的地方，从 `pnpm peers check --json` 的输出读成回执里的 `peerWarnings`——零 I/O
+ * 纯逻辑。实际运行 pnpm 的部分在 `pnpm.ts`。
  *
- * 本件调 pnpm 不带任何 peer 参数，pnpm 默认不严格：peer 对不上时 `pnpm add` 照装、退出码 0，
- * stdout 上只有一句 `[WARN] Issues with peer dependencies found`、不列是哪几处。所以装完另跑一趟
+ * 本插件调 pnpm 不带任何 peer 参数，pnpm 默认不严格：peer 不匹配时 `pnpm add` 照装、退出码 0，
+ * stdout 上只有一句 `[WARN] Issues with peer dependencies found`、不列具体是哪几处。所以装完另跑一次
  * `pnpm peers check --json`（有问题时退出码 1，没问题时 0，两种都在 stdout 上给同一形状的 JSON），
- * 把它说的逐条带进回执。它查的是 home 整棵树：本来就有的冲突也在里头，不只这一趟新加的。
+ * 把它报告的问题逐条带进回执。它查的是 home 整棵依赖树：原本就有的冲突也在里面，不只这次新加的。
  */
 
-/** 一处 peer 对不上 */
+/** 一处 peer 不匹配 */
 export interface PeerWarning {
   /** 对不上的那个 peer 包 */
   peer: string
-  /** home 里装着的那一版；`missing`（压根没装上）时没有这一格 */
+  /** home 里装着的版本；`missing`（根本没装上）时没有这个字段 */
   installed?: string
   /** 要它的那个包写的范围 */
   wanted: string
-  /** 要它的那个包，`名@版本`；隔着几层时从 home 的直接依赖一路写到它，` > ` 相连 */
+  /** 要它的那个包，`名@版本`；隔着几层时从 home 的直接依赖一路写到它，用 ` > ` 连接 */
   by: string
 }
 
 /**
- * 读 `pnpm peers check --json` 的 stdout。认不出来（不是 JSON、形状不对）回 undefined，
+ * 读 `pnpm peers check --json` 的 stdout。无法识别（不是 JSON、形状不对）回 undefined，
  * 没有问题回空数组。
  *
  * 形状是「项目路径 → { bad, missing, conflicts, intersections }」，home 只有一个项目 `.`。
@@ -48,7 +48,7 @@ export function parsePeerCheck(stdout: string): PeerWarning[] | undefined {
   return warnings
 }
 
-/** 一格 `bad` / `missing`。没有这一格当空；形状不对回 undefined */
+/** `bad` 或 `missing` 字段。没有这个字段当空；形状不对回 undefined */
 function issuesOf(section: unknown, missing: boolean): PeerWarning[] | undefined {
   if (section === undefined) return []
   if (!isObject(section)) return undefined

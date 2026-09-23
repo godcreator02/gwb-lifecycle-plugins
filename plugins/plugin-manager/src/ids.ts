@@ -1,40 +1,40 @@
 /**
- * 条目 id、包名、版本范围的规矩——零 I/O 纯逻辑（出现 `node:fs` import 即越界）。
+ * 条目 id、包名、版本范围的校验规则——零 I/O 纯逻辑（出现 `node:fs` import 就违反了这条约定）。
  *
- * **id 是身份，定死不给改**：`gwb-settings` 与 `gwb-data` 都按它的末段分区，改一次 id
- * 等于把那条条目的设置和数据全丢在原地。所以没有 rename，要改显示名走 `setLabel`。
+ * **id 是条目的身份，一经确定不允许修改**：`gwb-settings` 与 `gwb-data` 都按 id 的末段分区，改一次 id
+ * 就等于那条条目原有的设置和数据都留在旧分区里、再也读不到。所以不提供 rename，改显示名用 `setLabel`。
  *
- * **字符集跟那两个件里的那两份一模一样**——发出去的 id 过不了它们的校验，就等于发了
- * 一条谁也存不下东西的条目。三处都是十几行纯逻辑，为它新建一个共享包过不了准入判据；
- * 改这儿就得同时看那两处。
+ * **字符集与那两个插件里的校验完全一致**——生成的 id 通不过它们的校验，这条条目就
+ * 存不下任何设置和数据。三处都是十几行纯逻辑，为它新建一个共享包不符合准入判据；
+ * 改这里必须同时改那两处。
  */
 
-/** 条目 id：kebab-case。字符集里没有点号与冒号，路径穿越与 id 分段都进不来 */
+/** 条目 id：kebab-case。字符集里没有点号与冒号，所以不会出现路径穿越，也不会被拆成多段 id */
 const ID_PATTERN = /^[a-z0-9]+(-[a-z0-9]+)*$/
 
 /** loader 用它把父条目 id 跟自己的拼成完整 entryId（cordis 的 `EntryTree.sep`） */
 const ID_SEP = ':'
 
 /**
- * npm 的包名规矩，收得比 npm 严两处：**只认小写**（大写包名在 registry 上本来也是历史
- * 遗留），**首字符不许是 `-`**（那种名字 npm 上不存在，而它正好长得像一个开关）。
+ * npm 的包名规则，比 npm 严格两处：**只接受小写**（大写包名在 registry 上本来也是历史
+ * 遗留），**首字符不许是 `-`**（那种名字 npm 上不存在，而且会被当成命令行选项）。
  */
 const PKG_PATTERN = /^(@[a-z0-9~][a-z0-9-._~]*\/)?[a-z0-9~][a-z0-9-._~]*$/
 
 /** 包名去掉 scope */
 const SCOPE_PREFIX = /^@[^/]+\//
 
-/** 本生态的件都带这个前缀（跟废弃那批错开），它不进 id */
+/** 本生态的插件包名都带这个前缀（与已废弃的那批包区分开），生成 id 时去掉 */
 const GWB_PREFIX = /^gwb-/
 
-/** 一个字符都剩不下时用的兜底 id。真撞上说明包名整个不是 ASCII，后面还有撞名那一层兜着 */
+/** 处理后一个字符都不剩时使用的默认 id。出现这种情况说明包名完全不是 ASCII；重名由后面的去重处理 */
 const FALLBACK_ID = 'plugin'
 
 export function isValidId(value: string): boolean {
   return ID_PATTERN.test(value)
 }
 
-/** id 不合规当场抛——别让坏 id 落进 cordis.yml，它一落盘就是那条条目的身份 */
+/** id 不合规立即抛错——不合规的 id 一旦写入 cordis.yml 就成了那条条目的身份 */
 export function assertId(value: string): void {
   if (!isValidId(value)) {
     throw new Error(
@@ -44,12 +44,12 @@ export function assertId(value: string): void {
 }
 
 /**
- * 完整 entryId → 裸 id。
+ * 完整 entryId → 不带前缀的 id（末段）。
  *
- * **这一步不能省。** 件从 ctx 上读到的是完整的 `home:commands`，而 loader 的
- * `tree.resolve` / `remove` / `update` 在**承载 cordis.yml 的那棵树**上认的是裸 id：
- * `resolve` 内部 `split(':')` 逐段往子树钻，喂完整 id 给它会当场「cannot resolve entry」。
- * `home` 那段是内核那条 include 条目的 id，跟件本身没关系。
+ * **这一步不能省。** 插件从 ctx 上读到的是完整的 `home:commands`，而 loader 的
+ * `tree.resolve` / `remove` / `update` 在**承载 cordis.yml 的那棵树**上只认不带前缀的 id：
+ * `resolve` 内部 `split(':')` 逐段往子树查找，传入完整 id 会直接报「cannot resolve entry」。
+ * `home` 那段是内核那条 include 条目的 id，与插件本身无关。
  */
 export function bareId(entryId: string): string {
   const last = entryId.split(ID_SEP).pop() ?? ''
@@ -59,7 +59,7 @@ export function bareId(entryId: string): string {
 
 /**
  * 包名 → 默认 id：去掉 scope 与 `gwb-` 前缀，剩下的收进 kebab-case。
- * `@godcreator/gwb-py-cli` → `py-cli`。撞名归 `pickId` 管。
+ * `@godcreator/gwb-py-cli` → `py-cli`。重名由 `pickId` 处理。
  */
 export function defaultIdFor(pkg: string): string {
   const bare = pkg.replace(SCOPE_PREFIX, '').replace(GWB_PREFIX, '')
@@ -71,10 +71,10 @@ export function defaultIdFor(pkg: string): string {
 }
 
 /**
- * 撞了就加数字后缀：`py-cli` → `py-cli-2`。
+ * 重名时加数字后缀：`py-cli` → `py-cli-2`。
  *
  * **`taken` 要是整棵树的 id**，不是某个包底下的——id 在 cordis.yml 里全局唯一，
- * loader 的 store 就是一张平表。
+ * loader 的 store 是一张不分层的表。
  */
 export function uniqueId(base: string, taken: ReadonlySet<string>): string {
   if (!taken.has(base)) return base
@@ -87,19 +87,19 @@ export function uniqueId(base: string, taken: ReadonlySet<string>): string {
 }
 
 /**
- * 盘上的户主：id → 认领过它的包。数据目录与设置分区各盖一个章，所以可能不止一个。
+ * 磁盘上的归属记录：id → 用过它的包。数据目录与设置分区各自记录一次归属，所以可能不止一个。
  *
- * 默认 id 去掉了 scope，`@a/gwb-foo` 与 `@b/foo` 都叫 `foo`；而条目删了数据与设置都留盘。
- * 只看树判重的话，空出来的 `foo` 会被下一个同名的包拿走、读到前一个包的东西。
+ * 默认 id 去掉了 scope，`@a/gwb-foo` 与 `@b/foo` 都叫 `foo`；而条目删除后数据与设置都留在磁盘上。
+ * 只按条目树判断重名的话，空出来的 `foo` 会被下一个同名的包拿走、读到前一个包的数据。
  */
 export type IdOwners = Readonly<Record<string, readonly string[]>>
 
-/** 盘上有别的包的章 */
+/** 磁盘上有别的包的归属记录 */
 function ownedByOther(owners: IdOwners, id: string, pkg: string): string | undefined {
   return owners[id]?.find((owner) => owner !== pkg)
 }
 
-/** 盘上有章、而且全是这个包的 */
+/** 磁盘上有归属记录，而且全属于这个包 */
 function ownedBy(owners: IdOwners, id: string, pkg: string): boolean {
   const list = owners[id]
   return list !== undefined && list.length > 0 && list.every((owner) => owner === pkg)
@@ -108,9 +108,9 @@ function ownedBy(owners: IdOwners, id: string, pkg: string): boolean {
 /**
  * 给 `pkg` 挑一个 id。
  *
- * 1. **先接回自己的**：盘上有本包的章、树上又空着的 id，说明这个包装过又卸了——用回它，
- *    数据与设置原样接上。有好几个时优先默认那个，其余按字典序
- * 2. 否则默认 id 往下数后缀，**树上有的和盘上归别的包的都跳过**
+ * 1. **先收回自己用过的**：磁盘上归属于本包、条目树上又空着的 id，说明这个包装过又卸了——沿用它，
+ *    数据与设置原样接上。有多个时优先默认 id，其余按字典序
+ * 2. 否则从默认 id 开始加后缀，**条目树上已有的和磁盘上归属于别的包的都跳过**
  */
 export function pickId(pkg: string, taken: ReadonlySet<string>, owners: IdOwners): string {
   const base = defaultIdFor(pkg)
@@ -126,7 +126,7 @@ export function pickId(pkg: string, taken: ReadonlySet<string>, owners: IdOwners
   return uniqueId(base, blocked)
 }
 
-/** 手给的 id 能不能给 `pkg` 用：树上被占、盘上归别的包，都当场抛 */
+/** 手动指定的 id 能否给 `pkg` 用：条目树上已被占用、磁盘上归属于别的包，都立即抛错 */
 export function assertIdUsable(id: string, pkg: string, taken: ReadonlySet<string>, owners: IdOwners): void {
   assertId(id)
   if (taken.has(id)) throw new Error(`条目 id ${JSON.stringify(id)} 已经被占了。换一个，或者不给由这边编一个。`)
@@ -139,8 +139,8 @@ export function assertIdUsable(id: string, pkg: string, taken: ReadonlySet<strin
 }
 
 /**
- * 包名不合规当场抛。**不是安全边界**——参数全程走数组、一次都不过 shell，本来就不用
- * 转义。它拦的是「`-r` 这种被 pnpm 读成开关的东西被当包名传进去」。
+ * 包名不合规立即抛错。**这不是安全边界**——参数全程以数组传递、从不经过 shell，本来就不需要
+ * 转义。它拦截的是把 `-r` 这类会被 pnpm 当成命令行选项的东西当包名传进去。
  */
 export function assertPkgName(value: string): void {
   if (!PKG_PATTERN.test(value)) {
@@ -150,7 +150,7 @@ export function assertPkgName(value: string): void {
   }
 }
 
-/** 版本范围松着收：`^1.2.3`、`0.0.3`、`latest`、`workspace:*` 都得让过，只挡开关与空白 */
+/** 版本范围宽松校验：`^1.2.3`、`0.0.3`、`latest`、`workspace:*` 都要放行，只拦截命令行选项与空白 */
 export function assertSpec(value: string): void {
   if (value === '' || /\s/.test(value) || value.startsWith('-')) {
     throw new Error(`版本范围 ${JSON.stringify(value)} 不合规：不能是空的、带空白、或者以 - 开头（那会被读成开关）。`)

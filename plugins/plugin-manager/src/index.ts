@@ -1,9 +1,9 @@
 import { Service } from 'cordis'
 import type { GwbContext, GwbResult } from '@godcreator/gwb-plugin-api'
 import { isRecord, requireKernel } from './vocab.js'
-// 这几条 type import 只为激活对方的 `declare module 'cordis'`——它们给 ctx 加上那几个名字
-// （commands 那条另带一个类型：一键热升要攥着总线的引用）。这些件在这儿**都是可选的**，
-// 所以都走嵌套注入、都写 dev
+// 这几条 type import 只为引入对方的 `declare module 'cordis'`，让 ctx 上有那几个服务名
+// （commands 那条另带一个类型：一键热升级要持有命令总线的引用）。这些插件在这里**都是可选的**，
+// 所以都用嵌套注入、都写进 devDependencies
 import type { GwbCommands } from '@godcreator/gwb-commands'
 import type {} from '@godcreator/gwb-data'
 import type {} from '@godcreator/gwb-settings'
@@ -27,53 +27,48 @@ export type { PeerWarning } from './peer-warnings.js'
 export type { RemountedEntry } from './remount.js'
 
 /**
- * 管 home 里的**包**和 `cordis.yml` 里的**条目**。
+ * 管理 home 里的**包**和 `cordis.yml` 里的**条目**。
  *
- * 两样东西是两回事，这个件的全部工作就是把它们对起来：包由 pnpm 装进 home，条目由
- * loader 写进 `cordis.yml`——**装了包不加条目等于什么都没发生**，而 home 里还躺着一批
+ * 包和条目是两回事，这个插件的工作就是让两者对应上：包由 pnpm 装进 home，条目由
+ * loader 写进 `cordis.yml`——**只装包、不加条目，插件不会运行**；home 里还有一批
  * 永远不该有条目的共享包。
  *
- * **装（`install`）还顺带一件事：把该进 home 的 peer 也装成 home 的直接依赖。** 件依赖一个
- * 会独立升级、只读文件不 import 代码的包时，那个包得在 home 的 `package.json` 里才有
- * `<home>/node_modules/<包名>` 那条会被 pnpm 改指的 junction——pnpm 自动补的 peer 只进
- * `.pnpm/`，`pnpm outdated` 看不见、`update-all` 也升不到。判据与实测在 `peers.ts`。
- * **卸载时不动 peer**：代价不对称——残留一个没人用的包只是占磁盘，误删一个还有件在用的
- * 包是运行时故障。所以 `uninstall` 不去追谁还在用它，这不是漏了。
+ * **安装（`install`）还会把该进 home 的 peer 也装成 home 的直接依赖。** 插件依赖一个
+ * 会独立升级、只读文件不 import 代码的包时，那个包必须在 home 的 `package.json` 里，才会有
+ * `<home>/node_modules/<包名>` 这条由 pnpm 更新指向的 junction——pnpm 自动补装的 peer 只在
+ * `.pnpm/` 里，`pnpm outdated` 看不见、`update-all` 也升级不到。判据与实测在 `peers.ts`。
+ * **卸载时不动 peer**：代价不对称——残留一个没人用的包只是占磁盘，误删一个还有插件在用的
+ * 包是运行时故障。所以 `uninstall` 不检查谁还在用它，这是有意的。
  *
- * **卸载（`uninstall`）= 条目与包一起走人**，设置与数据留盘。第一版刻意不做卸载
- * （「删包比留着危险」），2026-09-08 推翻——装卸检升都齐了、独缺「拿掉」，而危险那半
- * 有解：先摘条目后卸包，pnpm 失败报一句不回滚（改判记在件仓文档站 decisions）。只摘
- * 一条条目、包留着，走 `removeEntry`——两个动作分工，不是同一个的两种写法。
+ * **卸载（`uninstall`）= 删除条目并移除包**，设置与数据留在磁盘上。先删条目后卸包，
+ * pnpm 失败只报告、不回滚。只删一条条目、保留包，用 `removeEntry`——这是两个不同的操作。
  *
- * **找插件、配包源**（registry 检索与机器级 `~/.npmrc` 的 scope 路由）在 `@godcreator/gwb-plugin-sources`，
- * 这里只管装进 home 之后的事。查新版本（`outdated`）与升到最新（`update`）**不建条目**——条目引的是
+ * **搜索插件、配置包源**（registry 检索与机器级 `~/.npmrc` 的 scope 路由）在 `@godcreator/gwb-plugin-sources`，
+ * 这里只管装进 home 之后的事。查新版本（`outdated`）与升到最新（`update`）**不建条目**——条目引用的是
  * 包名，包换了版本条目照样有效。
  *
- * **一键热升（`updateAll`）= 一趟 pnpm 升完全部过期包，再逐条停用→启用重挂，不重启。**
- * 计划（谁升、谁重挂、谁最后）是 `update-all.ts` 里的纯函数；这儿只按计划执行。升级与
- * 重挂必须在**同一条命令**里做完：pnpm 会删旧版本目录，中间留一条命令的窗口，旧件读盘
- * 就读空。本件自己那条条目排最后、回执之后才动——处理器里停用自己等于把回执一起拔掉。
+ * **一键热升级（`updateAll`）= 一次 pnpm 升级全部过期包，再逐条停用→启用重新加载，不重启。**
+ * 计划（升级哪些、重新加载哪些、哪条最后）由 `update-all.ts` 里的纯函数算出；这里只按计划执行。升级与
+ * 重新加载必须在**同一条命令**里完成：pnpm 会删除旧版本目录，两者之间只要隔着一条命令，旧版插件
+ * 读磁盘就读不到文件。本插件自己的条目排在最后、回执发出后才处理——在命令处理函数里停用自己，回执也会一起丢失。
  *
- * **改名史**：原 `gwb-plugins`（包 `@godcreator/gwb-plugins`），2026-09-12 断代改名为
- * `plugin-manager`——浏览器半（`src/client/` 那格窗格）随三仓拆分搬去
- * `@godcreator/gwb-baseui`，本件只剩 node 半的服务与命令。旧包名在 registry 上弃用，
- * 新包从 0.1.0 起；**操作面板住 `@godcreator/gwb-baseui`**。
+ * 本插件只提供主进程里的服务与命令，操作面板在 `@godcreator/gwb-baseui`。
  */
 
-/** 外壳的整页重载命令。**按名探**，不 import 外壳的常量——那会把 shell 变成运行时依赖 */
+/** 外壳的整页重载命令。**按命令名查找**，不 import 外壳的常量——那会让 shell 成为运行时依赖 */
 const SHELL_RELOAD_COMMAND = 'shell.reload'
 
 const NAME = 'gwb-plugin-manager'
 
-/** 登记命令时的归属：包名——agent 侧的操作键认它，不认短名 */
+/** 注册命令时填的所属插件：包名——agent 侧的操作键按包名识别，不认短名 */
 const PKG = '@godcreator/gwb-plugin-manager'
 
-/** 显示名落在本件自己的数据里，一份 裸 id → label 的文档 */
+/** 显示名存在本插件自己的数据里：一份「不带前缀的 id → label」的文档 */
 const LABELS_DOC = 'labels'
 
 /**
- * pnpm 装在哪。**home 级**——设置没有机器级，home 自持全部配置；换个 home 重填一次，
- * 或者把旧 home 的 settings.json 里那一行抄过去。
+ * pnpm 的路径。**按 home 设置**——设置没有机器级，每个 home 保存自己的全部配置；换个 home 要重填一次，
+ * 或者把旧 home 的 settings.json 里那一行复制过去。
  */
 const PNPM_PATH_KEY = 'pnpm-path'
 
@@ -92,7 +87,7 @@ export const UNINSTALL_COMMAND = 'plugin-manager.uninstall'
 export const SHARED_COMMAND = 'plugin-manager.shared'
 export const TRANSFER_OWNER_COMMAND = 'plugin-manager.transfer-owner'
 
-/** 过户的回执。`data` / `settings` 是 false 说明那个件没装、那一半没动 */
+/** 转移归属的回执。`data` / `settings` 是 false 说明对应的插件没装、那部分没有处理 */
 export interface TransferOwnerResult {
   id: string
   pkg: string
@@ -100,44 +95,44 @@ export interface TransferOwnerResult {
   settings: boolean
 }
 
-/** 装件时顺带处理的一条 peer。判据与理由在 `peers.ts` */
+/** 安装插件时一并处理的一条 peer。判据与理由在 `peers.ts` */
 export interface PeerResult {
   pkg: string
-  /** 件的清单里给它写的版本范围。**装的是 latest**，对不上时人一眼看得见 */
+  /** 插件清单里给它写的版本范围。**实际装的是 latest**，两者不一致时一眼就能看出 */
   range: string
   /**
    * `installed` 这次装成了 home 的直接依赖；`present` 本来就在 home 的 `package.json` 里、
-   * 版本一个字没动；`skipped` 本生态自己提供的，不该由这条路装；`failed` 装不上——
-   * **件本身已经装好了**，这一条得人自己来
+   * 版本没有改动；`skipped` 由本生态自己提供，不该由这里安装；`failed` 没装上——
+   * **插件本身已经装好了**，这一条要人手动处理
    */
   action: 'installed' | 'present' | 'skipped' | 'failed'
-  /** present 是 home 里那条 spec；skipped 是跳过的理由；failed 是那句错（带 pnpm 尾巴） */
+  /** present 时是 home 里那条 spec；skipped 时是跳过的理由；failed 时是错误信息（带 pnpm 输出的最后几行） */
   note?: string
 }
 
-/** 装机的回执 */
+/** 安装的回执 */
 export interface InstallResult {
   ok: boolean
   pkg: string
   /**
-   * 装成了才有：新加的那条条目的完整 entryId。**装的是库（自报 `gwb` 不报 `gwb-plugin`）
-   * 时没有这一格**——库没有 apply，不会落条目，`note` 里说清了为什么
+   * 安装成功才有：新加条目的完整 entryId。**装的是库（keywords 里有 `gwb`、没有 `gwb-plugin`）
+   * 时没有这个字段**——库没有 apply，不会建条目，原因写在 `note` 里
    */
   entryId?: string
   /**
-   * 这个件声明了 peer 才有：每条各自的去向。**空着 = 它一条 peer 都没声明**，
-   * 跟「声明了但全跳过了」分得开
+   * 这个插件声明了 peer 才有：每条 peer 各自的处理结果。**没有这个字段 = 它一条 peer 都没声明**，
+   * 与「声明了但全部跳过」区分开
    */
   peers?: PeerResult[]
-  /** 值得说一声的：有 peer 没装上、或者 peer 那一步整个没跑成。**件本身照样是装上了的** */
+  /** 需要提醒的情况：有 peer 没装上，或者 peer 这一步整个没有执行成功。**插件本身仍然是装上了的** */
   note?: string
-  /** 没成时的一句话 */
+  /** 失败时的原因 */
   error?: string
-  /** pnpm 没成时它输出的最后几行——原因就在那儿 */
+  /** pnpm 失败时输出的最后几行，失败原因在里面 */
   tail?: string
   /**
-   * 装完之后 home 里 peer 对不上的每一处（整棵树，不只这一趟新加的）。**装是成了的**，
-   * 这是提醒；一处都没有就没有这一格。`pnpm peers check` 没读出来时也没有这一格，`note` 里说
+   * 安装后 home 里每一处 peer 版本不匹配（整个依赖树，不只这次新加的）。**安装本身是成功的**，
+   * 这只是提醒；没有不匹配就没有这个字段。`pnpm peers check` 的结果读不出来时也没有这个字段，原因写在 `note` 里
    */
   peerWarnings?: PeerWarning[]
 }
@@ -145,56 +140,56 @@ export interface InstallResult {
 /** 查新版本的回执 */
 export interface OutdatedReceipt {
   ok: boolean
-  /** 成了才有：包名 → 版本差距。**空对象 = 全都最新**，跟「没查成」分得开 */
+  /** 成功才有：包名 → 新旧版本信息。**空对象 = 全都最新**，与「查询失败」区分开 */
   updates?: Record<string, UpdateInfo>
-  /** 没成时的一句话 */
+  /** 失败时的原因 */
   error?: string
 }
 
-/** 更新的回执。样式照 `InstallResult`，只是没有条目可回 */
+/** 更新的回执。结构同 `InstallResult`，只是没有条目 */
 export interface UpdateResult {
   ok: boolean
   pkg: string
-  /** 没成时的一句话 */
+  /** 失败时的原因 */
   error?: string
-  /** pnpm 没成时它输出的最后几行——原因就在那儿 */
+  /** pnpm 失败时输出的最后几行，失败原因在里面 */
   tail?: string
-  /** 升完之后 home 里 peer 对不上的每一处，同 `InstallResult.peerWarnings` */
+  /** 升级后 home 里每一处 peer 版本不匹配，同 `InstallResult.peerWarnings` */
   peerWarnings?: PeerWarning[]
-  /** `pnpm peers check` 没读出来时的那句话 */
+  /** `pnpm peers check` 的结果读不出来时的说明 */
   note?: string
 }
 
 
-/** 一键热升里升了的一个包 */
+/** 一键热升级中升级了的一个包 */
 export interface UpdatedPackage {
   pkg: string
   from: string
   to: string
-  /** 它的全部条目各自的去向 */
+  /** 它的每条条目各自的处理结果 */
   entries: RemountedEntry[]
 }
 
-/** 一键热升的回执 */
+/** 一键热升级的回执 */
 export interface UpdateAllResult {
   ok: boolean
-  /** 升了的包。pnpm 没成时是空的——一个包都没升、一条条目都没动 */
+  /** 升级了的包。pnpm 失败时为空——没有升级任何包、没有改动任何条目 */
   updated: UpdatedPackage[]
-  /** 本件自己在升级清单里：它那条条目回执之后才重挂，重挂完再整页重载 */
+  /** 本插件自己在升级清单里：它的条目在回执发出后才重新加载，重新加载完再整页重载 */
   selfDeferred: boolean
   /**
-   * 整页重载做没做：`done` 是 `shell.reload` 已经跑过；`deferred` 是等本件自己重挂完再跑；
-   * `unavailable` 是命令表里没有它（或它没成），界面要手动刷新——原因在 `note` 里。
-   * 没升任何包、或者没成，就没有这一格
+   * 整页重载是否执行：`done` 表示 `shell.reload` 已经执行；`deferred` 表示等本插件自己重新加载完再执行；
+   * `unavailable` 表示命令表里没有它（或它执行失败），界面要手动刷新——原因在 `note` 里。
+   * 没有升级任何包或整体失败时，没有这个字段
    */
   reload?: 'done' | 'deferred' | 'unavailable'
-  /** 值得说一声的：全都最新、only 里点了名却不在清单里的、界面要手动刷新、peer 没查成 */
+  /** 需要提醒的情况：全都最新、only 里列出但不在过期清单里的包、界面要手动刷新、peer 检查失败 */
   note?: string
-  /** 没成时的一句话 */
+  /** 失败时的原因 */
   error?: string
-  /** pnpm 没成时它输出的最后几行——原因就在那儿 */
+  /** pnpm 失败时输出的最后几行，失败原因在里面 */
   tail?: string
-  /** 升完之后 home 里 peer 对不上的每一处，同 `InstallResult.peerWarnings` */
+  /** 升级后 home 里每一处 peer 版本不匹配，同 `InstallResult.peerWarnings` */
   peerWarnings?: PeerWarning[]
 }
 
@@ -202,177 +197,177 @@ export interface UpdateAllResult {
 export interface UninstallResult {
   ok: boolean
   pkg: string
-  /** 成了才有：这次跟着包一起摘掉的条目（裸 id），给界面报数用 */
+  /** 成功才有：这次随包一起删除的条目（不带前缀的 id），供界面显示数量 */
   removedEntries?: string[]
-  /** 没成时的一句话 */
+  /** 失败时的原因 */
   error?: string
-  /** pnpm 没成时它输出的最后几行——原因就在那儿 */
+  /** pnpm 失败时输出的最后几行，失败原因在里面 */
   tail?: string
 }
 
 /**
- * 落 label 的那一格。收窄到用得着的两个方法——`ctx.gwbData` 满足它。
+ * 保存 label 的存储。只保留用得到的两个方法——`ctx.gwbData` 满足它。
  *
- * **显示名不进 cordis.yml，也不进 settings，就住在这个件自己家里。** 理由：id 是身份、
- * 定死不给改，可人得能给条目起个看得懂的名字（尤其中文名，而 id 只能是 ASCII
- * kebab-case）。放自己家里之后，这个件不必为了一个显示名去依赖设置件。
+ * **显示名不存进 cordis.yml，也不存进设置，而是存在这个插件自己的数据目录里。** 理由：id 是身份标识、
+ * 固定不可改，但人需要给条目起个看得懂的名字（尤其是中文名，而 id 只能是 ASCII
+ * kebab-case）。存在自己的数据目录里，这个插件就不必为了显示名去依赖设置插件。
  */
 interface LabelStore {
   readDoc(doc: string): Promise<unknown>
   writeDoc(doc: string, value: unknown): Promise<void>
 }
 
-/** 读设置的那一格。收窄到用得着的一个方法 */
+/** 读设置的接口。只保留用得到的一个方法 */
 interface SettingsSlot {
   get(key: string): unknown
 }
 
 /**
- * 户主簿：数据件与设置件各有一本，记着每个 id 归哪个包。收窄到用得着的两个方法——
- * `ctx.gwbData` 与 `ctx.gwbSettings` 都满足它。分 id 时拿它避开别的包留在盘上的东西
+ * 归属记录：数据插件与设置插件各有一份，记录每个 id 属于哪个包。只保留用得到的两个方法——
+ * `ctx.gwbData` 与 `ctx.gwbSettings` 都满足它。分配 id 时用它避开别的包留在磁盘上的数据
  */
 interface OwnerBook {
   owners(): Promise<Record<string, string>> | Record<string, string>
   transferOwner(id: string, pkg: string): Promise<void>
 }
 
-/** 消费方拿到的那一格。写 `inject: ['gwbPluginManager']` 才有 */
+/** 使用方拿到的服务接口。声明 `inject: ['gwbPluginManager']` 才能拿到 */
 export interface GwbPluginManagerApi {
-  /** 已装的包 → 它们各自的条目。两边都不丢，判据见 `reconcile` */
+  /** 已装的包 → 各自的条目。包和条目两边都不遗漏，判据见 `reconcile` */
   list(): Promise<PluginPackageView[]>
   /**
-   * home 里哪些包是共享包（清单里有 `gwb.shared`），各自提供哪些裸名。
+   * home 里哪些包是共享包（清单里有 `gwb.shared`），各自提供哪些可以直接按名字 import 的模块。
    *
-   * 界面用它把共享包从「装了没挂条目」那一区里摘出来——共享包不是件，永远不该有条目。
-   * 内核算浏览器半 importmap 时扫的是同一批声明。
+   * 界面用它把共享包从「装了但没有条目」那一组里移出来——共享包不是插件，永远不该有条目。
+   * 内核为页面部分计算 importmap 时读的是同一批声明。
    */
   shared(): Promise<Record<string, string[]>>
   /**
-   * `pnpm add` 进 home → **把该进 home 的 peer 也装成 home 的直接依赖** → 再自动加一条
+   * `pnpm add` 装进 home → **把该进 home 的 peer 也装成 home 的直接依赖** → 再自动加一条
    * 条目（**默认启用**）。
    *
-   * **peer 那一步**（判据与理由在 `peers.ts`）：读刚装进来那个包的 `peerDependencies`，
-   * 还没在 home `package.json` 里的那些，逐条 `pnpm add <包>`（latest）。已经在的**一个字
-   * 不动**——不降级、不改写别人钉好的版本。宿主提供的（`cordis`）与本生态的件跳过，
-   * 共享包与生态外的包装。**装不上不让整条 install 失败**：件本身照样是装上了的，
-   * 没装上的那几条在回执的 `peers` 与 `note` 里点名。
+   * **peer 这一步**（判据与理由在 `peers.ts`）：读刚装进来那个包的 `peerDependencies`，
+   * 还不在 home `package.json` 里的，逐条 `pnpm add <包>`（latest）。已经在的**完全
+   * 不动**——不降级、不改写别人写明的版本。宿主提供的（`cordis`）与本生态的插件跳过，
+   * 共享包与生态外的包安装。**装不上不会让整个 install 失败**：插件本身照样装上了，
+   * 没装上的那几条在回执的 `peers` 与 `note` 里列出。
    *
-   * **卸载不动 peer**（`uninstall` 那条一如既往）：代价不对称——残留一个没人用的包只是占
-   * 磁盘，误删一个还有件在用的包是运行时故障。
+   * **卸载不动 peer**（`uninstall` 同样如此）：代价不对称——残留一个没人用的包只是占
+   * 磁盘，误删一个还有插件在用的包是运行时故障。
    *
-   * **不抛**——pnpm 没成、找不到 pnpm，都收敛成一份 `ok: false` 的回执带上原因；
-   * 包名不合规这种调用方写错了的事才抛。
+   * **不抛异常**——pnpm 失败、找不到 pnpm，都转成一份 `ok: false` 的回执并带上原因；
+   * 只有包名不合规这类调用方写错的情况才抛。
    *
-   * **peer 对不上不拦**：调 pnpm 不带任何 peer 参数，pnpm 照装。装完跑一趟 `pnpm peers check`，
-   * 对不上的每一处进回执的 `peerWarnings`（`peer-warnings.ts`）。`update` / `updateAll` 同一套。
+   * **peer 版本不匹配不拦截**：调 pnpm 不带任何 peer 参数，pnpm 照常安装。装完运行一次 `pnpm peers check`，
+   * 每一处不匹配写进回执的 `peerWarnings`（`peer-warnings.ts`）。`update` / `updateAll` 也一样。
    *
    * **同一个包 install 两次会得到两条条目**（第二条 id 带数字后缀）。不做「已经装过就
-   * 跳过」的判断：同一个包挂多条条目本来就是合法形态，替调用方猜意图只会猜错。
+   * 跳过」的判断：同一个包对应多条条目本来就是合法的，替调用方猜意图只会猜错。
    */
   install(pkg: string, spec?: string): Promise<InstallResult>
   /**
-   * 查 home 里已装的包哪些有新版本。**不抛**——找不到 pnpm、输出认不出来，都收敛成一份
-   * `ok: false` 的回执：界面上它只是一句安静的话，不该闹成一场事故。
+   * 查 home 里已装的包哪些有新版本。**不抛异常**——找不到 pnpm、输出无法解析，都转成一份
+   * `ok: false` 的回执：界面上它只显示一句提示，不该当成错误处理。
    */
   outdated(): Promise<OutdatedReceipt>
   /**
    * 把一个已装的包升到最新（`pnpm add <pkg>@latest`）。**与 install 唯一的差别是不建条目**
-   * ——条目引的是包名，包换版本条目原样有效。**跑着的 fiber 还持旧代码，重启内核后才
-   * 换成新的**，调用方（界面）得把这句带到。
+   * ——条目引用的是包名，包换版本后条目照样有效。**正在运行的 fiber 仍持有旧代码，重启内核后才
+   * 换成新的**，调用方（界面）要把这一点告诉用户。
    *
-   * 包没装（调用方写错了的事）当场抛；pnpm 没成收敛成 `ok: false` 的回执带尾巴。
+   * 包没装（调用方写错了）直接抛；pnpm 失败转成 `ok: false` 的回执，带 pnpm 输出的最后几行。
    */
   update(pkg: string): Promise<UpdateResult>
   /**
-   * 一键热升：`outdated()` 拿清单 → **一趟** `pnpm add a@x b@y …`（精确版本）→ 升了的每个包
-   * 的每条条目**各自**停用再启用（重 import 新版本；本来就停用的跳过）→ `shell.reload`
-   * 整页重载。**不重启内核。** `only` 给了就只升点名的那几个。
+   * 一键热升级：`outdated()` 拿到清单 → **一次** `pnpm add a@x b@y …`（精确版本）→ 升级了的每个包
+   * 的每条条目**各自**停用再启用（重新 import 新版本；本来就停用的跳过）→ `shell.reload`
+   * 整页重载。**不重启内核。** 给了 `only` 就只升级列出的那几个。
    *
-   * **本件自己排最后、回执之后才重挂**（`selfDeferred: true`）：处理器里停用自己，回执就
-   * 没了。那时整页重载也跟着推迟到自己重挂完之后（`reload: 'deferred'`）。
+   * **本插件自己排最后、回执发出后才重新加载**（`selfDeferred: true`）：在命令处理函数里停用自己，回执就
+   * 丢了。这时整页重载也推迟到自己重新加载完之后（`reload: 'deferred'`）。
    *
-   * **不抛**（`only` 里包名不合规这种调用方写错了的事除外）：查不出清单、找不到 pnpm、
-   * pnpm 没成，都收敛成 `ok: false` 的回执；pnpm 没成时一条条目都不动。
+   * **不抛异常**（`only` 里包名不合规这类调用方写错的情况除外）：查不到清单、找不到 pnpm、
+   * pnpm 失败，都转成 `ok: false` 的回执；pnpm 失败时不改动任何条目。
    */
   updateAll(only?: readonly string[]): Promise<UpdateAllResult>
   /**
-   * 卸载一个包：先把它在 `cordis.yml` 里的**全部条目**摘掉（fiber 随条目当场卸下），
-   * 再 `pnpm remove` 掉包本身。设置与数据留在盘上——重装回来还是那份。
+   * 卸载一个包：先把它在 `cordis.yml` 里的**全部条目**删除（fiber 随条目立即卸载），
+   * 再 `pnpm remove` 移除包本身。设置与数据留在磁盘上——重新安装后还是那一份。
    *
-   * **顺序是先摘条目后卸包**：反过来的话，条目会引着一个不在 home 里的包，`list()` 里
-   * 出现一排 ghost。**pnpm 失败不回滚**：条目已摘是正当落点（包进「已装、没挂条目」
-   * 那一区看得见、重试加条目就行），回执带尾巴。
+   * **先删条目后卸包**：反过来的话，条目会引用一个不在 home 里的包，`list()` 里
+   * 出现一排 ghost。**pnpm 失败不回滚**：条目已删是可以接受的结果（包出现在「已装、没有条目」
+   * 那一组里，重试加条目即可），回执带 pnpm 输出的最后几行。
    *
-   * **`install` 替它装进来的 peer 一条都不动，也不去追谁还在用**——这不是漏了，是判过的：
-   * 代价不对称，残留一个没人用的包只是占磁盘，误删一个还有件在用的包是运行时故障。
-   * 真要清，人自己在 home 里 `pnpm remove`。
+   * **`install` 替它装进来的 peer 一条都不动，也不检查谁还在用**——这是有意的决定：
+   * 代价不对称，残留一个没人用的包只是占磁盘，误删一个还有插件在用的包是运行时故障。
+   * 真要清理，人自己在 home 里 `pnpm remove`。
    *
-   * 包没装（调用方写错了的事）当场抛；摘条目与 pnpm 那两步的「没成」收敛成回执。
+   * 包没装（调用方写错了）直接抛；删条目与 pnpm 两步的失败转成回执。
    */
   uninstall(pkg: string): Promise<UninstallResult>
-  /** 给已装的包再加一条条目。回新条目的完整 entryId。包没装、id 撞了、id 的数据或设置归别的包都抛 */
+  /** 给已装的包再加一条条目，返回新条目的完整 entryId。包没装、id 已被占用、id 的数据或设置属于别的包，都会抛 */
   addEntry(pkg: string, id?: string, config?: unknown): Promise<string>
   /**
-   * 把一个 id 的数据目录与设置分区一起过户给 `pkg`。同一个件改了包名、要接着用旧数据时走它。
-   * `id` 认完整 entryId 也认裸 id，不要求树上有这条条目。数据件、设置件没装的那一半跳过
+   * 把一个 id 的数据目录与设置分区一起转移归属给 `pkg`。同一个插件改了包名、要继续使用旧数据时用它。
+   * `id` 接受完整 entryId 也接受不带前缀的 id，不要求条目树上有这条条目。数据插件、设置插件没装的那部分跳过
    */
   transferOwner(id: string, pkg: string): Promise<TransferOwnerResult>
-  /** 删一条条目。**不删包**——包留在 home 里，`list()` 里还看得见 */
+  /** 删一条条目。**不删包**——包留在 home 里，`list()` 里仍能看到 */
   removeEntry(entryId: string): void
   enable(entryId: string): Promise<void>
   disable(entryId: string): Promise<void>
   /**
-   * 重挂一条条目：停用 → 等旧 fiber 拆完 → 启用 → 等新 fiber 起完，**一次做完**（本来停用的，
-   * 终态是启用）。回 `remounted` 带重挂后的状态；目标是**本件自己**时回 `deferred`（带动手前的
-   * 状态），重挂排到下一个宏任务——处理器里停用自己，回执就没了。目标是命令总线也在这一趟里
-   * 做完。条目不在当场抛；动条目树时抛了收成 `failed`
+   * 重新加载一条条目：停用 → 等旧 fiber 卸载完 → 启用 → 等新 fiber 启动完，**一次完成**（本来停用的，
+   * 最终是启用）。返回 `remounted` 带重新加载后的状态；目标是**本插件自己**时返回 `deferred`（带操作前的
+   * 状态），重新加载排到下一个宏任务——在命令处理函数里停用自己，回执就丢了。目标是命令总线时也在这一次里
+   * 完成。条目不存在直接抛；修改条目树时抛出的错误转成 `failed`
    */
   remount(entryId: string): Promise<RemountedEntry>
-  /** 改显示名。给空串就是抹掉。没装数据件时回一句 `ok: false`，不崩 */
+  /** 改显示名，给空串就是清除。没装数据插件时返回 `ok: false`，不抛异常 */
   setLabel(entryId: string, label: string): Promise<GwbResult>
 }
 
 export default class GwbPluginManager extends Service implements GwbPluginManagerApi {
   /**
-   * 提供方自己的 ctx。方法里的 `this.ctx` 是**消费者**的，而这个件干的每一件事都以
-   * **自己**的身份进行（改的是整棵树、写的是自己那份数据），所以一律用这一份。
+   * 提供方自己的 ctx。方法里的 `this.ctx` 是**使用方**的，而这个插件做的每件事都以
+   * **自己**的身份进行（改的是整个条目树、写的是自己的数据），所以一律用这一份。
    *
-   * **用 TS 的 `private` 不用 `#`**：cordis 给每个消费者派生一份 `Object.create(this)`，
-   * 而 `#` 私有字段的内部槽不在原型链上，派生对象上一读就炸。
+   * **用 TS 的 `private` 不用 `#`**：cordis 给每个使用方派生一份 `Object.create(this)`，
+   * 而 `#` 私有字段的内部存储不在原型链上，在派生对象上读取就会抛错。
    */
   private readonly own: GwbContext
-  /** 这个 home 的目录：pnpm 的 cwd，也是那份 package.json 的所在 */
+  /** 这个 home 的目录：pnpm 的 cwd，也是 home 的 package.json 所在的目录 */
   private readonly home: string
-  /** 承载 cordis.yml 的那棵树。构造时取——那时 this.ctx 还是自己 */
+  /** cordis.yml 对应的条目树。在构造时获取——那时 this.ctx 还是提供方自己的 */
   private readonly tree: EntryTreeLike
   private readonly warn: (message: string) => void
   private readonly info: (message: string) => void
   /**
-   * 那只 logger 本身。上面两个每次都经 `ctx.logger()` 取，而一键热升里「自己最后」那段
-   * 跑在本件的 fiber 已经拆掉之后——那时 ctx 上什么都不能碰，只能拿早就攥在手里的这只
+   * logger 本身。上面两个每次都经 `ctx.logger()` 获取，而一键热升级里最后重新加载本插件那一步，
+   * 运行时本插件的 fiber 已经卸载——那时 ctx 上什么都不能访问，只能用事先持有的这个 logger
    */
   private readonly log: { info(message: string): void; warn(message: string): void }
 
-  /** 数据件在才有。不在就退化成「只显示 id」，`setLabel` 回一句「没装数据件」 */
+  /** 装了数据插件才有。没装时只显示 id，`setLabel` 返回「没装数据插件」 */
   private labelStore: LabelStore | undefined
-  /** 设置件在才有。不在就跳过设置那一路，pnpm 只走自动查找 */
+  /** 装了设置插件才有。没装时不读设置，pnpm 只靠自动查找 */
   private settings: SettingsSlot | undefined
-  /** 数据件、设置件各自的户主簿，在才有 */
+  /** 数据插件、设置插件各自的归属记录，装了才有 */
   private dataBook: OwnerBook | undefined
   private settingsBook: OwnerBook | undefined
-  /** 命令总线在才有。一键热升拿它探 `shell.reload`、跑 `shell.reload`——包括本件自己重挂之后那一下 */
+  /** 命令总线存在才有。一键热升级用它查找并执行 `shell.reload`——包括本插件自己重新加载之后那一次 */
   private cli: GwbCommands | undefined
 
-  /** 变更互斥（实施 Spec §3）：同一 home 同时至多一个装卸/升级操作，重入回 BUSY */
+  /** 变更互斥（实施 Spec §3）：同一 home 同一时刻最多一个安装/卸载/升级操作，重入时返回 BUSY */
   private readonly gate = new BusyGate()
-  /** 裸 id → 显示名。内存里这份是权威，盘上那份是它的副本 */
+  /** 不带前缀的 id → 显示名。以内存里这份为准，磁盘上那份是它的副本 */
   private labels: Record<string, string> = {}
-  /** 头一份 labels 读完没有。setLabel 要等它——不等的话第一次改名会被读盘那一下盖回去 */
+  /** 第一次读取 labels 是否完成。setLabel 要等它——不等的话第一次改名会被读磁盘的结果覆盖 */
   private labelsReady: Promise<void> = Promise.resolve()
 
   /**
-   * pnpm 排队跑，一次只一趟。两条 install 同时开的话，pnpm 是读-改-写 home 那份
-   * `package.json`，后写的会把前一条加进去的依赖抹掉——而且一声不吭。
+   * pnpm 排队执行，同一时刻只运行一个。两个 install 同时运行的话，pnpm 读-改-写 home 的
+   * `package.json`，后写的会把前一个加进去的依赖覆盖掉——而且没有任何报错。
    */
   private chain: Promise<unknown> = Promise.resolve()
 
@@ -381,7 +376,7 @@ export default class GwbPluginManager extends Service implements GwbPluginManage
     this.own = ctx
     this.home = requireKernel(ctx).dataDir
     this.tree = treeOf(ctx)
-    // 构造时 this.ctx 还是**提供方**自己的，logger 绑的是本件
+    // 构造时 this.ctx 还是**提供方**自己的，logger 绑定的是本插件
     this.warn = (message: string): void => ctx.logger(NAME).warn(message)
     this.info = (message: string): void => ctx.logger(NAME).info(message)
     this.log = ctx.logger(NAME)
@@ -395,14 +390,14 @@ export default class GwbPluginManager extends Service implements GwbPluginManage
     this.info(`件管理就绪（ctx.gwbPluginManager），自己那条条目是 ${ownEntryId(this.own)}，看表走 ${LIST_COMMAND}`)
   }
 
-  /** 说明书局部注入:skills 件不在时本件照常挂。skills/ 目录得进 package.json 的 files */
+  /** 说明书用局部注入：没有 skills 插件时本插件照常加载。skills/ 目录必须列进 package.json 的 files */
   private wireSkills(): void {
     this.own.inject(['gwbSkills'], (ctx) => {
       ctx.effect(() => ctx.gwbSkills.register(new URL('../skills/', import.meta.url)))
     })
   }
 
-  /** 数据件是**可选**的：嵌套注入，在了才接上，走了自动摘，后来才挂也接得上 */
+  /** 数据插件是**可选**的：用嵌套注入，它存在时才连接，卸载时自动断开，之后才加载也能连接上 */
   private wireData(): void {
     this.own.inject(['gwbData'], (ctx) => {
       const store: LabelStore = ctx.gwbData
@@ -423,17 +418,17 @@ export default class GwbPluginManager extends Service implements GwbPluginManage
     })
   }
 
-  /** 设置件也是可选的。声明那一项 pnpm 路径，顺手把读它的口子接上 */
+  /** 设置插件也是可选的。声明 pnpm 路径这一项设置，并保存读取设置的接口 */
   private wireSettings(): void {
     this.own.inject(['gwbSettings'], (ctx) => {
       this.settings = ctx.gwbSettings
       this.settingsBook = ctx.gwbSettings
-      // 清理先登记：define 会因分区归别的包而抛，抛了这两个引用也得跟着撤
+      // 先注册清理：分区属于别的包时 define 会抛，抛了这两个引用也要清掉
       ctx.effect(() => () => {
         this.settings = undefined
         this.settingsBook = undefined
       })
-      // define 自己会挂在调用方的 effect 上，不用我们再包一层
+      // define 自己会注册到调用方的 effect 上，不需要再包一层
       ctx.gwbSettings.define({
         key: PNPM_PATH_KEY,
         title: 'pnpm 路径',
@@ -444,7 +439,7 @@ export default class GwbPluginManager extends Service implements GwbPluginManage
     })
   }
 
-  /** 命令总线也是可选的：没有它服务面照样完整，只是界面调不到 */
+  /** 命令总线也是可选的：没有它服务接口照样完整，只是界面调用不到 */
   private wireCommands(): void {
     this.own.inject(['gwbCommands'], (ctx) => {
       const cli = ctx.gwbCommands
@@ -457,7 +452,7 @@ export default class GwbPluginManager extends Service implements GwbPluginManage
       const on = (name: string, description: string, usage: string, handler: (args?: unknown) => unknown): void => {
         ctx.effect(() => cli.register({ name, description, usage, plugin: PKG }, handler))
       }
-      /** 变更互斥（实施 Spec §3）：装卸/升级/重挂五条命令走这道门，重入回 BUSY */
+      /** 变更互斥（实施 Spec §3）：安装、卸载、升级、重新加载这五条命令都经过互斥检查，重入时返回 BUSY */
       const onGuarded = (name: string, description: string, usage: string, handler: (args?: unknown) => unknown): void => {
         ctx.effect(() => cli.register({ name, description, usage, plugin: PKG }, (args) => this.gate.run(() => handler(args) as Promise<{ ok: boolean }> | { ok: boolean })))
       }
@@ -477,7 +472,7 @@ export default class GwbPluginManager extends Service implements GwbPluginManage
           const raw = asRecord(args)
           const result = await this.install(text(raw, 'pkg'), optional(raw, 'spec'))
           if (result.ok) return { ok: true, data: result }
-          // 尾巴既拼进 error 那句话（人看的），也原样留在 data 里（界面要单独排版时用）
+          // pnpm 输出的最后几行既拼进 error（给人看），也原样留在 data 里（界面要单独排版时用）
           const tail = result.tail === undefined ? '' : `\n${result.tail}`
           return { ok: false, error: `${result.error ?? '没说原因'}${tail}`, data: result }
         },
@@ -574,7 +569,7 @@ export default class GwbPluginManager extends Service implements GwbPluginManage
   }
 
   async install(pkg: string, spec?: string): Promise<InstallResult> {
-    // 调用方写错了的事当场抛；下面每一条「没成」都是正当结果，收敛成回执
+    // 调用方写错的情况直接抛；下面每一种失败都是正常结果，转成回执
     const target = installSpec(pkg, spec)
 
     const found = locatePnpm(this.pnpmPath())
@@ -592,11 +587,11 @@ export default class GwbPluginManager extends Service implements GwbPluginManage
     }
 
     /**
-     * **peer 排在建条目之前**：条目一落 loader 就当场挂它，而件挂起来第一件事很可能就是
-     * 现查 `<home>/node_modules/<peer>`。先把 peer 摆好，件起来时那条路径就已经在了。
+     * **peer 排在建条目之前**：条目一加进去 loader 就立即加载它，而插件加载后第一件事很可能就是
+     * 查 `<home>/node_modules/<peer>`。先装好 peer，插件启动时那条路径就已经存在。
      */
     const settled = await this.settlePeers(pkg, found.file)
-    // 顺手装的 peer 也装完了才查：查的是这一趟落定之后的 home
+    // 等 peer 也装完再检查：检查的是这次安装全部完成后的 home
     const checked = await this.peerWarningsOf(found.file)
     const notes = [settled.note, checked.note].filter((note): note is string => note !== undefined)
     const peers = {
@@ -605,9 +600,9 @@ export default class GwbPluginManager extends Service implements GwbPluginManage
       ...(checked.peerWarnings === undefined ? {} : { peerWarnings: checked.peerWarnings }),
     }
 
-    // 装的是库不是件：**不建条目**。库没有 apply，条目落下去 loader 挂它必然失败
-    // （invalid plugin, expect function or object with apply）——白留一条噪声，日志里还多一句。
-    // 判据是「自报 gwb 却不自报 gwb-plugin」，只对明确是库的松手；第三方件不写 keywords 的照旧建
+    // 装的是库不是插件：**不建条目**。库没有 apply，条目加进去后 loader 加载它必然失败
+    // （invalid plugin, expect function or object with apply）——白白留下一条无用条目，日志里还多一条报错。
+    // 判据是「keywords 里有 gwb 却没有 gwb-plugin」，只跳过明确是库的包；没写 keywords 的第三方插件照常建条目
     const manifest = await readInstalledManifest(this.home, pkg).catch(() => undefined)
     if (isLibraryManifest(manifest)) {
       const note = `${pkg} 是库不是件（清单 keywords 里只有 gwb、没有 gwb-plugin），没建条目——它没有 apply，落进 cordis.yml 也挂不上。要用它的件自己 inject 它提供的面`
@@ -616,14 +611,14 @@ export default class GwbPluginManager extends Service implements GwbPluginManage
     }
 
     try {
-      // 直接建条目、不再回头查一遍清单：pnpm 刚说过它成了，再问一次只是多一条失败路径
+      // 直接建条目，不再重新检查清单：pnpm 刚报告成功，再查一次只会多一条失败路径
       const entryId = await this.createEntry(pkg)
-      // 说「加上了」不说「挂上了」——挂载不等它，挂没挂上看 list() 的 active
+      // 日志说「已加进」而不说「已加载」——这里不等待加载，是否加载成功看 list() 的 active
       this.info(`${target} 装上了，条目 ${entryId} 已加进 cordis.yml`)
       return { ok: true, pkg, entryId, ...peers }
     } catch (err: unknown) {
-      // **不回滚删包**：留着的包会出现在 list() 的「一条条目都没有」那一档里，有落点；
-      // 删包比留着危险，而且删的时候未必只删掉这一个
+      // **不回滚删包**：留下的包会出现在 list() 的「没有条目」那一组里，用户看得到；
+      // 删包比留着危险，而且删除时未必只删掉这一个
       const error = `${target} 装上了，但条目加不进 cordis.yml：${String(err)}。包留在 home 里，看表走 ${LIST_COMMAND}`
       this.warn(error)
       return { ok: false, pkg, error, ...peers }
@@ -631,8 +626,8 @@ export default class GwbPluginManager extends Service implements GwbPluginManage
   }
 
   /**
-   * 跑一趟 `pnpm peers check`，回执那两格：对不上的有几处就是 `peerWarnings`（一处没有就没有这一格），
-   * 没读出来就是 `note` 一句话。有对不上的记一条 warn 日志
+   * 运行一次 `pnpm peers check`，填回执的两个字段：有版本不匹配时是 `peerWarnings`（没有就不带这个字段），
+   * 结果读不出来时是 `note` 里的说明。有不匹配时记一条 warn 日志
    */
   private async peerWarningsOf(pnpm: string): Promise<{ peerWarnings?: PeerWarning[]; note?: string }> {
     const checked = await this.queue(() => checkPeers({ pnpm, home: this.home }))
@@ -647,23 +642,23 @@ export default class GwbPluginManager extends Service implements GwbPluginManage
   }
 
   /**
-   * 把这个件声明的 peer 里**该进 home 的**装成 home 的直接依赖（跟件平级）。
+   * 把这个插件声明的 peer 里**该进 home 的**装成 home 的直接依赖（与插件同级）。
    *
-   * **为什么装、为什么 pnpm 自动补的那份顶不上用**，判据与实测读数在 `peers.ts` 的头注释。
-   * 这儿只讲执行上的三个取舍：
+   * **为什么要装、为什么 pnpm 自动补装的那份不够用**，判据与实测数据在 `peers.ts` 的头注释。
+   * 这里只讲执行上的三个取舍：
    *
    * **一、装的是 latest，不是清单上那条 range。** 这里装的 peer 是共享包与生态外的包，
-   * latest 通常都满足清单上那条 range；而按 range 装会把 `^1.2.3` 这种范围原样写进 home 的
-   * `package.json`，跟这儿每条依赖都是精确版本的形状对不上。range 原样带进回执；latest
-   * 真不满足时照装，那一处出现在回执的 `peerWarnings` 里。
+   * latest 通常都满足清单上的 range；而按 range 装会把 `^1.2.3` 这种范围原样写进 home 的
+   * `package.json`，与这里每条依赖都是精确版本的格式不一致。range 原样写进回执；latest
+   * 真不满足时照样安装，那一处会出现在回执的 `peerWarnings` 里。
    *
-   * **二、一条一趟 pnpm，不批量。** 一趟 `add a b c` 里有一个包源上没有，pnpm 整趟失败、
-   * 好的那几个一个都装不上，而且它不告诉你是哪个挂的。peer 数量是个位数，多起几个进程
-   * 换「装不上的那个点得出名字」值。
+   * **二、每条 peer 单独运行一次 pnpm，不批量。** 一次 `add a b c` 里只要有一个包在包源上不存在，
+   * pnpm 就整体失败，其他正常的包也一个都装不上，而且它不说明是哪个包出错。peer 数量是个位数，
+   * 多启动几个进程换来「能指出装不上的是哪一个」，值得。
    *
-   * **三、永不抛、永不让装机失败。** 件本身已经装上了，peer 这一步的每一种没成都只是
-   * 回执里的一行——这条命令是所有 home 装件的必经之路，它多一条抛出的路径就多一次
-   * 「什么都装不了」。
+   * **三、永不抛异常、永不让安装失败。** 插件本身已经装上了，peer 这一步的每一种失败都只是
+   * 回执里的一行——这条命令是所有 home 安装插件的必经之路，它多一条抛出的路径就多一种
+   * 「什么都装不了」的情况。
    */
   private async settlePeers(pkg: string, pnpm: string): Promise<{ peers?: PeerResult[]; note?: string }> {
     let plan: ReturnType<typeof planPeers>
@@ -671,7 +666,7 @@ export default class GwbPluginManager extends Service implements GwbPluginManage
       const declared = toPeerDependencies(await readInstalledManifest(this.home, pkg))
       const names = Object.keys(declared)
       if (names.length === 0) return {}
-      // 种类只对本生态那些包问得出意思，可读一份清单是几微秒的事，不值得为它再分一次流
+      // 种类只对本生态的包有意义，但读一份清单只要几微秒，不值得为此单独区分处理
       const kinds: Record<string, PeerKind | undefined> = {}
       for (const peer of names) kinds[peer] = peerKindOf(await readPeerManifest(this.home, pkg, peer))
       plan = planPeers(declared, await readHomeDependencies(this.home), kinds)
@@ -711,8 +706,8 @@ export default class GwbPluginManager extends Service implements GwbPluginManage
   /**
    * 查 home 里已装的包哪些有新版本（`pnpm outdated --json`）。
    *
-   * **退出码 1 是「存在过期包」，是结果不是失败**；0 且 stdout 为空才是「全都最新」。
-   * 与 install 共用同一条串行队列——它只读不写，排队等一等无妨，省得另想一套并发故事。
+   * **退出码 1 表示「存在过期包」，是结果不是失败**；0 且 stdout 为空才是「全都最新」。
+   * 与 install 共用同一个串行队列——它只读不写，排队等待无妨，省得另外处理并发。
    */
   async outdated(): Promise<OutdatedReceipt> {
     const found = locatePnpm(this.pnpmPath())
@@ -721,7 +716,7 @@ export default class GwbPluginManager extends Service implements GwbPluginManage
     const run = await this.queue(() =>
       runPnpmCapture({ pnpm: found.file, cwd: this.home, args: ['outdated', '--json'] }),
     )
-    // pnpm 的「人话」都在 stderr 上，两条失败路都把它带上
+    // pnpm 给人看的说明都在 stderr 上，两种失败情况都把它带上
     const say = (message: string): string =>
       run.stderrTail === '' ? message : `${message}\n${run.stderrTail}`
     if (run.exitCode === null) return { ok: false, error: say(`pnpm 起不来（退出码 ${String(run.exitCode)}）`) }
@@ -736,7 +731,7 @@ export default class GwbPluginManager extends Service implements GwbPluginManage
   }
 
   async update(pkg: string): Promise<UpdateResult> {
-    // 调用方写错了的事当场抛；下面每一条「没成」都是正当结果，收敛成回执
+    // 调用方写错的情况直接抛；下面每一种失败都是正常结果，转成回执
     assertPkgName(pkg)
     const deps = await readHomeDependencies(this.home)
     if (deps[pkg] === undefined) {
@@ -757,13 +752,13 @@ export default class GwbPluginManager extends Service implements GwbPluginManage
       return { ok: false, pkg, ...failure }
     }
 
-    // 条目不动（引的是包名，包换版本条目原样有效）。跑着的 fiber 还持旧代码，重启才换
+    // 条目不动（引用的是包名，包换版本后条目照样有效）。正在运行的 fiber 仍持有旧代码，重启后才换成新的
     this.info(`${pkg} 升到最新了。跑着的件还持旧代码，重启内核后才换成新的（要热生效走 ${UPDATE_ALL_COMMAND}）`)
     return { ok: true, pkg, ...(await this.peerWarningsOf(found.file)) }
   }
 
   async updateAll(only?: readonly string[]): Promise<UpdateAllResult> {
-    // 调用方写错了的事当场抛；下面每一条「没成」都是正当结果，收敛成回执
+    // 调用方写错的情况直接抛；下面每一种失败都是正常结果，转成回执
     for (const pkg of only ?? []) assertPkgName(pkg)
     const bare = (extra?: string): UpdateAllResult => ({ ok: false, updated: [], selfDeferred: false, ...(extra === undefined ? {} : { error: extra }) })
 
@@ -782,23 +777,23 @@ export default class GwbPluginManager extends Service implements GwbPluginManage
       this.warn(`升不了：${found.error}`)
       return bare(found.error)
     }
-    // 一趟装完：pnpm 是读-改-写 home 的 package.json，逐包起进程跟并发 install 一样会互相盖
+    // 一次装完：pnpm 读-改-写 home 的 package.json，逐个包启动进程与并发 install 一样会互相覆盖
     const specs = plan.pnpmArgs.slice(1)
     this.info(`用 ${describePnpm(found)} 一趟装 ${specs.join(' ')}`)
     const run = await this.applyToHome(found.file, { add: specs })
     if (!run.ok) {
       const failure = describeAddFailure(`pnpm ${plan.pnpmArgs.join(' ')}`, run)
-      // 失败发生在重挂之前：条目一条都没动
+      // 失败发生在重新加载之前：没有改动任何条目
       const error = `${failure.error}。一条条目都没动`
       this.warn(`${error}\n${failure.tail ?? ''}`)
       return { ...bare(error), ...(failure.tail === undefined ? {} : { tail: failure.tail }) }
     }
-    // 重挂之前查：查的是盘上，跟重挂无关；放在前面，本件自己那条重挂之前回执就齐了
+    // 在重新加载之前检查：检查的是磁盘上的状态，与重新加载无关；放在前面，本插件自己重新加载之前回执内容就已齐全
     const peerCheck = await this.peerWarningsOf(found.file)
     if (peerCheck.note !== undefined) notes.push(peerCheck.note)
     const warned = peerCheck.peerWarnings === undefined ? {} : { peerWarnings: peerCheck.peerWarnings }
 
-    // 从这儿起旧版本目录已经没了：升了的每条条目都得在**这条命令里**重挂，不留窗口
+    // 从这里开始旧版本目录已经删除：升级了的每条条目都必须在**这条命令里**重新加载，中间不留间隔
     const updated: UpdatedPackage[] = []
     let deferred: PlannedEntry | undefined
     for (const pkg of plan.packages) {
@@ -824,10 +819,10 @@ export default class GwbPluginManager extends Service implements GwbPluginManage
     }
 
     /**
-     * **自己最后，而且在回执之后。** 处理器里停用自己，await 链随 fiber 一起拆掉，回执永远
-     * 到不了调用方。所以先把回执交出去，下一个宏任务再动手——那时命令的应答早已发出。
-     * 闭包**只持 tree、id、总线的引用与那只 logger**：本件这条 fiber 拆掉之后 ctx 上的
-     * 东西一样都不能碰（取服务会「inactive context」）；`this` 上别的方法也不进来
+     * **本插件自己最后处理，而且在回执之后。** 在命令处理函数里停用自己，await 链随 fiber 一起卸载，回执永远
+     * 到不了调用方。所以先返回回执，下一个宏任务再处理——那时命令的应答早已发出。
+     * 闭包**只持有 tree、id、命令总线的引用与 logger**：本插件的 fiber 卸载之后，ctx 上的
+     * 东西都不能访问（获取服务会报「inactive context」）；闭包里也不调用 `this` 上的其他方法
      */
     const id = deferred.id
     const log = this.log
@@ -841,7 +836,7 @@ export default class GwbPluginManager extends Service implements GwbPluginManage
     return { ok: true, updated, selfDeferred: true, reload: canReload ? 'deferred' : 'unavailable', ...noteOf(notes), ...warned }
   }
 
-  /** 按计划重挂一条：本来就停用的跳过（保持停用），动树时抛了收成 failed */
+  /** 按计划重新加载一条：本来就停用的跳过（保持停用），修改条目树时抛出的错误转成 failed */
   private async remountPlanned(entry: PlannedEntry): Promise<RemountedEntry> {
     if (entry.disabled) return { id: entry.id, action: 'skipped', state: 'disabled' }
     return remountNow(this.tree, entry.id, this.log)
@@ -853,19 +848,19 @@ export default class GwbPluginManager extends Service implements GwbPluginManage
   }
 
   async uninstall(pkg: string): Promise<UninstallResult> {
-    // 调用方写错了的事当场抛；下面每一条「没成」都是正当结果，收敛成回执
+    // 调用方写错的情况直接抛；下面每一种失败都是正常结果，转成回执
     assertPkgName(pkg)
     const deps = await readHomeDependencies(this.home)
     if (deps[pkg] === undefined) {
       throw new Error(`home 里没装 ${pkg}，谈不上卸载。只删条目走 ${REMOVE_ENTRY_COMMAND}。`)
     }
 
-    // 第一步：摘条目。逐条 tree.remove——它一次做两件事（写回 yml、当场卸 fiber），
-    // 依赖这个包的其他件会随 fiber 一起被 cordis 摘下、停在「没挂上」那一档
+    // 第一步：删除条目。逐条 tree.remove——它一次做两件事（写回 yml、立即卸载 fiber），
+    // 依赖这个包的其他插件会随 fiber 一起被 cordis 卸载，停在「未加载」状态
     const ids = entriesForPackage(this.tree.store, pkg)
     for (const id of ids) this.tree.remove(id)
 
-    // 第二步：卸包。排在既有串行队列里，与 install/update 同一条
+    // 第二步：卸载包。排进现有的串行队列，与 install/update 共用
     const found = locatePnpm(this.pnpmPath())
     if (!found.ok) {
       this.warn(`卸不了 ${pkg}：条目已摘（${ids.length} 条），${found.error}`)
@@ -873,7 +868,7 @@ export default class GwbPluginManager extends Service implements GwbPluginManage
     }
     const run = await this.applyToHome(found.file, { remove: [pkg] })
     if (!run.ok) {
-      // 不回滚：条目已摘是正当落点，包进「已装、没挂条目」那一区看得见、重试挂条目就行
+      // 不回滚：条目已删是可以接受的结果，包会出现在「已装、没有条目」那一组里，重试加条目即可
       const error = `pnpm remove ${pkg} 没成（退出码 ${String(run.exitCode)}）。条目已摘 ${ids.length} 条，包还在 home 里`
       this.warn(`${error}\n${run.tail ?? ''}`)
       return run.tail === undefined
@@ -892,7 +887,7 @@ export default class GwbPluginManager extends Service implements GwbPluginManage
       throw new Error(`home 里没装 ${pkg}，加不了条目。先走 ${INSTALL_COMMAND}，或者自己去 home 里 pnpm add。`)
     }
     const entryId = await this.createEntry(pkg, id, config)
-    // install 那条路有它自己的「装上了」，这条补的是单独加条目的那一趟
+    // install 有自己的「装上了」日志，这条日志只针对单独加条目的情况
     this.info(`条目 ${entryId}（${pkg}）加进 cordis.yml 了`)
     return entryId
   }
@@ -909,7 +904,7 @@ export default class GwbPluginManager extends Service implements GwbPluginManage
     return { id: bare, pkg, data: data !== undefined, settings: settings !== undefined }
   }
 
-  /** 两本户主簿合成一张：id → 盖过章的包（一本一个，所以可能两个） */
+  /** 把两份归属记录合并成一张表：id → 登记为其归属的包（每份记录各一个，所以可能有两个） */
   private async idOwners(): Promise<IdOwners> {
     const out: Record<string, string[]> = {}
     for (const book of [this.dataBook, this.settingsBook]) {
@@ -922,13 +917,13 @@ export default class GwbPluginManager extends Service implements GwbPluginManage
   removeEntry(entryId: string): void {
     const id = this.locate(entryId)
     this.tree.remove(id)
-    // 显示名留着不抹：id 是确定性的，同一个包装回来还是这个 id，那时旧名字正好接上——
-    // 跟设置和数据一个规矩（删条目不删它的设置与数据）
+    // 显示名保留不清除：id 是确定性的，同一个包重新安装后还是这个 id，那时旧名字能继续使用——
+    // 与设置和数据的规则相同（删条目不删它的设置与数据）
     this.info(`条目 ${id} 已删（只删这一条，包没动；要连包一起拿掉走 ${UNINSTALL_COMMAND}）`)
   }
 
   async enable(entryId: string): Promise<void> {
-    // **null 是「删掉这个字段」**，不是「设成 null」——loader 的 update 拿 null 当删用
+    // **null 表示「删掉这个字段」**，不是「设成 null」——loader 的 update 把 null 当作删除
     const id = this.locate(entryId)
     await this.tree.update(id, { disabled: null })
     this.info(`条目 ${id} 已启用`)
@@ -949,7 +944,7 @@ export default class GwbPluginManager extends Service implements GwbPluginManage
         error: '没装数据件（@godcreator/gwb-data），显示名存不下来。装上它、在 cordis.yml 里加一条条目，再改一次。',
       }
     }
-    // 等头一份读完再改，不然这次写的会被那一下读盘盖回去
+    // 等第一次读取完成再改，不然这次写入会被读磁盘的结果覆盖
     await this.labelsReady
     const trimmed = label.trim()
     const next = { ...this.labels }
@@ -961,17 +956,17 @@ export default class GwbPluginManager extends Service implements GwbPluginManage
     return { ok: true }
   }
 
-  /** 设置里填的那份 pnpm。设置件没装就是 undefined，走自动查找 */
+  /** 设置里填写的 pnpm 路径。设置插件没装时为 undefined，改用自动查找 */
   private pnpmPath(): string | undefined {
     const value = this.settings?.get(PNPM_PATH_KEY)
     return typeof value === 'string' && value !== '' ? value : undefined
   }
 
   /**
-   * 完整 entryId 与裸 id 都认，回裸 id。
+   * 完整 entryId 与不带前缀的 id 都接受，返回不带前缀的 id。
    *
-   * 件从 ctx 上读到的是完整的 `home:commands`，而 `tree` 上的每个方法认的是裸 id
-   * （见 `ids.ts` 的 `bareId`）。两边不换算的话，`resolve` 会当场「cannot resolve entry」。
+   * 插件从 ctx 上读到的是完整的 `home:commands`，而 `tree` 上的每个方法接受的是不带前缀的 id
+   * （见 `ids.ts` 的 `bareId`）。两边不转换的话，`resolve` 会直接报「cannot resolve entry」。
    */
   private locate(entryId: string): string {
     const id = bareId(entryId)
@@ -982,16 +977,16 @@ export default class GwbPluginManager extends Service implements GwbPluginManage
   }
 
   /**
-   * 往 `cordis.yml` 里加一条。`tree.create` 一次做两件事——写回 yml、当场挂上，
-   * 所以这儿不用再手动 `ctx.plugin`。
+   * 往 `cordis.yml` 里加一条。`tree.create` 一次做两件事——写回 yml、立即加载，
+   * 所以这里不用再手动 `ctx.plugin`。
    *
-   * **id 一定要显式给。** 不给的话 loader 发一个 8 位随机 hex，而且每次启动都换一个：
-   * 那条条目的设置与数据（都按 id 的末段分区）从此每启动一次新建一份。
+   * **id 一定要显式给。** 不给的话 loader 生成一个 8 位随机 hex，而且每次启动都换一个：
+   * 那条条目的设置与数据（都按 id 的末段分区）从此每启动一次就新建一份。
    */
   private async createEntry(pkg: string, id?: string, config?: unknown): Promise<string> {
-    // 盘上的章先取：数据与设置在条目删掉后还留着，只看树判重会把别的包的东西分给这条
+    // 先读取磁盘上的归属记录：数据与设置在条目删除后仍然保留，只按条目树判断重复会把别的包的数据分给这条条目
     const owners = await this.idOwners()
-    // 撞名在**整棵树**范围内判：id 在 cordis.yml 里全局唯一，loader 的 store 就是一张平表
+    // 在**整个条目树**范围内判断 id 是否重复：id 在 cordis.yml 里全局唯一，loader 的 store 就是一张平表
     const taken = new Set(Object.keys(this.tree.store))
     let final: string
     if (id === undefined) {
@@ -1000,22 +995,22 @@ export default class GwbPluginManager extends Service implements GwbPluginManage
       assertIdUsable(id, pkg, taken, owners)
       final = id
     }
-    // 每次给一个新对象：create 会把它原样塞进 group.data，共用一个对象等于两条条目共享配置
+    // 每次传一个新对象：create 会把它原样放进 group.data，共用一个对象等于两条条目共享配置
     const options: Record<string, unknown> = { id: final, name: pkg }
     if (config !== undefined) options['config'] = config
 
     /**
-     * **只等它把条目写进去，不等它挂上。**
+     * **只等它把条目写进去，不等它加载完成。**
      *
-     * `tree.create` 一次做两件事，而它回的那个 promise 里**包着挂载**——挂载可能永远不
-     * 完成：`inject` 永远满足不了的件，它的 fiber 按设计就是无限等着。真 await 下去的话，
-     * 装一个依赖还没装的件就会让这条命令**永远没有回执**（实机撞过：挂第二条服务提供方
-     * 的条目，cordis 抛 `service ... has been registered`，整条 install 卡死）。
+     * `tree.create` 一次做两件事，而它返回的 promise 里**包含加载过程**——加载可能永远不
+     * 完成：`inject` 永远满足不了的插件，它的 fiber 按设计会一直等待。真 await 的话，
+     * 安装一个依赖还没装的插件就会让这条命令**永远没有回执**（实机遇到过：加载同一服务的第二个提供方
+     * 的条目，cordis 抛 `service ... has been registered`，整个 install 卡死）。
      *
-     * 好在写盘那半是**同步**发生的：`create` 的函数体在第一个 await 之前就把 options
-     * 塞进了 group、排好了写回。所以不 await 也不影响条目落盘。
+     * 写入磁盘那部分是**同步**发生的：`create` 的函数体在第一个 await 之前就把 options
+     * 放进了 group、安排好了写回。所以不 await 也不影响条目写入磁盘。
      *
-     * 挂没挂上是另一件事，看 `list()` 的 `active`；挂不上的原因在日志里。
+     * 是否加载成功是另一回事，看 `list()` 的 `active`；加载失败的原因在日志里。
      */
     void this.tree.create(options, null).catch((err: unknown) => {
       this.warn(`条目 ${final}（${pkg}）加进 cordis.yml 了，但没挂起来：${String(err)}`)
@@ -1024,10 +1019,10 @@ export default class GwbPluginManager extends Service implements GwbPluginManage
   }
 
   /**
-   * 裸 id → 完整 entryId。
+   * 不带前缀的 id → 完整 entryId。
    *
-   * 以前这个值是 `tree.create` 回的（`Entry.id` 的 getter 拼好的），现在不 await 它了，
-   * 就得自己拼。前缀是**本件那条条目的前缀**——同一棵树上的条目共用它。
+   * `tree.create` 没有被 await，拿不到它返回的完整 id，所以在这里自己拼。前缀是**本插件条目的前缀**——
+   * 同一个条目树上的条目共用它。
    */
   private fullId(bare: string): string {
     const own = ownEntryId(this.own)
@@ -1046,7 +1041,7 @@ export default class GwbPluginManager extends Service implements GwbPluginManage
 
   private queue<T>(task: () => Promise<T>): Promise<T> {
     const next = this.chain.then(task, task)
-    // 前一趟失败不该把后面排队的一起带倒
+    // 前一个任务失败不应导致后面排队的任务也失败
     this.chain = next.catch(() => undefined)
     return next
   }
@@ -1057,7 +1052,7 @@ function hasCommand(cli: GwbCommands | undefined, name: string): boolean {
   return cli !== undefined && cli.list().some((command) => command.name === name)
 }
 
-/** 经命令总线跑 `shell.reload`。没有总线、表里没这条、跑了没成，都收成「界面要手动刷新」 */
+/** 经命令总线执行 `shell.reload`。没有命令总线、命令表里没有这条、执行失败，都返回「界面要手动刷新」 */
 async function reloadVia(cli: GwbCommands | undefined): Promise<{ reload: 'done' | 'unavailable'; note?: string }> {
   if (!hasCommand(cli, SHELL_RELOAD_COMMAND) || cli === undefined) {
     return { reload: 'unavailable', note: `命令表里没有 ${SHELL_RELOAD_COMMAND}（外壳没装或版本太旧），界面要手动刷新` }
@@ -1067,12 +1062,12 @@ async function reloadVia(cli: GwbCommands | undefined): Promise<{ reload: 'done'
   return { reload: 'unavailable', note: `${SHELL_RELOAD_COMMAND} 没成（${result.error ?? '没说原因'}），界面要手动刷新` }
 }
 
-/** 回执里 `note` 那一格：没话说就没有这一格 */
+/** 回执里的 `note` 字段：没有要说明的就不带这个字段 */
 function noteOf(notes: readonly string[]): { note?: string } {
   return notes.length === 0 ? {} : { note: notes.join('；') }
 }
 
-/** `plugin-manager.update-all` 的参数：不传、传空对象都是「全升」；给了 only 就得是非空字符串数组 */
+/** `plugin-manager.update-all` 的参数：不传、传空对象都表示「全部升级」；给了 only 就必须是非空字符串数组 */
 function onlyList(args: unknown): string[] | undefined {
   if (args === undefined || args === null) return undefined
   const only = asRecord(args)['only']
@@ -1083,7 +1078,7 @@ function onlyList(args: unknown): string[] | undefined {
   return only as string[]
 }
 
-/** 命令按参数对象调，不经身份——界面不是一个件，没有身份可绑 */
+/** 命令按参数对象调用，不经过调用者身份——界面不是插件，没有身份可绑定 */
 function asRecord(args: unknown): Record<string, unknown> {
   if (!isRecord(args)) throw new Error('参数要是一个对象，比如 { "entryId": "commands" }')
   return args
@@ -1102,7 +1097,7 @@ function optional(raw: Record<string, unknown>, key: string): string | undefined
   return value
 }
 
-/** 显示名单独一条：**空串是合法的**，它的意思是「抹掉这个名字」 */
+/** 显示名单独处理：**空串是合法的**，表示「清除这个名字」 */
 function label(raw: Record<string, unknown>): string {
   const value = raw['label']
   if (typeof value !== 'string') throw new Error('label 要是个字符串（空串就是抹掉）')

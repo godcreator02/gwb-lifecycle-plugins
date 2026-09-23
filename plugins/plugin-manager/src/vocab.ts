@@ -1,8 +1,8 @@
 import type { GwbContext, GwbKernelApi } from '@godcreator/gwb-plugin-api'
 
 /**
- * plugin-api 的两个运行时薄 helper 就地内联（实施 Spec D6：该包收敛为纯类型面，helper 打进
- * 消费者）。无状态纯函数，勿加副作用。
+ * plugin-api 的两个运行时小 helper 在这里内联：plugin-api 只提供类型，helper 由使用方
+ * 各自带一份。无状态纯函数，不要加副作用。
  */
 
 /** 取内核服务。不要写进 `export const inject` */
