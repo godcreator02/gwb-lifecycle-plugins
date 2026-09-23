@@ -96,10 +96,10 @@ export function planUpdateAll(
 }
 
 /**
- * cordis 的 `FiberState`，照原名。它是 `const enum`，`isolatedModules` 下引不到，
- * 数字照它的定义抄（`inventory.ts` 与内核 `main.ts` 里是同一个绕法）
+ * cordis 的 `FiberState`，照原名。它是 `const enum`，`isolatedModules` 下引用不到，按它的定义照抄数字顺序。
+ * `tests/fiber-state.test.ts` 核对它与已安装的 cordis 声明的成员顺序一致
  */
-const FIBER_STATE = ['PENDING', 'LOADING', 'ACTIVE', 'FAILED', 'DISPOSED', 'UNLOADING'] as const
+export const FIBER_STATE = ['PENDING', 'LOADING', 'ACTIVE', 'FAILED', 'DISPOSED', 'UNLOADING'] as const
 
 /**
  * 条目重挂之后到哪一步了，一个词。取法照内核 `main.ts` 的 `describe()`：没 fiber 是
