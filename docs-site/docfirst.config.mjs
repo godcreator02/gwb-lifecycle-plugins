@@ -1,18 +1,20 @@
 /**
- * 这个站怎么挂机制：用哪个格式包、哪几区进 check、卡目录在哪、生成物摆哪、组件名册是什么。
+ * 这个站的 docfirst 配置：用哪个格式包、哪几区进 check、轨迹卡目录在哪、生成物写到哪、组件名册是什么。
  * 命令行和站读的是同一份。
  *
- * 项目根是这个站目录，钉的代码在件目录 `plugins/devkit/`——引用里写 `../plugins/devkit/src/…`，
- * 读取器按项目根拼路径。比较器不写死：仓里有 git 就用 git 比，没有就退回按内容摘要比。
+ * 项目根是这个站目录，钉的代码在插件目录 `plugins/devkit/`——引用里写 `../plugins/devkit/src/…`，
+ * 读取器按项目根拼路径。比较器不写死：仓里有 git 就用 git 比，没有就改用内容摘要比。
  *
- * 六区里只有 docs（现状）与 outputs（生成正本）进 check——只有这两区对代码说话。
- * trajectory 指卡目录：check 顺带跑卡校验（卡是 .mdx，六个字段一个不沾的页不算卡）。
+ * 六区里只有 docs（现状）与 outputs（生成正本）进 check——只有这两区的论断跟代码对应。
+ * trajectory 指轨迹卡目录：check 顺带校验轨迹卡（卡是 .mdx，六个字段一个都没有的页不算卡）。
  *
- * 生成物全摆进件目录 `plugins/devkit/`：AGENTS、README、catalog，外加**随包发的说明书**——
+ * 生成物全写到插件目录 `plugins/devkit/`：AGENTS、CLAUDE、README、catalog，外加**随包发布的说明书**——
  * `skills/gwb-devkit/SKILL.md`（写插件手册）与它的两份附件 `references/`，`skills/gwb-release/SKILL.md`
- * （发版规则）。两份 SKILL.md 要保留 frontmatter 的 `name` 与 `description`（gwb-skills 挂载时读它们），
+ * （发版规则）。两份 SKILL.md 要保留 frontmatter 的 `name` 与 `description`（gwb-skills 登记说明书时读它们），
  * 所以目标写成对象形式；附件经 `skill.read {name, file}` 读，不带 frontmatter。
- * 说明书是这个包对外的知识面，正本跟别的文档一样住站里，改它照样是 `doc:render` 重摆。
+ * CLAUDE.md 第一行固定是 `@AGENTS.md`，只给 Claude 的指令写在它后面。它跟 AGENTS.md 在同一个目录，
+ * 但不在 package.json 的 files 白名单里，不随包发布。
+ * 说明书是这个包对外提供的知识，正本跟别的文档一样存放在站里，改它照样要跑 `doc:render` 重新生成。
  */
 import * as fumadocs from '@godcreator/docfirst-workflow/fumadocs'
 
@@ -23,6 +25,7 @@ export default {
   out: 'out',
   outputs: {
     'content/outputs/agents.mdx': ['../plugins/devkit/AGENTS.md'],
+    'content/outputs/claude.mdx': ['../plugins/devkit/CLAUDE.md'],
     'content/outputs/readme.mdx': ['../plugins/devkit/README.md'],
     'content/outputs/catalog-devkit.mdx': ['../plugins/devkit/catalog.md'],
     'content/outputs/skills/gwb-devkit.mdx': [
