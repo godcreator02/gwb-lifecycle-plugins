@@ -3,11 +3,13 @@
     "index",
     "start",
     "system-map",
+    "plugin-manager",
     "scaffold",
     "structure",
     "home",
     "dev",
     "cdp",
+    "rules",
     "glossary"
   ]
 }

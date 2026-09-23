@@ -1,0 +1,94 @@
+---
+title: gwb-plugin-manager · 插件管理
+description: 插件管理是唯一写 home 的插件——装卸包、增删条目、查新版本与热升级、报告每个包在哪个内核上测过；本页讲它有哪些功能、对外提供哪些接口、依赖什么、哪些事不归它管，细节在同目录的机制页
+---
+
+# 插件管理
+
+**本页回答**：插件管理有哪些功能、别的模块怎么用它、它依赖什么、哪些事不归它管。包名 `@godcreator/gwb-plugin-manager`，源码目录 `plugins/plugin-manager/`，入口文件 `src/index.ts`。
+
+插件管理是 home 里的一个普通插件：由 `cordis.yml` 里的一条条目加载，单独发版，和别的插件一样用 `plugin-manager.update-all` 升级。它和 devkit 放在同一个仓里开发，原因见轨迹卡[插件管理迁入 devkit 仓](/trajectory/2026-09-24-plugin-manager-joins-devkit)。
+
+## 功能
+
+它管 home 里的两层东西：pnpm 装进来的**包**，和 `cordis.yml` 里指向包的**条目**。只装包、不加条目，插件不会运行。
+
+- **列出 home 里的包与条目**：每个包下面是它的条目，带启停、是否在运行、显示名，见[home 的两层与唯一写入者](/docs/plugin-manager/home)
+- **报告每个包在哪个内核上测过**：`list` 的每个包带 `testedKernel` 与 `kernelUntested`，只报告、不拦加载，见[在哪个内核上测过](/docs/plugin-manager/kernel-compat)
+- **装一个包并加一条条目**：一条命令做完，只等条目写入、不等它加载完，见[安装与卸载](/docs/plugin-manager/install)
+- **卸载一个包**：先删它的全部条目、再卸包，数据与设置留在磁盘上，见[安装与卸载](/docs/plugin-manager/install#卸载先删条目后卸包)
+- **加删条目、启用或停用一条条目**：条目只经 loader 的条目树改，见[home 的两层与唯一写入者](/docs/plugin-manager/home#条目只经-loader-的条目树)
+- **重新加载一条条目**：停用 → 等旧的卸载完 → 启用，一条命令做完，见[重新加载一条条目](/docs/plugin-manager/remount)
+- **查新版本、一键热升级**：升级与重新加载在同一条命令里，不重启，见[热升级](/docs/plugin-manager/upgrade)
+- **选条目 id**：沿用本包留在磁盘上的旧 id，避开别的包的数据与设置，见[id 与归属](/docs/plugin-manager/ids)
+- **改显示名、转归属**：显示名存在插件管理自己的数据里；插件改了包名时把一个 id 的数据与设置转给新包，见[id 与归属](/docs/plugin-manager/ids#转归属transfer-owner)
+- **同一时刻只允许一个改动**：安装、卸载、热升级、重新加载重入时回 BUSY，所有 pnpm 排进同一个串行队列，见[home 的两层与唯一写入者](/docs/plugin-manager/home#同一时刻只允许一个改动busy)
+- **用自己依赖里固定版本的 pnpm**：直接启动、不设超时，见 [pnpm](/docs/plugin-manager/pnpm)
+
+## 接口
+
+别的模块经下面这几样使用插件管理。
+
+**12 条命令**：都登记在命令插件上，`plugin` 写包名。这是插件管理唯一的调用方式，页面、agent、别的插件调的是同一条命令。参数与回执见[对外只有命令](/docs/plugin-manager/commands)。
+
+- `plugin-manager.list`：列出 home 里装了哪些包、各有哪些条目；每个包带 `testedKernel`（包的 `package.json` 里 `gwb.testedKernel` 的值，没声明时没有这个字段）与 `kernelUntested`（没在运行中的内核的版本线上测过就是 `true`）
+- `plugin-manager.install`：装一个包并加一条条目（经 BUSY 检查）
+- `plugin-manager.uninstall`：先删一个包的全部条目，再卸包（经 BUSY 检查）
+- `plugin-manager.add-entry`：给已装的包再加一条条目
+- `plugin-manager.remove-entry`：删一条条目，不删包
+- `plugin-manager.enable`：启用一条条目
+- `plugin-manager.disable`：停用一条条目
+- `plugin-manager.remount`：重新加载一条条目（经 BUSY 检查）
+- `plugin-manager.outdated`：查已装的包哪些有新版本
+- `plugin-manager.update-all`：一键热升级过期的包，不重启（经 BUSY 检查）
+- `plugin-manager.transfer-owner`：把一个 id 的数据与设置的归属转给另一个包
+- `plugin-manager.set-label`：改一条条目的显示名
+
+{/* ref file="../plugins/plugin-manager/src/index.ts" lines="57-68" */}
+
+**服务 `gwbPluginManager`**：值是 `{ contract: 1 }`，上面没有方法，只表示插件管理装了；别的插件（例如插件管理窗格所在的插件）inject 它，只为跟着插件管理一起加载、卸载。命令的参数或回执有破坏性变化时 `contract` 加一。包的 `package.json` 里 `gwb.provides` 写着同样的说明：
+
+{/* ref file="../plugins/plugin-manager/src/index.ts" lines="70-78" */}
+
+{/* ref file="../plugins/plugin-manager/package.json" lines="51-59" */}
+
+**导出的回执类型**：调用方 `import type` 引用，不手写回执的形状——`InstallResult`、`UninstallResult`、`OutdatedReceipt`、`UpdateAllResult`、`UpdatedPackage`、`TransferOwnerResult`、`PluginManagerPresence` 定义在入口文件里，另外转出这几个：
+
+{/* ref file="../plugins/plugin-manager/src/index.ts" lines="22-24" */}
+
+**说明书 `gwb-plugin-manager`**：给 agent 讲这些命令怎么调用，放在包根的 `skills/`，装了说明书插件就交给它登记，agent 经 MCP 入口的 `skill.read` 读。正本是 [gwb-plugin-manager](/outputs/skills/gwb-plugin-manager)，包里的 `SKILL.md` 是生成物：
+
+{/* ref file="../plugins/plugin-manager/src/index.ts" lines="232-237" */}
+
+## 依赖
+
+| 依赖 | 用来做什么 | 缺了会怎样 |
+| --- | --- | --- |
+| 内核服务 `gwbKernel` 的 `dataDir` 与 `version` | home 目录（pnpm 的工作目录、`package.json` 所在的目录）；运行中的内核版本号，和各包的 `gwb.testedKernel` 比对 | 构造时报错「ctx.gwbKernel 不在」，插件管理不加载；内核版本号不合法时 `list` 报错 |
+| loader 的条目树：`store`、`create`、`update`、`remove`、`resolve` | 读条目、加删条目、启用停用、重新加载 | 构造时报错：取不到条目树（插件管理不是经 `cordis.yml` 的条目加载的），或条目树少了某个方法（loader 的接口变了），都说清是哪一种 |
+| `@pnpm/exe.win32-x64`（`dependencies` 里的固定版本） | `add`、`remove`、`outdated --json` | 要运行 pnpm 的命令回 `ok: false`，原因是插件管理的依赖里没有它、要重装插件管理；`list`、启停条目不受影响 |
+| home 的 `package.json` | 装了哪些包、各自的版本范围 | 读不到或解析不了就当空表：`list` 里只有条目那一层 |
+| 装在 home 里的每个包自己的 `package.json` | 读 `gwb.testedKernel` | 文件不在就当没声明，`kernelUntested` 是 `true`；文件在但读不了、或不是合法 JSON，`list` 报错并带上文件路径 |
+| 命令插件 `gwbCommands`（`@godcreator/gwb-commands`，局部注入） | 登记 12 条命令；热升级后按名字查找并执行 `shell.reload` | 命令登记不上，插件管理没有调用方式；服务照常提供 |
+| 外壳插件的 `shell.reload` 命令（按命令名查找） | 热升级后整页重新加载 | `update-all` 的回执 `reload` 是 `unavailable`，界面要手动刷新 |
+| 数据插件 `gwbData`（`@godcreator/gwb-data`，局部注入） | 存显示名；读和转数据目录的归属记录 | `set-label` 回 `ok: false`；选 id 时看不到数据目录的归属；`transfer-owner` 回执里 `data` 是 `false` |
+| 设置插件 `gwbSettings`（`@godcreator/gwb-settings`，局部注入） | 读和转设置分区的归属记录 | 选 id 时看不到设置的归属；`transfer-owner` 回执里 `settings` 是 `false` |
+| 说明书插件 `gwbSkills`（`@godcreator/gwb-skills`，局部注入） | 登记自带的说明书 | 没有说明书，插件管理照常加载 |
+| cordis：`provide`、`effect`、`inject`、`logger` 与条目的加载状态 | 提供服务、局部注入、卸载时撤销、写日志、判断条目加载到哪一步 | 由内核提供，不会缺；cordis 的状态名变了，`list` 的「是否在运行」与重新加载的等待会判断错，由状态名对照测试拦住 |
+| 词汇表包 `@godcreator/gwb-plugin-api` | `GwbContext`、`GwbResult`、`GwbKernelApi` 的类型 | 只有类型，形状改坏了类型检查失败 |
+
+插件管理不写 `export const inject`：命令、数据、设置、说明书四个插件都用 `ctx.inject` 局部注入，缺了只少一部分功能，插件管理照常加载。这四个插件与 cordis、loader、词汇表包都只取类型，写在 `devDependencies` 里，构建产物里没有它们的 import。
+
+内核对插件管理的承诺——home 的文件布局、loader 与 include 的版本、按真实路径解析包名——写在内核仓文档站的接缝页「home 布局与条目树」。
+
+## 不做的事
+
+- **不知道包源上有什么可装，也不配第三方包源**：归基础插件仓的 `gwb-plugin-sources`
+- **不画界面**：插件管理窗格在界面平台仓的 `gwb-baseui`，它经命令调用插件管理
+- **不管插件之间的依赖齐不齐**：缺了的插件由 cordis 停在「等待缺少的服务」，`list` 里看得到它没在运行
+- **不替插件装 peer、库**：插件自己把库打包进去，peer 只该是内核提供的 `cordis`，理由见[安装与卸载](/docs/plugin-manager/install#home-里只有插件)
+- **不管条目加载成没成功**：条目由 loader 加载，成没成功看 `list` 的「是否在运行」，原因在 `gwb.log` 里
+- **不删数据与设置**：卸载包、删条目都不动它们，内容归数据插件与设置插件管；插件管理只读、只转它们的归属记录
+- **不拦没测过的插件**：`kernelUntested` 只报告；发版前拒绝没写对 `gwb.testedKernel` 的包是 `devkit.release` 的事
+- **不管机器上装没装 pnpm、装的哪个版本**：只用自己依赖里的那一份
+- **不猜承载 `cordis.yml` 的条目叫什么**：条目树从自己那条条目的上一层取

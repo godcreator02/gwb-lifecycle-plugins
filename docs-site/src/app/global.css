@@ -1,11 +1,81 @@
 @import 'tailwindcss';
 @import 'fumadocs-ui/css/neutral.css';
 @import 'fumadocs-ui/css/preset.css';
-/* 状态点的样式随包发，一行引进来 */
+/* 引用状态点的样式随 docfirst-workflow 包发布 */
 @import '@godcreator/docfirst-workflow/fumadocs/light.css';
 
 html {
   scrollbar-gutter: stable;
+}
+
+/* 示意图（Diagram 组件）：两种强调色区分两组东西，深浅主题各一套 */
+:root {
+  --diagram-a: hsl(210, 80%, 45%);
+  --diagram-a-soft: hsla(210, 80%, 45%, 0.12);
+  --diagram-b: hsl(32, 90%, 42%);
+  --diagram-b-soft: hsla(32, 90%, 42%, 0.12);
+}
+.dark {
+  --diagram-a: hsl(210, 85%, 65%);
+  --diagram-a-soft: hsla(210, 85%, 65%, 0.16);
+  --diagram-b: hsl(35, 90%, 60%);
+  --diagram-b-soft: hsla(35, 90%, 60%, 0.16);
+}
+.diagram {
+  margin: 20px 0 24px;
+  border: 1px solid var(--color-fd-border);
+  border-radius: 10px;
+  background: var(--color-fd-card);
+  overflow: hidden;
+}
+.diagram-title {
+  padding: 10px 16px 0;
+  font-size: 14px;
+  font-weight: 600;
+}
+.diagram-canvas {
+  padding: 8px 12px;
+}
+.diagram-canvas svg {
+  display: block;
+  width: 100%;
+  height: auto;
+}
+.diagram-text {
+  padding: 10px 16px 12px;
+  border-top: 1px solid var(--color-fd-border);
+  font-size: 13px;
+  line-height: 1.7;
+  color: var(--color-fd-muted-foreground);
+}
+.diagram-text > p {
+  margin: 0;
+}
+.diagram-text ul,
+.diagram-text ol {
+  margin: 0;
+  padding-left: 1.2em;
+}
+.diagram-text li {
+  margin: 2px 0;
+}
+.diagram-controls {
+  display: flex;
+  gap: 8px;
+  padding: 0 16px 8px;
+}
+.diagram-controls button {
+  font-size: 12px;
+  padding: 2px 10px;
+  border: 1px solid var(--color-fd-border);
+  border-radius: 6px;
+  background: var(--color-fd-background);
+  color: var(--color-fd-foreground);
+  cursor: pointer;
+}
+.diagram-controls button[aria-pressed='true'] {
+  border-color: var(--diagram-a);
+  color: var(--diagram-a);
 }
 
 .note {

@@ -1,0 +1,76 @@
+---
+title: pnpm
+description: 插件管理只用自己依赖里固定版本的 @pnpm/exe.win32-x64，不看设置、不看 PATH；直接启动那个文件、环境原样传下去、不设超时；只读退出码与输出的最后几行，outdated 另读 stdout 上的 JSON；卸载时不结束正在运行的 pnpm
+---
+
+# pnpm
+
+**本页回答**：插件管理用的是哪个 pnpm、怎么找到它；怎么启动它、带什么参数与环境、读回什么；卸载时正在运行的 pnpm 为什么不结束。pnpm 什么时候运行、为什么排队，见[只有插件管理写 home](/docs/plugin-manager/home#包只经-applytohome排进一个串行队列)。
+
+## 只用自己依赖里的那份 pnpm
+
+**是什么**：插件管理的 `dependencies` 写固定版本的 `@pnpm/exe.win32-x64`，随插件管理一起装进 home。运行时从插件管理自己的位置解析这个包，启动里面的 `pnpm.exe`。不读设置、不找 PATH，机器上装没装 pnpm、装的哪个版本，都和插件管理无关。
+
+{/* ref file="../plugins/plugin-manager/package.json" lines="32-34" */}
+
+**为什么**：
+
+- 各人机器上装的 pnpm 版本不同，出过兼容问题。固定一份，所有 home 改动时用的都是同一个版本；升级 pnpm 就是给插件管理发一版
+- 依赖的是可执行文件包，不是 `pnpm` 包：`pnpm` 包带安装脚本，pnpm 默认不运行依赖的安装脚本，每次改 home 都会以 `ERR_PNPM_IGNORED_BUILDS` 退出码 1 结束；`@pnpm/exe.win32-x64` 的包里只有一个 `pnpm.exe`
+- 原生可执行文件可以直接启动，不用开 shell，也就没有参数引号转义的问题
+
+**怎么做**：
+
+<Diagram name="pm-pnpm-lookup" title="插件管理从自己的依赖里找到 pnpm">
+- home 按 pnpm 的布局存放：插件管理和它依赖的 `@pnpm/exe.win32-x64` 在 `node_modules/.pnpm/` 下同一个目录里
+- 插件管理从自己的位置按 node 的规则解析 `@pnpm/exe.win32-x64/package.json`，旁边的 `pnpm.exe` 就是要启动的文件，工作目录是 home
+- 包或文件找不到：报错，让人重装插件管理
+- 插件管理升级时 pnpm 版本可能跟着变。pnpm 只把链接换到新版本目录，旧目录和正在运行的那个文件留在原处，不会因为文件被占用而失败
+</Diagram>
+
+{/* ref file="../plugins/plugin-manager/src/pnpm.ts" lines="44-68" */}
+
+{/* ref file="../plugins/plugin-manager/src/pnpm-path.ts" lines="9-12" */}
+
+- 包名带平台：现在只依赖了 Windows x64 那份，别的平台上找不到，直接报错
+- 日志里写的是用了哪个版本、哪个文件；版本号读旁边的 `package.json`，只用于日志，读不出来就是 `?`
+
+**守住它的测试**：
+
+{/* has file="../plugins/plugin-manager/tests/pnpm-path.test.ts" text="从本插件的位置解析到依赖里那个可执行文件" */}
+
+{/* has file="../plugins/plugin-manager/tests/pnpm-path.test.ts" text="依赖里只有 pnpm 的可执行文件包" */}
+
+## 参数、环境与读回什么
+
+**命令行参数与工作目录**：改 home 只有 `add <spec…>` 与 `remove <包名>` 两种，都经 `applyToHome` 排进同一个串行队列；只读的是 `outdated --json`。工作目录一律是 home。
+
+{/* ref file="../plugins/plugin-manager/src/index.ts" lines="712-715" */}
+
+**环境**：原样传下去，用户的 `~/.npmrc`、pnpm 配置（`@godcreator` 的包源、包龄豁免）照常读到；只去掉 `ELECTRON_RUN_AS_NODE`——它只对 electron 有意义，留着会传给 pnpm 启动的依赖构建脚本。直接启动这个文件，不开 shell。
+
+{/* ref file="../plugins/plugin-manager/src/pnpm-path.ts" lines="23-31" */}
+
+**不设超时**：装一个大包本来就可能要几分钟，定一个时限只会在慢网络上错误地结束正常的安装；网络层的超时 pnpm 自己有。真卡住了，由人去结束进程。
+
+**读回什么**：`add` / `remove` 只看退出码，0 是成功；成功时不保留输出（几十行进度没人看），失败时回执带 stdout 与 stderr 合起来的最后 12 行，pnpm 把原因写在最后。`outdated` 要读 stdout 上的 JSON，另用 `runPnpmCapture` 完整保留 stdout；退出码 1 表示「有过期的包」，是结果不是失败。两种运行方式对输出的取舍相反，所以是两个函数，不合成一个。
+
+{/* ref file="../plugins/plugin-manager/src/pnpm.ts" lines="12-24" */}
+
+pnpm 升大版本时输出格式可能变，`outdated` 解析不了就回失败，原因里说明这一点。
+
+**守住它的测试**：启动参数与环境、输出只留最后几行有单元测试；真正启动进程、收集输出只能实机验证（`devkit.dev` 装进隔离 home 后调 `plugin-manager.install` / `outdated`）。
+
+{/* has file="../plugins/plugin-manager/tests/pnpm-path.test.ts" text="只去掉 ELECTRON_RUN_AS_NODE" */}
+
+{/* has file="../plugins/plugin-manager/tests/pnpm.test.ts" text="只留最后几行，去掉首尾空行" */}
+
+## 卸载时不结束 pnpm
+
+**是什么**：插件管理卸载时（包括内核退出、插件管理被重新加载），正在运行的 pnpm 不结束，让它运行完。
+
+**为什么**：pnpm 正在改 home 的 `package.json` 与 `node_modules`，中途结束会留下装了一半的 home，比让它运行完更难收拾；它运行完之后回执没人接收，改动照样生效。
+
+**例外**：插件启动的子进程，卸载时本该结束整个进程树、等它真正退出。这是允许的例外，理由写在 `runPnpm` 的注释里：
+
+{/* ref file="../plugins/plugin-manager/src/pnpm.ts" lines="76-87" */}

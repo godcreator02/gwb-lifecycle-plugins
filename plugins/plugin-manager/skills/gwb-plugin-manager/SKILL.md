@@ -84,7 +84,7 @@ agent 经 MCP 入口的 `run` 按名字调用；插件管理没有别的调用�
 ## 重新加载一条：plugin-manager.remount
 
 `{ "entryId": "..." }`。停用 → 等卸载完 → 启用 → 等加载完，**一条命令做完**（本来停用的，最后是启用的）。
-要让一条条目重新 import 就调它，**别用 disable 加 enable 两条拼**：目标是
+要让一条条目重新 import 就调它，**别用 disable 加 enable 两条命令代替**：目标是
 plugin-manager 自己或命令插件（`gwb-commands`）时，disable 一返回命令表就没了，enable 调不进去，条目停在停用状态。
 
 * 回执 `{ id, action, state }`。`remounted`：在这条命令里做完，`state` 是重新加载后的状态，ACTIVE 才算成功。

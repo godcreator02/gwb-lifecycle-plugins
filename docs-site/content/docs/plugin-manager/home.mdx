@@ -1,0 +1,96 @@
+---
+title: home 的两层与唯一写入者
+description: home 里有包与条目两层，list 把两层对上；只有插件管理写 home——包只经 applyToHome 的串行队列，条目只经 loader 的条目树，改动命令另有 BUSY 互斥
+---
+
+# home 的两层与唯一写入者
+
+**本页回答**：home 里的包与条目是什么关系，`list` 怎么把它们对上；为什么只能有一个写入者；包和条目各经哪条路改；两个改动同时来时怎么办。
+
+## 包与条目两层
+
+home 里的插件分两层：**包**是 pnpm 装进 `package.json` 与 `node_modules` 的 npm 包；**条目**是 `cordis.yml` 里的一行，指向一个包，loader 按条目加载插件。一个包可以有好几条条目，各是一个实例、各存各的数据。插件管理自己、命令插件也各是 `cordis.yml` 里的一条条目，一样出现在 `list` 里。
+
+**为什么分两层**：装包是 pnpm 的事，加载是 loader 的事，pnpm 和 loader 各有自己的清单。只装包、不加条目，插件不会运行；条目指向的包被删了，条目还在。插件管理的工作就是让两层对应上，并且如实报告对不上的地方。
+
+**怎么做**：`list` 读 home 的 `package.json` 和条目树，按包名对照，两层都不丢；再给每个包读它自己的 `package.json`，带上它在哪个内核上测过（见[在哪个内核上测过](/docs/plugin-manager/kernel-compat)）：
+
+<Diagram name="pm-list" title="list 把 package.json 与 cordis.yml 两层对上，两层都不丢">
+- 左边是 home 的 `package.json` 里的依赖，中间是 `cordis.yml` 的条目，右边是 `list` 按包名排好的结果
+- 装了包、没有条目：报成 `entries: []`——只表示一条条目都没有，不推断原因
+- 条目指向一个没装的包（手工改过 `cordis.yml`，或包被 `pnpm remove` 删了）：报成 `installed: false`
+- 每条条目带 `active`：看的是 fiber 的状态是不是 `ACTIVE`，不是 fiber 在不在——依赖没满足的插件也有 fiber，只是永远到不了 `ACTIVE`
+</Diagram>
+
+{/* ref file="../plugins/plugin-manager/src/inventory.ts" lines="107-134" */}
+
+{/* ref file="../plugins/plugin-manager/src/index.ts" lines="372-381" */}
+
+**守住它的测试**：
+
+{/* has file="../plugins/plugin-manager/tests/inventory.test.ts" text="装了包但一条条目都没有" */}
+
+{/* has file="../plugins/plugin-manager/tests/inventory.test.ts" text="条目指向一个没装的包" */}
+
+{/* has file="../plugins/plugin-manager/tests/inventory.test.ts" text="是否加载成功看的是 fiber 的状态" */}
+
+{/* has file="../plugins/plugin-manager/tests/home.test.ts" text="清单不在、坏了都当空表" */}
+
+## 只有插件管理写 home
+
+改这两层的只有插件管理，而且各只有一条路：**包只经 `applyToHome` 运行 pnpm，条目只经 loader 的条目树**。
+
+**为什么**：两层都不是「写一下文件」那么简单。pnpm 每次都读、改、写 `package.json`，两次同时运行，后写的会把前一次加进去的依赖覆盖掉，而且不报错；`cordis.yml` 的内容在 loader 的内存里也有一份，直接写文件，内存里的条目不知道，下一次写回就把磁盘上的改动覆盖掉。只有一个写入者、一条路，这两类覆盖才都不会发生。
+
+`devkit.dev` 是一个例外：它往隔离 home 装开发版时，自己把准确版本号写进那个 home 的 `package.json` 再运行 `pnpm install`，不经插件管理（`install` 对已经装过的包会再加一条条目，`pnpm add` 会把版本号写成范围）；装完重新加载仍然调 `plugin-manager.remount`，见[改一版看一版](/docs/dev)。这时不要同时在那个 home 里调插件管理的改动命令。
+
+### 包：只经 applyToHome，排进一个串行队列
+
+**怎么做**：安装、卸载、升级都经 `applyToHome` 运行 pnpm，它把每一次运行排进同一个队列，前一个运行完下一个才开始；只读的 `pnpm outdated` 也排进去，省得另外处理两个 pnpm 同时运行。前一个失败不影响后面排队的。
+
+{/* ref file="../plugins/plugin-manager/src/index.ts" lines="708-722" */}
+
+串行队列没有单元测试；它是否起作用，只能在隔离 home 里连着发几次安装、升级来看。
+
+### 条目：只经 loader 的条目树
+
+**怎么做**：条目的增删改只用条目树的 `create` / `update` / `remove`——它们把写回 `cordis.yml` 与当场加载、卸载一起做。启用传 `{ disabled: null }`（loader 把 null 当作删掉这个字段），停用传 `{ disabled: true }`；`remove-entry` 只删条目，包留在 home 里。
+
+{/* ref file="../plugins/plugin-manager/src/index.ts" lines="597-616" */}
+
+条目树在构造时从插件管理自己那条条目的上一层取（`ctx.fiber.entry.parent.tree`），不用知道承载 `cordis.yml` 的那条条目叫什么。按 loader 自己的类型 `EntryTree` 取，再赋给收窄后的 `EntryTreeLike`：loader 改了这几个方法的签名，类型检查就在这里失败。
+
+{/* ref file="../plugins/plugin-manager/src/tree.ts" lines="19-34" */}
+
+{/* ref file="../plugins/plugin-manager/src/tree.ts" lines="49-63" */}
+
+**守住它的测试**：用 `devDependencies` 里固定版本的 loader 与 include 搭一个和内核相同的环境，把条目树的用法运行一遍。这几个版本要和 `gwb.testedKernel` 那个内核用的一致（见[在哪个内核上测过](/docs/plugin-manager/kernel-compat)）。
+
+{/* has file="../plugins/plugin-manager/tests/loader.test.ts" text="从插件自己的上下文取到条目树与自己的 entryId" */}
+
+{/* has file="../plugins/plugin-manager/tests/loader.test.ts" text="改的是内存里的条目，也写回 cordis.yml" */}
+
+<Note>
+**别直接写 cordis.yml**：绕过条目树改文件，内存里的条目不知道，改动要等下次重启才生效，而且中间任何一次写回都会用内存里的旧内容把它覆盖掉。
+</Note>
+
+### 同一时刻只允许一个改动：BUSY
+
+**为什么**：串行队列只保证 pnpm 不同时运行，但一次安装、一次热升级不止一次 pnpm，还要改条目树、重新加载插件，中间插进另一个改动，状态就乱了。
+
+**怎么做**：`install`、`uninstall`、`update-all`、`remount` 四条命令在最外层先经过一道互斥检查。已经有一个在运行时，重入的直接返回 `{ ok: false, error: "BUSY…" }`，不排队——排队会让界面看起来点了没反应。一个内核进程只服务一个 home，所以进程内的一个标志就够了；运行中抛错也会释放。插件管理对外只有命令（见[对外只有命令](/docs/plugin-manager/commands)），没有绕开这道检查的调用方式。
+
+{/* ref file="../plugins/plugin-manager/src/busy.ts" lines="7-22" */}
+
+**守住它的测试**：
+
+{/* has file="../plugins/plugin-manager/tests/busy.test.ts" text="有改动在运行时重入回 BUSY，不执行" */}
+
+{/* has file="../plugins/plugin-manager/tests/busy.test.ts" text="执行中抛错也释放标志，下一次能执行" */}
+
+<Diagram name="pm-busy" title="两道检查：改动命令经过 BUSY 检查，所有 pnpm 排进串行队列">
+- 命令 A（`install`）通过 BUSY 检查、占住标志，它的 `pnpm add` 进队列开始运行
+- 命令 B（`uninstall`）进来时标志被占着，不排队，马上得到 `{ ok: false, error: "BUSY…" }`
+- 命令 C（`outdated`）只读，不经过 BUSY，但它的 `pnpm outdated` 排在 A 后面等
+- A 返回回执时释放标志（抛错也会释放），队列里 C 的 pnpm 开始运行
+</Diagram>

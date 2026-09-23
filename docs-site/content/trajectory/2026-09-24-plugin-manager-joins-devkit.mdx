@@ -1,0 +1,40 @@
+---
+title: 插件管理迁入 devkit 仓：仍是普通插件，和 devkit 一起开发
+born-at: 2026-09-24T00:35
+type: choice
+parent: [2026-09-08-gwb-devkit]
+label: 插件管理入仓
+domain: 插件管理
+---
+
+## 背景
+
+插件管理（`@godcreator/gwb-plugin-manager`）原先在基础插件仓（`gwb-base-plugins`）。2026-09-23 它先从基础插件仓搬进内核仓（`gwb-kernel`），当天又被做成内核内置：内核应用直接加载它、经 config 交给它 home 与 pnpm 的路径，安装包带一份 pnpm。随后人决定内核仓只放内核本身（内核仓提交 `c153887`，轨迹卡「内核只放内核」在内核仓文档站），插件管理回到 home 里的普通插件，得另找一个仓。
+
+## 结论与边界
+
+- 放进 devkit 仓的 `plugins/plugin-manager/`，仍是 home 里的普通插件：由 `cordis.yml` 里的一条条目加载，单独发版（`devkit.release` 的 `packages` 给 `plugins/plugin-manager`），用 `plugin-manager.update-all` 升级
+- 代码从基础插件仓迁走之前的那一版起（`gwb-base-plugins` 的 `efe189e^`，`package.json` 写的是 0.7.0，与已发布的 0.7.1 代码相同；本仓提交 `7a310b8`），再按原来的顺序把内核仓里做过的改进逐个重做一遍：状态名表对照测试、真实 loader 的条目树测试、改 home 只剩 `applyToHome` 一个入口、源码注释与命令文本去黑话、测试标题改写、说明书的编号列表，最后是只用自己依赖里固定版本的 `@pnpm/exe.win32-x64`（内核仓 `7da84cd`）。每个提交的标题写着对应的内核仓提交号
+- 只属于「内置」的改动不重做：config 交 `{ home, pnpm }`、内核交来 pnpm 路径、根层条目这几项随内核仓的回退一起作废
+- 之后新加的 `gwb.testedKernel`（`list` 回执的 `testedKernel` 与 `kernelUntested`）直接在本仓做
+- 文档与说明书正本进本仓文档站：现状页在 `docs-site/content/docs/plugin-manager/`，说明书正本在 `docs-site/content/outputs/skills/gwb-plugin-manager.mdx`。内核对插件管理的承诺（home 布局、loader 与 include 的版本、按真实路径解析包名）留在内核仓文档站的接缝页
+
+## 否掉的候选
+
+- **留在内核仓做内置**：人决定内核仓只放内核，否掉
+
+## 依据
+
+**它和 devkit 耦合多。**
+
+- `devkit.dev` 装完开发版调 `plugin-manager.remount` 重新加载，再轮询 `plugin-manager.list` 取证；重新加载插件管理自己时收到 `deferred`，就等 `list` 回来
+- `devkit.home.new` 铺底座时把插件管理装进新 home，之后往这个 home 加插件就用 `plugin-manager.install`
+- `gwb.testedKernel` 这个字段两边都用：插件管理运行时在 `list` 里比对，`devkit.release` 发版前拒绝没写对的插件包；比对规则两边各存一份，不跨包 import
+
+放在同一个仓里，这些地方一个提交就能改两边，改比对规则时两份一起改、一起跑测试。
+
+## 代价与遗留
+
+- 本仓从一个插件加一个工具包变成两个插件加一个工具包，发版要用 `packages` 指明发哪一个
+- 比对规则两份，靠同一个提交保持一致；没有测试核对两份逐字相同
+- 插件管理的 `loader.test.ts` 用的 loader、include、cordis 版本要跟着 `gwb.testedKernel` 那个内核走，内核换了版本要手动改

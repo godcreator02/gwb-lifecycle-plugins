@@ -1,0 +1,87 @@
+---
+title: id 与归属
+description: 条目 id 是身份，一经确定不改；选 id 时看数据插件、设置插件记下的归属，沿用本包的旧 id、避开别的包的；改了包名用 transfer-owner 转归属；显示名存在插件管理自己的数据里
+---
+
+# id 与归属
+
+**本页回答**：条目 id 是什么、为什么不能改；装包时 id 怎么选、为什么要看磁盘上的归属记录；插件改了包名怎么接着用旧数据；显示名为什么存在插件管理自己的数据里。
+
+## id 是身份，一经确定不改
+
+**是什么**：每条条目有一个 id，写在 `cordis.yml` 里。数据插件、设置插件都按 id 给这条条目分目录、分区。
+
+**为什么不能改**：改了 id，原来的设置与数据就留在旧分区里，再也读不到。所以插件管理没有改 id 的命令；要给人看的名字，改显示名。
+
+**怎么做**：
+
+- 字符集是 kebab-case：小写字母、数字、单个连字符分段。数据插件与设置插件用同一套字符集校验，三处必须一起改——生成的 id 通不过它们的校验，这条条目就存不下任何设置和数据
+- 默认 id 是包名去掉 scope 与 `gwb-` 前缀：`@godcreator/gwb-py-cli` → `py-cli`；重名时加数字后缀 `py-cli-2`
+- 一定显式给 loader 传 id：不给的话 loader 每次启动生成一个新的随机 id，设置与数据每启动一次就新建一份
+
+**守住它的测试**：
+
+{/* has file="../plugins/plugin-manager/tests/ids.test.ts" text="和 gwb-data、gwb-settings 的校验是同一套" */}
+
+{/* has file="../plugins/plugin-manager/tests/ids.test.ts" text="去掉 scope 与 gwb- 前缀" */}
+
+## 选 id 时看磁盘上的归属记录
+
+**是什么**：数据插件、设置插件都记录了每个 id 属于哪个包，删了条目也还在。插件管理选 id（`install`、不给 id 的 `add-entry`）时把这份记录和条目树一起看。
+
+**为什么**：默认 id 去掉了 scope，`@a/gwb-foo` 和 `@b/foo` 都叫 `foo`；而删掉条目后，它的数据与设置还留在磁盘上。只按条目树判断重名，空出来的 `foo` 会被下一个同名的包拿走，读到前一个包的数据。
+
+**怎么做**：
+
+- 先沿用：磁盘上属于本包、条目树上又空着的 id，说明这个包装过又卸了，沿用它，数据与设置原样接上
+- 否则从默认 id 起加后缀，条目树上已有的和属于别的包的都跳过
+- 手动给的 id（`add-entry` 带 `id`）在条目树上已被占用、或属于别的包，直接拒绝，错误里写明属于谁
+
+{/* ref file="../plugins/plugin-manager/src/ids.ts" lines="108-139" */}
+
+<Diagram name="pm-pick-id" title="选 id 的四个例子：点上面的按钮切换，每个例子一步步做下去">
+- 卸载后别的包同名：装 `@a/gwb-foo` 拿到 `foo`；卸载后 `foo` 在磁盘上仍属于它；再装 `@b/foo`，默认 id `foo` 属于别的包，跳过，拿到 `foo-2`
+- 装回来沿用旧 id：接着上一个例子把 `@a/gwb-foo` 装回来，`foo` 属于它、条目树上空着，沿用
+- 手动给的 id 属于别的包：给 `@b/foo` 手动指定 `foo` 被拒；如果它就是改了包名的同一个插件，先 `transfer-owner` 把 `foo` 转给它，再加条目就放行
+- 同一个包装两次：`py-cli` 属于本包但正被占着，不能沿用，拿到 `py-cli-2`
+</Diagram>
+
+**守住它的测试**：选 id 是纯函数，上图的每个例子都有对应的测试。
+
+{/* has file="../plugins/plugin-manager/tests/ids.test.ts" text="scope 不同、默认 id 相同：前一个包卸载后数据留在磁盘上，后来的包不拿这个 id" */}
+
+{/* has file="../plugins/plugin-manager/tests/ids.test.ts" text="本包装过又卸了：沿用自己的旧 id，数据与设置原样接上" */}
+
+{/* has file="../plugins/plugin-manager/tests/ids.test.ts" text="条目树上正被占着的不沿用" */}
+
+{/* has file="../plugins/plugin-manager/tests/ids.test.ts" text="磁盘上属于别的包：拒绝" */}
+
+## 转归属：transfer-owner
+
+**是什么**：同一个插件改了包名、要继续用旧数据时，用 `transfer-owner`（`{ id, pkg }`）把这个 id 的数据目录与设置分区一起转给新包名，再 `remount` 那条条目。
+
+**为什么**：归属记录拦住的是「别的包读到这份数据」；包改名以后，新包名在记录里也是「别的包」，要人确认是同一个插件，才能放行。
+
+**怎么做**：数据目录、设置分区归数据插件、设置插件管，插件管理不自己拼路径去碰它们，只调这两个插件的服务 `owners` / `transferOwner`。这两个插件都是可选的，用局部注入接上；哪个没装，回执里对应的那一项是 `false`。
+
+{/* ref file="../plugins/plugin-manager/src/index.ts" lines="574-585" */}
+
+<Note>
+**不是同一个插件，别转归属**：那等于把前一个包的数据与设置交给另一个插件。不是同一个插件就换一个 id：`remove-entry` 之后带 `id` 调 `add-entry`。
+</Note>
+
+转归属没有单元测试：它只是依次调两个插件的服务，要在隔离 home 里装上数据插件、设置插件后调 `transfer-owner` 验证。
+
+## 显示名存在自己的数据里
+
+**是什么**：`set-label` 给条目起一个给人看的名字（中文也行），空字符串是清除；`list` 里带出来。
+
+**为什么**：id 只能是 ASCII、又不能改，人需要一个看得懂的名字。显示名不写进 `cordis.yml`（那是 loader 的配置），也不放进设置（那样插件管理就得为了显示名依赖设置插件），而是存在插件管理自己的数据目录里的一份文档。删条目时显示名保留：同一个包重新装回来还是这个 id，旧名字接着能用。
+
+**怎么做**：经数据插件读写一份「id → 显示名」的文档，内存里那份为准；第一次读完之前的改名会等它读完，免得被读回来的旧内容覆盖。没装数据插件时 `set-label` 返回 `ok: false`，界面只显示 id。
+
+{/* ref file="../plugins/plugin-manager/src/index.ts" lines="618-638" */}
+
+**守住它的测试**：
+
+{/* has file="../plugins/plugin-manager/tests/inventory.test.ts" text="格式不对的项丢掉，不作废整份" */}
