@@ -14,8 +14,8 @@ import { remountEntry } from '../src/remount'
  * plugin-manager 依赖 loader 没有写进文档的内部结构：从 `ctx.fiber.entry.parent.tree` 取条目树，
  * 用它的 create / update / remove / resolve 改 `cordis.yml`，从 `store` 读条目。这组测试搭一个和内核相同的环境
  * （根上下文指向 home、include 读 cordis.yml），把这些用法都跑一遍。loader、include、cordis 用的是 devDependencies
- * 里写死的精确版本，取自内核仓 `apps/desktop/package.json`；内核换了其中任何一个，这三个 devDependencies
- * 要跟着改成内核的版本，再跑这组测试。
+ * 里写死的精确版本，也就是 package.json 里 `gwb.testedKernel` 那个内核版本用的三个版本；内核换了其中任何一个，
+ * 这三个 devDependencies 要跟着改成内核的版本，再跑这组测试。
  */
 
 interface Captured {

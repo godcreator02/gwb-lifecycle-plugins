@@ -7,7 +7,7 @@ import type { GwbCommands } from '@godcreator/gwb-commands'
 import type {} from '@godcreator/gwb-data'
 import type {} from '@godcreator/gwb-settings'
 import type {} from '@godcreator/gwb-skills'
-import { readHomeDependencies } from './home.js'
+import { readHomeDependencies, readInstalledPackageManifest } from './home.js'
 import { assertId, assertIdUsable, assertPkgName, bareId, installSpec, pickId, type IdOwners } from './ids.js'
 import { readEntries, reconcile, toLabels, type PluginPackageView } from './inventory.js'
 import { describeAddFailure, describePnpm, locatePnpm, runPnpm, runPnpmCapture, type PnpmResult } from './pnpm.js'
@@ -17,9 +17,11 @@ import { ownEntryId, treeOf, type EntryTreeLike } from './tree.js'
 import { BusyGate } from './busy.js'
 import { fiberStateOf, planUpdateAll, type PlannedEntry } from './update-all.js'
 import { remountNow, remountOne, remountSelfLater, type RemountedEntry } from './remount.js'
+import { kernelTestStatusOf } from './tested-kernel.js'
 
 export type { EntrySnapshot, PluginEntryView, PluginPackageView } from './inventory.js'
 export type { RemountedEntry } from './remount.js'
+export type { KernelTestStatus } from './tested-kernel.js'
 
 /**
  * 管理 home 里的**包**和 `cordis.yml` 里的**条目**。包由 pnpm 装进 home，条目由 loader 写进 `cordis.yml`
@@ -180,6 +182,8 @@ class PluginManager {
   private readonly ctx: GwbContext
   /** 这个 home 的目录：pnpm 的 cwd，也是 home 的 package.json 所在的目录 */
   private readonly home: string
+  /** 运行中的内核版本号，`list` 拿它和各包声明的 `gwb.testedKernel` 比对 */
+  private readonly kernelVersion: string
   /** cordis.yml 对应的条目树 */
   private readonly tree: EntryTreeLike
   /**
@@ -211,7 +215,9 @@ class PluginManager {
 
   constructor(ctx: GwbContext) {
     this.ctx = ctx
-    this.home = requireKernel(ctx).dataDir
+    const kernel = requireKernel(ctx)
+    this.home = kernel.dataDir
+    this.kernelVersion = kernel.version
     this.tree = treeOf(ctx)
     this.log = ctx.logger(NAME)
   }
@@ -280,7 +286,7 @@ class PluginManager {
       }
       const busy = '同一时刻只允许一个变更，重入回 { ok:false, error:"BUSY…" }'
 
-      on(LIST_COMMAND, 'home 里装了哪些包、各有哪些条目', '回执按包列：包名、spec、条目（id、entryId、启停、是否 ACTIVE、显示名）。无参数', () => this.list())
+      on(LIST_COMMAND, 'home 里装了哪些包、各有哪些条目', '回执按包列：包名、spec、条目（id、entryId、启停、是否 ACTIVE、显示名）、testedKernel（包的 package.json 里 gwb.testedKernel 声明的内核版本号，没声明时没有这个字段）、kernelUntested（声明的版本与运行中的内核不在同一条版本线上，或没声明、声明的不是合法版本号，就是 true；主版本号为 0 时比前两位，≥1 时只比主版本号）。无参数', () => this.list())
 
       onGuarded(
         INSTALL_COMMAND,
@@ -365,7 +371,13 @@ class PluginManager {
 
   async list(): Promise<PluginPackageView[]> {
     const deps = await readHomeDependencies(this.home)
-    return reconcile(deps, readEntries(this.tree.store), this.labels)
+    const packages = reconcile(deps, readEntries(this.tree.store), this.labels)
+    return Promise.all(
+      packages.map(async (view) => {
+        const manifest = await readInstalledPackageManifest(this.home, view.pkg)
+        return { ...view, ...kernelTestStatusOf(manifest, this.kernelVersion) }
+      }),
+    )
   }
 
   /** 调用方写错（包名、版本范围不合规）直接抛；下面每一种失败都是正常结果，转成回执 */

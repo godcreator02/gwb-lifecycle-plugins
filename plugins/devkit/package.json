@@ -21,7 +21,8 @@
     "template"
   ],
   "gwb": {
-    "title": "开发套件"
+    "title": "开发套件",
+    "testedKernel": "0.2.7"
   },
   "scripts": {
     "build": "tsc -p tsconfig.json",

@@ -49,6 +49,7 @@
     "vitest": "^4.1.10"
   },
   "gwb": {
+    "testedKernel": "0.2.7",
     "provides": {
       "gwbPluginManager": {
         "summary": "只表示插件管理装了，值是 { contract }，上面没有方法",

@@ -35,3 +35,29 @@ async function readJson(file: string): Promise<unknown> {
 export async function readHomeDependencies(homeDir: string): Promise<Record<string, string>> {
   return toDependencies(await readJson(manifestFile(homeDir)))
 }
+
+export function installedPackageManifestFile(homeDir: string, pkg: string): string {
+  return path.join(homeDir, 'node_modules', ...pkg.split('/'), MANIFEST)
+}
+
+/**
+ * 装在 home 里的一个包自己的 `package.json`，原样返回解析结果。
+ *
+ * 文件不存在时是 undefined：条目可以引用没装的包，pnpm 装到一半时目录也可能还没建好，这两种都按
+ * 「包没声明任何东西」报。文件在但读不了、或不是合法 JSON，直接抛错并带上文件路径。
+ */
+export async function readInstalledPackageManifest(homeDir: string, pkg: string): Promise<unknown> {
+  const file = installedPackageManifestFile(homeDir, pkg)
+  let text: string
+  try {
+    text = await fs.promises.readFile(file, 'utf8')
+  } catch (err) {
+    if ((err as NodeJS.ErrnoException).code === 'ENOENT') return undefined
+    throw new Error(`读不了 ${file}：${String(err)}`, { cause: err })
+  }
+  try {
+    return JSON.parse(text) as unknown
+  } catch (err) {
+    throw new Error(`${file} 不是合法的 JSON：${String(err)}`, { cause: err })
+  }
+}

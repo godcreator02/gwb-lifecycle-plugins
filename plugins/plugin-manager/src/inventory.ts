@@ -1,3 +1,4 @@
+import type { KernelTestStatus } from './tested-kernel.js'
 import { isRecord } from './vocab.js'
 
 /**
@@ -7,7 +8,7 @@ import { isRecord } from './vocab.js'
 
 /**
  * cordis 的 `FiberState.ACTIVE`。**那是个 `const enum`**，`isolatedModules` 下 import
- * 不进来，所以照抄字面量（状态名表在 `update-all.ts` 的 `FIBER_STATE`，测试核对它与内核的一致）。
+ * 不进来，所以照抄字面量（状态名表在 `update-all.ts` 的 `FIBER_STATE`，测试核对它与 cordis 的声明一致）。
  */
 const FIBER_ACTIVE = 2
 
@@ -38,8 +39,8 @@ export interface PluginEntryView extends EntrySnapshot {
   label?: string
 }
 
-/** 一个包在 `list` 里的样子 */
-export interface PluginPackageView {
+/** home 的 dependencies 与条目树对照出的一个包 */
+export interface ReconciledPackage {
   pkg: string
   /**
    * home 的 `package.json` 的 dependencies 里它对应的值。
@@ -51,6 +52,9 @@ export interface PluginPackageView {
   /** 它在 cordis.yml 里的条目，按树里的先后。空数组只表示「一条条目都没有」，不推断原因 */
   entries: PluginEntryView[]
 }
+
+/** 一个包在 `list` 里的样子：对照结果加上它在哪个内核版本上测过 */
+export interface PluginPackageView extends ReconciledPackage, KernelTestStatus {}
 
 /** home 的 `package.json` 收窄成一张 包名 → 版本范围 的表。格式不对的部分当作没有，不因此作废整份 */
 export function toDependencies(raw: unknown): Record<string, string> {
@@ -109,7 +113,7 @@ export function reconcile(
   deps: Readonly<Record<string, string>>,
   entries: readonly EntrySnapshot[],
   labels: Readonly<Record<string, string>>,
-): PluginPackageView[] {
+): ReconciledPackage[] {
   const byPkg = new Map<string, PluginEntryView[]>()
   for (const pkg of Object.keys(deps)) byPkg.set(pkg, [])
   for (const entry of entries) {
