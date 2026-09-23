@@ -1,8 +1,9 @@
 import { spawn, type ChildProcessByStdio } from 'node:child_process'
 import fs from 'node:fs'
+import { createRequire } from 'node:module'
 import path from 'node:path'
 import type { Readable } from 'node:stream'
-import { findPnpm, spawnPlan, type LookupResult } from './pnpm-path.js'
+import { pnpmExecutableOf, spawnPlan, type LookupResult } from './pnpm-path.js'
 
 export { describePnpm } from './pnpm-path.js'
 
@@ -40,38 +41,30 @@ export function tailLines(text: string, max = TAIL_LINES): string {
   return lines.slice(-max).join('\n')
 }
 
-/** 查这台机器上的 pnpm。`configured` 是设置项 `pnpm-path` 的值 */
-export function locatePnpm(configured?: string): LookupResult {
-  return findPnpm({
-    configured,
-    pathEnv: process.env['PATH'],
-    delimiter: path.delimiter,
-    sep: path.sep,
-    platform: process.platform,
-    arch: process.arch,
-    stat: (file) => {
-      const found = fs.statSync(file, { throwIfNoEntry: false })
-      if (found === undefined) return undefined
-      return found.isDirectory() ? 'dir' : 'file'
-    },
-    realpath: (file) => {
-      try {
-        return fs.realpathSync.native(file)
-      } catch {
-        return file
-      }
-    },
-    pnpmVersion: (dir) => {
-      try {
-        const manifest: unknown = JSON.parse(fs.readFileSync(path.join(dir, 'package.json'), 'utf8'))
-        if (typeof manifest !== 'object' || manifest === null) return undefined
-        const { name, version } = manifest as { name?: unknown; version?: unknown }
-        return name === 'pnpm' && typeof version === 'string' ? version : undefined
-      } catch {
-        return undefined
-      }
-    },
-  })
+/**
+ * 找自己依赖里的那份 pnpm：从本模块所在的位置按 node 的规则解析 `@pnpm/exe.<平台>-<架构>`。
+ * 装在 home 里时本模块在 `node_modules/.pnpm/<插件管理>/node_modules/…` 下，解析到的是它旁边那份
+ */
+export function locatePnpm(): LookupResult {
+  const { pkg, bin } = pnpmExecutableOf(process.platform, process.arch)
+  let manifestFile: string
+  try {
+    manifestFile = createRequire(import.meta.url).resolve(`${pkg}/package.json`)
+  } catch {
+    return { ok: false, error: `插件管理的依赖里没有 ${pkg}（本机是 ${process.platform}-${process.arch}，插件管理只依赖了 Windows x64 那份）；是 Windows x64 的话，重装一次插件管理` }
+  }
+  const file = path.join(path.dirname(manifestFile), bin)
+  if (!fs.existsSync(file)) return { ok: false, error: `${pkg} 里没有 ${bin}（找的是 ${file}），重装一次插件管理` }
+  let version = '?'
+  try {
+    const manifest: unknown = JSON.parse(fs.readFileSync(manifestFile, 'utf8'))
+    if (typeof manifest === 'object' && manifest !== null && typeof (manifest as { version?: unknown }).version === 'string') {
+      version = (manifest as { version: string }).version
+    }
+  } catch {
+    // 版本号只用于日志，读不出来不影响运行
+  }
+  return { ok: true, file, version }
 }
 
 /** 直接启动 pnpm 可执行文件，stdout / stderr 走管道 */
@@ -83,9 +76,7 @@ function spawnPnpm(file: string, cwd: string, args: readonly string[]): ChildPro
 /**
  * 运行一次 pnpm。**不抛**——启动失败也整理成一份回执，调用方只看 ok。
  *
- * **启动的是查找得到的那个文件，不是 `spawn('pnpm')`**：Windows 上 PATH 里的 `pnpm.ps1` /
- * `pnpm.cmd` 不是可执行映像，spawn 认不出；`shell: true` 能绕过去但会带来引号转义的问题。
- * 环境怎么传见 `spawnPlan`。
+ * 启动的是自己依赖里那份原生可执行文件（见 `locatePnpm`），不开 shell；环境怎么传见 `spawnPlan`。
  *
  * **不设超时**：装一个大包本来就可能几分钟，猜一个时限只会在慢网络上误杀一次正常的安装；
  * 网络层的超时 pnpm 自己有。真卡住了，由用户去结束进程。
@@ -117,7 +108,7 @@ export function runPnpm(opts: { pnpm: string; cwd: string; args: readonly string
 
     proc.stdout?.on('data', (c: Buffer) => push(c))
     proc.stderr?.on('data', (c: Buffer) => push(c))
-    // 启动失败（pnpm 可执行文件不存在之类）：整理成一份 exitCode 为 null 的回执，原因放进 tail
+    // 启动失败：整理成一份 exitCode 为 null 的回执，原因放进 tail
     proc.on('error', (err) => {
       push(Buffer.from(`${String(err)}\n`, 'utf8'))
       done(null)
@@ -138,7 +129,7 @@ export function describeAddFailure(what: string, run: PnpmResult): { error: stri
  * stdout 上，而且退出码 1 的意思是「存在过期包」，是结果不是失败，所以这里不判 ok，
  * 两样都原样返回，由调用方解释。
  *
- * spawn 的做法与 `runPnpm` 相同（直接启动查找得到的可执行文件，理由见那边）。**不合并进 `runPnpm`**：那个成功时不保留输出（装包日志几 MB 没人看），
+ * spawn 的做法与 `runPnpm` 相同。**不合并进 `runPnpm`**：那个成功时不保留输出（装包日志几 MB 没人看），
  * 这个保留全文——两边的取舍相反，合成一个函数两边都得迁就。
  */
 export function runPnpmCapture(opts: { pnpm: string; cwd: string; args: readonly string[] }): Promise<PnpmCaptureResult> {

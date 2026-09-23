@@ -29,6 +29,9 @@
     "//prepublishOnly": "发版前强制构建一次：pnpm check 只跑类型检查、lint 和测试，不构建，少了这条会把上一版的 dist 原样发出去",
     "prepublishOnly": "pnpm build"
   },
+  "dependencies": {
+    "@pnpm/exe.win32-x64": "12.4.2"
+  },
   "devDependencies": {
     "@cordisjs/plugin-include": "1.0.5",
     "@cordisjs/plugin-loader": "1.0.0-rc.6",

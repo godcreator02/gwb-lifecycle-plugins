@@ -52,12 +52,6 @@ const PKG = '@godcreator/gwb-plugin-manager'
 /** 显示名存在本插件自己的数据里：一份「不带前缀的 id → label」的文档 */
 const LABELS_DOC = 'labels'
 
-/**
- * pnpm 的路径。**按 home 设置**——设置没有机器级，每个 home 保存自己的全部配置；换个 home 要重填一次，
- * 或者把旧 home 的 settings.json 里那一行复制过去。
- */
-const PNPM_PATH_KEY = 'pnpm-path'
-
 export const LIST_COMMAND = 'plugin-manager.list'
 export const INSTALL_COMMAND = 'plugin-manager.install'
 export const ADD_ENTRY_COMMAND = 'plugin-manager.add-entry'
@@ -164,11 +158,6 @@ interface LabelStore {
   writeDoc(doc: string, value: unknown): Promise<void>
 }
 
-/** 读设置的接口。只保留用得到的一个方法 */
-interface SettingsSlot {
-  get(key: string): unknown
-}
-
 /**
  * 归属记录：数据插件与设置插件各有一份，记录每个 id 属于哪个包。只保留用得到的两个方法——
  * `ctx.gwbData` 与 `ctx.gwbSettings` 都满足它。分配 id 时用它避开别的包留在磁盘上的数据
@@ -201,8 +190,6 @@ class PluginManager {
 
   /** 装了数据插件才有。没装时只显示 id，`set-label` 返回「没装数据插件」 */
   private labelStore: LabelStore | undefined
-  /** 装了设置插件才有。没装时不读设置，pnpm 只靠自动查找 */
-  private settings: SettingsSlot | undefined
   /** 数据插件、设置插件各自的归属记录，装了才有 */
   private dataBook: OwnerBook | undefined
   private settingsBook: OwnerBook | undefined
@@ -264,23 +251,12 @@ class PluginManager {
     })
   }
 
-  /** 设置插件也是可选的。声明 pnpm 路径这一项设置，并保存读取设置的接口 */
+  /** 设置插件也是可选的。只用它的归属记录：分配 id 时避开别的包的设置分区，转移归属时一起改 */
   private wireSettings(): void {
     this.ctx.inject(['gwbSettings'], (ctx) => {
-      this.settings = ctx.gwbSettings
       this.settingsBook = ctx.gwbSettings
-      // 先注册清理：分区属于别的包时 define 会抛，抛了这两个引用也要清掉
       ctx.effect(() => () => {
-        this.settings = undefined
         this.settingsBook = undefined
-      })
-      // define 自己会注册到调用方的 effect 上，不需要再包一层
-      ctx.gwbSettings.define({
-        key: PNPM_PATH_KEY,
-        title: 'pnpm 路径',
-        type: 'string',
-        description:
-          '安装包时用哪个 pnpm（只支持 pnpm 12 及以上的原生可执行文件）。不填就自动查找（PATH 上的 pnpm.exe，或 npm 全局安装的目录布局）。手动填写时接受这几种：pnpm 可执行文件（npm 全局装的在 node_modules\\pnpm\\pnpm.exe）、pnpm.cmd 垫片或它所在的目录、pnpm 包目录。',
       })
     })
   }
@@ -396,7 +372,7 @@ class PluginManager {
   async install(pkg: string, spec?: string): Promise<InstallResult> {
     const target = installSpec(pkg, spec)
 
-    const found = locatePnpm(this.pnpmPath())
+    const found = locatePnpm()
     if (!found.ok) {
       this.log.warn(`装不了 ${target}：${found.error}`)
       return { ok: false, pkg, error: found.error }
@@ -431,7 +407,7 @@ class PluginManager {
    * 与安装共用同一个串行队列——它只读不写，排队等待无妨，省得另外处理并发。
    */
   async outdated(): Promise<OutdatedReceipt> {
-    const found = locatePnpm(this.pnpmPath())
+    const found = locatePnpm()
     if (!found.ok) return { ok: false, error: found.error }
 
     const run = await this.queue(() =>
@@ -466,7 +442,7 @@ class PluginManager {
       return { ok: true, updated: [], selfDeferred: false, note: ['全都最新', ...notes].join('；') }
     }
 
-    const found = locatePnpm(this.pnpmPath())
+    const found = locatePnpm()
     if (!found.ok) {
       this.log.warn(`升不了：${found.error}`)
       return bare(found.error)
@@ -551,7 +527,7 @@ class PluginManager {
     for (const id of ids) this.tree.remove(id)
 
     // 第二步：卸载包。排进现有的串行队列，与安装、升级共用
-    const found = locatePnpm(this.pnpmPath())
+    const found = locatePnpm()
     if (!found.ok) {
       this.log.warn(`卸不了 ${pkg}：条目已删除（${ids.length} 条），${found.error}`)
       return { ok: false, pkg, removedEntries: ids, error: found.error }
@@ -647,12 +623,6 @@ class PluginManager {
     this.labels = next
     this.log.info(trimmed === '' ? `条目 ${id} 的显示名已清除` : `条目 ${id} 的显示名改成「${trimmed}」`)
     return { ok: true }
-  }
-
-  /** 设置里填写的 pnpm 路径。设置插件没装时为 undefined，改用自动查找 */
-  private pnpmPath(): string | undefined {
-    const value = this.settings?.get(PNPM_PATH_KEY)
-    return typeof value === 'string' && value !== '' ? value : undefined
   }
 
   /**
