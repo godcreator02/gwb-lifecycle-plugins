@@ -387,7 +387,7 @@ export default class GwbPluginManager extends Service implements GwbPluginManage
     this.wireSettings()
     this.wireCommands()
     this.wireSkills()
-    this.info(`件管理就绪（ctx.gwbPluginManager），自己那条条目是 ${ownEntryId(this.own)}，看表走 ${LIST_COMMAND}`)
+    this.info(`插件管理已就绪（ctx.gwbPluginManager），自己那条条目是 ${ownEntryId(this.own)}，查看列表调用 ${LIST_COMMAND}`)
   }
 
   /** 说明书用局部注入：没有 skills 插件时本插件照常加载。skills/ 目录必须列进 package.json 的 files */
@@ -434,7 +434,7 @@ export default class GwbPluginManager extends Service implements GwbPluginManage
         title: 'pnpm 路径',
         type: 'string',
         description:
-          '装机用哪份 pnpm（只支持 pnpm 12 起的原生可执行）。不填就自动找（PATH 上的 pnpm.exe，或 npm 全局装出来的布局）。要手填时认这几种：pnpm 可执行文件（npm 全局装的在 node_modules\\pnpm\\pnpm.exe）、pnpm.cmd 垫片或它所在的目录、pnpm 包目录。',
+          '安装包时用哪个 pnpm（只支持 pnpm 12 及以上的原生可执行文件）。不填就自动查找（PATH 上的 pnpm.exe，或 npm 全局安装的目录布局）。手动填写时接受这几种：pnpm 可执行文件（npm 全局装的在 node_modules\\pnpm\\pnpm.exe）、pnpm.cmd 垫片或它所在的目录、pnpm 包目录。',
       })
     })
   }
@@ -457,9 +457,9 @@ export default class GwbPluginManager extends Service implements GwbPluginManage
         ctx.effect(() => cli.register({ name, description, usage, plugin: PKG }, (args) => this.gate.run(() => handler(args) as Promise<{ ok: boolean }> | { ok: boolean })))
       }
 
-      on(LIST_COMMAND, 'home 里装了哪些包、各挂了哪些条目', '回执按包列：包名、spec、条目（id、entryId、启停、是否 ACTIVE）。无参数', () => this.list())
+      on(LIST_COMMAND, 'home 里装了哪些包、各有哪些条目', '回执按包列：包名、spec、条目（id、entryId、启停、是否 ACTIVE）。无参数', () => this.list())
 
-      on(SHARED_COMMAND, '哪些包是共享包、各自提供哪些裸名', '清单里有 gwb.shared 的就是。无参数', async () => ({
+      on(SHARED_COMMAND, '哪些包是共享包、各自提供哪些可在页面上直接 import 的包名', '清单里声明了 gwb.shared 的就是。无参数', async () => ({
         ok: true,
         data: { packages: await this.shared() },
       }))
@@ -467,18 +467,18 @@ export default class GwbPluginManager extends Service implements GwbPluginManage
       onGuarded(
         INSTALL_COMMAND,
         '往 home 装一个包并自动加条目',
-        'pnpm add 一个包进 home，把它还没在 home 的 peer 也装成直接依赖（cordis 与本生态的件跳过；已在的版本不动；装不上不影响件本身），再自动加一条条目——**装的是库就不加**（清单 keywords 自报 gwb、不自报 gwb-plugin 的那种：lib / 共享包 / 词汇表包没有 apply，条目落下去也挂不上），回执里 `note` 说清、没有 `entryId`。回执 { ok, pkg, entryId?, peers?: [{ pkg, range, action, note? }], note?, peerWarnings?: [{ peer, installed?, wanted, by }] }，action 是 installed / present / skipped / failed。peer 对不上不拦、照装：装完 home 里 peer 对不上的每一处（整棵树）进 peerWarnings——installed 是 home 里那一版，wanted 是 by 那个包要的范围；没有就没有这一格。参数 { pkg, spec? }（spec 是版本或 tag）；同一时刻只跑一趟变更，重入回 { ok:false, error:"BUSY…" }',
+        'pnpm add 一个包进 home，把它还没在 home 的 peer 也装成直接依赖（跳过 cordis 与 gwb 插件；已在 home 里的版本不动；peer 装不上不影响插件本身），再自动加一条条目——**装的是库就不加**（清单 keywords 写了 gwb、没写 gwb-plugin 的那种：库、共享包、词汇表包没有 apply，加了条目也加载不起来），回执里 `note` 会说明、不带 `entryId`。回执 { ok, pkg, entryId?, peers?: [{ pkg, range, action, note? }], note?, peerWarnings?: [{ peer, installed?, wanted, by }] }，action 是 installed / present / skipped / failed。peer 版本对不上不阻止安装：装完后 home 里 peer 版本对不上的每一处（整棵依赖树）写进 peerWarnings——installed 是 home 里装的版本，wanted 是 by 那个包要求的范围；全部对得上就不带这个字段。参数 { pkg, spec? }（spec 是版本或 tag）；同一时刻只允许一个变更，重入回 { ok:false, error:"BUSY…" }',
         async (args) => {
           const raw = asRecord(args)
           const result = await this.install(text(raw, 'pkg'), optional(raw, 'spec'))
           if (result.ok) return { ok: true, data: result }
           // pnpm 输出的最后几行既拼进 error（给人看），也原样留在 data 里（界面要单独排版时用）
           const tail = result.tail === undefined ? '' : `\n${result.tail}`
-          return { ok: false, error: `${result.error ?? '没说原因'}${tail}`, data: result }
+          return { ok: false, error: `${result.error ?? '没有给出原因'}${tail}`, data: result }
         },
       )
 
-      on(ADD_ENTRY_COMMAND, '给已装的包再加一条条目', '参数 { pkg, id?, config? }。id 不给由这边编（盘上有本包留下的旧 id 优先接回）；给了的 id 树上被占、或盘上的数据与设置归别的包，当场拒', async (args) => {
+      on(ADD_ENTRY_COMMAND, '给已装的包再加一条条目', '参数 { pkg, id?, config? }。不给 id 就自动生成（磁盘上有本包留下的旧 id 时优先沿用）；给的 id 在条目树上已被占用、或磁盘上的数据与设置属于别的包，直接拒绝', async (args) => {
         const raw = asRecord(args)
         const entryId = await this.addEntry(text(raw, 'pkg'), optional(raw, 'id'), raw['config'])
         return { ok: true, data: { entryId } }
@@ -486,8 +486,8 @@ export default class GwbPluginManager extends Service implements GwbPluginManage
 
       on(
         TRANSFER_OWNER_COMMAND,
-        '把一个 id 的数据与设置过户给另一个包',
-        '同一个件改了包名、要接着用旧数据与设置时走它；数据目录与设置分区一起换章。参数 { id, pkg }：id 是条目 id（裸 id 或完整 entryId，树上不必有这条），pkg 是新户主的包名。回执 { id, pkg, data, settings }，data / settings 是 false 说明那个件没装、那一半没动',
+        '把一个 id 的数据与设置的归属转给另一个包',
+        '同一个插件改了包名、要继续用旧数据与设置时调用它；数据目录与设置分区的归属一起改。参数 { id, pkg }：id 是条目 id（不带前缀的 id 或完整 entryId，条目树上不必有这条），pkg 是新的所属包名。回执 { id, pkg, data, settings }，data / settings 是 false 说明对应的插件（gwb-data / gwb-settings）没装、那一半没改',
         async (args) => {
           const raw = asRecord(args)
           return { ok: true, data: await this.transferOwner(text(raw, 'id'), text(raw, 'pkg')) }
@@ -511,16 +511,16 @@ export default class GwbPluginManager extends Service implements GwbPluginManage
 
       onGuarded(
         REMOUNT_COMMAND,
-        '重挂一条条目：停用→等拆完→启用→等挂上，一次做完',
-        '参数 { entryId }（完整 entryId 或裸 id）。回执 { id, action, state }：action 是 remounted（这条命令里做完，state 是重挂后的 fiber 状态，ACTIVE 才算挂上）或 deferred（目标是本件自己：回执先发出、下一个宏任务才重挂，state 是动手前的状态，之后用 plugin-manager.list 核对 active）；动条目树时抛了回 ok: false，data 里 action 是 failed。本来停用的条目重挂后是启用的；重挂命令总线也在这条命令里做完；同一时刻只跑一趟变更，重入回 { ok:false, error:"BUSY…" }',
+        '重新加载一条条目：停用→等卸载完→启用→等加载完，一条命令做完',
+        '参数 { entryId }（完整 entryId 或不带前缀的 id）。回执 { id, action, state }：action 是 remounted（在这条命令里做完，state 是重新加载后的 fiber 状态，ACTIVE 才算加载成功）或 deferred（目标是插件管理自己：先返回回执，下一个宏任务才重新加载，state 是动手前的状态，之后用 plugin-manager.list 核对 active）；操作条目树时抛错则回 ok: false，data 里 action 是 failed。原本停用的条目重新加载后是启用的；重新加载命令插件（gwb-commands）也在这条命令里做完；同一时刻只允许一个变更，重入回 { ok:false, error:"BUSY…" }',
         async (args) => {
           const result = await this.remount(text(asRecord(args), 'entryId'))
-          if (result.action === 'failed') return { ok: false, error: `条目 ${result.id} 重挂没成：${result.state}`, data: result }
+          if (result.action === 'failed') return { ok: false, error: `条目 ${result.id} 重新加载失败：${result.state}`, data: result }
           return { ok: true, data: result }
         },
       )
 
-      on(SET_LABEL_COMMAND, '改一条条目的显示名', '参数 { entryId, label }（label 给空串就是抹掉）', async (args) => {
+      on(SET_LABEL_COMMAND, '改一条条目的显示名', '参数 { entryId, label }（label 给空字符串就是清除）', async (args) => {
         const raw = asRecord(args)
         return this.setLabel(text(raw, 'entryId'), label(raw))
       })
@@ -528,33 +528,33 @@ export default class GwbPluginManager extends Service implements GwbPluginManage
       on(OUTDATED_COMMAND, '查已装的包哪些有新版本', 'pnpm outdated，不联网到公网。无参数', async () => {
         const result = await this.outdated()
         if (result.ok) return { ok: true, data: result }
-        return { ok: false, error: result.error ?? '没说原因' }
+        return { ok: false, error: result.error ?? '没有给出原因' }
       })
 
-      onGuarded(UPDATE_COMMAND, '把一个已装的包升到最新', '不建条目、不重挂；跑着的件重启内核后才换新——要热生效走 plugin-manager.update-all。回执 { ok, pkg, peerWarnings?, note? }：peer 对不上不拦，升完 home 里对不上的每一处进 peerWarnings（形状同 install）。参数 { pkg }；同一时刻只跑一趟变更，重入回 { ok:false, error:"BUSY…" }', async (args) => {
+      onGuarded(UPDATE_COMMAND, '把一个已装的包升到最新', '不建条目、不重新加载；正在运行的插件要重启内核后才换成新版本——要不重启就生效，调用 plugin-manager.update-all。回执 { ok, pkg, peerWarnings?, note? }：peer 版本对不上不阻止升级，升完后 home 里对不上的每一处写进 peerWarnings（形状同 install）。参数 { pkg }；同一时刻只允许一个变更，重入回 { ok:false, error:"BUSY…" }', async (args) => {
         const result = await this.update(text(asRecord(args), 'pkg'))
         if (result.ok) return { ok: true, data: result }
         const tail = result.tail === undefined ? '' : `\n${result.tail}`
-        return { ok: false, error: `${result.error ?? '没说原因'}${tail}`, data: result }
+        return { ok: false, error: `${result.error ?? '没有给出原因'}${tail}`, data: result }
       })
 
       onGuarded(
         UPDATE_ALL_COMMAND,
-        '一键热升全部过期包，不重启',
-        '一趟 pnpm add 把全部过期包升到 outdated 回的精确版本，再逐条停用→启用重挂新版本（本来就停用的跳过；本件自己排最后、回执发出后才重挂），最后 shell.reload 整页重载。回执 { updated: [{ pkg, from, to, entries: [{ id, action, state }] }], selfDeferred, reload, note?, peerWarnings? }。peer 对不上不拦、照升：升完 home 里对不上的每一处进 peerWarnings（形状同 install）——多半是有插件没跟上上游的破坏版，该去追那个下游。参数 { only?: string[] }（限定包名；不给或不传参数就全升）；同一时刻只跑一趟变更，重入回 { ok:false, error:"BUSY…" }',
+        '一键热升级全部过期包，不重启',
+        '一次 pnpm add 把全部过期包升到 outdated 返回的精确版本，再逐条停用→启用，重新加载成新版本（原本停用的跳过；插件管理自己排最后、回执发出后才重新加载），最后 shell.reload 整页重新加载。回执 { updated: [{ pkg, from, to, entries: [{ id, action, state }] }], selfDeferred, reload, note?, peerWarnings? }。peer 版本对不上不阻止升级：升完后 home 里对不上的每一处写进 peerWarnings（形状同 install）——多半是某个插件还没适配上游的破坏性版本，该去更新那个插件。参数 { only?: string[] }（限定包名；不给或不传参数就全升）；同一时刻只允许一个变更，重入回 { ok:false, error:"BUSY…" }',
         async (args) => {
           const result = await this.updateAll(onlyList(args))
           if (result.ok) return { ok: true, data: result }
           const tail = result.tail === undefined ? '' : `\n${result.tail}`
-          return { ok: false, error: `${result.error ?? '没说原因'}${tail}`, data: result }
+          return { ok: false, error: `${result.error ?? '没有给出原因'}${tail}`, data: result }
         },
       )
 
-      onGuarded(UNINSTALL_COMMAND, '卸载一个包：条目与包一起拿掉', '设置与数据留盘（只删一条条目走 plugin-manager.remove-entry）。参数 { pkg }；同一时刻只跑一趟变更，重入回 { ok:false, error:"BUSY…" }', async (args) => {
+      onGuarded(UNINSTALL_COMMAND, '卸载一个包：删除它的全部条目，再卸载包', '设置与数据留在磁盘上（只删一条条目调用 plugin-manager.remove-entry）。参数 { pkg }；同一时刻只允许一个变更，重入回 { ok:false, error:"BUSY…" }', async (args) => {
         const result = await this.uninstall(text(asRecord(args), 'pkg'))
         if (result.ok) return { ok: true, data: result }
         const tail = result.tail === undefined ? '' : `\n${result.tail}`
-        return { ok: false, error: `${result.error ?? '没说原因'}${tail}`, data: result }
+        return { ok: false, error: `${result.error ?? '没有给出原因'}${tail}`, data: result }
       })
     })
   }
@@ -605,7 +605,7 @@ export default class GwbPluginManager extends Service implements GwbPluginManage
     // 判据是「keywords 里有 gwb 却没有 gwb-plugin」，只跳过明确是库的包；没写 keywords 的第三方插件照常建条目
     const manifest = await readInstalledManifest(this.home, pkg).catch(() => undefined)
     if (isLibraryManifest(manifest)) {
-      const note = `${pkg} 是库不是件（清单 keywords 里只有 gwb、没有 gwb-plugin），没建条目——它没有 apply，落进 cordis.yml 也挂不上。要用它的件自己 inject 它提供的面`
+      const note = `${pkg} 是库不是插件（清单 keywords 里只有 gwb、没有 gwb-plugin），没建条目——它没有 apply，加进 cordis.yml 也加载不起来。用它的插件自己 import 它`
       this.info(`${target} 装上了（库，没建条目）`)
       return { ok: true, pkg, note, ...peers }
     }
@@ -619,7 +619,7 @@ export default class GwbPluginManager extends Service implements GwbPluginManage
     } catch (err: unknown) {
       // **不回滚删包**：留下的包会出现在 list() 的「没有条目」那一组里，用户看得到；
       // 删包比留着危险，而且删除时未必只删掉这一个
-      const error = `${target} 装上了，但条目加不进 cordis.yml：${String(err)}。包留在 home 里，看表走 ${LIST_COMMAND}`
+      const error = `${target} 装上了，但条目加不进 cordis.yml：${String(err)}。包留在 home 里，查看列表调用 ${LIST_COMMAND}`
       this.warn(error)
       return { ok: false, pkg, error, ...peers }
     }
@@ -699,7 +699,7 @@ export default class GwbPluginManager extends Service implements GwbPluginManage
     if (failed.length === 0) return { peers }
     return {
       peers,
-      note: `${pkg} 装好了，但这几条 peer 没装上：${failed.join('、')}。件跑起来现查 <home>/node_modules/<包名> 会扑空——自己在 home 里 pnpm add 一趟，或者先看它在不在源上`,
+      note: `${pkg} 装好了，但这几条 peer 没装上：${failed.join('、')}。插件运行时到 <home>/node_modules/<包名> 会找不到它——自己在 home 里运行一次 pnpm add，或者先确认它在包源上`,
     }
   }
 
@@ -719,13 +719,13 @@ export default class GwbPluginManager extends Service implements GwbPluginManage
     // pnpm 给人看的说明都在 stderr 上，两种失败情况都把它带上
     const say = (message: string): string =>
       run.stderrTail === '' ? message : `${message}\n${run.stderrTail}`
-    if (run.exitCode === null) return { ok: false, error: say(`pnpm 起不来（退出码 ${String(run.exitCode)}）`) }
+    if (run.exitCode === null) return { ok: false, error: say(`pnpm 启动失败（退出码 ${String(run.exitCode)}）`) }
     if (run.exitCode !== 0 && run.exitCode !== 1) {
-      return { ok: false, error: say(`pnpm outdated 没成（退出码 ${String(run.exitCode)}）`) }
+      return { ok: false, error: say(`pnpm outdated 失败（退出码 ${String(run.exitCode)}）`) }
     }
     const updates = parseOutdated(run.stdout)
     if (updates === undefined) {
-      return { ok: false, error: say('pnpm outdated 的输出认不出来（要的是一份 JSON）——pnpm 大版本间形状可能变了') }
+      return { ok: false, error: say('pnpm outdated 的输出解析不了（需要的是 JSON）——pnpm 升大版本时输出格式可能变了') }
     }
     return { ok: true, updates }
   }
@@ -735,7 +735,7 @@ export default class GwbPluginManager extends Service implements GwbPluginManage
     assertPkgName(pkg)
     const deps = await readHomeDependencies(this.home)
     if (deps[pkg] === undefined) {
-      throw new Error(`home 里没装 ${pkg}，谈不上更新。装走 ${INSTALL_COMMAND}。`)
+      throw new Error(`home 里没装 ${pkg}，无法更新。安装请调用 ${INSTALL_COMMAND}。`)
     }
 
     const found = locatePnpm(this.pnpmPath())
@@ -753,7 +753,7 @@ export default class GwbPluginManager extends Service implements GwbPluginManage
     }
 
     // 条目不动（引用的是包名，包换版本后条目照样有效）。正在运行的 fiber 仍持有旧代码，重启后才换成新的
-    this.info(`${pkg} 升到最新了。跑着的件还持旧代码，重启内核后才换成新的（要热生效走 ${UPDATE_ALL_COMMAND}）`)
+    this.info(`${pkg} 升到最新了。正在运行的插件还是旧代码，重启内核后才换成新版本（要不重启就生效，调用 ${UPDATE_ALL_COMMAND}）`)
     return { ok: true, pkg, ...(await this.peerWarningsOf(found.file)) }
   }
 
@@ -779,7 +779,7 @@ export default class GwbPluginManager extends Service implements GwbPluginManage
     }
     // 一次装完：pnpm 读-改-写 home 的 package.json，逐个包启动进程与并发 install 一样会互相覆盖
     const specs = plan.pnpmArgs.slice(1)
-    this.info(`用 ${describePnpm(found)} 一趟装 ${specs.join(' ')}`)
+    this.info(`用 ${describePnpm(found)} 一次安装 ${specs.join(' ')}`)
     const run = await this.applyToHome(found.file, { add: specs })
     if (!run.ok) {
       const failure = describeAddFailure(`pnpm ${plan.pnpmArgs.join(' ')}`, run)
@@ -814,7 +814,7 @@ export default class GwbPluginManager extends Service implements GwbPluginManage
     if (deferred === undefined) {
       const reload = await reloadVia(cli)
       if (reload.note !== undefined) notes.push(reload.note)
-      this.info(`一键热升完成：${summary}${reload.reload === 'done' ? '；界面已整页重载' : ''}`)
+      this.info(`一键热升级完成：${summary}${reload.reload === 'done' ? '；界面已整页重载' : ''}`)
       return { ok: true, updated, selfDeferred: false, reload: reload.reload, ...noteOf(notes), ...warned }
     }
 
@@ -832,7 +832,7 @@ export default class GwbPluginManager extends Service implements GwbPluginManage
     })
     const canReload = hasCommand(cli, SHELL_RELOAD_COMMAND)
     if (!canReload) notes.push(`命令表里没有 ${SHELL_RELOAD_COMMAND}，界面要手动刷新`)
-    this.info(`一键热升：${summary}；本件自己（${id}）回执之后重挂${canReload ? '，随后整页重载' : ''}`)
+    this.info(`一键热升级：${summary}；插件管理自己（${id}）在回执之后重新加载${canReload ? '，随后整页重载' : ''}`)
     return { ok: true, updated, selfDeferred: true, reload: canReload ? 'deferred' : 'unavailable', ...noteOf(notes), ...warned }
   }
 
@@ -852,7 +852,7 @@ export default class GwbPluginManager extends Service implements GwbPluginManage
     assertPkgName(pkg)
     const deps = await readHomeDependencies(this.home)
     if (deps[pkg] === undefined) {
-      throw new Error(`home 里没装 ${pkg}，谈不上卸载。只删条目走 ${REMOVE_ENTRY_COMMAND}。`)
+      throw new Error(`home 里没装 ${pkg}，无法卸载。只删条目请调用 ${REMOVE_ENTRY_COMMAND}。`)
     }
 
     // 第一步：删除条目。逐条 tree.remove——它一次做两件事（写回 yml、立即卸载 fiber），
@@ -863,20 +863,20 @@ export default class GwbPluginManager extends Service implements GwbPluginManage
     // 第二步：卸载包。排进现有的串行队列，与 install/update 共用
     const found = locatePnpm(this.pnpmPath())
     if (!found.ok) {
-      this.warn(`卸不了 ${pkg}：条目已摘（${ids.length} 条），${found.error}`)
+      this.warn(`卸不了 ${pkg}：条目已删除（${ids.length} 条），${found.error}`)
       return { ok: false, pkg, removedEntries: ids, error: found.error }
     }
     const run = await this.applyToHome(found.file, { remove: [pkg] })
     if (!run.ok) {
       // 不回滚：条目已删是可以接受的结果，包会出现在「已装、没有条目」那一组里，重试加条目即可
-      const error = `pnpm remove ${pkg} 没成（退出码 ${String(run.exitCode)}）。条目已摘 ${ids.length} 条，包还在 home 里`
+      const error = `pnpm remove ${pkg} 失败（退出码 ${String(run.exitCode)}）。条目已删除 ${ids.length} 条，包还在 home 里`
       this.warn(`${error}\n${run.tail ?? ''}`)
       return run.tail === undefined
         ? { ok: false, pkg, removedEntries: ids, error }
         : { ok: false, pkg, removedEntries: ids, error, tail: run.tail }
     }
 
-    this.info(`${pkg} 卸载了：${ids.length} 条条目摘掉，包从 home 移除。设置与数据留在盘上`)
+    this.info(`${pkg} 卸载了：删除 ${ids.length} 条条目，包已从 home 移除。设置与数据留在磁盘上`)
     return { ok: true, pkg, removedEntries: ids }
   }
 
@@ -884,7 +884,7 @@ export default class GwbPluginManager extends Service implements GwbPluginManage
     assertPkgName(pkg)
     const deps = await readHomeDependencies(this.home)
     if (deps[pkg] === undefined) {
-      throw new Error(`home 里没装 ${pkg}，加不了条目。先走 ${INSTALL_COMMAND}，或者自己去 home 里 pnpm add。`)
+      throw new Error(`home 里没装 ${pkg}，加不了条目。先调用 ${INSTALL_COMMAND}，或者自己去 home 里 pnpm add。`)
     }
     const entryId = await this.createEntry(pkg, id, config)
     // install 有自己的「装上了」日志，这条日志只针对单独加条目的情况
@@ -900,7 +900,7 @@ export default class GwbPluginManager extends Service implements GwbPluginManage
     const settings = this.settingsBook
     if (data !== undefined) await data.transferOwner(bare, pkg)
     if (settings !== undefined) await settings.transferOwner(bare, pkg)
-    this.info(`${bare} 的数据与设置过户给 ${pkg}`)
+    this.info(`${bare} 的数据与设置的归属已转给 ${pkg}`)
     return { id: bare, pkg, data: data !== undefined, settings: settings !== undefined }
   }
 
@@ -919,7 +919,7 @@ export default class GwbPluginManager extends Service implements GwbPluginManage
     this.tree.remove(id)
     // 显示名保留不清除：id 是确定性的，同一个包重新安装后还是这个 id，那时旧名字能继续使用——
     // 与设置和数据的规则相同（删条目不删它的设置与数据）
-    this.info(`条目 ${id} 已删（只删这一条，包没动；要连包一起拿掉走 ${UNINSTALL_COMMAND}）`)
+    this.info(`条目 ${id} 已删（只删这一条，包没动；要连包一起卸载，调用 ${UNINSTALL_COMMAND}）`)
   }
 
   async enable(entryId: string): Promise<void> {
@@ -941,7 +941,7 @@ export default class GwbPluginManager extends Service implements GwbPluginManage
     if (store === undefined) {
       return {
         ok: false,
-        error: '没装数据件（@godcreator/gwb-data），显示名存不下来。装上它、在 cordis.yml 里加一条条目，再改一次。',
+        error: '没装数据插件（@godcreator/gwb-data），显示名存不下来。装上它、在 cordis.yml 里加一条条目，再改一次。',
       }
     }
     // 等第一次读取完成再改，不然这次写入会被读磁盘的结果覆盖
@@ -952,7 +952,7 @@ export default class GwbPluginManager extends Service implements GwbPluginManage
     else next[id] = trimmed
     await store.writeDoc(LABELS_DOC, next)
     this.labels = next
-    this.info(trimmed === '' ? `条目 ${id} 的显示名已抹掉` : `条目 ${id} 的显示名改成「${trimmed}」`)
+    this.info(trimmed === '' ? `条目 ${id} 的显示名已清除` : `条目 ${id} 的显示名改成「${trimmed}」`)
     return { ok: true }
   }
 
@@ -971,7 +971,7 @@ export default class GwbPluginManager extends Service implements GwbPluginManage
   private locate(entryId: string): string {
     const id = bareId(entryId)
     if (this.tree.store[id] === undefined) {
-      throw new Error(`cordis.yml 里没有 id 是 ${JSON.stringify(id)} 的条目。看表走 ${LIST_COMMAND}。`)
+      throw new Error(`cordis.yml 里没有 id 是 ${JSON.stringify(id)} 的条目。查看列表调用 ${LIST_COMMAND}。`)
     }
     return id
   }
@@ -1013,7 +1013,7 @@ export default class GwbPluginManager extends Service implements GwbPluginManage
      * 是否加载成功是另一回事，看 `list()` 的 `active`；加载失败的原因在日志里。
      */
     void this.tree.create(options, null).catch((err: unknown) => {
-      this.warn(`条目 ${final}（${pkg}）加进 cordis.yml 了，但没挂起来：${String(err)}`)
+      this.warn(`条目 ${final}（${pkg}）加进 cordis.yml 了，但没加载起来：${String(err)}`)
     })
     return this.fullId(final)
   }
@@ -1059,7 +1059,7 @@ async function reloadVia(cli: GwbCommands | undefined): Promise<{ reload: 'done'
   }
   const result = await cli.run(SHELL_RELOAD_COMMAND)
   if (result.ok) return { reload: 'done' }
-  return { reload: 'unavailable', note: `${SHELL_RELOAD_COMMAND} 没成（${result.error ?? '没说原因'}），界面要手动刷新` }
+  return { reload: 'unavailable', note: `${SHELL_RELOAD_COMMAND} 失败（${result.error ?? '没有给出原因'}），界面要手动刷新` }
 }
 
 /** 回执里的 `note` 字段：没有要说明的就不带这个字段 */
@@ -1100,7 +1100,7 @@ function optional(raw: Record<string, unknown>, key: string): string | undefined
 /** 显示名单独处理：**空串是合法的**，表示「清除这个名字」 */
 function label(raw: Record<string, unknown>): string {
   const value = raw['label']
-  if (typeof value !== 'string') throw new Error('label 要是个字符串（空串就是抹掉）')
+  if (typeof value !== 'string') throw new Error('label 要是个字符串（空字符串就是清除）')
   return value
 }
 

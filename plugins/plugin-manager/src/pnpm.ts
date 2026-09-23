@@ -132,7 +132,7 @@ export function addToHome(opts: { pnpm: string; home: string; specs: readonly st
 
 /** 一次 add 失败 → 回执里的一句 `error` 与 `tail`。`what` 是给人看的那次操作的描述（`pnpm add a@1 b@2`） */
 export function describeAddFailure(what: string, run: PnpmResult): { error: string; tail?: string } {
-  const error = `${what} 没成（退出码 ${String(run.exitCode)}）`
+  const error = `${what} 失败（退出码 ${String(run.exitCode)}）`
   return run.tail === undefined ? { error } : { error, tail: run.tail }
 }
 
@@ -148,7 +148,7 @@ export async function checkPeers(opts: { pnpm: string; home: string }): Promise<
   const warnings = run.exitCode === 0 || run.exitCode === 1 ? parsePeerCheck(run.stdout) : undefined
   if (warnings !== undefined) return { warnings }
   const why = run.stderrTail === '' ? '' : `：${run.stderrTail}`
-  return { error: `pnpm peers check 没读出来（退出码 ${String(run.exitCode)}），peer 对没对上不知道${why}` }
+  return { error: `pnpm peers check 的结果读不出来（退出码 ${String(run.exitCode)}），peer 对没对上不知道${why}` }
 }
 
 /**

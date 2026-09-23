@@ -83,7 +83,7 @@ export function uniqueId(base: string, taken: ReadonlySet<string>): string {
     const candidate = `${base}-${n}`
     if (!taken.has(candidate)) return candidate
   }
-  throw new Error(`给 ${JSON.stringify(base)} 编不出一个没被占的 id。`)
+  throw new Error(`以 ${JSON.stringify(base)} 为基础生成不出一个没被占用的 id。`)
 }
 
 /**
@@ -129,11 +129,11 @@ export function pickId(pkg: string, taken: ReadonlySet<string>, owners: IdOwners
 /** 手动指定的 id 能否给 `pkg` 用：条目树上已被占用、磁盘上归属于别的包，都立即抛错 */
 export function assertIdUsable(id: string, pkg: string, taken: ReadonlySet<string>, owners: IdOwners): void {
   assertId(id)
-  if (taken.has(id)) throw new Error(`条目 id ${JSON.stringify(id)} 已经被占了。换一个，或者不给由这边编一个。`)
+  if (taken.has(id)) throw new Error(`条目 id ${JSON.stringify(id)} 已经被占用了。换一个，或者不给 id 由插件管理自动生成一个。`)
   const other = ownedByOther(owners, id, pkg)
   if (other !== undefined) {
     throw new Error(
-      `条目 id ${JSON.stringify(id)} 的数据或设置归 ${other}，给 ${pkg} 用会读到别人的东西。换一个 id；确认是同一个件改了包名，先走 plugin-manager.transfer-owner 过户。`,
+      `条目 id ${JSON.stringify(id)} 的数据或设置归 ${other}，给 ${pkg} 用会读到别人的东西。换一个 id；确认是同一个插件改了包名，先调用 plugin-manager.transfer-owner 把归属转过去。`,
     )
   }
 }

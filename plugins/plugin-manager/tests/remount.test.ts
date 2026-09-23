@@ -108,7 +108,7 @@ describe('remountOne：目标是本件自己', () => {
 
     timers.flush()
     await expect.poll(() => tree.calls).toEqual([`${OWN} off`, `${OWN} on`])
-    await expect.poll(() => log.lines.some((line) => line.includes('重挂了：ACTIVE'))).toBe(true)
+    await expect.poll(() => log.lines.some((line) => line.includes('重新加载了：ACTIVE'))).toBe(true)
   })
 })
 

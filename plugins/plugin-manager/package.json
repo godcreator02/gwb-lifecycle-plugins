@@ -4,7 +4,7 @@
   "author": {
     "name": "godcreator"
   },
-  "description": "插件管理：管 home 里的包与 cordis.yml 条目——安装、卸载、查新版本、升级、一键热升、加删条目、启用停用；装完运行 pnpm peers check，版本对不上的每一处写进回执 peerWarnings。找插件、配包源在 gwb-plugin-sources。服务 gwbPluginManager；skill 1 份；命令 14 条。",
+  "description": "插件管理：管 home 里的包与 cordis.yml 条目——安装、卸载、查新版本、升级、一键热升级、加删条目、启用停用；装完运行 pnpm peers check，版本对不上的每一处写进回执 peerWarnings。找插件、配包源在 gwb-plugin-sources。服务 gwbPluginManager；skill 1 份；命令 14 条。",
   "type": "module",
   "main": "dist/index.js",
   "types": "dist/index.d.ts",

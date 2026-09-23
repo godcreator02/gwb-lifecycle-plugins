@@ -166,15 +166,15 @@ export function findPnpm(lookup: Lookup): LookupResult {
   if (lookup.configured !== undefined && lookup.configured !== '') {
     const step = fromSetting(lookup.configured, lookup)
     if (step.ok) return { ...step, from: 'setting' }
-    return { ok: false, error: `设置里的 pnpm-path 是 ${JSON.stringify(lookup.configured)}，照它起不了 pnpm：${step.why}。${SETTING_FORMS}。` }
+    return { ok: false, error: `设置里的 pnpm-path 是 ${JSON.stringify(lookup.configured)}，用它启动不了 pnpm：${step.why}。${SETTING_FORMS}。` }
   }
   const { found, misses } = fromPath(lookup)
   if (found !== undefined) return { ...found, from: 'path' }
-  const seen = misses.length === 0 ? '' : `PATH 上的垫片都推不出能用的 pnpm：${misses.join('；')}。`
+  const seen = misses.length === 0 ? '' : `PATH 上的垫片都找不到能用的 pnpm：${misses.join('；')}。`
   return {
     ok: false,
     error:
-      `找不到 pnpm ${MIN_PNPM_MAJOR}+。${seen}自动查找认 PATH 上的 pnpm.exe，与 npm 全局装出来的布局（垫片旁边的 node_modules/pnpm）；corepack、volta 装的不是这个形状。` +
+      `找不到 pnpm ${MIN_PNPM_MAJOR}+。${seen}自动查找只认 PATH 上的 pnpm.exe 与 npm 全局安装的目录布局（垫片旁边的 node_modules/pnpm）；corepack、volta 装的不是这种布局。` +
       `没装就 npm i -g pnpm@latest；装在别处就去设置里填 pnpm-path（典型值 %APPDATA%\\npm\\node_modules\\pnpm\\pnpm.exe）。${SETTING_FORMS}。`,
   }
 }

@@ -31,11 +31,11 @@ export interface EntryTreeLike {
 /** 那四个方法都在才算一棵树。少一个就立即说清楚——比后面某一步莫名其妙地失败好排查 */
 export function asTree(candidate: unknown): EntryTreeLike {
   if (!isRecord(candidate)) {
-    throw new Error('取不到承载 cordis.yml 的条目树——这个件只能经 cordis.yml 挂上，不能被别的件直接 ctx.plugin 进来。')
+    throw new Error('取不到承载 cordis.yml 的条目树——这个插件只能通过 cordis.yml 里的条目加载，不能被别的插件直接 ctx.plugin 加载。')
   }
   for (const key of ['create', 'remove', 'update', 'resolve']) {
     if (typeof candidate[key] !== 'function') {
-      throw new Error(`条目树上没有 ${key}()——loader 的面变了，这个件要跟着改。`)
+      throw new Error(`条目树上没有 ${key}()——loader 的接口变了，这个插件要跟着改。`)
     }
   }
   return candidate as unknown as EntryTreeLike
@@ -64,7 +64,7 @@ export function ownEntryId(ctx: GwbContext): string {
   const fiber = ctx.fiber as unknown as { entry?: { id?: unknown } } | undefined
   const id = fiber?.entry?.id
   if (typeof id !== 'string' || id === '') {
-    throw new Error('取不到自己那条条目的 id——这个件只能经 cordis.yml 挂上。')
+    throw new Error('取不到自己那条条目的 id——这个插件只能通过 cordis.yml 里的条目加载。')
   }
   return id
 }

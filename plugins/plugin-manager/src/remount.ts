@@ -63,10 +63,10 @@ export async function remountEntry(tree: EntryTreeLike, id: string, settleMs: nu
 export async function remountNow(tree: EntryTreeLike, id: string, log: RemountLog, settleMs: number = SETTLE_MS): Promise<RemountedEntry> {
   try {
     const state = await remountEntry(tree, id, settleMs)
-    log.info(`条目 ${id} 重挂了：${state}`)
+    log.info(`条目 ${id} 重新加载了：${state}`)
     return { id, action: 'remounted', state }
   } catch (err: unknown) {
-    log.warn(`条目 ${id} 重挂没成：${String(err)}`)
+    log.warn(`条目 ${id} 重新加载失败：${String(err)}`)
     return { id, action: 'failed', state: String(err) }
   }
 }
@@ -86,11 +86,11 @@ export function remountSelfLater(
   schedule(() => {
     void remountEntry(tree, id, settleMs)
       .then(async (state) => {
-        log.info(`本件自己（${id}）重挂了：${state}`)
+        log.info(`插件管理自己（${id}）重新加载了：${state}`)
         if (after !== undefined) await after()
       })
       .catch((err: unknown) => {
-        log.warn(`本件自己（${id}）重挂没成：${String(err)}`)
+        log.warn(`插件管理自己（${id}）重新加载失败：${String(err)}`)
       })
   })
 }
@@ -110,7 +110,7 @@ export function remountOne(
   if (id !== ownId) return remountNow(tree, id, log, settleMs)
   const state = fiberStateOf(tree.store[id])
   remountSelfLater(tree, id, log, undefined, schedule, settleMs)
-  log.info(`本件自己（${id}）回执之后重挂`)
+  log.info(`插件管理自己（${id}）在回执之后重新加载`)
   return Promise.resolve({ id, action: 'deferred', state })
 }
 

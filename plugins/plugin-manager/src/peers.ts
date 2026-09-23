@@ -114,13 +114,13 @@ export function planPeers(
       if (kind === 'shared') {
         out.push({ pkg, range, decision: 'install' })
       } else if (kind === 'plugin') {
-        out.push({ pkg, range, decision: 'skipped', note: '本生态的件，要装走 plugin-manager.install（那条还会落一条 cordis.yml 条目）' })
+        out.push({ pkg, range, decision: 'skipped', note: 'gwb 插件，要安装请调用 plugin-manager.install（它还会在 cordis.yml 里加一条条目）' })
       } else {
         out.push({
           pkg,
           range,
           decision: 'skipped',
-          note: '盘上找不到它的清单（多半是条 optional 的 peer，pnpm 不为这种自动补），认不出是件还是共享包，按件跳过——真要它自己在 home 里 pnpm add',
+          note: '磁盘上找不到它的清单（多半是 optional 的 peer，pnpm 不会自动补装），认不出是插件还是共享包，按插件处理、跳过——确实需要就自己在 home 里 pnpm add',
         })
       }
       continue

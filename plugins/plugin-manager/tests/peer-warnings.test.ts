@@ -74,7 +74,7 @@ describe('读 pnpm peers check --json', () => {
 
 describe('一趟 add 没成时的回执', () => {
   it('退出码与尾巴', () => {
-    expect(describeAddFailure('pnpm add x', { ok: false, exitCode: 1, tail: '404' })).toEqual({ error: 'pnpm add x 没成（退出码 1）', tail: '404' })
-    expect(describeAddFailure('pnpm add x', { ok: false, exitCode: null })).toEqual({ error: 'pnpm add x 没成（退出码 null）' })
+    expect(describeAddFailure('pnpm add x', { ok: false, exitCode: 1, tail: '404' })).toEqual({ error: 'pnpm add x 失败（退出码 1）', tail: '404' })
+    expect(describeAddFailure('pnpm add x', { ok: false, exitCode: null })).toEqual({ error: 'pnpm add x 失败（退出码 null）' })
   })
 })
