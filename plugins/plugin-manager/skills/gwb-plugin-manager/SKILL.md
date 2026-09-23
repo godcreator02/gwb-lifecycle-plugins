@@ -160,5 +160,8 @@ plugin-manager 自己或命令插件（`gwb-commands`）时，disable 一返回�
 
 ## 建议的顺序
 
-装插件 → `list` 看一遍 active → 调 MCP 入口的 `index&#x60; 看新命令。**「装上了」和「加载成功」是两回事**，
-加载失败的插件在 `plugin-manager.list` 里看得出来（条目在、active 为假）。
+1. 装插件
+2. 用 `plugin-manager.list` 看一遍 active
+3. 调 MCP 入口的 `index`，看新命令
+
+**「装上了」和「加载成功」是两回事**：加载失败的插件在 `plugin-manager.list` 里看得出来（条目在、active 为假）。
