@@ -2,7 +2,6 @@ import { spawn, type ChildProcessByStdio } from 'node:child_process'
 import fs from 'node:fs'
 import path from 'node:path'
 import type { Readable } from 'node:stream'
-import { parsePeerCheck, type PeerWarning } from './peer-warnings.js'
 import { findPnpm, spawnPlan, type LookupResult } from './pnpm-path.js'
 
 export { describePnpm } from './pnpm-path.js'
@@ -19,7 +18,7 @@ export interface PnpmResult {
   /** 退出码 0 */
   ok: boolean
   exitCode: number | null
-  /** 没成时才有：stdout 与 stderr 合起来的最后几行 */
+  /** 失败时才有：stdout 与 stderr 合起来的最后几行 */
   tail?: string
 }
 
@@ -91,7 +90,7 @@ function spawnPnpm(file: string, cwd: string, args: readonly string[]): ChildPro
  * **不设超时**：装一个大包本来就可能几分钟，猜一个时限只会在慢网络上误杀一次正常的安装；
  * 网络层的超时 pnpm 自己有。真卡住了，由用户去结束进程。
  *
- * **本插件卸载时不结束正在运行的 pnpm**（关键判据 K7 的例外）：pnpm 正在改 home 的 `package.json` 与
+ * **本插件卸载时不结束正在运行的 pnpm**（「插件卸载时清理自己启动的子进程」的例外）：pnpm 正在改 home 的 `package.json` 与
  * `node_modules`，中途结束会留下装了一半的 home，比让它跑完更难收拾。它跑完之后回执没人接，改动照样生效
  */
 export function runPnpm(opts: { pnpm: string; cwd: string; args: readonly string[] }): Promise<PnpmResult> {
@@ -132,21 +131,6 @@ export function runPnpm(opts: { pnpm: string; cwd: string; args: readonly string
 export function describeAddFailure(what: string, run: PnpmResult): { error: string; tail?: string } {
   const error = `${what} 失败（退出码 ${String(run.exitCode)}）`
   return run.tail === undefined ? { error } : { error, tail: run.tail }
-}
-
-/** `checkPeers` 的回执：读出来了是 `warnings`（空数组 = 没问题），没读出来是 `error` 一句话 */
-export type PeerCheck = { warnings: PeerWarning[] } | { error: string }
-
-/**
- * 运行 `pnpm peers check --json`，读出 home 里此刻所有 peer 不匹配的地方（`peer-warnings.ts`）。
- * 退出码 1 是「有问题」，是结果不是失败。不抛。
- */
-export async function checkPeers(opts: { pnpm: string; home: string }): Promise<PeerCheck> {
-  const run = await runPnpmCapture({ pnpm: opts.pnpm, cwd: opts.home, args: ['peers', 'check', '--json'] })
-  const warnings = run.exitCode === 0 || run.exitCode === 1 ? parsePeerCheck(run.stdout) : undefined
-  if (warnings !== undefined) return { warnings }
-  const why = run.stderrTail === '' ? '' : `：${run.stderrTail}`
-  return { error: `pnpm peers check 的结果读不出来（退出码 ${String(run.exitCode)}），peer 对没对上不知道${why}` }
 }
 
 /**
