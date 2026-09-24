@@ -1,9 +1,9 @@
 ---
 title: 4 仓侧检查 repo-kit
-description: 连接 @godcreator/gwb-repo-kit 与三类使用方：devkit、插件管理、模板生成的仓；接口是 registerSelfReportGuard（五项检查）、registerPluginGuard、GuardVt 与 docsDir；模板里写死的 repo-kit 版本靠手工对齐，模板的自述测试没传 docsDir，第五项在生成的仓里不生效
+description: 连接 @godcreator/gwb-repo-kit 与三类使用方：devkit、插件管理、模板生成的仓；接口是 registerSelfReportGuard（五项检查）、registerPluginGuard、GuardVt 与 docsDir；模板里写死的 repo-kit 版本靠手工对齐；模板的自述测试把 docsDir 指到仓根的文档站
 ---
 
-**本页回答**：repo-kit 给使用方的测试提供了哪几样；使用方怎么接；模板生成的仓用的是哪一版 repo-kit、那一版里哪一项检查实际没有运行。
+**本页回答**：repo-kit 给使用方的测试提供了哪几样；使用方怎么接；模板生成的仓用的是哪一版 repo-kit、它的自述检查读哪里的文档。
 
 ## 连接的模块
 
@@ -44,9 +44,9 @@ repo-kit 保证：只导出上面几样；不是插件的包一条用例都不�
 
 {/* ref file="../plugins/devkit/tests/self-report.test.ts" lines="13-17" */}
 
-- 模板里的测试只传 `root`，不传 `docsDir`。生成的仓里文档站在仓根，插件包在 `plugins/<短名>/`，缺省的 `docsDir` 指到 `plugins/<短名>/docs-site/content/docs`，那里没有文件，所以第五项在模板生成的仓里不生效
+- 模板里的测试也显式传 `docsDir`：生成的仓里文档站在仓根，插件包在 `plugins/<短名>/`，所以指到仓根的 `docs-site/content/docs`。建了文档站的新仓，现状区里还没写出模板插件注入的 `gwbCommands`、`gwbShell` 时，第五项失败；没建站时目录不存在，第五项直接通过
 
-{/* ref file="../plugins/devkit/template/pkg/tests/self-report.test.ts.tpl" lines="13-14" */}
+{/* ref file="../plugins/devkit/template/pkg/tests/self-report.test.ts.tpl" lines="16-20" */}
 
 **模板里的 repo-kit 版本靠手工对齐**：模板写死一个版本，repo-kit 的 `package.json` 里是当前版本，两处目前都是 0.3.0；没有检查比对两处。规矩写在本仓 AGENTS 的「模板」一节：模板里 `@godcreator` 包的版本跟着源上的 `dist-tags.latest` 走，改之前先 `pnpm view` 查。
 
@@ -69,3 +69,7 @@ repo-kit 自己的测试用临时包把五项与插件守卫各跑一遍：
 {/* has file="../packages/repo-kit/tests/self-report.test.ts" text="inject 的服务没进站现状区：那条炸" */}
 
 {/* has file="../packages/repo-kit/tests/self-report.test.ts" text="库（keywords 里没有 gwb-plugin）跳过：一条用例都不注册" */}
+
+devkit 的建仓测试检查模板生成的 `docsDir` 从 `plugins/<短名>/tests/` 解析出来正好是仓根的现状区：
+
+{/* has file="../plugins/devkit/tests/scaffold.test.ts" text="生成的自述检查把 docsDir 指到仓根文档站的现状区，inject 那一条不会因为找不到站而跳过" */}

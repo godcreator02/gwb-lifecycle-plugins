@@ -308,6 +308,16 @@ describe('包内 template/：两区', () => {
     }
   })
 
+  it('生成的自述检查把 docsDir 指到仓根文档站的现状区，inject 那一条不会因为找不到站而跳过', () => {
+    const repoDir = path.join(sandbox(), 'repo')
+    const files = renderTemplate(TEMPLATE_ROOT, planScaffold({ name: 'hello', dir: repoDir, testedKernel: KERNEL }))
+    const selfReport = files.find((f) => f.rel === 'plugins/hello/tests/self-report.test.ts')?.text ?? ''
+    const docsDirArg = /docsDir: path\.resolve\(here, '([^']+)'\)/.exec(selfReport)?.[1]
+    expect(docsDirArg, 'self-report.test.ts 里没有给 docsDir').toBeDefined()
+    const testsDir = path.join(repoDir, 'plugins', 'hello', 'tests')
+    expect(path.resolve(testsDir, docsDirArg ?? '')).toBe(path.join(repoDir, 'docs-site', 'content', 'docs'))
+  })
+
   it('模板里的占位符全在 placeholders 的表上——认不出的当场抛，那正是这条要钉的', () => {
     expect(() => renderTemplate(TEMPLATE_ROOT, planScaffold({ name: 'x', dir: 'D:\\tmp\\x', docs: false, testedKernel: KERNEL }))).not.toThrow()
     expect(() => renderPlugin(TEMPLATE_ROOT, planScaffoldPlugin({ name: 'x', repo: fakeWorkspace(), testedKernel: KERNEL }))).not.toThrow()

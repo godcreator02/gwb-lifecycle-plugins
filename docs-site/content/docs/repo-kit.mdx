@@ -54,11 +54,11 @@ repo-kit 是一个库，不是插件（`keywords` 只写 `gwb`），不装进 ho
 
 **使用方**：
 
-- **模板**：`devkit.scaffold` 生成的每个插件包带 `tests/self-report.test.ts` 与 `tests/plugin.test.ts` 两份登记代码，`devDependencies` 写 repo-kit 的准确版本号。模板里的自述守卫没有给 `docsDir`，而 workspace 仓的文档站在仓根、不在插件包下，所以新仓里「服务名写进文档」那一条按目录不存在处理、直接通过
+- **模板**：`devkit.scaffold` 生成的每个插件包带 `tests/self-report.test.ts` 与 `tests/plugin.test.ts` 两份登记代码，`devDependencies` 写 repo-kit 的准确版本号。workspace 仓的文档站在仓根、不在插件包下，所以模板里的自述守卫显式给了 `docsDir`，指到仓根的 `docs-site/content/docs`
 - **本仓**：`plugins/devkit` 与 `plugins/plugin-manager` 经 `workspace:*` 用它，两处的自述守卫都显式给了 `docsDir`（devkit 指 `docs-site/content/docs`，插件管理指 `docs-site/content/docs/plugin-manager`）
 - **别的插件仓**：从团队源装，登记方式与模板相同
 
-{/* has file="../plugins/devkit/template/pkg/tests/self-report.test.ts.tpl" text="registerSelfReportGuard({ describe, it, expect }, { root: path.resolve(here, '..') })" */}
+{/* has file="../plugins/devkit/template/pkg/tests/self-report.test.ts.tpl" text="docsDir: path.resolve(here, '../../../docs-site/content/docs')" */}
 
 {/* has file="../plugins/devkit/template/pkg/tests/plugin.test.ts.tpl" text="registerPluginGuard({ describe, it, expect }, {" */}
 
