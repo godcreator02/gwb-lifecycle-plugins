@@ -53,7 +53,7 @@ export function apply(ctx: Context) {
 
 ## 类型引用到的包由使用方列全
 
-本插件做类型检查时引用到的别的包的类型，包括上游 d.ts 里又引用到的包，都写进本插件的 dev。类型检查关掉 `skipLibCheck` 跑一遍：缺哪个包它会报「找不到模块」并写出包名；不关的话那段类型会不报错地变成 any。
+本插件做类型检查时引用到的别的包的类型，包括上游 d.ts 里又引用到的包，都写进本插件的 dev。类型检查关掉 `skipLibCheck` 跑一遍：缺哪个包它会报「找不到模块」并写出包名；不关的话那段类型会不报错地变成 any。`devkit.release` 的发版前检查就这样跑一遍，查的是构建产物的类型：node 侧有 `tsconfig.build.json` 就按它查、没有才按 `tsconfig.json` 查，有 `src/client/tsconfig.json` 再查一次浏览器侧；测试与构建脚本引用的包不在其中（见[发正式版的检查](/docs/devkit#发正式版的检查)）。
 
 **只引类型时写 `import type`。** `import { type X }` 在 `verbatimModuleSyntax` 下会在构建产物里留下一句空 import。
 

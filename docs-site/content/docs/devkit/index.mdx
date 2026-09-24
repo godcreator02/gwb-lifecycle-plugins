@@ -28,8 +28,8 @@ description: 开发套件是一个普通的 gwb 插件，把「在一个新文�
 
 | 命令 | 做什么 | 接缝 |
 | --- | --- | --- |
-| `devkit.scaffold` | 建仓：渲染 `template/repo/` 与 `template/pkg/` 写进新目录，再按名字调别的插件建文档站，站装好六区后写插件页起稿 | [5 模板与结构体检](/docs/seams/template-audit)、[6 借用别的插件的命令](/docs/seams/borrowed-commands) |
-| `devkit.scaffold.plugin` | 往已有 workspace 仓的 `plugins/` 加一个插件包，只渲染 `template/pkg/`；仓里有装好六区的文档站时再写插件页起稿 | [5 模板与结构体检](/docs/seams/template-audit)、[11 被测仓的形状](/docs/seams/repo-shape) |
+| `devkit.scaffold` | 建仓：渲染 `template/repo/` 与 `template/pkg/` 写进新目录，再按名字调别的插件建文档站，站装好六区后写一页插件页草稿 | [5 模板与结构体检](/docs/seams/template-audit)、[6 借用别的插件的命令](/docs/seams/borrowed-commands) |
+| `devkit.scaffold.plugin` | 往已有 workspace 仓的 `plugins/` 加一个插件包，只渲染 `template/pkg/`；仓里有装好六区的文档站时再写一页插件页草稿 | [5 模板与结构体检](/docs/seams/template-audit)、[11 被测仓的形状](/docs/seams/repo-shape) |
 | `devkit.audit-structure` | 查一个仓或全生态的布局与静态红线，只读 | [5 模板与结构体检](/docs/seams/template-audit)、[11 被测仓的形状](/docs/seams/repo-shape) |
 | `devkit.audit-deps` | 各仓 `@godcreator` 的 dev 依赖对照团队源、插件包的 peer 只许 `cordis`，只读 | [10 pnpm 与团队源](/docs/seams/pnpm-registry)、[11 被测仓的形状](/docs/seams/repo-shape) |
 | `devkit.home.new` | 开一个新的隔离 home：写 `cordis.yml`、装基础插件、启动宿主应用、选调试端口 | [8 内核与 home](/docs/seams/kernel-home)、[10 pnpm 与团队源](/docs/seams/pnpm-registry) |
@@ -78,7 +78,7 @@ description: 开发套件是一个普通的 gwb 插件，把「在一个新文�
 
 - 自己不在 0.0.x；`@godcreator` 的 dev 依赖范围包含源上的 `dist-tags.latest`（写法认不出、下限比 latest 还新、latest 超出范围才拒，范围内落后放行）
 - 构建产物里没有 `import {} from '…'` 这种空 import（源码写了 `import { type X }`），相对 import 指向的文件都在
-- 在包目录里用本仓装的 tsc 跑 `tsc --noEmit -p tsconfig.json --skipLibCheck false`，要通过
+- 在包目录里用本仓装的 tsc 跑 `tsc --noEmit -p <tsconfig> --skipLibCheck false`，要通过。这项检查守的是构建产物的类型链，测试与构建脚本不查：node 侧有 `tsconfig.build.json` 就按它查，没有才按 `tsconfig.json` 查，两份都没有就拒；有 `src/client/tsconfig.json` 就再查一次浏览器侧。报错写明没过的是哪一份
 
 插件包（`keywords` 含 `gwb-plugin`）另查：
 
@@ -94,6 +94,10 @@ description: 开发套件是一个普通的 gwb 插件，把「在一个新文�
 
 {/* ref file="../plugins/devkit/src/release.ts" lines="158-175" */}
 
+类型检查按哪几份 tsconfig 查：
+
+{/* ref file="../plugins/devkit/src/release.ts" lines="258-267" */}
+
 构建产物检查在 `src/artifact-check.ts`。哪些文件算 node 侧、哪些算浏览器侧，照模板生成的插件包的构建约定判断：node 侧是 `exports["."]` 的运行时入口（没有 `exports` 时是 `main`）加上顺着相对 import 走得到的文件，也就是内核的 loader 按包名 import 插件时加载的那些；浏览器侧是 `dist/client.js`（模板的 `build.ts` 用 esbuild 以 `platform: 'browser'` 输出的文件）加上本包 `gwb.shared` 声明的子路径指到的文件，同样顺着相对 import 走；两边都走不到的文件不查。importmap 里的名字取本包与它依赖到的包（`dependencies`、`devDependencies`、`peerDependencies`）的 `gwb.shared` 键，依赖的清单从包目录的 `node_modules` 现读，形状照内核计算 importmap 的那段代码：
 
 {/* ref file="../plugins/devkit/src/artifact-check.ts" lines="5-24" */}
@@ -104,7 +108,7 @@ description: 开发套件是一个普通的 gwb 插件，把「在一个新文�
 
 ### 依赖对账的判据
 
-`devkit.audit-deps` 扫容器根（缺省调 `unit-folder.list` 取）下各仓的 `package.json`，退役单元与测试件不扫，`private` 清单只查 dev 依赖。「最新」认源上的 `dist-tags.latest`。只报告，不拦；要拦的由 `devkit.release` 的发版前检查在发版时拦。findings 的种类：
+`devkit.audit-deps` 扫容器根（缺省调 `unit-folder.list` 取）下各仓的 `package.json`，退役单元与测试插件不扫，`private` 清单只查 dev 依赖。「最新」认源上的 `dist-tags.latest`。只报告，不拦；要拦的由 `devkit.release` 的发版前检查在发版时拦。findings 的种类：
 
 - `@godcreator` 的 dev 依赖：`dead-pin`（写的版本源上没有）、`behind`（落后 latest 但还在 `^` 范围内——提示，不用处理）、`out-of-range`（latest 超出范围，必须跟进）、`loose-dev-pin`（写法既不是准确版本号也不是 `^`）
 - 插件包（`keywords` 含 `gwb-plugin`）的 peer：`peer-not-cordis`（写了 `cordis` 以外的包，一条 peer 一条；不看写法、不问源）。库不查 peer
@@ -160,7 +164,7 @@ description: 开发套件是一个普通的 gwb 插件，把「在一个新文�
 ## 不做的事
 
 - **不画界面**：没有窗格、没有浏览器端代码，只向外壳报一个显示名；使用者是 agent，读回执
-- **不管文档站的内容**：生成骨架归站点插件 `@godcreator/gwb-docs-site`，装六区与核对文档归 docfirst 插件 `@godcreator/gwb-docfirst-workflow`；本包不依赖它们的任何包，只按命令名调用。本包只在建仓与加插件时往现状区写一页插件页起稿
+- **不管文档站的内容**：生成骨架归站点插件 `@godcreator/gwb-docs-site`，装六区与核对文档归 docfirst 插件 `@godcreator/gwb-docfirst-workflow`；本包不依赖它们的任何包，只按命令名调用。本包只在建仓与加插件时往现状区写一页插件页草稿
 - **不增删 home 里的条目**：条目归插件管理 `@godcreator/gwb-plugin-manager`。`devkit.dev` 在目标 home 里没有条目时装完就停、回执里说用 `plugin-manager.install` 补；唯一的例外是 `devkit.home.new` 在新 home 启动之前写好基础插件的 `cordis.yml`
 - **不写 `runtime.json`**：它由内核与 MCP 入口插件写，本包只读
 - **不升级日常用的 `default`**：`devkit.dev` 拒绝以 `default` 为目标，`devkit.release` 只发到源；升级 `default` 走 `plugin-manager.update-all`

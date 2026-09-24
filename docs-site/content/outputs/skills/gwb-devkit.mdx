@@ -55,7 +55,7 @@ description: 写或改 gwb 插件时读——建仓、写插件的红线、改�
    ```
 
    加第二个插件：`devkit.scaffold.plugin {"repo":"<仓根>","name":"<短名>"}`——用的是同一份插件包
-   模板，不改仓根；仓里有装好六区的文档站时，往现状区写一页插件页起稿（`plugins/<短名>.mdx`），
+   模板，不改仓根；仓里有装好六区的文档站时，往现状区写一页插件页草稿（`plugins/<短名>.mdx`），
    建仓时站装好六区后也写一页。自述检查要求 `inject` 的服务名出现在现状区里，改插件时把这页跟着改；
    仓根就是插件包的老式单插件仓会被它当场拒，先迁成 workspace 仓再来
 2. **先写测试**：能不启动进程、不开窗、只给输入看输出的逻辑，抽成纯函数写进 `tests/`；
@@ -78,7 +78,8 @@ description: 写或改 gwb 插件时读——建仓、写插件的红线、改�
 5. **装出来验证**：见「装出来验证」一节。完成＝四种「看着成了」一条都没犯
 6. **发版**：照 skill「gwb-release」。`devkit.release` 构建之后先做发版前检查：自己的版本号不在 0.0.x；
    `@godcreator` 包的 dev 范围包含源上 latest（范围内落后放行，出范围必须先适配）；构建产物里没有空 import；
-   包目录里 `tsc --noEmit -p tsconfig.json --skipLibCheck false` 通过。插件包另查：peer 只有 `cordis`；
+   包目录里按构建产物的 tsconfig 跑 `tsc --noEmit -p <tsconfig> --skipLibCheck false` 通过（node 侧有
+   `tsconfig.build.json` 就用它、没有用 `tsconfig.json`，有 `src/client/tsconfig.json` 再查一次；测试不查）。插件包另查：peer 只有 `cordis`；
    node 侧产物的包名 import 只有 node 内置模块、`electron`、`cordis`，浏览器侧只有 importmap 里的名字；
    `gwb.testedKernel` 和运行中的内核在同一条版本线上（没写、不是版本号、不在同一条线都拒）。没过一个都不发，
    回执一次列全。发之前想看全生态谁落后，调 `devkit.audit-deps`（`out-of-range` 必须处理，`behind` 是范围内

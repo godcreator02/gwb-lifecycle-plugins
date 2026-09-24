@@ -9,7 +9,7 @@ import {
   testedKernelProblems,
   ticketManifestOf,
   ticketRefusal,
-  TYPECHECK_ARGS,
+  typecheckArgs,
   type ReleaseDeps,
 } from '../src/release.js'
 
@@ -173,8 +173,14 @@ interface FakeOptions {
   failRun?: string
   failPublish?: string
   latest?: Record<string, string>
-  /** 类型检查的输出；给了就当没过 */
-  typecheckFails?: string
+  /** 按哪份 tsconfig 做的类型检查没过：键是 -p 后面那份 tsconfig，值是输出 */
+  typecheckFails?: Record<string, string>
+}
+
+/** 一条 run 是不是类型检查；是的话回它查的那份 tsconfig */
+function typecheckedTsconfig(args: string[]): string | undefined {
+  if (!args.includes('--skipLibCheck')) return undefined
+  return args[args.indexOf('-p') + 1]
 }
 
 function fake(options: FakeOptions = {}): ReleaseDeps & { calls: string[]; ranges: Record<string, string>[] } {
@@ -202,9 +208,9 @@ function fake(options: FakeOptions = {}): ReleaseDeps & { calls: string[]; range
     },
     async run(plan, _timeoutMs) {
       calls.push(`run ${plan.args.join(' ')} @${plan.cwd}`)
-      if (options.typecheckFails !== undefined && plan.args.join(' ').includes(TYPECHECK_ARGS.join(' '))) {
-        return { ok: false, tail: options.typecheckFails }
-      }
+      const tsconfig = typecheckedTsconfig(plan.args)
+      const typecheckOutput = tsconfig === undefined ? undefined : options.typecheckFails?.[tsconfig]
+      if (typecheckOutput !== undefined) return { ok: false, tail: typecheckOutput }
       const ok = options.failRun === undefined || !plan.args.join(' ').includes(options.failRun)
       return { ok, tail: ok ? '' : '假的失败' }
     },
@@ -292,26 +298,59 @@ describe('发正式版', () => {
     expect(deps.calls.some((one) => one.startsWith('publish'))).toBe(false)
   })
 
-  it('类型检查在包目录里用 pnpm exec tsc、关掉 skipLibCheck 跑；没过就拒，带上输出尾巴', async () => {
-    const deps = fake({ typecheckFails: "index.d.ts(52,32): error TS2304: Cannot find name 'HTMLElement'." })
+  /** 一个包做过的类型检查，按先后列出查的那份 tsconfig */
+  function typechecksOf(calls: string[], pkgDir: string): string[] {
+    return calls
+      .filter((one) => one.endsWith(` @${pkgDir}`) && one.includes('--skipLibCheck false'))
+      .map((one) => typecheckedTsconfig(one.split(' ')) ?? '')
+  }
+
+  it('没有 tsconfig.build.json：在包目录里用 pnpm exec tsc、关掉 skipLibCheck 按 tsconfig.json 查；没过就拒，带上查的是哪份与输出尾巴', async () => {
+    const deps = fake({ typecheckFails: { 'tsconfig.json': "index.d.ts(52,32): error TS2304: Cannot find name 'HTMLElement'." } })
     const out = await runRelease({ repoDir: REPO, runningKernel: KERNEL, packages: ['a'] }, deps)
-    expect(deps.calls).toContain(`run /c pnpm ${TYPECHECK_ARGS.join(' ')} @${path.resolve(REPO, 'a')}`)
+    expect(deps.calls).toContain(`run /c pnpm ${typecheckArgs('tsconfig.json').join(' ')} @${path.resolve(REPO, 'a')}`)
+    expect(typechecksOf(deps.calls, path.resolve(REPO, 'a'))).toEqual(['tsconfig.json'])
     expect(out.ok).toBe(false)
     if (out.ok) return
-    expect(out.error).toContain('--skipLibCheck false 没过')
+    expect(out.error).toContain('按 tsconfig.json 做的类型检查没过')
     expect(out.error).toContain('HTMLElement')
   })
 
-  it('包目录下没有 tsconfig.json：拒', async () => {
+  it('有 tsconfig.build.json：node 侧只按它查，不查带着测试与构建脚本的 tsconfig.json', async () => {
+    const deps = fake({ files: { [path.resolve(REPO, 'a/tsconfig.build.json')]: '{}' } })
+    const out = await runRelease({ repoDir: REPO, runningKernel: KERNEL, packages: ['a'] }, deps)
+    expect(out.ok).toBe(true)
+    expect(typechecksOf(deps.calls, path.resolve(REPO, 'a'))).toEqual(['tsconfig.build.json'])
+  })
+
+  it('有 src/client/tsconfig.json：浏览器侧再查一次，没过的那份写进回执', async () => {
+    const deps = fake({
+      files: {
+        [path.resolve(REPO, 'a/tsconfig.build.json')]: '{}',
+        [path.resolve(REPO, 'a/src/client/tsconfig.json')]: '{}',
+      },
+      typecheckFails: { 'src/client/tsconfig.json': "index.tsx(3,1): error TS2307: Cannot find module 'react'." },
+    })
+    const out = await runRelease({ repoDir: REPO, runningKernel: KERNEL, packages: ['a'] }, deps)
+    expect(typechecksOf(deps.calls, path.resolve(REPO, 'a'))).toEqual(['tsconfig.build.json', 'src/client/tsconfig.json'])
+    expect(out.ok).toBe(false)
+    if (out.ok) return
+    expect(out.error).toContain('1 个包 1 条')
+    expect(out.error).toContain('按 src/client/tsconfig.json 做的类型检查没过')
+  })
+
+  it('包目录下 tsconfig.build.json 与 tsconfig.json 都没有：拒，不跑类型检查', async () => {
     const deps = fake({
       files: {
         [path.resolve(REPO, 'c/package.json')]: manifestOf('@godcreator/gwb-fake-c', '0.1.0'),
         [path.resolve(REPO, 'c/dist/index.js')]: '',
+        [path.resolve(REPO, 'c/src/client/tsconfig.json')]: '{}',
       },
     })
     const out = await runRelease({ repoDir: REPO, runningKernel: KERNEL, packages: ['c'] }, deps)
+    expect(typechecksOf(deps.calls, path.resolve(REPO, 'c'))).toEqual([])
     expect(out.ok).toBe(false)
-    if (!out.ok) expect(out.error).toContain('没有 tsconfig.json')
+    if (!out.ok) expect(out.error).toContain('tsconfig.build.json 与 tsconfig.json 都没有')
   })
 
   it('检查过了：写了 peer cordis 而产物没 import 它，只提醒不拒，提醒带进回执', async () => {

@@ -65,18 +65,18 @@ import 的 `cordis`，其余写 dev；打包不进产物的自用库写 `depende
 
 **发版前检查由 `devkit.release` 执行**，在构建之后、发第一个包之前，对每个要发的包逐条检：
 
-| 检什么                                                                                                     | 没过                                   |
-| ------------------------------------------------------------------------------------------------------- | ------------------------------------ |
-| 自己的号是 0.0.x                                                                                             | 拒：先升到 0.1.0                          |
-| 插件包的 peer 里有 `cordis` 以外的包                                                                              | 拒，说按「运行时谁提供」该写 dev 还是 `dependencies` |
-| 插件包 node 侧产物按值 import 了 `cordis`，peer 里却没有                                                              | 拒                                    |
-| `@godcreator` 的 dev 写法认不出下限、下限比源上 latest 还新、或 latest 已出 dev 范围（`workspace:` 跳过）                         | 拒「出范围：先适配再升」；范围内落后（含相等）一律放行          |
-| 构建产物里有 `import {} from '…'` 这种空 import（源码写了 `import { type X }`），或相对 import 指向的文件不在                     | 拒                                    |
-| 插件包 node 侧产物（`exports["."]` 入口顺着相对 import 走到的文件）的包名 import 不是 node 内置模块、`electron`、`cordis`             | 拒                                    |
-| 插件包浏览器侧产物（`dist/client.js` 与本包 `gwb.shared` 指到的文件）的包名 import 不在 importmap 里（本包与依赖的 `gwb.shared` 键）      | 拒                                    |
-| 包目录里 `tsc --noEmit -p tsconfig.json --skipLibCheck false` 没过（用本仓装的 tsc）                                 | 拒，带上输出的最后几行                          |
-| 插件包（`keywords` 含 `gwb-plugin`）的 `gwb.testedKernel` 没写、不是合法版本号、或和运行中的内核不在同一条版本线上（主版本号为 0 比前两位，≥1 只比主版本号） | 拒，说在哪个内核上验过之后写什么                     |
-| 插件包写了 peer `cordis`，node 侧产物却没有 import 它                                                                | 不拒，回执 `reminders` 里提醒一句              |
+| 检什么                                                                                                                                                                                      | 没过                                                                  |
+| ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------- |
+| 自己的号是 0.0.x                                                                                                                                                                              | 拒：先升到 0.1.0                                                         |
+| 插件包的 peer 里有 `cordis` 以外的包                                                                                                                                                               | 拒，说按「运行时谁提供」该写 dev 还是 `dependencies`                                |
+| 插件包 node 侧产物按值 import 了 `cordis`，peer 里却没有                                                                                                                                               | 拒                                                                   |
+| `@godcreator` 的 dev 写法认不出下限、下限比源上 latest 还新、或 latest 已出 dev 范围（`workspace:` 跳过）                                                                                                          | 拒「出范围：先适配再升」；范围内落后（含相等）一律放行                                         |
+| 构建产物里有 `import {} from '…'` 这种空 import（源码写了 `import { type X }`），或相对 import 指向的文件不在                                                                                                      | 拒                                                                   |
+| 插件包 node 侧产物（`exports["."]` 入口顺着相对 import 走到的文件）的包名 import 不是 node 内置模块、`electron`、`cordis`                                                                                              | 拒                                                                   |
+| 插件包浏览器侧产物（`dist/client.js` 与本包 `gwb.shared` 指到的文件）的包名 import 不在 importmap 里（本包与依赖的 `gwb.shared` 键）                                                                                       | 拒                                                                   |
+| 包目录里 `tsc --noEmit -p <tsconfig> --skipLibCheck false` 没过（用本仓装的 tsc）。只查构建产物的类型，测试与构建脚本不查：node 侧有 `tsconfig.build.json` 就按它查、没有才按 `tsconfig.json` 查，有 `src/client/tsconfig.json` 再查一次浏览器侧 | 拒，写明没过的是哪一份，带上输出的最后几行；`tsconfig.build.json` 与 `tsconfig.json` 都没有也拒 |
+| 插件包（`keywords` 含 `gwb-plugin`）的 `gwb.testedKernel` 没写、不是合法版本号、或和运行中的内核不在同一条版本线上（主版本号为 0 比前两位，≥1 只比主版本号）                                                                                  | 拒，说在哪个内核上验过之后写什么                                                    |
+| 插件包写了 peer `cordis`，node 侧产物却没有 import 它                                                                                                                                                 | 不拒，回执 `reminders` 里提醒一句                                             |
 
 没过就一个都不发，回执按包一次列全。「运行中的内核」是调 `devkit.release` 的那个 home 里运行的内核。
 

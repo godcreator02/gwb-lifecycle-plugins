@@ -75,7 +75,7 @@ import 的 `cordis`，其余写 dev；打包不进产物的自用库写 `depende
 | 构建产物里有 `import {} from '…'` 这种空 import（源码写了 `import { type X }`），或相对 import 指向的文件不在 | 拒 |
 | 插件包 node 侧产物（`exports["."]` 入口顺着相对 import 走到的文件）的包名 import 不是 node 内置模块、`electron`、`cordis` | 拒 |
 | 插件包浏览器侧产物（`dist/client.js` 与本包 `gwb.shared` 指到的文件）的包名 import 不在 importmap 里（本包与依赖的 `gwb.shared` 键） | 拒 |
-| 包目录里 `tsc --noEmit -p tsconfig.json --skipLibCheck false` 没过（用本仓装的 tsc） | 拒，带上输出的最后几行 |
+| 包目录里 `tsc --noEmit -p <tsconfig> --skipLibCheck false` 没过（用本仓装的 tsc）。只查构建产物的类型，测试与构建脚本不查：node 侧有 `tsconfig.build.json` 就按它查、没有才按 `tsconfig.json` 查，有 `src/client/tsconfig.json` 再查一次浏览器侧 | 拒，写明没过的是哪一份，带上输出的最后几行；`tsconfig.build.json` 与 `tsconfig.json` 都没有也拒 |
 | 插件包（`keywords` 含 `gwb-plugin`）的 `gwb.testedKernel` 没写、不是合法版本号、或和运行中的内核不在同一条版本线上（主版本号为 0 比前两位，≥1 只比主版本号） | 拒，说在哪个内核上验过之后写什么 |
 | 插件包写了 peer `cordis`，node 侧产物却没有 import 它 | 不拒，回执 `reminders` 里提醒一句 |
 

@@ -33,7 +33,7 @@ import { isRecord } from './vocab.js'
  *
  * - 每个包:自己不在 0.0.x;`@godcreator` 的 dev 范围包含源上 `dist-tags.latest`(范围内落后
  *   不追,出范围必追)(`checkTicket`);产物里没有空 import、相对 import 指向的文件都在
- *   (`artifact-check.ts`);`tsc --noEmit -p tsconfig.json --skipLibCheck false` 通过(用被发仓自己的 tsc)
+ *   (`artifact-check.ts`);按构建产物的 tsconfig 跑 `tsc --noEmit --skipLibCheck false` 通过(`typecheckTsconfigs`,用被发仓自己的 tsc)
  * - 插件包(`keywords` 含 `gwb-plugin`)另加:peer 里只有 `cordis`,node 侧产物按值 import 了
  *   `cordis` 就必须写 peer `cordis`(`peerProblems`);node 侧产物的包名 import 只有 node 内置模块、
  *   `electron`、`cordis`,浏览器侧只有 importmap 里的名字(`artifact-check.ts`);`gwb.testedKernel`
@@ -248,21 +248,50 @@ export function ticketRefusal(tickets: Ticket[]): string {
   )
 }
 
-/** 在包目录里用 pnpm exec 跑,用的是被发仓自己装的 tsc */
-export const TYPECHECK_ARGS = ['exec', 'tsc', '--noEmit', '-p', 'tsconfig.json', '--skipLibCheck', 'false']
+/** node 侧构建产物用的 tsconfig,相对包目录 */
+export const NODE_BUILD_TSCONFIG = 'tsconfig.build.json'
+/** 包目录的通用 tsconfig,没有 `tsconfig.build.json` 时 node 侧查它 */
+export const NODE_TSCONFIG = 'tsconfig.json'
+/** 浏览器侧的 tsconfig,相对包目录 */
+export const CLIENT_TSCONFIG = 'src/client/tsconfig.json'
+
+/**
+ * 发版前类型检查查哪几份 tsconfig。判据:这项检查守的是构建产物的类型链,测试与构建脚本不在其中——
+ * node 侧有 `tsconfig.build.json`(构建产物用的那份)就查它,没有才查 `tsconfig.json`;
+ * 浏览器侧有 `src/client/tsconfig.json` 就再查一次。node 侧两份都没有回 undefined,调用方拒。
+ */
+export function typecheckTsconfigs(pkgDir: string, exists: (target: string) => boolean): string[] | undefined {
+  const nodeSide = [NODE_BUILD_TSCONFIG, NODE_TSCONFIG].find((one) => exists(path.join(pkgDir, one)))
+  if (nodeSide === undefined) return undefined
+  return exists(path.join(pkgDir, CLIENT_TSCONFIG)) ? [nodeSide, CLIENT_TSCONFIG] : [nodeSide]
+}
+
+/**
+ * 在包目录里用 pnpm exec 跑,用的是被发仓自己装的 tsc。命令行的 `--noEmit` 盖过
+ * `tsconfig.build.json` 里的 `noEmit: false`,与 `declaration`、`outDir` 同在也不报错、不写 dist
+ * (typescript 7.0.2 实测)
+ */
+export function typecheckArgs(tsconfig: string): string[] {
+  return ['exec', 'tsc', '--noEmit', '-p', tsconfig, '--skipLibCheck', 'false']
+}
 
 /** 类型检查的输出只留最后这么多行:报错在尾巴上,整份没人读 */
 const TYPECHECK_TAIL_LINES = 20
 
 /** 类型检查没过时那条问题:缺哪个包,tsc 会报「找不到模块」并写出包名 */
-function typecheckProblem(tail: string): string {
+function typecheckProblem(tsconfig: string, tail: string): string {
   const lines = tail.split(/\r?\n/).filter((line) => line.trim() !== '')
   const shownLines = lines.slice(-TYPECHECK_TAIL_LINES).map((line) => `      ${line}`)
   return (
-    `tsc --noEmit -p tsconfig.json --skipLibCheck false 没过:类型引用到的包(含上游 d.ts 引用到的)要在 dev 里列全,` +
-    `只引类型写 import type。输出尾巴:\n${shownLines.join('\n')}`
+    `按 ${tsconfig} 做的类型检查没过(tsc --noEmit -p ${tsconfig} --skipLibCheck false):` +
+    `类型引用到的包(含上游 d.ts 引用到的)要在 dev 里列全,只引类型写 import type。输出尾巴:\n${shownLines.join('\n')}`
   )
 }
+
+/** node 侧两份 tsconfig 都没有时那条问题 */
+const NO_TSCONFIG_PROBLEM =
+  `包目录下 ${NODE_BUILD_TSCONFIG} 与 ${NODE_TSCONFIG} 都没有:发版前检查要按其中一份` +
+  `(有 ${NODE_BUILD_TSCONFIG} 就用它)在 skipLibCheck: false 下跑一次类型检查`
 
 /**
  * 走完一趟:干净树守卫 → 仓根构建 → 算号与验产物 → 上车检票 → 按序发。
@@ -342,11 +371,14 @@ export async function runRelease(input: ReleaseInput, deps: ReleaseDeps): Promis
       ...testedKernelProblems(ticket, input.runningKernel),
       ...artifacts.problems,
     ]
-    if (!deps.exists(path.join(pkgDir, 'tsconfig.json'))) {
-      problems.push('包目录下没有 tsconfig.json:发版前检查要在 skipLibCheck: false 下跑一次类型检查')
+    const tsconfigs = typecheckTsconfigs(pkgDir, deps.exists)
+    if (tsconfigs === undefined) {
+      problems.push(NO_TSCONFIG_PROBLEM)
     } else {
-      const typecheck = await deps.run(pnpmPlan(TYPECHECK_ARGS, pkgDir, deps.platform), BUILD_TIMEOUT_MS)
-      if (!typecheck.ok) problems.push(typecheckProblem(typecheck.tail))
+      for (const tsconfig of tsconfigs) {
+        const typecheck = await deps.run(pnpmPlan(typecheckArgs(tsconfig), pkgDir, deps.platform), BUILD_TIMEOUT_MS)
+        if (!typecheck.ok) problems.push(typecheckProblem(tsconfig, typecheck.tail))
+      }
     }
     tickets.push({ pkg: `${ticket.name}@${ticket.version}`, problems, reminders: peers.reminders })
   }
