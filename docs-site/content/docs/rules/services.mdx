@@ -45,9 +45,9 @@ export default class GwbExample extends Service {
 
 **不需要认出调用方的服务（存在标记服务）用 `ctx.provide`。** 它只是一个普通对象，不用 import `cordis`，也就不写 peer。插件管理就是这样：对外只有命令，服务 `gwbPluginManager` 只表示「插件管理装了」：
 
-{/* ref file="../plugins/plugin-manager/src/index.ts" lines="79-87" */}
+{/* ref file="../plugins/plugin-manager/src/index.ts" lines="81-89" */}
 
-{/* ref file="../plugins/plugin-manager/src/index.ts" lines="183-188" */}
+{/* ref file="../plugins/plugin-manager/src/index.ts" lines="185-190" */}
 
 服务名用 `gwb` 开头的小驼峰，跟插件名对应。提供了服务的插件在清单的 `gwb.provides` 里按服务名写 `summary` 与 `usage`，键与源码提供的服务名一一对应——repo-kit 的自述守卫在各仓 `pnpm check` 里查这一条，`devkit.capabilities` 靠它把用法带进回执。
 
@@ -67,7 +67,7 @@ export default class GwbExample extends Service {
 
 插件管理对数据插件用第三种：数据插件没装时插件管理照常加载，装上之后才连接：
 
-{/* ref file="../plugins/plugin-manager/src/index.ts" lines="251-269" */}
+{/* ref file="../plugins/plugin-manager/src/index.ts" lines="253-271" */}
 
 **往继承了 `Service` 的服务里注册，不用自己包 `ctx.effect`**；往 `ctx.provide` 提供的扩展点服务里注册，要自己包。外壳 `gwbShell` 与命令总线 `gwbCommands`（0.4.6 起）都继承了 `Service`。模板注册窗格直接调；注册命令还包了一层 `ctx.effect`，因为模板的 dev 依赖范围还包含 0.4.6 之前、不会自动注销的命令总线：
 

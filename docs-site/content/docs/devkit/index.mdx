@@ -97,11 +97,11 @@ description: 开发套件是一个普通的 gwb 插件，把「在一个新文�
 
 版本号与 dev 范围、peer 两类检查：
 
-{/* ref file="../plugins/devkit/src/release.ts" lines="177-238" */}
+{/* ref file="../plugins/devkit/src/release.ts" lines="231-292" */}
 
 `gwb.testedKernel` 的检查：
 
-{/* ref file="../plugins/devkit/src/release.ts" lines="158-175" */}
+{/* ref file="../plugins/devkit/src/release.ts" lines="212-229" */}
 
 `gwb.requires` 的检查：
 
@@ -109,7 +109,7 @@ description: 开发套件是一个普通的 gwb 插件，把「在一个新文�
 
 类型检查按哪几份 tsconfig 查：
 
-{/* ref file="../plugins/devkit/src/release.ts" lines="258-267" */}
+{/* ref file="../plugins/devkit/src/release.ts" lines="312-321" */}
 
 构建产物检查在 `src/artifact-check.ts`。哪些文件算 node 侧、哪些算浏览器侧，照模板生成的插件包的构建约定判断：node 侧是 `exports["."]` 的运行时入口（没有 `exports` 时是 `main`）加上顺着相对 import 走得到的文件，也就是内核的 loader 按包名 import 插件时加载的那些；浏览器侧是 `dist/client.js`（模板的 `build.ts` 用 esbuild 以 `platform: 'browser'` 输出的文件）加上本包 `gwb.shared` 声明的子路径指到的文件，同样顺着相对 import 走；两边都走不到的文件不查。importmap 里的名字取本包与它依赖到的包（`dependencies`、`devDependencies`、`peerDependencies`）的 `gwb.shared` 键，依赖的清单当场从包目录的 `node_modules` 读，形状照内核计算 importmap 的那段代码：
 
