@@ -356,6 +356,14 @@ describe('包内 template/：两区', () => {
     }
   })
 
+  it('生成的样式入口从外壳导出的 theme.reference.css 引令牌映射，不再引已停发的 gwb-tokens', () => {
+    const files = renderTemplate(TEMPLATE_ROOT, planScaffold({ name: 'hello', dir: 'D:\\tmp\\x', testedKernel: KERNEL }))
+    const styles = files.find((f) => f.rel === 'plugins/hello/src/client/styles.css')?.text ?? ''
+    const imports = [...styles.replaceAll(/\/\*[\s\S]*?\*\//g, '').matchAll(/^@import '([^']+)'/gm)].map((m) => m[1])
+    expect(imports).toContain('@godcreator/gwb-shell/theme.reference.css')
+    expect(styles).not.toContain('gwb-tokens')
+  })
+
   it('生成的自述检查把 docsDir 指到仓根文档站的现状区，inject 那一条不会因为找不到站而跳过', () => {
     const repoDir = path.join(sandbox(), 'repo')
     const files = renderTemplate(TEMPLATE_ROOT, planScaffold({ name: 'hello', dir: repoDir, testedKernel: KERNEL }))

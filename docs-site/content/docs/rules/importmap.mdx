@@ -31,9 +31,7 @@ description: importmap 只放整个页面必须只有一份的运行时代码，
 
 {/* ref file="../plugins/devkit/template/pkg/build.ts.tpl" lines="11-17" */}
 
-## 这个仓里还没照做的
-
-模板的样式入口还从已经不再发新版的 `gwb-tokens` 引样式映射文件 `theme.reference.css`：
+令牌的样式映射文件 `theme.reference.css` 也由外壳导出（包内路径 `@godcreator/gwb-shell/theme.reference.css`），模板的样式入口从外壳引，作为构建时的输入：
 
 {/* ref file="../plugins/devkit/template/pkg/src/client/styles.css.tpl" lines="19-22" */}
 
