@@ -113,3 +113,14 @@ module specifier "@godcreator/block-note"」。整页重载一次即愈（快照
 带上「install 若补装了 peer，建完条目再整页重载一次」。顺带给验收纪律补一句：带浏览器端的件，实装验证要配
 截图或窗格渲染取证——这类坑只有渲染层会喊。
 
+## 2026-09-25 块笔记已撤掉 `gwb.shared`，定案第四节与第六节在块笔记一侧做完
+
+来源：块笔记仓（gwb-block-note）把引擎替换合回 main 之后按全生态机制定案对齐的会话。
+
+定案第四节「块笔记的解析库撤掉 `gwb.shared`，块笔记系列插件各自打包进构建产物」与第六节「外置名单只从提供方读」，块笔记与论文插件的 main 上
+都已改完：界面包 `@godcreator/block-notebook-ui` 不再声明 `gwb.shared`、去掉 `gwb` 关键词，不再装进 home；各插件浏览器端只外置内核包清单
+`gwb.shared` 的键。同一轮还照写插件的规矩改了几处：命令表抽成无状态的包 `@godcreator/block-notebook-commands`（插件之间不再 import
+核心插件的 `./shared`）；`blockNoteLibraries` / `blockNoteExtensions` 继承 `Service`；核心插件卸载时关库的清理返回 promise（第八节）；
+契约版本号对不上拒绝加载（第七节）；核心插件补回 `gwb.provides`。都还没发版。
+定案「已决定（2026-09-24）」里等块笔记撤声明的那一条，条件已满足，可以更新；删机制本身在内核仓（已另投一条），要等 default 切换卸掉旧的
+`@godcreator/block-note` 之后。
