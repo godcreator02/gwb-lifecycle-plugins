@@ -263,7 +263,8 @@ promise，退出时可能丢数据。
   `update` 并入 `update-all {"only":[…]}`；服务收成只表示装了的 `{ contract }`，不写 peer
 - [ ] home 清单一律写精确版本号、以锁文件为准；整页重载只在 shell 变了时做（现在一键热升级每次都整页重载）
 - [ ] `devkit.dev` / `home.new` 改为调用插件管理的统一入口；`INSTALL.md` 的首次安装插件集清单改为从 devkit 的正本来
-- [ ] default home 清单里的库与共享包清出去，只剩插件
+- [ ] default home 清单里的库与共享包清出去，只剩插件（2026-09-24 查 default：非插件的除内核包与 `cordis` 外还有词汇表包 `@godcreator/gwb-plugin-api` 0.2.7、块笔记的库 `@godcreator/block-note` 0.5.3；`@cordisjs/plugin-timer` 是 cordis 官方的定时器插件，不算库）
+- [ ] `devkit.home.new` 不再把词汇表包装进新 home：`src/home.ts` 的 `BASE_SHARED` 把它当 home 的直接依赖装，和 `INSTALL.md`「只装插件、不装库，词汇表包运行时用不到」矛盾；删掉这一项，基础插件清单、测试与测试 home 页跟着改
 
 **第五期：react 改由内核提供（提前到第三期之前做，见「已决定」）；删掉 `gwb.shared` 留到第三期之后**
 
