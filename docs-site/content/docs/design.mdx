@@ -85,7 +85,7 @@ devkit 没有任何特权：装进 home 才有它的命令，加载不成功就�
 | 结构体检 | `src/structure.ts` | 同一个文件，只读磁盘 | [结构体检](/docs/devkit/structure) |
 | 测试 home | `src/home.ts` | `src/node-home-deps.ts` | [测试 home](/docs/devkit/home) |
 | 改一版看一版 | `src/dev.ts` | `src/node-dev-deps.ts` | [改一版看一版](/docs/devkit/dev) |
-| 发正式版 | `src/release.ts`、`src/tested-kernel.ts` | `src/node-dev-deps.ts` | [开发套件](/docs/devkit#发正式版的检查) |
+| 发正式版 | `src/release.ts`、`src/artifact-check.ts`、`src/tested-kernel.ts` | `src/node-dev-deps.ts` | [开发套件](/docs/devkit#发正式版的检查) |
 | 依赖对账 | `src/audit.ts` | `src/node-audit-deps.ts` | [开发套件](/docs/devkit#依赖对账的判据) |
 | 能用什么 | `src/services.ts`、`src/capabilities.ts` | 命令登记处读 home 里的 `package.json` | [开发套件](/docs/devkit) |
 | 进程与端口探测 | `src/probes.ts` | `src/node-probe-deps.ts` | [测试 home](/docs/devkit/home) |

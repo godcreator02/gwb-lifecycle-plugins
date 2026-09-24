@@ -2,7 +2,7 @@ import fs from 'node:fs'
 import os from 'node:os'
 import path from 'node:path'
 import { afterEach, describe, expect, it } from 'vitest'
-import { distManifest, releaseDeps, workspaceRootOf } from '../src/node-dev-deps.js'
+import { distManifest, workspaceRootOf, workspaceVersions } from '../src/node-dev-deps.js'
 
 /**
  * `node-dev-deps.ts` 整层是环境胶水、不进单测，唯独 `distManifest` 与 `workspaceRootOf` 不是胶水：
@@ -113,7 +113,7 @@ describe('workspaceRootOf：从包目录往上找工作区根', () => {
     const root = workspaceWithPluginAndLib()
     const found = workspaceRootOf(path.join(root, 'plugins', 'a'))
     expect(found).toBe(root)
-    expect(releaseDeps.workspaceVersions(found)['@x/lib']).toBe('0.4.2')
+    expect(workspaceVersions(found).get('@x/lib')).toBe('0.4.2')
   })
 
   it('包目录自己有 pnpm-workspace.yaml 时就是它自己', () => {

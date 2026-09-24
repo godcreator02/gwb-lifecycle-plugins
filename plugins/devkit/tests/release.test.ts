@@ -4,10 +4,12 @@ import { DEFAULT_REGISTRY } from '../src/dev.js'
 import {
   checkTicket,
   dirtyLines,
+  peerProblems,
   runRelease,
   testedKernelProblems,
   ticketManifestOf,
   ticketRefusal,
+  TYPECHECK_ARGS,
   type ReleaseDeps,
 } from '../src/release.js'
 
@@ -27,78 +29,87 @@ const REACT = '@godcreator/gwb-shared-react'
 
 const KERNEL = '0.2.7'
 
+const EXPORTS = { '.': { types: './dist/index.d.ts', default: './dist/index.js' } }
+
 function manifestOf(name: string, version: string, files: string[] = ['dist']): string {
-  return JSON.stringify({ name, version, files })
+  return JSON.stringify({ name, version, files, exports: EXPORTS })
 }
 
 function full(name: string, version: string, peerDependencies: Record<string, string>, devDependencies: Record<string, string>): string {
-  return JSON.stringify({ name, version, files: ['dist'], peerDependencies, devDependencies })
+  return JSON.stringify({ name, version, files: ['dist'], exports: EXPORTS, peerDependencies, devDependencies })
 }
 
-/** 插件包的清单：keywords 含 gwb-plugin；gwb 给了才写 */
-function pluginManifestOf(name: string, version: string, gwb?: Record<string, unknown>): string {
-  return JSON.stringify({ name, version, files: ['dist'], keywords: ['gwb', 'gwb-plugin'], ...(gwb === undefined ? {} : { gwb }) })
+/** 插件包的清单：keywords 含 gwb-plugin；gwb、其余字段给了才写 */
+function pluginManifestOf(name: string, version: string, gwb?: Record<string, unknown>, extra: Record<string, unknown> = {}): string {
+  return JSON.stringify({ name, version, files: ['dist'], exports: EXPORTS, keywords: ['gwb', 'gwb-plugin'], ...(gwb === undefined ? {} : { gwb }), ...extra })
 }
 
-const T = (peers: Record<string, string>, devs: Record<string, string>, version = '0.3.0') => ({ name: A, version, peers, devs, plugin: false, testedKernel: undefined })
+const T = (peers: Record<string, string>, devs: Record<string, string>, version = '0.3.0', plugin = false) => ({ name: A, version, peers, devs, plugin, testedKernel: undefined })
 
-describe('checkTicket：上车检票', () => {
-  it('全按规矩：^<dev 钉>、dev 钉＝latest、workspace:* 跳过——干净', () => {
-    const got = checkTicket(T({ [SHELL]: '^0.9.0', [B]: '^0.2.0' }, { [SHELL]: '0.9.0', [B]: 'workspace:*' }), { [SHELL]: '0.9.0' }, { [B]: '0.2.0' })
+describe('checkTicket：版本号与 dev 范围', () => {
+  it('dev 钉＝latest、workspace:* 跳过——干净；peer 不归它查', () => {
+    const got = checkTicket(T({ [SHELL]: '>=0.1.0' }, { [SHELL]: '0.9.0', [B]: 'workspace:*' }), { [SHELL]: '0.9.0' })
     expect(got).toEqual({ pkg: `${A}@0.3.0`, problems: [], reminders: [] })
   })
 
   it('自己在 0.0.x：拒，先抬到 0.1.0', () => {
-    const got = checkTicket(T({}, {}, '0.0.7'), {}, {})
+    const got = checkTicket(T({}, {}, '0.0.7'), {})
     expect(got.problems).toHaveLength(1)
     expect(got.problems[0]).toContain('0.1.0')
   })
 
-  it('peer 不是 ^x.y.z 一律拒，逐条说改成什么', () => {
-    const got = checkTicket(
-      T({ [SHELL]: '>=0.9.0', [API]: '0.1.2', [REACT]: 'workspace:*' }, { [SHELL]: '0.9.0', [API]: '0.1.2', [REACT]: 'workspace:*' }),
-      { [SHELL]: '0.9.0', [API]: '0.1.2' },
-      { [REACT]: '0.1.0' },
-    )
-    expect(got.problems).toEqual([
-      expect.stringContaining(`peer ${SHELL} 写的是 ">=0.9.0"`),
-      expect.stringContaining(`peer ${API} 写的是 "0.1.2"`),
-      expect.stringContaining(`peer ${REACT} 写的是 "workspace:*"`),
-    ])
-    expect(got.problems[0]).toContain('"^0.9.0"')
-    expect(got.problems[2]).toContain('"^0.1.0"')
-  })
-
   it('dev 范围罩住 latest 即放行（精确钉与 ^ 皆可）；出范围才拒', () => {
-    const exactInRange = checkTicket(T({ [SHELL]: '^0.8.0' }, { [SHELL]: '0.8.0' }), { [SHELL]: '0.8.3' }, {})
+    const exactInRange = checkTicket(T({}, { [SHELL]: '0.8.0' }), { [SHELL]: '0.8.3' })
     expect(exactInRange.problems).toEqual([])
-    const caretDev = checkTicket(T({ [SHELL]: '^0.8.0' }, { [SHELL]: '^0.8.0' }), { [SHELL]: '0.8.3' }, {})
+    const caretDev = checkTicket(T({}, { [SHELL]: '^0.8.0' }), { [SHELL]: '0.8.3' })
     expect(caretDev.problems).toEqual([])
-    const outRange = checkTicket(T({ [SHELL]: '^0.8.0' }, { [SHELL]: '0.8.0' }), { [SHELL]: '0.9.0' }, {})
+    const outRange = checkTicket(T({}, { [SHELL]: '0.8.0' }), { [SHELL]: '0.9.0' })
     expect(outRange.problems[0]).toContain('出范围')
     expect(outRange.problems[0]).toContain('先适配代码')
   })
 
   it('dev 比 latest 新、问不出 latest、dev 写法认不出：都拒', () => {
-    const got = checkTicket(T({}, { [SHELL]: '0.9.1', [API]: '0.1.2', [REACT]: '~0.0.4' }), { [SHELL]: '0.9.0', [REACT]: '0.0.4' }, {})
+    const got = checkTicket(T({}, { [SHELL]: '0.9.1', [API]: '0.1.2', [REACT]: '~0.0.4' }), { [SHELL]: '0.9.0', [REACT]: '0.0.4' })
     expect(got.problems).toEqual([
       expect.stringContaining('没发的号'),
       expect.stringContaining('问不出'),
       expect.stringContaining('要写 ^<验过的号>'),
     ])
   })
+})
 
-  it('peer 下限 ≠ dev 下限：拒（dev 下限已是 latest 也拒）', () => {
-    const got = checkTicket(T({ [SHELL]: '^0.9.0' }, { [SHELL]: '0.9.2' }), { [SHELL]: '0.9.2' }, {})
-    expect(got.problems).toEqual([expect.stringContaining('下限 0.9.0 ≠ dev 下限 0.9.2')])
+describe('peerProblems：插件包的 peer 只写 cordis', () => {
+  it('只有 peer cordis 且产物 import 了 cordis：干净', () => {
+    expect(peerProblems(T({ cordis: '^4.0.0-rc.9' }, {}, '0.3.0', true), true)).toEqual({ problems: [], reminders: [] })
   })
 
-  it('peer 指向的上游自己还在 0.0.x：不拒，只提醒', () => {
-    const got = checkTicket(T({ [REACT]: '^0.0.4' }, { [REACT]: '0.0.4' }), { [REACT]: '0.0.4' }, {})
+  it('cordis 以外的 peer 一律拒，逐条说按「运行时谁提供」写 dev 还是 dependencies', () => {
+    const got = peerProblems(T({ [SHELL]: '^0.13.3', [API]: '^0.2.7', react: '^19.0.0' }, {}, '0.3.0', true), false)
+    expect(got.problems).toEqual([
+      expect.stringContaining(`peer 写了 ${SHELL}`),
+      expect.stringContaining(`peer 写了 ${API}`),
+      expect.stringContaining('peer 写了 react'),
+    ])
+    expect(got.problems[0]).toContain('devDependencies')
+    expect(got.problems[0]).toContain('dependencies,并在清单里写明原因')
+  })
+
+  it('产物 import 了 cordis 而 peer 里没有：拒', () => {
+    expect(peerProblems(T({}, {}, '0.3.0', true), true).problems).toEqual([expect.stringContaining('写 peer cordis')])
+  })
+
+  it('写了 peer cordis 而产物没有 import 它：只提醒', () => {
+    const got = peerProblems(T({ cordis: '^4.0.0-rc.9' }, {}, '0.3.0', true), false)
     expect(got.problems).toEqual([])
-    expect(got.reminders).toEqual([expect.stringContaining('0.1.0')])
+    expect(got.reminders).toEqual([expect.stringContaining('只 import 类型时不写 peer')])
   })
 
+  it('不是插件包：不查', () => {
+    expect(peerProblems(T({ [SHELL]: '^0.13.3' }), true)).toEqual({ problems: [], reminders: [] })
+  })
+})
+
+describe('ticketRefusal', () => {
   it('拒的回执按包分组、带总数', () => {
     const text = ticketRefusal([
       { pkg: `${A}@0.0.1`, problems: ['一', '二'], reminders: [] },
@@ -162,6 +173,8 @@ interface FakeOptions {
   failRun?: string
   failPublish?: string
   latest?: Record<string, string>
+  /** 类型检查的输出；给了就当没过 */
+  typecheckFails?: string
 }
 
 function fake(options: FakeOptions = {}): ReleaseDeps & { calls: string[]; ranges: Record<string, string>[] } {
@@ -170,6 +183,10 @@ function fake(options: FakeOptions = {}): ReleaseDeps & { calls: string[]; range
   const files: Record<string, string> = {
     [path.resolve(REPO, 'a/package.json')]: manifestOf(A, '0.1.0'),
     [path.resolve(REPO, 'b/package.json')]: manifestOf(B, '0.2.0'),
+    [path.resolve(REPO, 'a/tsconfig.json')]: '{}',
+    [path.resolve(REPO, 'b/tsconfig.json')]: '{}',
+    [path.resolve(REPO, 'a/dist/index.js')]: "import path from 'node:path';\n",
+    [path.resolve(REPO, 'b/dist/index.js')]: "import path from 'node:path';\n",
     ...options.files,
   }
   return {
@@ -185,6 +202,9 @@ function fake(options: FakeOptions = {}): ReleaseDeps & { calls: string[]; range
     },
     async run(plan, _timeoutMs) {
       calls.push(`run ${plan.args.join(' ')} @${plan.cwd}`)
+      if (options.typecheckFails !== undefined && plan.args.join(' ').includes(TYPECHECK_ARGS.join(' '))) {
+        return { ok: false, tail: options.typecheckFails }
+      }
       const ok = options.failRun === undefined || !plan.args.join(' ').includes(options.failRun)
       return { ok, tail: ok ? '' : '假的失败' }
     },
@@ -203,7 +223,6 @@ function fake(options: FakeOptions = {}): ReleaseDeps & { calls: string[]; range
       calls.push(`latest ${pkg}`)
       return options.latest?.[pkg]
     },
-    workspaceVersions: () => ({ [A]: '0.1.0', [B]: '0.2.0' }),
   }
 }
 
@@ -232,12 +251,15 @@ describe('发正式版', () => {
     expect(out.data.reminders).toEqual([])
   })
 
-  it('检票没过：构建之后、发之前拒，一个都不发，所有包的问题一次列全', async () => {
+  it('发版前检查没过：构建之后、发之前拒，一个都不发，所有包的问题一次列全', async () => {
     const deps = fake({
       latest: { [SHELL]: '0.9.0', [API]: '0.2.0' },
       files: {
-        [path.resolve(REPO, 'a/package.json')]: full(A, '0.0.3', { [SHELL]: '>=0.8.0' }, { [SHELL]: '0.8.0' }),
-        [path.resolve(REPO, 'b/package.json')]: full(B, '0.2.0', { [API]: '^0.1.1' }, { [API]: '0.1.1' }),
+        [path.resolve(REPO, 'a/package.json')]: full(A, '0.0.3', { [SHELL]: '^0.8.0' }, { [SHELL]: '0.8.0' }),
+        [path.resolve(REPO, 'b/package.json')]: pluginManifestOf(B, '0.2.0', { testedKernel: KERNEL }, {
+          peerDependencies: { [API]: '^0.1.1' },
+          devDependencies: { [API]: '0.1.1' },
+        }),
       },
     })
     const out = await runRelease({ repoDir: REPO, runningKernel: KERNEL, packages: ['a', 'b'] }, deps)
@@ -245,22 +267,62 @@ describe('发正式版', () => {
     if (out.ok) return
     expect(deps.calls.some((one) => one.includes('pnpm build'))).toBe(true)
     expect(deps.calls.some((one) => one.startsWith('publish'))).toBe(false)
+    expect(out.error).toContain('发版前检查没过')
     expect(out.error).toContain(`${A}@0.0.3`)
     expect(out.error).toContain(`${B}@0.2.0`)
     expect(out.error).toContain('抬到 0.1.0')
-    expect(out.error).toContain('"^0.9.0"')
     expect(out.error).toContain('出范围')
+    expect(out.error).toContain(`peer 写了 ${API}`)
+    // a 不是插件包：peer 不查；a 两条（0.0.x、出范围），b 两条（出范围、peer）
     expect(out.error).toContain('2 个包 4 条')
   })
 
-  it('检票过了：上游还在 0.0.x 的 peer 只提醒不拒，提醒带进回执', async () => {
+  it('插件包的产物有不在名单上的包名 import、有空 import：拒', async () => {
     const deps = fake({
-      latest: { [REACT]: '0.0.4' },
-      files: { [path.resolve(REPO, 'a/package.json')]: full(A, '0.1.0', { [REACT]: '^0.0.4' }, { [REACT]: '0.0.4' }) },
+      files: {
+        [path.resolve(REPO, 'a/package.json')]: pluginManifestOf(A, '0.1.0', { testedKernel: KERNEL }),
+        [path.resolve(REPO, 'a/dist/index.js')]: "import YAML from 'yaml';\nimport {} from '@godcreator/gwb-shell';\n",
+      },
+    })
+    const out = await runRelease({ repoDir: REPO, runningKernel: KERNEL, packages: ['a'] }, deps)
+    expect(out.ok).toBe(false)
+    if (out.ok) return
+    expect(out.error).toContain("import 了 'yaml'")
+    expect(out.error).toContain("空 import：import {} from '@godcreator/gwb-shell'")
+    expect(deps.calls.some((one) => one.startsWith('publish'))).toBe(false)
+  })
+
+  it('类型检查在包目录里用 pnpm exec tsc、关掉 skipLibCheck 跑；没过就拒，带上输出尾巴', async () => {
+    const deps = fake({ typecheckFails: "index.d.ts(52,32): error TS2304: Cannot find name 'HTMLElement'." })
+    const out = await runRelease({ repoDir: REPO, runningKernel: KERNEL, packages: ['a'] }, deps)
+    expect(deps.calls).toContain(`run /c pnpm ${TYPECHECK_ARGS.join(' ')} @${path.resolve(REPO, 'a')}`)
+    expect(out.ok).toBe(false)
+    if (out.ok) return
+    expect(out.error).toContain('--skipLibCheck false 没过')
+    expect(out.error).toContain('HTMLElement')
+  })
+
+  it('包目录下没有 tsconfig.json：拒', async () => {
+    const deps = fake({
+      files: {
+        [path.resolve(REPO, 'c/package.json')]: manifestOf('@godcreator/gwb-fake-c', '0.1.0'),
+        [path.resolve(REPO, 'c/dist/index.js')]: '',
+      },
+    })
+    const out = await runRelease({ repoDir: REPO, runningKernel: KERNEL, packages: ['c'] }, deps)
+    expect(out.ok).toBe(false)
+    if (!out.ok) expect(out.error).toContain('没有 tsconfig.json')
+  })
+
+  it('检查过了：写了 peer cordis 而产物没 import 它，只提醒不拒，提醒带进回执', async () => {
+    const deps = fake({
+      files: {
+        [path.resolve(REPO, 'a/package.json')]: pluginManifestOf(A, '0.1.0', { testedKernel: KERNEL }, { peerDependencies: { cordis: '^4.0.0-rc.9' } }),
+      },
     })
     const out = await runRelease({ repoDir: REPO, runningKernel: KERNEL, packages: ['a'] }, deps)
     expect(out.ok).toBe(true)
-    if (out.ok) expect(out.data.reminders.join('\n')).toContain('0.0.4')
+    if (out.ok) expect(out.data.reminders).toEqual([expect.stringContaining(`${A}@0.1.0:写了 peer cordis`)])
   })
 
   it('插件包的 gwb.testedKernel 不对：构建之后、发之前拒，一个都不发，每个包的问题一次列全', async () => {

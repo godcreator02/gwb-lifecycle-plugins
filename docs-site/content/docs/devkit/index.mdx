@@ -74,13 +74,33 @@ description: 开发套件是一个普通的 gwb 插件，把「在一个新文�
 
 `devkit.release` 依次做：仓根 git 工作区不干净就拒；仓根 `pnpm build`；按 `files` 白名单检查产物；同一个版本号已在源上就拒；发版前检查；在临时目录组装发布内容、发到 latest（`workspace:` 依赖写成 `^`：同一次发的写 `^新版本号`，其余写 `^<工作区里的版本号>`）。任何一个包没过检查，一个都不发，回执按包一次列全。它只碰团队源、不碰任何 home，所以从哪个 home 调用都可以。
 
-发版前检查对每个要发的包查：自己不在 0.0.x；`@godcreator` 的 dev 依赖范围包含源上的 `dist-tags.latest`（写法认不出、下限比 latest 还新、latest 超出范围才拒，范围内落后放行）；`@godcreator` 的 peer 写成 `^<dev 下限>`；插件包（`keywords` 含 `gwb-plugin`）的 `gwb.testedKernel` 与运行中的内核在同一条版本线上（没写、不是合法版本号、不在同一条线都拒）。peer 指向的上游还在 0.0.x 只在回执的 `reminders` 里提醒。
+发版前检查对每个要发的包查：
 
-{/* ref file="../plugins/devkit/src/release.ts" lines="153-170" */}
+- 自己不在 0.0.x；`@godcreator` 的 dev 依赖范围包含源上的 `dist-tags.latest`（写法认不出、下限比 latest 还新、latest 超出范围才拒，范围内落后放行）
+- 构建产物里没有 `import {} from '…'` 这种空 import（源码写了 `import { type X }`），相对 import 指向的文件都在
+- 在包目录里用本仓装的 tsc 跑 `tsc --noEmit -p tsconfig.json --skipLibCheck false`，要通过
 
-{/* ref file="../plugins/devkit/src/release.ts" lines="172-238" */}
+插件包（`keywords` 含 `gwb-plugin`）另查：
 
-哪些依赖该写成 peer，现在的规矩在[依赖怎么写](/docs/rules/deps)；发版前检查对 `@godcreator` peer 的要求还是旧规矩，差别写在[写插件的规矩](/docs/rules)的总表里。`gwb.testedKernel` 的比对规则与插件管理那份相同，见[在哪个内核上测过](/docs/rules/tested-kernel)。
+- peer 里只有 `cordis`，别的 peer 一律拒，报错写明按「运行时谁提供」该改写成 dev 还是 `dependencies`；node 侧产物按值 import 了 `cordis` 而 peer 里没有，拒；写了 peer `cordis` 而产物没有 import 它，只在回执的 `reminders` 里提醒
+- node 侧产物的包名 import 只有 node 内置模块、`electron`、`cordis`；浏览器侧产物只 import importmap 里的名字
+- `gwb.testedKernel` 与运行中的内核在同一条版本线上（没写、不是合法版本号、不在同一条线都拒）
+
+版本号与 dev 范围、peer 两类检查：
+
+{/* ref file="../plugins/devkit/src/release.ts" lines="177-238" */}
+
+`gwb.testedKernel` 的检查：
+
+{/* ref file="../plugins/devkit/src/release.ts" lines="158-175" */}
+
+构建产物检查在 `src/artifact-check.ts`。哪些文件算 node 侧、哪些算浏览器侧，照模板生成的插件包的构建约定判断：node 侧是 `exports["."]` 的运行时入口（没有 `exports` 时是 `main`）加上顺着相对 import 走得到的文件，也就是内核的 loader 按包名 import 插件时加载的那些；浏览器侧是 `dist/client.js`（模板的 `build.ts` 用 esbuild 以 `platform: 'browser'` 输出的文件）加上本包 `gwb.shared` 声明的子路径指到的文件，同样顺着相对 import 走；两边都走不到的文件不查。importmap 里的名字取本包与它依赖到的包（`dependencies`、`devDependencies`、`peerDependencies`）的 `gwb.shared` 键，依赖的清单从包目录的 `node_modules` 现读，形状照内核计算 importmap 的那段代码：
+
+{/* ref file="../plugins/devkit/src/artifact-check.ts" lines="5-24" */}
+
+{/* ref file="../plugins/devkit/src/artifact-check.ts" lines="165-224" */}
+
+库（没有 `gwb-plugin` 的包）只查空 import、相对 import 与类型检查，不查 peer 和包名 import 的两份名单：库由用它的插件打包进产物，它的 peer 与 import 不在 home 里按包名解析。规矩本身见[依赖怎么写](/docs/rules/deps)与[页面代码与 importmap](/docs/rules/importmap)；`gwb.testedKernel` 的比对规则与插件管理那份相同，见[在哪个内核上测过](/docs/rules/tested-kernel)。
 
 ### 依赖对账的判据
 

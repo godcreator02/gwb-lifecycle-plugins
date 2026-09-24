@@ -27,7 +27,7 @@ devkit 自己的清单：
 
 **`devkit.release` 发版前检查**：对每个要发的插件包，没写、写的不是合法版本号、和运行中的内核不在同一条版本线上，三种都拒，一个包都不发。「运行中的内核」是调 `devkit.release` 的那个 home 里的内核：
 
-{/* ref file="../plugins/devkit/src/release.ts" lines="153-170" */}
+{/* ref file="../plugins/devkit/src/release.ts" lines="158-175" */}
 
 **`plugin-manager.list` 按包报**：`testedKernel` 是包清单里声明的版本（没写时没有这个字段），`kernelUntested` 在声明的版本和运行中的内核不在同一条版本线上、没声明或声明的不是合法版本号时为 true。它只报告，不阻止加载（为什么只报告、回执怎么读，见插件管理那组页面里的[同名一页](/docs/plugin-manager/kernel-compat)）：
 

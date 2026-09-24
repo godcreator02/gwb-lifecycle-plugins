@@ -95,7 +95,7 @@ interface DistManifest {
  * 走得通,而目录怎么摆是各仓自己的事。只扫两层、跳过 `node_modules` 与点目录——再深就是
  * 在别人的依赖树里翻东西了。
  */
-function workspaceVersions(repoDir: string, depth = 2): Map<string, string> {
+export function workspaceVersions(repoDir: string, depth = 2): Map<string, string> {
   const found = new Map<string, string>()
   const walk = (dir: string, left: number): void => {
     const manifest = path.join(dir, 'package.json')
@@ -347,7 +347,6 @@ export const releaseDeps: ReleaseDeps = {
     const lines = seen.tail.split(/\r?\n/).map((line) => line.trim())
     return lines.reverse().find((line) => /^\d+\.\d+\.\d+(?:-[0-9A-Za-z.-]+)?$/.test(line))
   },
-  workspaceVersions: (repoDir) => Object.fromEntries(workspaceVersions(repoDir)),
   gitStatus: gitStatusOf,
   readText(file) {
     try {

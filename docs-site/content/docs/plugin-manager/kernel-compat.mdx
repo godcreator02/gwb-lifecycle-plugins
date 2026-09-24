@@ -72,7 +72,7 @@ description: 插件在 package.json 的 gwb.testedKernel 写它在哪个内核�
 
 **是什么**：`devkit.release` 在构建之后、发第一个包之前，检查每个插件包（`keywords` 含 `gwb-plugin` 的）的 `gwb.testedKernel`：必须写了、是合法版本号、并且和运行中的内核在同一条版本线上。有一个不对就一个都不发，回执里说该改成什么。不是插件的包（库、工具包）不查。
 
-{/* ref file="../plugins/devkit/src/release.ts" lines="153-170" */}
+{/* ref file="../plugins/devkit/src/release.ts" lines="158-175" */}
 
 **两份规则**：比对规则在 devkit 与插件管理里各有一份（两边的 `src/tested-kernel.ts`），不跨包 import——devkit 不依赖插件管理的包。两个包在同一个仓里，改规则时一个提交改两份。
 

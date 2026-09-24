@@ -1,0 +1,29 @@
+---
+title: 发版前检查改查构建产物：peer 只许 cordis，两侧按入口认，关掉 skipLibCheck 跑类型检查
+born-at: 2026-09-24T11:00
+type: choice
+parent: [2026-09-08-gwb-devkit]
+label: 查产物
+domain: 发版
+---
+
+pivots-from:: [工具对齐 ^：发版检票强制迁，严格 peer 分两条路](2026-09-18-caret-ticket-strict-peer.md)
+
+## 背景
+
+写插件的规矩改成按「运行时谁提供」写依赖：peer 只写宿主提供、构建产物里按值 import 的 `cordis`，其余写 dev；构建产物里的包名 import 在 node 侧只能是 node 内置模块、`electron`、`cordis`，在浏览器侧只能是 importmap 里的名字。`devkit.release` 还按旧规矩查 `@godcreator` 的 peer 写成 `^<dev 下限>`、下限等于 dev 下限，写对了就放行，新规矩没有一条被工具查到。
+
+## 结论与边界
+
+- **删掉 peer 写法与下限的检查**，连同「peer 指向的上游还在 0.0.x」那条提醒；dev 范围包含源上 latest、自己不在 0.0.x 两条保留
+- **peer 检查只管插件包**（`keywords` 含 `gwb-plugin`）：cordis 以外的 peer 一律拒，报错写明按「运行时谁提供」该写 dev 还是 `dependencies`；node 侧产物 import 了 cordis 而没写 peer，拒；写了 peer cordis 而产物不 import 它，只提醒——多一条 peer 不会让插件装不上。库不查 peer：库由用它的插件打包进产物，它的 peer 不进 home
+- **哪些文件算哪一侧，从入口顺着相对 import 走，不按文件名一刀切**：node 侧入口是 `exports["."]` 的运行时条件（没有 `exports` 时是 `main`），也就是 loader 按包名加载的那个文件；浏览器侧入口是模板 `build.ts` 输出的 `dist/client.js`，加上本包 `gwb.shared` 指到的文件。否掉的做法是模板产物测试的「`dist/` 下除 `client.js` 外都算 node 侧」：外壳把 react 的几个共享文件也放在 `dist/` 里，按文件名分会把浏览器侧文件当成 node 侧、误拒；而两侧都走不到的文件运行时不会被加载，不查
+- **importmap 的名字从本仓 `node_modules` 现读**：本包与它依赖到的包的 `gwb.shared` 键，形状照内核计算 importmap 那段代码；依赖的清单读不到就拒，不猜。只有浏览器侧有包名 import 时才读
+- **包名 import 只认三种写法**：行首的 `import … from` / `export … from` / `import '…'`，和非注释行里带字面量的 `import('…')`。devkit 自己的产物里注释写着 `import()`，不跳过注释行会误拒
+- **空 import 与关掉 skipLibCheck 的类型检查对所有包都查**；类型检查用被发仓自己的 tsc（在包目录里 `pnpm exec tsc --noEmit -p tsconfig.json --skipLibCheck false`），只查包目录的 `tsconfig.json`，浏览器侧另有的 tsconfig 不在这一步里
+
+代价：本仓的 devkit 与插件管理今天都过不了类型检查——词汇表包 `@godcreator/gwb-plugin-api` 0.2.7 的 d.ts 引用 `HTMLElement` 而没有声明 DOM 类型库，关掉 skipLibCheck 报 TS2304。这是全生态迁移里「词汇表包补 DOM 类型库声明」那一项，词汇表包发新版之前，所有依赖它的插件都发不出去。
+
+## 依据
+
+2026-09-24 在本仓对两个插件包跑 `pnpm exec tsc --noEmit -p tsconfig.json --skipLibCheck false`（typescript 7.0.2）：两边都只报一条 `gwb-plugin-api/dist/index.d.ts(52,32): error TS2304: Cannot find name 'HTMLElement'`；repo-kit 通过。未另存探针。

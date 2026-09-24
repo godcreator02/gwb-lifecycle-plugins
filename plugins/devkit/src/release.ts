@@ -9,7 +9,9 @@ import {
   type RunPlan,
 } from './dev.js'
 import { caretFloor, compareVersions, inCaret } from './audit.js'
+import { artifactFindings } from './artifact-check.js'
 import { declaredTestedKernel, kernelVersionLine, testedOnSameKernelLine } from './tested-kernel.js'
+import { isRecord } from './vocab.js'
 
 /**
  * 发正式版那条链的纯机:守卫、号从哪来、依赖写成什么、按什么顺序发。
@@ -27,12 +29,15 @@ import { declaredTestedKernel, kernelVersionLine, testedOnSameKernelLine } from 
  * 新件配旧库);正式版正相反——它就是要被 `^` 认到,消费方跟着拿破坏边界以内的后续版本。
  * 这一趟同发的兄弟写成 `^新号`,没跟着发的 workspace 依赖写成 `^工作区里那个号`。
  *
- * **上车检票在构建之后、发第一个包之前**(`checkTicket`):自己不在 0.0.x、`@godcreator` 的
- * peer 全是 `^<dev 下限>`、dev 范围罩得住源上 `dist-tags.latest`(范围内落后不追——对上游
- * semver 的信任就是范围声明的含义;出范围必追)。没过就一个都不发,回执一次列全。
+ * **发版前检查在构建之后、发第一个包之前**,所有包的问题一次列全,有一条就一个都不发:
  *
- * 同一步还检查每个插件包(`keywords` 含 `gwb-plugin`)的 `gwb.testedKernel`(`testedKernelProblems`):
- * 必须写了、是合法版本号、并且和运行中的内核在同一条版本线上——发出去的插件至少在当前内核上验过。
+ * - 每个包:自己不在 0.0.x;`@godcreator` 的 dev 范围包含源上 `dist-tags.latest`(范围内落后
+ *   不追,出范围必追)(`checkTicket`);产物里没有空 import、相对 import 指向的文件都在
+ *   (`artifact-check.ts`);`tsc --noEmit -p tsconfig.json --skipLibCheck false` 通过(用被发仓自己的 tsc)
+ * - 插件包(`keywords` 含 `gwb-plugin`)另加:peer 里只有 `cordis`,node 侧产物按值 import 了
+ *   `cordis` 就必须写 peer `cordis`(`peerProblems`);node 侧产物的包名 import 只有 node 内置模块、
+ *   `electron`、`cordis`,浏览器侧只有 importmap 里的名字(`artifact-check.ts`);`gwb.testedKernel`
+ *   写了、是合法版本号、和运行中的内核在同一条版本线上(`testedKernelProblems`)
  */
 
 /** git 树的状态。`dirty` 里是 porcelain 条目原文(两列状态加路径) */
@@ -51,8 +56,6 @@ export interface ReleaseDeps {
   published(spec: string, registry: string): Promise<boolean>
   /** 源上这个包的 `dist-tags.latest`。问不出、没发过正式版都回 undefined */
   latest(pkg: string, registry: string): Promise<string | undefined>
-  /** 工作区里各包的现号(包名 → version)。检票时 `workspace:` 的 dev 钉拿它当镜像 */
-  workspaceVersions(repoDir: string): Record<string, string>
   /** 仓根的 git 树干不干净。问不出(不是 git 仓 / git 不在)也是一种答案:拒 */
   gitStatus(repoDir: string): Promise<GitStatus>
   readText(file: string): string | undefined
@@ -78,7 +81,7 @@ export interface ReleasedPackage {
 export interface ReleaseReport {
   repoDir: string
   shipped: ReleasedPackage[]
-  /** 检票过了但值得说一声的(peer 指向的上游还在 0.0.x 之类)。没有就是空表 */
+  /** 发版前检查过了但值得说一声的(写了 peer `cordis` 而 node 侧产物没有 import 它)。没有就是空表 */
   reminders: string[]
   /** 发完之后的下一步。说清「升 default」为什么不在这条链里,免得人以为少了半截 */
   note: string
@@ -101,11 +104,13 @@ export function dirtyLines(tail: string): string[] {
 const SCOPE = '@godcreator/'
 const EXACT = /^\d+\.\d+\.\d+$/
 
-/** 检票要看的那部分清单:包自己的号,`@godcreator/*` 的 peer 与 dev,是不是插件,测过的内核版本 */
+/** 发版前检查要看的那部分清单:包自己的号,全部 peer,`@godcreator/*` 的 dev,是不是插件,测过的内核版本 */
 export interface TicketManifest {
   name: string
   version: string
+  /** peerDependencies 的全部条目,不只 `@godcreator` */
   peers: Record<string, string>
+  /** devDependencies 里的 `@godcreator` 条目 */
   devs: Record<string, string>
   /** `keywords` 里有 `gwb-plugin` */
   plugin: boolean
@@ -132,19 +137,19 @@ export function ticketManifestOf(text: string | undefined): TicketManifest | und
   if (typeof doc !== 'object' || doc === null) return undefined
   const { name, version, peerDependencies, devDependencies, keywords } = doc as Record<string, unknown>
   if (typeof name !== 'string' || typeof version !== 'string') return undefined
-  const scoped = (table: unknown): Record<string, string> => {
+  const entries = (table: unknown, keep: (key: string) => boolean): Record<string, string> => {
     const out: Record<string, string> = {}
     if (typeof table !== 'object' || table === null) return out
     for (const [key, value] of Object.entries(table as Record<string, unknown>)) {
-      if (key.startsWith(SCOPE) && typeof value === 'string') out[key] = value.trim()
+      if (keep(key) && typeof value === 'string') out[key] = value.trim()
     }
     return out
   }
   return {
     name,
     version,
-    peers: scoped(peerDependencies),
-    devs: scoped(devDependencies),
+    peers: entries(peerDependencies, () => true),
+    devs: entries(devDependencies, (key) => key.startsWith(SCOPE)),
     plugin: Array.isArray(keywords) && keywords.includes('gwb-plugin'),
     testedKernel: declaredTestedKernel(doc),
   }
@@ -170,31 +175,16 @@ export function testedKernelProblems(manifest: TicketManifest, runningKernel: st
 }
 
 /**
- * 上车检票,纯函数。`latest` 是各 `@godcreator` 包在源上的 `dist-tags.latest`(问不出的缺席),
- * `workspace` 是工作区各包现号。
+ * 版本号与 dev 范围的检查,纯函数。`latest` 是各 `@godcreator` 包在源上的 `dist-tags.latest`(问不出的缺席)。
  *
- * 拒的四类:自己在 0.0.x;peer 不是 `^x.y.z`;dev 写法认不出下限、或下限比源上 latest 还新、
- * 或 latest 已出 dev 范围(出范围必追);peer 下限不等于 dev 下限。提醒一类:peer 指向的上游
- * 自己还在 0.0.x。范围内落后(含相等)一律放行。
+ * 拒的两类:自己在 0.0.x;dev 写法认不出下限、或下限比源上 latest 还新、或 latest 已出 dev 范围
+ * (出范围必追)。范围内落后(含相等)一律放行。`workspace:` 的 dev 不查:同仓的包不经源解析。
  */
-export function checkTicket(
-  manifest: TicketManifest,
-  latest: Record<string, string | undefined>,
-  workspace: Record<string, string>,
-): Ticket {
+export function checkTicket(manifest: TicketManifest, latest: Record<string, string | undefined>): Ticket {
   const problems: string[] = []
-  const reminders: string[] = []
 
   if (/^0\.0\.\d+/.test(manifest.version)) {
     problems.push(`自己的号是 ${manifest.version}:0.0.x 上 ^ 锁死补丁号,先把 version 抬到 0.1.0`)
-  }
-
-  /** dev 那一格给出的「验过的下限」:workspace: 取工作区现号,精确钉取自身,^ 范围取其下限 */
-  const mirrorOf = (pkg: string): string | undefined => {
-    const dev = manifest.devs[pkg]
-    if (dev === undefined) return undefined
-    if (dev.startsWith('workspace:')) return workspace[pkg]
-    return EXACT.test(dev) ? dev : caretFloor(dev)
   }
 
   for (const [pkg, raw] of Object.entries(manifest.devs)) {
@@ -218,33 +208,59 @@ export function checkTicket(
     }
   }
 
-  for (const [pkg, raw] of Object.entries(manifest.peers)) {
-    const mirror = mirrorOf(pkg)
-    const floor = caretFloor(raw)
-    // 该写成的那个号:dev 是 workspace 的认工作区现号,是精确钉的认源上 latest(dev 钉本来就要跟到它)
-    const target = manifest.devs[pkg]?.startsWith('workspace:') === true ? mirror : (latest[pkg] ?? mirror)
-    if (floor === undefined) {
-      problems.push(`peer ${pkg} 写的是 "${raw}":peer 要写 ^<dev 钉>${target === undefined ? '' : `,改成 "^${target}"`}`)
-    } else if (mirror !== undefined && floor !== mirror) {
-      problems.push(`peer ${pkg} 下限 ${floor} ≠ dev 下限 ${mirror}:下限＝验过的那一版${target === undefined ? '' : `,两边都写到 ${target}(peer "^${target}")`}`)
-    }
-    const upstream = workspace[pkg] ?? latest[pkg] ?? floor
-    if (upstream !== undefined && /^0\.0\.\d+$/.test(upstream)) {
-      reminders.push(`peer ${pkg} 的上游自己还在 ${upstream}:^0.0.x 只收一个号,那个上游该在它下次发版时提到 0.1.0`)
-    }
-  }
-
-  return { pkg: `${manifest.name}@${manifest.version}`, problems, reminders }
+  return { pkg: `${manifest.name}@${manifest.version}`, problems, reminders: [] }
 }
 
-/** 检票没过时那句回执:按包分组,一次列全 */
+/**
+ * 插件包的 peer 检查,纯函数。不是插件包的不查:库由用它的插件打包进产物,它的 peer 不进 home。
+ *
+ * peer 只写宿主提供、node 侧产物里按值 import 的 `cordis`:别的 peer 一律拒;产物 import 了
+ * `cordis` 而 peer 里没有,拒;写了 peer `cordis` 而产物没有 import 它,只提醒(多一条 peer 不会
+ * 让插件装不上)。
+ */
+export function peerProblems(manifest: TicketManifest, nodeImportsCordis: boolean): Pick<Ticket, 'problems' | 'reminders'> {
+  if (!manifest.plugin) return { problems: [], reminders: [] }
+  const problems = Object.keys(manifest.peers)
+    .filter((pkg) => pkg !== 'cordis')
+    .map(
+      (pkg) =>
+        `peer 写了 ${pkg}:peer 只写宿主提供、node 侧产物里按值 import 的 cordis。按「运行时谁提供」改写——` +
+        `另一个插件、接口定义包、importmap 里的包、运行时自己用的库(打包进产物)、构建时才用的包都写 devDependencies;` +
+        `打包不进产物的自用库(原生可执行文件、运行时按路径读自己文件的包)写 dependencies,并在清单里写明原因`,
+    )
+  const peersCordis = 'cordis' in manifest.peers
+  if (nodeImportsCordis && !peersCordis) {
+    problems.push('node 侧产物按值 import 了 cordis,peer 里却没有:写 peer cordis(dev 里也留一份给本地构建和类型检查)')
+  }
+  const reminders =
+    peersCordis && !nodeImportsCordis ? ['写了 peer cordis,但 node 侧产物里没有 import cordis:只 import 类型时不写 peer,这条可以删'] : []
+  return { problems, reminders }
+}
+
+/** 发版前检查没过时那句回执:按包分组,一次列全 */
 export function ticketRefusal(tickets: Ticket[]): string {
   const failed = tickets.filter((one) => one.problems.length > 0)
   const total = failed.reduce((sum, one) => sum + one.problems.length, 0)
   const blocks = failed.map((one) => `${one.pkg}:\n${one.problems.map((line) => `  - ${line}`).join('\n')}`)
   return (
-    `上车检票没过(${String(failed.length)} 个包 ${String(total)} 条),一个都没发。规矩见说明书 gwb-release 第二、三节;逐条改完、跑 check、提交,再来:\n` +
+    `发版前检查没过(${String(failed.length)} 个包 ${String(total)} 条),一个都没发。规矩见说明书 gwb-release 与 devkit 文档站「写插件的规矩」;逐条改完、跑 check、提交,再来:\n` +
     blocks.join('\n')
+  )
+}
+
+/** 在包目录里用 pnpm exec 跑,用的是被发仓自己装的 tsc */
+export const TYPECHECK_ARGS = ['exec', 'tsc', '--noEmit', '-p', 'tsconfig.json', '--skipLibCheck', 'false']
+
+/** 类型检查的输出只留最后这么多行:报错在尾巴上,整份没人读 */
+const TYPECHECK_TAIL_LINES = 20
+
+/** 类型检查没过时那条问题:缺哪个包,tsc 会报「找不到模块」并写出包名 */
+function typecheckProblem(tail: string): string {
+  const lines = tail.split(/\r?\n/).filter((line) => line.trim() !== '')
+  const shownLines = lines.slice(-TYPECHECK_TAIL_LINES).map((line) => `      ${line}`)
+  return (
+    `tsc --noEmit -p tsconfig.json --skipLibCheck false 没过:类型引用到的包(含上游 d.ts 引用到的)要在 dev 里列全,` +
+    `只引类型写 import type。输出尾巴:\n${shownLines.join('\n')}`
   )
 }
 
@@ -298,24 +314,42 @@ export async function runRelease(input: ReleaseInput, deps: ReleaseDeps): Promis
     ranges[manifest.name] = `^${manifest.version}`
   }
 
-  // ── 四、上车检票 ────────────────────────────────────────────────────────────
+  // ── 四、发版前检查 ──────────────────────────────────────────────────────────
   // 全部包一起检、一次列全:一条一条挤的话,改一条来一趟、每趟都白跑一次构建
-  const workspace = deps.workspaceVersions(input.repoDir)
-  const ticketed = planned.map((one) => ticketManifestOf(deps.readText(path.join(one.pkgDir, 'package.json'))))
-  // 要问源的:不在工作区里的 peer,加所有不是 workspace: 的 dev 钉
+  const checked: { pkgDir: string; text: string; ticket: TicketManifest }[] = []
+  for (const one of planned) {
+    const text = deps.readText(path.join(one.pkgDir, 'package.json'))
+    const ticket = ticketManifestOf(text)
+    if (text === undefined || ticket === undefined) {
+      return { ok: false, error: `${one.manifest.name} 的 package.json 在构建之后读不出来了,一个都没发` }
+    }
+    checked.push({ pkgDir: one.pkgDir, text, ticket })
+  }
   const upstreams = new Set<string>()
-  for (const one of ticketed) {
-    if (one === undefined) continue
-    for (const pkg of Object.keys(one.peers)) if (!(pkg in workspace)) upstreams.add(pkg)
-    for (const [pkg, raw] of Object.entries(one.devs)) if (!raw.startsWith('workspace:')) upstreams.add(pkg)
+  for (const { ticket } of checked) {
+    for (const [pkg, raw] of Object.entries(ticket.devs)) if (!raw.startsWith('workspace:')) upstreams.add(pkg)
   }
   const latest: Record<string, string | undefined> = {}
   for (const pkg of upstreams) latest[pkg] = await deps.latest(pkg, DEFAULT_REGISTRY)
-  const tickets = ticketed.flatMap((one) => {
-    if (one === undefined) return []
-    const ticket = checkTicket(one, latest, workspace)
-    return [{ ...ticket, problems: [...ticket.problems, ...testedKernelProblems(one, input.runningKernel)] }]
-  })
+  const tickets: Ticket[] = []
+  for (const { pkgDir, text, ticket } of checked) {
+    const doc: unknown = JSON.parse(text)
+    const artifacts = artifactFindings(pkgDir, isRecord(doc) ? doc : {}, ticket.plugin, deps)
+    const peers = peerProblems(ticket, artifacts.nodeImportsCordis)
+    const problems = [
+      ...checkTicket(ticket, latest).problems,
+      ...peers.problems,
+      ...testedKernelProblems(ticket, input.runningKernel),
+      ...artifacts.problems,
+    ]
+    if (!deps.exists(path.join(pkgDir, 'tsconfig.json'))) {
+      problems.push('包目录下没有 tsconfig.json:发版前检查要在 skipLibCheck: false 下跑一次类型检查')
+    } else {
+      const typecheck = await deps.run(pnpmPlan(TYPECHECK_ARGS, pkgDir, deps.platform), BUILD_TIMEOUT_MS)
+      if (!typecheck.ok) problems.push(typecheckProblem(typecheck.tail))
+    }
+    tickets.push({ pkg: `${ticket.name}@${ticket.version}`, problems, reminders: peers.reminders })
+  }
   const reminders = tickets.flatMap((one) => one.reminders.map((line) => `${one.pkg}:${line}`))
   if (tickets.some((one) => one.problems.length > 0)) {
     const tail = reminders.length > 0 ? `\n另有提醒(不拒):\n${reminders.map((line) => `  - ${line}`).join('\n')}` : ''
