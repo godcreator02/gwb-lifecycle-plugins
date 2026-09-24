@@ -2,6 +2,7 @@ import { sourceTrajectory } from '@/lib/source'
 import { DocsBody, DocsPage, DocsTitle } from 'fumadocs-ui/layouts/docs/page'
 import { getMDXComponents } from '@/components/mdx'
 import { notFound } from 'next/navigation'
+import type { Metadata } from 'next'
 
 // 卡页：标题用 label（cardSchema 已经把它派生成 title），标题下一行元信息
 // （born-at、type、domain、parent 链到父卡页）；导读页没有 born-at，元信息那行整个不出。
@@ -38,6 +39,13 @@ export default async function Page({ params }: { params: Promise<{ slug?: string
       </DocsBody>
     </DocsPage>
   )
+}
+
+export async function generateMetadata({ params }: { params: Promise<{ slug?: string[] }> }): Promise<Metadata> {
+  const { slug } = await params
+  const page = sourceTrajectory.getPage(slug)
+  if (!page) notFound()
+  return { title: page.data.title, description: page.data.description }
 }
 
 export function generateStaticParams() {

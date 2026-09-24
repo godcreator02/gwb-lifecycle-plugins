@@ -8,6 +8,7 @@ import { RootProvider } from 'fumadocs-ui/provider/next'
 import { DocsLayout } from 'fumadocs-ui/layouts/docs'
 import { source, sourceFeedback, sourceFuture, sourceOutputs, sourceSpec, sourceTrajectory } from '@/lib/source'
 import type { Node, Root } from 'fumadocs-core/page-tree'
+import type { Metadata } from 'next'
 import type { ReactNode } from 'react'
 import './global.css'
 
@@ -19,6 +20,11 @@ function zone(name: string, root: Root): Node {
     defaultOpen: true,
     children: root.children,
   }
+}
+
+/** 浏览器标签页上的标题：各页是「页面标题 | 站名」，没有页面标题时只有站名 */
+export const metadata: Metadata = {
+  title: { default: '开发套件', template: '%s | 开发套件' },
 }
 
 export default function Layout({ children }: { children: ReactNode }) {
