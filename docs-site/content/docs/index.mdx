@@ -1,46 +1,59 @@
 ---
-title: 开发套件
-description: 一个普通的插件，五件事一条 CLI；站那半两步转出去，跟站点插件与 docfirst 插件互不依赖
+title: 从这里开始
+description: devkit 仓是什么；开发套件、插件管理、仓侧检查三个包之间、与仓外之间靠哪十二条接缝连起来（接缝图）；带着不同的目的来该接着读哪几页
 ---
 
-# 开发套件
+**本页回答**：devkit 仓是什么；三个包怎样拼在一起，每两个模块之间靠哪条接缝相连、接口是什么、细节在哪一页；每个包讲什么、在哪一页；带着不同的目的来，接着读哪几页。
 
-**本页回答**：这个包是什么、它管到哪儿为止、这个站该按什么顺序读。
+## 是什么
 
-`@godcreator/gwb-devkit` 是**一个普通的 gwb 插件**。它没有任何特权：装进 home 才有它的命令，
-挂不上就什么都没有，跟 hello 一个待遇。这一点是理解它的起点，它看起来像「工具链」，但它跟工具链
-最大的区别是**它自己也得走它教别人走的那条路**（起独立仓、发本机源、装进 home），而且它确实是
-那么来的。
+god 工作台写插件用的一套东西：开发套件 `gwb-devkit`（建仓、结构体检、依赖对账、测试 home、改一版看一版、发正式版、CDP 驱动）、插件管理 `gwb-plugin-manager`（唯一给 home 装包、改条目的插件）、仓侧检查 `gwb-repo-kit`（各插件仓测试里用的检查函数）。前两个是 home 里的普通插件，第三个只进各仓的开发依赖。写插件要守的规矩在[写插件的规矩](/docs/rules)，为什么这么切见[关键设计](/docs/design)，怎么改、怎么发版见[开发](/docs/develop)。
 
-它解决的问题只有一个：**「在一个新文件夹里开发一个新插件」这条路上，每一步都有个能被 agent 调到
-的入口。** 建仓要有入口、本机源的起停要有入口、开一个干净的测试 home 要有入口、把改动送进那个
-home 再证明送到了要有入口。没有这些入口，每一步都是一段要人记在脑子里的 PowerShell。
+## 接缝图
 
-## 它管哪五件事
+<Diagram name="seam-map" title="虚线框是包，连线是接缝，编号对应下面的表">
+- 本仓三个包：开发套件（建仓、依赖对账、能用什么、结构体检、测试 home、改一版看一版、发正式版、CDP 驱动、建仓模板）、插件管理、仓侧检查 repo-kit
+- 仓外：工作台服务（`gwbCommands`、`gwbNodeCli`、`gwbSkills`）；别的插件的命令（`docs-site.create`、`docfirst.attach`、`unit-folder.list`）；内核与 home（exe、`runtime.json`、`gwb.log`）；cordis loader 的条目树；pnpm 与团队包源；工作台页面（`window.gwb`）；包自述与服务表（各包 `package.json`、cordis 内部结构）；被测插件仓
+- 实线接缝有代码接口；点线接缝（2、3、6、7、8、11、12）只靠约定：命令名、文件格式、字段名或「两处一起改」
+</Diagram>
 
-| | 是什么 | 入口 | 细看 |
+## 十二条接缝
+
+| # | 接缝 | 连接的模块 | 接口 | 细节在 |
+| --- | --- | --- | --- | --- |
+| 1 | 工作台服务 | 开发套件、插件管理 ↔ 命令总线、命令行工具、说明书 | 登记命令、登记 `devkit.cdp`、登记说明书 | [工作台服务](/docs/seams/workbench) |
+| 2 | devkit 调插件管理（约定） | `devkit.dev`、`devkit.home.new` ↔ 插件管理 | 经 CDP 调 `plugin-manager.list` / `remount`；`home.new` 自己写条目、装底座 | [devkit 调插件管理](/docs/seams/plugin-manager-calls) |
+| 3 | 测过哪个内核（约定） | 插件的 `gwb.testedKernel` ↔ `devkit.release`、`plugin-manager.list` | 版本线比对规则，两份 | [测过哪个内核](/docs/seams/tested-kernel) |
+| 4 | 仓侧检查 | repo-kit ↔ 开发套件、插件管理、模板生成的仓 | `registerSelfReportGuard`、`registerPluginGuard` | [仓侧检查](/docs/seams/repo-kit) |
+| 5 | 模板与结构体检 | 建仓模板 ↔ `devkit.audit-structure` | 模板生成的仓结构体检零发现 | [模板与结构体检](/docs/seams/template-audit) |
+| 6 | 借用别的插件的命令（约定） | 建仓、结构体检、插件管理 ↔ 站点插件、docfirst、unit-folder、外壳 | 按名字调 `docs-site.create`、`docfirst.attach`、`unit-folder.list`、`shell.reload` | [借用别的插件的命令](/docs/seams/borrowed-commands) |
+| 7 | CDP 驱动（约定） | 开发套件 ↔ `cdp.mjs` ↔ 工作台页面 | 命令行参数、输出的 JSON、`window.gwb.command` | [CDP 驱动](/docs/seams/cdp) |
+| 8 | 内核与 home（约定） | `devkit.home.*`、CDP 驱动 ↔ 内核 exe | `GWB_HOME`、调试端口、`runtime.json`、home 根目录、`gwb.log` 的行格式 | [内核与 home](/docs/seams/kernel-home) |
+| 9 | 条目树 | 插件管理 ↔ cordis loader | `EntryTreeLike` 的 store / create / update / remove / resolve | [条目树](/docs/seams/entry-tree) |
+| 10 | pnpm 与团队包源 | 插件管理、开发套件 ↔ pnpm、gitea 的 npm 源 | 插件管理自带的 `@pnpm/exe`、PATH 上的 pnpm、发开发版与正式版 | [pnpm 与团队包源](/docs/seams/pnpm-registry) |
+| 11 | 被测仓的形状（约定） | 改一版看一版、发正式版、结构体检、依赖对账 ↔ 被测插件仓 | 仓根 build 脚本、`files`、`keywords`、目录布局、git 工作区干净 | [被测仓的形状](/docs/seams/repo-shape) |
+| 12 | 服务表与包自述（约定） | `devkit.services`、`devkit.capabilities` ↔ cordis 内部结构、各包 `package.json` | `gwb.provides`、`gwb.shared`、`exports`、`keywords` | [服务表与包自述](/docs/seams/service-table) |
+
+## 包
+
+| 包名 | 在哪 | 讲什么 | 页 |
 | --- | --- | --- | --- |
-| 建仓 | 把一个新插件的骨架落进一个新文件夹，默认连文档站一起（站那半两步转给别的插件） | `devkit.scaffold` | [建仓](/docs/scaffold) |
-| 手册 | 写插件的整条路、红线、验机怎么走，随包发。**只挂自己那份** | `skills/` 经 `gwbSkills` 挂载 | [手册正本](/outputs/skills/gwb-devkit) |
-| 测试 home | 测试 home 的开 / 列 / 重开 / 删 | `devkit.home.*` | [测试 home](/docs/home) |
-| 改一版看一版 | 把工作区的改动送进另一个 home 正在跑的进程，并且证明送到了 | `devkit.dev` | [改一版看一版](/docs/dev) |
+| `@godcreator/gwb-devkit` | `plugins/devkit` | 开发套件：写插件这条路上每一步的命令 | [gwb-devkit](/docs/devkit) |
+| `@godcreator/gwb-plugin-manager` | `plugins/plugin-manager` | 插件管理：装卸包、增删条目、热升级、报告没在当前内核上测过的插件 | [gwb-plugin-manager](/docs/plugin-manager) |
+| `@godcreator/gwb-repo-kit` | `packages/repo-kit` | 仓侧检查：各插件仓测试里用的自我描述与插件形状检查 | [gwb-repo-kit](/docs/repo-kit) |
 
-外加一条经 `gwbNodeCli` 登记的外部 CLI：**`devkit.cdp`**，在一个工作台页面里动手。
-[那支驱动](/docs/cdp) 讲它管到哪儿为止。
+## 怎么读这张图
 
-**它不管文档站。** 站的一生归站点插件、站里内容的正确性归 docfirst 插件。本包**不依赖那两个插件
-的任何包**：建仓时要用它们，只按名字在命令总线上找两条命令。
+- 图上只画模块与模块之间的接缝；每个包有哪些功能、提供什么接口，看各包自己的页
+- 一条接缝连接的两个模块可以各自替换：只要接口不变，换掉其中一个，另一个不用改
+- 每条接缝由什么测试保护，写在「细节在」那一列的页里；左栏接缝页标题前的数字就是图上的编号
+- 内核那边对插件管理的承诺（home 布局、loader 与 include 的版本）在内核仓文档站的接缝页「home 布局与条目树」
 
-**CLI 形态的东西一律经 `gwbNodeCli` 登记，不做总线命令、不进程内调。** 理由不是洁癖：node-cli
-登记的命令自动镜像成同名总线命令，于是自动是 MCP 工具，回执自带 stdout、stderr 与退出码。
-自己写一遍 spawn 与超时，换来的是同一件事的第二种回执形状。
+## 按要做的事读
 
-## 按这个顺序读
-
-想知道**怎么用**，去[怎么用](/docs/start)，那页管装、设置项、门禁与每条命令的入口。
-
-想知道**怎么拆的**，先读[总索引](/docs/system-map)：依赖方向、纯逻辑与真机器切在哪一刀、
-模块总表与代码地图都在那儿；再按兴趣挑一张模块页。
-
-想知道**为什么变成现在这样**，去[轨迹](/trajectory)。想知道**接下来去哪**，去[未来](/future)。
-词不认得去[术语](/docs/glossary)。
+- **写一个新插件**：[写插件的规矩](/docs/rules)，再看[开发套件](/docs/devkit)的建仓、改一版看一版、发正式版
+- **在本仓动手**（检查、在隔离 home 里验证、发版）：[开发](/docs/develop)
+- **改插件管理**：[插件管理](/docs/plugin-manager)；它和内核之间的约定在[条目树](/docs/seams/entry-tree)，和开发套件之间的在[devkit 调插件管理](/docs/seams/plugin-manager-calls)
+- **改建仓模板或结构体检**：[模板与结构体检](/docs/seams/template-audit)、[仓侧检查](/docs/seams/repo-kit)
+- **在页面里取证**：[CDP 驱动](/docs/seams/cdp)
+- **词不认得**：[术语表](/docs/glossary)

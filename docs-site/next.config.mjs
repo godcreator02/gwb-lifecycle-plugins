@@ -6,21 +6,25 @@ const withMDX = createMDX()
 const config = {
   reactStrictMode: true,
   /**
-   * **空着，这一行就是那条「不许外置」的账。**
-   *
-   * 塌包之后 `@godcreator/docfirst-workflow` 里同时住着服务端那半（读盘、调 git、remark 插件）
-   * 与客户端组件（`/fumadocs/pre` 状态点、`/fumadocs/term` 术语），而
-   * `serverExternalPackages` 按包名匹配、没有子路径粒度——所以它整包不能外置：外置之后 Next 走
-   * Node 单独加载、跟站打包的 React 分了家，预渲染报
-   * `Cannot read properties of null (reading 'use')`，或构建期报 `ERR_PACKAGE_IMPORT_NOT_DEFINED`
-   * 指着 `@base-ui/react` 里的文件，两种报错都完全不指根因。
-   *
-   * 不外置的代价只是多打一遍服务端那半：那半只在构建期跑，进不了客户端束。
+   * 必须为空：`@godcreator/docfirst-workflow` 一个包里既有服务端代码（读盘、调 git、remark 插件），
+   * 又有客户端组件（`/fumadocs/pre` 的引用状态、`/fumadocs/term` 的术语），而 `serverExternalPackages`
+   * 只能按整个包名设置，不能只外置子路径。外置之后 Next 用 Node 单独加载它，它拿到的 React 和站点打包的
+   * 不是同一份，预渲染报 `Cannot read properties of null (reading 'use')`，或构建时报
+   * `ERR_PACKAGE_IMPORT_NOT_DEFINED` 并指向 `@base-ui/react` 里的文件，两种报错都看不出原因。
+   * 不外置的代价只是服务端代码多打包一次：它只在构建时运行，不会进客户端的包。
    */
   serverExternalPackages: [],
-  // 站根落到文档首页
   redirects: async () => [
     { source: '/', destination: '/docs', permanent: true },
+    // 现状区按接缝图重写（2026-09-24）：devkit 的几页移进 devkit 目录，怎么用与系统地图并进 devkit 首页与入口页。
+    // 用临时跳转：永久跳转会被浏览器缓存，以后这些网址再用上就打不开
+    { source: '/docs/start', destination: '/docs/devkit', permanent: false },
+    { source: '/docs/system-map', destination: '/docs', permanent: false },
+    { source: '/docs/scaffold', destination: '/docs/devkit/scaffold', permanent: false },
+    { source: '/docs/structure', destination: '/docs/devkit/structure', permanent: false },
+    { source: '/docs/home', destination: '/docs/devkit/home', permanent: false },
+    { source: '/docs/dev', destination: '/docs/devkit/dev', permanent: false },
+    { source: '/docs/cdp', destination: '/docs/devkit/cdp', permanent: false },
   ],
 }
 

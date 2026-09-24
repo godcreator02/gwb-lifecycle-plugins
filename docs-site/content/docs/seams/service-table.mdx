@@ -1,0 +1,71 @@
+---
+title: 12 服务表与包自述 gwb.provides
+description: 连接 devkit.services、devkit.capabilities 与两样东西：cordis 的内部结构（fiber.store、registry.entries、runtime.fibers，结构不对就回空表）和各包 package.json 里的 gwb.provides、gwb.shared、exports、keywords
+---
+
+**本页回答**：`devkit.services` 与 `devkit.capabilities` 的数据从哪来；它们读 cordis 的哪几个内部字段、读各包 `package.json` 的哪几个字段；读不到时回什么。
+
+## 连接的模块
+
+- devkit 的 `devkit.services`（`src/services.ts`）与 `devkit.capabilities`（`src/capabilities.ts`），登记在 `src/index.ts`
+- cordis 4.0.0-rc.9 的运行时结构：由内核带进来，devkit 只在 `devDependencies` 里写同一版本
+- devkit 所在 home 里各包的 `package.json`：`<home>/package.json` 与 `<home>/node_modules/<包>/package.json`
+
+## 接口
+
+**cordis 这边**：从自己的 `ctx.fiber` 沿 `parent.fiber` 往上走（最多 32 层），再遍历 `ctx.registry.entries()` 里每个插件的 `runtime.fibers`；每个 fiber 读 `store` 里的每一项，只收 `impl.fiber` 就是这个 fiber 的；提供者取 `fiber.entry.id` 与 `entry.options.name`，没有条目时退回 `runtime.name`：
+
+{/* ref file="../plugins/devkit/src/services.ts" lines="57-79" */}
+
+{/* ref file="../plugins/devkit/src/services.ts" lines="97-134" */}
+
+结构不对（字段不在、不是对象）时回空表，并在回执里带 `note` 与 `saw`（走了几层、看见几个插件、几个 fiber、几张服务表）：
+
+{/* ref file="../plugins/devkit/src/index.ts" lines="350-372" */}
+
+**package.json 这边**：
+
+| 字段 | 谁读 | 怎么用 |
+| --- | --- | --- |
+| `gwb.provides` | `devkit.services` | 键是**服务名**，值 `{ summary, usage }` 贴到那条服务上 |
+| `gwb.provides` | `devkit.capabilities` | 键是**模块说明符**（包名，或 `包名/子路径`），值贴到那个入口上 |
+| `gwb.shared` | `devkit.capabilities` | 当作字符串或字符串数组读，报成 `shared` |
+| `exports`（没有就退回 `main` / `types`） | `devkit.capabilities` | 列出入口与 d.ts 路径，跳过 `./package.json` |
+| `keywords` | `devkit.capabilities` | 含 `gwb-plugin` 是插件，只含 `gwb` 是库，都没有是第三方 |
+| `dependencies`（home 的） | `devkit.capabilities` | 决定列哪些包 |
+
+{/* ref file="../plugins/devkit/src/services.ts" lines="155-182" */}
+
+{/* ref file="../plugins/devkit/src/capabilities.ts" lines="67-124" */}
+
+## 约定
+
+devkit 保证：这两条命令只读不写；读不到、形状不对的一格当没写，不让整条命令失败；cordis 结构认不出时回空表加说明，不抛错。
+
+各包需要保证的：`gwb.provides` 里的 `summary` 与 `usage` 是非空字符串，写的就是真的。插件包这一条由 repo-kit 的自述守卫检查：`gwb.provides` 的键必须与源码提供的服务名互为充要（见[仓侧检查 repo-kit](/docs/seams/repo-kit)）：
+
+{/* ref file="../packages/repo-kit/src/self-report-guard.ts" lines="135-144" */}
+
+cordis 需要保证的：`fiber.store`、`fiber.entry`、`fiber.parent`、`registry.entries()`、`runtime.fibers`、`runtime.name` 这几个字段。它们不是 cordis 的文档化接口，**靠约定**：写在 `services.ts` 的文件头注释（按 4.0.0-rc.9 的字段写），没有测试拿真实的 cordis 核对，结构变了的表现是回执变成空表加 `note`。
+
+两处读法与别处对不上，照实记：
+- 同一个 `gwb.provides`，`devkit.services` 按服务名作键，`devkit.capabilities` 按模块说明符作键；repo-kit 的守卫要求插件包的键全是服务名，所以按说明符作键的声明只在库上写得进去
+- 内核把 `gwb.shared` 当作「包名 → 子路径」的对象读（见内核仓文档站的「页面上的包名 gwb.shared」接缝页），`devkit.capabilities` 只认字符串或字符串数组，读到对象时不报 `shared`；它的测试用的是数组
+
+{/* ref file="../plugins/devkit/src/capabilities.ts" lines="113-113" */}
+
+## 不负责的事
+
+- 这两条命令只报这个 home 此刻加载了什么、装了什么，不判断对错
+- 不聚合入口里导出了哪些符号，只给 d.ts 路径
+- 不列命令：命令按插件查用 MCP 入口的 `search`
+
+## 测试
+
+两条命令的纯逻辑都用手工构造的对象测，不起 cordis：
+
+{/* has file="../plugins/devkit/tests/services.test.ts" text="注入作用域的 fiber 不算提供方" */}
+
+{/* has file="../plugins/devkit/tests/services.test.ts" text="拿不到那些表时回空表——换了形状、或宿主不是 cordis，都不抛" */}
+
+{/* has file="../plugins/devkit/tests/capabilities.test.ts" text="库：只带 gwb 的 keywords、gwb.shared 报出来、没声明的入口照样列" */}

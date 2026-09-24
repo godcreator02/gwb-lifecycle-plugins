@@ -1,0 +1,153 @@
+---
+title: 关键设计
+description: devkit 仓为什么这么切分——devkit 是普通插件、写插件只有发布安装验证一条路、开发版只进隔离 home、只按名字定位 home、纯逻辑与真机器操作分开、devkit 与插件管理同仓、repo-kit 与模板同仓、借别的插件只借命令名；各自推出了什么、放弃了什么
+---
+
+**本页回答**：devkit 仓里的三个包为什么是现在这个形状；每条设计推出了什么、代价是什么；哪些事刻意不做。每个包的功能与接口见各自的首页：[开发套件](/docs/devkit)、[插件管理](/docs/plugin-manager)、[repo-kit](/docs/repo-kit)。
+
+## 仓里放什么
+
+devkit 仓是一个 workspace 仓，放三个包，外加一个文档站：
+
+| 包 | 目录 | 是什么 | 发到哪 |
+| --- | --- | --- | --- |
+| `@godcreator/gwb-devkit` | `plugins/devkit/` | 开发套件，一个普通插件 | 团队源，装进 home |
+| `@godcreator/gwb-plugin-manager` | `plugins/plugin-manager/` | 插件管理，home 里唯一增删包与条目的插件 | 团队源，装进 home |
+| `@godcreator/gwb-repo-kit` | `packages/repo-kit/` | 各插件仓测试里用的守卫，库 | 团队源，装进各仓的 `devDependencies` |
+
+三个包各自发版，用 `devkit.release` 的 `packages` 参数指明发哪几个。放在同一个仓里的理由是它们之间改一处就要改另一处的地方多，下面两节分别说。
+
+## 开发套件是一个普通插件
+
+devkit 没有任何特权：装进 home 才有它的命令，加载不成功就什么都没有，和别的插件一样由插件管理安装、升级、卸载。它提供的每条命令，都是「在一个新文件夹里开发一个新插件」这条路上的一步，让 agent 能调用，而不是一段要人记住的 PowerShell（[gwb-devkit 这个插件](/trajectory/2026-09-08-gwb-devkit)）。
+
+推出了：
+
+- **使用者是 agent，所以没有界面**：结果全在回执里；参数形状写进每条命令的 `usage`，参数错了回执带完整用法——命令总线不带参数 schema，agent 能看到的只有这些
+- **说明书与模板随包发布**：写插件的说明书、发版规则、模板都在包里，装上哪一版就读到哪一版，不另外维护一份（[说明书与模板回到包里](/trajectory/2026-09-09-skills-and-templates-ride-package)）
+- **只登记自己的说明书**：说明书名全局唯一，替别人登记的那份会和别人自己登记的重名，被挤掉的常常是新的那份
+- **只有一个必需依赖**：命令总线 `gwbCommands` 写在 `export const inject`，外壳、node 命令行、说明书三个服务都局部注入，缺了只少一部分功能
+- **命令行形式的工具经 `gwbNodeCli` 登记**：`bin/cdp.mjs` 登记之后自动成为同名命令，也就自动能经 MCP 入口调用，回执带 stdout、stderr 与退出码；不自己再写一遍启动子进程与超时
+
+代价：devkit 的改动也要走发版、安装才能用上；改 devkit 自己不能用 `devkit.dev`（见下面「开发版只进隔离 home」）。
+
+## 写插件只有一条路：发布、安装、验证
+
+每个插件都在自己的仓里开发，发到团队源，再装进 home 验证。**安装这一步本身就在验证**：`exports` 漏了一个子路径、`files` 少带了一个目录，只有装出来才会暴露；在仓里用相对路径直接加载，这些问题一个都看不到。
+
+推出了：
+
+- **改一版看一版也发版**：`devkit.dev` 每次发一个开发版（`<patch+1>-dev.<时间戳>`，tag 是 `dev`，不动 `latest`），装进目标 home。版本号变了模块路径才变，重新加载时 Node 才会重新执行新代码；覆盖 home 里 `node_modules` 下的文件会改坏 pnpm 全局存储里的原件（[改一版看一版进 devkit](/trajectory/2026-09-11-dev-loop-comes-to-devkit)）
+- **装开发版写准确版本号**：在目标 home 的清单里写死准确版本号再 `pnpm install`，装完读回核对，不用 `pnpm add`（[开发版写准确版本号安装](/trajectory/2026-09-17-dev-install-pins-exact)）
+- **正式版只从提交过的状态发**：版本号在仓里改、随提交走；`devkit.release` 在 git 工作区不干净、同一个版本号已在源上、发版前检查没过时一概不发，也不改仓里任何文件（[发正式版进 devkit](/trajectory/2026-09-14-release-comes-to-devkit)）
+- **最后一步是取证**：`devkit.dev` 回「成功」之前，要确认装上的是这次的版本号、条目在运行、日志新增部分里没有 error
+
+代价：一次改一版看一版大约一分钟，比直接覆盖文件慢；源上与 pnpm 存储里会积攒开发版，要定期清理。
+
+## 开发版只进隔离 home
+
+开发和验证都在单独新建的隔离 home 里做，日常用的 `default` 只装正式版。
+
+- **`devkit.dev` 拒绝 `default`**：开发版进了 `default`，版本号看起来跟正式版没两样，界面上一点异常都看不出来
+- **`devkit.dev` 运行在控制台 home 里，操作另一个 home**：换插件要把条目停用再启用，工具自己运行在被换的 home 里，换到命令总线、外壳、MCP 入口或它自己时，调用方会跟着停掉。所以构建、发版、安装在本进程做，重新加载、刷新、取证经 CDP 发到目标页面；目标就是 devkit 自己所在的 home 也拒
+- **重新加载是目标进程里的一条命令**：`plugin-manager.remount` 一条做完停用与启用，不拆成两条——被换的是插件管理自己或命令总线时，第二条没人接收（[重新加载是一条命令](/trajectory/2026-09-17-remount-is-one-command)）
+- **升级 `default` 是发正式版之后的事**：`devkit.release` 只发到源、不碰任何 home；升级 `default` 由人点插件管理窗格的「全部更新」或调 `plugin-manager.update-all`，这一步在隔离 home 验证之后
+
+代价：改 devkit 自己不能用 `devkit.dev`，只能发正式版再 `plugin-manager.update-all`；想在隔离 home 里验证 devkit 自己，要从另一个 home 驱动。
+
+## 只按名字定位一个 home
+
+说出 home 名，工具去这个 home 的 `runtime.json` 里查调试端口，并确认 pid 还活着、那个 pid 确实在监听这个端口；连上页面之后，再拿页面自己报的 home 名核对一次。`devkit.dev`、`devkit.cdp` 与启动 home 的两条命令都不收端口（[端口不是地址](/trajectory/2026-09-11-port-is-not-an-address)、[按名字定位](/trajectory/2026-09-11-address-a-home-by-name)）。
+
+理由：端口是一个没有含义的数字，敲错一位就连到另一个 home，而那个 home 会照样收下这次的发版、安装与重新加载。名字有拼写、有记录、能交叉核对，这三样端口都没有。
+
+推出了：调试端口由 `devkit.home.new` / `open` 自动选，先沿用这个 home 上次那个；`runtime.json` 由内核写，devkit 只读。
+
+代价：记录坏了、或者启动它的内核太旧而不写记录的 home 连不上，要停掉重开一次；CDP 驱动从此只能操作 gwb 的窗口。
+
+## 纯逻辑与真机器操作分开
+
+判据只有一句：**这段逻辑能不能不启动进程、不开窗口、只给输入看输出。**
+
+能的部分是纯逻辑：时序、检查、命名、版本号、「查不出算不算不在」「装上的是不是这次发的版本」「哪个依赖落后了」「测过的内核在不在同一条版本线上」这些判断都在这里，测试用假的依赖把整条流程跑完。不能的部分在四个 `node-*-deps.ts` 里，只负责在真机器上拿到答案：启动进程、查进程表、查端口被谁占着、读写磁盘、连 CDP、问团队源。这一层不做判断，也不进单元测试。
+
+两边靠显式接口隔开：`HomeDeps`、`DevDeps`、`ReleaseDeps` 三个接口由纯逻辑定义，运行时传 `node-*-deps.ts` 的实现，测试时传假实现。依赖方向是单向的：真机器那一层认识纯逻辑，纯逻辑不认识它。
+
+{/* has file="../plugins/devkit/src/home.ts" text="export interface HomeDeps {" */}
+
+{/* has file="../plugins/devkit/src/dev.ts" text="export interface DevDeps {" */}
+
+{/* has file="../plugins/devkit/src/release.ts" text="export interface ReleaseDeps {" */}
+
+| 模块 | 纯逻辑 | 真机器操作 | 细节 |
+| --- | --- | --- | --- |
+| 建仓 | `src/scaffold.ts` | 同一个文件，直接读写磁盘 | [建仓与加插件](/docs/devkit/scaffold) |
+| 结构体检 | `src/structure.ts` | 同一个文件，只读磁盘 | [结构体检](/docs/devkit/structure) |
+| 测试 home | `src/home.ts` | `src/node-home-deps.ts` | [测试 home](/docs/devkit/home) |
+| 改一版看一版 | `src/dev.ts` | `src/node-dev-deps.ts` | [改一版看一版](/docs/devkit/dev) |
+| 发正式版 | `src/release.ts`、`src/tested-kernel.ts` | `src/node-dev-deps.ts` | [开发套件](/docs/devkit#发正式版的检查) |
+| 依赖对账 | `src/audit.ts` | `src/node-audit-deps.ts` | [开发套件](/docs/devkit#依赖对账的判据) |
+| 能用什么 | `src/services.ts`、`src/capabilities.ts` | 命令登记处读 home 里的 `package.json` | [开发套件](/docs/devkit) |
+| 进程与端口探测 | `src/probes.ts` | `src/node-probe-deps.ts` | [测试 home](/docs/devkit/home) |
+| 小工具 | `src/vocab.ts`：`isRecord` 与 `requireKernel`（词汇表包只提供类型，这两个函数由插件自带） | — | — |
+| CDP 驱动 | `bin/cdp.mjs` 里算文件位置的几个函数 | `bin/cdp.mjs` 其余部分 | [CDP 驱动](/docs/devkit/cdp) |
+| 命令登记 | — | `src/index.ts`：登记命令、检查参数、组装回执 | — |
+
+{/* tree dir="../plugins/devkit/src" depth="1" glob="*.ts" */}
+
+建仓与结构体检是另一种形状：它们只做计算与同步读写磁盘，不需要注入接口，测试直接写临时目录。把「往磁盘上写文件」的函数换成假实现，等于没测。
+
+读代码从 `src/index.ts` 的 `apply` 开始：那里登记了全部命令，一眼能看出对外有哪些命令；想知道某件事怎么判断，再去对应的纯逻辑模块。反方向的 import 一条都没有。
+
+## devkit 与插件管理放在同一个仓
+
+插件管理 `@godcreator/gwb-plugin-manager` 仍是 home 里的普通插件：由 `cordis.yml` 里的一条条目加载、单独发版、用 `plugin-manager.update-all` 升级。它和 devkit 放在一起，是因为两者互相依赖的地方多（[插件管理迁入 devkit 仓](/trajectory/2026-09-24-plugin-manager-joins-devkit)）：
+
+- `devkit.dev` 装完开发版调 `plugin-manager.remount` 重新加载，再轮询 `plugin-manager.list` 取证；重新加载插件管理自己时收到 `deferred`，就等 `list` 回来
+- `devkit.home.new` 把插件管理作为基础插件装进新 home，之后往这个 home 加插件用 `plugin-manager.install`
+- `gwb.testedKernel` 两边都用：插件管理在 `list` 里拿它和运行中的内核比对，`devkit.release` 发版前拒绝没写对的插件包。比对规则两边各存一份（两个包的 `src/tested-kernel.ts`），不跨包 import
+
+{/* has file="../plugins/devkit/src/tested-kernel.ts" text="比对规则与插件管理（@godcreator/gwb-plugin-manager 的 `src/tested-kernel.ts`）相同，两边各存一份" */}
+
+放在一个仓里，这些地方一个提交就能改两边，改比对规则时两份一起改、一起跑测试。
+
+代价：发版要用 `packages` 指明发哪个包；比对规则两份靠同一个提交保持一致，没有测试核对两份逐字相同。改插件管理的命令名、参数或回执形状是破坏性变更——插件管理窗格、`devkit.dev`、agent 的说明书都按它们写死了调用。
+
+## repo-kit 和模板放在同一个仓
+
+`devkit.scaffold` 生成的每个插件包都带两份测试登记代码，调用的是 repo-kit 的 `registerSelfReportGuard` 与 `registerPluginGuard`，模板里还写着 repo-kit 的版本号。改守卫的参数或用例，模板里的登记代码要跟着改；改模板生成的插件的形状（比如窗格或示例命令），插件守卫要跟着改。两份正本放在一个仓里，一个提交改两边、一次发版发两个包。
+
+{/* has file="../plugins/devkit/template/pkg/tests/self-report.test.ts.tpl" text="import { registerSelfReportGuard } from '@godcreator/gwb-repo-kit'" */}
+
+{/* has file="../plugins/devkit/template/pkg/tests/plugin.test.ts.tpl" text="import { registerPluginGuard } from '@godcreator/gwb-repo-kit'" */}
+
+repo-kit 自己是库，不是插件：各仓装在 `devDependencies` 里，只在 `pnpm check` 里运行。检查的实现只在这个包里，各仓的 `tests/` 里只有登记代码——各仓各抄一份的话，改一条规则要改几十个仓。
+
+## 模板是唯一正本
+
+仓的布局只有一种：workspace 仓，插件在 `plugins/<短名>/`。只有一个插件的仓也是这个布局，加第二个插件是一条命令，不会有「建小了要迁移」的时候（[只有一种仓的布局](/trajectory/2026-09-19-one-shape-workspace-always)）。
+
+- **建仓与加插件用同一份插件包模板** `template/pkg/`，两种命令生成的插件包格式一致靠这个，不靠纪律
+- **结构体检的规则以模板为准**：往返测试断言模板生成的仓零 findings，模板与检查规则谁改了另一个没跟上，测试当场失败（[结构体检](/trajectory/2026-09-19-structure-audit-comes)）
+- **旧布局仓不专门迁**，改到哪个迁哪个；`devkit.audit-structure` 给出按实际文件名列好的迁移清单
+
+代价：旧布局仓会和新布局长期并存；workspace 仓发版与 `devkit.dev` 都要给 `packages`。
+
+## 借别的插件只借命令名
+
+建仓要生成文档站骨架、装六区，这两件事归站点插件与 docfirst 插件；`audit-deps` 与 `audit-structure` 要知道容器根，这归单元目录插件。devkit 不依赖这三个插件的任何包，只在命令总线上按名字找 `docs-site.create`、`docfirst.attach`、`unit-folder.list`，每次现查、不缓存（插件是热加载的，装一个新插件之后答案当场就变）。找不到就跳过那一步或要求调用方给参数，不让建仓失败。
+
+{/* has file="../plugins/devkit/src/index.ts" text="const CREATE_SITE_COMMAND = 'docs-site.create'" */}
+
+{/* has file="../plugins/devkit/src/index.ts" text="const ATTACH_SITE_COMMAND = 'docfirst.attach'" */}
+
+代价：命令名改了不会在编译时发现，只会在建仓的回执里看到「没装」。
+
+## 刻意不做
+
+- **不收端口**：见「只按名字定位一个 home」
+- **不写 `runtime.json`**：已有内核与 MCP 入口插件两个写入者，第三个只会让记录说不清
+- **不构建内核**：启动 home 用宿主自己那个应用；改内核源码的验证走内核仓自己的流程
+- **不做设置项**：现在一项都不需要；将来要加用 `gwbSettings.define`，不读 `cordis.yml` 条目上的 `config`——写在 yml 里的那份界面看不见、agent 也不知道
+- **不自动清理**：`devkit.home.new` 的回执带着现有 home 清单，清理由人或 agent 在开新 home 时决定；工具只提供入口，不替人做判断
+- **没人用的命令就删**：本机源的启停、单独的停止 home、只看不验的 `dev-check` 都已删掉（[砍掉没人用的那一半](/trajectory/2026-09-11-cut-the-half-nobody-uses)），退役名单在[术语表](/docs/glossary#退役的命令与参数)

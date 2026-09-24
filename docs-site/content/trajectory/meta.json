@@ -20,6 +20,11 @@
     "2026-09-18-cdp-paths-ignore-cwd",
     "2026-09-18-caret-ticket-strict-peer",
     "2026-09-18-drop-strict-peer",
-    "2026-09-24-plugin-manager-joins-devkit"
+    "2026-09-18-package-self-report",
+    "2026-09-18-capability-map-moves-to-runtime",
+    "2026-09-19-one-shape-workspace-always",
+    "2026-09-19-structure-audit-comes",
+    "2026-09-24-plugin-manager-joins-devkit",
+    "2026-09-24-docs-by-seam-map"
   ]
 }

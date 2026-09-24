@@ -50,7 +50,7 @@ description: 12 条命令是插件管理唯一的调用方式；服务 gwbPlugin
 
 {/* has file="../plugins/plugin-manager/tests/self-report.test.ts" text="registerSelfReportGuard" */}
 
-命令实际登记上、调得通，只能实机验证：用 `devkit.home.new` 开一个隔离 home，`devkit.dev` 把这一版装进去，再用 `devkit.cdp` 调命令（见[测试 home](/docs/home)、[改一版看一版](/docs/dev)）。
+命令实际登记上、调得通，只能实机验证：用 `devkit.home.new` 开一个隔离 home，`devkit.dev` 把这一版装进去，再用 `devkit.cdp` 调命令（见[测试 home](/docs/devkit/home)、[改一版看一版](/docs/devkit/dev)）。
 
 <Diagram name="pm-commands" title="页面、agent、别的插件都经命令调用；别的插件只 inject 这个服务来跟着它加载、卸载">
 - 三类调用方——插件管理窗格、经 MCP 入口的 agent、主进程里的别的插件——都经命令插件按名字调用 `plugin-manager.*`

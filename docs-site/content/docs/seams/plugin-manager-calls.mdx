@@ -1,0 +1,77 @@
+---
+title: 2 devkit 调插件管理
+description: 连接 devkit 与插件管理：devkit.dev 经 CDP 在目标页面调 plugin-manager.list 与 plugin-manager.remount，回执形状在 devkit 里手写；devkit.home.new 自己往 cordis.yml 写条目、用 pnpm 装基础插件；devkit.dev 直接改目标 home 的 package.json 再 pnpm install——都靠约定
+---
+
+**本页回答**：devkit 在哪几处用到插件管理，每一处靠什么对上；插件管理改了命令名或回执，devkit 哪里先出问题；devkit 在哪几处绕过插件管理直接改 home。
+
+## 连接的模块
+
+- devkit 的 `devkit.dev`（`src/dev.ts`）与 `devkit.home.new`（`src/home.ts`）
+- 插件管理的 `plugin-manager.list` 与 `plugin-manager.remount`（`plugins/plugin-manager/src/index.ts`、`src/remount.ts`）
+- 被操作的那个 home 里的 `cordis.yml` 与 `package.json`
+
+## 接口
+
+**一、`devkit.dev` 经 CDP 调两条命令。** devkit 运行在另一个 home 里，调用经 `bin/cdp.mjs` 的 `cmd` 动作发到目标页面的 `window.gwb.command`（通道见 [CDP 驱动 cdp.mjs](/docs/seams/cdp)）。重新加载一条条目只发一条 `plugin-manager.remount {"entryId": …}`：
+
+{/* ref file="../plugins/devkit/src/dev.ts" lines="573-603" */}
+
+回执 `action` 是 `remounted` 时，`state` 必须是 `ACTIVE`；是 `deferred`（被重新加载的是插件管理自己）时，每 500 毫秒轮询一次 `plugin-manager.list`，60 秒内等到那条条目 `active: true`。插件管理这边的命令与处理：
+
+{/* ref file="../plugins/plugin-manager/src/index.ts" lines="333-342" */}
+
+{/* ref file="../plugins/plugin-manager/src/remount.ts" lines="98-115" */}
+
+`plugin-manager.list` 的回执由 devkit 自己解析：认 `{ packages: [...] }` 与裸数组两种，按 `pkg` 找包，读每条条目的 `entryId` 与 `active`，一个包的**全部**条目都要重新加载：
+
+{/* ref file="../plugins/devkit/src/dev.ts" lines="190-201" */}
+
+插件管理的 `list` 每个包带 `pkg`、`entries`，每条条目带完整 `entryId` 与按 fiber 状态算的 `active`：
+
+{/* ref file="../plugins/plugin-manager/src/inventory.ts" lines="15-34" */}
+
+**二、`devkit.home.new` 自己写 `cordis.yml`、自己装基础插件。** 新 home 在内核启动之前，由 devkit 写一份七条条目的 `cordis.yml`（文件已存在就不写），再用 PATH 上的 pnpm 运行 `pnpm add`，七个插件里包括插件管理：
+
+{/* ref file="../plugins/devkit/src/home.ts" lines="315-347" */}
+
+{/* ref file="../plugins/devkit/src/home.ts" lines="386-401" */}
+
+**三、`devkit.dev` 自己改目标 home 的清单。** 把这次发的准确版本号写进目标 home 的 `package.json`，再在那个 home 里运行 `pnpm install`（PATH 上的 pnpm），装完读 `node_modules/<包>/package.json` 核对版本；失败时把清单改回原样。不用 `plugin-manager.install`，因为它对已装的包会再加一条条目：
+
+{/* ref file="../plugins/devkit/src/dev.ts" lines="491-518" */}
+
+## 约定
+
+插件管理保证：
+- `plugin-manager.list` 按包列出，每条条目有完整 `entryId` 与 `active`
+- `plugin-manager.remount` 收 `{ entryId }`（完整 id 或不带前缀的 id），回 `{ id, action, state }`；目标是插件管理自己时回 `deferred`，回执发出之后才重新加载
+- 改这两条命令的名字、参数或回执形状算破坏性变更：升版本号的 x、`gwbPluginManager` 的 `contract` 加一、先通知下游（写在本仓 AGENTS 的「本仓还有插件管理」）
+
+devkit 保证：
+- 一条条目只发一条 `remount`，不拆成 `disable` 加 `enable`
+- 目标 home 是 `default` 或 devkit 自己所在的 home，都不动手
+- 装上的版本号对不上就停，不重新加载
+- 目标 home 里没有这个包的条目时不建条目，回执里给出 `plugin-manager.install {"pkg": …, "spec": "<这次的版本号>"}`
+
+**这几处都靠约定**：devkit 不 import 插件管理的类型，也不读 `gwbPluginManager` 的 `contract`（它经 CDP 调用，拿不到那个服务），回执形状在 `dev.ts` 里手写。约定写在三处：插件管理 `remount` 与 `list` 两条命令的 `usage`、`dev.ts` 的 `entriesOf` 与 `remount`、本仓 AGENTS。目标 home 的插件管理早于 0.4.0 时没有 `remount`，devkit 的报错里写着这个版本要求。
+
+内核仓文档站的「home 布局与条目树」一页写的是：插件管理是唯一写 home 的插件，`cordis.yml` 只经条目树改，`package.json` 与 `node_modules/` 只经插件管理自带的 pnpm 改。`devkit.home.new` 在内核启动前直接写 `cordis.yml`、用 PATH 上的 pnpm 运行 `pnpm add`；`devkit.dev` 直接写目标 home 的 `package.json`、用 PATH 上的 pnpm 运行 `pnpm install`。本站[插件管理的 home 页](/docs/plugin-manager/home)把 `devkit.dev` 列为例外，没有提 `devkit.home.new`。
+
+## 不负责的事
+
+- devkit 不建条目、不调 `install` / `update` / `uninstall`；第一次建条目由人调 `plugin-manager.install`
+- 插件管理不知道 devkit：`remount` 与 `list` 对谁调用都一样
+- devkit 不保证目标 home 里此时没有别的改动在进行；插件管理的 BUSY 互斥只挡插件管理自己的命令，挡不住 devkit 直接运行的 pnpm
+
+## 测试
+
+两边各用假实现测，没有测试把两边接在一起跑。devkit 这边：
+
+{/* has file="../plugins/devkit/tests/dev.test.ts" text="装了不重挂比没装还糟：每条条目一条 remount，不拆成停用加启用两条" */}
+
+{/* has file="../plugins/devkit/tests/dev.test.ts" text="plugin-manager 自己：回执先回（deferred），轮询 list 到它重新答话且 active，一趟成" */}
+
+插件管理这边：
+
+{/* has file="../plugins/plugin-manager/tests/remount.test.ts" text="先回 deferred（动手前的状态），什么都没动；下一个宏任务才重新加载" */}

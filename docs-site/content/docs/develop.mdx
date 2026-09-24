@@ -1,0 +1,112 @@
+---
+title: 开发
+description: 怎么装开发套件、怎么确认它加载了；改 devkit、插件管理、repo-kit 本身时怎么准备、提交前跑哪些检查、怎么在隔离 home 里验证、怎么发版、文档站怎么检查与生成
+---
+
+**本页回答**：开发套件怎么装、装完怎么确认；什么时候才进这个仓；第一次怎么准备；提交前跑哪些检查；改了 devkit、插件管理或 repo-kit 怎么在隔离 home 里验证；发版按什么顺序做；文档站怎么检查、怎么生成 AGENTS.md 这些文件。
+
+## 安装与确认
+
+开发套件与别的插件一样用插件管理装：
+
+```
+plugin-manager.install {"pkg":"@godcreator/gwb-devkit"}
+```
+
+装完下一次调 MCP 入口的 `index` 就有 `devkit.*` 命令，不用重连。没有设置项，装完什么都不用配。
+
+**确认它加载了**：`<home>\gwb.log` 里有「开发套件就绪」那一行，说明 `apply` 执行完了。安装命令回的「装完了」不算：包装进 `node_modules` 与插件加载成功是两件事。这个 home 上此刻有哪几条命令，以 `search {"plugin":"@godcreator/gwb-devkit"}` 的结果为准。
+
+{/* has file="../plugins/devkit/src/index.ts" text="开发套件就绪" */}
+
+插件管理是基础插件：`devkit.home.new` 开的隔离 home 自带它，日常用的 `default` 在装机时装好。
+
+## 什么时候进这个仓
+
+**用 devkit 不进这个仓**，命令在任何装了它的 home 里都能调。**改这三个包本身才进来**：开发套件 `plugins/devkit/`、插件管理 `plugins/plugin-manager/`、repo-kit `packages/repo-kit/`。改动只在隔离 home 里实际运行验证，不碰日常用的 `default`。三个包为什么在一个仓里见[关键设计](/docs/design#仓里放什么)。
+
+## 第一次准备
+
+在仓根：
+
+```powershell
+pnpm install
+```
+
+仓根的 workspace 包含三个包与 `docs-site`，一次装齐。文档站目录里另有自己的 `pnpm-workspace.yaml` 与锁文件；`devkit.audit-structure` 查本仓会对「文档站在 workspace 里」报一条 warn（`docs-site-in-workspace`），这是本仓的旧形状，模板生成的新仓不这样。
+
+实验材料放 `probes/<时间戳>_<目的>/`：一次实验一个目录、自包含、进 git、不在 workspace 里。
+
+## 提交前的检查
+
+{/* has file="../package.json" text="pnpm -r --no-bail check" */}
+
+```powershell
+pnpm check          # 各包的 check：开发套件与 repo-kit 是 typecheck + vitest，插件管理另加 oxlint
+pnpm build          # 只构建 plugins/* 与 packages/*，tsc 直接输出 dist/，没有打包器；文档站不在里面
+```
+
+**`pnpm check` 不构建。** 它检查的是源码，全绿只说明源码没问题，跟「装出来能不能运行」是两件事。
+
+两个插件的 `tests/self-report.test.ts` 用 repo-kit 的自述守卫查 `description`、`gwb.provides`、说明书份数，以及源码注入的服务名在文档站里出现过：devkit 读 `docs-site/content/docs` 下全部 `.mdx`，插件管理只读 `docs-site/content/docs/plugin-manager`。所以删掉或改名一个服务名出现的页面，可能让测试变红。
+
+文档站的检查不在 `pnpm check` 里（要运行文档站的解析，太慢），见下面[文档站](#文档站)。
+
+## 在隔离 home 里验证
+
+单元测试覆盖不了「装出来能不能加载、命令调不调得通」，这要在隔离 home 里实际运行：
+
+1. 从日常用的 home 开一个隔离 home：`devkit.home.new {"short":"<这次验什么>"}`，回执里有 home 名
+2. 把这次的改动装进去：`devkit.dev {"home":"<名>","dir":"<本仓根>","packages":["plugins/devkit"]}`——改的是插件管理就给 `["plugins/plugin-manager"]`。`devkit.dev` 会重新加载条目并取证，回执 `ok: false` 就是没验过
+3. 在那个 home 里调命令看结果：`devkit.cdp {"args":["<名>","cmd","<命令名>","<JSON 参数>"]}`。验 devkit 自己的命令也是这样调——命令在隔离 home 的进程里运行，跟日常用的 home 里那份 devkit 无关
+4. 看那个 home 的 `gwb.log`；验完 `devkit.home.rm {"name":"<名>","force":true}`
+
+`devkit.dev` 只拒绝以 `default` 或 devkit 自己所在的 home 为目标，所以从日常用的 home 往隔离 home 装开发版的 devkit 是可以的；日常用的 home 里的 devkit 只能发正式版后用 `plugin-manager.update-all` 升级。插件管理重新加载自己时回执是 `deferred`，`devkit.dev` 会轮询 `plugin-manager.list` 等它回来。
+
+改 repo-kit 时，本仓两个插件的测试经 `workspace:*` 直接用改过的源码，`pnpm check` 就会用新规则查它们。模板生成的新仓能不能跑通 install / build / check，单元测试回答不了：用构建产物实际建一个仓跑一遍，做法见 `probes/2609191042_workspace-scaffold/`。
+
+## 发版
+
+升哪一位版本号、依赖怎么写、发破坏性版本要多做什么，正本是 devkit 的说明书 `gwb-release`（`skill.read {"name":"gwb-release"}`），**每次升版本号之前都读一遍**，这里只列本仓的要点：
+
+1. **隔离 home 里验证通过**，`pnpm check`、文档站的 `pnpm doc` 都通过
+2. **升 `package.json` 的版本号并提交**。同一个版本号永不重发；git 工作区要干净
+3. **插件包的 `gwb.testedKernel`** 写它验证时所用的内核版本。`devkit.release` 拿它和运行这条命令的 home 的内核比，不在同一条版本线上就拒（[在哪个内核上测过](/docs/rules/tested-kernel)）
+4. **调 `devkit.release`**，`packages` 按依赖顺序排：
+   - 只发开发套件：`devkit.release {"dir":"<本仓根>","packages":["plugins/devkit"]}`
+   - repo-kit 也改了：`["packages/repo-kit","plugins/devkit"]`
+   - 发插件管理：`["plugins/plugin-manager"]`
+
+   它检查 git 工作区、构建、按 `files` 白名单检查产物、做发版前检查（[开发套件](/docs/devkit#发正式版的检查)），在临时目录组装发布内容发到 latest，不改仓里任何文件
+5. **发完就升级 `default`**：人在插件管理窗格点「全部更新」，或调 `plugin-manager.update-all`。说明书与命令都随包发布，不升级等于 agent 读到的还是上一版，而它照着过期的说明书做事不报错。升级到开发套件或插件管理自己时，回执可能收不到，重连后用 `plugin-manager.list` 核对
+
+**`devkit.release` 不运行 `prepublishOnly`**：临时目录里组装的发布内容没有 `scripts`，产物靠仓根构建加白名单检查保证。只有需要运行仓里钩子时才在包目录手动 `pnpm publish --no-git-checks`（scope 对应的源写在用户级 `~/.npmrc`，不手写 `--registry`）；手动发版不做发版前检查，而且 `prepublishOnly` 不能删——少了它会把上一版的 `dist/` 原样发出去而且不报错，现象是「插件加载了但新写的东西都没生效」。
+
+{/* has file="../plugins/devkit/package.json" text="prepublishOnly" */}
+
+**开发套件的 `files` 白名单五项，一项都不能少**：
+
+| 少了哪项 | 什么马上坏掉 |
+| --- | --- |
+| `dist` | 插件加载不了 |
+| `template` | `devkit.scaffold` 回「包内 template/ 不在」 |
+| `skills` | 说明书装不进 home，agent 读不到 |
+| `bin` | `devkit.cdp` 指向一个不存在的文件，`devkit.dev` 的重新加载、刷新、取证三步一起失败 |
+| `src` | 类型跳转与读源码断掉（不影响运行） |
+
+插件管理的 `files` 是 `dist`、`skills`、`src` 三项；repo-kit 是 `dist`、`src` 两项。
+
+## 文档站
+
+文档站在 `docs-site/`，六区：`content/docs` 现状、`trajectory` 轨迹卡、`spec` 进行中的交接、`future` 未来、`outputs` 生成文件的正本、`feedback` 反复做的操作的候选。在 `docs-site` 目录里：
+
+```powershell
+pnpm doc                           # docfirst check：页面引用的代码改了、生成文件与正本不一致，都会报出来
+pnpm doc:confirm <页的路径…>        # 引用的代码改了、页上的说法仍成立时确认；路径相对 docs-site/
+pnpm doc:render                    # 按 content/outputs/ 重新生成 AGENTS.md、CLAUDE.md、README.md 与说明书
+pnpm build                         # 构建文档站；端口见 package.json 的 start 脚本（4322）
+```
+
+- **先提交代码再 `doc:confirm`**：git 比较器只对已提交、工作区干净的内容记录。只点名自己改过的页，不带路径会把别人还没复核的页一起确认掉
+- **生成文件不手改**：`plugins/devkit/AGENTS.md`、`CLAUDE.md`、`README.md` 与两个插件 `skills/` 下的 `SKILL.md` 都由 `content/outputs/` 下的 mdx 生成，对应关系在 `docfirst.config.mjs` 的 `outputs`；改 mdx、运行 `pnpm doc:render`，mdx、生成文件、`.ledger.json` 放进同一个提交。`skills/fresh-eyes/SKILL.md` 是手写的，不经生成
+- **轨迹卡只增不改**，不引用会变的代码；某条路走不通、做了选型，当场写一张卡

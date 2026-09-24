@@ -1,15 +1,14 @@
 {
   "pages": [
     "index",
-    "start",
-    "system-map",
-    "plugin-manager",
-    "scaffold",
-    "structure",
-    "home",
-    "dev",
-    "cdp",
+    "design",
+    "develop",
     "rules",
-    "glossary"
+    "glossary",
+    "seams",
+    "---包---",
+    "devkit",
+    "plugin-manager",
+    "repo-kit"
   ]
 }

@@ -1,0 +1,112 @@
+---
+title: 建仓与加插件
+description: devkit.scaffold 把新插件的骨架写进一个新文件夹（workspace 仓），建文档站的两步经命令总线交给别的插件；devkit.scaffold.plugin 往已有的 workspace 仓再加一个插件包
+---
+
+**本页回答**：`devkit.scaffold` 与 `devkit.scaffold.plugin` 从收到参数到回执之间做了什么、哪几步不能换顺序、建文档站为什么不在本包里做。
+
+## 只有一种仓的布局
+
+workspace 仓：仓根是一个不发布的 private 包（`pnpm build` / `pnpm check` 递归到各成员，自己没有代码），插件放在 `plugins/<短名>/`，不是插件的包放在 `packages/`（repo-kit 那类仓里用的工具，按需）。**只有一个插件的仓不是另一种布局**，只是 `plugins/` 下恰好一个目录；加第二个插件永远是 `devkit.scaffold.plugin` 往 `plugins/` 再生成一个，不会出现「当初建小了、现在要迁移」的情况。插件包自带全部配置（src / tests / tsconfig / vitest / oxlint 配置全在包内），放在哪个仓里都一样。
+
+模板分两部分，两条命令生成的格式一致靠这个保证：`template/repo/` 生成仓根，`template/pkg/` 生成 `plugins/<短名>/`（插件包，**唯一正本**——建仓与加插件生成的是同一份）。还在用的旧布局仓（仓根就是插件包）不专门迁，改到哪个就迁哪个；`devkit.scaffold.plugin` 收到这种仓当场拒，报错里写着怎么迁。
+
+## 管什么
+
+一个短名派生出一套身份：包名 `@godcreator/gwb-<短名>`、插件名 `gwb-<短名>`、命令名 `<短名>.<动作>` 的前半。这部分代码把包内 `template/` 的两部分按这套身份渲染好、写进一个还不存在的目录，再把「接下来做什么」放进回执。
+
+插件的文件写到磁盘之后才建文档站，而建站是两步，两步都不是本包的命令。加插件不碰文档站：整个仓一个站，站里插件清单的更新由写文档的人做（`nextStepsPlugin` 最后一步提醒）。
+
+## 不知道什么
+
+不知道 fumadocs 是什么，不知道代码引用怎么核对，也不知道命令总线存在：`scaffold.ts` 里的函数连 `ctx` 都拿不到。**连「站建成没有」都是调用方告诉它的**：`nextSteps` 收一个 `site` 参数，按它分支，不按调用方想不想建站分支。
+
+也不知道生成出来的仓将来怎么发版：README 里写的那条 `devkit.release` 是模板的内容，不是这部分代码的行为。
+
+## 数据结构
+
+五个类型，两条流程：建仓（参数 `ScaffoldInput` → 计划 `ScaffoldPlan` → 渲染好的 `RenderedFile[]`）、加插件（`ScaffoldPluginInput` → `ScaffoldPluginPlan` → 同样的 `RenderedFile[]`）。
+
+{/* ref file="../plugins/devkit/src/scaffold.ts" lines="40-98" */}
+
+`ScaffoldPlan` 与 `ScaffoldPluginPlan` 算出来之后，后面每一步只看计划，不再回头看参数。
+
+## 提供的接口
+
+对外两条命令：`devkit.scaffold { name, dir, title?, docs?, port? }` 与 `devkit.scaffold.plugin { name, repo, title? }`。**参数不对时把整份用法说明放进报错**，而不只回一句「参数错误」：这两条命令的主要调用方是 agent，命令总线不带参数形状，它能不能看出自己错在哪全靠这段话。
+
+模块导出一串纯函数，`src/index.ts` 按顺序调用：
+
+{/* ref file="../plugins/devkit/src/scaffold.ts" lines="120-143" */}
+
+校验、派生、转成绝对路径、填缺省值都在这一处做完，没有读写磁盘。抛出的每一句都写明该怎么改。
+
+加插件的计划**要读磁盘**（建仓的不读）：`repo` 必须已经是 workspace 仓才收。
+
+{/* ref file="../plugins/devkit/src/scaffold.ts" lines="150-178" */}
+
+**整套模板先在内存里渲染完再写磁盘。** 占位符出错是这条流程上最可能的失败，而目标目录一旦开始写就没有干净的回滚点。
+
+{/* ref file="../plugins/devkit/src/scaffold.ts" lines="251-257" */}
+
+认不出的占位符当场抛错。生成的仓里留一个 `{{typo}}`，它会一直留在别人的 package.json 里，到那时已经没人知道它本来该是什么。所以给模板加了新占位符，`placeholders()` 必须同时加一项。
+
+两部分各写到哪里由一个纯函数决定：`repo/` 写到仓根，`pkg/` 写到 `plugins/<短名>/`，**不属于这两部分的文件当场抛错**——模板里每个文件都得声明自己属于哪部分，没声明的写下去就是一堆没人认领的文件。
+
+{/* ref file="../plugins/devkit/src/scaffold.ts" lines="269-277" */}
+
+建仓渲染两部分；加插件只渲染插件包那部分，路径相对插件包根。`writeRepo` 的「目标必须还不存在」于是检查的是 `plugins/<短名>/`，仓根与文档站一概不碰。
+
+{/* ref file="../plugins/devkit/src/scaffold.ts" lines="294-313" */}
+
+目标目录必须还不存在。建仓与加插件都是一次性动作，往已有目录里写文件没有干净的回滚点。
+
+{/* ref file="../plugins/devkit/src/scaffold.ts" lines="316-324" */}
+
+## 依赖的接口
+
+| 接口 | 用来做什么 | 运行时的实现 | 测试时的实现 |
+| --- | --- | --- | --- |
+| `node:fs` | 读包内模板、检查仓的布局、把渲染好的文件写下去 | 直接调用，不注入 | 不替换，真写临时目录 |
+| 包内 `template/`（两部分） | 骨架正本，`packageRoot()` 向上找 `package.json` 定位 | 发布出去的包里那份 | 同一份，测试读的就是它 |
+| `docs-site.create` | 生成 fumadocs 骨架 | 站点插件提供，在命令总线上按名字找 | 不测：装没装都不影响插件文件写到磁盘 |
+| `docfirst.attach` | 在骨架上装六区 | docfirst 插件提供，同上 | 同上 |
+
+**建站是两步，顺序不能反，中间不能插别的事。**
+
+{/* ref file="../plugins/devkit/src/index.ts" lines="802-812" */}
+
+`docfirst.attach` 只在还没写过内容的骨架上装得了，这条由它自己检查。生成骨架与装六区连着做，中间没人改过文件，整个覆盖才安全；给一个用了半年的站做自动改写不安全。`devkit.scaffold` 里这两步紧挨着，正是那个安全的时刻。
+
+**站没建成不算建仓失败。** 插件的文件早已写到磁盘，所以回执里这两个字段才是实际结果：
+
+{/* ref file="../plugins/devkit/src/index.ts" lines="788-800" */}
+
+`built` 表示骨架生成了没有，`attached` 表示六区装了没有，`nextSteps` 按这两个字段分三种情况。回执里给一条不存在的 `cd docs-site` 比不给更糟，所以生成的 README 里讲文档站的那段话，也是在渲染之前按「站点插件在不在」定下来的：
+
+{/* ref file="../plugins/devkit/src/scaffold.ts" lines="186-191" */}
+
+## 怎么单独测
+
+给一份参数，看抛什么、算出什么；给一个临时目录，看磁盘上写下了什么。整个过程不启动进程、不开窗口，`tests/scaffold.test.ts` 直接测这几件事：
+
+短名的正则会不会放过 `x--` 这种结尾；`planScaffold` 的派生与缺省值；`planScaffoldPlugin` 对不存在的 repo、`pnpm-workspace.yaml` 里没有 `plugins/` 那条（旧布局仓）的拒绝；`docsBlock` 在建站与不建站时写的是两段不同的话；`nextSteps` / `nextStepsPlugin` 各种情况写了什么、`packages` 参数有没有带上；认不出的占位符真的会抛错；`.tpl` 后缀与两部分的去向（`landRel`）对不对；包内 `template/` 里每个文件都声明了属于哪部分；在临时 workspace 仓里真的生成一个 `plugins/<短名>/`；`writeRepo` 对已存在的目录真的拒绝。
+
+模板文件清单那一条最容易被忽略：`files` 白名单漏掉 `template`，包照样发得出去、也装得上，直到有人调 `devkit.scaffold` 才报「包内 template/ 不在」。
+
+**新布局在真实的 pnpm 里能不能用，单元测试回答不了**——实验目录 `probes/2609191042_workspace-scaffold/` 用构建产物真的生成了一个仓，跑完 install / build / check：只有一个成员时 `--filter "./plugins/*"` 照样工作、oxlint 在插件包目录里找到包内配置、仓根的 check 递归到成员，三样都通过。
+
+## 模板里两处看着多余、其实少不了
+
+- **`pnpm-workspace.yaml` 里的 `allowBuilds`**：pnpm 11 起这项设置写在这个文件里，`package.json` 的 `pnpm` 字段不再读；esbuild 的构建脚本要在这里放行。不放行的现象是连锁的：install 报「Ignored build scripts」，`pnpm run` 核对依赖时自动补装又遇到同样的拒绝，最后的调用栈在 pnpm 内部，看不出是构建脚本没放行
+- **`oxlint-tsgolint`**：`oxlint` 需要类型信息的规则要用它，少了 `pnpm lint` 报 "Failed to find tsgolint executable"。模板里它与 `oxlint` 都写准确版本号
+
+## 代码地图
+
+**在哪**：纯逻辑全在 `src/scaffold.ts`；命令登记与建文档站那部分在 `src/index.ts` 的 `devkit.scaffold` / `devkit.scaffold.plugin` 两段与 `buildDocsSite`；骨架正本在包根的 `template/repo/` 与 `template/pkg/`。
+
+**先读**：`planScaffold`，建仓流程的入口与全部校验；加插件从 `planScaffoldPlugin` 读起。
+
+**读序**：先算计划，`placeholders` 与 `render` 把模板变成内存里的文件表，`landRel` 决定两部分各写到哪，`writeRepo` 写磁盘，`nextSteps` / `nextStepsPlugin` 生成回执末尾的下一步。建文档站在这之后，由 `index.ts` 经命令总线发出去。
+
+**可跳过**：`template/` 下那 18 个 `.tpl` 是给别的仓用的内容，不是这部分的逻辑。要看模板长什么样就看那两个目录本身，这一页不抄。

@@ -1,0 +1,89 @@
+---
+title: gwb-repo-kit · 仓侧检查
+description: "@godcreator/gwb-repo-kit 是各插件仓装在 devDependencies 里的测试守卫包：自述守卫查 description、gwb.provides、说明书份数与文档里的服务名，插件守卫查插件名与挂载时的登记；本页讲它的功能、导出、依赖与不做的事"
+---
+
+**本页回答**：repo-kit 有哪些功能；它导出什么、各仓怎么用、属于哪条接缝；它依赖什么；哪些检查不归它。包名 `@godcreator/gwb-repo-kit`，源码目录 `packages/repo-kit/src`，入口文件 `src/index.ts`。
+
+repo-kit 是一个库，不是插件（`keywords` 只写 `gwb`），不装进 home，只装在各插件仓的 `devDependencies` 里，在各仓的 `pnpm check` 里运行。各仓的 `tests/` 里只有几行登记代码，检查的实现都在这个包里：要改检查就改这个包、发新版，不把实现抄回各仓。它和各插件仓之间的约定是[接缝图](/docs)上的 [4 仓侧检查](/docs/seams/repo-kit)；为什么和 devkit 放在同一个仓见[关键设计](/docs/design#repo-kit-和模板放在同一个仓)。
+
+## 功能
+
+- **自述守卫**：一个插件包的 `description` 必须写齐「服务 / skill / 命令」三项；源码提供的服务名都写进 `description`；`gwb.provides` 的键与源码提供的服务一一对应、`summary` 与 `usage` 不空；`skills/` 下带 `SKILL.md` 的目录数等于 `description` 里写的份数；源码注入的服务名在文档站现状区里都出现过
+- **插件守卫**：插件名等于 `gwb-<短名>`；`apply` 时登记了一个 id 为 `main` 的窗格，客户端脚本与样式表都是 `file://` 地址；登记了一条 `<短名>.ping` 命令，`plugin` 写包名、描述里写着「无参数」。它按模板生成的插件写，查的是模板里那个窗格与那条命令
+- **用假 ctx 挂载插件**：`mountHarness` 给一个最小的假 `ctx`（logger、effect、`gwbShell.registerPane`、`gwbCommands.register`），调用插件的 `apply`，回登记下来的窗格与命令，各仓写自己的挂载断言时直接用
+- **只查插件**：`keywords` 里没有 `gwb-plugin` 的包（库、工具包）自述守卫直接跳过，一条用例都不登记
+- **不绑定 vitest 版本**：守卫收调用方传进来的 `describe` / `it` / `expect`，只要求结构对得上，所以各仓用哪一版 vitest 都行，也不会解析出第二份 vitest
+
+命令条数不查：源码里命令名有字面量、常量、模板字符串、条件登记几种写法，扫出来的数和运行时对不上，所以只查「命令 N 条」或「命令无」这个写法本身。
+
+## 接口
+
+全部导出从 `src/index.ts` 出去：
+
+{/* has file="../packages/repo-kit/src/index.ts" text="export { injectServicesOf, providedServicesOf, registerSelfReportGuard, type SelfReportGuardOptions } from './self-report-guard.js'" */}
+
+{/* has file="../packages/repo-kit/src/index.ts" text="export { mountHarness, registerPluginGuard, type PluginGuardOptions } from './plugin-guard.js'" */}
+
+{/* has file="../packages/repo-kit/src/index.ts" text="export type { GuardExpect, GuardVt } from './vitest-context.js'" */}
+
+| 导出 | 做什么 | 定义在 |
+| --- | --- | --- |
+| `registerSelfReportGuard(vt, { root, docsDir? })` | 登记自述守卫的五条用例；`root` 是包根，`docsDir` 是文档站现状区（缺省 `<包根>/docs-site/content/docs`） | `self-report-guard.ts` |
+| `SelfReportGuardOptions` | 上面第二个参数的类型 | `self-report-guard.ts` |
+| `injectServicesOf(源码文本)` | 扫出注入的服务名：`export const inject`、`static inject`、局部 `ctx.inject([...])` 三种写法 | `self-report-guard.ts` |
+| `providedServicesOf(源码文本)` | 扫出提供的服务名：`super(ctx, '<名>')`、`ctx.provide('<名>', …)`、`new XxxService(ctx, '<名>')` 三种写法 | `self-report-guard.ts` |
+| `registerPluginGuard(vt, { apply, name, pkg, pkgName, short })` | 登记插件守卫的三条用例 | `plugin-guard.ts` |
+| `PluginGuardOptions` | 上面第二个参数的类型；`apply` 收 `never`，各仓把参数收窄成 `GwbContext` 的 `apply` 都传得进来 | `plugin-guard.ts` |
+| `mountHarness(apply)` | 用假 `ctx` 调用 `apply`，回 `{ panes, commands }` | `plugin-guard.ts` |
+| `GuardVt`、`GuardExpect` | 调用方传进来的 `describe` / `it` / `expect` 需要满足的结构 | `vitest-context.ts` |
+
+扫服务名是按文本匹配，不解析语法：
+
+{/* ref file="../packages/repo-kit/src/self-report-guard.ts" lines="34-59" */}
+
+文档站现状区按 `docsDir` 递归读全部 `.mdx`；目录不存在或一个 `.mdx` 都没有时，「注入的服务名都写进文档」那一条直接通过：
+
+{/* ref file="../packages/repo-kit/src/self-report-guard.ts" lines="112-122" */}
+
+插件守卫的参数与 `mountHarness`：
+
+{/* ref file="../packages/repo-kit/src/plugin-guard.ts" lines="12-27" */}
+
+{/* ref file="../packages/repo-kit/src/plugin-guard.ts" lines="47-66" */}
+
+**使用方**：
+
+- **模板**：`devkit.scaffold` 生成的每个插件包带 `tests/self-report.test.ts` 与 `tests/plugin.test.ts` 两份登记代码，`devDependencies` 写 repo-kit 的准确版本号。模板里的自述守卫没有给 `docsDir`，而 workspace 仓的文档站在仓根、不在插件包下，所以新仓里「服务名写进文档」那一条按目录不存在处理、直接通过
+- **本仓**：`plugins/devkit` 与 `plugins/plugin-manager` 经 `workspace:*` 用它，两处的自述守卫都显式给了 `docsDir`（devkit 指 `docs-site/content/docs`，插件管理指 `docs-site/content/docs/plugin-manager`）
+- **别的插件仓**：从团队源装，登记方式与模板相同
+
+{/* has file="../plugins/devkit/template/pkg/tests/self-report.test.ts.tpl" text="registerSelfReportGuard({ describe, it, expect }, { root: path.resolve(here, '..') })" */}
+
+{/* has file="../plugins/devkit/template/pkg/tests/plugin.test.ts.tpl" text="registerPluginGuard({ describe, it, expect }, {" */}
+
+{/* has file="../plugins/devkit/tests/self-report.test.ts" text="docsDir: path.resolve(here, '../../../docs-site/content/docs')" */}
+
+**改它的规则**：守卫加一条用例、收紧一条判断，所有装了新版的仓下一次 `pnpm check` 都会按新规则查，原本通过的仓也可能变红；升哪一位照说明书 `gwb-release` 判断。模板里 repo-kit 的版本号要跟着改（`template/pkg/package.json.tpl`），改之前先用 `pnpm view @godcreator/gwb-repo-kit dist-tags.latest` 查源上的版本。repo-kit 和 devkit 一起改时同一次发版，`packages` 里把 `packages/repo-kit` 排在前面（见[开发](/docs/develop#发版)）。
+
+**怎么测**：`packages/repo-kit/tests/self-report.test.ts` 在临时目录里写一个假插件包，传一份假的 `vt` 收集用例：自述齐全时五条都过；`gwb.provides` 漏写、多写、`usage` 为空、`description` 没写服务名、说明书份数不对、服务名没进文档、三项少一项，各自让对应那一条失败；库直接跳过；插件守卫的三条与 `mountHarness` 单独可用。
+
+## 依赖
+
+| 依赖 | 用来做什么 | 缺了会怎样 |
+| --- | --- | --- |
+| `node:fs`、`node:path` | 读包的 `package.json`、`src/`、`skills/` 与文档站的 `.mdx` | Node 内置，不会缺 |
+| 调用方传进来的 vitest 的 `describe` / `it` / `expect` | 登记与断言 | 不传就没有用例；repo-kit 自己不依赖 vitest，`devDependencies` 里的 vitest 只给本包的测试用 |
+| 调用方传进来的插件 `apply` | 插件守卫挂载它看登记了什么 | 插件的 `apply` 用了假 `ctx` 里没有的成员时，挂载那一步抛错，插件守卫的用例失败 |
+| TypeScript 编译器（开发依赖） | `build` 生成 `dist/` | 构建不出来，就发不了包 |
+
+没有运行时依赖：`dependencies` 是空的，也不 import 词汇表包——假 `ctx` 的形状用本地的结构类型写，使用方自己已经有那份类型。
+
+## 不做的事
+
+- **不查依赖版本**：归 `devkit.audit-deps` 与 `devkit.release` 的发版前检查
+- **不查仓的布局**：归 `devkit.audit-structure`（[结构体检](/docs/devkit/structure)）
+- **不查构建产物**：归模板生成的 `tests/artifact.test.ts`，它留在各仓里，不在这个包里
+- **不查文档里的说法对不对**：只查服务名出现过；说法与代码一致归 docfirst（`pnpm doc`）
+- **不数命令条数**：条数的真假只有运行时知道
+- **不查库**：`keywords` 没有 `gwb-plugin` 的包直接跳过

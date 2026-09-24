@@ -1,0 +1,81 @@
+---
+title: 10 pnpm 与团队包源
+description: 连接 devkit、插件管理与 pnpm 和团队包源：插件管理只用自己依赖里的 @pnpm/exe，devkit 用 PATH 上的 pnpm 做 build / publish / view / install / add；团队源地址写在 devkit 里，开发版打 dev、正式版打 latest，audit-deps 用 fetch 直接读 packument
+---
+
+**本页回答**：两个插件各用哪一个 pnpm、做什么；团队源的地址写在哪、哪几处显式传、哪几处靠用户的 `~/.npmrc`；开发版与正式版怎么分开；依赖对账怎么问源。
+
+## 连接的模块
+
+- 插件管理：`plugins/plugin-manager/src/pnpm.ts`、`src/pnpm-path.ts`
+- devkit：`src/dev.ts`、`src/release.ts`、`src/home.ts`、`src/node-dev-deps.ts`、`src/node-audit-deps.ts`
+- pnpm 可执行文件；团队包源（gitea 上 `godcreator` 组织的 npm 源）
+
+## 接口
+
+**插件管理的 pnpm**：`dependencies` 里固定版本的 `@pnpm/exe.win32-x64`，从插件管理自己的位置解析，直接启动里面的可执行文件，不看 PATH。只在 home 里运行 `add`、`remove`、`outdated --json`，不传 `--registry`，源由用户级 `~/.npmrc` 决定。细节见[插件管理的 pnpm](/docs/plugin-manager/pnpm)。
+
+{/* ref file="../plugins/plugin-manager/package.json" lines="32-34" */}
+
+{/* ref file="../plugins/plugin-manager/src/pnpm-path.ts" lines="9-12" */}
+
+**devkit 的 pnpm**：PATH 上的 `pnpm`，Windows 上经 `cmd /c`。用在五处：
+
+| 命令 | 在哪运行 | 谁调 | 带 `--registry` |
+| --- | --- | --- | --- |
+| `pnpm build` | 被测仓的仓根 | `devkit.dev`、`devkit.release` | 不适用 |
+| `pnpm publish --no-git-checks --tag <dev 或 latest>` | 临时目录里摆好的发布内容 | `devkit.dev`、`devkit.release` | 带 |
+| `pnpm view <包@版本> version`、`pnpm view <包> dist-tags.latest` | 系统临时目录 | `devkit.dev`、`devkit.release` | 带 |
+| `pnpm install` | 目标 home | `devkit.dev` | 不带 |
+| `pnpm add <七个基础插件> @godcreator/gwb-plugin-api` | 新 home | `devkit.home.new` | 不带 |
+
+{/* ref file="../plugins/devkit/src/dev.ts" lines="317-322" */}
+
+{/* ref file="../plugins/devkit/src/node-dev-deps.ts" lines="226-231" */}
+
+{/* ref file="../plugins/devkit/src/node-dev-deps.ts" lines="327-336" */}
+
+**团队源地址**：写死在 `dev.ts`，`devkit.dev` 与 `devkit.release` 都只用它，不收参数；`devkit.audit-deps` 缺省也用它，可以给 `registry` 换：
+
+{/* ref file="../plugins/devkit/src/dev.ts" lines="35-36" */}
+
+**两个 tag**：开发版号是 `<patch+1>-dev.<yyyyMMddHHmm>`，打 `dev`，不动 `latest`；正式版发 `package.json` 里的号，打 `latest`：
+
+{/* ref file="../plugins/devkit/src/dev.ts" lines="69-77" */}
+
+{/* ref file="../plugins/devkit/src/node-dev-deps.ts" lines="245-249" */}
+
+**audit-deps 读 packument**：不经 pnpm，用 `fetch` 请求 `<源>/<包名 URL 编码>`，取 `versions` 的键与 `dist-tags.latest`；404 当作源上没有这个包；不带认证头：
+
+{/* ref file="../plugins/devkit/src/node-audit-deps.ts" lines="93-116" */}
+
+## 约定
+
+插件管理保证：改 home 的 pnpm 只有自己依赖里那一份，排进同一个串行队列。
+
+devkit 保证：
+- 发版只发到 `DEFAULT_REGISTRY`，开发版不动 `latest`
+- 同一个版本号在源上已有就不发
+- 发布内容在临时目录里摆好，不改仓里的 `package.json`
+
+团队源需要保证的：`@godcreator` 的包能按 packument 格式匿名读取，`dist-tags.latest` 是正式最新版。源地址与 `~/.npmrc` 里 `@godcreator` 那一行一致**靠约定**：`dev.ts` 的注释写着两者同一个地址，没有代码核对。
+
+**同一个 home 可能被两个不同的 pnpm 改**：插件管理用它自带的那份（`package.json` 里写的版本），`devkit.home.new` 与 `devkit.dev` 用 PATH 上的那份；两处都不检查对方的版本。
+
+本仓 AGENTS 写「手工发版别手写 `--registry`，scope 对应的源写在 `~/.npmrc`」；`devkit.dev` 与 `devkit.release` 的 `publish` 与 `view` 显式带 `--registry`。
+
+## 不负责的事
+
+- 两个插件都不安装、不升级 pnpm 本身；插件管理换 pnpm 版本就是发一版插件管理
+- devkit 不配置 `~/.npmrc` 与 token；包源的配置归插件源插件 `@godcreator/gwb-plugin-sources`
+- `devkit.release` 不运行包里的 `prepublishOnly`：发布内容来自临时目录，那里没有 `scripts`
+
+## 测试
+
+pnpm 与源都只在实机上真正运行；单元测试覆盖命令行怎么拼、用哪一份 pnpm、源地址是哪个：
+
+{/* has file="../plugins/devkit/tests/dev.test.ts" text="Windows 上借 cmd /c 一层，不然 ENOENT" */}
+
+{/* has file="../plugins/plugin-manager/tests/pnpm-path.test.ts" text="从本插件的位置解析到依赖里那个可执行文件，版本与 package.json 写的相同" */}
+
+{/* has file="../plugins/devkit/tests/release.test.ts" text="源是团队源" */}

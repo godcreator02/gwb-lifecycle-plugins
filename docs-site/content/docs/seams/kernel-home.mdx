@@ -1,0 +1,77 @@
+---
+title: 8 内核与 home runtime.json
+description: 连接 devkit.home.* 与 cdp.mjs 和内核 exe：起 home 用 GWB_HOME 与两个 Chromium 开关，找 home 读内核写的 runtime.json（两处各自解析），home 根目录有两套算法，日志按 gwb.log 的行格式切级别，home 名的正则注释说抄自内核
+---
+
+**本页回答**：devkit 怎么起一个 home、怎么找到一个正在运行的 home；它依赖内核的哪几样东西；这些东西在 devkit 里写了几份。
+
+## 连接的模块
+
+- devkit 的 `devkit.home.new` / `open` / `rm` / `list` 与 `devkit.dev` 的定位（`src/home.ts`、`src/index.ts`）
+- `bin/cdp.mjs`：按 home 名找调试端口
+- 内核 exe（内核仓）：读 `GWB_HOME` 决定用哪个 home，启动时写 `<home>/runtime.json`，往 `<home>/gwb.log` 写日志
+
+## 接口
+
+**起 home**：拉起宿主自己那个 exe，环境里给 `GWB_HOME=<名>`（顺带去掉 `ELECTRON_RUN_AS_NODE` 与 `npm_config_*`），命令行带 `--remote-debugging-port=<端口>` 与 `--disable-backgrounding-occluded-windows`。端口从 9400 起往上找 50 个，先沿用这个 home 上次记录里的端口：
+
+{/* ref file="../plugins/devkit/src/home.ts" lines="187-219" */}
+
+{/* ref file="../plugins/devkit/src/home.ts" lines="48-51" */}
+
+**runtime.json**：内核每次启动整份重写，退出不删。devkit 读 `pid`、`startedAt`、`appDir`、`cdp`，以及插件补写的 `mcp` 与旧的 `command-http`；内核还写了 `version`，devkit 不读。devkit 里有两份各自的解析：
+
+`src/home.ts` 的 `parseRecord`：`pid` 必须是正整数、`startedAt` 必须是有限数，否则整份当没有；缺 `cdp` 不算坏。`devkit.dev` 与 `home.*` 用它，定位时还核对 pid 还活着、且那个 pid 占着记录里的端口：
+
+{/* ref file="../plugins/devkit/src/home.ts" lines="91-121" */}
+
+{/* ref file="../plugins/devkit/src/home.ts" lines="536-563" */}
+
+`bin/cdp.mjs` 的 `portOf`：只取 `cdp`，要求是 1–65535 的整数，不看 `pid`：
+
+{/* ref file="../plugins/devkit/bin/cdp.mjs" lines="182-199" */}
+
+**home 根目录有两套算法**：`src/index.ts` 从 devkit 所在 home 的 `dataDir` 往上两级再接 `homes`；`cdp.mjs` 写死 `%APPDATA%\gwb-kernel\homes`，只在 Windows 上认得出：
+
+{/* ref file="../plugins/devkit/src/index.ts" lines="209-215" */}
+
+{/* ref file="../plugins/devkit/bin/cdp.mjs" lines="98-101" */}
+
+**gwb.log**：`devkit.dev` 在装包之前记下日志文件的长度，最后只读新增的部分，按每行空白分隔的第二段判断级别，`error` 算失败、`warn` 另报。行格式 `<ISO 时间> <级别> <名字> <正文>` 由内核定：
+
+{/* ref file="../plugins/devkit/src/dev.ts" lines="292-307" */}
+
+**home 名**：devkit 只收 kebab-case 的 home 名，注释说这条正则就是内核对 `GWB_HOME` 的检查：
+
+{/* ref file="../plugins/devkit/src/home.ts" lines="16-17" */}
+
+## 约定
+
+内核需要保证的：`GWB_HOME` 是名字时 home 在 `<appData>\gwb-kernel\homes\<名>`；`runtime.json` 的字段名与含义（字段表见内核仓文档站的「runtime.json」接缝页）；`gwb.log` 一行的格式；认 `--remote-debugging-port`。
+
+devkit 保证：
+- `runtime.json` 只读不写；进程退出后记录留着
+- 定位一个 home 只凭名字，端口从记录里查，连上后再用页面自报的名字核对
+- `default` 不删（不带 `force`），正在运行的 `default` 带 `force` 也不删
+
+**这些都靠约定**：devkit 与内核之间没有代码接口。`runtime.json` 的字段名写在内核的 `main.ts`、devkit 的 `parseRecord` 与 `cdp.mjs` 的 `portOf` 三处；home 根目录写在内核的 `main.ts`、devkit 的 `homesRoot` 与 `cdp.mjs` 的 `homesRootOf` 三处；日志行格式写在内核的 `main.ts` 与 `dev.ts` 的 `errorLines` 两处。
+
+两处与内核现状对不上的地方照实记：
+- 内核仓 `main.ts` 里没有检查 `GWB_HOME` 的正则：值里带路径分隔符就当目录用，否则拼到 `homes` 下。「抄自内核」只在 devkit 的注释里
+- `homesRoot` 从 `dataDir` 往上两级推，前提是 devkit 所在的 home 本身在 `homes` 下；用带路径的 `GWB_HOME` 起的 home 里，这样推出来的不是 home 根
+
+## 不负责的事
+
+- devkit 不构建内核、不认内核仓，起的永远是宿主正在运行的那个 exe
+- devkit 不写 `runtime.json`，也不删它
+- 内核不知道 devkit：它写 `runtime.json`、日志，给谁读都一样
+
+## 测试
+
+`tests/home.test.ts` 用假的文件系统与进程探测跑完整的起、定位、停、删：
+
+{/* has file="../plugins/devkit/tests/home.test.ts" text="读得回来的是内核写的那份；半截 JSON、形状不对、pid 不像样都当没有" */}
+
+{/* has file="../plugins/devkit/tests/home.test.ts" text="口上 listen 的是别人：记录陈旧，不给" */}
+
+{/* has file="../plugins/devkit/tests/dev.test.ts" text="只有 error 算失败，warn 另报" */}

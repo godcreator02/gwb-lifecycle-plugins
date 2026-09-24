@@ -1,0 +1,76 @@
+---
+title: 1 工作台服务 gwbCommands
+description: 连接 devkit、插件管理与工作台的四个服务：命令总线 gwbCommands 登记命令，gwbNodeCli 登记 devkit.cdp，gwbSkills 登记说明书，gwbShell 只被 devkit 调一次 describeSelf；只有 devkit 的 gwbCommands 是必需依赖
+---
+
+**本页回答**：devkit 与插件管理用了工作台的哪几个服务、各调了哪个方法；哪个是必需的，缺了会怎样；服务的形状由谁定。
+
+## 连接的模块
+
+- devkit（`plugins/devkit`，包 `@godcreator/gwb-devkit`）
+- 插件管理（`plugins/plugin-manager`，包 `@godcreator/gwb-plugin-manager`）
+- 工作台服务，都在别的仓，由各自的插件提供：命令总线 `gwbCommands`（`@godcreator/gwb-commands`）、node 命令行工具登记 `gwbNodeCli`（`@godcreator/gwb-node-cli`）、说明书 `gwbSkills`（`@godcreator/gwb-skills`）、外壳 `gwbShell`（`@godcreator/gwb-shell`）
+
+## 接口
+
+**devkit 只把 `gwbCommands` 写进 `export const inject`**，其余三个都用 `ctx.inject([...], fn)` 局部注入：
+
+{/* ref file="../plugins/devkit/src/index.ts" lines="44-45" */}
+
+devkit 对命令总线用了三个方法：`register(定义, 处理函数)` 登记命令，定义带 `name`、`plugin`（包名）、`description`、`usage`，返回的撤销函数交给 `ctx.effect`；`list()` 查某个命令名在不在；`run(名字, 参数)` 调别的插件的命令（见[借用别的插件的命令](/docs/seams/borrowed-commands)）。
+
+{/* ref file="../plugins/devkit/src/index.ts" lines="329-337" */}
+
+{/* ref file="../plugins/devkit/src/index.ts" lines="184-190" */}
+
+`gwbNodeCli` 只用来登记一条命令行工具 `devkit.cdp`，`entry` 是包里 `bin/cdp.mjs` 的绝对路径；这条登记由 `gwbNodeCli` 自己放进调用方的 effect，devkit 卸载时自动撤销，devkit 不再包一层 `ctx.effect`：
+
+{/* ref file="../plugins/devkit/src/index.ts" lines="425-439" */}
+
+`gwbSkills` 登记包内 `skills/` 目录，`gwbShell` 只调一次 `describeSelf` 报一个显示名，devkit 没有窗格：
+
+{/* ref file="../plugins/devkit/src/index.ts" lines="883-889" */}
+
+{/* ref file="../plugins/devkit/src/index.ts" lines="418-423" */}
+
+devkit 源码里没有注入 `gwbSettings`，它没有设置项。
+
+**插件管理的四个依赖全部局部注入**：`gwbData`、`gwbSettings`、`gwbCommands`、`gwbSkills`。它自己提供服务 `gwbPluginManager`，值只有 `{ contract: 1 }`，没有方法：
+
+{/* ref file="../plugins/plugin-manager/src/index.ts" lines="174-179" */}
+
+{/* ref file="../plugins/plugin-manager/src/index.ts" lines="270-282" */}
+
+这些服务的类型来自各服务包自带的 `declare module 'cordis'`：两个插件都只做 `import type`，服务包写在 `devDependencies` 里，运行时不 import：
+
+{/* ref file="../plugins/devkit/src/index.ts" lines="5-9" */}
+
+## 约定
+
+devkit 保证：
+- 必需的服务只有 `gwbCommands`；`gwbNodeCli`、`gwbSkills`、`gwbShell` 缺了，只少对应的那条命令行工具、那三份说明书、那个显示名，devkit 照常加载
+- 每条命令的 `plugin` 写包名 `@godcreator/gwb-devkit`，`description` 与 `usage` 写出参数形状
+- 只登记自己包里的说明书，不替别的插件登记
+
+插件管理保证：
+- 四个依赖都可以缺；`gwbCommands` 缺了，它就没有任何对外接口
+- 命令的 `plugin` 写包名 `@godcreator/gwb-plugin-manager`
+- 命令的参数或回执有破坏性变化时，`gwbPluginManager` 的 `contract` 加一
+
+工作台服务保证：`register` 返回撤销函数、`list()` 的每一项带 `name` 与 `plugin`、`run` 回 `{ ok, data?, error? }`、`gwbNodeCli.register` 自己把登记放进调用方的 effect——这几条写在各服务包的类型声明与说明书里，两个插件只经类型检查对上，**运行时靠约定**。
+
+devkit 的就绪日志按 `plugin === 'devkit'` 从 `list()` 里筛自己的命令，而它登记命令时 `plugin` 写的是包名 `@godcreator/gwb-devkit`，这两处写法不一样：
+
+{/* ref file="../plugins/devkit/src/index.ts" lines="891-900" */}
+
+## 不负责的事
+
+- 服务的方法签名、命令总线的回执信封由各服务所在的插件决定，devkit 与插件管理只按类型使用
+- devkit 不检查这些服务的版本；类型对不上只在 devkit 自己的类型检查里暴露
+- 插件管理不注入 `gwbShell`：整页重载经命令 `shell.reload`，见[借用别的插件的命令](/docs/seams/borrowed-commands)
+
+## 测试
+
+两个插件都没有测试把 `apply` 跑在真实的服务上。repo-kit 的自述守卫检查「源码里注入的服务名在文档站现状区出现过」，devkit 与插件管理的 `tests/self-report.test.ts` 都登记了它（见[仓侧检查 repo-kit](/docs/seams/repo-kit)）。
+
+{/* has file="../packages/repo-kit/tests/self-report.test.ts" text="inject 的服务没进站现状区：那条炸" */}

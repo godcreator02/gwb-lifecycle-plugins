@@ -1,0 +1,71 @@
+---
+title: 11 被测仓的形状
+description: 连接 devkit.dev、devkit.release、结构体检、audit-deps 与被它们处理的插件仓：仓根有 build 脚本、files 白名单里的产物构建后都在、插件包 keywords 含 gwb-plugin、成员放在 plugins / packages / apps、发正式版时 git 工作区干净、仓在带 unit.json 的单元里——都靠约定
+---
+
+**本页回答**：devkit 的几条命令对传给它的仓做了哪些假设；每条假设在哪几处代码里用到；不满足时各自怎样。
+
+## 连接的模块
+
+- devkit 的 `devkit.dev`（`src/dev.ts`）、`devkit.release`（`src/release.ts`）、发布内容的摆放（`src/node-dev-deps.ts`）、`devkit.audit-structure`（`src/structure.ts`）、`devkit.audit-deps`（`src/audit.ts`、`src/node-audit-deps.ts`）
+- 被处理的插件仓：别人的仓，也包括本仓
+
+## 接口
+
+**仓根能 `pnpm build`**：`devkit.dev` 与 `devkit.release` 都在调用方给的 `dir` 上运行 `pnpm build`，不在包目录里构建；失败就停：
+
+{/* ref file="../plugins/devkit/src/dev.ts" lines="448-452" */}
+
+**`files` 白名单就是产物清单**：构建之后，白名单里不带 `!`、不带通配的每一项都得在包目录里；摆发布内容时只复制这些，带通配的直接拒：
+
+{/* ref file="../plugins/devkit/src/dev.ts" lines="149-151" */}
+
+{/* ref file="../plugins/devkit/src/node-dev-deps.ts" lines="190-201" */}
+
+**`keywords` 含 `gwb-plugin` 表示插件**：`devkit.release` 只对它查 `gwb.testedKernel`；结构体检只对它查包名派生链、`files` 白名单与 `prepublishOnly`：
+
+{/* ref file="../plugins/devkit/src/release.ts" lines="148-148" */}
+
+{/* ref file="../plugins/devkit/src/structure.ts" lines="203-205" */}
+
+**成员放在哪**：结构体检只扫 `plugins/*` 与 `packages/*`；`audit-deps` 读仓根、`plugins/*`、`packages/*`、`apps/*` 与 `docs-site` 的 `package.json`；摆发布内容时找 `workspace:` 依赖的版本，从仓根往下扫两层，不认目录名：
+
+{/* ref file="../plugins/devkit/src/node-audit-deps.ts" lines="47-57" */}
+
+{/* ref file="../plugins/devkit/src/node-dev-deps.ts" lines="98-125" */}
+
+这里的「仓根」是从包目录推出来的：包目录下有 `pnpm-workspace.yaml` 就是它自己，否则取上一层。包在 `plugins/<名>/` 时，上一层是 `plugins/`：
+
+{/* ref file="../plugins/devkit/src/node-dev-deps.ts" lines="208-209" */}
+
+**git 工作区干净**：`devkit.release` 在构建之前运行 `git status --porcelain=v1`，有一条改动就一个都不发；不是 git 仓也拒。`devkit.dev` 不查：
+
+{/* ref file="../plugins/devkit/src/release.ts" lines="258-269" */}
+
+**在单元里**：`audit-deps` 与全生态的结构体检从容器根往下找仓：单元目录本身有 `.git`，或单元下一层的目录有 `.git`；先读单元的 `unit.json` 决定跳不跳过（见[借用别的插件的命令](/docs/seams/borrowed-commands)）：
+
+{/* ref file="../plugins/devkit/src/node-audit-deps.ts" lines="21-45" */}
+
+## 约定
+
+devkit 保证：
+- 除了 `pnpm build` 生成的构建产物，这些命令不改仓里的文件；发布内容在系统临时目录里摆
+- 假设不满足时报错并说明缺了什么，不替调用方补（不补构建、不猜包目录、不改 `files`）
+
+被处理的仓需要满足上面这几条，**全部靠约定**：没有一份检查把它们合在一起查。散在这几处：建仓模板生成的仓天然满足；结构体检查其中一部分（仓根 `build` 含 `pnpm -r`、`files` 白名单、`prepublishOnly`、`plugins/` 布局）；其余只写在各命令的 `usage` 与说明书「gwb-devkit」「gwb-release」里。
+
+## 不负责的事
+
+- devkit 不决定一个仓该有几个包、怎么分组，只按上面的目录名去找
+- `devkit.dev` 不看 git 状态，未提交的改动照样发成开发版
+- 结构体检不看依赖版本、`gwb.testedKernel` 与 git 状态
+
+## 测试
+
+各条命令用假实现测自己那部分假设，没有一份测试拿一个真实的仓把几条命令串起来跑：
+
+{/* has file="../plugins/devkit/tests/release.test.ts" text="git 树不干净就拒，构建都不跑" */}
+
+{/* has file="../plugins/devkit/tests/dev.test.ts" text="files 里的否定式与通配不算产物" */}
+
+{/* has file="../plugins/devkit/tests/node-dev-deps.test.ts" text="不是兄弟的 workspace: 换成 ^<工作区里那个号>；工作区里没有就 ^0.0.0" */}

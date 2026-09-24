@@ -42,7 +42,7 @@ home 里的插件分两层：**包**是 pnpm 装进 `package.json` 与 `node_mod
 
 **为什么**：两层都不是「写一下文件」那么简单。pnpm 每次都读、改、写 `package.json`，两次同时运行，后写的会把前一次加进去的依赖覆盖掉，而且不报错；`cordis.yml` 的内容在 loader 的内存里也有一份，直接写文件，内存里的条目不知道，下一次写回就把磁盘上的改动覆盖掉。只有一个写入者、一条路，这两类覆盖才都不会发生。
 
-`devkit.dev` 是一个例外：它往隔离 home 装开发版时，自己把准确版本号写进那个 home 的 `package.json` 再运行 `pnpm install`，不经插件管理（`install` 对已经装过的包会再加一条条目，`pnpm add` 会把版本号写成范围）；装完重新加载仍然调 `plugin-manager.remount`，见[改一版看一版](/docs/dev)。这时不要同时在那个 home 里调插件管理的改动命令。
+`devkit.dev` 是一个例外：它往隔离 home 装开发版时，自己把准确版本号写进那个 home 的 `package.json` 再运行 `pnpm install`，不经插件管理（`install` 对已经装过的包会再加一条条目，`pnpm add` 会把版本号写成范围）；装完重新加载仍然调 `plugin-manager.remount`，见[改一版看一版](/docs/devkit/dev)。这时不要同时在那个 home 里调插件管理的改动命令。
 
 ### 包：只经 applyToHome，排进一个串行队列
 

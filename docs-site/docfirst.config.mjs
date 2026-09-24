@@ -1,15 +1,15 @@
 /**
- * 这个站的 docfirst 配置：用哪个格式包、哪几区进 check、轨迹卡目录在哪、生成物写到哪、组件规则表是什么。
+ * 这个站的 docfirst 配置：用哪个格式包、哪几区进 check、轨迹卡目录在哪、生成文件写到哪、组件规则表是什么。
  * 命令行和站读的是同一份。
  *
- * 项目根是这个站目录，引用的代码在两个插件目录 `plugins/devkit/` 与 `plugins/plugin-manager/`——
- * 引用里写 `../plugins/<目录>/src/…`，读取器按项目根拼路径。比较器不写死：仓里有 git 就用 git 比，
- * 没有就改用内容摘要比。
+ * 项目根是这个站目录，引用的代码在 `plugins/devkit/`、`plugins/plugin-manager/`、`packages/repo-kit/`——
+ * 引用里写 `../plugins/<目录>/…` 或 `../packages/<目录>/…`，按项目根拼路径，页面在哪个子目录都一样。
+ * 比较器不写死：仓里有 git 就用 git 比，没有就改用内容摘要比。
  *
- * 六区里只有 docs（现状）与 outputs（生成物的正本）进 check——只有这两区的论断跟代码对应。
+ * 六区里只有 docs（现状）与 outputs（生成文件的正本）进 check——只有这两区的说法跟代码对应。
  * trajectory 指轨迹卡目录：check 顺带校验轨迹卡（卡是 .mdx，六个字段一个都没有的页不算卡）。
  *
- * 生成物写到各自的插件目录。`plugins/devkit/`：AGENTS、CLAUDE、README、catalog，外加随包发布的说明书
+ * 生成文件写到各自的插件目录。`plugins/devkit/`：AGENTS、CLAUDE、README，外加随包发布的说明书
  * `skills/gwb-devkit/SKILL.md`（写插件手册）与它的两份附件 `references/`、`skills/gwb-release/SKILL.md`
  * （发版规则）。`plugins/plugin-manager/`：说明书 `skills/gwb-plugin-manager/SKILL.md`。
  * SKILL.md 要保留 frontmatter 的 `name` 与 `description`（gwb-skills 登记说明书时读它们），
@@ -29,7 +29,6 @@ export default {
     'content/outputs/agents.mdx': ['../plugins/devkit/AGENTS.md'],
     'content/outputs/claude.mdx': ['../plugins/devkit/CLAUDE.md'],
     'content/outputs/readme.mdx': ['../plugins/devkit/README.md'],
-    'content/outputs/catalog-devkit.mdx': ['../plugins/devkit/catalog.md'],
     'content/outputs/skills/gwb-devkit.mdx': [
       { to: '../plugins/devkit/skills/gwb-devkit/SKILL.md', frontmatter: ['name', 'description'] },
     ],

@@ -1,0 +1,58 @@
+---
+title: 9 条目树 loader
+description: 连接插件管理与 cordis 的 loader、include：插件管理从自己那条条目的上一层取条目树，只用 store 与 create / update / remove / resolve，按 fiber 的状态值判断条目是否运行；loader 的这些结构没有写成公开接口，由一组用真实 loader 运行的测试保护
+---
+
+**本页回答**：插件管理用了 loader 的哪几样东西、从哪里取到；条目的状态值从哪来；内核换了 loader 的版本，插件管理哪里先发现。内核对 home 布局与 loader 版本的承诺见内核仓文档站的「home 布局与条目树」接缝页。
+
+## 连接的模块
+
+- 插件管理（`plugins/plugin-manager/src/tree.ts`、`src/remount.ts`、`src/inventory.ts`、`src/update-all.ts`）
+- `@cordisjs/plugin-loader` 与 `@cordisjs/plugin-include`：版本由内核定，插件管理只在 `devDependencies` 里写同样的版本用于类型与测试；`cordis` 本身同样
+
+## 接口
+
+**取树**：从插件管理自己那条条目的上一层取——`ctx.fiber.entry.parent.tree`，不用知道承载 `cordis.yml` 的那条条目叫什么。取到的赋给收窄后的 `EntryTreeLike`，loader 的签名变了，类型检查在这里失败；运行时再检查四个方法都在：
+
+{/* ref file="../plugins/plugin-manager/src/tree.ts" lines="23-34" */}
+
+{/* ref file="../plugins/plugin-manager/src/tree.ts" lines="36-63" */}
+
+**用法**：`create(options, parent)` 加一条并写回 `cordis.yml`；`update(id, { disabled: true })` 停用、`update(id, { disabled: null })` 启用（`null` 表示删掉这个字段）；`remove(id)` 删一条；`resolve` 只认不带前缀的 id。写回磁盘推迟到下一个宏任务。重新加载就是停用、等旧 fiber 卸载完、启用、等新 fiber 启动完：
+
+{/* ref file="../plugins/plugin-manager/src/remount.ts" lines="52-60" */}
+
+**读条目**：`store` 是一张不分层的表，键是不带前缀的 id；每一项读 `id`（完整 entryId）、`options.name`（包名）、`options.group`、`disabled`、`fiber.state`：
+
+{/* ref file="../plugins/plugin-manager/src/inventory.ts" lines="87-105" */}
+
+**状态值**：cordis 的 `FiberState` 是 `const enum`，运行时拿不到，插件管理照抄一份名字表：
+
+{/* ref file="../plugins/plugin-manager/src/update-all.ts" lines="102-117" */}
+
+## 约定
+
+插件管理保证：
+- 改 `cordis.yml` 只经条目树，不直接写文件
+- 只经自己那条条目的上一层取树，不写死内核那条 include 条目的 id
+- 调用条目树之后不读回 `cordis.yml` 核对，以内存里的条目树为准
+
+loader 与 include 需要保证的：`entry.parent.tree` 这条取法、四个方法的行为、`store` 里每一项的字段名、`FiberState` 的成员顺序。这些是 loader、include、cordis 的内部结构，不是公开接口，**靠约定**加测试：内核仓承诺这几个包的版本一变就升内核版本号的 x；插件管理在 `devDependencies` 里写与内核相同的精确版本，并用 `gwb.testedKernel` 记下对应的内核版本（见[测过哪个内核](/docs/seams/tested-kernel)）。
+
+{/* ref file="../plugins/plugin-manager/package.json" lines="35-45" */}
+
+## 不负责的事
+
+- 插件管理不决定 home 的布局、条目树的结构、包名怎么解析，这些归内核
+- 条目树不知道插件管理的 BUSY 互斥与串行队列；互斥只挡插件管理自己的命令
+- devkit 不碰条目树；它改条目的唯一方式是经 CDP 调 `plugin-manager.remount`（见 [devkit 调插件管理](/docs/seams/plugin-manager-calls)）
+
+## 测试
+
+`tests/loader.test.ts` 照内核的顺序搭一个真实的 loader 与 include，把取树、增改删、重新加载各跑一遍；`tests/fiber-state.test.ts` 读已安装 cordis 的 `fiber.d.ts`，核对照抄的状态名表：
+
+{/* has file="../plugins/plugin-manager/tests/loader.test.ts" text="从插件自己的上下文取到条目树与自己的 entryId" */}
+
+{/* has file="../plugins/plugin-manager/tests/loader.test.ts" text="停用再启用会重新加载，最后是 ACTIVE" */}
+
+{/* has file="../plugins/plugin-manager/tests/fiber-state.test.ts" text="名字表与 cordis 声明的成员按数字顺序完全相同" */}

@@ -18,8 +18,10 @@ import { PmRemount } from './diagrams/pm-remount'
 import { PmUninstall } from './diagrams/pm-uninstall'
 import { PmUpgrade } from './diagrams/pm-upgrade'
 import { PmUpgradeGap } from './diagrams/pm-upgrade-gap'
+import { SeamMap } from './diagrams/seam-map'
 
 const drawings: Record<string, () => ReactNode> = {
+  'seam-map': () => <SeamMap />,
   'pm-list': () => <PmList />,
   'pm-busy': () => <PmBusy />,
   'pm-commands': () => <PmCommands />,

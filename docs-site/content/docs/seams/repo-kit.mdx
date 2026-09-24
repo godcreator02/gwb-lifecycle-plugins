@@ -1,0 +1,71 @@
+---
+title: 4 仓侧检查 repo-kit
+description: 连接 @godcreator/gwb-repo-kit 与三类使用方：devkit、插件管理、模板生成的仓；接口是 registerSelfReportGuard（五项检查）、registerPluginGuard、GuardVt 与 docsDir；模板里写死的 repo-kit 版本靠手工对齐，模板的自述测试没传 docsDir，第五项在生成的仓里不生效
+---
+
+**本页回答**：repo-kit 给使用方的测试提供了哪几样；使用方怎么接；模板生成的仓用的是哪一版 repo-kit、那一版里哪一项检查实际没有运行。
+
+## 连接的模块
+
+- repo-kit（`packages/repo-kit`，包 `@godcreator/gwb-repo-kit`，不是插件，`keywords` 只有 `gwb`）
+- devkit 与插件管理：`devDependencies` 写 `workspace:*`，各自的 `tests/self-report.test.ts` 登记自述守卫
+- 模板生成的仓：`template/pkg/` 里的 `tests/self-report.test.ts` 与 `tests/plugin.test.ts` 两份测试，`devDependencies` 写一个固定版本
+
+## 接口
+
+入口只导出这几样：
+
+{/* ref file="../packages/repo-kit/src/index.ts" */}
+
+**`GuardVt`**：使用方把自己的 vitest `describe` / `it` / `expect` 传进来，repo-kit 只要求结构对得上，本身不依赖 vitest：
+
+{/* ref file="../packages/repo-kit/src/vitest-context.ts" lines="13-17" */}
+
+**`registerSelfReportGuard(vt, { root, docsDir? })`**：`root` 是包根；`docsDir` 是文档站现状区，缺省是 `root` 下的 `docs-site/content/docs`。只对 `keywords` 含 `gwb-plugin` 的包注册用例，一共五项：
+
+1. `description` 里有「服务 / skill / 命令」三格
+2. 源码提供的服务名在 `description` 里都点了名
+3. `gwb.provides` 的键与源码提供的服务互为充要，每条 `summary` / `usage` 非空
+4. `description` 里的 skill 份数等于 `skills/` 下带 `SKILL.md` 的目录数
+5. 源码注入的服务名在 `docsDir` 下的 `.mdx` 里都出现过；`docsDir` 下一个 `.mdx` 都读不到时这一项直接通过
+
+{/* ref file="../packages/repo-kit/src/self-report-guard.ts" lines="105-155" */}
+
+**`registerPluginGuard(vt, { apply, name, pkg, pkgName, short })`**：用一个最小的替身上下文运行 `apply`，要求插件名等于 `pkgName`、正好登记一个 id 为 `main` 的窗格、正好登记一条 `<short>.ping` 命令且 `description` 含「无参数」。这些断言按模板插件的形状写：
+
+{/* ref file="../packages/repo-kit/src/plugin-guard.ts" lines="68-92" */}
+
+## 约定
+
+repo-kit 保证：只导出上面几样；不是插件的包一条用例都不注册；替身上下文只有 `logger`、`effect`、`gwbShell.registerPane`、`gwbCommands.register`。
+
+使用方保证：
+- devkit 与插件管理显式传 `docsDir`，指到仓根的文档站（插件管理只指到 `plugin-manager/` 那组页）
+
+{/* ref file="../plugins/devkit/tests/self-report.test.ts" lines="13-17" */}
+
+- 模板里的测试只传 `root`，不传 `docsDir`。生成的仓里文档站在仓根，插件包在 `plugins/<短名>/`，缺省的 `docsDir` 指到 `plugins/<短名>/docs-site/content/docs`，那里没有文件，所以第五项在模板生成的仓里不生效
+
+{/* ref file="../plugins/devkit/template/pkg/tests/self-report.test.ts.tpl" lines="13-14" */}
+
+**模板里的 repo-kit 版本靠手工对齐**：模板写死一个版本，repo-kit 的 `package.json` 里是当前版本，两处目前都是 0.3.0；没有检查比对两处。规矩写在本仓 AGENTS 的「模板」一节：模板里 `@godcreator` 包的版本跟着源上的 `dist-tags.latest` 走，改之前先 `pnpm view` 查。
+
+{/* ref file="../plugins/devkit/template/pkg/package.json.tpl" lines="37-39" */}
+
+{/* ref file="../packages/repo-kit/package.json" lines="2-3" */}
+
+## 不负责的事
+
+- repo-kit 不检查命令条数的真伪，只检查「命令 N 条」或「命令无」的写法
+- repo-kit 不管结构（`files` 白名单、派生链）与依赖版本，那是[结构体检](/docs/seams/template-audit)与 `devkit.release` 的事
+- repo-kit 不知道谁在用它；改断言就是给所有使用方改行为，要发一版、使用方升级
+
+## 测试
+
+repo-kit 自己的测试用临时包把五项与插件守卫各跑一遍：
+
+{/* has file="../packages/repo-kit/tests/self-report.test.ts" text="自述齐全：五条用例都过" */}
+
+{/* has file="../packages/repo-kit/tests/self-report.test.ts" text="inject 的服务没进站现状区：那条炸" */}
+
+{/* has file="../packages/repo-kit/tests/self-report.test.ts" text="库（keywords 里没有 gwb-plugin）跳过：一条用例都不注册" */}
