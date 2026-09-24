@@ -45,7 +45,7 @@ description: install 在一条命令里装包并加一条条目，只等写入�
 
 **怎么做**：写回 `cordis.yml` 在 `create` 的第一个 `await` 之前就同步安排好了，所以不 `await` 也不影响写入；加载失败只记一条 warn。
 
-{/* ref file="../plugins/plugin-manager/src/index.ts" lines="809-812" */}
+{/* ref file="../plugins/plugin-manager/src/index.ts" lines="810-813" */}
 
 这一条没有单元测试：要验证，就在隔离 home 里装一个依赖还没装齐的插件，看命令是否照常返回回执、`list` 里是否显示未加载。
 
@@ -82,7 +82,7 @@ description: install 在一条命令里装包并加一条条目，只等写入�
 - 反过来先卸包：条目会指向一个不在 home 里的包
 </Diagram>
 
-{/* ref file="../plugins/plugin-manager/src/index.ts" lines="699-728" */}
+{/* ref file="../plugins/plugin-manager/src/index.ts" lines="700-729" */}
 
 只删一条条目、保留包，用 `remove-entry`。
 
