@@ -35,7 +35,7 @@ devkit 对命令总线用了三个方法：`register(定义, 处理函数)` 登�
 
 devkit 源码里没有注入 `gwbSettings`，它没有设置项。
 
-**插件管理的四个依赖全部局部注入**：`gwbData`、`gwbSettings`、`gwbCommands`、`gwbSkills`。它自己提供服务 `gwbPluginManager`，值只有 `{ contract: 1 }`，没有方法：
+**插件管理的四个依赖全部局部注入**：`gwbData`、`gwbSettings`、`gwbCommands`、`gwbSkills`。它自己提供服务 `gwbPluginManager`，值只有 `{ contract: 2 }`，没有方法：
 
 {/* ref file="../plugins/plugin-manager/src/index.ts" lines="183-188" */}
 

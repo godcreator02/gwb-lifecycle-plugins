@@ -70,7 +70,7 @@ export interface PluginManagerPresence {
   contract: number
 }
 
-const PRESENCE: PluginManagerPresence = { contract: 1 }
+const PRESENCE: PluginManagerPresence = { contract: 2 }
 
 /** 转移归属的回执。`data` / `settings` 是 false 说明对应的插件没装、那部分没有处理 */
 export interface TransferOwnerResult {

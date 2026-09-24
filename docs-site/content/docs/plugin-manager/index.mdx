@@ -55,7 +55,7 @@ description: 插件管理是唯一写 home 的插件——装卸包、增删条�
 
 {/* ref file="../plugins/plugin-manager/src/index.ts" lines="47-63" */}
 
-**服务 `gwbPluginManager`**：值是 `{ contract: 1 }`，上面没有方法，只表示插件管理装了；别的插件（例如插件管理窗格所在的插件）inject 它，只为跟着插件管理一起加载、卸载。命令的参数或回执有破坏性变化时 `contract` 加一。包的 `package.json` 里 `gwb.provides` 写着同样的说明：
+**服务 `gwbPluginManager`**：值是 `{ contract: 2 }`，上面没有方法，只表示插件管理装了；别的插件（例如插件管理窗格所在的插件）inject 它，只为跟着插件管理一起加载、卸载。命令的参数或回执有破坏性变化时 `contract` 加一。包的 `package.json` 里 `gwb.provides` 写着同样的说明：
 
 {/* ref file="../plugins/plugin-manager/src/index.ts" lines="65-73" */}
 
