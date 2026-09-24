@@ -308,6 +308,42 @@ describe('包内 template/：两区', () => {
     }
   })
 
+  it('生成的清单按「依赖怎么写」：peer 只可能是 cordis，且只在 node 侧按值 import 了 cordis 时才写', () => {
+    const files = renderTemplate(TEMPLATE_ROOT, planScaffold({ name: 'hello', dir: 'D:\\tmp\\x', testedKernel: KERNEL }))
+    const manifest = JSON.parse(files.find((f) => f.rel === 'plugins/hello/package.json')?.text ?? '') as {
+      peerDependencies?: Record<string, string>
+      devDependencies: Record<string, string>
+    }
+    const nodeSources = files.filter((f) => f.rel.startsWith('plugins/hello/src/') && !f.rel.startsWith('plugins/hello/src/client/'))
+    const importsCordisByValue = nodeSources.some((f) => /^import\s+(?!type\b)[^'"]*from\s*['"]cordis['"]/m.test(f.text))
+    const peers = Object.keys(manifest.peerDependencies ?? {})
+    expect(peers).toEqual(importsCordisByValue ? ['cordis'] : [])
+    // 按值 import 了就 peer 与 dev 各一份：dev 给本地构建与类型检查用
+    expect(manifest.devDependencies['cordis']).toBeDefined()
+  })
+
+  it('生成的清单：词汇表包、命令总线、外壳写 dev；已停发的 gwb-tokens、gwb-shared-react 不出现', () => {
+    const files = renderTemplate(TEMPLATE_ROOT, planScaffold({ name: 'hello', dir: 'D:\\tmp\\x', testedKernel: KERNEL }))
+    const text = files.find((f) => f.rel === 'plugins/hello/package.json')?.text ?? ''
+    const manifest = JSON.parse(text) as { devDependencies: Record<string, string> }
+    for (const pkg of ['@godcreator/gwb-plugin-api', '@godcreator/gwb-commands', '@godcreator/gwb-shell']) {
+      expect(manifest.devDependencies[pkg], `${pkg} 不在 dev 里`).toBeDefined()
+    }
+    for (const retired of ['gwb-tokens', 'gwb-shared-react']) expect(text).not.toContain(retired)
+  })
+
+  it('生成的清单里词汇表包的版本与 devkit 自己的 dev 写法一致', () => {
+    const devkitManifest = JSON.parse(fs.readFileSync(path.resolve(TEMPLATE_ROOT, '..', 'package.json'), 'utf8')) as {
+      devDependencies: Record<string, string>
+    }
+    const files = renderTemplate(TEMPLATE_ROOT, planScaffold({ name: 'hello', dir: 'D:\\tmp\\x', testedKernel: KERNEL }))
+    const manifest = JSON.parse(files.find((f) => f.rel === 'plugins/hello/package.json')?.text ?? '') as {
+      devDependencies: Record<string, string>
+    }
+    const vocabulary = '@godcreator/gwb-plugin-api'
+    expect(manifest.devDependencies[vocabulary]).toBe(devkitManifest.devDependencies[vocabulary])
+  })
+
   it('生成的自述检查把 docsDir 指到仓根文档站的现状区，inject 那一条不会因为找不到站而跳过', () => {
     const repoDir = path.join(sandbox(), 'repo')
     const files = renderTemplate(TEMPLATE_ROOT, planScaffold({ name: 'hello', dir: repoDir, testedKernel: KERNEL }))

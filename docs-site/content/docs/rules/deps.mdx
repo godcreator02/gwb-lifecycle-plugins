@@ -74,11 +74,13 @@ export function apply(ctx: Context) {
 
 {/* ref file="../plugins/plugin-manager/src/index.ts" lines="2-10" */}
 
-## 这个仓里还没照做的
+## 例子：模板生成的清单
 
-模板生成的清单还是旧写法：把词汇表包、`gwb-commands`、`gwb-shell` 和已经不再发新版的 `gwb-tokens`、`gwb-shared-react` 写成了 peer：
+`devkit.scaffold` 生成的插件在 node 侧只 `import type`，构建产物里没有 `cordis`，所以清单里没有 peer；词汇表包、`gwb-commands`、`gwb-shell` 与 `cordis` 都写在 dev：
 
 {/* ref file="../plugins/devkit/template/pkg/package.json.tpl" lines="30-37" */}
+
+## 这个仓里还没照做的
 
 模板带的产物测试按旧规矩查 node 侧的包名 import：只放行词汇表包，没有放行 `cordis`：
 
