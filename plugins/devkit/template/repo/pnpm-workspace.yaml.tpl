@@ -2,7 +2,7 @@
 #
 # 仓只有一种布局——workspace：仓根是不发布的 private 包，插件放在 plugins/<短名>/；加第二个插件用
 # devkit.scaffold.plugin {"repo":"<仓根>","name":"<短名>"}，它在 plugins/ 下再建一个目录。
-# 有了不是插件的包（repo-kit 那类只在仓里用的测试工具）时加一行 `- packages/*`，
+# 有了不是插件的包（插件共用的库之类）时加一行 `- packages/*`，
 # 根 package.json 的 build 过滤器同步加 --filter "./packages/*"。
 #
 # 文档站不收进来：装了 docfirst 六区的文档站自带 pnpm-workspace.yaml、自己一套依赖、自己 install——

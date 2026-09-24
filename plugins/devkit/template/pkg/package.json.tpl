@@ -2,7 +2,7 @@
   "name": "{{pkg}}",
   "version": "0.1.0",
   "author": {"name": "godcreator"},
-  "description": "{{title}}：devkit 生成的模板插件，只有一个窗格（显示你好和计数按钮）与一条 ping 命令。服务无；skill 0 份；命令 1 条。",
+  "description": "{{title}}：devkit 生成的模板插件，一个窗格与一条 ping 命令（改成真插件时换成一句话说它做什么）",
   "type": "module",
   "exports": {
     ".": { "types": "./dist/index.d.ts", "default": "./dist/index.js" },
@@ -34,7 +34,6 @@
   "devDependencies": {
     "@godcreator/gwb-commands": "^0.4.5",
     "@godcreator/gwb-plugin-api": "^0.4.0",
-    "@godcreator/gwb-repo-kit": "^0.3.0",
     "@godcreator/gwb-shell": "^0.13.5",
     "@tailwindcss/cli": "^4.3.0",
     "@tailwindcss/node": "^4.3.0",

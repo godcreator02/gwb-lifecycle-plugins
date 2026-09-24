@@ -1,10 +1,10 @@
 {
   "name": "@godcreator/gwb-plugin-manager",
-  "version": "0.8.0",
+  "version": "0.8.1",
   "author": {
     "name": "godcreator"
   },
-  "description": "插件管理：管 home 里的包与 cordis.yml 条目——安装、卸载、查新版本、一键热升级、升内核、加删条目、启用停用、重新加载；找插件与配包源——在配好的 npm 源上搜索插件（包清单 keywords 里有 gwb-plugin 的包），往机器级 ~/.npmrc 增删第三方包源（scope 路由）。对外只有命令；服务 gwbPluginManager 只表示装了。skill 1 份；命令 17 条。",
+  "description": "插件管理：安装、卸载、升级 home 里的插件与内核，增删启停 cordis.yml 条目，在 npm 源上搜索插件、增删第三方包源",
   "type": "module",
   "main": "dist/index.js",
   "types": "dist/index.d.ts",
@@ -41,7 +41,6 @@
     "@godcreator/gwb-commands": "^0.4.6",
     "@godcreator/gwb-data": "^0.1.6",
     "@godcreator/gwb-plugin-api": "^0.4.0",
-    "@godcreator/gwb-repo-kit": "workspace:*",
     "@godcreator/gwb-settings": "^0.3.2",
     "@godcreator/gwb-skills": "^0.4.4",
     "@types/node": "^24.0.0",

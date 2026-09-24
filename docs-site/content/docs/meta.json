@@ -8,7 +8,6 @@
     "seams",
     "---包---",
     "devkit",
-    "plugin-manager",
-    "repo-kit"
+    "plugin-manager"
   ]
 }

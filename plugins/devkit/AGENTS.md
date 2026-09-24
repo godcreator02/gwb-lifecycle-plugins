@@ -1,9 +1,7 @@
 # gwb-devkit
 
-开发套件，**一个普通的 gwb 插件**，源码在 `plugins/devkit/`。仓是 pnpm workspace（插件放在 `plugins/`、别的包放在
-`packages/`，与基础插件仓的布局相同）：`plugins/devkit/` 是开发套件，`plugins/plugin-manager/` 是插件管理
-`@godcreator/gwb-plugin-manager`（见下面「本仓还有插件管理」），`packages/repo-kit` 是各插件仓测试里用的守卫包
-`@godcreator/gwb-repo-kit`，`docs-site/` 是文档站。各包发到团队源（gitea 个人源，**本仓发版要给 packages 参数**），装进 home。
+开发套件，**一个普通的 gwb 插件**，源码在 `plugins/devkit/`。仓是 pnpm workspace（插件放在 `plugins/`，与基础插件仓的布局相同）：`plugins/devkit/` 是开发套件，
+`plugins/plugin-manager/` 是插件管理 `@godcreator/gwb-plugin-manager`（见下面「本仓还有插件管理」），`docs-site/` 是文档站。各包发到团队源（gitea 个人源，**本仓发版要给 packages 参数**），装进 home。
 开发套件的命令分八组：建仓与加插件、结构体检、依赖对账、测试 home、改一版看一版、发正式版、能用什么、CDP 驱动（包内命令行脚本 `bin/cdp.mjs`，经 `gwbNodeCli` 登记成 `devkit.cdp`）。
 **开发套件没有界面**：它的使用者是 agent，读的是回执。设计与机制在文档站（见下面「文档地图」），这份只写**不知道就会做错事**的硬约束。
 
@@ -11,17 +9,16 @@
 
 文档站在 `docs-site/`，现状页在 `content/docs/`，站点地址 `/docs/...` 与文件路径一一对应：
 
-| 页        | 文件                | 讲什么                                                                     |
-| -------- | ----------------- | ----------------------------------------------------------------------- |
-| 入口       | `index.mdx`       | 接缝图：三个包与工作台、内核、别的插件之间有哪几条接缝                                             |
-| 关键设计     | `design.mdx`      | 为什么这么切分：普通插件、写插件只有发布安装验证一条路、开发版只进隔离 home、只按名字定位 home、纯逻辑与真机器分开、三个包为什么同仓 |
-| 开发       | `develop.mdx`     | 怎么装与确认、提交前的检查、在隔离 home 里验证、发版、文档站的检查与生成                                 |
-| 接缝       | `seams/`          | 每条接缝交换什么、两边各保证什么                                                        |
-| 开发套件     | `devkit/`         | 首页讲功能、13 条命令、说明书、模板、依赖、不做的事；分页讲建仓、结构体检、测试 home、改一版看一版、CDP 驱动            |
-| 插件管理     | `plugin-manager/` | 首页讲功能、接口、依赖、不做的事；分页讲各个机制                                                |
-| repo-kit | `repo-kit.mdx`    | 两份测试守卫与在假 ctx 上调用 `apply` 的工具 `mountHarness`                            |
-| 写插件的规矩   | `rules/`          | 规矩总表与每条规矩的做法、由哪道检查把关                                                    |
-| 术语表      | `glossary.mdx`    | 反复出现的词、退役的词与命令                                                          |
+| 页      | 文件                | 讲什么                                                                     |
+| ------ | ----------------- | ----------------------------------------------------------------------- |
+| 入口     | `index.mdx`       | 接缝图：两个包与工作台、内核、别的插件之间有哪几条接缝                                             |
+| 关键设计   | `design.mdx`      | 为什么这么切分：普通插件、写插件只有发布安装验证一条路、开发版只进隔离 home、只按名字定位 home、纯逻辑与真机器分开、两个包为什么同仓 |
+| 开发     | `develop.mdx`     | 怎么装与确认、提交前的检查、在隔离 home 里验证、发版、文档站的检查与生成                                 |
+| 接缝     | `seams/`          | 每条接缝交换什么、两边各保证什么                                                        |
+| 开发套件   | `devkit/`         | 首页讲功能、13 条命令、说明书、模板、依赖、不做的事；分页讲建仓、结构体检、测试 home、改一版看一版、CDP 驱动            |
+| 插件管理   | `plugin-manager/` | 首页讲功能、接口、依赖、不做的事；分页讲各个机制                                                |
+| 写插件的规矩 | `rules/`          | 规矩总表与每条规矩的做法、由哪道检查把关                                                    |
+| 术语表    | `glossary.mdx`    | 反复出现的词、退役的词与命令                                                          |
 
 另外五区：`content/trajectory/` 轨迹卡、`content/spec/` 进行中的交接、`content/future/` 未来、`content/outputs/` 生成文件的正本、`content/feedback/` 反复做的操作的候选。
 
@@ -57,13 +54,13 @@
 
 ```powershell
 pnpm check          # 各包的 check：typecheck + vitest，插件管理另加 oxlint
-pnpm build          # 只构建 plugins/* 与 packages/*，tsc 直接输出 dist/，没有打包器；文档站不在里面
+pnpm build          # 只构建 plugins/*，tsc 直接输出 dist/，没有打包器；文档站不在里面
 ```
 
 **`pnpm check` 不构建。** 它检查的是源码，全绿只说明源码没问题，跟「装出来能不能运行」是两件事。
 
-两个插件的 `tests/self-report.test.ts` 查源码注入的服务名在文档站里出现过（devkit 读 `docs-site/content/docs` 下全部页，
-插件管理只读 `plugin-manager/` 那组页），删页或改名前先看一眼。
+开发套件的 `tests/provides-declaration.test.ts` 拿两个插件自己的 `package.json` 与源码跑一遍 `gwb.provides` 的检查：
+加减了服务，同一个提交里改 `gwb.provides`（发版前检查与 `devkit.audit-structure` 查的是同一条）。
 
 文档站的检查**不在 `pnpm check` 里**——它要运行文档站的解析过程，太慢。单独运行：
 `docs-site` 里 `pnpm doc`（`docfirst check`）与 `pnpm doc:confirm <页的路径…>`。
@@ -73,8 +70,7 @@ pnpm build          # 只构建 plugins/* 与 packages/*，tsc 直接输出 dist
 升哪一位、依赖怎么写、什么时候跟上游，照说明书「gwb-release」——全生态同一套，本仓不另立。
 
 1. **先升 `package.json` 的版本号。** 同一个版本号永不重发；要发新的一版，先升版本号、提交，再调用
-2. 发版用 `devkit.release {"dir":"<本仓根>","packages":["plugins/devkit"]}`（repo-kit 也改了就
-   `["packages/repo-kit","plugins/devkit"]`，按依赖顺序；发插件管理给 `["plugins/plugin-manager"]`）——仓根 git 工作区不干净就拒、构建之后的发版前检查（规矩见「gwb-release」）没过就拒、
+2. 发版用 `devkit.release {"dir":"<本仓根>","packages":["plugins/devkit"]}`（发插件管理给 `["plugins/plugin-manager"]`，两个一起发按依赖顺序排）——仓根 git 工作区不干净就拒、构建之后的发版前检查（规矩见「gwb-release」）没过就拒、
    在临时目录里组装发布内容并发到 latest、不改仓里任何文件。**手工发版不做发版前检查**，那是 `devkit.release` 的事。**它不运行 `prepublishOnly`**（临时目录里组装的发布内容没有 `scripts`，产物靠
    仓根构建加 `files` 白名单检查）；真要运行仓里钩子的场景才手工发：在包目录里
    `pnpm publish --no-git-checks`（scope 对应的源写在用户级 `~/.npmrc`，**别手写 `--registry`**）——那时
@@ -107,7 +103,7 @@ pnpm build          # 只构建 plugins/* 与 packages/*，tsc 直接输出 dist
 生成仓根，`template/pkg/` 生成插件包（**唯一正本**——建仓 `devkit.scaffold` 与加插件
 `devkit.scaffold.plugin` 生成的是同一份，一个插件与多个插件的仓格式一致靠这个，不靠纪律），
 `template/site/plugin.mdx.tpl` 生成文档站现状区里的插件页（**站装好六区之后才写**：`docfirst.attach`
-只在没加过页的骨架上装得了；没有这一页，模板插件的自述检查在建好站的新仓里第一次就不过）。插件包自带全部配置：tsconfig /
+只在没加过页的骨架上装得了）。插件包自带全部配置：tsconfig /
 vitest / oxlint 配置全在包内，搬到哪个仓都不用改（oxlint 按工作目录找配置，所以 `.oxlintrc.json`
 放在插件包里、不放仓根）。还在用的旧布局仓（仓根就是插件）改到哪个就顺手迁哪个，不专门迁——**迁之前运行 `devkit.audit-structure {"dir":"<仓根>"}`**：
 findings 里那条 info 按实际文件名列好了 git mv 清单；改已有的仓前后各运行一次，error 级必须清零再动。
@@ -122,7 +118,6 @@ findings 里那条 info 按实际文件名列好了 git mv 清单；改已有的
 模板插件在 node 侧只 `import type`，peer 里只有内核包，范围是 `^<运行建仓命令的内核版本号>`（规矩见文档站「依赖怎么写」「兼容哪个内核」）。
 范围不含 latest，新仓第一次发版就被发版前检查拦下；写了源上没有的版本，新仓 `pnpm install` 直接失败——
 改模板里的版本号之前先用 `pnpm view <包> dist-tags.latest` 查。模板的起始版本号是 0.1.0（0.0.x 过不了发版前检查）。
-模板生成的两份测试调用 repo-kit，改 repo-kit 的导出或用例时模板里的登记代码与版本号一起改。
 
 **占位符就这七个**：`{{name}}`、`{{title}}`、`{{pkg}}`、`{{pkgName}}`、`{{cssPrefix}}`、`{{kernelVersion}}`（运行建仓命令的内核版本号的 x.y.z 三段）、`{{docsBlock}}`。
 **认不出的占位符直接抛错**——给模板加了新占位符，`src/scaffold.ts` 的 `placeholders()`

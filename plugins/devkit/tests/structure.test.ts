@@ -43,6 +43,8 @@ interface ManifestOver {
   scripts?: Record<string, string>
   dependencies?: Record<string, string>
   devDependencies?: Record<string, string>
+  exports?: Record<string, unknown>
+  gwb?: Record<string, unknown>
 }
 
 /** 一个合规插件包的文件表（路径相对插件包根）。over 替换或追加文件，值给 null 就删 */
@@ -269,5 +271,35 @@ describe('静态红线', () => {
       workspaceFiles('x', {}, { dependencies: { '@godcreator/other': 'link:../other' } }),
     )
     expect(audit(dir).kinds).toEqual(['local-protocol-dep'])
+  })
+})
+
+describe('gwb.provides 与源码对应', () => {
+  const serviceSource = "export const name = 'gwb-x'\nclass X { constructor(ctx) { super(ctx, 'gwbX') } }\n"
+  const declared = { summary: '一句话', usage: '怎么用' }
+
+  it('源码提供的服务没声明 → error，路径指到 package.json，说明发版也会拒', () => {
+    const report = audit(build(workspaceFiles('x', { 'src/index.ts': serviceSource })))
+    expect(report.kinds).toEqual(['provides-declaration'])
+    expect(report.findings[0]).toMatchObject({ level: 'error', path: 'plugins/x/package.json' })
+    expect(report.findings[0]?.detail).toContain('源码提供服务 gwbX')
+    expect(report.findings[0]?.detail).toContain('devkit.release 会拒')
+  })
+
+  it('服务名键与 exports 里的说明符键都放行；src/ 子目录里的源码也算', () => {
+    const exports = { '.': './dist/index.js', './client': './dist/client.js' }
+    const gwb = { provides: { gwbX: declared, '@godcreator/gwb-x/client': declared } }
+    const nested = { 'src/node/service.ts': "super(ctx, 'gwbX')\n" }
+    expect(audit(build(workspaceFiles('x', nested, { exports, gwb }))).findings).toEqual([])
+  })
+
+  it('packages/ 下的库（keywords 只有 gwb）也查：键不是入口说明符 → error', () => {
+    const dir = build({
+      ...workspaceFiles('x'),
+      'packages/util/package.json': JSON.stringify({ name: '@godcreator/util', keywords: ['gwb'], exports: { '.': './dist/index.js' }, gwb: { provides: { '@godcreator/util/nope': declared } } }),
+    })
+    const report = audit(dir)
+    expect(report.kinds).toEqual(['provides-declaration'])
+    expect(report.findings[0]?.path).toBe('packages/util/package.json')
   })
 })

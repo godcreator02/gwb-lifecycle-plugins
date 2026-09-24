@@ -68,12 +68,13 @@ description: 升版本号、改依赖版本号、发版时读。
 
 发版前检查，每个包：
 
-| 检什么                                                                                                                                                                   | 没过                                           |
-| --------------------------------------------------------------------------------------------------------------------------------------------------------------------- | -------------------------------------------- |
-| 自己在 0.0.x                                                                                                                                                             | 拒：先升到 0.1.0                                  |
-| `@godcreator` 的 dev：写法认不出下限、下限比源上 latest 新、latest 已出范围、或问不出源上的 latest（`workspace:` 跳过）                                                                                | 拒；范围内落后（含相等）放行                               |
-| 构建产物里有空 import（`import {} from '…'`，源码写了 `import { type X }`），或相对 import 指向的文件不在                                                                                      | 拒                                            |
-| 包目录里 `pnpm exec tsc --noEmit -p <tsconfig> --skipLibCheck false`：node 侧有 `tsconfig.build.json` 用它、没有用 `tsconfig.json`，有 `src/client/tsconfig.json` 再查一次浏览器侧；测试与构建脚本不查 | 拒，写明没过的是哪一份、带输出的最后几行；node 侧两份 tsconfig 都没有也拒 |
+| 检什么                                                                                                                                                                                                                                              | 没过                                                                               |
+| ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ | -------------------------------------------------------------------------------- |
+| 自己在 0.0.x                                                                                                                                                                                                                                        | 拒：先升到 0.1.0                                                                      |
+| `@godcreator` 的 dev：写法认不出下限、下限比源上 latest 新、latest 已出范围、或问不出源上的 latest（`workspace:` 跳过）                                                                                                                                                           | 拒；范围内落后（含相等）放行                                                                   |
+| 构建产物里有空 import（`import {} from '…'`，源码写了 `import { type X }`），或相对 import 指向的文件不在                                                                                                                                                                 | 拒                                                                                |
+| 包目录里 `pnpm exec tsc --noEmit -p <tsconfig> --skipLibCheck false`：node 侧有 `tsconfig.build.json` 用它、没有用 `tsconfig.json`，有 `src/client/tsconfig.json` 再查一次浏览器侧；测试与构建脚本不查                                                                            | 拒，写明没过的是哪一份、带输出的最后几行；node 侧两份 tsconfig 都没有也拒                                     |
+| `keywords` 含 `gwb` 或 `gwb-plugin` 的包：`gwb.provides` 与源码对得上——源码（`src/` 下的 `super(ctx, '<名>')`、`ctx.provide('<名>', …)`、`new X(ctx, '<名>')`）提供的每个服务都有一条；每个键是源码提供的服务名，或本包 `exports` 里的 import 说明符（主入口写包名，子路径写 `包名/子路径`）；每条的 `summary`、`usage` 是非空字符串 | 拒，写明加哪条、删哪条或把哪一项改成什么；`devkit.audit-structure` 报同一条（`provides-declaration`，error） |
 
 插件包（`keywords` 含 `gwb-plugin`）另查：
 

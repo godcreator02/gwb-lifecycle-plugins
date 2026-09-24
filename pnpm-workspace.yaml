@@ -1,13 +1,10 @@
 packages:
-  # devkit 件（工作台侧）与 repo-kit（仓侧工具包）同居一仓：模板薄壳与守卫工厂
-  # 是「两处正本必须同步动」的耦合——一个 commit 改两边、一趟 release 发两包
-  # cordis 件与普通 npm 包分区住（base-plugins/ui-plugins/block-note 同一习俗）
+  # 两个插件：开发套件 devkit 与插件管理 plugin-manager
   - plugins/*
-  - packages/*
   # 文档站：自己的依赖树，不进根 check
   - docs-site
 
 allowBuilds:
-  # docs-site 那半拖来的；件的构建是一次性的
+  # 文档站的依赖间接带进来的两个包：@parcel/watcher 不运行安装脚本，esbuild 要运行（它下载自己的二进制）
   '@parcel/watcher': false
   esbuild: true

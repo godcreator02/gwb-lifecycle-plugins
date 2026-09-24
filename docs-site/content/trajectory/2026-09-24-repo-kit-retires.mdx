@@ -1,0 +1,38 @@
+---
+title: repo-kit 退役：只留 gwb.provides 与源码对应一条，挪进 devkit 的发版前检查与结构体检
+born-at: 2026-09-24T17:30
+type: choice
+parent: [2026-09-08-gwb-devkit]
+label: repo-kit 退役
+domain: 生态规范
+---
+
+## 背景
+
+`@godcreator/gwb-repo-kit` 是装在各插件仓 `devDependencies` 里的两个 vitest 守卫，各仓的 `tests/` 里只放几行登记代码。
+
+自述守卫查五条：`description` 写齐「服务 / skill N 份 / 命令 N 条」三格；源码提供的服务名写进 `description`；`gwb.provides` 与源码提供的服务互为充要、`summary` 与 `usage` 非空；skill 份数对得上 `skills/`；源码 `inject` 的服务名在文档站现状区出现过。插件守卫查四条：插件名、包名、短名对得上；`apply` 在假 ctx 上能运行；登记的每条命令字段非空；每个窗格的 `id` 与地址。
+
+这两份守卫只在各仓自己的 `pnpm check` 里跑，模板每次改守卫的参数都要跟着改、repo-kit 与 devkit 要一起发；源上 repo-kit 的版本还落后于模板的写法，模板生成的插件一度过不了插件守卫。
+
+逐条问「谁在读这条信息」之后，只有 `gwb.provides` 有消费方：`devkit.services` 按服务名把 `summary` / `usage` 贴到服务表上，`devkit.capabilities` 按 import 说明符贴到入口上。其余几条都没有：
+
+- 三格、服务名进 `description`、skill 份数：这些数和名字能从运行中的 home 现算（`index`、`skill.list`、`devkit.services`），手写一份只会过期
+- `inject` 的服务名进文档站：只查名字出现过，说法对不对归 docfirst，这一条挡住的只是「站里没写这个词」
+- 命令字段非空、窗格地址：登记时由命令总线与外壳在运行时报错更直接，不必每个仓在测试里再跑一遍（另一个会话在做）
+- 名字链：`devkit.audit-structure` 的 `name-chain` 早已覆盖
+
+## 结论与边界
+
+- **repo-kit 整包退役**：`packages/repo-kit` 删掉，本仓两个插件与模板都不再依赖它；模板不再生成 `tests/plugin.test.ts` 与 `tests/self-report.test.ts`
+- **只留 `gwb.provides` 与源码对应一条**，写成 devkit 的 `src/provides-declaration.ts`，`devkit.release` 的发版前检查与 `devkit.audit-structure`（error 级 `provides-declaration`）调同一个函数，规则只有一份。从各仓 `pnpm check` 挪到这两处：发版时一定会跑，而各仓的测试装的是哪一版守卫没人管得住
+- **规则**：`keywords` 含 `gwb` 或 `gwb-plugin` 的包才查。源码（`src/` 下三种写法）提供的每个服务都要有一条；每个键要么是源码提供的服务名，要么是本包 `exports` 里的 import 说明符（主入口写包名，子路径写 `包名/子路径`）；每条的 `summary` 与 `usage` 是非空字符串。原来的「互为充要」不认说明符键，而 `devkit.capabilities` 恰好按说明符键读库的声明，放宽成两种都认
+- **`description` 以后就写一句这个插件做什么**，不写计数；三格、点名服务、skill 份数、`inject` 进文档四条整个废除
+- **代价**：新规则在下次发版时才拦，存量的包不会立刻变红；按文本扫源码提供的服务，注释里照那三种写法写出的真实服务名也算
+
+pivots-from:: [能力地图挪到运行时](2026-09-18-capability-map-moves-to-runtime.md)
+pivots-from:: [自报家门](2026-09-18-package-self-report.md)
+
+## 依据
+
+2026-09-24 用新函数扫一遍容器根下的全部仓（退役单元与测试件不扫，30 个仓、48 个 `keywords` 含 `gwb` 的包）：只有三个包下次发版会被拒——`evew5-gwbapps/gwb-block-note` 与 `gwb-block-note-v2` 两处的 `@godcreator/gwb-bn-core`（源码提供 `blockNote`、`blockNoteExtensions`、`blockNoteLibraries`，没有 `gwb.provides`），`evew5-gwbapps/gwb-mineru` 的 `@godcreator/gwb-mineru`（源码提供 `gwbPdf2md`，没有 `gwb.provides`）。现有 `gwb.provides` 全按服务名写，没有一处写了说明符键，没有误报。扫描脚本是一次性的，没有进仓。

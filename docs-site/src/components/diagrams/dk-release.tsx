@@ -17,7 +17,7 @@ const ITEMS: ChainItem[] = [
   { lines: ['6 按顺序发到 latest', '临时目录里组装'] },
 ]
 
-const EVERY_PACKAGE = ['不在 0.0.x', 'dev 范围含源上的 latest', '产物里没有空 import', '相对 import 的文件都在', 'tsc --noEmit 类型检查']
+const EVERY_PACKAGE = ['不在 0.0.x', 'dev 范围含源上的 latest', '产物里没有空 import', '相对 import 的文件都在', 'tsc --noEmit 类型检查', 'gwb.provides 与源码对得上']
 const PLUGIN_ONLY = ['peer 只有 cordis、内核包', '包名 import 的两份名单', '内核包范围含运行中内核', 'gwb.requires 写法']
 
 const STEPS: { title: string; detail: string; active: number; refused?: boolean }[] = [
@@ -28,7 +28,7 @@ const STEPS: { title: string; detail: string; active: number; refused?: boolean 
   { title: '第 4 步：版本号没发过', detail: '同一个版本号永不重发：源上已经有这个版本号就拒。要发新的一版，先升 package.json 的版本号、提交，再调用。', active: 3 },
   {
     title: '第 5 步：发版前检查',
-    detail: '要发的包全部一起查、问题一次列全。每个包查右边上半的五项（dev 范围一项只看 @godcreator 的包，类型检查用 skipLibCheck false）；keywords 含 gwb-plugin 的插件包另查下半的四项。只提醒、不拒的写进 reminders。',
+    detail: '要发的包全部一起查、问题一次列全。每个包查右边上半的六项（dev 范围一项只看 @godcreator 的包，类型检查用 skipLibCheck false，gwb.provides 一项只看 keywords 含 gwb 或 gwb-plugin 的包）；keywords 含 gwb-plugin 的插件包另查下半的四项。只提醒、不拒的写进 reminders。',
     active: 4,
   },
   {

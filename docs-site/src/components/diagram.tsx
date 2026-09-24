@@ -26,8 +26,6 @@ import { PmSources } from './diagrams/pm-sources'
 import { PmUninstall } from './diagrams/pm-uninstall'
 import { PmUpgrade } from './diagrams/pm-upgrade'
 import { PmUpgradeGap } from './diagrams/pm-upgrade-gap'
-import { RkPluginGuard } from './diagrams/rk-plugin-guard'
-import { RkSelfReportGuard } from './diagrams/rk-self-report-guard'
 import { SeamMap } from './diagrams/seam-map'
 import { SeamRepoShape } from './diagrams/seam-repo-shape'
 import { SeamServiceTable } from './diagrams/seam-service-table'
@@ -54,8 +52,6 @@ const drawings: Record<string, () => ReactNode> = {
   'dk-release': () => <DkRelease />,
   'dk-audit-deps': () => <DkAuditDeps />,
   'dk-cdp': () => <DkCdp />,
-  'rk-self-report-guard': () => <RkSelfReportGuard />,
-  'rk-plugin-guard': () => <RkPluginGuard />,
   'seam-version-fields': () => <SeamVersionFields />,
   'seam-repo-shape': () => <SeamRepoShape />,
   'seam-service-table': () => <SeamServiceTable />,

@@ -1,5 +1,5 @@
 /**
- * 接缝图：大虚线框是本仓，里面是 devkit、插件管理、repo-kit 三个包；模块之间、模块与仓外之间的连线是接缝，
+ * 接缝图：大虚线框是本仓，里面是 devkit、插件管理两个包；模块之间、模块与仓外之间的连线是接缝，
  * 编号与入口页的接缝表一一对应。实线接缝有代码接口，点线接缝只靠约定。
  */
 import { BG, Box, FG, MONO, MUTED, Note } from './parts'
@@ -41,7 +41,7 @@ function Badge({ x, y, n, byConvention }: { x: number; y: number; n: number; byC
 
 export function SeamMap() {
   return (
-    <svg viewBox="0 0 760 600" role="img" aria-label="devkit 仓的三个包与十二条接缝">
+    <svg viewBox="0 0 760 600" role="img" aria-label="devkit 仓的两个包与十一条接缝">
       <Package x={20} y={80} w={520} h={370} />
       <PackageLabel x={528} y={98} name="devkit 仓" path="gwb-devkit" anchor="end" />
       <Package x={40} y={120} w={300} h={310} />
@@ -50,7 +50,6 @@ export function SeamMap() {
       <SeamLine d="M300,120 V60" />
       <SeamLine d="M326,214 H360" byConvention />
       <SeamLine d="M326,260 H440 V240" byConvention />
-      <SeamLine d="M360,398 H326" />
       <SeamLine d="M117,324 V380" />
       <SeamLine d="M117,150 V60" byConvention />
       <SeamLine d="M326,306 H550 V352 H570" byConvention />
@@ -74,7 +73,6 @@ export function SeamMap() {
       <Box x={52} y={380} w={274} h={36} lines={['建仓模板', 'template/']} tone="a" mono />
 
       <Box x={360} y={130} w={160} h={110} lines={['插件管理', 'plugins/plugin-manager']} tone="a" />
-      <Box x={360} y={370} w={160} h={60} lines={['仓侧检查', 'packages/repo-kit']} tone="a" />
 
       <Box x={570} y={90} w={170} h={44} lines={['内核与 home', 'exe · runtime.json · gwb.log']} />
       <Box x={570} y={190} w={170} h={44} lines={['cordis loader', '条目树']} />
@@ -87,15 +85,14 @@ export function SeamMap() {
       <Badge x={300} y={95} n={1} />
       <Badge x={343} y={214} n={2} byConvention />
       <Badge x={400} y={260} n={3} byConvention />
-      <Badge x={343} y={398} n={4} />
-      <Badge x={117} y={352} n={5} />
-      <Badge x={117} y={95} n={6} byConvention />
-      <Badge x={440} y={306} n={7} byConvention />
-      <Badge x={455} y={112} n={8} byConvention />
-      <Badge x={545} y={212} n={9} />
-      <Badge x={560} y={257} n={10} />
-      <Badge x={300} y={475} n={11} byConvention />
-      <Badge x={30} y={400} n={12} byConvention />
+      <Badge x={117} y={352} n={4} />
+      <Badge x={117} y={95} n={5} byConvention />
+      <Badge x={440} y={306} n={6} byConvention />
+      <Badge x={455} y={112} n={7} byConvention />
+      <Badge x={545} y={212} n={8} />
+      <Badge x={560} y={257} n={9} />
+      <Badge x={300} y={475} n={10} byConvention />
+      <Badge x={30} y={400} n={11} byConvention />
 
       <Note x={20} y={585}>虚线框是包；实线接缝有代码接口，点线接缝只靠约定</Note>
     </svg>

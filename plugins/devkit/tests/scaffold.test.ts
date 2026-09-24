@@ -1,9 +1,8 @@
 import fs from 'node:fs'
 import os from 'node:os'
 import path from 'node:path'
-import { fileURLToPath, pathToFileURL } from 'node:url'
+import { fileURLToPath } from 'node:url'
 import { afterEach, describe, expect, it } from 'vitest'
-import { injectServicesOf, mountHarness, registerPluginGuard, registerSelfReportGuard } from '@godcreator/gwb-repo-kit'
 import {
   NAME_RE,
   PKG_ZONE,
@@ -206,17 +205,13 @@ describe('nextSteps：按站真建到哪一步分三支', () => {
     expect(written).toContain('D:\\repo\\docs-site\\content\\docs\\plugins\\w.mdx')
     const notWritten = nextStepsPlugin(plan, null).join('\n')
     expect(notWritten).toContain(pluginPageRel('w'))
-    expect(notWritten).toContain('inject')
+    expect(notWritten).toContain('依赖的服务')
   })
 
-  it('nextSteps：站装好六区时报插件页已写；没装好时每一支都说装完之后写哪一页、写出 inject 的哪些服务名', () => {
-    const injected = [...injectServicesOf(renderTemplate(TEMPLATE_ROOT, plan).find((f) => f.rel === 'plugins/x/src/index.ts')?.text ?? '')]
-    expect(injected.length).toBeGreaterThan(0)
+  it('nextSteps：站装好六区时报插件页已写；没装好时每一支都说装完之后写哪一页', () => {
     expect(nextSteps(plan, { built: true, attached: true }).join('\n')).toContain(`插件页起稿已写到 ${pluginPageRel('x')}`)
     for (const site of [{ built: true, attached: false }, { built: false, attached: false }]) {
-      const steps = nextSteps(plan, site).join('\n')
-      expect(steps).toContain(pluginPageRel('x'))
-      for (const service of injected) expect(steps).toContain(service)
+      expect(nextSteps(plan, site).join('\n')).toContain(pluginPageRel('x'))
     }
   })
 })
@@ -277,9 +272,7 @@ describe('包内 template/：两区', () => {
       'plugins/hello/src/client/tsconfig.json',
       'plugins/hello/src/index.ts',
       'plugins/hello/tests/artifact.test.ts',
-      'plugins/hello/tests/plugin.test.ts',
       'plugins/hello/tests/prefix.test.ts',
-      'plugins/hello/tests/self-report.test.ts',
       'plugins/hello/tsconfig.build.json',
       'plugins/hello/tsconfig.json',
       'plugins/hello/vitest.config.ts',
@@ -418,14 +411,13 @@ describe('包内 template/：两区', () => {
     for (const token of ['muted-foreground', 'primary-foreground', 'destructive']) expect(artifactTest).not.toContain(`'${token}'`)
   })
 
-  it('生成的自述检查把 docsDir 指到仓根文档站的现状区，inject 那一条不会因为找不到站而跳过', () => {
-    const repoDir = path.join(sandbox(), 'repo')
-    const files = renderTemplate(TEMPLATE_ROOT, planScaffold({ name: 'hello', dir: repoDir, kernelVersion: KERNEL }))
-    const selfReport = files.find((f) => f.rel === 'plugins/hello/tests/self-report.test.ts')?.text ?? ''
-    const docsDirArg = /docsDir: path\.resolve\(here, '([^']+)'\)/.exec(selfReport)?.[1]
-    expect(docsDirArg, 'self-report.test.ts 里没有给 docsDir').toBeDefined()
-    const testsDir = path.join(repoDir, 'plugins', 'hello', 'tests')
-    expect(path.resolve(testsDir, docsDirArg ?? '')).toBe(path.join(repoDir, 'docs-site', 'content', 'docs'))
+  it('生成的清单：description 是一句话，不带服务 / skill / 命令计数；dev 里没有已退役的 gwb-repo-kit', () => {
+    const files = renderTemplate(TEMPLATE_ROOT, planScaffold({ name: 'hello', dir: 'D:\\tmp\\x', title: '打招呼', kernelVersion: KERNEL }))
+    const text = files.find((f) => f.rel === 'plugins/hello/package.json')?.text ?? ''
+    const manifest = JSON.parse(text) as { description: string }
+    expect(manifest.description.startsWith('打招呼：')).toBe(true)
+    expect(manifest.description).not.toMatch(/服务无|skill \d+ 份|命令 \d+ 条/)
+    for (const file of files) expect(file.text, file.rel).not.toContain('gwb-repo-kit')
   })
 
   it('模板里的占位符全在 placeholders 的表上——认不出的当场抛，那正是这条要钉的', () => {
@@ -470,34 +462,11 @@ function fakeAttachedSite(repoDir: string): void {
   fs.writeFileSync(path.join(repoDir, 'docs-site', 'content', 'docs', 'index.mdx'), '---\ntitle: 首页\n---\n\n# 首页\n', 'utf8')
 }
 
-/** 用假的 describe / it 运行 repo-kit 的自述检查，回每一项的名字与抛出的错误（没抛是 null） */
-async function runSelfReportGuard(root: string, docsDir: string): Promise<{ name: string; error: string | null }[]> {
-  const cases: { name: string; fn: () => void | Promise<void> }[] = []
-  registerSelfReportGuard(
-    { describe: (_name, fn) => fn(), it: (name, fn) => cases.push({ name, fn }), expect: (actual, message) => expect(actual, message) },
-    { root, docsDir },
-  )
-  const results: { name: string; error: string | null }[] = []
-  for (const one of cases) {
-    try {
-      await one.fn()
-      results.push({ name: one.name, error: null })
-    } catch (err) {
-      results.push({ name: one.name, error: err instanceof Error ? err.message : String(err) })
-    }
-  }
-  return results
-}
-
-describe('插件页：让建好站的新仓第一次 pnpm check 就过自述检查', () => {
-  it('插件页写出了模板插件 inject 的每个服务名，占位符一个不剩', () => {
+describe('插件页', () => {
+  it('插件页写出插件名、包名、命令与显示名，占位符一个不剩', () => {
     const plan = planScaffold({ name: 'hello', dir: 'D:\\tmp\\x', title: '打招呼', kernelVersion: KERNEL })
-    const entry = renderTemplate(TEMPLATE_ROOT, plan).find((f) => f.rel === 'plugins/hello/src/index.ts')?.text ?? ''
     const page = renderPluginPage(TEMPLATE_ROOT, plan)
     expect(page.rel).toBe('docs-site/content/docs/plugins/hello.mdx')
-    const injected = [...injectServicesOf(entry)]
-    expect(injected.length).toBeGreaterThan(0)
-    for (const service of injected) expect(page.text).toContain(service)
     for (const identity of ['gwb-hello', '@godcreator/gwb-hello', 'hello.ping', '打招呼']) expect(page.text).toContain(identity)
     expect(page.text).not.toContain('{{')
   })
@@ -529,24 +498,7 @@ describe('插件页：让建好站的新仓第一次 pnpm check 就过自述检�
     expect(fs.readFileSync(target, 'utf8')).toBe('原有')
   })
 
-  it('端到端：建仓、站装好六区、写插件页，生成的插件包跑自述检查五项全过；不写插件页则 inject 那一项不过', async () => {
-    const repoDir = path.join(sandbox(), 'repo')
-    const plan = planScaffold({ name: 'hello', dir: repoDir, kernelVersion: KERNEL })
-    writeRepo(repoDir, renderTemplate(TEMPLATE_ROOT, plan))
-    fakeAttachedSite(repoDir)
-    const root = path.join(repoDir, 'plugins', 'hello')
-    const docsDir = path.join(repoDir, 'docs-site', 'content', 'docs')
-
-    const withoutPage = await runSelfReportGuard(root, docsDir)
-    expect(withoutPage.filter((one) => one.error !== null).map((one) => one.name)).toEqual(['源码 inject 的服务名，站现状区里都写了'])
-
-    writePluginPage(pluginPageTarget(repoDir, plan.name) ?? '', renderPluginPage(TEMPLATE_ROOT, plan))
-    const withPage = await runSelfReportGuard(root, docsDir)
-    expect(withPage).toHaveLength(5)
-    expect(withPage.filter((one) => one.error !== null)).toEqual([])
-  })
-
-  it('端到端：往装好六区的仓里加第二个插件，两个插件的自述检查都过', async () => {
+  it('端到端：往装好六区的仓里加第二个插件，两个插件页都写到现状区的 plugins/ 下', () => {
     const repoDir = path.join(sandbox(), 'repo')
     const plan = planScaffold({ name: 'hello', dir: repoDir, kernelVersion: KERNEL })
     writeRepo(repoDir, renderTemplate(TEMPLATE_ROOT, plan))
@@ -558,35 +510,18 @@ describe('插件页：让建好站的新仓第一次 pnpm check 就过自述检�
     writePluginPage(pluginPageTarget(repoDir, second.name) ?? '', renderPluginPage(TEMPLATE_ROOT, second))
 
     const docsDir = path.join(repoDir, 'docs-site', 'content', 'docs')
-    for (const short of ['hello', 'world']) {
-      const results = await runSelfReportGuard(path.join(repoDir, 'plugins', short), docsDir)
-      expect(results.filter((one) => one.error !== null), short).toEqual([])
-    }
     expect(fs.readdirSync(path.join(docsDir, 'plugins')).sort()).toEqual(['hello.mdx', 'world.mdx'])
   })
 })
 
-describe('模板插件过 repo-kit 的插件守卫', () => {
-  it('端到端：建仓后 import 生成的 src/index.ts，插件守卫四项全过；ping 命令的参数形状写在 usage 里', async () => {
-    const repoDir = path.join(sandbox(), 'repo')
-    const plan = planScaffold({ name: 'hello', dir: repoDir, kernelVersion: KERNEL })
-    writeRepo(repoDir, renderTemplate(TEMPLATE_ROOT, plan))
-    const entry = (await import(pathToFileURL(path.join(repoDir, 'plugins', 'hello', 'src', 'index.ts')).href)) as {
-      apply: (ctx: never) => void
-      name: string
-    }
-
-    const cases: { name: string; fn: () => void | Promise<void> }[] = []
-    registerPluginGuard(
-      { describe: (_name, fn) => fn(), it: (name, fn) => cases.push({ name, fn }), expect: (actual, message) => expect(actual, message) },
-      { apply: entry.apply, name: entry.name, pkg: plan.pkg, pkgName: plan.pluginName, short: plan.name },
-    )
-    expect(cases).toHaveLength(4)
-    for (const one of cases) await one.fn()
-
-    const ping = mountHarness(entry.apply).commands.find((one) => one.name === 'hello.ping')
-    expect(ping?.usage).toBe('无参数')
-    expect(ping?.description).not.toContain('无参数')
+describe('模板插件的命令登记', () => {
+  it('ping 命令的参数形状写在 usage 里，description 只说它做什么', () => {
+    const plan = planScaffold({ name: 'hello', dir: 'D:\\tmp\\x', kernelVersion: KERNEL })
+    const entry = renderTemplate(TEMPLATE_ROOT, plan).find((f) => f.rel === 'plugins/hello/src/index.ts')?.text ?? ''
+    expect(entry).toContain("usage: '无参数'")
+    const description = /description: '([^']*)'/.exec(entry)?.[1]
+    expect(description).toBeDefined()
+    expect(description).not.toContain('无参数')
   })
 })
 

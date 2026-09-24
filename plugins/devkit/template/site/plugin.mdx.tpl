@@ -27,7 +27,7 @@ description: 插件 {{pkgName}}（包 {{pkg}}）的功能、接口、依赖与�
 | `gwbCommands` | 命令总线 `@godcreator/gwb-commands` | 登记命令 `{{name}}.ping` |
 | `gwbShell` | 外壳 `@godcreator/gwb-shell` | 登记窗格 `main` |
 
-两个服务都写在 `src/index.ts` 的 `inject` 里，缺一个插件就不加载。`pnpm check` 的自述检查要求 `inject` 的每个服务名都出现在文档站现状区里：以后加了服务，在这张表里补一行。
+两个服务都写在 `src/index.ts` 的 `inject` 里，缺一个插件就不加载。
 
 浏览器侧的 react 由页面的 importmap 提供（提供方是外壳），构建时不打包。
 

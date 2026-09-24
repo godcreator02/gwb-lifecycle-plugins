@@ -93,6 +93,11 @@ function importEntriesOf(pkg: string, manifest: Record<string, unknown>, provide
   return entries
 }
 
+/** 这个包能被 import 的说明符（主入口是包名，子路径是 `包名/子路径`），与 `devkit.capabilities` 列出的入口是同一套 */
+export function importSpecifiersOf(pkg: string, manifest: Record<string, unknown>): string[] {
+  return importEntriesOf(pkg, manifest, undefined).map((entry) => entry.specifier)
+}
+
 /**
  * `deps` 是 home 的 `package.json` 里 `dependencies` 的键；`readManifest` 收包名回那份 `package.json`，
  * 读不到回 undefined，那个包就跳过，不让一个坏包毁掉整份清单

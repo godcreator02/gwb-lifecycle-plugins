@@ -1,5 +1,6 @@
 import fs from 'node:fs'
 import path from 'node:path'
+import { providesDeclarationProblems, sourceTextUnder } from './provides-declaration.js'
 
 // 规则以建仓模板为准：往返测试断言模板生成的仓零 findings，规则与模板改了一边没改另一边，测试就失败
 
@@ -31,6 +32,8 @@ export interface MemberScan {
   srcEntries: string[]
   /** `src/client/` 顶层条目名；没有浏览器侧代码就是空表 */
   clientEntries: string[]
+  /** `src/` 下全部 `.ts` / `.tsx` 连成的一份文本，按它找源码提供的服务；src 不在就是空串 */
+  sourceText: string
 }
 
 export interface RepoScan {
@@ -109,6 +112,7 @@ function scanMember(root: string, dir: string): MemberScan {
     tsconfigs,
     srcEntries,
     clientEntries,
+    sourceText: sourceTextUnder(full),
   }
 }
 
@@ -127,7 +131,7 @@ function scanPluginsAndPackagesMembers(root: string): MemberScan[] {
   return members
 }
 
-/** 只看三层的名字与几个关键文件，不进 node_modules、不进 docs-site */
+/** 只看三层的名字、几个关键文件与各成员 `src/` 下的源码，不进 node_modules、不进 docs-site */
 export function scanRepo(root: string): RepoScan {
   const rootEntries = listDir(root)
   const workspaceYaml = readText(path.join(root, 'pnpm-workspace.yaml'))
@@ -384,6 +388,9 @@ export function auditStructure(scan: RepoScan): StructureReport {
     }
     const isPlugin = isPluginMember(member)
     anyMemberFindings(member, isPlugin, add)
+    for (const problem of providesDeclarationProblems(member.manifest, member.sourceText)) {
+      add('provides-declaration', 'error', `${member.dir}/package.json`, `${problem}。发版前检查同样查这一条，没过 devkit.release 会拒`)
+    }
     if (!isPlugin) continue
     pluginNameFindings(member, add)
     pluginPackagingFindings(member, add)

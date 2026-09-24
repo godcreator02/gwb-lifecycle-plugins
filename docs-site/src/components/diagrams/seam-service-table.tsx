@@ -1,5 +1,5 @@
 /**
- * 接缝 12：devkit.services 与 devkit.capabilities 的两路数据。上面是 cordis 的运行时结构（不是文档化接口，靠约定），
+ * 接缝 11：devkit.services 与 devkit.capabilities 的两路数据。上面是 cordis 的运行时结构（不是文档化接口，靠约定），
  * 两条命令都从它读服务表；下面是 home 里各包的 package.json，gwb.provides 在两条命令里的键不一样。
  */
 
@@ -42,7 +42,7 @@ export function SeamServiceTable() {
         结构认不出：回空表，带 note 与 saw，不抛错
       </Note>
       <Note x={10} y={446} size={12} color={MUTED}>
-        插件包的 gwb.provides 键与源码提供的服务一一对应，由自述守卫查
+        gwb.provides 与源码对不对得上：发版前检查与结构体检查
       </Note>
     </svg>
   )

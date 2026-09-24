@@ -4,7 +4,7 @@
 
 仓是 pnpm workspace：**仓根是一个不发布的 private 包，自己没有代码**（`pnpm build` / `pnpm check` 都递归到各成员包），
 插件放在 `plugins/{{name}}/`。加第二个插件用 `devkit.scaffold.plugin {"repo":"<仓根>","name":"<短名>"}`，它在
-`plugins/` 下再建一个插件包；不是插件的包（repo-kit 那类只在仓里用的测试工具）放在 `packages/`，需要时再加。
+`plugins/` 下再建一个插件包；不是插件的包（插件共用的库之类）放在 `packages/`，需要时再加。
 包发到团队源（gitea 个人源），装进 home。**`@godcreator` 对应哪个源写在用户级 `~/.npmrc`**（`@godcreator:registry`），本仓不写 `.npmrc`。
 
 ## 插件包的结构（`plugins/{{name}}/`，配置都在包内）
@@ -14,12 +14,12 @@
   范围 `^<版本号>` 声明这个插件兼容哪些内核（建仓时写的是运行建仓命令的那个内核）；
 - **浏览器侧**（`src/client/`）：窗格里显示「你好」和一个计数按钮。类名一律以 `{{cssPrefix}}:` 开头，样式只作用于本插件
   （cssPrefix 是短名去掉非小写字母，Tailwind 的 prefix 只收 a-z）；react 由页面的 importmap 提供（提供方是外壳），构建时不打包；
-- **自述**（`package.json` 的 description）：是什么、做什么，加上服务 / skill / 命令三项计数——`tests/self-report.test.ts` 检查它与源码对得上（检查逻辑在 @godcreator/gwb-repo-kit）；
-- **四份测试**：插件名与注册、自述与源码一致、类名前缀、构建产物（node 侧的包名 import 只有 node 内置模块、`electron`、`cordis`，浏览器侧只有外壳 `gwb.shared` 里的名字）；
+- **自述**（`package.json` 的 description）：一句话说这个插件做什么；
+- **两份测试**：类名前缀、构建产物（node 侧的包名 import 只有 node 内置模块、`electron`、`cordis`，浏览器侧只有外壳 `gwb.shared` 里的名字）；
 - tsconfig / vitest / oxlint 配置全在包内——这个包以后搬到别的仓，配置不用改。
 
-改成真插件：把窗格与 ping 换成你的东西——**改了命令就同时改 description 的三项计数**（服务 / skill / 命令），不改自述测试会失败。
-要提供扩展点服务就继承 cordis 的 `Service`：构建产物里有了按值 import 的 `cordis`，peer 里加上 `cordis`（别的包仍写 dev）。
+改成真插件：把窗格与 ping 换成你的东西，description 换成一句话说它做什么。
+要提供扩展点服务就继承 cordis 的 `Service`：构建产物里有了按值 import 的 `cordis`，peer 里加上 `cordis`（别的包仍写 dev）；在 `package.json` 的 `gwb.provides` 里按服务名写一条 `summary` 与 `usage`，`devkit.release` 的发版前检查与 `devkit.audit-structure` 都查它与源码对得上。
 
 开发界面前读 `skill.read {"name":"gwb-shell"}`：shadcn 官方组件配置、令牌、样式前缀、
 多桌面浮层与视觉验收都以外壳的说明书为准。模板只带一个最简单的窗格，组件照那份说明书接入。

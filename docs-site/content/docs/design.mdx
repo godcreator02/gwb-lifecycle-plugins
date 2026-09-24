@@ -1,21 +1,20 @@
 ---
 title: 关键设计
-description: devkit 仓为什么这么切分——devkit 是普通插件、写插件只有发布安装验证一条路、开发版只进隔离 home、只按名字定位 home、纯逻辑与真机器操作分开、devkit 与插件管理同仓、repo-kit 与模板同仓、借别的插件只借命令名；各自推出了什么、放弃了什么
+description: devkit 仓为什么这么切分——devkit 是普通插件、写插件只有发布安装验证一条路、开发版只进隔离 home、只按名字定位 home、纯逻辑与真机器操作分开、devkit 与插件管理同仓、借别的插件只借命令名；各自推出了什么、放弃了什么
 ---
 
-**本页回答**：devkit 仓里的三个包为什么是现在这个形状；每条设计推出了什么、代价是什么；哪些事刻意不做。每个包的功能与接口见各自的首页：[开发套件](/docs/devkit)、[插件管理](/docs/plugin-manager)、[repo-kit](/docs/repo-kit)。
+**本页回答**：devkit 仓里的两个包为什么是现在这个形状；每条设计推出了什么、代价是什么；哪些事刻意不做。每个包的功能与接口见各自的首页：[开发套件](/docs/devkit)、[插件管理](/docs/plugin-manager)。
 
 ## 仓里放什么
 
-devkit 仓是一个 workspace 仓，放三个包，外加一个文档站：
+devkit 仓是一个 workspace 仓，放两个插件包，外加一个文档站：
 
 | 包 | 目录 | 是什么 | 发到哪 |
 | --- | --- | --- | --- |
 | `@godcreator/gwb-devkit` | `plugins/devkit/` | 开发套件，一个普通插件 | 团队源，装进 home |
 | `@godcreator/gwb-plugin-manager` | `plugins/plugin-manager/` | 插件管理，home 里唯一增删包与条目的插件 | 团队源，装进 home |
-| `@godcreator/gwb-repo-kit` | `packages/repo-kit/` | 各插件仓测试里用的守卫，库 | 团队源，装进各仓的 `devDependencies` |
 
-三个包各自发版，用 `devkit.release` 的 `packages` 参数指明发哪几个。放在同一个仓里的理由是它们之间改一处就要改另一处的地方多，下面两节分别说。
+两个包各自发版，用 `devkit.release` 的 `packages` 参数指明发哪几个。放在同一个仓里的理由是它们之间改一处就要改另一处的地方多，见下面「devkit 与插件管理放在同一个仓」。
 
 ## 开发套件是一个普通插件
 
@@ -40,7 +39,7 @@ devkit 没有任何特权：装进 home 才有它的命令，加载不成功就�
 - **改一版看一版也发版**：`devkit.dev` 每次发一个开发版（`<patch+1>-dev.<时间戳>`，tag 是 `dev`，不动 `latest`），装进目标 home。版本号变了模块路径才变，重新加载时 Node 才会重新执行新代码；覆盖 home 里 `node_modules` 下的文件会改坏 pnpm 全局存储里的原件（[改一版看一版进 devkit](/trajectory/2026-09-11-dev-loop-comes-to-devkit)）
 - **装开发版写准确版本号**：在目标 home 的清单里写死准确版本号再 `pnpm install`，装完读回核对，不用 `pnpm add`（[开发版写准确版本号安装](/trajectory/2026-09-17-dev-install-pins-exact)）
 - **正式版只从提交过的状态发**：版本号在仓里改、随提交走；`devkit.release` 在 git 工作区不干净、同一个版本号已在源上、发版前检查没过时一概不发，也不改仓里任何文件（[发正式版进 devkit](/trajectory/2026-09-14-release-comes-to-devkit)）
-- **最后一步是取证**：`devkit.dev` 回「成功」之前，要确认装上的是这次的版本号、条目在运行、日志新增部分里没有 error
+- **最后一步是核对**：`devkit.dev` 回「成功」之前，要确认装上的是这次的版本号、条目在运行、日志新增部分里没有 error
 
 代价：一次改一版看一版大约一分钟，比直接覆盖文件慢；源上与 pnpm 存储里会积攒开发版，要定期清理。
 
@@ -49,7 +48,7 @@ devkit 没有任何特权：装进 home 才有它的命令，加载不成功就�
 开发和验证都在单独新建的隔离 home 里做，日常用的 `default` 只装正式版。
 
 - **`devkit.dev` 拒绝 `default`**：开发版进了 `default`，版本号看起来跟正式版没两样，界面上一点异常都看不出来
-- **`devkit.dev` 运行在控制台 home 里，操作另一个 home**：换插件要把条目停用再启用，工具自己运行在被换的 home 里，换到命令总线、外壳、MCP 入口或它自己时，调用方会跟着停掉。所以构建、发版、安装在本进程做，重新加载、刷新、取证经 CDP 发到目标页面；目标就是 devkit 自己所在的 home 也拒
+- **`devkit.dev` 运行在控制台 home 里，操作另一个 home**：换插件要把条目停用再启用，工具自己运行在被换的 home 里，换到命令总线、外壳、MCP 入口或它自己时，调用方会跟着停掉。所以构建、发版、安装在本进程做，重新加载、刷新、核对经 CDP 发到目标页面；目标就是 devkit 自己所在的 home 也拒
 - **重新加载是目标进程里的一条命令**：`plugin-manager.remount` 一条做完停用与启用，不拆成两条——被换的是插件管理自己或命令总线时，第二条没人接收（[重新加载是一条命令](/trajectory/2026-09-17-remount-is-one-command)）
 - **升级 `default` 是发正式版之后的事**：`devkit.release` 只发到源、不碰任何 home；升级 `default` 由人点插件管理窗格的「全部更新」或调 `plugin-manager.update-all`，这一步在隔离 home 验证之后
 
@@ -82,10 +81,10 @@ devkit 没有任何特权：装进 home 才有它的命令，加载不成功就�
 | 模块 | 纯逻辑 | 真机器操作 | 细节 |
 | --- | --- | --- | --- |
 | 建仓 | `src/scaffold.ts` | 同一个文件，直接读写磁盘 | [建仓与加插件](/docs/devkit/scaffold) |
-| 结构体检 | `src/structure.ts` | 同一个文件，只读磁盘 | [结构体检](/docs/devkit/structure) |
+| 结构体检 | `src/structure.ts`、`src/provides-declaration.ts` | 同样这两个文件，只读磁盘 | [结构体检](/docs/devkit/structure) |
 | 测试 home | `src/home.ts` | `src/node-home-deps.ts` | [测试 home](/docs/devkit/home) |
 | 改一版看一版 | `src/dev.ts` | `src/node-dev-deps.ts` | [改一版看一版](/docs/devkit/dev) |
-| 发正式版 | `src/release.ts`、`src/artifact-check.ts`、`src/kernel-compat.ts` | `src/node-dev-deps.ts` | [开发套件](/docs/devkit#发正式版的检查) |
+| 发正式版 | `src/release.ts`、`src/artifact-check.ts`、`src/kernel-compat.ts`、`src/provides-declaration.ts` | `src/node-dev-deps.ts` | [开发套件](/docs/devkit#发正式版的检查) |
 | 依赖对账 | `src/audit.ts` | `src/node-audit-deps.ts` | [开发套件](/docs/devkit#依赖对账的判据) |
 | 能用什么 | `src/services.ts`、`src/capabilities.ts` | 命令登记处读 home 里的 `package.json` | [开发套件](/docs/devkit) |
 | 进程与端口探测 | `src/probes.ts` | `src/node-probe-deps.ts` | [测试 home](/docs/devkit/home) |
@@ -103,7 +102,7 @@ devkit 没有任何特权：装进 home 才有它的命令，加载不成功就�
 
 插件管理 `@godcreator/gwb-plugin-manager` 仍是 home 里的普通插件：由 `cordis.yml` 里的一条条目加载、单独发版、用 `plugin-manager.update-all` 升级。它和 devkit 放在一起，是因为两者互相依赖的地方多（[插件管理迁入 devkit 仓](/trajectory/2026-09-24-plugin-manager-joins-devkit)）：
 
-- `devkit.dev` 装完开发版调 `plugin-manager.remount` 重新加载，再轮询 `plugin-manager.list` 取证；重新加载插件管理自己时收到 `deferred`，就等 `list` 回来
+- `devkit.dev` 装完开发版调 `plugin-manager.remount` 重新加载，再轮询 `plugin-manager.list` 核对；重新加载插件管理自己时收到 `deferred`，就等 `list` 回来
 - `devkit.home.new` 把内核包、`cordis` 与插件管理等基础插件装进新 home，之后往这个 home 加插件用 `plugin-manager.install`、升内核用 `plugin-manager.update-kernel`
 - 插件 peer 里内核包的范围两边都用：插件管理在 `list` 里拿它和运行中的内核比对，`devkit.release` 发版前拒绝没写对的插件包。比对规则两边各存一份（两个包的 `src/kernel-compat.ts`），不跨包 import
 
@@ -112,16 +111,6 @@ devkit 没有任何特权：装进 home 才有它的命令，加载不成功就�
 放在一个仓里，这些地方一个提交就能改两边，改比对规则时两份一起改、一起跑测试。
 
 代价：发版要用 `packages` 指明发哪个包；比对规则两份靠同一个提交保持一致，devkit 的一组对照测试拿同一组输入比对两份的结果。改插件管理的命令名、参数或回执形状是破坏性变更——插件管理窗格、`devkit.dev`、agent 的说明书都按它们写死了调用。
-
-## repo-kit 和模板放在同一个仓
-
-`devkit.scaffold` 生成的每个插件包都带两份测试登记代码，调用的是 repo-kit 的 `registerSelfReportGuard` 与 `registerPluginGuard`，模板里还写着 repo-kit 的版本号。改守卫的参数或用例，模板里的登记代码要跟着改。插件守卫只查对任何插件都成立的结构（名字对得上、`apply` 能运行、每条命令与每个窗格的字段），改模板插件有几个窗格、哪条示例命令不用改守卫；devkit 的建仓测试把模板生成的 `src/index.ts` 跑一遍插件守卫，两边不一致当场失败。两份正本放在一个仓里，一个提交改两边、一次发版发两个包。
-
-{/* has file="../plugins/devkit/template/pkg/tests/self-report.test.ts.tpl" text="import { registerSelfReportGuard } from '@godcreator/gwb-repo-kit'" */}
-
-{/* has file="../plugins/devkit/template/pkg/tests/plugin.test.ts.tpl" text="import { registerPluginGuard } from '@godcreator/gwb-repo-kit'" */}
-
-repo-kit 自己是库，不是插件：各仓装在 `devDependencies` 里，只在 `pnpm check` 里运行。检查的实现只在这个包里，各仓的 `tests/` 里只有登记代码——各仓各抄一份的话，改一条规则要改几十个仓。
 
 ## 模板是唯一正本
 

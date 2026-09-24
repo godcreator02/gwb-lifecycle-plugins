@@ -25,7 +25,7 @@ const STEPS: { title: string; detail: string; active: number }[] = [
   { title: '第 3 步：写磁盘', detail: '目标目录必须还不存在，存在就拒、不覆盖。仓根写 package.json、pnpm-workspace.yaml、README.md、.gitignore，插件包写到 plugins/<短名>/。', active: 2 },
   { title: '第 4 步：生成站点骨架', detail: '经命令总线调站点插件的 docs-site.create，目录是 <仓>/docs-site。成功时回执的 docs.built 是 true；站点插件没装就停在这里，回执说怎么补。', active: 3 },
   { title: '第 5 步：装六区', detail: '紧接着调 docfirst 插件的 docfirst.attach。它只在刚生成、没加过页的骨架上装得了，所以两步连着调用，中间不插别的事。成功时 docs.attached 是 true。', active: 4 },
-  { title: '第 6 步：写插件页', detail: 'docs-site/docfirst.config.mjs 在（六区装好了）才写。页里写出模板插件注入的服务名，新仓第一次 pnpm check 的自述检查因此能过。', active: 5 },
+  { title: '第 6 步：写插件页', detail: 'docs-site/docfirst.config.mjs 在（六区装好了）才写。页里写出插件名、包名、命令、窗格与依赖的服务，改成真插件时照实际功能改写。', active: 5 },
   { title: '第 7 步：回执', detail: 'nextSteps 按 built 与 attached 分三种情况写下一步：站建好了、只有骨架、没有站。插件的文件在第 3 步就已经在磁盘上。', active: 6 },
 ]
 

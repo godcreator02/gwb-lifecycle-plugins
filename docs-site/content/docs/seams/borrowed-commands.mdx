@@ -1,5 +1,5 @@
 ---
-title: 6 借用别的插件的命令
+title: 5 借用别的插件的命令
 description: 连接 devkit、插件管理与三个不在本仓的插件：建仓调 docs-site.create 与 docfirst.attach，结构体检与 audit-deps 调 unit-folder.list 并直接读 unit.json，插件管理调 shell.reload；都只按命令名在命令总线上查，查不到就跳过或报错，参数与回执靠约定
 ---
 
@@ -39,7 +39,7 @@ description: 连接 devkit、插件管理与三个不在本仓的插件：建仓
 
 {/* ref file="../plugins/plugin-manager/src/index.ts" lines="868-880" */}
 
-插件管理的 `source.add` 另外按名字调设置插件的 `settings.get`，读 gitea 插件分区里的地址与 token；它只为配包源服务，写在[10 pnpm 与包源](/docs/seams/pnpm-registry)。
+插件管理的 `source.add` 另外按名字调设置插件的 `settings.get`，读 gitea 插件分区里的地址与 token；它只为配包源服务，写在[9 pnpm 与包源](/docs/seams/pnpm-registry)。
 
 ## 约定
 

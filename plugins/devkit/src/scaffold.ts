@@ -302,7 +302,7 @@ export function pluginPageRel(name: string): string {
   return `docs-site/content/docs/plugins/${name}.mdx`
 }
 
-/** 插件页草稿，rel 相对仓根。页里写出 `inject` 的服务名：自述检查要求它们出现在文档站现状区里 */
+/** 插件页草稿，rel 相对仓根 */
 export function renderPluginPage(templateRoot: string, plan: Placeholdable): RenderedFile {
   return {
     rel: landRel(PLUGIN_PAGE_TEMPLATE, plan.name),
@@ -340,16 +340,16 @@ export function nextSteps(
   const port = site?.port ?? plan.port
   const siteDir = path.join(plan.dir, 'docs-site')
   const pageRel = pluginPageRel(plan.name)
-  const writePageYourself = `在 ${pageRel} 写插件页，至少写出 src/index.ts 里 inject 的服务名（模板是 gwbCommands、gwbShell）——自述检查查这一条，站在而页没写，pnpm check 不过`
+  const writePageYourself = `在 ${pageRel} 写插件页：功能、接口（命令与窗格）、依赖的服务、不做的事`
   const steps = [
     `cd ${plan.dir}`,
     'pnpm install',
     'pnpm build          # 仓根递归构建各插件（tsc + esbuild + tailwindcss 三步）——先构建：check 里的产物测试读 dist/',
-    'pnpm check          # 仓根递归：typecheck（node 侧与浏览器侧）+ oxlint + vitest，模板自带四份测试',
+    'pnpm check          # 仓根递归：typecheck（node 侧与浏览器侧）+ oxlint + vitest，模板自带两份测试（类名前缀、构建产物）',
   ]
   if (built && attached) {
     steps.push(
-      `插件页起稿已写到 ${pageRel}（插件名、包名、命令、窗格、inject 的服务名）：按插件的实际功能改写；以后 inject 加了服务，也在这页写上它的名字——pnpm check 的自述检查查这一条`,
+      `插件页起稿已写到 ${pageRel}（插件名、包名、命令、窗格、依赖的服务）：按插件的实际功能改写`,
       `文档站那部分（自己一套依赖，跟插件分开装）：cd ${siteDir} && pnpm install && pnpm doc${
         port === undefined ? '' : `，pnpm dev 运行在 http://localhost:${String(port)}`
       }`,
@@ -378,13 +378,13 @@ export function nextSteps(
 export function nextStepsPlugin(plan: ScaffoldPluginPlan, pageTarget: string | null): string[] {
   const pageStep =
     pageTarget === null
-      ? `仓里没有装好六区的文档站，插件页没写。以后建了站，在 ${pluginPageRel(plan.name)} 写插件页，至少写出 src/index.ts 里 inject 的服务名——自述检查查这一条`
-      : `插件页起稿已写到 ${pageTarget}（插件名、包名、命令、窗格、inject 的服务名）：按插件的实际功能改写；以后 inject 加了服务，也在这页写上它的名字——pnpm check 的自述检查查这一条`
+      ? `仓里没有装好六区的文档站，插件页没写。以后建了站，在 ${pluginPageRel(plan.name)} 写插件页：功能、接口（命令与窗格）、依赖的服务、不做的事`
+      : `插件页起稿已写到 ${pageTarget}（插件名、包名、命令、窗格、依赖的服务）：按插件的实际功能改写`
   return [
     `cd ${plan.repoDir}`,
     'pnpm install',
     'pnpm build          # 仓根递归构建，新插件一起构建',
-    'pnpm check          # 模板插件自带四份测试，没过先看 description 的三项自述改没改',
+    'pnpm check          # 模板插件自带两份测试（类名前缀、构建产物）',
     pageStep,
     `进隔离 home：devkit.home.new 开一个，devkit.dev {"home":"<名>","dir":"${plan.repoDir}","packages":["plugins/${plan.name}"]} 发出开发版并装进去（回执说没有条目可重新加载）`,
     `建条目：在这个隔离 home 里经 devkit.cdp 的 cmd 调 plugin-manager.install {"pkg":"${plan.pkg}","spec":"<回执里那个开发版号>"}（经 MCP 调会装进 default）；之后每改一版用 devkit.dev（packages 同上）`,

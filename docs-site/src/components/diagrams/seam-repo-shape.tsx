@@ -1,5 +1,5 @@
 /**
- * 接缝 11：被处理的仓按目录树从上往下排，每一行是 devkit 的某几条命令依赖的一处约定；右边的标签是依赖它的命令
+ * 接缝 10：被处理的仓按目录树从上往下排，每一行是 devkit 的某几条命令依赖的一处约定；右边的标签是依赖它的命令
  * （dev = devkit.dev，release = devkit.release，体检 = devkit.audit-structure，对账 = devkit.audit-deps）。
  * 这些约定没有一份检查合在一起查。
  */

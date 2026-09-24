@@ -23,10 +23,9 @@ description: 写 gwb 插件要守的规矩一条一行：做法在哪一页、�
 | `devkit.release` 的发版前检查 | 构建之后、发第一个包之前 | 一个包都不发，回执按包列全 |
 | `devkit.audit-deps` | 手动调，扫一个容器根下的各仓 | 只报告，不拦 |
 | `devkit.audit-structure` | 手动调，查一个仓或全生态 | 只报告，不拦 |
-| repo-kit 的两份测试守卫 | 各仓 `pnpm check` | 测试红 |
 | 模板带的产物测试 | 构建之后跑 `pnpm check`（没有 `dist/` 时整组跳过） | 测试红 |
 
-repo-kit 指 `@godcreator/gwb-repo-kit`：插件守卫查插件名与包名对得上、`apply` 在假的 ctx 上能运行、登记的每条命令与每个窗格的结构（不查有几个、叫什么），自述守卫查 `description` 的三项、`gwb.provides` 与源码对得上、说明书个数。模板带的产物测试是 `devkit.scaffold` 生成进每个插件的 `tests/artifact.test.ts`。
+模板带的产物测试是 `devkit.scaffold` 生成进每个插件的 `tests/artifact.test.ts`。
 
 ## 总表
 
@@ -46,8 +45,8 @@ repo-kit 指 `@godcreator/gwb-repo-kit`：插件守卫查插件名与包名对�
 | 外置名单只从提供方读，不手抄 | [importmap](/docs/rules/importmap) | 没有工具检查；抄了 importmap 里没有的名字，`devkit.release` 的浏览器侧检查会拒 | — |
 | 扩展点服务继承 cordis 的 `Service`，注册随调用方卸载自动撤销 | [服务](/docs/rules/services) | 没有工具检查 | 命令总线 `gwbCommands` 0.4.6 改成继承 `Service`，还没发正式版 |
 | 扩展点用服务，数据读写和动作用命令，同一能力只提供一种调用方式 | [服务](/docs/rules/services) | 没有工具检查 | — |
-| 命令的 `plugin` 写包名，`description` 一句话说做什么，参数形状写进 `usage`，无参数写「无参数」 | [服务](/docs/rules/services) | repo-kit 插件守卫查每条登记的命令 `plugin` 是包名、`description` 与 `usage` 非空；`usage` 写没写对参数形状没有工具检查 | 用插件守卫的只有模板生成的插件：基础插件仓、界面插件仓、devkit 的插件在 `apply` 里用到假 ctx 上没有的成员（`requireKernel`、`gwbSettings` 等）或是 `Service` 类，没接这份守卫 |
-| `gwb.provides` 的键与源码提供的服务名一一对应，`summary`、`usage` 不空 | [服务](/docs/rules/services) | repo-kit 自述守卫 | — |
+| 命令的 `plugin` 写包名，`description` 一句话说做什么，参数形状写进 `usage`，无参数写「无参数」 | [服务](/docs/rules/services) | 没有工具检查；`usage` 写没写对参数形状也没有 | 命令总线登记时拒 `plugin` 不是包名、`description` 或 `usage` 为空的检查在基础插件仓里做，还没发版 |
+| `gwb.provides` 里源码提供的每个服务都有一条；每个键是源码提供的服务名，或本包 `exports` 里的 import 说明符（主入口写包名，子路径写 `包名/子路径`）；`summary`、`usage` 不空 | [服务](/docs/rules/services) | `keywords` 含 `gwb` 或 `gwb-plugin` 的包：`devkit.release` 拒；`devkit.audit-structure` 报 `provides-declaration`（error） | — |
 | `gwbKernel` 用 `requireKernel` 取、不写进 `inject`；不写 `instanceof Service`；类的私有字段用 TS `private` | [服务](/docs/rules/services) | 没有工具检查 | — |
 | 插件之间只通过服务和命令交互，不 import 别的插件 | [交互](/docs/rules/interaction) | `devkit.release` 拒构建产物按值 import 别的插件（上面「包名 import」那一条）；只 import 类型不受影响 | — |
 | 共享磁盘数据格式或命令结构时，按区间比对契约版本，区间外拒绝加载 | [交互](/docs/rules/interaction) | 没有工具检查 | — |
@@ -60,9 +59,8 @@ repo-kit 指 `@godcreator/gwb-repo-kit`：插件守卫查插件名与包名对�
 
 ## 这个仓自己还没照做的
 
-插件管理（`plugins/plugin-manager/`）与 devkit 插件的清单都按上面的规矩写：peer 里只有内核包；插件管理的服务只表示「插件管理装了」，上面没有方法。还差四处，都在等发版：
+插件管理（`plugins/plugin-manager/`）与 devkit 插件的清单都按上面的规矩写：peer 里只有内核包；插件管理的服务只表示「插件管理装了」，上面没有方法。还差三处，都在等发版：
 
 - **devkit 与插件管理过不了发版前的类型检查**：词汇表包 0.2.7 的类型声明缺 DOM 类型库的声明。词汇表包发下一版后，把两个包 dev 里的词汇表包升上去
 - **模板注册命令还包着 `ctx.effect`**：模板对命令总线的 dev 下限是 0.4.5，那一版不会随调用方卸载自动注销命令。命令总线 0.4.6 发版后，把模板的下限升到 0.4.6、删掉那层包装
-- **模板生成的插件过不了插件守卫**：模板对 repo-kit 的 dev 下限是 0.3.0，源上那一版还要求 ping 命令的描述里有「无参数」，而模板已经把它写进 `usage`。repo-kit 要和 devkit 一起发，发完把模板的下限升上去
 - **模板的窗格入口还手写外壳的类型**：外壳在工作区里已经导出窗格入口用到的类型，还没发正式版。外壳发版后，模板的 `src/client/index.tsx` 改成从外壳 `import type`、把外壳的下限升上去

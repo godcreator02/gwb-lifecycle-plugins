@@ -10,6 +10,7 @@ import {
 } from './dev.js'
 import { caretFloor, compareVersions, inCaret } from './audit.js'
 import { artifactFindings } from './artifact-check.js'
+import { providesDeclarationProblems } from './provides-declaration.js'
 import { KERNEL_PACKAGE, isCaretRange, kernelRangeCovers } from './kernel-compat.js'
 import { isRecord, versionCore } from './vocab.js'
 
@@ -32,6 +33,8 @@ export interface ReleaseDeps {
   gitStatus(repoDir: string): Promise<GitStatus>
   readText(file: string): string | undefined
   exists(target: string): boolean
+  /** 包目录 `src/` 下全部 `.ts` / `.tsx` 连成的一份文本，按它找源码提供的服务 */
+  sourceTextOf(pkgDir: string): string
   platform: NodeJS.Platform
 }
 
@@ -391,14 +394,16 @@ async function typecheckProblems(pkgDir: string, deps: ReleaseDeps): Promise<str
 
 async function ticketFor(checkedPackage: CheckedPackage, latest: Record<string, string | undefined>, runningKernel: string, deps: ReleaseDeps): Promise<Ticket> {
   const { pkgDir, text, ticket } = checkedPackage
-  const doc: unknown = JSON.parse(text)
-  const artifacts = artifactFindings(pkgDir, isRecord(doc) ? doc : {}, ticket.plugin, deps)
+  const parsed: unknown = JSON.parse(text)
+  const doc = isRecord(parsed) ? parsed : {}
+  const artifacts = artifactFindings(pkgDir, doc, ticket.plugin, deps)
   const peers = peerProblems(ticket, artifacts.nodeImportsCordis)
   const problems = [
     ...checkTicket(ticket, latest).problems,
     ...peers.problems,
     ...kernelPeerProblems(ticket, runningKernel),
     ...requiresProblems(ticket),
+    ...providesDeclarationProblems(doc, deps.sourceTextOf(pkgDir)),
     ...artifacts.problems,
     ...(await typecheckProblems(pkgDir, deps)),
   ]

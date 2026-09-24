@@ -1,10 +1,10 @@
 {
   "name": "@godcreator/gwb-devkit",
-  "version": "0.18.10",
+  "version": "0.18.11",
   "author": {
     "name": "godcreator"
   },
-  "description": "开发套件：建仓（scaffold）、往薄壳仓加件（scaffold.plugin）、结构体检（audit-structure）、测试 home 的开收、改一版看一版（devkit.dev）、发正式版（devkit.release）；随件带写件与发版两份手册。服务无；skill 3 份；命令 13 条。",
+  "description": "开发套件：建仓与往 workspace 仓加插件、结构体检、开关隔离 home、把改动装进隔离 home 验证、发正式版，随包带写插件、发版与生态验收三份说明书",
   "type": "module",
   "exports": {
     ".": {
@@ -30,7 +30,7 @@
     "check": "pnpm run typecheck && pnpm run test",
     "prepublishOnly": "pnpm build"
   },
-  "//dependencies": "站那半的两条命令（docs-site.create / docfirst.attach）只按名字在命令总线上找——本包不依赖站件与 docfirst 件的任何包，那正是三者互不依赖的判据",
+  "//dependencies": "建文档站的两条命令（docs-site.create / docfirst.attach）只按名字在命令总线上找——本包不依赖站点插件与 docfirst 插件的任何包，三者互不依赖",
   "peerDependencies": {
     "@godcreator/gwb-kernel-desktop": "^0.4.0"
   },
@@ -43,8 +43,7 @@
     "@types/node": "^24.0.0",
     "cordis": "4.0.0-rc.10",
     "typescript": "^7.0.2",
-    "vitest": "^4.1.10",
-    "@godcreator/gwb-repo-kit": "workspace:*"
+    "vitest": "^4.1.10"
   },
   "repository": {
     "type": "git",

@@ -2,8 +2,8 @@
  * 这个站的 docfirst 配置：用哪个格式包、哪几区进 check、轨迹卡目录在哪、生成文件写到哪、组件规则表是什么。
  * 命令行和站读的是同一份。
  *
- * 项目根是这个站目录，引用的代码在 `plugins/devkit/`、`plugins/plugin-manager/`、`packages/repo-kit/`——
- * 引用里写 `../plugins/<目录>/…` 或 `../packages/<目录>/…`，按项目根拼路径，页面在哪个子目录都一样。
+ * 项目根是这个站目录，引用的代码在 `plugins/devkit/`、`plugins/plugin-manager/`——
+ * 引用里写 `../plugins/<目录>/…`，按项目根拼路径，页面在哪个子目录都一样。
  * 比较器不写死：仓里有 git 就用 git 比，没有就改用内容摘要比。
  *
  * 六区里只有 docs（现状）与 outputs（生成文件的正本）进 check——只有这两区的说法跟代码对应。

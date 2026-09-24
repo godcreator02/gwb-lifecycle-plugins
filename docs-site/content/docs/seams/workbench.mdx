@@ -74,7 +74,3 @@ devkit 的就绪日志从 `list()` 里筛出 `plugin` 等于包名 `@godcreator/
 两个插件都没有测试把 `apply` 跑在真实的服务上。插件管理的 `tests/commands.test.ts` 在假的上下文上运行 `apply`、按命令名调登记下来的处理函数；devkit 的 `tests/ready-log.test.ts` 用假的命令总线运行 `apply`，检查就绪日志列出的命令数等于登记时 `plugin` 写本包包名的命令数：
 
 {/* has file="../plugins/devkit/tests/ready-log.test.ts" text="列出总线上 plugin 是本包包名的全部命令" */}
-
-repo-kit 的自述守卫检查「源码里注入的服务名在文档站现状区出现过」，devkit 与插件管理的 `tests/self-report.test.ts` 都登记了它（见[仓侧检查 repo-kit](/docs/seams/repo-kit)）。
-
-{/* has file="../packages/repo-kit/tests/self-report.test.ts" text="inject 的服务没进站现状区：那条炸" */}

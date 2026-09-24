@@ -49,11 +49,11 @@ description: 17 条命令是插件管理唯一的调用方式；服务 gwbPlugin
 
 {/* ref file="../plugins/plugin-manager/src/index.ts" lines="272-291" */}
 
-**守住它的测试**：插件管理只取 cordis、loader、词汇表包和四个可选插件的类型，构建产物里一个包名 import 都不该有；包的 `description` 要写全服务、说明书、命令三项，注入的服务名要在这个目录的页面里写到。
+**守住它的测试**：插件管理只取 cordis、loader、词汇表包和四个可选插件的类型，构建产物里一个包名 import 都不该有；包清单 `gwb.provides` 里的 `gwbPluginManager` 一条要与源码提供的服务对得上，这条由 devkit 的发版前检查与 `devkit.audit-structure` 查，devkit 的测试也拿本仓的插件管理跑一遍。
 
 {/* has file="../plugins/plugin-manager/tests/artifact.test.ts" text="除了 node 内置模块，一个包名 import 都没有" */}
 
-{/* has file="../plugins/plugin-manager/tests/self-report.test.ts" text="registerSelfReportGuard" */}
+{/* has file="../plugins/devkit/tests/provides-declaration.test.ts" text="for (const short of ['devkit', 'plugin-manager'])" */}
 
 在假 ctx 上运行 `apply`、按命令名调处理函数的测试覆盖了各条命令的回执与参数校验（pnpm 换成假实现）：
 

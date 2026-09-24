@@ -1,5 +1,5 @@
 ---
-title: 5 模板与结构体检
+title: 4 模板与结构体检
 description: 连接建仓模板 template/ 与 devkit.audit-structure 的规则；模板是结构的正本，「模板生成的仓零发现」的往返测试保证两边一致；判断 workspace 布局的正则在 structure.ts 与 scaffold.ts 各写一份
 ---
 
@@ -12,7 +12,7 @@ description: 连接建仓模板 template/ 与 devkit.audit-structure 的规则�
 
 ## 接口
 
-两边之间没有函数调用，接口就是**模板生成的那棵目录树**：结构体检认的每一条（仓根 `private`、根 `build` 脚本含 `pnpm -r`、`pnpm-workspace.yaml` 有 `plugins/` 那一行、包名 `@godcreator/gwb-<短名>`、`export const name = 'gwb-<短名>'`、`files` 白名单、`prepublishOnly`、包内三份配置、浏览器侧的 `build.ts` 与 `src/client/tsconfig.json`），模板都得满足。规则见[结构体检](/docs/devkit/structure)，模板见[建仓](/docs/devkit/scaffold)。
+两边之间没有函数调用，接口就是**模板生成的那棵目录树**：结构体检认的每一条（仓根 `private`、根 `build` 脚本含 `pnpm -r`、`pnpm-workspace.yaml` 有 `plugins/` 那一行、包名 `@godcreator/gwb-<短名>`、`export const name = 'gwb-<短名>'`、`files` 白名单、`prepublishOnly`、包内三份配置、浏览器侧的 `build.ts` 与 `src/client/tsconfig.json`、`gwb.provides` 与源码对得上），模板都得满足。规则见[结构体检](/docs/devkit/structure)，模板见[建仓](/docs/devkit/scaffold)。
 
 **判断仓是不是 workspace 布局的正则写了两份**：结构体检用它认仓的形状，加插件用它拒绝旧布局的仓：
 
@@ -36,9 +36,9 @@ description: 连接建仓模板 template/ 与 devkit.audit-structure 的规则�
 
 ## 不负责的事
 
-- 结构体检不管依赖版本与 peer（`devkit.audit-deps` 与 `devkit.release`），不管自述的三项（[repo-kit](/docs/seams/repo-kit)），不管构建产物，也不查 peer 里内核包的范围
+- 结构体检不管依赖版本与 peer（`devkit.audit-deps` 与 `devkit.release`），不管构建产物，也不查 peer 里内核包的范围
 - 模板不保证生成的仓能直接 `devkit.release`：依赖版本过不过得了发版前检查，要看发版那时源上的 latest；peer 里内核包的范围，模板写的是建仓时运行命令的内核版本（见[兼容哪个内核](/docs/seams/kernel-peer)）。发版前检查里 `skipLibCheck: false` 的类型检查按模板的 `tsconfig.build.json`（只包含 `src/index.ts`）与 `src/client/tsconfig.json` 查，测试与 `build.ts` 不在其中；词汇表包 `@godcreator/gwb-plugin-api` 的 d.ts 引用了 `HTMLElement`，从 0.3.0 起它自己声明了 DOM 类型库，插件包 node 侧的 tsconfig 不带 DOM 类型库也能过
-- 往返测试不带文档站（`docs: false`），也不写插件页；结构体检本来也不进 `docs-site/`。插件页与自述检查的关系见[建仓与加插件](/docs/devkit/scaffold)
+- 往返测试不带文档站（`docs: false`），也不写插件页；结构体检本来也不进 `docs-site/`
 
 ## 测试
 

@@ -7,7 +7,7 @@ description: devkit.scaffold 把新插件的骨架写进一个新文件夹（wor
 
 ## 只有一种仓的布局
 
-workspace 仓：仓根是一个不发布的 private 包（`pnpm build` / `pnpm check` 递归到各成员，自己没有代码），插件放在 `plugins/<短名>/`，不是插件的包放在 `packages/`（repo-kit 那类仓里用的工具，按需）。**只有一个插件的仓不是另一种布局**，只是 `plugins/` 下恰好一个目录；加第二个插件永远是 `devkit.scaffold.plugin` 往 `plugins/` 再生成一个，不会出现「当初建小了、现在要迁移」的情况。插件包自带全部配置（src / tests / tsconfig / vitest / oxlint 配置全在包内），放在哪个仓里都一样。
+workspace 仓：仓根是一个不发布的 private 包（`pnpm build` / `pnpm check` 递归到各成员，自己没有代码），插件放在 `plugins/<短名>/`，不是插件的包放在 `packages/`（插件共用的库之类，按需）。**只有一个插件的仓不是另一种布局**，只是 `plugins/` 下恰好一个目录；加第二个插件永远是 `devkit.scaffold.plugin` 往 `plugins/` 再生成一个，不会出现「当初建小了、现在要迁移」的情况。插件包自带全部配置（src / tests / tsconfig / vitest / oxlint 配置全在包内），放在哪个仓里都一样。
 
 模板分三部分：`template/repo/` 生成仓根，`template/pkg/` 生成 `plugins/<短名>/`（插件包，**唯一正本**——建仓与加插件生成的是同一份，两条命令生成的格式一致靠这个保证），`template/site/plugin.mdx.tpl` 生成文档站现状区里的插件页 `docs-site/content/docs/plugins/<短名>.mdx`。还在用的旧布局仓（仓根就是插件包）不专门迁，改到哪个就迁哪个；`devkit.scaffold.plugin` 收到这种仓当场拒，报错里写着怎么迁。
 
@@ -96,25 +96,25 @@ workspace 仓：仓根是一个不发布的 private 包（`pnpm build` / `pnpm c
 
 {/* ref file="../plugins/devkit/src/index.ts" lines="659-660" */}
 
-## 插件页：让新仓第一次 `pnpm check` 就通过
+## 插件页
 
-模板插件的自述检查（repo-kit 的 `registerSelfReportGuard`）要求 `src/index.ts` 里 `inject` 的服务名出现在仓根文档站现状区的 `.mdx` 里；现状区一个 `.mdx` 都没有时这一项直接通过。建好站的新仓，现状区里只有站点插件和 docfirst 插件生成的几页，不会写到模板插件注入的 `gwbCommands`、`gwbShell`，没有插件页，第一次 `pnpm check` 就不过。
+建好站的新仓，现状区里只有站点插件和 docfirst 插件生成的几页，没有一页讲这个插件。建仓时顺带写一页插件页草稿，把模板改成真插件时照实际功能改写。
 
 插件页草稿写出插件名、包名、命令 `<短名>.ping`、窗格 `main` 与注入的两个服务，分功能、接口、依赖、不做的事四节。**只在仓根的文档站装好了六区时写**（判据是 `docs-site/docfirst.config.mjs` 在）：
 
 {/* ref file="../plugins/devkit/src/scaffold.ts" lines="313-327" */}
 
-没有站时自述检查那一项本来就通过，不用写；站只有骨架、六区还没装时不能写——`docfirst.attach` 只在没加过页的骨架上装得了，多一页它就拒绝。所以 `devkit.scaffold` 在建站两步之后才写：
+没有站时不写；站只有骨架、六区还没装时不能写——`docfirst.attach` 只在没加过页的骨架上装得了，多一页它就拒绝。所以 `devkit.scaffold` 在建站两步之后才写：
 
 {/* ref file="../plugins/devkit/src/index.ts" lines="687-690" */}
 
-`devkit.scaffold.plugin` 在写任何文件之前先查插件页在不在，在就拒，不覆盖。没写插件页的几种情况（没建站、只有骨架、六区没装成），`nextSteps` / `nextStepsPlugin` 都写明装好六区之后在哪个路径写插件页、至少写出哪些服务名。
+`devkit.scaffold.plugin` 在写任何文件之前先查插件页在不在，在就拒，不覆盖。没写插件页的几种情况（没建站、只有骨架、六区没装成），`nextSteps` / `nextStepsPlugin` 都写明装好六区之后在哪个路径写插件页、写哪几节。
 
 ## 怎么单独测
 
 给一份参数，看抛什么、算出什么；给一个临时目录，看磁盘上写下了什么。整个过程不启动进程、不开窗口，`tests/scaffold.test.ts` 直接测这几件事：
 
-短名的正则会不会放过 `x--` 这种结尾；`planScaffold` 的派生与缺省值；`planScaffoldPlugin` 对不存在的 repo、`pnpm-workspace.yaml` 里没有 `plugins/` 那条（旧布局仓）的拒绝；`docsBlock` 在建站与不建站时写的是两段不同的话；`nextSteps` / `nextStepsPlugin` 各种情况写了什么、`packages` 参数有没有带上；生成的 `package.json` 在 peer 里写了内核包 `^<运行命令的内核版本号>`、过得了发版前检查的比对，开发版内核只取 x.y.z 三段；认不出的占位符真的会抛错；`.tpl` 后缀与三部分的去向（`landRel`）对不对；包内 `template/` 里每个文件都声明了属于哪部分；生成的清单 peer 里有内核包、只在 node 侧按值 import 了 `cordis` 时才写 peer `cordis`，词汇表包版本与 devkit 自己的一致；构建脚本与产物测试从外壳清单的 `gwb.shared` 读名单、样式入口从外壳引令牌映射；产物测试的颜色类白名单从外壳的 `theme.reference.css` 与样式入口读色名，不手抄；插件页写出了模板插件 `inject` 的每个服务名；在临时 workspace 仓里真的生成一个 `plugins/<短名>/`；`writeRepo` 对已存在的目录真的拒绝。
+短名的正则会不会放过 `x--` 这种结尾；`planScaffold` 的派生与缺省值；`planScaffoldPlugin` 对不存在的 repo、`pnpm-workspace.yaml` 里没有 `plugins/` 那条（旧布局仓）的拒绝；`docsBlock` 在建站与不建站时写的是两段不同的话；`nextSteps` / `nextStepsPlugin` 各种情况写了什么、`packages` 参数有没有带上；生成的 `package.json` 在 peer 里写了内核包 `^<运行命令的内核版本号>`、过得了发版前检查的比对，开发版内核只取 x.y.z 三段；认不出的占位符真的会抛错；`.tpl` 后缀与三部分的去向（`landRel`）对不对；包内 `template/` 里每个文件都声明了属于哪部分；生成的清单 peer 里有内核包、只在 node 侧按值 import 了 `cordis` 时才写 peer `cordis`，词汇表包版本与 devkit 自己的一致；构建脚本与产物测试从外壳清单的 `gwb.shared` 读名单、样式入口从外壳引令牌映射；产物测试的颜色类白名单从外壳的 `theme.reference.css` 与样式入口读色名，不手抄；插件页写出插件名、包名、命令与显示名；生成的 `description` 是一句话、不带计数，生成的文件里没有已退役的 `gwb-repo-kit`；在临时 workspace 仓里真的生成一个 `plugins/<短名>/`；`writeRepo` 对已存在的目录真的拒绝。
 
 模板文件清单那一条最容易被忽略：`files` 白名单漏掉 `template`，包照样发得出去、也装得上，直到有人调 `devkit.scaffold` 才报「包内 template/ 不在」。
 
@@ -133,4 +133,4 @@ workspace 仓：仓根是一个不发布的 private 包（`pnpm build` / `pnpm c
 
 **读序**：先算计划，`placeholders` 与 `render` 把模板变成内存里的文件表，`landRel` 决定三部分各写到哪，`writeRepo` 写磁盘，`nextSteps` / `nextStepsPlugin` 生成回执末尾的下一步。建文档站在这之后，由 `index.ts` 经命令总线发出去；站装好六区之后 `pluginPageTarget` 给出插件页的位置，`writePluginPage` 写下去。
 
-**可跳过**：`template/` 下那 19 个 `.tpl` 是给别的仓用的内容，不是这部分的逻辑。要看模板长什么样就看那两个目录本身，这一页不抄。
+**可跳过**：`template/` 下那 17 个 `.tpl` 是给别的仓用的内容，不是这部分的逻辑。要看模板长什么样就看那两个目录本身，这一页不抄。

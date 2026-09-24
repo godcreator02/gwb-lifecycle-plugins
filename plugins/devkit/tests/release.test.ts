@@ -268,6 +268,8 @@ interface FakeOptions {
   latest?: Record<string, string>
   /** 按哪份 tsconfig 做的类型检查没过：键是 -p 后面那份 tsconfig，值是输出 */
   typecheckFails?: Record<string, string>
+  /** 包目录（相对仓根）→ 它 `src/` 下的源码文本 */
+  sources?: Record<string, string>
 }
 
 /** 一条 run 是不是类型检查；是的话回它查的那份 tsconfig */
@@ -294,6 +296,7 @@ function fake(options: FakeOptions = {}): ReleaseDeps & { calls: string[]; range
     platform: 'win32',
     readText: (file) => files[path.resolve(file)],
     exists: (target) => path.resolve(target) in files || target.endsWith('dist'),
+    sourceTextOf: (pkgDir) => options.sources?.[path.relative(REPO, pkgDir).replaceAll('\\', '/')] ?? '',
     async gitStatus(repoDir) {
       calls.push(`git status @${repoDir}`)
       if (options.gitError === true) return { ok: false, error: 'fatal: not a git repository' }
@@ -495,6 +498,33 @@ describe('发正式版', () => {
     })
     const shipped = await runRelease({ repoDir: REPO, runningKernel: KERNEL, packages: ['a'] }, right)
     expect(shipped.ok).toBe(true)
+  })
+
+  it('gwb.provides 与源码对不上：构建之后、发之前拒，库包（keywords 只有 gwb）也查；对上了照常发', async () => {
+    const wrong = fake({
+      files: {
+        [path.resolve(REPO, 'a/package.json')]: pluginManifestOf(A, '0.1.0', { provides: { gwbGone: { summary: '有', usage: '' } } }, { peerDependencies: KERNEL_PEER }),
+        [path.resolve(REPO, 'b/package.json')]: JSON.stringify({ name: B, version: '0.2.0', files: ['dist'], exports: EXPORTS, keywords: ['gwb'], gwb: { provides: { [`${B}/nope`]: { summary: '有', usage: '有' } } } }),
+      },
+      sources: { a: "super(ctx, 'gwbFake')" },
+    })
+    const refused = await runRelease({ repoDir: REPO, runningKernel: KERNEL, packages: ['a', 'b'] }, wrong)
+    expect(refused.ok).toBe(false)
+    if (refused.ok) return
+    expect(wrong.calls.some((one) => one.startsWith('publish'))).toBe(false)
+    expect(refused.error).toContain('2 个包 4 条')
+    expect(refused.error).toContain(`${A}@0.1.0:\n  - 源码提供服务 gwbFake，gwb.provides 里没有它`)
+    expect(refused.error).toContain('"gwbGone" 既不是源码提供的服务')
+    expect(refused.error).toContain('"gwbGone" 的 usage 是 ""')
+    expect(refused.error).toContain(`${B}@0.2.0:\n  - gwb.provides 里 "${B}/nope" 既不是源码提供的服务`)
+
+    const right = fake({
+      files: {
+        [path.resolve(REPO, 'a/package.json')]: pluginManifestOf(A, '0.1.0', { provides: { gwbFake: { summary: '有', usage: '有' }, [A]: { summary: '有', usage: '有' } } }, { peerDependencies: KERNEL_PEER }),
+      },
+      sources: { a: "super(ctx, 'gwbFake')" },
+    })
+    expect((await runRelease({ repoDir: REPO, runningKernel: KERNEL, packages: ['a'] }, right)).ok).toBe(true)
   })
 
   it('插件包 peer 里的内核包范围包含运行中的内核：照常发', async () => {
