@@ -59,7 +59,7 @@ devkit 保证：
 
 工作台服务保证：`register` 返回撤销函数、`list()` 的每一项带 `name` 与 `plugin`、`run` 回 `{ ok, data?, error? }`、`gwbNodeCli.register` 自己把登记放进调用方的 effect——这几条写在各服务包的类型声明与说明书里，两个插件只经类型检查对上，**运行时靠约定**。
 
-devkit 的就绪日志按 `plugin === 'devkit'` 从 `list()` 里筛自己的命令，而它登记命令时 `plugin` 写的是包名 `@godcreator/gwb-devkit`，这两处写法不一样：
+devkit 的就绪日志从 `list()` 里筛出 `plugin` 等于包名 `@godcreator/gwb-devkit` 的命令，与登记命令时写的 `plugin` 相同：
 
 {/* ref file="../plugins/devkit/src/index.ts" lines="891-900" */}
 
@@ -71,6 +71,10 @@ devkit 的就绪日志按 `plugin === 'devkit'` 从 `list()` 里筛自己的命�
 
 ## 测试
 
-两个插件都没有测试把 `apply` 跑在真实的服务上。repo-kit 的自述守卫检查「源码里注入的服务名在文档站现状区出现过」，devkit 与插件管理的 `tests/self-report.test.ts` 都登记了它（见[仓侧检查 repo-kit](/docs/seams/repo-kit)）。
+两个插件都没有测试把 `apply` 跑在真实的服务上。devkit 的 `tests/ready-log.test.ts` 用假的命令总线挂载 `apply`，检查就绪日志列出的命令数等于登记时 `plugin` 写本包包名的命令数：
+
+{/* has file="../plugins/devkit/tests/ready-log.test.ts" text="列出总线上 plugin 是本包包名的全部命令" */}
+
+repo-kit 的自述守卫检查「源码里注入的服务名在文档站现状区出现过」，devkit 与插件管理的 `tests/self-report.test.ts` 都登记了它（见[仓侧检查 repo-kit](/docs/seams/repo-kit)）。
 
 {/* has file="../packages/repo-kit/tests/self-report.test.ts" text="inject 的服务没进站现状区：那条炸" */}

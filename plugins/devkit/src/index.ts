@@ -893,7 +893,7 @@ export function apply(ctx: GwbContext): void {
   // 取决于那个件有没有先挂上——列的是此刻真在总线上的，那正是这行字的全部价值
   const mine = commands
     .list()
-    .filter((entry) => entry.plugin === 'devkit')
+    .filter((entry) => entry.plugin === '@godcreator/gwb-devkit')
     .map((entry) => entry.name)
   log.info(
     `开发套件就绪（此刻在总线上的 ${String(mine.length)} 条：${mine.join('、')}；手册挂在本件 skills/ 下，只挂自己那份）`,
