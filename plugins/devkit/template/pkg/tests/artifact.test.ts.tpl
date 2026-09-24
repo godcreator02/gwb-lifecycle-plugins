@@ -9,7 +9,7 @@ import { describe, expect, it } from 'vitest'
  *
  * 这个插件的产物分三样：node 侧 tsc 输出（index.js），浏览器侧 esbuild 输出（client.js），
  * 样式 tailwindcss 输出（style.css）。分别检查：node 侧相对 import 带 .js；包名 import 两侧各有
- * 放行名单（见下）；样式的类名全带前缀、var() 的 fallback 里没有写死的值。
+ * 放行名单（见下）；样式的类名全带前缀、var() 的 fallback 里没有写死的值、颜色类只用主题令牌。
  */
 const here = path.dirname(fileURLToPath(import.meta.url))
 const distDir = path.resolve(here, '../dist')
@@ -41,9 +41,10 @@ const BARE = /^import\s+(?:[^'"]*from\s*)?['"]([^'".][^'"]*)['"]/gm
 const CSS_COMMENT = /\/\*[\s\S]*?\*\//g
 /**
  * 一条规则的选择器：`{` 之前那段。**只在这一段里找类**——全文搜 `.xxx` 会把声明值里的
- * 小数（`0.25rem` 的 `.25rem`）也当成类选择器
+ * 小数（`0.25rem` 的 `.25rem`）也当成类选择器。前面的 `{` / `}` / `;` 用后行断言、不算进匹配：
+ * 算进去的话，`@media (hover: hover) {` 吃掉那个 `{`，嵌在里面的 `.x\:hover\:…:hover {` 就漏查了
  */
-const PRELUDE = /(?:^|[{};])([^{};]*)\{/g
+const PRELUDE = /(?<=^|[{};])([^{};]*)\{/g
 /** 一个类选择器。转义序列（`.{{cssPrefix}}\:flex` 里那个 `\:`）整体算进类名 */
 const CLASS_SELECTOR = /\.(?:\\.|[A-Za-z0-9_-])+/g
 /** 唯一放行的非前缀类：`.dark` 是页面级亮暗标志，只以祖先身份出现 */
@@ -158,6 +159,41 @@ function literalFallbacks(css: string): string[] {
   return bad
 }
 
+/**
+ * **颜色类只用主题令牌，不用 Tailwind 出厂调色板**（`bg-blue-500` 这类）：令牌的值全页一份、跟着外观设置变，
+ * 调色板的值写死在本插件里，换主题、切亮暗都不跟着变，也不报错。
+ * 放行的色名：外壳导出的 `theme.reference.css` 与本插件样式入口 `src/client/styles.css` 里 `--color-<名>:`
+ * 声明过的名字（后者是插件自己在 `@theme` 里登记的令牌），外加 CSS 关键字 transparent / inherit / current。
+ * 查的颜色类前缀是 text- / bg- / border- / from- / via- / to- / divide-。
+ */
+const COLOR_FAMILY = '(?:text|bg|border|from|via|to|divide)-'
+/** 这几个前缀后面跟的不一定是色名：字号与对齐（text-sm、text-center）、边侧与宽度（border-t、border-2） */
+const NOT_A_COLOR_NAME = /^(?:[bltrxy2](?:-\d+)?|\d|center|left|right|justify|start|end|xs|sm|base|lg|xl|2xl|3xl|4xl)$/
+const COLOR_KEYWORDS = ['transparent', 'inherit', 'current']
+
+function declaredColorNames(css: string): string[] {
+  return [...css.matchAll(/--color-([\w-]+)\s*:/g)].map((m) => m[1]!)
+}
+
+function allowedColorNames(): Set<string> {
+  const tokenMap = fs.readFileSync(createRequire(import.meta.url).resolve('@godcreator/gwb-shell/theme.reference.css'), 'utf8')
+  const ownEntry = fs.readFileSync(path.resolve(here, '../src/client/styles.css'), 'utf8')
+  return new Set([...COLOR_KEYWORDS, ...declaredColorNames(tokenMap), ...declaredColorNames(ownEntry)])
+}
+
+/** 用了放行名单之外色名的类选择器 */
+function paletteColorSelectors(css: string, allowed: Set<string>): string[] {
+  const bad = new Set<string>()
+  for (const selector of classSelectors(css)) {
+    for (const m of selector.matchAll(new RegExp(`(?:^|\\\\:)${COLOR_FAMILY}([\\w-]+)`, 'g'))) {
+      const name = m[1]!
+      if (NOT_A_COLOR_NAME.test(name)) continue
+      if (!allowed.has(name)) bad.add(selector)
+    }
+  }
+  return [...bad].sort()
+}
+
 describe.skipIf(!built)('产物', () => {
   const all = built ? fs.readdirSync(distDir).filter((f) => f.endsWith('.js')) : []
   const nodeSide = all.filter((f) => f !== CLIENT)
@@ -213,5 +249,9 @@ describe.skipIf(!built)('产物', () => {
   it('style.css 的 var() fallback 里没有写死的值——令牌的值全页一份，由外壳提供', () => {
     const bad = literalFallbacks(fs.readFileSync(path.join(distDir, 'style.css'), 'utf8')).sort()
     expect(bad).toEqual([])
+  })
+
+  it('style.css 的颜色类只用主题令牌——外壳 theme.reference.css 与本插件样式入口声明过的 --color-<名>，不用出厂调色板', () => {
+    expect(paletteColorSelectors(fs.readFileSync(path.join(distDir, 'style.css'), 'utf8'), allowedColorNames())).toEqual([])
   })
 })

@@ -35,6 +35,10 @@ description: importmap 只放整个页面必须只有一份的运行时代码，
 
 {/* ref file="../plugins/devkit/template/pkg/src/client/styles.css.tpl" lines="19-22" */}
 
+模板带的产物测试也从这份文件读名单：`style.css` 里 `text-` / `bg-` / `border-` / `from-` / `via-` / `to-` / `divide-` 开头的颜色类，色名只能是 `theme.reference.css` 或本插件样式入口里 `--color-<名>:` 声明过的令牌，外加 transparent / inherit / current；用了 Tailwind 出厂调色板（`bg-blue-500` 这类）就失败。调色板的值写死在插件里，换主题、切亮暗都不跟着变，也不报错：
+
+{/* ref file="../plugins/devkit/template/pkg/tests/artifact.test.ts.tpl" lines="162-195" */}
+
 ## 为什么
 
 importmap 是页面级的运行时服务，放什么由提供方声明、由内核在页面加载时计算。提供方限定为插件，提供方就一定是 home 里有条目的包、有人管它的升级；库没有条目，能进 importmap 只是因为它碰巧被装成了 home 的直接依赖。

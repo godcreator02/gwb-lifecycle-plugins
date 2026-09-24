@@ -399,6 +399,16 @@ describe('包内 template/：两区', () => {
     expect(artifactTest).toContain('bareImportsOf([CLIENT])')
   })
 
+  it('生成的产物测试查颜色类只用主题令牌：色名从外壳的 theme.reference.css 与本插件样式入口读，不手抄名单', () => {
+    const files = renderTemplate(TEMPLATE_ROOT, planScaffold({ name: 'hello', dir: 'D:\\tmp\\x', testedKernel: KERNEL }))
+    const artifactTest = files.find((f) => f.rel === 'plugins/hello/tests/artifact.test.ts')?.text ?? ''
+    expect(artifactTest).toContain("resolve('@godcreator/gwb-shell/theme.reference.css')")
+    expect(artifactTest).toContain("path.resolve(here, '../src/client/styles.css')")
+    expect(artifactTest).toContain('paletteColorSelectors(')
+    // 令牌色名一个都不许以字面量出现：名单只从外壳读
+    for (const token of ['muted-foreground', 'primary-foreground', 'destructive']) expect(artifactTest).not.toContain(`'${token}'`)
+  })
+
   it('生成的自述检查把 docsDir 指到仓根文档站的现状区，inject 那一条不会因为找不到站而跳过', () => {
     const repoDir = path.join(sandbox(), 'repo')
     const files = renderTemplate(TEMPLATE_ROOT, planScaffold({ name: 'hello', dir: repoDir, testedKernel: KERNEL }))
