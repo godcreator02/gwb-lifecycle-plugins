@@ -57,17 +57,19 @@ repo-kit 是一个库，不是插件（`keywords` 只写 `gwb`），不装进 ho
 
 扫服务名是按文本匹配，不解析语法：
 
-{/* ref file="../packages/repo-kit/src/self-report-guard.ts" lines="34-59" */}
+{/* ref file="../packages/repo-kit/src/self-report-guard.ts" lines="12-35" */}
 
 文档站现状区按 `docsDir` 递归读全部 `.mdx`；目录不存在或一个 `.mdx` 都没有时，「注入的服务名都写进文档」那一条直接通过：
 
-{/* ref file="../packages/repo-kit/src/self-report-guard.ts" lines="112-122" */}
+{/* ref file="../packages/repo-kit/src/self-report-guard.ts" lines="99-109" */}
+
+{/* ref file="../packages/repo-kit/src/self-report-guard.ts" lines="137-140" */}
 
 插件守卫的参数与 `mountHarness`：
 
-{/* ref file="../packages/repo-kit/src/plugin-guard.ts" lines="24-39" */}
+{/* ref file="../packages/repo-kit/src/plugin-guard.ts" lines="3-13" */}
 
-{/* ref file="../packages/repo-kit/src/plugin-guard.ts" lines="55-88" */}
+{/* ref file="../packages/repo-kit/src/plugin-guard.ts" lines="29-58" */}
 
 **使用方**：
 

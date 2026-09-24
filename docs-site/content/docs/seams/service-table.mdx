@@ -48,11 +48,11 @@ description: 连接 devkit.services、devkit.capabilities 与两样东西：cord
 
 ## 约定
 
-devkit 保证：这两条命令只读不写；读不到、形状不对的一格当没写，不让整条命令失败；cordis 结构认不出时回空表加说明，不抛错。
+devkit 保证：这两条命令只读不写；读不到、形状不对的字段当没写，不让整条命令失败；cordis 结构认不出时回空表加说明，不抛错。
 
 各包需要保证的：`gwb.provides` 里的 `summary` 与 `usage` 是非空字符串，写的就是真的。插件包这一条由 repo-kit 的自述守卫检查：`gwb.provides` 的键必须与源码提供的服务名互为充要（见[仓侧检查 repo-kit](/docs/seams/repo-kit)）：
 
-{/* ref file="../packages/repo-kit/src/self-report-guard.ts" lines="135-144" */}
+{/* ref file="../packages/repo-kit/src/self-report-guard.ts" lines="122-131" */}
 
 cordis 需要保证的：`fiber.store`、`fiber.entry`、`fiber.parent`、`registry.entries()`、`runtime.fibers`、`runtime.name` 这几个字段。它们不是 cordis 的文档化接口，**靠约定**：写在 `services.ts` 的文件头注释（按 4.0.0-rc.9 的字段写），没有测试拿真实的 cordis 核对，结构变了的表现是回执变成空表加 `note`。
 
