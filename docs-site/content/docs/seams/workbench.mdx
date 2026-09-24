@@ -49,7 +49,7 @@ devkit 源码里没有注入 `gwbSettings`，它没有设置项。
 
 devkit 保证：
 - 必需的服务只有 `gwbCommands`；`gwbNodeCli`、`gwbSkills`、`gwbShell` 缺了，只少对应的那条命令行工具、那三份说明书、那个显示名，devkit 照常加载
-- 每条命令的 `plugin` 写包名 `@godcreator/gwb-devkit`，`description` 与 `usage` 写出参数形状
+- 每条命令的 `plugin` 写包名 `@godcreator/gwb-devkit`，`description` 一句话说做什么，参数形状写在 `usage` 里
 - 只登记自己包里的说明书，不替别的插件登记
 
 插件管理保证：

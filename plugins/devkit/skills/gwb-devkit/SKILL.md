@@ -11,7 +11,7 @@ description: 写新插件、改插件、在隔离 home 里验证改动时读；�
 2. 带界面的插件，先读外壳的说明书 `skill.read {"name":"gwb-shell"}`
 3. 建仓：`devkit.scaffold {"name":"<kebab 短名>","dir":"<还不存在的绝对路径>","title":"<显示名>"}`；往已有的 workspace 仓再加一个插件用 `devkit.scaffold.plugin {"repo":"<仓根>","name":"<短名>"}`。照回执里的 `nextSteps` 做完（`docs.built` / `docs.attached` 是文档站实际建成没有）
 4. 把模板改成真插件，每一处都守「写插件的规矩」：
-   * `src/index.ts`：模板的 `<短名>.ping` 与窗格 `main` 换成真正的命令与窗格。命令照模板那条的写法登记：`plugin` 写包名，`description` 一句话说做什么，参数形状写进 `usage`，无参数写「无参数」
+   * `src/index.ts`：模板的 `<短名>.ping` 与窗格 `main` 换成真正的命令与窗格。命令照模板那条的写法登记：`name`、`description`、`usage` 都是非空字符串，`description` 一句话说做什么，参数形状写进 `usage`，无参数写「无参数」；`plugin` 可以不写（命令总线 0.5.0 起从调用方取），写了必须等于自己的完整包名。命令总线 0.5.0 起缺字段或 `plugin` 不对就在登记时抛错，插件加载失败
    * `tests/`：不启动进程、不开窗口就能测的逻辑抽成纯函数来测；真要启动子进程的用例打 `slow` 标签。模板带的 `tests/prefix.test.ts`（类名前缀）与 `tests/artifact.test.ts`（构建产物）不用改
    * `package.json`：peer 里内核包 `@godcreator/gwb-kernel-desktop` 的范围 `^x.y.z` 要包含验证时用的内核（模板写的是运行建仓命令的那个内核）；`description` 改成一句话说这个插件做什么；提供服务就在 `gwb.provides` 里按服务名写一条 `summary` 与 `usage`（源码提供的每个服务都要有，发版前检查与 `devkit.audit-structure` 都查）；有了 `skills/` 目录就把 `skills` 加进 `files`
    * 文档站的插件页 `docs-site/content/docs/plugins/<短名>.mdx`：照实际功能改写功能、接口、依赖、不做的事四节

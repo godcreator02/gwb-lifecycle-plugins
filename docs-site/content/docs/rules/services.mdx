@@ -77,10 +77,11 @@ export default class GwbExample extends Service {
 
 ## 登记命令
 
-- `plugin` 字段写包名
+- `name`、`description`、`usage` 都是非空字符串
 - `description` 一句话说命令做什么，MCP 入口的 `index` 列出它
 - 参数形状写进 `usage`（`{ entryId, enabled? }`），无参数就写「无参数」。`search` 命中的那一行带 `usage`；命令总线不带参数 schema，agent 知道参数怎么给只能看它
-- 这几条 devkit 不检查；登记时 `plugin` 不是包名、`description` 或 `usage` 为空由命令总线拒，这项检查在基础插件仓里做，还没发版
+- `plugin` 可以不写，命令总线从调用方取它的包名；写了就必须等于自己的完整包名
+- 命令总线 `gwbCommands` 0.5.0 起在登记时检查：`name`、`description`、`usage` 缺一或只有空白，`plugin` 与调用方的包名不同，都直接抛错，插件加载失败。devkit 不检查这几条；`usage` 写没写对参数形状，没有工具检查
 
 ## 几个坑
 

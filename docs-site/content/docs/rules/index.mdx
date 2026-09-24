@@ -43,9 +43,10 @@ description: 写 gwb 插件要守的规矩一条一行：做法在哪一页、�
 | 留着 `prepublishOnly: pnpm build`，`files` 白名单列全 | [依赖](/docs/rules/deps) | `devkit.audit-structure`（`prepublish-only`、`files-whitelist`，error）；`devkit.release` 照 `files` 验构建产物在不在 | — |
 | importmap 只放整个页面必须只有一份的运行时代码，提供方只能是插件 | [importmap](/docs/rules/importmap) | 一个包名有两个提供方时，内核计算 importmap 时全部拒绝；「只放单例」「提供方是插件」没有工具检查 | — |
 | 外置名单只从提供方读，不手抄 | [importmap](/docs/rules/importmap) | 没有工具检查；抄了 importmap 里没有的名字，`devkit.release` 的浏览器侧检查会拒 | — |
-| 扩展点服务继承 cordis 的 `Service`，注册随调用方卸载自动撤销 | [服务](/docs/rules/services) | 没有工具检查 | 命令总线 `gwbCommands` 0.4.6 改成继承 `Service`，还没发正式版 |
+| 扩展点服务继承 cordis 的 `Service`，注册随调用方卸载自动撤销 | [服务](/docs/rules/services) | 没有工具检查 | 外壳 `gwbShell` 与命令总线 `gwbCommands` 0.4.6 起继承 `Service` |
 | 扩展点用服务，数据读写和动作用命令，同一能力只提供一种调用方式 | [服务](/docs/rules/services) | 没有工具检查 | — |
-| 命令的 `plugin` 写包名，`description` 一句话说做什么，参数形状写进 `usage`，无参数写「无参数」 | [服务](/docs/rules/services) | 没有工具检查；`usage` 写没写对参数形状也没有 | 命令总线登记时拒 `plugin` 不是包名、`description` 或 `usage` 为空的检查在基础插件仓里做，还没发版 |
+| 命令的 `name`、`description`、`usage` 都是非空字符串：`description` 一句话说做什么，参数形状写进 `usage`，无参数写「无参数」；`plugin` 可以不写，写了必须等于自己的完整包名 | [服务](/docs/rules/services) | 命令总线 `gwbCommands` 0.5.0 起登记时检查，缺字段、只有空白、`plugin` 与调用方的包名不同都直接抛错，插件加载失败；`plugin` 不写由命令总线从调用方取；`usage` 写没写对参数形状没有工具检查 | — |
+| 窗格的 `client` / `style` 从插件自己的模块地址算（`new URL('./client.js', import.meta.url).href`），是路径以 `.js` / `.css` 结尾的 `file://` 地址 | 说明书 `gwb-shell` | 外壳 `gwbShell` 0.13.6 起 `registerPane` 登记时检查，不合格直接抛错 | — |
 | `gwb.provides` 里源码提供的每个服务都有一条；每个键是源码提供的服务名，或本包 `exports` 里的 import 说明符（主入口写包名，子路径写 `包名/子路径`）；`summary`、`usage` 不空 | [服务](/docs/rules/services) | `keywords` 含 `gwb` 或 `gwb-plugin` 的包：`devkit.release` 拒；`devkit.audit-structure` 报 `provides-declaration`（error） | — |
 | `gwbKernel` 用 `requireKernel` 取、不写进 `inject`；不写 `instanceof Service`；类的私有字段用 TS `private` | [服务](/docs/rules/services) | 没有工具检查 | — |
 | 插件之间只通过服务和命令交互，不 import 别的插件 | [交互](/docs/rules/interaction) | `devkit.release` 拒构建产物按值 import 别的插件（上面「包名 import」那一条）；只 import 类型不受影响 | — |
