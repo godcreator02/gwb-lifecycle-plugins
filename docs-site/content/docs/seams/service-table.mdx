@@ -27,9 +27,9 @@ description: 连接 devkit.services 与 home 里各包的 .d.ts：它扫调用�
 
 {/* ref file="../plugins/devkit/src/services.ts" lines="55-66" */}
 
-**谁是提供方**：在同一个包的 `.d.ts` 里找这个类型名的定义（`interface`、`class`、`type` 别名，连同紧挨在前面的文档注释），找到就是提供方；`import type { X } from '…'` 只是引用，找不到定义的包记进 `declaredAlsoBy`：
+**谁是提供方**：在同一个包的 `.d.ts` 里找这个类型名的定义（从行首写起的 `interface`、`class`、`type` 别名，连同紧挨在前面的文档注释），找到就是提供方；`import type { X }`、`import { type X }` 只是引用，找不到定义的包记进 `declaredAlsoBy`：
 
-{/* ref file="../plugins/devkit/src/services.ts" lines="72-93" */}
+{/* ref file="../plugins/devkit/src/services.ts" lines="72-98" */}
 
 {/* ref file="../plugins/devkit/src/services.ts" lines="103-129" */}
 
