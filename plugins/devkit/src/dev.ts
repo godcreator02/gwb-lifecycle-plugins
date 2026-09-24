@@ -261,14 +261,20 @@ export interface RunPlan {
 }
 
 /**
- * pnpm 不自动补装缺的 peer：插件的 peer 写别的插件，home 里没装那个插件时补装进来，就成了一个没有条目、插件管理也不知道的包。
- * 命令行参数 `--config.auto-install-peers=false` 关不掉，环境变量关得掉（probes/2609242300_peer-between-plugins）
+ * 在 home 里运行的 pnpm 不自动补装缺的 peer：插件的 peer 写别的插件，home 里没装那个插件时补装进来，就成了一个没有条目、插件管理也不知道的包。
+ * 命令行参数 `--config.auto-install-peers=false` 关不掉，环境变量关得掉（probes/2609242300_peer-between-plugins）。
+ * 插件仓里不能带：仓里开发靠自动补装把 peer 里的内核包与插件装进 node_modules，带上它 pnpm 会按新配置重装、把这些 peer 拿掉，构建找不到类型
  */
-export const PNPM_ENV: Readonly<Record<string, string>> = { pnpm_config_auto_install_peers: 'false' }
+export const HOME_PNPM_ENV: Readonly<Record<string, string>> = { pnpm_config_auto_install_peers: 'false' }
 
-/** 直接启动 pnpm 的原生可执行文件（`locatePnpm` 找到并核对过版本的那个），不经 shell */
+/** 直接启动 pnpm 的原生可执行文件（`locatePnpm` 找到并核对过版本的那个），不经 shell；用在插件仓、临时目录这些不是 home 的地方 */
 export function pnpmPlan(args: string[], cwd: string, pnpm: string): RunPlan {
-  return { command: pnpm, args, cwd, env: { ...PNPM_ENV } }
+  return { command: pnpm, args, cwd }
+}
+
+/** 同 `pnpmPlan`，在 home 里运行：带上 `HOME_PNPM_ENV` */
+export function homePnpmPlan(args: string[], home: string, pnpm: string): RunPlan {
+  return { command: pnpm, args, cwd: home, env: { ...HOME_PNPM_ENV } }
 }
 
 export interface DevDeps {
@@ -463,7 +469,7 @@ async function installIntoHome(
     const written = deps.writeText(manifestFile, pinnedText)
     if (!written.ok) return { ok: false, error: `写不进 ${manifestFile}:${written.error}`, data: { shipped } }
   }
-  const installed = await deps.run(pnpmPlan(['install'], target.home, deps.pnpm), ADD_TIMEOUT_MS)
+  const installed = await deps.run(homePnpmPlan(['install'], target.home, deps.pnpm), ADD_TIMEOUT_MS)
   if (!installed.ok) {
     // 留着「声明了新版本号、磁盘上是旧版本」的清单，下一个在这个 home 里运行 pnpm 的人会不明不白地装上它
     const restored = pinnedText === original ? { ok: true as const } : deps.writeText(manifestFile, original)

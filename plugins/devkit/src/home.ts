@@ -1,5 +1,5 @@
 import path from 'node:path'
-import { pnpmPlan, type RunPlan } from './dev.js'
+import { homePnpmPlan, type RunPlan } from './dev.js'
 import { KERNEL_PACKAGE } from './kernel-compat.js'
 import { isRecord } from './vocab.js'
 import { bareImage, type ProcessProbe } from './probes.js'
@@ -275,7 +275,7 @@ export function baseYaml(): string {
 
 /** 在 home 里运行 `pnpm add <args…>` 的命令行：直接启动 pnpm 的原生可执行文件，不自动补装缺的 peer */
 function pnpmAddPlan(home: string, addArgs: string[], pnpm: string): RunPlan {
-  return pnpmPlan(['add', ...addArgs], home, pnpm)
+  return homePnpmPlan(['add', ...addArgs], home, pnpm)
 }
 
 /** 装内核包：精确版本带 `--save-exact`。清单里已有 `^` 声明时 pnpm 12 照样写回 `^`、退出码 0 却装上更新的版本（probes/2609241510_pnpm-add-exact-prefix），所以只用在清单里还没有这一项的新 home 上，装完核对版本 */

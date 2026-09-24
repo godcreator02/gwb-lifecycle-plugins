@@ -39,8 +39,8 @@ description: plugins/devkit/AGENTS.md 由这一页生成——每次会话都得
   `tests/kernel-compat-parity.test.ts` 对照两份），**改规则时两份在同一个提交里一起改**
 - 插件 peer 里写的别的插件两边也都用：插件管理在 `list` 里报 `unmetPeers`、`update-all` 把 peer 写了被升级包的插件一起重新加载，
   `devkit.release` 发版前拒 peer 里不是插件的包、和源上 latest 不在同一条线的插件
-- **两边启动 pnpm 一律带环境变量 `pnpm_config_auto_install_peers=false`**（devkit 的 `PNPM_ENV`、插件管理的 `spawnPlan`）：
-  不带的话 pnpm 把插件 peer 里 home 没装的插件自动装进 `.pnpm`，成了没有条目、插件管理不认的包；
+- **在 home 里启动 pnpm 一律带环境变量 `pnpm_config_auto_install_peers=false`**（devkit 的 `homePnpmPlan`、插件管理的 `spawnPlan`），在插件仓里不带——仓里开发靠自动补装把 peer 里的内核包与插件装进 `node_modules`，带上它 pnpm 会重装并拿掉这些 peer。
+  home 里不带的话，pnpm 把插件 peer 里 home 没装的插件自动装进 `.pnpm`，成了没有条目、插件管理不认的包；
   命令行参数 `--config.auto-install-peers=false` 会被 pnpm 忽略，别拿它代替
 
 放在同一个仓里，这些地方一个提交就能改两边。插件管理的设计、命令与机制在文档站 `content/docs/plugin-manager/`，

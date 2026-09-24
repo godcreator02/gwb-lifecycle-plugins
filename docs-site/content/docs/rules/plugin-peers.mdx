@@ -39,9 +39,9 @@ peer 的意思是「运行时从 home 里得到这个包」。插件的 peer 因
 
 ## pnpm 不自动补装缺的 peer
 
-pnpm 默认把 home 里没装的 peer 自动装进 `node_modules/.pnpm`：它不写进 home 的 `package.json`、没有条目，插件管理也不认它，只是写 peer 的插件能 import 到它。devkit 与插件管理启动 pnpm 时一律带环境变量 `pnpm_config_auto_install_peers=false`；命令行参数 `--config.auto-install-peers=false` 会被 pnpm 忽略，只有环境变量或 home 的 `pnpm-workspace.yaml` 里的 `autoInstallPeers: false` 关得掉。缺了的 peer 由人装，`list` 的 `unmetPeers` 把它报出来。
+pnpm 默认把 home 里没装的 peer 自动装进 `node_modules/.pnpm`：它不写进 home 的 `package.json`、没有条目，插件管理也不认它，只是写 peer 的插件能 import 到它。devkit 与插件管理在 home 里启动 pnpm 时一律带环境变量 `pnpm_config_auto_install_peers=false`；插件仓里不关，仓里开发正是靠自动补装把 peer 里的内核包与插件装进 `node_modules`、拿到类型的；命令行参数 `--config.auto-install-peers=false` 会被 pnpm 忽略，只有环境变量或 home 的 `pnpm-workspace.yaml` 里的 `autoInstallPeers: false` 关得掉。缺了的 peer 由人装，`list` 的 `unmetPeers` 把它报出来。
 
-{/* ref file="../plugins/devkit/src/dev.ts" lines="263-272" */}
+{/* ref file="../plugins/devkit/src/dev.ts" lines="263-278" */}
 
 {/* ref file="../plugins/plugin-manager/src/pnpm-path.ts" lines="7-16" */}
 

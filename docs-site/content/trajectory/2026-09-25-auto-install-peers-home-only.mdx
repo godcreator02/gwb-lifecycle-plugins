@@ -1,0 +1,22 @@
+---
+title: 关掉 pnpm 自动补装 peer 只能在 home 里关，插件仓里一关构建就找不到类型
+born-at: 2026-09-25T00:10
+type: pitfall
+parent: [2026-09-24-plugins-peer-each-other]
+label: 仓里不关自动补装
+domain: 生态规范
+---
+
+## 背景
+
+插件之间改写 peer 后，devkit 所有启动 pnpm 的地方都带上了环境变量 `pnpm_config_auto_install_peers=false`，包括插件仓里的 `pnpm build`。插件仓的 `package.json` 里，内核包与用到的插件只写在 peer、不再写 dev，开发时它们是 pnpm 按默认的自动补装装进仓的 `node_modules` 的。
+
+## 碰到了什么
+
+在隔离 home `kernel05-2609242251` 里调 `devkit.release` 发插件管理 0.9.0 与 devkit 0.18.15，第一步仓根 `pnpm build` 就失败，一个包都没发：两个包都报 `Cannot find module '@godcreator/gwb-kernel-desktop'`，插件管理另报找不到命令总线、数据、设置、说明书四个插件的类型。原因：带着这个环境变量运行 `pnpm build` 时，pnpm 发现配置与装依赖时不同，按新配置重装了一遍依赖，自动补装进来的 peer 全被拿掉。之后在仓根不带这个变量运行一次 `pnpm install`，peer 又装回来，构建与检查恢复正常。
+
+## 结论
+
+这个环境变量只在 home 里用：devkit 拆成两个函数，`homePnpmPlan` 带它，用在 `home.new` 的 `pnpm add` 与 `dev` 在 home 里的 `pnpm install`；`pnpmPlan` 不带，用在插件仓里的 build、publish 与临时目录里的 view。插件管理的 pnpm 都在 home 里运行，照旧一律带。
+
+没选的另一条路：把 peer 里的插件在 dev 里再写一遍，仓里就不靠自动补装。这样每个插件都要把同一批包写两份、两份的范围还要保持一致，而仓里自动补装本来就是 pnpm 的默认行为，没有要关的理由。

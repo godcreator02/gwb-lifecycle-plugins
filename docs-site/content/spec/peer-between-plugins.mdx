@@ -16,7 +16,7 @@ description: 插件用到别的插件（服务、命令、样式令牌）就在 
 - [x] 发版检查：peer 里每个 `@godcreator` 插件的范围要和源上 `latest` 在同一条线（0.x 比 x，≥1 比主版本号；不在同一条线就是上游出了破坏版，先适配）；内核包的范围照旧要包含运行中的内核；peer 里出现插件、`cordis`、内核包以外的包就拒
 - [x] 插件管理 `list`：每个包报 home 里没满足的 peer（没装、版本不在范围里）；只报告，不拦加载、不拦安装
 - [x] 插件管理 `update-all`：升级了某个包，home 里 peer 写了它的插件的条目一起重新加载，回执里列出来
-- [ ] home 里不会自动补装缺的 peer：插件管理、`devkit.home.new`、`devkit.dev` 与 `INSTALL.md` 的手工步骤都关掉 pnpm 的自动补装（插件管理与 devkit 两处已做，差内核仓 `INSTALL.md`）
+- [x] home 里不会自动补装缺的 peer：插件管理、`devkit.home.new`、`devkit.dev` 与 `INSTALL.md` 的手工步骤都关掉 pnpm 的自动补装（插件仓里不关）
 - [x] 模板：用到的插件（命令总线、外壳）从 dev 挪到 peer
 - [ ] 隔离 home 实测：升级一个被 peer 的插件后，写 peer 的插件换到新目录并在运行；home 里缺一个 peer 时不会被自动装上，`list` 报出来
 
@@ -67,7 +67,7 @@ description: 插件用到别的插件（服务、命令、样式令牌）就在 
 
 **第二步：内核仓**
 
-- [ ] `INSTALL.md` 的手工装包步骤关掉自动补装
+- [x] `INSTALL.md` 的手工装包步骤关掉自动补装（内核仓 aac483d）
 
 **第三步：各插件仓**
 

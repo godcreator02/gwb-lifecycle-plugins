@@ -39,7 +39,7 @@ description: 连接 devkit 与插件管理：devkit.dev 经 CDP 在目标页面�
 
 **三、`devkit.dev` 自己改目标 home 的清单。** 把这次发的准确版本号写进目标 home 的 `package.json`，再在那个 home 里运行 `pnpm install`（和插件管理同一个 pnpm），装完读 `node_modules/<包>/package.json` 核对版本；失败时把清单改回原样。不用 `plugin-manager.install`，因为它对已装的包会再加一条条目：
 
-{/* ref file="../plugins/devkit/src/dev.ts" lines="443-482" */}
+{/* ref file="../plugins/devkit/src/dev.ts" lines="449-488" */}
 
 ## 约定
 

@@ -18,6 +18,7 @@ import {
   parseManifest,
   pinExact,
   pnpmPlan,
+  homePnpmPlan,
   runDev,
   samePath,
   type DevDeps,
@@ -242,12 +243,12 @@ describe('日志', () => {
 })
 
 describe('pnpm 的命令行', () => {
-  it('直接启动找到的那个 pnpm 可执行文件，不经 shell', () => {
-    expect(pnpmPlan(['add', 'x'], 'D:/h', PNPM)).toMatchObject({ command: PNPM, args: ['add', 'x'], cwd: 'D:/h' })
+  it('直接启动找到的那个 pnpm 可执行文件，不经 shell；在插件仓里运行不改 pnpm 的配置，peer 照 pnpm 默认自动装进仓的 node_modules', () => {
+    expect(pnpmPlan(['build'], 'D:/repo', PNPM)).toEqual({ command: PNPM, args: ['build'], cwd: 'D:/repo' })
   })
 
-  it('pnpm 不自动补装缺的 peer：带上关掉它的环境变量', () => {
-    expect(pnpmPlan(['install'], 'D:/h', PNPM).env).toEqual({ pnpm_config_auto_install_peers: 'false' })
+  it('在 home 里运行的 pnpm 不自动补装缺的 peer：带上关掉它的环境变量', () => {
+    expect(homePnpmPlan(['install'], 'D:/h', PNPM)).toEqual({ command: PNPM, args: ['install'], cwd: 'D:/h', env: { pnpm_config_auto_install_peers: 'false' } })
   })
 })
 
