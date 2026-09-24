@@ -1,27 +1,6 @@
 import fs from 'node:fs'
 import path from 'node:path'
 
-/**
- * 建仓与加插件的纯逻辑：校验短名与目标目录，把包内 `template/` 渲染好、写到磁盘。
- *
- * **只有一种仓的布局：workspace。** 仓根是不发布的 private 包（`pnpm build` / `pnpm check` 递归到成员，
- * 自己没有代码），插件放在 `plugins/<短名>/`，不是插件的包放在 `packages/`（repo-kit 那类仓里用的工具，按需）。
- * 只有一个插件的仓不是另一种布局，只是 plugins/ 下恰好一个目录；加第二个插件永远是
- * `devkit.scaffold.plugin` 往 plugins/ 再生成一个。
- *
- * 短名派生出全部名字：包名 `@godcreator/gwb-<短名>`、插件名（`export const name`）`gwb-<短名>`、
- * 命令名 `<短名>.<动作>` 的前半。
- *
- * 模板文件一律带 `.tpl` 后缀，写到磁盘时去掉：`npm pack` 不打包 `.gitignore`（固定行为），一条
- * 规则管所有文件。模板分三部分：`repo/` 生成仓根，`pkg/` 生成 `plugins/<短名>/`（插件包，**唯一正本**——
- * 建仓与加插件生成的是同一份），`site/plugin.mdx.tpl` 生成文档站现状区里的插件页。
- * 写磁盘之前整套先在内存里渲染完——目标目录一旦开始写就没有干净的回滚点，而占位符出错
- * 是最可能的失败。
- *
- * 建仓时文档站在插件文件写到磁盘之后才建，两步（`index.ts` 经命令总线交给站点插件与 docfirst 插件）；
- * 站装好六区之后再写插件页。加插件不建站，仓里已有装好六区的站时写插件页。
- */
-
 /** 短名：kebab-case。段之间只许一个连字符、结尾不许有连字符——宽松的写法会放过 `x--`，生成的包名就一直带着它 */
 export const NAME_RE = /^[a-z][a-z0-9]*(?:-[a-z0-9]+)*$/
 
@@ -37,10 +16,7 @@ export const REPO_ZONE = 'repo'
 /** 模板的插件包部分：生成 `plugins/<短名>/`。建仓与加插件生成的是同一份，两种仓的插件包格式一致靠这个 */
 export const PKG_ZONE = 'pkg'
 
-/**
- * 模板的插件页部分：只有 `plugin.mdx.tpl` 一个文件，写到仓根文档站现状区的 `plugins/<短名>.mdx`。
- * 文档站由别的插件生成，这一页要等站生成完、六区装好之后才写，所以不随另外两部分一起写
- */
+/** 模板的插件页部分：只有 `plugin.mdx.tpl` 一个文件，等文档站生成完、六区装好之后才写 */
 export const SITE_ZONE = 'site'
 
 /** 插件页模板在 `template/` 下的相对路径 */
@@ -50,7 +26,7 @@ export interface ScaffoldInput {
   name: string
   dir: string
   title?: string
-  /** 连文档站一起建吗。**缺省建**——人记得事后补第二条命令的概率，跟容器里那一堆仓至今没有站是同一个概率 */
+  /** 连文档站一起建吗。缺省建 */
   docs?: boolean
   /** 文档站端口。不给就由站点插件的 `docs-site.create` 自己选（跳过别的站已占用的，从 4310 起找空位） */
   port?: number
@@ -69,11 +45,7 @@ export interface ScaffoldPlan {
   pluginName: string
   /** 转成绝对路径之后的目标目录 */
   dir: string
-  /**
-   * 这次建不建站。**建站的知识不在本包**：插件文件写到磁盘之后经命令总线交出去，两步
-   * （站点插件 `docs-site.create` 生成骨架 → docfirst 插件 `docfirst.attach` 装六区）。
-   * 本包不依赖那两个插件的任何包，只按名字在命令总线上找那两条命令
-   */
+  /** 这次建不建站。建站经命令总线按名字交给站点插件与 docfirst 插件，本包不依赖它们的包 */
   docs: boolean
   /** 站端口，没指定就是 undefined（由站点插件选，本包不猜一个写进 README） */
   port: number | undefined
@@ -114,12 +86,7 @@ export interface RenderedFile {
   text: string
 }
 
-/**
- * 本包的根（那个有 package.json 的目录）。
- *
- * **向上找而不是写死相对层数**：跑源码时这个模块在 `src/`，跑构建产物时是 `dist/index.js`
- * ——两种情况到包根的层数不一样，找 package.json 两种都对。
- */
+/** 本包的根。向上找 package.json、不写死层数：从源码运行时本模块在 `src/`，从构建产物运行时在 `dist/` */
 export function packageRoot(from: string = import.meta.dirname): string | null {
   let dir = from
   for (;;) {
@@ -130,20 +97,26 @@ export function packageRoot(from: string = import.meta.dirname): string | null {
   }
 }
 
-/**
- * 校验入参并派生出整份计划。**报错要说得出该怎么改**——这条命令的主要调用方是 agent，
- * 命令总线不带参数形状，它认得出自己错在哪全靠这句话。
- */
-export function planScaffold(input: ScaffoldInput): ScaffoldPlan {
-  const name = input.name.trim()
+/** 报错要写出该怎么改：命令总线不带参数形状，调用方只能靠报错认出自己错在哪 */
+function validShortName(rawName: string): string {
+  const name = rawName.trim()
   if (!NAME_RE.test(name)) {
-    throw new Error(`name 要是 kebab-case（${String(NAME_RE)}），实得 ${JSON.stringify(input.name)}`)
+    throw new Error(`name 要是 kebab-case（${String(NAME_RE)}），实得 ${JSON.stringify(rawName)}`)
   }
+  return name
+}
+
+function titleOrShortName(title: string | undefined, name: string): string {
+  return title !== undefined && title.trim() !== '' ? title.trim() : name
+}
+
+export function planScaffold(input: ScaffoldInput): ScaffoldPlan {
+  const name = validShortName(input.name)
   const rawDir = input.dir.trim()
   if (rawDir === '') throw new Error('dir 是必给的：目标目录的绝对路径，且必须还不存在')
   // 只在这一处转成绝对路径：调用方给相对路径时，「相对谁」得有个明确的答案
   const dir = path.resolve(rawDir)
-  const title = input.title !== undefined && input.title.trim() !== '' ? input.title.trim() : name
+  const title = titleOrShortName(input.title, name)
   const port = input.port
   if (port !== undefined && (!Number.isInteger(port) || port < 1024 || port > 65535)) {
     throw new Error(`port 要是 1024–65535 的整数，实得 ${String(port)}`)
@@ -160,16 +133,9 @@ export function planScaffold(input: ScaffoldInput): ScaffoldPlan {
   }
 }
 
-/**
- * 校验加插件的参数并派生计划。**这一步要读磁盘**（`planScaffold` 不读）：repo 必须已经是
- * workspace 仓才收——`pnpm-workspace.yaml` 在、packages 里有 `plugins/` 那条。旧布局的仓
- * （仓根就是插件包）过不了这条，报错里写清怎么迁，而不是把插件放进一个用不了的布局。
- */
+/** 要读磁盘：repo 必须已经是 workspace 仓（`pnpm-workspace.yaml` 的 packages 里有 `plugins/` 那条），旧布局仓报错里写清怎么迁 */
 export function planScaffoldPlugin(input: ScaffoldPluginInput): ScaffoldPluginPlan {
-  const name = input.name.trim()
-  if (!NAME_RE.test(name)) {
-    throw new Error(`name 要是 kebab-case（${String(NAME_RE)}），实得 ${JSON.stringify(input.name)}`)
-  }
+  const name = validShortName(input.name)
   const rawRepo = input.repo.trim()
   if (rawRepo === '') throw new Error('repo 是必给的：薄壳仓根的绝对路径（pnpm-workspace.yaml 住的那层）')
   const repoDir = path.resolve(rawRepo)
@@ -184,10 +150,9 @@ export function planScaffoldPlugin(input: ScaffoldPluginInput): ScaffoldPluginPl
         '老裸根单件仓（仓根即包根）加件前先迁成薄壳：件包 git mv 进 plugins/<短名>/、根换 private 壳（照 devkit 仓的样子），再来',
     )
   }
-  const title = input.title !== undefined && input.title.trim() !== '' ? input.title.trim() : name
   return {
     name,
-    title,
+    title: titleOrShortName(input.title, name),
     pkg: `${SCOPE}/gwb-${name}`,
     pluginName: `gwb-${name}`,
     repoDir,
@@ -196,12 +161,7 @@ export function planScaffoldPlugin(input: ScaffoldPluginInput): ScaffoldPluginPl
   }
 }
 
-/**
- * README 里讲文档站的那段。**别写一个不存在的站**——建了讲怎么运行，没建讲怎么补一个。
- *
- * 端口只在人指定过的时候才写死：不指定时由站点插件选，本包猜一个写进 README，
- * 读者照着输入的那条 `pnpm dev` 就是错的。
- */
+/** README 里讲文档站的那段：建了讲怎么运行，没建讲怎么补。端口只在人指定过时写出来，不指定时由站点插件选 */
 export function docsBlock(plan: ScaffoldPlan): string {
   const siteDir = path.join(plan.dir, 'docs-site')
   if (!plan.docs) {
@@ -253,8 +213,7 @@ function corePlaceholders(plan: Placeholdable): Record<string, string> {
     title: plan.title,
     pkg: plan.pkg,
     pkgName: plan.pluginName,
-    // 样式类前缀：短名去掉非小写字母。Tailwind 4 的 prefix() 只收 a-z，短名里有连字符或数字
-    // 就报错（build 时才报，check 照样全绿——实验 2026-09-15 实测）；带连字符的短名只用于包名与命令名
+    // 样式类前缀：短名去掉非小写字母。Tailwind 4 的 prefix() 只收 a-z，有连字符或数字时 build 才报错，check 照样全绿
     cssPrefix: plan.name.replace(/[^a-z]/g, ''),
     testedKernel: plan.testedKernel,
   }
@@ -265,10 +224,7 @@ export function placeholders(plan: ScaffoldPlan): Record<string, string> {
   return { ...corePlaceholders(plan), docsBlock: docsBlock(plan) }
 }
 
-/**
- * 一份模板正文 → 写到磁盘的正文。**认不出的占位符直接抛错**：留一个 `{{typo}}` 在生成的仓里，
- * 它会一直留在别人的 package.json 里，那时已经没人知道它本来该是什么。
- */
+/** 认不出的占位符直接抛错：留在生成的仓里的 `{{typo}}` 没人知道它本来该是什么 */
 export function render(text: string, values: Record<string, string>): string {
   return text.replace(/\{\{(\w+)\}\}/g, (_whole, key: string) => {
     const value = values[key]
@@ -282,11 +238,7 @@ export function targetRel(rel: string): string {
   return rel.endsWith(TEMPLATE_SUFFIX) ? rel.slice(0, -TEMPLATE_SUFFIX.length) : rel
 }
 
-/**
- * 模板相对路径 → 写到磁盘的相对路径（相对仓根）。`repo/` 写到仓根、`pkg/` 写到 `plugins/<短名>/`、
- * `site/plugin.mdx.tpl` 写到文档站现状区的 `plugins/<短名>.mdx`。**不属于这三处的文件直接抛错**——
- * 模板里每个文件都得声明写到哪，没声明的写下去就是一堆没人认领的文件。
- */
+/** 模板相对路径 → 写到磁盘的相对路径（相对仓根）。不属于 `repo/`、`pkg/`、`site/plugin.mdx.tpl` 的文件直接抛错 */
 export function landRel(rel: string, pluginName: string): string {
   if (rel.startsWith(`${PKG_ZONE}/`)) {
     return `plugins/${pluginName}/${targetRel(rel.slice(PKG_ZONE.length + 1))}`
@@ -302,22 +254,19 @@ export function landRel(rel: string, pluginName: string): string {
 
 /** 递归列出模板目录下的所有文件，回相对 root 的路径（正斜杠） */
 export function listTemplateFiles(root: string): string[] {
-  const out: string[] = []
+  const templateFiles: string[] = []
   const walk = (dir: string, prefix: string): void => {
     for (const entry of fs.readdirSync(dir, { withFileTypes: true }).sort((a, b) => a.name.localeCompare(b.name))) {
       const rel = prefix === '' ? entry.name : `${prefix}/${entry.name}`
       if (entry.isDirectory()) walk(path.join(dir, entry.name), rel)
-      else out.push(rel)
+      else templateFiles.push(rel)
     }
   }
   walk(root, '')
-  return out
+  return templateFiles
 }
 
-/**
- * 仓根与插件包两部分一起渲染成内存里的文件表，插件页不在内（`renderPluginPage`）。任何一处占位符出错，
- * 这一步整个抛错，磁盘还没动过
- */
+/** 仓根与插件包两部分先整套渲染在内存里，占位符出错在写磁盘之前就抛；插件页另由 `renderPluginPage` 渲染 */
 export function renderTemplate(templateRoot: string, plan: ScaffoldPlan): RenderedFile[] {
   const values = placeholders(plan)
   const repoAndPackageFiles = listTemplateFiles(templateRoot).filter((rel) => !rel.startsWith(`${SITE_ZONE}/`))
@@ -327,11 +276,7 @@ export function renderTemplate(templateRoot: string, plan: ScaffoldPlan): Render
   }))
 }
 
-/**
- * 只渲染插件包部分（`pkg/`），rel 相对插件包根——往已有的 workspace 仓加插件用。
- * 仓根部分（`repo/`）是建仓时的事，加插件不碰：仓根、workspace 配置、文档站都已经在磁盘上，
- * 这次只新建 `plugins/<短名>/` 一个目录（`writeRepo` 检查它必须还不存在）。插件页另由 `renderPluginPage` 渲染。
- */
+/** 往已有的 workspace 仓加插件：只渲染插件包部分（`pkg/`），rel 相对插件包根 */
 export function renderPlugin(templateRoot: string, plan: Placeholdable): RenderedFile[] {
   const values = corePlaceholders(plan)
   return listTemplateFiles(path.join(templateRoot, PKG_ZONE)).map((rel) => ({
@@ -340,7 +285,7 @@ export function renderPlugin(templateRoot: string, plan: Placeholdable): Rendere
   }))
 }
 
-/** 写到磁盘。目标目录必须还不存在——建仓与加插件都是一次性动作，往已有目录里写文件没有干净的回滚点 */
+/** 目标目录必须还不存在：往已有目录里写文件没有干净的回滚点 */
 export function writeRepo(dir: string, files: RenderedFile[]): void {
   if (fs.existsSync(dir)) throw new Error(`目标目录已经存在，不覆盖任何东西：${dir}`)
   fs.mkdirSync(dir, { recursive: true })
@@ -356,10 +301,7 @@ export function pluginPageRel(name: string): string {
   return `docs-site/content/docs/plugins/${name}.mdx`
 }
 
-/**
- * 渲染插件页的起稿，rel 相对仓根。页里写出插件名、包名、命令、窗格与 `inject` 的服务名：
- * 自述检查要求 `inject` 的服务名出现在文档站现状区里，没有这一页，建好站的新仓第一次 `pnpm check` 就不过。
- */
+/** 插件页草稿，rel 相对仓根。页里写出 `inject` 的服务名：自述检查要求它们出现在文档站现状区里 */
 export function renderPluginPage(templateRoot: string, plan: Placeholdable): RenderedFile {
   return {
     rel: landRel(PLUGIN_PAGE_TEMPLATE, plan.name),
@@ -368,9 +310,8 @@ export function renderPluginPage(templateRoot: string, plan: Placeholdable): Ren
 }
 
 /**
- * 插件页写到哪（绝对路径）。仓根的文档站装好了六区（`docs-site/docfirst.config.mjs` 在）才写，否则回 null：
- * 没有站就没有现状区，自述检查的 inject 那一项本来就跳过；只有骨架的站不能写，`docfirst.attach`
- * 只在没加过页的骨架上装得了，多一页它就拒绝。
+ * 仓根的文档站装好了六区（`docs-site/docfirst.config.mjs` 在）才写，否则回 null。
+ * 只有骨架的站不能写：`docfirst.attach` 只在没加过页的骨架上装得了
  */
 export function pluginPageTarget(repoDir: string, name: string): string | null {
   if (!fs.existsSync(path.join(repoDir, 'docs-site', 'docfirst.config.mjs'))) return null
@@ -385,12 +326,8 @@ export function writePluginPage(target: string, page: RenderedFile): void {
 }
 
 /**
- * 生成的仓建好之后，下一步做什么。回执里带着它，调用方不用再问一遍。
- *
- * `site` 说的是**站真的建起来了没有**，不是计划里想不想建：站点插件没装、`docs-site.create`
- * 自己失败，两种都算「骨架没生成」——回执里给一条不存在的 `cd docs-site` 比不给还坏。
- * 骨架生成了而六区没装（docfirst 插件没装、attach 失败）是第三种情况：那时站在磁盘上，
- * 但 `pnpm doc` 那几条脚本还不存在，插件页也没写。
+ * `site` 是站实际建成了没有，不是计划里想不想建：给一条不存在的 `cd docs-site` 比不给还坏。
+ * 骨架生成了而六区没装是第三种情况：站在磁盘上，但 `pnpm doc` 那几条脚本还没有，插件页也没写
  */
 export function nextSteps(
   plan: ScaffoldPlan,
@@ -436,10 +373,7 @@ export function nextSteps(
   return steps
 }
 
-/**
- * 加完一个插件之后，下一步做什么。`pageTarget` 是这次写下的插件页（绝对路径），仓里没有装好六区的
- * 文档站、没写时是 null。README 里的插件清单由写文档的人更新，最后一步提醒。
- */
+/** `pageTarget` 是这次写下的插件页（绝对路径），没写时是 null */
 export function nextStepsPlugin(plan: ScaffoldPluginPlan, pageTarget: string | null): string[] {
   const pageStep =
     pageTarget === null
