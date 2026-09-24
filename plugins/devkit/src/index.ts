@@ -2,7 +2,7 @@ import fs from 'node:fs'
 import path from 'node:path'
 import type { GwbContext } from '@godcreator/gwb-plugin-api'
 import { isRecord, requireKernel } from './vocab.js'
-// 只为激活对方包里的 declare module 'cordis'——ctx 上那几个名字的类型从那儿来
+// 只为引入对方包里的 declare module 'cordis'：ctx 上那几个服务名的类型从那里来
 import type {} from '@godcreator/gwb-commands'
 import type {} from '@godcreator/gwb-node-cli'
 import type {} from '@godcreator/gwb-shell'
@@ -48,56 +48,17 @@ import { homesRootOf } from '../bin/cdp.mjs'
 export const name = 'gwb-devkit'
 export const inject = ['gwbCommands']
 
-/**
- * 铺 fumadocs 骨架那条命令，由**站件** `@godcreator/gwb-docs-site` 提供。
- *
- * **本包不依赖它**——只在命令总线上按名字找。找不到就是这个 home 没装站件，跳过铺站、
- * 在回执里说清怎么补，绝不因此让建仓失败。
- */
+/** 生成 fumadocs 骨架的命令，站点插件 `@godcreator/gwb-docs-site` 提供。本包不依赖它，只在命令总线上按名字找 */
 const CREATE_SITE_COMMAND = 'docs-site.create'
 
-/**
- * 在骨架上装配六区那条命令，由 **docfirst 件** `@godcreator/gwb-docfirst-workflow` 提供。
- * 同样只认名字、不依赖包。**只在刚铺好的骨架上装得了**：站里已经有内容它会自己拒。
- */
+/** 在骨架上装六区的命令，docfirst 插件 `@godcreator/gwb-docfirst-workflow` 提供。只在刚生成的骨架上装得了 */
 const ATTACH_SITE_COMMAND = 'docfirst.attach'
 
-/**
- * 开发套件。六件事，全服务同一个理由——「在新文件夹里开发新件」这条路的地基：
- *
- * - **建仓**：`devkit.scaffold` 把一个新件的骨架落进一个新文件夹（站那半经命令总线
- *   转给站件与 docfirst 件，两步）。**只有一种仓形**：薄壳 workspace——根壳 +
- *   `plugins/<短名>/` 件包；「单件仓」只是 plugins/ 下恰好一个目录
- * - **加件**：`devkit.scaffold.plugin` 往既有薄壳仓的 `plugins/` 再铺一个件包，
- *   落的是建仓时同一份件包模板——格式统一靠同一份正本，不靠纪律
- * - **结构体检**：`devkit.audit-structure` 只读地回答一个仓（或全生态）离标准形多远。
- *   规则正本仍是 scaffold 模板——round-trip 测试「模板产物零 findings」焊着两边
- * - **手册**：`skills/gwb-devkit/SKILL.md` 随件分发，经 gwb-skills 挂载。**只挂自己那份**
- *   ——知识随件走，docfirst 的两份归 docfirst 件自己挂（说明书是全局单一命名空间，
- *   代挂第二份只会撞名，而且撞掉的那份很可能是旧版）
- * - **home**：测试 home 的开/列/重开/删（`devkit.home.*`）——实机验证那几步的
- *   命令化（一次验开一个新 home、清理放在开新那一刻）。起 home 拉**宿主自己那个 exe**
- *   （日常就是安装版），不 build 内核、不认内核仓——内核源码的验机归内核仓自己的路
- *
- * - **改一版看一版**：`devkit.dev` 一条走完「构建 → 发开发版 → 装进隔离 home → 重挂 →
- *   刷新 → 取证」。**这条命令住控制台那个 home，操作另一个 home**：换件那一步要把条目
- *   停用再启用，工具自己跑在目标里就会把自己停掉
- *
- * - **发正式版**：`devkit.release` 从仓根把包按序发到团队源（tag latest）。号在仓里抬、
- *   git 树不干净就拒、只碰源不碰任何 home——没有自停问题，从哪个 home 调都行
- *
- * 外加一条经 `gwbNodeCli` 登记的外部 CLI：`devkit.cdp`（在一个工作台页面里动手，
- * 从取证到点按拖拽都是它；在页面里跑代码是它的 `eval` 动作）。
- *
- * `apply` 里只剩接线；建仓的校验、渲染、落盘在 `scaffold.ts`；home 的时序在 `home.ts`、
- * 改一版看一版那条链在 `dev.ts`、进程探测的纯机在 `probes.ts`（皆纯机，可单测），
- * 真机器的盘与进程在 `node-probe-deps.ts` / `node-home-deps.ts` / `node-dev-deps.ts`。
- */
+// 下面几段参数说明在参数不对时连同报错一起回
 
-/** `devkit.scaffold` 的参数说明。参数错的时候连它一起回——错误即文档 */
 const SCAFFOLD_USAGE = [
   'devkit.scaffold 的参数：',
-  // 规则从 NAME_RE 现取，不在这儿手抄一份——抄的那份必然跟真源漂开
+  // 规则从 NAME_RE 取，不在这里抄一份
   `  name   必给，短名，kebab-case（${String(NAME_RE)}）。它派生出包名 @godcreator/gwb-<短名>、插件名 gwb-<短名>、命令名 <短名>.<动作> 的前半`,
   '  dir    必给，目标目录的绝对路径，必须还不存在（存在就拒，不覆盖任何东西）。落下去只有一个仓形：薄壳 workspace——根壳 + plugins/<短名>/ 件包',
   '  title  可选，显示名，缺省用 name',
@@ -106,7 +67,6 @@ const SCAFFOLD_USAGE = [
   '例：{"name":"hello","dir":"D:\\\\tmp\\\\hello","title":"打个招呼"}',
 ].join('\n')
 
-/** `devkit.scaffold.plugin` 的参数说明。参数错的时候连它一起回——错误即文档 */
 const SCAFFOLD_PLUGIN_USAGE = [
   'devkit.scaffold.plugin 的参数：',
   `  name   必给，短名，kebab-case（${String(NAME_RE)}）。派生规则同 devkit.scaffold`,
@@ -116,7 +76,6 @@ const SCAFFOLD_PLUGIN_USAGE = [
   '例：{"repo":"D:\\\\tmp\\\\hello","name":"world","title":"第二件"}',
 ].join('\n')
 
-/** `devkit.audit-structure` 的参数说明。参数错的时候连它一起回——错误即文档 */
 const STRUCTURE_USAGE = [
   'devkit.audit-structure 的参数：',
   '  dir   可选，单仓的绝对路径——只体检这一个仓',
@@ -129,7 +88,6 @@ const STRUCTURE_USAGE = [
   '例：{"dir":"D:\\\\unitfolders\\\\evew5-gwbapps\\\\gwb-block-note"}',
 ].join('\n')
 
-/** home 命令的参数说明。参数错的时候连它一起回——错误即文档 */
 const HOME_USAGE = [
   'home 命令的参数：',
   '  devkit.home.new  { short 必给（kebab-case 短名） }——开 <short>-<yyMMddHHmm> 的新 home。拉宿主安装版起窗、自动装底座七件，调试口自动挑',
@@ -142,7 +100,6 @@ const HOME_USAGE = [
   '之后从它的 runtime.json 里查。端口没有语义，敲错一位就落在另一个现场。',
 ].join('\n')
 
-/** `devkit.dev` 的参数说明。参数错的时候连它一起回——错误即文档 */
 const DEV_USAGE = [
   'devkit.dev 的参数：',
   '  home      必给，目标 home 名。**这儿不收端口**：口从那个 home 的 runtime.json 里查，顺带验活',
@@ -157,7 +114,6 @@ const DEV_USAGE = [
   '后者停用条目那一下会把正在跑的这条命令自己停掉。换 devkit 自己：发正式版，再 plugin-manager.update-all',
 ].join('\n')
 
-/** `devkit.release` 的参数说明。参数错的时候连它一起回——错误即文档 */
 const RELEASE_USAGE = [
   'devkit.release 的参数：',
   '  dir       必给，仓根的绝对路径。git 守卫与构建都在这儿跑',
@@ -170,75 +126,87 @@ const RELEASE_USAGE = [
   '例：{"dir":"D:\\\\unitfolders\\\\evew5-gwbapps\\\\gwb-block-note","packages":["packages/model","packages/engine","packages/client","plugins/gwb-bn-core","plugins/gwb-bn-comment"]}',
 ].join('\n')
 
+type CommandBus = NonNullable<GwbContext['gwbCommands']>
+type Logger = ReturnType<GwbContext['logger']>
+
+/** 各段命令登记共用的东西 */
+interface Wiring {
+  ctx: GwbContext
+  log: Logger
+  commands: CommandBus
+  /** 命令总线上此刻有没有这条命令。每次现问、不缓存：插件是热加载的，装一个新插件答案当场就变 */
+  hasCommand(command: string): boolean
+  homeDeps: HomeDeps
+}
+
 export function apply(ctx: GwbContext): void {
   const log = ctx.logger(name)
   const bus = ctx.gwbCommands
   if (bus === undefined) {
-    // export const inject 在，理论上走不到这儿；走到就直说，别让命令面无声地空着
+    // export const inject 在，理论上走不到这里；走到就直说，别让命令表不声不响地空着
     log.warn('gwbCommands 服务不在（inject 没生效？）——命令一条没挂')
     return
   }
-
-  /**
-   * 收窄过的那份总线引用。**函数声明会提升**——提升到 undefined 判断之前的那几个函数体里，
-   * `bus` 仍然是可空的；这个 const 求值在判断之后，类型就是收窄好的那个。
-   */
-  const commands = bus
-
-  /**
-   * 总线上现在有没有这条命令。**现问、不缓存**：件是热挂载的，装一个新件之后这个答案
-   * 当场就变，缓存下来只会得到一份「装了却说没装」的假象。
-   */
-  function hasCommand(command: string): boolean {
-    return commands.list().some((entry) => entry.name === command)
+  const wiring: Wiring = {
+    ctx,
+    log,
+    commands: bus,
+    hasCommand: (command) => bus.list().some((entry) => entry.name === command),
+    homeDeps: {
+      fs: homeFs,
+      spawn: makeGuiSpawn((message) => log.warn(message)),
+      appSpawnPlan: makeAppSpawnPlan(),
+      run: runCaptured,
+      processName,
+      portOwner,
+      kill,
+      sleep: (ms) => new Promise((resolve) => setTimeout(resolve, ms)),
+      now: () => Date.now(),
+      execPath: process.execPath,
+      env: process.env,
+      platform: process.platform,
+    },
   }
 
-  // ── home 那半 ──────────────────────────────────────────────────────────────
+  registerHomeCommands(wiring)
+  registerServiceCommands(wiring)
+  describeSelfToShell(ctx)
+  registerCdpCli(ctx)
+  registerDevCommand(wiring)
+  registerReleaseCommand(wiring)
+  registerAuditDepsCommand(wiring)
+  registerAuditStructureCommand(wiring)
+  registerScaffoldCommand(wiring)
+  registerScaffoldPluginCommand(wiring)
+  registerOwnSkills(ctx)
+  logReady(wiring)
+}
 
-  const homeDeps: HomeDeps = {
-    fs: homeFs,
-    spawn: makeGuiSpawn((message) => log.warn(message)),
-    appSpawnPlan: makeAppSpawnPlan(),
-    run: runCaptured,
-    processName,
-    portOwner,
-    kill,
-    sleep: (ms) => new Promise((resolve) => setTimeout(resolve, ms)),
-    now: () => Date.now(),
-    execPath: process.execPath,
-    env: process.env,
-    platform: process.platform,
-  }
+// ── 测试 home ────────────────────────────────────────────────────────────────
 
-
-  /**
-   * 这一趟起 home 用哪个调试口。**自动定，定不出来就不起**——名字是唯一的地址之后，
-   * 没有调试口的 home 等于起完就够不着；那不是「少一个可选项」，是起了个用不上的东西。
-   *
-   * **人给不了这个口**：自动那条先沿用这个 home 上次那个、被占了才另挑，比手给一个准；
-   * 收下一个手给的口，剩下的全部用法就只有「敲错一位落在别人口上」。换没换在回执里说
-   * 一句，不然人会以为口没变。
-   */
-  async function cdpFor(
-    root: string,
-    name: string,
-  ): Promise<{ ok: true; cdp: number; note?: string } | { ok: false; error: string }> {
-    const picked = await pickCdpPort(root, homeDeps, name)
-    if (picked === undefined) {
-      return {
-        ok: false,
-        error: `从 ${String(CDP_PORT_BASE)} 往上找了 ${String(CDP_PORT_TRIES)} 个口，一个空的都没有——这台机器上是不是攒了一堆没停的 home（devkit.home.list）`,
-      }
-    }
+/** 调试端口自动选，选不出来就不启动：只按名字找 home 之后，没有调试端口的 home 启动完就连不上。换了端口回执里说一句 */
+async function cdpPortFor(
+  root: string,
+  homeName: string,
+  homeDeps: HomeDeps,
+): Promise<{ ok: true; cdp: number; note?: string } | { ok: false; error: string }> {
+  const picked = await pickCdpPort(root, homeDeps, homeName)
+  if (picked === undefined) {
     return {
-      ok: true,
-      cdp: picked.port,
-      ...(picked.reused ? {} : { note: `调试口 ${String(picked.port)}（上次那个被占着或者还没有，另挑的）` }),
+      ok: false,
+      error: `从 ${String(CDP_PORT_BASE)} 往上找了 ${String(CDP_PORT_TRIES)} 个口，一个空的都没有——这台机器上是不是攒了一堆没停的 home（devkit.home.list）`,
     }
   }
+  return {
+    ok: true,
+    cdp: picked.port,
+    ...(picked.reused ? {} : { note: `调试口 ${String(picked.port)}（上次那个被占着或者还没有，另挑的）` }),
+  }
+}
 
+function registerHomeCommands({ ctx, log, commands, homeDeps }: Wiring): void {
   ctx.effect(() =>
-    bus.register(
+    commands.register(
       {
         name: 'devkit.home.new',
         plugin: '@godcreator/gwb-devkit',
@@ -251,15 +219,15 @@ export function apply(ctx: GwbContext): void {
         const short = asHomeName(args.short)
         if (short === undefined) return { ok: false, error: `short 缺了或不是 kebab-case。\n${HOME_USAGE}` }
         const root = homesRootOf()
-        let name: string
+        let homeName: string
         try {
-          name = nextName(short, homeDeps.now(), (candidate) => homeDeps.fs.exists(path.join(root, candidate)))
+          homeName = nextName(short, homeDeps.now(), (candidate) => homeDeps.fs.exists(path.join(root, candidate)))
         } catch (err) {
           return { ok: false, error: String(err instanceof Error ? err.message : err) }
         }
-        const port = await cdpFor(root, name)
+        const port = await cdpPortFor(root, homeName, homeDeps)
         if (!port.ok) return { ok: false, error: port.error }
-        const outcome = await launchHome({ name, homesRoot: root, cdp: port.cdp, base: true }, homeDeps)
+        const outcome = await launchHome({ name: homeName, homesRoot: root, cdp: port.cdp, base: true }, homeDeps)
         if (!outcome.ok) {
           log.warn(`home.new 没成：${outcome.error}`)
           return outcome
@@ -271,7 +239,7 @@ export function apply(ctx: GwbContext): void {
   )
 
   ctx.effect(() =>
-    bus.register(
+    commands.register(
       {
         name: 'devkit.home.open',
         plugin: '@godcreator/gwb-devkit',
@@ -280,16 +248,16 @@ export function apply(ctx: GwbContext): void {
       },
       async (args) => {
         if (!isRecord(args)) return { ok: false, error: `参数要是个对象。\n${HOME_USAGE}` }
-        const name = asHomeName(args.name)
-        if (name === undefined) return { ok: false, error: `name 缺了或不是 kebab-case。\n${HOME_USAGE}` }
+        const homeName = asHomeName(args.name)
+        if (homeName === undefined) return { ok: false, error: `name 缺了或不是 kebab-case。\n${HOME_USAGE}` }
         const root = homesRootOf()
-        if (!homeDeps.fs.exists(path.join(root, name))) {
-          return { ok: false, error: `${path.join(root, name)} 不在——没有这个 home（看 devkit.home.list）` }
+        if (!homeDeps.fs.exists(path.join(root, homeName))) {
+          return { ok: false, error: `${path.join(root, homeName)} 不在——没有这个 home（看 devkit.home.list）` }
         }
-        const port = await cdpFor(root, name)
+        const port = await cdpPortFor(root, homeName, homeDeps)
         if (!port.ok) return { ok: false, error: port.error }
         const outcome = await launchHome(
-          { name, homesRoot: root, cdp: port.cdp },
+          { name: homeName, homesRoot: root, cdp: port.cdp },
           homeDeps,
         )
         if (!outcome.ok) {
@@ -303,7 +271,7 @@ export function apply(ctx: GwbContext): void {
   )
 
   ctx.effect(() =>
-    bus.register(
+    commands.register(
       {
         name: 'devkit.home.rm',
         plugin: '@godcreator/gwb-devkit',
@@ -313,9 +281,9 @@ export function apply(ctx: GwbContext): void {
       },
       async (args) => {
         if (!isRecord(args)) return { ok: false, error: `参数要是个对象。\n${HOME_USAGE}` }
-        const name = asHomeName(args.name)
-        if (name === undefined) return { ok: false, error: `name 缺了或不是 kebab-case。\n${HOME_USAGE}` }
-        const outcome = await removeHome(path.join(homesRootOf(), name), name, args.force === true, homeDeps)
+        const homeName = asHomeName(args.name)
+        if (homeName === undefined) return { ok: false, error: `name 缺了或不是 kebab-case。\n${HOME_USAGE}` }
+        const outcome = await removeHome(path.join(homesRootOf(), homeName), homeName, args.force === true, homeDeps)
         if (outcome.ok) log.info(`devkit.home.rm：${outcome.note}`)
         else log.warn(`devkit.home.rm 没成：${outcome.note}`)
         return outcome.ok ? { ok: true, data: outcome } : { ok: false, error: outcome.note }
@@ -324,7 +292,7 @@ export function apply(ctx: GwbContext): void {
   )
 
   ctx.effect(() =>
-    bus.register(
+    commands.register(
       { name: 'devkit.home.list', plugin: '@godcreator/gwb-devkit', description: '列出全部测试 home 与各自的口', usage: '名字（带时间戳）、谁还在跑、CDP 口、MCP 门（mcp 格；老 home 的 command-http 格照报当线索）。无参数' },
       async () => {
         const root = homesRootOf()
@@ -332,11 +300,45 @@ export function apply(ctx: GwbContext): void {
       },
     ),
   )
+}
 
-  // 「谁提供这个服务」——问 cordis 自己的 reflect 表，答案现算（理由在 services.ts）；
-  // 用法那半从各包自带的 gwb.provides 声明 join 进来——真相在各自的 package.json 里，这儿不抄
+// ── 能用什么 ──────────────────────────────────────────────────────────────────
+
+async function readHomePackageManifest(homeDir: string, pkg: string): Promise<unknown> {
+  try {
+    return JSON.parse(await fs.promises.readFile(path.join(homeDir, 'node_modules', pkg, 'package.json'), 'utf8')) as unknown
+  } catch {
+    return undefined
+  }
+}
+
+async function homeDependencyNames(homeDir: string): Promise<string[]> {
+  try {
+    const homeManifest: unknown = JSON.parse(await fs.promises.readFile(path.join(homeDir, 'package.json'), 'utf8'))
+    const dependencies = isRecord(homeManifest) ? homeManifest['dependencies'] : undefined
+    return isRecord(dependencies) ? Object.keys(dependencies) : []
+  } catch {
+    // home 清单读不到：import 段是空表，inject 段照常
+    return []
+  }
+}
+
+/** inject 段是运行时现问的服务表，import 段是 home 已装包的入口；用法都取自各包自己的 gwb.provides */
+async function capabilitiesOf(ctx: GwbContext): Promise<unknown> {
+  const homeDir = requireKernel(ctx).dataDir
+  const readManifest = (pkg: string): Promise<unknown> => readHomePackageManifest(homeDir, pkg)
+  const injectable = await joinProvides(serviceSight(ctx).owners, readManifest)
+  const faces = await importFacesOf(await homeDependencyNames(homeDir), (pkg) => readManifest(pkg))
+  return {
+    inject: injectable,
+    import: faces,
+    commands: '件暴露的命令面不在这儿重复——search {"plugin":"<包名>"} 按件查，那是命令的家',
+  }
+}
+
+function registerServiceCommands({ ctx, commands }: Wiring): void {
   ctx.effect(() =>
-    bus.register(
+    commands.register(
       {
         name: 'devkit.services',
         plugin: '@godcreator/gwb-devkit',
@@ -346,20 +348,13 @@ export function apply(ctx: GwbContext): void {
       },
       async () => {
         const sight = serviceSight(ctx)
-        const home = requireKernel(ctx).dataDir
-        const services = await joinProvides(sight.owners, async (pkg) => {
-          try {
-            return JSON.parse(await fs.promises.readFile(path.join(home, 'node_modules', pkg, 'package.json'), 'utf8')) as unknown
-          } catch {
-            return undefined
-          }
-        })
-        const owners = sight.owners
+        const homeDir = requireKernel(ctx).dataDir
+        const services = await joinProvides(sight.owners, (pkg) => readHomePackageManifest(homeDir, pkg))
         return {
           ok: true,
           data: {
             services,
-            ...(owners.length === 0
+            ...(sight.owners.length === 0
               ? {
                   note: `运行时没给出服务表——看见的东西：自己的 fiber 链 ${String(sight.saw.chainDepth)} 层、件 ${String(sight.saw.runtimes)} 个、fiber ${String(sight.saw.fibers)} 条、服务表 ${String(sight.saw.stores)} 张。全是 0 说明这个 ctx 上没有 cordis 的 fiber/registry；有 fiber 而表是 0 张，多半是 cordis 换了形状`,
                   saw: sight.saw,
@@ -371,36 +366,8 @@ export function apply(ctx: GwbContext): void {
     ),
   )
 
-  // 「开发一个新插件能基于什么」的单一入口：inject 面 + import 面 + 一句指路。事实
-  // （入口/身份/shared/d.ts）现算自各包 package.json，意图（怎么接）是 gwb.provides
-  const capabilitiesData = async (): Promise<unknown> => {
-    const home = requireKernel(ctx).dataDir
-    const readManifest = async (pkg: string): Promise<unknown> => {
-      try {
-        return JSON.parse(await fs.promises.readFile(path.join(home, 'node_modules', pkg, 'package.json'), 'utf8')) as unknown
-      } catch {
-        return undefined
-      }
-    }
-    const inject = await joinProvides(serviceSight(ctx).owners, readManifest)
-    let deps: string[] = []
-    try {
-      const homeManifest: unknown = JSON.parse(await fs.promises.readFile(path.join(home, 'package.json'), 'utf8'))
-      const dependencies = isRecord(homeManifest) ? homeManifest['dependencies'] : undefined
-      if (isRecord(dependencies)) deps = Object.keys(dependencies)
-    } catch {
-      // home 清单读不到：import 段空表，inject 段照常——两条腿互不拖
-    }
-    const faces = await importFacesOf(deps, (pkg) => readManifest(pkg))
-    return {
-      inject,
-      import: faces,
-      commands: '件暴露的命令面不在这儿重复——search {"plugin":"<包名>"} 按件查，那是命令的家',
-    }
-  }
-
   ctx.effect(() =>
-    bus.register(
+    commands.register(
       {
         name: 'devkit.capabilities',
         plugin: '@godcreator/gwb-devkit',
@@ -408,22 +375,23 @@ export function apply(ctx: GwbContext): void {
         usage:
           '无参数。回 { inject, import, commands } 三段。inject：这台 home 现挂的 cordis 服务，带各包 gwb.provides 自述（要接一面照 usage 写）。import：home 已装包逐个列——身份（件/库/第三方）、import 时写的入口说明符、d.ts 路径（符号级看原文，命令不摘抄）、importmap 外置名（shared，react 系那种）与意图自述。commands：指 search。事实现算不抄；没声明的入口照样列、只是少一句人话',
       },
-      async () => ({ ok: true, data: await capabilitiesData() }),
+      async () => ({ ok: true, data: await capabilitiesOf(ctx) }),
     ),
   )
+}
 
-  // **本件没有浏览器半**：它的使用者是 agent，读的是回执。所以这儿只报一个给人看的
-  // 名字，没有窗格、没有 `dist/client/`
+/** 本插件没有页面：使用者是 agent，读的是回执。只报一个给人看的名字，外壳不在就不报 */
+function describeSelfToShell(ctx: GwbContext): void {
   ctx.inject(['gwbShell'], (scoped) => {
-    // 给人看的名字（件清单里显示用）。外壳不在就算了，那半本来就不是它的脸
     scoped.gwbShell.describeSelf({ title: '开发套件', icon: 'wrench' })
   })
+}
 
-  // ── 一条 node CLI ──────────────────────────────────────────────────────────
-
-  // CLI 形态的东西一律经 gwbNodeCli 登记，不做总线命令、不进程内调：登记的命令自动镜像
-  // 成总线命令，于是自动是 MCP 工具，回执自带 stdout 与退出码。
-  // register **不用自己包 effect**：运行器内部已经挂在调用方的 effect 上了
+/**
+ * 命令行工具经 gwbNodeCli 登记：登记的命令自动出现在命令总线上，回执带 stdout 与退出码。
+ * register 不用自己包 effect：它已经登记在调用方的 effect 上
+ */
+function registerCdpCli(ctx: GwbContext): void {
   ctx.inject(['gwbNodeCli'], (scoped) => {
     scoped.gwbNodeCli.register({
       name: 'devkit.cdp',
@@ -434,38 +402,40 @@ export function apply(ctx: GwbContext): void {
       entry: CDP_ENTRY,
     })
   })
+}
 
-  // ── 改一版看一版 ───────────────────────────────────────────────────────────
+// ── 改一版看一版与发正式版 ────────────────────────────────────────────────────
 
-  /**
-   * 「要操作哪个 home」收窄成「连哪个调试口」。**只收名字，不收端口**（0.5.0 起）。
-   *
-   * 口从那个 home 的 `runtime.json` 里查（内核开机写的），**顺带验活**：pid 还在、且那个 pid
-   * 真的持着那个口。名字接着传给循环，跟页面自报的再核对一次——记录回答「你要的是哪个」，
-   * 页面回答「你连上的实际是哪个」。
-   *
-   * **端口不再是地址**：它是一个没有语义、敲错一位就落在另一个现场的数，而那个现场也会
-   * 老老实实收下这一趟改动。名字有拼写、有记录、有交叉核对，三样端口都没有。给了 `cdp`
-   * 不是忽略，是当场拒并告诉他新写法——静默改道比报错坏。
-   */
-  async function targetOf(
-    args: Record<string, unknown>,
-  ): Promise<{ ok: true; cdp: number; name: string } | { ok: false; error: string }> {
-    if (args.cdp !== undefined) {
-      return {
-        ok: false,
-        error: `这儿不收端口了，只收 home 名：{"home":"<名>"}。口从那个 home 的 runtime.json 里查，顺带验活。\n${DEV_USAGE}`,
-      }
+/**
+ * 只收 home 名，不收端口：端口从那个 home 的 `runtime.json` 查并确认进程还在，名字再传下去跟页面自报的核对。
+ * 给了 `cdp` 当场拒并告诉新写法，不静默改道
+ */
+async function cdpTargetOf(
+  args: Record<string, unknown>,
+  homeDeps: HomeDeps,
+): Promise<{ ok: true; cdp: number; name: string } | { ok: false; error: string }> {
+  if (args.cdp !== undefined) {
+    return {
+      ok: false,
+      error: `这儿不收端口了，只收 home 名：{"home":"<名>"}。口从那个 home 的 runtime.json 里查，顺带验活。\n${DEV_USAGE}`,
     }
-    const name = asHomeName(args.home)
-    if (name === undefined) return { ok: false, error: `home 缺了或不是个合格的 home 名（kebab-case）。\n${DEV_USAGE}` }
-    const found = await resolveTarget(homesRootOf(), name, homeDeps)
-    if (!found.ok) return { ok: false, error: found.error }
-    return { ok: true, cdp: found.cdp, name }
   }
+  const homeName = asHomeName(args.home)
+  if (homeName === undefined) return { ok: false, error: `home 缺了或不是个合格的 home 名（kebab-case）。\n${DEV_USAGE}` }
+  const found = await resolveTarget(homesRootOf(), homeName, homeDeps)
+  if (!found.ok) return { ok: false, error: found.error }
+  return { ok: true, cdp: found.cdp, name: homeName }
+}
 
+function packagesArgOf(args: Record<string, unknown>): string[] {
+  return Array.isArray(args.packages)
+    ? args.packages.filter((one): one is string => typeof one === 'string' && one.trim() !== '')
+    : []
+}
+
+function registerDevCommand({ ctx, log, commands, homeDeps }: Wiring): void {
   ctx.effect(() =>
-    bus.register(
+    commands.register(
       {
         name: 'devkit.dev',
         plugin: '@godcreator/gwb-devkit',
@@ -475,18 +445,15 @@ export function apply(ctx: GwbContext): void {
       },
       async (args) => {
         if (!isRecord(args)) return { ok: false, error: `参数要是个对象。\n${DEV_USAGE}` }
-        const target = await targetOf(args)
+        const target = await cdpTargetOf(args, homeDeps)
         if (!target.ok) return { ok: false, error: target.error }
         const dir = typeof args.dir === 'string' ? args.dir.trim() : ''
         if (dir === '' || !path.isAbsolute(dir)) return { ok: false, error: `dir 要是仓根的绝对路径。\n${DEV_USAGE}` }
         if (!devDeps.exists(dir)) return { ok: false, error: `${dir} 不在——dir 给的是仓根，不是包目录` }
-        const packages = Array.isArray(args.packages)
-          ? args.packages.filter((one): one is string => typeof one === 'string' && one.trim() !== '')
-          : []
         const input: DevInput = {
           home: target.name,
           repoDir: path.resolve(dir),
-          packages,
+          packages: packagesArgOf(args),
           ...(typeof args.waitFor === 'string' && args.waitFor.trim() !== '' ? { waitFor: args.waitFor.trim() } : {}),
           ownHome: requireKernel(ctx).dataDir,
         }
@@ -503,16 +470,12 @@ export function apply(ctx: GwbContext): void {
       },
     ),
   )
+}
 
-  // ── 发正式版 ───────────────────────────────────────────────────────────────
-
-  /**
-   * 与 `devkit.dev` 的安全模型不同:那条要站在被换的进程外(住控制台、操作另一个 home),
-   * 这条只碰 registry、一个 home 都不碰,从哪个 home 调都行。升 default 不链进来——
-   * update-all 得由插件件在那个 home 里发起才活得过热重挂,而且发完该先在隔离 home 验过。
-   */
+/** 只发到源、不碰任何 home，从哪个 home 调都行；升级 default 不接在后面：先在隔离 home 验过，再由插件管理自己升级 */
+function registerReleaseCommand({ ctx, log, commands }: Wiring): void {
   ctx.effect(() =>
-    bus.register(
+    commands.register(
       {
         name: 'devkit.release',
         plugin: '@godcreator/gwb-devkit',
@@ -525,9 +488,7 @@ export function apply(ctx: GwbContext): void {
         const dir = typeof args.dir === 'string' ? args.dir.trim() : ''
         if (dir === '' || !path.isAbsolute(dir)) return { ok: false, error: `dir 要是仓根的绝对路径。\n${RELEASE_USAGE}` }
         if (!releaseDeps.exists(dir)) return { ok: false, error: `${dir} 不在——dir 给的是仓根，不是包目录` }
-        const packages = Array.isArray(args.packages)
-          ? args.packages.filter((one): one is string => typeof one === 'string' && one.trim() !== '')
-          : []
+        const packages = packagesArgOf(args)
         log.info(`devkit.release：仓 ${path.resolve(dir)}（${packages.length === 0 ? '仓根自己' : packages.join('、')}）`)
         const outcome = await runRelease({ repoDir: path.resolve(dir), packages, runningKernel: requireKernel(ctx).version }, releaseDeps)
         if (!outcome.ok) {
@@ -541,11 +502,23 @@ export function apply(ctx: GwbContext): void {
       },
     ),
   )
+}
 
-  // ── 依赖对账 ────────────────────────────────────────────────────────────────
+// ── 依赖对账与结构体检 ────────────────────────────────────────────────────────
 
+/** 给了就用给的；没给就在命令总线上按名字调 unit-folder.list 要容器根（容器根归单元文件夹插件管） */
+async function containerRootOf({ commands, hasCommand }: Wiring, askedRoot: string): Promise<string | undefined> {
+  if (askedRoot !== '') return path.resolve(askedRoot)
+  if (!hasCommand('unit-folder.list')) return undefined
+  const listed = await commands.run('unit-folder.list', {})
+  const container = listed.ok && isRecord(listed.data) && typeof listed.data.container === 'string' ? listed.data.container : ''
+  return container !== '' ? path.resolve(container) : undefined
+}
+
+function registerAuditDepsCommand(wiring: Wiring): void {
+  const { ctx, log, commands } = wiring
   ctx.effect(() =>
-    bus.register(
+    commands.register(
       {
         name: 'devkit.audit-deps',
         plugin: '@godcreator/gwb-devkit',
@@ -555,13 +528,7 @@ export function apply(ctx: GwbContext): void {
       },
       async (args) => {
         const askedRoot = isRecord(args) && typeof args.root === 'string' ? args.root.trim() : ''
-        let root = askedRoot !== '' ? path.resolve(askedRoot) : undefined
-        if (root === undefined && hasCommand('unit-folder.list')) {
-          // 容器根的知识归 unit-folder 件，devkit 只在总线上按名要——跟建仓转铺站那两条同一个路子
-          const listed = await commands.run('unit-folder.list', {})
-          const container = listed.ok && isRecord(listed.data) && typeof listed.data.container === 'string' ? listed.data.container : ''
-          if (container !== '') root = path.resolve(container)
-        }
+        const root = await containerRootOf(wiring, askedRoot)
         if (root === undefined) {
           return { ok: false, error: '扫哪没说清：给 root（容器根的绝对路径），或在这个 home 装 @godcreator/gwb-unit-folder——它现扫回的 container 就是容器根' }
         }
@@ -587,16 +554,54 @@ export function apply(ctx: GwbContext): void {
       },
     ),
   )
+}
 
-  // ── 结构体检 ───────────────────────────────────────────────────────────────
+function auditOneRepo(log: Logger, dir: string): { ok: true; data: unknown } {
+  const report = auditStructure(scanRepo(dir))
+  log.info(
+    `devkit.audit-structure：${dir}（${report.shape}，${String(report.findings.length)} 条：` +
+      Object.entries(tallyKinds(report.findings)).map(([kind, n]) => `${kind} ${String(n)}`).join('、') + '）',
+  )
+  return {
+    ok: true,
+    data: { repoDir: dir, shape: report.shape, findings: report.findings, byKind: tallyKinds(report.findings) },
+  }
+}
 
-  /**
-   * 只读的结构体检，与 `devkit.audit-deps` 同一个入口形状：给了 dir 体检单仓，
-   * 给了/缺省 root 扫全生态（退役单元与测试件跳过）。规则正本是 scaffold 模板——
-   * 「模板产物零 findings」的 round-trip 测试焊着两边。
-   */
+function auditReposUnder(log: Logger, root: string): { ok: true; data: unknown } {
+  const { repos: repoDirs, retired, testUnits } = collectRepos(root)
+  const repos: { repo: string; shape: string; findings: StructureFinding[] }[] = []
+  for (const one of repoDirs) {
+    const report = auditStructure(scanRepo(one))
+    repos.push({ repo: path.basename(one), shape: report.shape, findings: report.findings })
+  }
+  const findings = repos.flatMap((one) => one.findings.map((finding) => ({ repo: one.repo, ...finding })))
+  const shapeTally = repos.reduce<Record<string, number>>((acc, one) => {
+    acc[one.shape] = (acc[one.shape] ?? 0) + 1
+    return acc
+  }, {})
+  log.info(
+    `devkit.audit-structure：${String(repos.length)} 仓（${Object.entries(shapeTally).map(([s, n]) => `${s} ${String(n)}`).join('、')}；退役 ${String(retired.length)}、测试件 ${String(testUnits.length)} 个不扫）——findings ${String(findings.length)} 条`,
+  )
+  return {
+    ok: true,
+    data: {
+      root,
+      repos: repos.length,
+      shape: shapeTally,
+      retired,
+      testUnits,
+      findings,
+      byKind: tallyKinds(findings),
+    },
+  }
+}
+
+/** 与 devkit.audit-deps 同一个入口形状：给了 dir 查一个仓，给了或缺省 root 扫全生态 */
+function registerAuditStructureCommand(wiring: Wiring): void {
+  const { ctx, log, commands } = wiring
   ctx.effect(() =>
-    bus.register(
+    commands.register(
       {
         name: 'devkit.audit-structure',
         plugin: '@godcreator/gwb-devkit',
@@ -609,62 +614,32 @@ export function apply(ctx: GwbContext): void {
         const dir = typeof args.dir === 'string' && args.dir.trim() !== '' ? path.resolve(args.dir.trim()) : ''
         if (dir !== '') {
           if (!fs.existsSync(dir)) return { ok: false, error: `${dir} 不在——dir 给的是仓根的绝对路径` }
-          const report = auditStructure(scanRepo(dir))
-          log.info(
-            `devkit.audit-structure：${dir}（${report.shape}，${String(report.findings.length)} 条：` +
-              Object.entries(tallyKinds(report.findings)).map(([kind, n]) => `${kind} ${String(n)}`).join('、') + '）',
-          )
-          return {
-            ok: true,
-            data: { repoDir: dir, shape: report.shape, findings: report.findings, byKind: tallyKinds(report.findings) },
-          }
+          return auditOneRepo(log, dir)
         }
-        // 与 audit-deps 同一条路：容器根的知识归 unit-folder 件，devkit 只在总线上按名要
-        const askedRoot = typeof args.root === 'string' ? args.root.trim() : ''
-        let root = askedRoot !== '' ? path.resolve(askedRoot) : undefined
-        if (root === undefined && hasCommand('unit-folder.list')) {
-          const listed = await commands.run('unit-folder.list', {})
-          const container = listed.ok && isRecord(listed.data) && typeof listed.data.container === 'string' ? listed.data.container : ''
-          if (container !== '') root = path.resolve(container)
-        }
+        const root = await containerRootOf(wiring, typeof args.root === 'string' ? args.root.trim() : '')
         if (root === undefined) {
           return { ok: false, error: '扫哪没说清：给 dir（单仓）或 root（容器根），或在这个 home 装 @godcreator/gwb-unit-folder——它现扫回的 container 就是容器根' }
         }
         if (!fs.existsSync(root)) return { ok: false, error: `${root} 不在——root 给的是容器根（unit.json 们住的那层）` }
-        const { repos: repoDirs, retired, testUnits } = collectRepos(root)
-        const repos: { repo: string; shape: string; findings: StructureFinding[] }[] = []
-        for (const one of repoDirs) {
-          const report = auditStructure(scanRepo(one))
-          repos.push({ repo: path.basename(one), shape: report.shape, findings: report.findings })
-        }
-        const findings = repos.flatMap((one) => one.findings.map((finding) => ({ repo: one.repo, ...finding })))
-        const shapeTally = repos.reduce<Record<string, number>>((acc, one) => {
-          acc[one.shape] = (acc[one.shape] ?? 0) + 1
-          return acc
-        }, {})
-        log.info(
-          `devkit.audit-structure：${String(repos.length)} 仓（${Object.entries(shapeTally).map(([s, n]) => `${s} ${String(n)}`).join('、')}；退役 ${String(retired.length)}、测试件 ${String(testUnits.length)} 个不扫）——findings ${String(findings.length)} 条`,
-        )
-        return {
-          ok: true,
-          data: {
-            root,
-            repos: repos.length,
-            shape: shapeTally,
-            retired,
-            testUnits,
-            findings,
-            byKind: tallyKinds(findings),
-          },
-        }
+        return auditReposUnder(log, root)
       },
     ),
   )
+}
 
-  // ── 建仓那半 ───────────────────────────────────────────────────────────────
+// ── 建仓与加插件 ──────────────────────────────────────────────────────────────
 
+/** 包内 `template/` 目录；这一版没把它带进包时是 null */
+function templateRootOrNull(requiredSubdir: string): string | null {
+  const root = packageRoot()
+  const templateRoot = root === null ? null : path.join(root, 'template')
+  return templateRoot === null || !fs.existsSync(path.join(templateRoot, requiredSubdir)) ? null : templateRoot
+}
+
+function registerScaffoldCommand(wiring: Wiring): void {
+  const { ctx, log, commands, hasCommand } = wiring
   ctx.effect(() =>
-    bus.register(
+    commands.register(
       {
         name: 'devkit.scaffold',
         plugin: '@godcreator/gwb-devkit',
@@ -674,15 +649,12 @@ export function apply(ctx: GwbContext): void {
       },
       async (args) => {
         if (!isRecord(args)) return { ok: false, error: `参数要是个对象。\n${SCAFFOLD_USAGE}` }
-        const root = packageRoot()
-        const templateRoot = root === null ? null : path.join(root, 'template')
-        if (templateRoot === null || !fs.existsSync(templateRoot)) {
+        const templateRoot = templateRootOrNull('')
+        if (templateRoot === null) {
           return { ok: false, error: '包内 template/ 不在——这一版没把它带进包（files 白名单漏了），换一版' }
         }
-        // 「想不想建站」与「建不建得成」是两件事：站件没装的时候连 README 里那段话都得
-        // 改口，所以在渲染之前就把它定下来
-        const wantDocs = args.docs !== false
-        const canDocs = wantDocs && hasCommand(CREATE_SITE_COMMAND)
+        // 想不想建站与建不建得成是两件事：站点插件没装时 README 里那段话也得跟着改，所以在渲染之前定下来
+        const canDocs = args.docs !== false && hasCommand(CREATE_SITE_COMMAND)
         const testedKernel = requireKernel(ctx).version
         let plan
         try {
@@ -697,7 +669,6 @@ export function apply(ctx: GwbContext): void {
         } catch (err) {
           return { ok: false, error: `${err instanceof Error ? err.message : String(err)}\n\n${SCAFFOLD_USAGE}` }
         }
-        // 整套先在内存里渲染完才碰盘：目标目录一旦开始写就没有干净的回滚点
         let files
         let page
         try {
@@ -709,9 +680,8 @@ export function apply(ctx: GwbContext): void {
         }
         log.info(`devkit.scaffold：${plan.pkg} → ${path.join(plan.dir, 'plugins', plan.name)}（${files.length} 个文件）`)
 
-        // ── 站那半：知识不在本包，两步都经总线转出去 ──────────────────────
-        // **件那半已经在盘上了，站没建成不算建仓失败**——回执里说清楚，人补一条命令就是
-        const docs = await buildDocsSite(plan)
+        // 插件文件已经在磁盘上，站没建成不算建仓失败，回执里说清楚
+        const docs = await buildDocsSite(wiring, plan)
         // 插件页只能在六区装好之后写：attach 只在没加过页的骨架上装得了
         const pluginPage = pluginPageTarget(plan.dir, plan.name)
         if (pluginPage !== null) writePluginPage(pluginPage, page)
@@ -736,11 +706,11 @@ export function apply(ctx: GwbContext): void {
       },
     ),
   )
+}
 
-  // ── 加件那半：往既有薄壳仓的 plugins/ 再铺一个件包 ─────────────────────────
-
+function registerScaffoldPluginCommand({ ctx, log, commands }: Wiring): void {
   ctx.effect(() =>
-    bus.register(
+    commands.register(
       {
         name: 'devkit.scaffold.plugin',
         plugin: '@godcreator/gwb-devkit',
@@ -750,9 +720,8 @@ export function apply(ctx: GwbContext): void {
       },
       async (args) => {
         if (!isRecord(args)) return { ok: false, error: `参数要是个对象。\n${SCAFFOLD_PLUGIN_USAGE}` }
-        const root = packageRoot()
-        const templateRoot = root === null ? null : path.join(root, 'template')
-        if (templateRoot === null || !fs.existsSync(path.join(templateRoot, 'pkg'))) {
+        const templateRoot = templateRootOrNull('pkg')
+        if (templateRoot === null) {
           return { ok: false, error: '包内 template/pkg/ 不在——这一版没把它带进包（files 白名单漏了），换一版' }
         }
         const testedKernel = requireKernel(ctx).version
@@ -767,7 +736,7 @@ export function apply(ctx: GwbContext): void {
         } catch (err) {
           return { ok: false, error: `${err instanceof Error ? err.message : String(err)}\n\n${SCAFFOLD_PLUGIN_USAGE}` }
         }
-        // 与建仓同一条纪律：先在内存里渲染完，目标子目录必须还不存在；插件页也要还不存在，在写任何文件之前查
+        // 插件页也要还不存在，在写任何文件之前查
         const pluginPage = pluginPageTarget(plan.repoDir, plan.name)
         if (pluginPage !== null && fs.existsSync(pluginPage)) {
           return { ok: false, error: `加件没成：插件页已经存在，不覆盖：${pluginPage}` }
@@ -798,118 +767,116 @@ export function apply(ctx: GwbContext): void {
       },
     ),
   )
+}
 
-  /** 站那半的回执 */
-  interface DocsOutcome {
-    /** 骨架铺没铺（`docs-site.create` 成没成） */
-    built: boolean
-    /** 六区装没装（`docfirst.attach` 成没成）。骨架都没铺时一定是 false */
-    attached: boolean
-    /** 站端口。站件挑的，铺成了才有 */
-    port?: number
-    note: string
-    /** 两条命令各自的原始回执，出错时看这儿 */
-    create?: unknown
-    attach?: unknown
-  }
+/** 建站那部分的回执 */
+interface DocsOutcome {
+  /** 骨架生成了没有（`docs-site.create` 成没成） */
+  built: boolean
+  /** 六区装了没有（`docfirst.attach` 成没成）。骨架都没生成时一定是 false */
+  attached: boolean
+  /** 站端口。站点插件选的，生成成功才有 */
+  port?: number
+  note: string
+  /** 两条命令各自的原始回执，出错时看这里 */
+  create?: unknown
+  attach?: unknown
+}
 
-  /**
-   * 站那半。**建站是两步，都不是本包的知识**：
-   *
-   * 1. `docs-site.create`（站件）铺一个标准 fumadocs 骨架
-   * 2. `docfirst.attach`（docfirst 件）在**刚铺好的**骨架上装配六区
-   *
-   * 两条都只按名字在总线上找，本包不依赖那两个件的任何包。**哪一步的件没装就停在那儿、
-   * 说清怎么补**——建仓不因此失败，件那半早已落盘。
-   *
-   * 两条命令都认**站目录**（`<仓>/docs-site`），不是仓根。
-   */
-  async function buildDocsSite(plan: {
+/**
+ * 两步都按名字经命令总线交给别的插件：站点插件生成骨架，docfirst 插件在刚生成的骨架上装六区。
+ * 哪一步的插件没装就停在那里、说清怎么补；两条命令都认站目录（`<仓>/docs-site`），不是仓根
+ */
+async function buildDocsSite(
+  { log, commands, hasCommand }: Wiring,
+  plan: {
     dir: string
     title: string
     docs: boolean
     port: number | undefined
-  }): Promise<DocsOutcome> {
-    const siteDir = path.join(plan.dir, 'docs-site')
-    const attachHint = `${ATTACH_SITE_COMMAND} {"dir":"${siteDir}"}`
-    if (!plan.docs) {
-      return {
-        built: false,
-        attached: false,
-        note: hasCommand(CREATE_SITE_COMMAND)
-          ? '没建站：调用时给了 docs: false'
-          : `没建站：这个 home 没装站件（命令总线上没有 ${CREATE_SITE_COMMAND}）。件那半已经落盘了——装上 @godcreator/gwb-docs-site（plugin-manager.install）之后自己补两步：${CREATE_SITE_COMMAND} {"dir":"${siteDir}","title":"${plan.title}"} 铺骨架，再 ${attachHint} 装六区`,
-      }
+  },
+): Promise<DocsOutcome> {
+  const siteDir = path.join(plan.dir, 'docs-site')
+  const attachHint = `${ATTACH_SITE_COMMAND} {"dir":"${siteDir}"}`
+  if (!plan.docs) {
+    return {
+      built: false,
+      attached: false,
+      note: hasCommand(CREATE_SITE_COMMAND)
+        ? '没建站：调用时给了 docs: false'
+        : `没建站：这个 home 没装站件（命令总线上没有 ${CREATE_SITE_COMMAND}）。件那半已经落盘了——装上 @godcreator/gwb-docs-site（plugin-manager.install）之后自己补两步：${CREATE_SITE_COMMAND} {"dir":"${siteDir}","title":"${plan.title}"} 铺骨架，再 ${attachHint} 装六区`,
     }
-    const created = await commands.run(CREATE_SITE_COMMAND, {
-      dir: siteDir,
-      title: plan.title,
-      ...(plan.port === undefined ? {} : { port: plan.port }),
-    })
-    if (!created.ok) {
-      log.warn(`devkit.scaffold 的站那半没成：${created.error ?? '没说原因'}`)
-      return {
-        built: false,
-        attached: false,
-        note: `骨架没铺成（${CREATE_SITE_COMMAND}：${created.error ?? '没说原因'}）。件那半已经落盘、README 里讲站的那段话是按「要建」写的——补建一次，或者把那段改掉`,
-        create: created,
-      }
+  }
+  const created = await commands.run(CREATE_SITE_COMMAND, {
+    dir: siteDir,
+    title: plan.title,
+    ...(plan.port === undefined ? {} : { port: plan.port }),
+  })
+  if (!created.ok) {
+    log.warn(`devkit.scaffold 的站那半没成：${created.error ?? '没说原因'}`)
+    return {
+      built: false,
+      attached: false,
+      note: `骨架没铺成（${CREATE_SITE_COMMAND}：${created.error ?? '没说原因'}）。件那半已经落盘、README 里讲站的那段话是按「要建」写的——补建一次，或者把那段改掉`,
+      create: created,
     }
-    const rawPort = isRecord(created.data) ? created.data.port : undefined
-    const port = typeof rawPort === 'number' && Number.isInteger(rawPort) ? rawPort : undefined
-    log.info(`devkit.scaffold：fumadocs 骨架铺好了 → ${siteDir}`)
+  }
+  const rawPort = isRecord(created.data) ? created.data.port : undefined
+  const port = typeof rawPort === 'number' && Number.isInteger(rawPort) ? rawPort : undefined
+  log.info(`devkit.scaffold：fumadocs 骨架铺好了 → ${siteDir}`)
 
-    // ── 第二步：装六区 ──────────────────────────────────────────────────────
-    // **只在刚铺好的骨架上装得了**（attach 自己守着这条）。这儿正是那个时刻：中间没人
-    // 改过文件，所以整个覆盖是安全的
-    if (!hasCommand(ATTACH_SITE_COMMAND)) {
-      return {
-        built: true,
-        attached: false,
-        ...(port === undefined ? {} : { port }),
-        note: `骨架铺好了，六区没装：这个 home 没装 docfirst 件（命令总线上没有 ${ATTACH_SITE_COMMAND}）。装上 @godcreator/gwb-docfirst-workflow 之后**立刻**跑 ${attachHint}——它只在还没写过内容的骨架上装得了，往里写过东西就得人工接线`,
-        create: created,
-      }
-    }
-    const attached = await commands.run(ATTACH_SITE_COMMAND, { dir: siteDir, title: plan.title })
-    if (!attached.ok) {
-      log.warn(`devkit.scaffold 的装配那步没成：${attached.error ?? '没说原因'}`)
-      return {
-        built: true,
-        attached: false,
-        ...(port === undefined ? {} : { port }),
-        note: `骨架铺好了，六区没装成（${ATTACH_SITE_COMMAND}：${attached.error ?? '没说原因'}）。站是个光骨架，pnpm doc 那几条还不在——补一次 ${attachHint}`,
-        create: created,
-        attach: attached,
-      }
-    }
-    log.info(`devkit.scaffold：六区装配好了 → ${siteDir}`)
+  // 这时正是刚生成骨架、中间没人改过文件的时刻，attach 装得了
+  if (!hasCommand(ATTACH_SITE_COMMAND)) {
     return {
       built: true,
-      attached: true,
+      attached: false,
       ...(port === undefined ? {} : { port }),
-      note: '站建好了（骨架 + 六区，两步）。依赖没装——去 docs-site 里 pnpm install',
+      note: `骨架铺好了，六区没装：这个 home 没装 docfirst 件（命令总线上没有 ${ATTACH_SITE_COMMAND}）。装上 @godcreator/gwb-docfirst-workflow 之后**立刻**跑 ${attachHint}——它只在还没写过内容的骨架上装得了，往里写过东西就得人工接线`,
+      create: created,
+    }
+  }
+  const attached = await commands.run(ATTACH_SITE_COMMAND, { dir: siteDir, title: plan.title })
+  if (!attached.ok) {
+    log.warn(`devkit.scaffold 的装配那步没成：${attached.error ?? '没说原因'}`)
+    return {
+      built: true,
+      attached: false,
+      ...(port === undefined ? {} : { port }),
+      note: `骨架铺好了，六区没装成（${ATTACH_SITE_COMMAND}：${attached.error ?? '没说原因'}）。站是个光骨架，pnpm doc 那几条还不在——补一次 ${attachHint}`,
       create: created,
       attach: attached,
     }
   }
+  log.info(`devkit.scaffold：六区装配好了 → ${siteDir}`)
+  return {
+    built: true,
+    attached: true,
+    ...(port === undefined ? {} : { port }),
+    note: '站建好了（骨架 + 六区，两步）。依赖没装——去 docs-site 里 pnpm install',
+    create: created,
+    attach: attached,
+  }
+}
 
-  // 说明书随件走：**只挂自己那份**。别人的说明书归提供那个能力的件自己挂——说明书是
-  // 全局单一命名空间，代挂第二份撞名的那份直接不挂、只留一行警告，而撞掉的那份很可能
-  // 是本包依赖树里那个旧版本，症状是 agent 照着一份过期手册干活还不报错。
-  // 局部注入 = 可选依赖：skills 件不在，devkit 照常挂
+// ── 说明书与就绪日志 ──────────────────────────────────────────────────────────
+
+/**
+ * 只登记自己那份说明书：说明书是全局唯一的命名空间，替别人登记会撞名，撞掉的常常是新的那份。
+ * 局部注入：说明书插件不在时开发套件照常加载
+ */
+function registerOwnSkills(ctx: GwbContext): void {
   ctx.inject(['gwbSkills'], (scoped) => {
     scoped.effect(() => scoped.gwbSkills.register(new URL('../skills/', import.meta.url)))
   })
+}
 
-  // **就绪那句话现问总线，不手抄一份名单**：抄的那份改一条命令就过期，而它过期的样子是
-  // 「日志里列着一条早就没有的命令」。`devkit.cdp` 那条经 gwbNodeCli 登记，它在不在这一行里
-  // 取决于那个件有没有先挂上——列的是此刻真在总线上的，那正是这行字的全部价值
-  const mine = commands
+/** 就绪日志现问命令总线，不抄一份名单：devkit.cdp 经 gwbNodeCli 登记，它在不在取决于那个插件有没有先加载 */
+function logReady({ log, commands }: Wiring): void {
+  const ownCommandNames = commands
     .list()
     .filter((entry) => entry.plugin === '@godcreator/gwb-devkit')
     .map((entry) => entry.name)
   log.info(
-    `开发套件就绪（此刻在总线上的 ${String(mine.length)} 条：${mine.join('、')}；手册挂在本件 skills/ 下，只挂自己那份）`,
+    `开发套件就绪（此刻在总线上的 ${String(ownCommandNames.length)} 条：${ownCommandNames.join('、')}；手册挂在本件 skills/ 下，只挂自己那份）`,
   )
 }
