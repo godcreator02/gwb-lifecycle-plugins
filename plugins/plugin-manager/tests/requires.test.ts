@@ -38,7 +38,7 @@ describe('declaredRequires：读包清单里的声明', () => {
   it('清单读不到、没有 gwb 字段、gwb 里没有 requires 都是 absent', () => {
     expect(declaredRequires(undefined)).toEqual({ kind: 'absent' })
     expect(declaredRequires({ name: 'x' })).toEqual({ kind: 'absent' })
-    expect(declaredRequires({ gwb: { testedKernel: '0.2.7' } })).toEqual({ kind: 'absent' })
+    expect(declaredRequires({ gwb: { provides: {} } })).toEqual({ kind: 'absent' })
   })
 
   it('包名 → 字符串的对象原样读出', () => {

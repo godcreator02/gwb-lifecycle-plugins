@@ -1,0 +1,54 @@
+---
+title: 兼容哪个内核
+description: 插件在 peerDependencies 里写内核包 @godcreator/gwb-kernel-desktop 的范围 ^x.y.z；devkit.release 发版前查写法、查范围包不包含运行中的内核，plugin-manager.list 拿它和 home 里装的内核比
+---
+
+# 兼容哪个内核
+
+**本页回答**：插件怎么声明自己兼容哪些内核；范围怎么算「包含」；谁在什么时候查；内核升级之后插件要做什么。
+
+## 规则
+
+**插件包在 `peerDependencies` 里写内核包 `@godcreator/gwb-kernel-desktop`，范围写 `^x.y.z`，x.y.z 是验证这个插件时所用的内核版本。** 运行中的内核落在这个范围里，插件才发得出去。只查插件包（`keywords` 里有 `gwb-plugin`），库和工具包不写。
+
+内核包和 `cordis` 一样装在每个 home 的根上（安装包只带启动器，启动器从 home 里加载内核），所以兼容性用标准的 peer 写：pnpm 把它解析到 home 里装着的那一份，安装时顺带比一次范围（只警告）。插件不 import 内核包，这条 peer 只用来声明兼容哪些内核。
+
+devkit 自己的清单：
+
+{/* ref file="../plugins/devkit/package.json" lines="34-36" */}
+
+## 范围怎么算包含
+
+只认 `^x.y.z` 一种写法，精确号、`>=`、`~`、少一段、带预发布段的都不算写对。主版本号为 0 时次版本号相同、主版本号 ≥1 时主版本号相同，并且不低于 x.y.z。只比 x.y.z 三段、预发布段不看，所以同一条线上的开发版内核也算在范围内。`^0.3.0` 包含 `0.3.0`、`0.3.4`、`0.3.1-dev.202609241500`，不包含 `0.2.7`、`0.4.0`；`^1.4.0` 包含 `1.9.2`，不包含 `1.0.0` 与 `2.0.0`。
+
+{/* ref file="../plugins/devkit/src/kernel-compat.ts" lines="38-52" */}
+
+这和内核的版本号规矩对得上：内核改了接缝上已有的东西——包括升级 loader、include 的版本、改 home 的布局——就升 x，插件写的范围不再包含新内核，所有插件都要在新内核上重新验过。只加东西的内核版本升 y，范围照样包含，插件的声明照样有效。
+
+## 谁在查
+
+**`devkit.release` 发版前检查**：对每个要发的插件包，peer 里没写内核包、写法不是 `^x.y.z`、范围不包含运行中的内核，三种都拒，一个包都不发；拒绝理由里写着该改成的 `^<运行中的内核的 x.y.z>`。「运行中的内核」是调 `devkit.release` 的那个 home 里的内核：
+
+{/* ref file="../plugins/devkit/src/release.ts" lines="177-197" */}
+
+**`plugin-manager.list` 按包报**：拿插件 peer 里内核包的范围和 home 里装的内核比，不包含的按包报出来。它只报告，不阻止加载（回执怎么读见插件管理那组页面里的[同名一页](/docs/plugin-manager/kernel-compat)）。
+
+比对规则在 devkit 与插件管理两边各存一份（两个包的 `src/kernel-compat.ts`），不跨包 import（见[插件之间怎么交互](/docs/rules/interaction)）；devkit 的 `tests/kernel-compat-parity.test.ts` 拿同一组输入跑两份、结果必须相同，改规则时两份在同一个提交里一起改。
+
+## 内核升级之后
+
+1. `plugin-manager.list` 里报出来的，就是 peer 范围不包含新内核的插件
+2. 在隔离 home 里用 `devkit.dev` 验一遍（隔离 home 里装的是新内核）
+3. 验过了，把 peer 里内核包的范围改成 `^<新内核的版本号>`，按补丁升自己的版本号，再 `devkit.release`
+
+没验就改这个范围，等于撒谎：范围的下限是「在这个内核上验过」的声明，不是愿望。
+
+## 新插件的初始值
+
+`devkit.scaffold` 与 `devkit.scaffold.plugin` 生成的 `package.json` 在 peer 里写内核包，范围是 `^<运行这条命令的内核版本号>`（模板占位符 `{{kernelVersion}}`；运行的是开发版内核时只取 x.y.z 三段）：新插件在同一台机器的隔离 home 里验证，用的就是这个内核。换到别的内核上验过之后再改这个范围：
+
+{/* ref file="../plugins/devkit/template/pkg/package.json.tpl" lines="29-32" */}
+
+## 为什么
+
+插件管理这类插件依赖 loader 条目树之类内核没写进文档的结构，内核一改就可能把它弄坏；与其让内核维护一份下游名单、改动时逐个通知，不如每个插件自己声明兼容的内核范围，由插件管理报告、由发版前检查拦下没在当前内核上验过的发版。内核包装在 home 里之后，这份声明就能用 peer 这个标准写法表达，不用另造清单字段，pnpm 安装时也会顺带检查。

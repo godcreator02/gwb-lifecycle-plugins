@@ -1,5 +1,6 @@
 import fs from 'node:fs'
 import path from 'node:path'
+import { versionCore } from './vocab.js'
 
 /** 短名：kebab-case。段之间只许一个连字符、结尾不许有连字符——宽松的写法会放过 `x--`，生成的包名就一直带着它 */
 export const NAME_RE = /^[a-z][a-z0-9]*(?:-[a-z0-9]+)*$/
@@ -30,8 +31,8 @@ export interface ScaffoldInput {
   docs?: boolean
   /** 文档站端口。不给就由站点插件的 `docs-site.create` 自己选（跳过别的站已占用的，从 4310 起找空位） */
   port?: number
-  /** 运行 `devkit.scaffold` 的那个内核的版本号，写进生成的 `gwb.testedKernel` */
-  testedKernel: string
+  /** 运行 `devkit.scaffold` 的那个内核的版本号。生成的插件包在 peer 里写内核包 `^<它的 x.y.z>` */
+  kernelVersion: string
 }
 
 export interface ScaffoldPlan {
@@ -49,8 +50,8 @@ export interface ScaffoldPlan {
   docs: boolean
   /** 站端口，没指定就是 undefined（由站点插件选，本包不猜一个写进 README） */
   port: number | undefined
-  /** 写进生成的 `gwb.testedKernel` 的内核版本号 */
-  testedKernel: string
+  /** 生成的插件包 peer 里内核包范围的下限：运行建仓命令的内核版本号的 x.y.z 三段 */
+  kernelVersion: string
 }
 
 /** 往已有的 workspace 仓加一个插件的参数 */
@@ -58,8 +59,8 @@ export interface ScaffoldPluginInput {
   name: string
   repo: string
   title?: string
-  /** 运行 `devkit.scaffold.plugin` 的那个内核的版本号，写进生成的 `gwb.testedKernel` */
-  testedKernel: string
+  /** 运行 `devkit.scaffold.plugin` 的那个内核的版本号。生成的插件包在 peer 里写内核包 `^<它的 x.y.z>` */
+  kernelVersion: string
 }
 
 /** 加一个插件的计划。派生规则与 `ScaffoldPlan` 相同，dir 直接指到插件包目录 */
@@ -76,8 +77,8 @@ export interface ScaffoldPluginPlan {
   repoDir: string
   /** 插件包目录：`<repo>/plugins/<短名>` */
   dir: string
-  /** 写进生成的 `gwb.testedKernel` 的内核版本号 */
-  testedKernel: string
+  /** 生成的插件包 peer 里内核包范围的下限：运行加插件命令的内核版本号的 x.y.z 三段 */
+  kernelVersion: string
 }
 
 /** 一份渲染好的文件：相对路径（已去掉 .tpl、已按所属部分算好位置）+ 正文 */
@@ -129,7 +130,7 @@ export function planScaffold(input: ScaffoldInput): ScaffoldPlan {
     dir,
     docs: input.docs !== false,
     port,
-    testedKernel: input.testedKernel,
+    kernelVersion: versionCore(input.kernelVersion),
   }
 }
 
@@ -157,7 +158,7 @@ export function planScaffoldPlugin(input: ScaffoldPluginInput): ScaffoldPluginPl
     pluginName: `gwb-${name}`,
     repoDir,
     dir: path.join(repoDir, 'plugins', name),
-    testedKernel: input.testedKernel,
+    kernelVersion: versionCore(input.kernelVersion),
   }
 }
 
@@ -203,7 +204,7 @@ interface Placeholdable {
   title: string
   pkg: string
   pluginName: string
-  testedKernel: string
+  kernelVersion: string
 }
 
 /** 除 `{{docsBlock}}` 以外六个占位符的值。`{{docsBlock}}` 只有仓根的 README 用；加插件不建站，用不到它 */
@@ -215,7 +216,7 @@ function corePlaceholders(plan: Placeholdable): Record<string, string> {
     pkgName: plan.pluginName,
     // 样式类前缀：短名去掉非小写字母。Tailwind 4 的 prefix() 只收 a-z，有连字符或数字时 build 才报错，check 照样全绿
     cssPrefix: plan.name.replace(/[^a-z]/g, ''),
-    testedKernel: plan.testedKernel,
+    kernelVersion: plan.kernelVersion,
   }
 }
 

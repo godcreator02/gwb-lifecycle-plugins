@@ -1,6 +1,6 @@
 /**
  * devkit.audit-deps 对一条依赖的判法：上半是一条 @godcreator 的 dev 依赖从上往下问四个问题，右边是各自报的 finding；
- * 下半是插件包的 peer，cordis 以外的每一条报一条。橙色框是要处理的，behind 只是提示。
+ * 下半是插件包的 peer，cordis 与内核包以外的每一条报一条。橙色框是要处理的，behind 只是提示。
  */
 
 import { Arrow, Box, MUTED, NARROW, Note } from './parts'
@@ -46,7 +46,7 @@ export function DkAuditDeps() {
       <Arrow from={[QX + QW, row(3) + H / 2]} to={[FX, row(3) + H / 2]} label="是" labelSize={LABEL} />
 
       <line x1={10} y1={row(5) - 6} x2={390} y2={row(5) - 6} stroke={MUTED} strokeDasharray="6 5" />
-      <Box x={QX} y={row(5) + 12} w={QW} h={H} lines={['插件包的一条 peer', '不是 cordis']} size={14} />
+      <Box x={QX} y={row(5) + 12} w={QW} h={H} lines={['插件包的一条 peer', '不是 cordis 也不是内核包']} size={14} />
       <Box x={FX} y={row(5) + 12} w={FW} h={H} lines={['peer-not-cordis', '按谁提供改写']} tone="b" size={13} />
       <Arrow from={[QX + QW, row(5) + 12 + H / 2]} to={[FX, row(5) + 12 + H / 2]} />
       <Note x={QX} y={row(5) + 12 + H + 20} size={12} color={MUTED}>

@@ -26,7 +26,7 @@ description: 升版本号、改依赖版本号、发版时读。
 两类包另有口径：
 
 * **词汇表包** `@godcreator/gwb-plugin-api`（内核契约）：对插件只增不减的改动升 y
-* **内核**：改了接缝上已有的东西（包括升级 loader、include 的版本、改 home 的布局）升 x，只加东西升 y。内核升 x 后版本线变了，所有插件都要在新内核上重新验过、改写 `gwb.testedKernel`
+* **内核**：改了接缝上已有的东西（包括升级 loader、include 的版本、改 home 的布局）升 x，只加东西升 y。内核升 x 后，插件 peer 里内核包的范围不再包含新内核，所有插件都要在新内核上重新验过、把范围改成 `^<新内核的版本号>`
 
 ## 二、改依赖版本号
 
@@ -36,14 +36,14 @@ description: 升版本号、改依赖版本号、发版时读。
    * 自己发版时，`devkit.release` 拿每个 `@godcreator` 的 dev 对照源上 `dist-tags.latest`：还在范围内（含相等）放行，一个数字都不动；已出范围（上游出了新的次版本线）必须跟
    * 要用上游的新东西：下限升到带那个东西的版本。上游是别的插件、它太旧时新东西静默失效（比如外壳新加的主题令牌取不到值）的，在 `package.json` 的 `gwb.requires` 写 `{ "<包名>": "<这个版本>" }`，`plugin-manager.list` 会报 home 里装的版本不够新（规矩见 gwb-devkit 附件 `references/rules.md` 的「要求别的插件的最低版本」）
    * 想看全生态谁落后：`devkit.audit-deps`（见参考）
-2. 改写法：`@godcreator` 包写在 dev，`^<源上已经发了的版本>`（精确号也合法）；同仓的包写 `workspace:*`，`devkit.release` 发版时写成 `^<版本>`。依赖写进 peer、dev 还是 `dependencies`，照 gwb-devkit 附件 `references/rules.md` 的「依赖怎么写」
+2. 改写法：`@godcreator` 包写在 dev，`^<源上已经发了的版本>`（精确号也合法）；同仓的包写 `workspace:*`，`devkit.release` 发版时写成 `^<版本>`。插件包 peer 里的内核包 `@godcreator/gwb-kernel-desktop` 例外，写 `^<验证时那个内核的版本号>`（见第三节第 1 步）。依赖写进 peer、dev 还是 `dependencies`，照 gwb-devkit 附件 `references/rules.md` 的「依赖怎么写」
 3. 出范围的先适配代码，再 `pnpm install`、`pnpm check`
 
 **完成判据**：`pnpm check` 全绿；`devkit.audit-deps` 的回执里这个仓没有 `dead-pin`、`out-of-range`、`loose-dev-pin`、`peer-not-cordis`。
 
 ## 三、发正式版
 
-1. 在隔离 home 里验证过这一版（说明书 `gwb-devkit` 的「改一版看一版」）。插件包把 `gwb.testedKernel` 写成验证时那个内核的版本号
+1. 在隔离 home 里验证过这一版（说明书 `gwb-devkit` 的「改一版看一版」）。插件包 peer 里内核包 `@godcreator/gwb-kernel-desktop` 的范围 `^x.y.z` 要包含验证时那个内核，不包含就改成 `^<那个内核的版本号>`
 2. 按第一节升版本号并提交，仓根 git 工作区干净
 3. `devkit.release {"dir":"<仓根>","packages":["plugins/<短名>"]}`。`packages` 相对仓根、按依赖顺序（被依赖的在前），workspace 仓必须给，例：`["packages/model","packages/engine","plugins/gwb-bn-core"]`
 4. 回执 `ok: false`：发版前检查按包列全了没过的条目，一个包都没发。逐条改完、`pnpm check`、提交，再调第 3 步
@@ -79,17 +79,17 @@ description: 升版本号、改依赖版本号、发版时读。
 
 | 检什么                                                                                                                 | 没过                                     |
 | ------------------------------------------------------------------------------------------------------------------- | -------------------------------------- |
-| peer 里有 `cordis` 以外的包                                                                                               | 拒，写明按「运行时谁提供」改写成 dev 还是 `dependencies` |
+| peer 里有 `cordis` 与内核包 `@godcreator/gwb-kernel-desktop` 以外的包                                                         | 拒，写明按「运行时谁提供」改写成 dev 还是 `dependencies` |
 | node 侧产物按值 import 了 `cordis`，peer 里却没有                                                                              | 拒                                      |
 | 写了 peer `cordis`，node 侧产物却没有 import 它                                                                               | 不拒，回执 `reminders` 里提醒                  |
 | node 侧产物（`exports["."]` 入口顺着相对 import 走到的文件）的包名 import 不是 node 内置模块、`electron`、`cordis`                             | 拒                                      |
 | 浏览器侧产物（`dist/client.js` 与本包 `gwb.shared` 指到的文件）的包名 import 不在 importmap 里（本包与依赖的 `gwb.shared` 键）                     | 拒                                      |
-| `gwb.testedKernel` 没写、不是合法版本号、或和运行中的内核不在同一条版本线上（主版本号为 0 比前两位，≥1 只比主版本号）                                             | 拒                                      |
+| peer 里没写内核包 `@godcreator/gwb-kernel-desktop`、写法不是 `^x.y.z`、或范围不包含运行中的内核（主版本号为 0 时次版本号相同，≥1 时主版本号相同，并且不低于下限；预发布段不看）  | 拒，写明该改成的 `^<运行中的内核的 x.y.z>`            |
 | 写了 `gwb.requires` 而它不是对象、某个值不是合法的 x.y.z、某个包不在 `devDependencies` 里、或要求的版本高于 dev 范围的下限（dev 写 `workspace:` 的不比下限）；没写不查 | 拒                                      |
 
 ### `devkit.audit-deps` 报什么
 
-只报告、不拦，扫容器根下各仓：`dead-pin`（写的版本源上没有）、`out-of-range`（latest 已出范围，必须跟）、`behind`（范围内落后，不用处理）、`loose-dev-pin`（写法既不是精确号也不是 `^`）、`peer-not-cordis`（插件包的 peer 里有 `cordis` 以外的包，下次发版会被拒）。
+只报告、不拦，扫容器根下各仓：`dead-pin`（写的版本源上没有）、`out-of-range`（latest 已出范围，必须跟）、`behind`（范围内落后，不用处理）、`loose-dev-pin`（写法既不是精确号也不是 `^`）、`peer-not-cordis`（插件包的 peer 里有 `cordis` 与内核包以外的包，下次发版会被拒）。
 
 ### 手工发版
 

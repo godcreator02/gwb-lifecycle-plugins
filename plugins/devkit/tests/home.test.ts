@@ -4,6 +4,7 @@ import {
   ALIVE_POLL_MS,
   ALIVE_TIMEOUT_MS,
   BASE_INSTALL_TIMEOUT_MS,
+  BASE_PLUGINS,
   CDP_PORT_BASE,
   DAILY_HOME,
   EXIT_POLL_MS,
@@ -12,12 +13,19 @@ import {
   REMOVE_TRIES,
   asCdpPort,
   asHomeName,
+  baseInstallPlan,
   bringDownHome,
   composeName,
+  cordisInstallPlan,
+  cordisVersionForKernel,
   guiChildEnv,
   hostAppFacts,
   hostAppSpawnPlan,
+  installedManifestAtVersion,
+  installedManifestFile,
   isHomeProcess,
+  kernelInstallPlan,
+  kernelManifestFile,
   launchHome,
   listHomes,
   minuteStamp,
@@ -33,11 +41,12 @@ import {
   type HomeFs,
   type HomeRecord,
 } from '../src/home.js'
+import { KERNEL_PACKAGE } from '../src/kernel-compat.js'
 
 /**
- * 起停删这件事最不该靠手工点几遍来确认：名字撞不撞、build 失败起不起、查得出的 pid
- * 才敢不敢杀、default 守不守得住——全是只在边角上才现形的判断。fs 与开进程都是注入的，
- * 整条时序在这里跑得完，不必真拉起一扇 electron 窗。
+ * 启动、停止、删除 home 最不该靠手工点几遍来确认：名字重不重复、装不上时启不启动、查得出的 pid
+ * 才结束、default 删不删得掉——都是只在边界情况里出现的判断。文件系统与启动进程都是注入的，
+ * 整个流程在这里跑得完，不用真的启动一个 electron 窗口。
  */
 
 const ROOT = 'D:/fake-homes'
@@ -46,10 +55,10 @@ const HOME = path.join(ROOT, NAME)
 const HOST = 'C:/apps/gwb-kernel.exe'
 const RECORD: HomeRecord = { pid: 4242, startedAt: 1_000, appDir: 'D:/fake-app' }
 
-/** 内核会往 home 里写的那份。**devkit 只读它**，所以测试里由测试自己摆 */
+/** 内核往 home 里写的运行时记录。**devkit 只读它**，所以测试里由测试自己写 */
 const write = (record: HomeRecord): string => JSON.stringify(record)
 
-/** 一个内存盘：文件表 + 目录表。removeDir 的错误是注进去的——EBUSY 那条路要能演出来 */
+/** 内存里的文件系统：文件表 + 目录表。removeDir 的错误由测试给定，EBUSY 那种情况才测得到 */
 function fakeFs(
   files: Record<string, string> = {},
   dirs: Record<string, string[]> = {},
@@ -115,11 +124,11 @@ interface FakeOptions {
   argv?: string[]
   /** run 的答案，按顺序取；用完了重复最后一个 */
   runs?: { ok: boolean; tail: string }[]
-  /** kill 的收场：默认停成了；'gone' 是下手时已经不在，给一个 Error 是它抛 */
+  /** kill 的结果：默认结束成功；'gone' 是结束时进程已经不在，给一个 Error 就是它抛出 */
   kill?: 'killed' | 'gone' | Error
   /** 停成了之后进程还要被查到几次 running 才真退；Infinity＝一直不退 */
   exitAfterPolls?: number
-  /** CDP 口上 listen 的那个 pid；不给就是「取不出来」（那时只按映像名那道判据走） */
+  /** 在 CDP 端口上监听的那个 pid；不给就是「查不出来」（那时只按映像名判断） */
   portOwner?: number
   execPath?: string
   platform?: NodeJS.Platform
@@ -184,6 +193,87 @@ function fakeDeps(options: FakeOptions = {}) {
   return { deps, state }
 }
 
+/** 运行 home.new 的内核版本号：装进新 home 的就是这个精确版本 */
+const KERNEL_VERSION = '0.3.0'
+
+/** 装进 home 的内核包清单原文；给了 overrides 就覆盖对应字段 */
+function kernelManifest(overrides: Record<string, unknown> = {}): string {
+  return JSON.stringify({ name: KERNEL_PACKAGE, version: KERNEL_VERSION, peerDependencies: { cordis: '4.0.0-rc.9' }, ...overrides })
+}
+
+/** 装上的 cordis 清单原文 */
+function cordisManifest(version = '4.0.0-rc.9'): string {
+  return JSON.stringify({ name: 'cordis', version })
+}
+
+/** 第一条 run（装内核包）之后内核包的清单才出现在 home 的 node_modules 里，第二条（装 cordis）之后 cordis 的清单才出现 */
+function installsOnRuns(deps: HomeDeps, fs: HomeFs, kernelManifestText: string, cordisManifestText = cordisManifest()): void {
+  const run = deps.run
+  let calls = 0
+  deps.run = async (plan, timeoutMs) => {
+    const outcome = await run(plan, timeoutMs)
+    calls += 1
+    if (calls === 1) fs.writeText(kernelManifestFile(HOME), kernelManifestText)
+    if (calls === 2) fs.writeText(installedManifestFile(HOME, 'cordis'), cordisManifestText)
+    return outcome
+  }
+}
+
+describe('装进新 home 的东西：内核包、cordis 与基础插件', () => {
+  it('装内核包：pnpm add --save-exact 精确版本（Windows 上经 cmd /c）', () => {
+    expect(kernelInstallPlan(HOME, KERNEL_VERSION, 'win32')).toEqual({
+      command: 'cmd',
+      args: ['/c', 'pnpm', 'add', '--save-exact', `${KERNEL_PACKAGE}@${KERNEL_VERSION}`],
+      cwd: HOME,
+    })
+    expect(kernelInstallPlan(HOME, '0.3.1-dev.202609241500', 'linux')).toEqual({
+      command: 'pnpm',
+      args: ['add', '--save-exact', `${KERNEL_PACKAGE}@0.3.1-dev.202609241500`],
+      cwd: HOME,
+    })
+  })
+
+  it('装 cordis：pnpm add --save-exact 精确版本', () => {
+    expect(cordisInstallPlan(HOME, '4.0.0-rc.9', 'linux')).toEqual({ command: 'pnpm', args: ['add', '--save-exact', 'cordis@4.0.0-rc.9'], cwd: HOME })
+  })
+
+  it('装基础插件：基础插件与词汇表包不写版本、不带 --save-exact', () => {
+    const plan = baseInstallPlan(HOME, 'linux')
+    expect(plan.command).toBe('pnpm')
+    expect(plan.cwd).toBe(HOME)
+    expect(plan.args).toEqual(['add', ...BASE_PLUGINS.map((one) => one.pkg), '@godcreator/gwb-plugin-api'])
+  })
+
+  it('装上的包清单：版本是要装的那个才回清单；读不到、不是 JSON、版本对不上都拒，说清是哪个文件、装上的是哪个版本', () => {
+    expect(installedManifestAtVersion(cordisManifest(), 'cordis', '4.0.0-rc.9', HOME)).toMatchObject({ ok: true, manifest: { version: '4.0.0-rc.9' } })
+    expect(installedManifestAtVersion(undefined, 'cordis', '4.0.0-rc.9', HOME)).toMatchObject({
+      ok: false,
+      error: expect.stringContaining(installedManifestFile(HOME, 'cordis')),
+    })
+    expect(installedManifestAtVersion('{ half', 'cordis', '4.0.0-rc.9', HOME)).toMatchObject({ ok: false })
+    expect(installedManifestAtVersion(cordisManifest('4.0.0-rc.10'), 'cordis', '4.0.0-rc.9', HOME)).toMatchObject({
+      ok: false,
+      error: expect.stringContaining('4.0.0-rc.10'),
+    })
+  })
+
+  it('cordis 版本取装上的内核包 peerDependencies.cordis', () => {
+    expect(cordisVersionForKernel(kernelManifest(), KERNEL_VERSION, HOME)).toEqual({ ok: true, cordis: '4.0.0-rc.9' })
+  })
+
+  it('内核包清单读不到、装上的版本对不上、peer 里 cordis 没写或不是精确版本号：都拒，说清是哪一条', () => {
+    const missing = cordisVersionForKernel(undefined, KERNEL_VERSION, HOME)
+    expect(missing).toMatchObject({ ok: false, error: expect.stringContaining(kernelManifestFile(HOME)) })
+    expect(cordisVersionForKernel('{ half', KERNEL_VERSION, HOME)).toMatchObject({ ok: false })
+    const otherVersion = cordisVersionForKernel(kernelManifest({ version: '0.3.1' }), KERNEL_VERSION, HOME)
+    expect(otherVersion).toMatchObject({ ok: false, error: expect.stringContaining('0.3.1') })
+    for (const peers of [undefined, {}, { cordis: '^4.0.0-rc.9' }, { cordis: 'latest' }]) {
+      const got = cordisVersionForKernel(kernelManifest({ peerDependencies: peers }), KERNEL_VERSION, HOME)
+      expect(got, JSON.stringify(peers)).toMatchObject({ ok: false, error: expect.stringContaining('不是精确版本号') })
+    }
+  })
+})
+
 describe('命名：本地时间的 yyMMddHHmm，撞了退到秒，再撞就拒', () => {
   it('时间半段用本地时间，两位补零', () => {
     const at = new Date(2026, 8, 8, 7, 5).getTime()
@@ -223,12 +313,12 @@ describe('运行时记录与参数收窄', () => {
   })
 
   it('缺一格不算坏：cdp 与两道门是「那件事没发生」，不是这份记录不能用', () => {
-    // 起的时候没带调试口，或者那个 home 根本没装门插件——两样都是常态
+    // 启动时没带调试端口，或者那个 home 根本没装 MCP 入口插件——两样都是常态
     expect(parseRecord(JSON.stringify({ ...RECORD, cdp: 'x' }))).toEqual(RECORD)
     expect(parseRecord(JSON.stringify({ ...RECORD, mcp: { port: 2870 } }))).toEqual(RECORD)
     expect(parseRecord(JSON.stringify({ ...RECORD, mcp: 'nope' }))).toEqual(RECORD)
     expect(parseRecord(JSON.stringify({ ...RECORD, 'command-http': { url: 'http://x' } }))).toEqual(RECORD)
-    // 老格遗物（换门时代的写者留的）是认不得的字段，随它去
+    // 认不出的字段（更早的插件写的）不影响读取
     expect(parseRecord(JSON.stringify({ ...RECORD, 将来: 1 }))).toEqual(RECORD)
   })
 
@@ -307,32 +397,88 @@ describe('launchHome：拼宿主拉起计划、起它、落记录、看五秒', 
     expect(state.runCalls).toEqual([])
   })
 
-  it('底座装不上：不起宿主，尾巴带回来', async () => {
+  it('内核包装不上：不装 cordis 与基础插件、不启动宿主，输出的最后几行带回来', async () => {
     const { deps, state } = fakeDeps({ runs: [{ ok: false, tail: 'ERR!坏的' }] })
-    const outcome = await launchHome({ name: NAME, homesRoot: ROOT, base: true }, deps)
+    const outcome = await launchHome({ name: NAME, homesRoot: ROOT, install: { kernelVersion: KERNEL_VERSION } }, deps)
     expect(outcome.ok).toBe(false)
-    if (!outcome.ok) expect(outcome.error).toContain('ERR!坏的')
+    if (!outcome.ok) {
+      expect(outcome.error).toContain('ERR!坏的')
+      expect(outcome.error).toContain(`${KERNEL_PACKAGE}@${KERNEL_VERSION}`)
+    }
+    expect(state.runCalls).toHaveLength(1)
     expect(state.spawned).toEqual([])
   })
 
-  it('base：先写 cordis.yml 再 pnpm add 底座（超时上限 BASE_INSTALL_TIMEOUT_MS），然后才拉宿主', async () => {
+  it('install：先写 cordis.yml，再装内核包，读装上的内核包清单定 cordis 版本，再装 cordis、核对版本，最后装基础插件，然后才启动宿主', async () => {
     const fs = fakeFs({}, { [ROOT]: [] })
     const { deps, state } = fakeDeps({ fs, processes: { 4242: 'gwb-kernel.exe' } })
-    const outcome = await launchHome({ name: NAME, homesRoot: ROOT, base: true }, deps)
+    installsOnRuns(deps, fs, kernelManifest())
+    const outcome = await launchHome({ name: NAME, homesRoot: ROOT, install: { kernelVersion: KERNEL_VERSION } }, deps)
     expect(outcome.ok).toBe(true)
-    expect(state.runCalls).toHaveLength(1)
-    expect(state.runCalls[0]?.timeoutMs).toBe(BASE_INSTALL_TIMEOUT_MS)
-    expect(state.runCalls[0]?.plan.cwd).toBe(HOME)
-    expect(state.runCalls[0]?.plan.args).toContain('@godcreator/gwb-commands')
+    expect(state.runCalls.map((call) => call.timeoutMs)).toEqual([BASE_INSTALL_TIMEOUT_MS, BASE_INSTALL_TIMEOUT_MS, BASE_INSTALL_TIMEOUT_MS])
+    expect(state.runCalls.map((call) => call.plan.cwd)).toEqual([HOME, HOME, HOME])
+    expect(state.runCalls[0]?.plan.args).toEqual(['/c', 'pnpm', 'add', '--save-exact', `${KERNEL_PACKAGE}@${KERNEL_VERSION}`])
+    expect(state.runCalls[1]?.plan.args).toEqual(['/c', 'pnpm', 'add', '--save-exact', 'cordis@4.0.0-rc.9'])
+    expect(state.runCalls[2]?.plan.args).toContain('@godcreator/gwb-commands')
+    expect(state.runCalls[2]?.plan.args).not.toContain('--save-exact')
     expect(deps.fs.exists(path.join(HOME, 'cordis.yml'))).toBe(true)
     expect(state.spawned).toHaveLength(1)
+  })
+
+  it('装上的内核包清单里 cordis 不是精确版本号：不装 cordis 与基础插件、不启动宿主', async () => {
+    const fs = fakeFs({}, { [ROOT]: [] })
+    const { deps, state } = fakeDeps({ fs, processes: { 4242: 'gwb-kernel.exe' } })
+    installsOnRuns(deps, fs, kernelManifest({ peerDependencies: { cordis: '^4.0.0-rc.9' } }))
+    const outcome = await launchHome({ name: NAME, homesRoot: ROOT, install: { kernelVersion: KERNEL_VERSION } }, deps)
+    expect(outcome.ok).toBe(false)
+    if (!outcome.ok) expect(outcome.error).toContain('不是精确版本号')
+    expect(state.runCalls).toHaveLength(1)
+    expect(state.spawned).toEqual([])
+  })
+
+  it('装上的内核包版本对不上：不装 cordis 与基础插件、不启动宿主', async () => {
+    const fs = fakeFs({}, { [ROOT]: [] })
+    const { deps, state } = fakeDeps({ fs, processes: { 4242: 'gwb-kernel.exe' } })
+    installsOnRuns(deps, fs, kernelManifest({ version: '0.3.1' }))
+    const outcome = await launchHome({ name: NAME, homesRoot: ROOT, install: { kernelVersion: KERNEL_VERSION } }, deps)
+    expect(outcome.ok).toBe(false)
+    if (!outcome.ok) expect(outcome.error).toContain('home 里装上的却是 0.3.1')
+    expect(state.runCalls).toHaveLength(1)
+    expect(state.spawned).toEqual([])
+  })
+
+  it('装上的 cordis 版本对不上：不装基础插件、不启动宿主', async () => {
+    const fs = fakeFs({}, { [ROOT]: [] })
+    const { deps, state } = fakeDeps({ fs, processes: { 4242: 'gwb-kernel.exe' } })
+    installsOnRuns(deps, fs, kernelManifest(), cordisManifest('4.0.0-rc.10'))
+    const outcome = await launchHome({ name: NAME, homesRoot: ROOT, install: { kernelVersion: KERNEL_VERSION } }, deps)
+    expect(outcome.ok).toBe(false)
+    if (!outcome.ok) expect(outcome.error).toContain('home 里装上的却是 4.0.0-rc.10')
+    expect(state.runCalls).toHaveLength(2)
+    expect(state.spawned).toEqual([])
+  })
+
+  it('cordis 装不上、基础插件装不上：都不启动宿主，输出的最后几行带回来', async () => {
+    for (const runs of [
+      [{ ok: true, tail: '' }, { ok: false, tail: 'ERR!坏的' }],
+      [{ ok: true, tail: '' }, { ok: true, tail: '' }, { ok: false, tail: 'ERR!坏的' }],
+    ]) {
+      const fs = fakeFs({}, { [ROOT]: [] })
+      const { deps, state } = fakeDeps({ fs, runs })
+      installsOnRuns(deps, fs, kernelManifest())
+      const outcome = await launchHome({ name: NAME, homesRoot: ROOT, install: { kernelVersion: KERNEL_VERSION } }, deps)
+      expect(outcome.ok).toBe(false)
+      if (!outcome.ok) expect(outcome.error).toContain('ERR!坏的')
+      expect(state.runCalls).toHaveLength(runs.length)
+      expect(state.spawned).toEqual([])
+    }
   })
 
   it('起得来：环境与观察窗全对，记录由内核写、这儿只读回来报给人', async () => {
     const fs = fakeFs()
     const { deps, state } = fakeDeps({ fs, processes: { 4242: 'gwb-kernel.exe' } })
-    // 记录是**起来之后**才出现的（内核开机写的那一下），所以让假的 spawn 顺手把它摆上——
-    // 一开始就摆在盘上的话，那份记录会被当成「已经有一个实例在跑」
+    // 记录是**启动之后**才出现的（内核启动时写入），所以让假的 spawn 顺带把它写上——
+    // 一开始就在磁盘上的话，那份记录会被当成「已经有一个实例在运行」
     const spawn = deps.spawn
     deps.spawn = (plan, env) => {
       const pid = spawn(plan, env)
@@ -443,7 +589,7 @@ describe('pickCdpPort：起 home 时自动挑一个空口', () => {
       { [recordFile(HOME)]: write({ ...RECORD, cdp: CDP_PORT_BASE }) },
       { [ROOT]: [NAME] },
     )
-    // 第一次问的是它自己那个口（有人），之后每个候选都空
+    // 第一次问的是它自己上次用的端口（有人监听），之后每个候选都空
     let asked = 0
     const { deps } = fakeDeps({ fs })
     const owner = deps.portOwner.bind(deps)
@@ -466,7 +612,7 @@ describe('pickCdpPort：起 home 时自动挑一个空口', () => {
     const { deps } = fakeDeps({ fs })
     expect(portsInRecords(ROOT, deps)).toEqual(new Set([CDP_PORT_BASE, CDP_PORT_BASE + 1]))
     expect(portsInRecords(ROOT, deps, NAME)).toEqual(new Set([CDP_PORT_BASE + 1]))
-    // 自己那个口空着就沿用，哪怕记录是陈旧的
+    // 自己上次用的端口空着就沿用，哪怕记录已经过时
     expect(await pickCdpPort(ROOT, deps, NAME)).toEqual({ port: CDP_PORT_BASE, reused: true })
   })
 })
@@ -572,7 +718,7 @@ describe('bringDownHome：核对映像名再杀', () => {
     const outcome = await bringDownHome(HOME, deps)
     expect(outcome).toMatchObject({ ok: false, killed: null })
     expect(state.killed).toEqual([])
-    // 当成「进程不在」把记录删了的话，那个还跑着的 home 就此没人管得着
+    // 当成「进程不在」把记录删了的话，那个还在运行的 home 就再也找不到了
     expect(fs.files.has(recordFile(HOME))).toBe(true)
   })
 
@@ -661,7 +807,7 @@ describe('removeHome：default 守得住，跑着的要 force 才连停带删', 
   })
 
   it('停不掉就不删：半个目录加一屏 EBUSY 比「没删成」难收拾得多', async () => {
-    // 记录里带着 CDP 口，而那个口上 listen 的是另一个 pid：bringDownHome 第二道核对拦下来
+    // 记录里带着 CDP 端口，而那个端口上监听的是另一个 pid：bringDownHome 的第二道核对拒绝结束进程
     const fs = fakeFs({ [recordFile(HOME)]: write({ ...RECORD, cdp: 9400 }) }, { [ROOT]: [NAME] })
     const { deps, state } = fakeDeps({ fs, processes: { 4242: 'electron.exe' }, portOwner: 9001 })
     const outcome = await removeHome(HOME, NAME, true, deps)

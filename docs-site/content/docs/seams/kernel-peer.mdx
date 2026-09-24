@@ -1,0 +1,93 @@
+---
+title: 3 兼容哪个内核与要求的插件版本 peer 内核包 · requires
+description: 连接插件包 package.json 里 peer 的内核包范围、gwb.requires 与读它们的两处：devkit.release 发版前检查、plugin-manager.list 的 kernelUntested 与 unmetRequires；比对规则在两个包里各写一份，由 devkit 的对照测试拿同一组输入比对两份的结果
+---
+
+**本页回答**：插件在哪里声明兼容哪个内核、要求别的插件最低到哪个版本；谁读、拿什么比；比对规则为什么有两份、两份靠什么保持一样。
+
+## 连接的模块
+
+- 插件包的 `package.json`：`peerDependencies` 里写内核包 `@godcreator/gwb-kernel-desktop` 的版本范围，声明兼容哪些内核；`gwb.requires` 写它要求 home 里别的包最低到哪个版本
+- devkit 的 `devkit.release`（`src/release.ts` + `src/kernel-compat.ts`）：发版前检查
+- 插件管理的 `plugin-manager.list`（`src/index.ts` + `src/kernel-compat.ts` + `src/requires.ts`）：按包报 `kernelRange` 与 `kernelUntested`、`requires` 与 `unmetRequires`
+- 内核：内核服务 `gwbKernel` 的 `version`，由内核仓提供；内核包和插件一样装在 home 里
+- home 里装的别的插件：被 `gwb.requires` 点名的包，插件管理读它在 `node_modules` 里的 `package.json` 取 `version`
+
+<Diagram name="seam-version-fields" title="两个声明，两处读：devkit.release 在发版时拒，plugin-manager.list 在 home 里只报告">
+- 插件包的 `package.json` 里写 peer 内核包的范围与 `gwb.requires`
+- `devkit.release` 发版时只查插件包：peer 内核包的范围要写成 `^x.y.z`、包含 devkit 所在 home 的 `gwbKernel.version`；`gwb.requires` 查写法（是对象、值是 x.y.z、包在 dev 里、不高于 dev 下限）；没过就一个都不发，回执写改成什么
+- `plugin-manager.list` 每次列出时对每个包：peer 内核包的范围拿插件管理所在 home 的 `gwbKernel.version` 比；`gwb.requires` 拿 home 里 `node_modules/<包>/package.json` 的版本比；报 `kernelUntested` 与 `unmetRequires`，只报告、照常加载
+- 比对规则两个包各有一份（两个 `kernel-compat.ts`、两个 `isMinimumVersion`），不跨包 import，对照测试拿同一组输入比两份的结果
+- 内核不读这两个声明；两处比的可以是不同的 home
+</Diagram>
+
+## 接口
+
+**peer 里的内核包**：`"@godcreator/gwb-kernel-desktop": "^x.y.z"`，下限是验证时那个内核的版本号。两个包自己都写了：
+
+{/* ref file="../plugins/devkit/package.json" lines="34-36" */}
+
+**比对规则**：范围要写成 `^x.y.z`；主版本号为 0 时次版本号相同，≥1 时主版本号相同，并且不低于下限；只比 x.y.z 三段，同一条线上的开发版内核算在范围内；没写、写的不是 `^x.y.z` 都算不包含；内核版本号不合法直接抛错。devkit 与插件管理各有一份，函数名与正文相同：
+
+{/* ref file="../plugins/devkit/src/kernel-compat.ts" lines="24-52" */}
+
+{/* ref file="../plugins/plugin-manager/src/kernel-compat.ts" lines="24-52" */}
+
+**devkit 这边**：`devkit.release` 只查 `keywords` 含 `gwb-plugin` 的包，拿的是 devkit 自己所在那个 home 的 `gwbKernel.version`：
+
+{/* ref file="../plugins/devkit/src/release.ts" lines="181-197" */}
+
+**插件管理这边**：`list` 从 home 的 `node_modules` 读每个包的 `package.json`，拿插件管理所在那个 home 的 `gwbKernel.version` 比：
+
+{/* ref file="../plugins/plugin-manager/src/index.ts" lines="447-457" */}
+
+{/* ref file="../plugins/plugin-manager/src/kernel-compat.ts" lines="54-67" */}
+
+**字段 `gwb.requires`**：`{ "<包名>": "<最低版本号 x.y.z>" }`，可选。devkit 发版前查写法（是对象、值是 x.y.z、包在 dev 里、要求不高于 dev 下限）；插件管理拿它和 home 里装的版本比，列出没满足的。规矩见[要求别的插件的最低版本](/docs/rules/requires)。
+
+{/* ref file="../plugins/devkit/src/release.ts" lines="147-175" */}
+
+{/* ref file="../plugins/plugin-manager/src/requires.ts" lines="79-91" */}
+
+**合法的最低版本号**：x.y.z，每段是不带前导零的数字，不带预发布段与构建段。两个包各有一份 `isMinimumVersion`：
+
+{/* ref file="../plugins/devkit/src/release.ts" lines="139-141" */}
+
+{/* ref file="../plugins/plugin-manager/src/requires.ts" lines="31-37" */}
+
+## 约定
+
+devkit 保证：插件包 peer 里的内核包没写、不是 `^x.y.z`、不包含当前内核，一个包都不发，回执里写改成什么；写了 `gwb.requires` 而写法不对，同样一个包都不发。不是插件的包不查。
+
+插件管理保证：`kernelUntested` 与 `unmetRequires` 只报告，不拦加载、不拦安装。
+
+**两份比对规则保持一样靠同一个提交一起改，加对照测试把关**：「改规则时两份一起改」写在两份 `kernel-compat.ts` 的文件头、本仓 AGENTS 的「本仓还有插件管理」与本站[内核兼容性](/docs/plugin-manager/kernel-compat)，最低版本号判法的写在两处 `isMinimumVersion` 的注释；devkit 的 `tests/kernel-compat-parity.test.ts` 把两份规则都 import 进来，拿同一组范围、内核版本与包清单跑，`tests/requires-parity.test.ts` 拿同一组字符串跑两份 `isMinimumVersion`，返回值或抛出的错误不同就失败。
+
+插件管理的 `loader.test.ts` 还把 loader、include、cordis 三个 `devDependencies` 的版本与它 peer 里内核包下限那个内核对齐，见[条目树 loader](/docs/seams/entry-tree)。
+
+建仓模板的 `template/pkg/package.json.tpl` 在 peer 里写内核包，值是 `^{{kernelVersion}}`：`devkit.scaffold` 与 `devkit.scaffold.plugin` 填入运行命令的那个 home 的内核版本号（只取 x.y.z），所以新仓在同一个内核上 `devkit.release` 时过得了这一项检查；结构体检不查这个字段。模板不写 `gwb.requires`：新插件还没用到别的插件的新东西。
+
+{/* ref file="../plugins/devkit/template/pkg/package.json.tpl" lines="29-32" */}
+
+## 不负责的事
+
+- 内核不读 peer 里的内核包范围与 `gwb.requires`，范围不包含、要求没满足的插件照常加载
+- devkit 只在发版时查，装进 home 时不查；插件管理只报，不拒，也不替插件升级被要求的包
+- 两处比的都是调用方所在 home：`devkit.release` 比 devkit 所在 home 的内核，`list` 比插件管理所在 home 的内核与装的包，二者可以是不同的 home
+- devkit 不查 `gwb.requires` 要求的版本在源上发没发过：要求不高于 dev 下限，而 dev 下限由依赖范围那项检查对照源上的 latest
+
+## 测试
+
+两份比对规则由对照测试比对行为，插件管理那份另有回执字段的单元测试，发版前检查另有两条：
+
+{/* has file="../plugins/devkit/tests/kernel-compat-parity.test.ts" text="kernelRangeCovers：范围 × 内核版本，结果与抛错都相同" */}
+
+{/* has file="../plugins/plugin-manager/tests/kernel-compat.test.ts" text="写了但不包含运行中的内核：带 kernelRange，kernelUntested 是 true" */}
+
+{/* has file="../plugins/devkit/tests/requires-parity.test.ts" text="isMinimumVersion：同一组字符串得到同样的结论" */}
+
+{/* has file="../plugins/devkit/tests/release.test.ts" text="插件包 peer 里的内核包不对：构建之后、发之前拒，一个都不发，每个包的问题一次列全" */}
+
+{/* has file="../plugins/devkit/tests/release.test.ts" text="插件包的 gwb.requires 不对：构建之后、发之前拒，一个都不发；写对了照常发" */}
+
+{/* has file="../plugins/plugin-manager/tests/requires.test.ts" text="装的版本太旧、没装、要求的不是合法 x.y.z：各列一条，没装的没有 installed 字段" */}

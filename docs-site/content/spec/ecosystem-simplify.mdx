@@ -44,9 +44,10 @@ devkit 仓已经写下的几条判据（见文末「要改写的轨迹卡与红�
 
 ## 已决定（2026-09-24）
 
-- **兼容性靠插件声明测过的内核版本**：插件在 `package.json` 的 `gwb.testedKernel` 写它在哪个内核版本上测过；`plugin-manager.list`
-  拿它和运行中的内核比，按包报 `kernelUntested`；`devkit.release` 发插件前检查它。内核改了接缝上已有的东西（包括升级 loader、
-  include 的版本、改 home 布局）就升 x（[在哪个内核上测过](/docs/rules/tested-kernel)）
+- **兼容性靠插件在 peer 里写内核包的版本范围**：内核装进 home 之后（内核仓交接页「内核装进 home」），插件在 `peerDependencies` 写
+  `"@godcreator/gwb-kernel-desktop": "^x.y.z"`；`plugin-manager.list` 拿它和运行中的内核比，按包报 `kernelRange` 与 `kernelUntested`；
+  `devkit.release` 发插件前检查它。同日早些时候定的自造字段 `gwb.testedKernel` 随之删掉。内核改了接缝上已有的东西（包括升级 loader、
+  include 的版本、改 home 布局）就升 x
 - **写插件的规矩归 devkit**：内核仓文档站只留「关键设计」里进内核还是做成插件的判据；插件管理进 devkit 仓
 - **react 改由内核提供，删掉 `gwb.shared` 机制**：排成第五期，在第三期之后做。第三期里 block-note 撤掉自己的声明之后，
   声明 `gwb.shared` 的只剩 shell 一家，这套机制（扫描 home 清单、只收插件做提供方、同名冲突处理）只为 react 四个包名存在；
@@ -133,8 +134,8 @@ home**，再查看运行结果。registry 只放正式版。「写插件只有�
 **归属**：内核仓 `packages/gwb-plugin-api`；commands 插件先导出自己的返回结构类型。
 
 **判据**。类型必须有一个共用的包（各插件各自内联会让 `window.gwb` 的全局声明互相冲突）；运行中的内核版本与 home 里
-那份类型包的版本本来就是两回事，peer 管不到运行时——加兼容字段是新机制，只增不减的契约用不着。插件与内核的兼容性由插件自己声明
-`gwb.testedKernel`（见 2026-09-24 的决定），不放进词汇表包。
+那份类型包的版本本来就是两回事，peer 管不到运行时——加兼容字段是新机制，只增不减的契约用不着。插件与内核的兼容性由插件在 peer 里写
+内核包的版本范围（见 2026-09-24 的决定），不放进词汇表包。
 
 ## 六、共享的包名只有一个来源
 
@@ -212,12 +213,14 @@ promise，退出时可能丢数据。
 **第二期：工具链（devkit 与 shell）**
 
 - [ ] shell 导出外置包名的构建期函数
-- [ ] 模板：两侧都用 esbuild 打包、`cordis` 外置并写 peer、其余按「依赖怎么写」那张表写、调用 shell 的构建期函数、带上 `gwb.testedKernel`
+- [ ] 模板：两侧都用 esbuild 打包、`cordis` 外置并写 peer、其余按「依赖怎么写」那张表写、调用 shell 的构建期函数（peer 里写内核包范围已做，见下一条）
 - [x] `devkit.release`：构建产物检查（包名 import、`skipLibCheck: false` 类型检查、无空 import）；去掉 peer 那一类发版前检查，改成插件包 peer 只许 `cordis`；`devkit.audit-deps` 去掉 peer 下限四类、加 `peer-not-cordis`
-- [x] `devkit.release` 发插件前检查 `gwb.testedKernel`；`plugin-manager.list` 按包报 `testedKernel` 与 `kernelUntested`
+- [x] `devkit.release` 发插件前检查 peer 里内核包的范围（`^x.y.z`、包含运行中的内核）；`plugin-manager.list` 按包报 `kernelRange` 与 `kernelUntested`；
+  模板在 peer 里写内核包 `^<建仓时的内核版本>`；`update-all` 跳过内核包与 `cordis`，另有 `plugin-manager.update-kernel`；`devkit.home.new` 按精确版本装内核包与 `cordis`
+  （内核仓交接页「内核装进 home」第二步，2026-09-24；取代同日早些时候的 `gwb.testedKernel`）
 - [ ] `devkit.dev`：pack + `file:`，只构建被测包及其依赖；安装与重新加载先临时用现有插件管理命令，第四期换成统一入口
 - [ ] audit-deps / audit-structure 减少无用输出、支持无参数调用
-- [x] 写插件的规矩写进本站[写插件的规矩](/docs/rules)；说明书 `gwb-devkit` 的红线按新规矩改写，`gwb-release` 写明 `gwb.testedKernel` 的检查与内核升 x 的范围
+- [x] 写插件的规矩写进本站[写插件的规矩](/docs/rules)；说明书 `gwb-devkit` 的红线按新规矩改写，`gwb-release` 写明 peer 内核包范围的检查与内核升 x 的范围
 - [x] 说明书 `gwb-release` 的依赖表（`@godcreator` peer 的写法）随发版前检查一起改成新规矩
 
 **第三期：各插件迁移**
@@ -248,7 +251,7 @@ promise，退出时可能丢数据。
 | shell、unit-folder、node-cli | 服务上的读写方法与命令重复 | 服务 |
 | dsh | `dsh.power` 一条命令包含四种操作；`import { type X }` 留下空 import | 服务、依赖 |
 | commands | 命令返回结构的类型放在词汇表包里；说明书服务的类型用 `as` 强转；服务用 `ctx.provide` 提供，要调用方自己包 `ctx.effect`（改成继承 `Service`、加 peer `cordis`） | 交互、服务 |
-| devkit 模板 | peer 写了词汇表包、commands、shell 和已停止发布的共享包；注册命令自己包 `ctx.effect`（commands 改完后删）；手抄外置名单；样式从 gwb-tokens 引用；没有 `gwb.testedKernel` | 依赖、服务、importmap、测过的内核 |
+| devkit 模板 | peer 写了词汇表包、commands、shell 和已停止发布的共享包；注册命令自己包 `ctx.effect`（commands 改完后删）；手抄外置名单；样式从 gwb-tokens 引用 | 依赖、服务、importmap |
 | 几乎所有插件 | 词汇表包、其他插件写成 peer；Node 一侧构建产物里留着自用库的包名 import | 依赖 |
 
 **第四期：插件管理成为唯一写 home 的插件**

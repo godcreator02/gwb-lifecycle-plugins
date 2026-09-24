@@ -4,7 +4,7 @@
   "author": {
     "name": "godcreator"
   },
-  "description": "插件管理：管 home 里的包与 cordis.yml 条目——安装、卸载、查新版本、一键热升级、加删条目、启用停用、重新加载；找插件与配包源——在配好的 npm 源上搜索插件（包清单 keywords 里有 gwb-plugin 的包），往机器级 ~/.npmrc 增删第三方包源（scope 路由）。对外只有命令；服务 gwbPluginManager 只表示装了。skill 1 份；命令 16 条。",
+  "description": "插件管理：管 home 里的包与 cordis.yml 条目——安装、卸载、查新版本、一键热升级、升内核、加删条目、启用停用、重新加载；找插件与配包源——在配好的 npm 源上搜索插件（包清单 keywords 里有 gwb-plugin 的包），往机器级 ~/.npmrc 增删第三方包源（scope 路由）。对外只有命令；服务 gwbPluginManager 只表示装了。skill 1 份；命令 17 条。",
   "type": "module",
   "main": "dist/index.js",
   "types": "dist/index.d.ts",
@@ -29,6 +29,9 @@
     "//prepublishOnly": "发版前强制构建一次：pnpm check 只跑类型检查、lint 和测试，不构建，少了这条会把上一版的 dist 原样发出去",
     "prepublishOnly": "pnpm build"
   },
+  "peerDependencies": {
+    "@godcreator/gwb-kernel-desktop": "^0.3.0"
+  },
   "dependencies": {
     "@pnpm/exe.win32-x64": "12.4.2"
   },
@@ -37,7 +40,7 @@
     "@cordisjs/plugin-loader": "1.0.0-rc.6",
     "@godcreator/gwb-commands": "^0.4.6",
     "@godcreator/gwb-data": "^0.1.6",
-    "@godcreator/gwb-plugin-api": "^0.2.7",
+    "@godcreator/gwb-plugin-api": "^0.3.0",
     "@godcreator/gwb-repo-kit": "workspace:*",
     "@godcreator/gwb-settings": "^0.3.2",
     "@godcreator/gwb-skills": "^0.4.4",
@@ -49,7 +52,6 @@
     "vitest": "^4.1.10"
   },
   "gwb": {
-    "testedKernel": "0.2.7",
     "provides": {
       "gwbPluginManager": {
         "summary": "只表示插件管理装了，值是 { contract }，上面没有方法",

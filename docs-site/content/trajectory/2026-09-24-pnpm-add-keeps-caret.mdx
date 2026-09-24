@@ -1,0 +1,28 @@
+---
+title: 清单里原来写 ^ 时，pnpm add 点名精确版本并带 --save-exact 照样装上更新的预发布版
+born-at: 2026-09-24T15:10
+type: evidence
+parent: [2026-09-17-dev-install-pins-exact]
+label: add 沿用 ^
+domain: 插件管理
+---
+
+## 背景
+
+内核装进 home 之后（内核仓交接页「内核装进 home」），插件管理新加 `plugin-manager.update-kernel`：先装内核包，再把 home 根上的 `cordis`
+对齐到内核包 `peerDependencies.cordis` 写的精确版本号。home 根上的 `cordis` 版本一旦和内核要的不同，内核就运行在它没验过的 `cordis` 上。
+[准确号装机](2026-09-17-dev-install-pins-exact.md)那张卡记过预发布号上 `pnpm add` 会沿用 `^`，这次要确认的是：清单里原来写精确版本号、
+或者原来没有这一项时，`pnpm add <包>@<号>` 装得对不对。
+
+## 结论与边界
+
+- 清单里原来是 `^4.0.0-rc.9`：`pnpm add cordis@4.0.0-rc.9 --save-exact` 退出码 0，清单仍是 `^4.0.0-rc.9`，装上的是 4.0.0-rc.10
+- 清单里原来是精确版本号：`pnpm add cordis@4.0.0-rc.10` 带不带 `--save-exact`，清单都写成精确版本号、装上的就是它
+- 清单里原来没有这一项：写进去的是精确版本号，装上的就是点名的版本
+- 所以 `update-kernel` 两次 pnpm 都带 `--save-exact`（新加进清单的包写精确版本号），每次装完读 `node_modules` 里的清单核对版本，
+  对不上回 `ok: false`，说明把清单里那一项改成精确版本号；创建 home 的一方（`INSTALL.md`、`devkit.home.new`）一开始就把内核包与
+  `cordis` 写成精确版本号
+
+## 依据
+
+`probes/2609241510_pnpm-add-exact-prefix/`（`results.txt`），pnpm 12.4.2，源上 cordis 最新是 4.0.0-rc.10。

@@ -1,5 +1,6 @@
 import { bareId, installSpec } from './ids.js'
 import { readEntries, type EntrySnapshot } from './inventory.js'
+import { KERNEL_MANAGED_PACKAGES } from './kernel-upgrade.js'
 import type { OutdatedMap } from './outdated.js'
 
 /** 一条要重新加载的条目 */
@@ -23,6 +24,13 @@ export interface PlannedPackage {
   self: boolean
 }
 
+/** 过期了、但版本由内核决定而没升的一个包 */
+export interface KernelManagedPackage {
+  pkg: string
+  from: string
+  to: string
+}
+
 export interface UpdateAllPlan {
   /** 一次 `pnpm add` 的参数：`['add', 'a@1.2.3', …]`，精确版本（outdated 查到的 latest，不是 `@latest` 标签）；清单为空时是空数组 */
   pnpmArgs: string[]
@@ -32,6 +40,8 @@ export interface UpdateAllPlan {
   selfIncluded: boolean
   /** `only` 里点了名、却不在过期清单里的包——回执里说明，免得人以为它升级了 */
   ignored: string[]
+  /** 过期清单里的内核包与 cordis（`only` 给了就只算点了名的），按包名排：一键热升级不升它们，回执里说明 */
+  kernelManaged: KernelManagedPackage[]
 }
 
 /** 这个包的条目，本插件自己那条挪到最后：同包的其它实例在处理器里重新加载，自己那条留到回执之后 */
@@ -55,10 +65,15 @@ export function planUpdateAll(
 
   const pluginEntries = readEntries(store).filter((entry) => !entry.group)
   const packages: PlannedPackage[] = []
+  const kernelManaged: KernelManagedPackage[] = []
   for (const pkg of Object.keys(outdated).sort((a, b) => a.localeCompare(b))) {
     if (onlyThesePackages !== undefined && !onlyThesePackages.has(pkg)) continue
     const versionGap = outdated[pkg]
     if (versionGap === undefined) continue
+    if (KERNEL_MANAGED_PACKAGES.has(pkg)) {
+      kernelManaged.push({ pkg, from: versionGap.current, to: versionGap.latest })
+      continue
+    }
     const plannedEntries = plannedEntriesWithOwnLast(pkg, pluginEntries, ownBareId)
     packages.push({ pkg, from: versionGap.current, to: versionGap.latest, entries: plannedEntries, self: plannedEntries.some((entry) => entry.self) })
   }
@@ -70,6 +85,7 @@ export function planUpdateAll(
     packages,
     selfIncluded: packages.some((p) => p.self),
     ignored,
+    kernelManaged,
   }
 }
 

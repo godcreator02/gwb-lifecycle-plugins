@@ -11,7 +11,7 @@ description: 插件在 package.json 的 gwb.requires 写它要求 home 里别的
 
 **是什么**：插件包在 `package.json` 的 `gwb` 字段里写 `requires`，形状是 `{ "<包名>": "<最低版本号 x.y.z>" }`，意思是运行时 home 里这个包装的版本不低于这个号。可选，只写真用到了那个包某个版本才有的东西的包。什么时候该写、怎么写见规矩页[要求别的插件的最低版本](/docs/rules/requires)。
 
-**为什么**：插件的 `peerDependencies` 只写 `cordis`，别的插件写在 dev 里，dev 只管本地开发。插件用到外壳新加的主题令牌时，home 里的外壳太旧也不报错，令牌取不到值，样式静默失效；有了这个声明，插件管理能把「装的版本不够新」报出来。
+**为什么**：插件的 `peerDependencies` 只写内核包与 `cordis`，别的插件写在 dev 里，dev 只管本地开发。插件用到外壳新加的主题令牌时，home 里的外壳太旧也不报错，令牌取不到值，样式静默失效；有了这个声明，插件管理能把「装的版本不够新」报出来。
 
 ## list 回执里的三个字段
 
@@ -38,7 +38,7 @@ description: 插件在 package.json 的 gwb.requires 写它要求 home 里别的
 
 **「装了的版本」从哪读**：home 的 `node_modules/<包名>/package.json` 在，就算装了，版本取它的 `version`。`list` 本来就读 home 的 dependencies 与条目里每个包的清单；`gwb.requires` 点名了别的包时再补读一次。不合包名规则的键不拿去拼路径，按没装报。
 
-{/* ref file="../plugins/plugin-manager/src/index.ts" lines="413-449" */}
+{/* ref file="../plugins/plugin-manager/src/index.ts" lines="447-483" */}
 
 **守住它的测试**：
 
@@ -52,7 +52,7 @@ description: 插件在 package.json 的 gwb.requires 写它要求 home 里别的
 
 **是什么**：`unmetRequires` 不空、`requiresInvalid` 有值的插件照常加载、照常能装能升，插件管理不拦它。
 
-**为什么**：和 `kernelUntested` 同理（见[在哪个内核上测过](/docs/plugin-manager/kernel-compat#只报告不拦加载)）：要求没满足多半只是某处样式或某个新功能不对，整个插件拦下来反而没法用；看到报告，升级被要求的那个包就解决了。要保证声明写得对，在发版时检查。
+**为什么**：和 `kernelUntested` 同理（见[内核兼容性](/docs/plugin-manager/kernel-compat#只报告不拦加载)）：要求没满足多半只是某处样式或某个新功能不对，整个插件拦下来反而没法用；看到报告，升级被要求的那个包就解决了。要保证声明写得对，在发版时检查。
 
 ## 发版前 devkit.release 检查写法
 

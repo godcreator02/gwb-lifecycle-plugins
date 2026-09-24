@@ -34,8 +34,8 @@ describe('装在 home 里的包自己的 package.json', () => {
   }
 
   it('按包名（含 scope）从 node_modules 读出解析后的清单', async () => {
-    writeInstalledManifest('@x/gwb-a', JSON.stringify({ name: '@x/gwb-a', gwb: { testedKernel: '0.2.7' } }))
-    expect(await readInstalledPackageManifest(home, '@x/gwb-a')).toEqual({ name: '@x/gwb-a', gwb: { testedKernel: '0.2.7' } })
+    writeInstalledManifest('@x/gwb-a', JSON.stringify({ name: '@x/gwb-a', peerDependencies: { '@godcreator/gwb-kernel-desktop': '^0.3.0' } }))
+    expect(await readInstalledPackageManifest(home, '@x/gwb-a')).toEqual({ name: '@x/gwb-a', peerDependencies: { '@godcreator/gwb-kernel-desktop': '^0.3.0' } })
   })
 
   it('包不在 node_modules 里时是 undefined', async () => {

@@ -11,7 +11,7 @@ description: 插件管理只用自己依赖里固定版本的 @pnpm/exe.win32-x6
 
 **是什么**：插件管理的 `dependencies` 写固定版本的 `@pnpm/exe.win32-x64`，随插件管理一起装进 home。运行时从插件管理自己的位置解析这个包，启动里面的 `pnpm.exe`。不读设置、不找 PATH，机器上装没装 pnpm、装的哪个版本，都和插件管理无关。
 
-{/* ref file="../plugins/plugin-manager/package.json" lines="32-34" */}
+{/* ref file="../plugins/plugin-manager/package.json" lines="35-37" */}
 
 **为什么**：
 
@@ -45,7 +45,7 @@ description: 插件管理只用自己依赖里固定版本的 @pnpm/exe.win32-x6
 
 **命令行参数与工作目录**：改 home 只有 `add <spec…>` 与 `remove <包名>` 两种，都经 `applyToHome` 排进同一个串行队列；只读的是 `outdated --json`。工作目录一律是 home。
 
-{/* ref file="../plugins/plugin-manager/src/index.ts" lines="735-738" */}
+{/* ref file="../plugins/plugin-manager/src/index.ts" lines="826-829" */}
 
 **环境**：原样传下去，用户的 `~/.npmrc`、pnpm 配置（`@godcreator` 的包源、包龄豁免）照常读到；只去掉 `ELECTRON_RUN_AS_NODE`——它只对 electron 有意义，留着会传给 pnpm 启动的依赖构建脚本。直接启动这个文件，不开 shell。
 

@@ -69,7 +69,7 @@ devkit 没有任何特权：装进 home 才有它的命令，加载不成功就�
 
 判据只有一句：**这段逻辑能不能不启动进程、不开窗口、只给输入看输出。**
 
-能的部分是纯逻辑：时序、检查、命名、版本号、「查不出算不算不在」「装上的是不是这次发的版本」「哪个依赖落后了」「测过的内核在不在同一条版本线上」这些判断都在这里，测试用假的依赖把整条流程跑完。不能的部分在四个 `node-*-deps.ts` 里，只负责在真机器上拿到答案：启动进程、查进程表、查端口被谁占着、读写磁盘、连 CDP、问团队源。这一层不做判断，也不进单元测试。
+能的部分是纯逻辑：时序、检查、命名、版本号、「查不出算不算不在」「装上的是不是这次发的版本」「哪个依赖落后了」「插件声明的内核范围包不包含运行中的内核」这些判断都在这里，测试用假的依赖把整条流程跑完。不能的部分在四个 `node-*-deps.ts` 里，只负责在真机器上拿到答案：启动进程、查进程表、查端口被谁占着、读写磁盘、连 CDP、问团队源。这一层不做判断，也不进单元测试。
 
 两边靠显式接口隔开：`HomeDeps`、`DevDeps`、`ReleaseDeps` 三个接口由纯逻辑定义，运行时传 `node-*-deps.ts` 的实现，测试时传假实现。依赖方向是单向的：真机器那一层认识纯逻辑，纯逻辑不认识它。
 
@@ -85,7 +85,7 @@ devkit 没有任何特权：装进 home 才有它的命令，加载不成功就�
 | 结构体检 | `src/structure.ts` | 同一个文件，只读磁盘 | [结构体检](/docs/devkit/structure) |
 | 测试 home | `src/home.ts` | `src/node-home-deps.ts` | [测试 home](/docs/devkit/home) |
 | 改一版看一版 | `src/dev.ts` | `src/node-dev-deps.ts` | [改一版看一版](/docs/devkit/dev) |
-| 发正式版 | `src/release.ts`、`src/artifact-check.ts`、`src/tested-kernel.ts` | `src/node-dev-deps.ts` | [开发套件](/docs/devkit#发正式版的检查) |
+| 发正式版 | `src/release.ts`、`src/artifact-check.ts`、`src/kernel-compat.ts` | `src/node-dev-deps.ts` | [开发套件](/docs/devkit#发正式版的检查) |
 | 依赖对账 | `src/audit.ts` | `src/node-audit-deps.ts` | [开发套件](/docs/devkit#依赖对账的判据) |
 | 能用什么 | `src/services.ts`、`src/capabilities.ts` | 命令登记处读 home 里的 `package.json` | [开发套件](/docs/devkit) |
 | 进程与端口探测 | `src/probes.ts` | `src/node-probe-deps.ts` | [测试 home](/docs/devkit/home) |
@@ -104,10 +104,10 @@ devkit 没有任何特权：装进 home 才有它的命令，加载不成功就�
 插件管理 `@godcreator/gwb-plugin-manager` 仍是 home 里的普通插件：由 `cordis.yml` 里的一条条目加载、单独发版、用 `plugin-manager.update-all` 升级。它和 devkit 放在一起，是因为两者互相依赖的地方多（[插件管理迁入 devkit 仓](/trajectory/2026-09-24-plugin-manager-joins-devkit)）：
 
 - `devkit.dev` 装完开发版调 `plugin-manager.remount` 重新加载，再轮询 `plugin-manager.list` 取证；重新加载插件管理自己时收到 `deferred`，就等 `list` 回来
-- `devkit.home.new` 把插件管理作为基础插件装进新 home，之后往这个 home 加插件用 `plugin-manager.install`
-- `gwb.testedKernel` 两边都用：插件管理在 `list` 里拿它和运行中的内核比对，`devkit.release` 发版前拒绝没写对的插件包。比对规则两边各存一份（两个包的 `src/tested-kernel.ts`），不跨包 import
+- `devkit.home.new` 把内核包、`cordis` 与插件管理等基础插件装进新 home，之后往这个 home 加插件用 `plugin-manager.install`、升内核用 `plugin-manager.update-kernel`
+- 插件 peer 里内核包的范围两边都用：插件管理在 `list` 里拿它和运行中的内核比对，`devkit.release` 发版前拒绝没写对的插件包。比对规则两边各存一份（两个包的 `src/kernel-compat.ts`），不跨包 import
 
-{/* has file="../plugins/devkit/src/tested-kernel.ts" text="比对规则与插件管理的 src/tested-kernel.ts 各存一份" */}
+{/* has file="../plugins/devkit/src/kernel-compat.ts" text="比对规则与插件管理的 src/kernel-compat.ts 各存一份" */}
 
 放在一个仓里，这些地方一个提交就能改两边，改比对规则时两份一起改、一起跑测试。
 

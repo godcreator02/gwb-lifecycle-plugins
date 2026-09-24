@@ -1,6 +1,6 @@
 ---
 name: gwb-plugin-manager
-description: 装插件、找插件或配包源、升级插件、查插件有没有在当前内核上测过或它要求的别的插件版本满没满足、增删改条目、插件装了却没加载时读。
+description: 装插件、找插件或配包源、升级插件、升内核、查插件 peer 里的内核范围包不包含当前内核或它要求的别的插件版本满没满足、增删改条目、插件装了却没加载时读。
 ---
 
 # 插件管理
@@ -39,28 +39,39 @@ home 里有两层：
 
 1. `plugin-manager.outdated` 看谁有新版本，回 `包名 → { current, latest }`
 2. `plugin-manager.update-all`（只升几个给 `{"only":["<包名>"]}`）。一条命令做完：一次 `pnpm add` 升到精确版本 → 升了的包的每条条目重新加载（本来停用的保持停用）→ 整页重新加载，不重启
-3. 读回执 `updated[].entries[]`：`state` 为 `ACTIVE` 才算加载成功。`selfDeferred: true` 表示插件管理自己在回执发出后才重新加载，过一会儿用 `list` 核对；升到 gwb-mcp 自己时进行中的 MCP 请求会断，重连一次
+3. 读回执 `updated[].entries[]`：`state` 为 `ACTIVE` 才算加载成功。`selfDeferred: true` 表示插件管理自己在回执发出后才重新加载，过一会儿用 `list` 核对；升到 gwb-mcp 自己时进行中的 MCP 请求会断，重连一次。回执带 `kernelManaged` 表示内核包或 `cordis` 有新版本、这条命令没升它们，按下一节升内核
 4. `plugin-manager.list` 核对版本与 `active`，再调一次 `index`
 
-**完成判据**：`outdated` 里不再有这次升的包；`list` 里它们的版本是新版、条目 `active` 为 true。
+**完成判据**：`outdated` 里除内核包与 `cordis` 外不再有这次升的包；`list` 里它们的版本是新版、条目 `active` 为 true。
 
 升级前的隔离 home 验证、上游发了破坏性版本时怎么升，见说明书 `gwb-release`。
 
-## 查哪些插件没在当前内核上测过、要求的插件版本没满足
+## 升内核
 
-1. `plugin-manager.list`，看每个包的 `kernelUntested` 与 `testedKernel`
-   * `testedKernel`：包清单 `gwb.testedKernel` 声明的内核版本，没声明时没有这个字段
-   * `kernelUntested` 为 true：声明的版本和运行中的内核不在同一条版本线上，或没声明、声明的不是合法版本号。版本线：主版本号为 0 看前两位（`0.2.1` 与 `0.2.7` 同一条，与 `0.3.0` 不同），≥1 只看主版本号
+内核包 `@godcreator/gwb-kernel-desktop` 与 home 根上的 `cordis` 由这条命令升，`update-all` 不动它们。新内核先在隔离 home 里升、重启验完，再升 default。
+
+1. `plugin-manager.update-kernel`（指定版本给 `{"version":"<版本>"}`，不给就装源上的 latest）。它先装内核包，再按内核包 `peerDependencies.cordis` 写的精确版本号装 `cordis`；不重新加载任何条目
+2. 读回执：`kernel` 与 `cordis` 的 `{ from, to }`；`restartRequired`（装上的内核与正在运行的不同时是 true）；`pluginsOutsideRange` 是 peer 里内核包的范围不包含新内核（或没写范围）的插件
+3. `restartRequired` 为 true 时告诉人要重启工作台才生效，并列出 `pluginsOutsideRange`；重启由人决定，不要自己重启
+4. `ok: false` 且 `error` 说先别重启：内核包已经装上、`cordis` 没对齐。按 `error` 修好再调一次：内核包 peer 里的 `cordis` 写成了范围；装 `cordis` 时 pnpm 失败（原因在 `data.tail`）；或者 pnpm 装上的版本不是要的——home 的 `package.json` 里那一项写成了 `^`，改成 `error` 里给的精确版本号
+
+**完成判据**：回执 `ok` 为 true，人已知道要重启和 `pluginsOutsideRange` 里的插件；重启后 `runtime.json` 报的内核版本是 `kernel.to`。
+
+## 查哪些插件的内核范围不包含当前内核、要求的插件版本没满足
+
+1. `plugin-manager.list`，看每个包的 `kernelUntested` 与 `kernelRange`
+   * `kernelRange`：包清单 `peerDependencies` 里内核包 `@godcreator/gwb-kernel-desktop` 的范围，没写时没有这个字段
+   * `kernelUntested` 为 true：范围不包含运行中的内核，或没写、写的不是 `^x.y.z`。`^x.y.z` 在主版本号为 0 时要求次版本号相同（`^0.3.0` 包含 `0.3.4`，不包含 `0.4.0`），≥1 时要求主版本号相同，并且不低于 x.y.z
 2. 同一份回执里看每个包的 `unmetRequires` 与 `requiresInvalid`
    * `requires`：包清单 `gwb.requires` 原样照抄，`{ 包名: 最低版本号 x.y.z }`，意思是运行时 home 里这些包不低于这个版本；没写时没有这个字段
    * `unmetRequires`：没满足的要求，每条 `{ pkg, required, installed? }`——装的版本低于 `required`、`required` 不是合法的 x.y.z、或没装（没有 `installed` 字段）；全都满足时是空数组。装的是 `0.5.0-dev.1` 不满足要求 `0.5.0`
    * `requiresInvalid`：`gwb.requires` 写了但不是「包名 → 字符串」的对象，说明哪里不对；这时不比对
 3. 列出 `kernelUntested` 为 true 的包、`unmetRequires` 不空或带 `requiresInvalid` 的包。这些都只是报告、照常加载；出了问题先怀疑它们
-   * 没测过：到那个插件的仓里在隔离 home 验证后改 `gwb.testedKernel` 再发版（说明书 `gwb-devkit`、`gwb-release`）
+   * 范围不包含当前内核：到那个插件的仓里在隔离 home 验证后改 peer 里内核包的范围再发版（说明书 `gwb-devkit`、`gwb-release`）
    * 被要求的包太旧或没装：升级或安装那个包，`update-all {"only":["<被要求的包名>"]}` 或 `install`
    * `requiresInvalid`、`required` 不合法：到那个插件的仓里改写法再发版，`devkit.release` 会拒写错的
 
-**完成判据**：给出 `kernelUntested` 为 true 的全部包名与各自的 `testedKernel`，`unmetRequires` 不空的全部包名与每条没满足的要求，带 `requiresInvalid` 的包名与原因。
+**完成判据**：给出 `kernelUntested` 为 true 的全部包名与各自的 `kernelRange`，`unmetRequires` 不空的全部包名与每条没满足的要求，带 `requiresInvalid` 的包名与原因。
 
 ## 增删改条目
 
@@ -90,7 +101,7 @@ home 里有两层：
 ## 参考
 
 * **重新加载一条条目只用 `remount`**：它一条命令做完停用与启用。目标是插件管理自己或命令总线（`gwb-commands`）时，分两条调的话 `disable` 一返回命令表就没了，`enable` 调不进去，条目停在停用状态
-* **同一时刻只允许一个改动**：`install`、`uninstall`、`update-all`、`remount` 正在运行时再调回 `{ ok: false, error: "BUSY…" }`，等前一个返回回执后再调。`search`、`source.*` 不改 home，不受这条限制
+* **同一时刻只允许一个改动**：`install`、`uninstall`、`update-all`、`update-kernel`、`remount` 正在运行时再调回 `{ ok: false, error: "BUSY…" }`，等前一个返回回执后再调。`search`、`source.*` 不改 home，不受这条限制
 * **失败回执**：参数写错（包名、版本范围、id、scope 不合规，条目不存在，改或删 `@godcreator`）直接报错；执行中失败回 `ok: false`，`error` 是原因，pnpm 输出的最后几行在 `data.tail`。`update-all` 的 pnpm 失败时一条条目都没动
 * **install 只装点名的包**：不装它的 peer，也不判断它是不是库。装了一个没有 `apply` 的包，条目照样加上、加载失败，用 `uninstall` 删掉
 * **是不是插件只看包清单 `keywords` 里有没有 `gwb-plugin`**，名字不参与。`search` 回的是这条规则筛出的全部结果，不维护的旧包也在里面

@@ -1,0 +1,6 @@
+pnpm 12.4.2；工作目录 C:\Users\godamericatb14\AppData\Local\Temp\pnpm-exact-probe-260924151029
+caret-start                  pnpm add cordis@4.0.0-rc.9 --save-exact exit=0 清单=^4.0.0-rc.9    装上=4.0.0-rc.10
+exact-start                  pnpm add cordis@4.0.0-rc.10             exit=0 清单=4.0.0-rc.10    装上=4.0.0-rc.10
+exact-start-flag             pnpm add cordis@4.0.0-rc.10 --save-exact exit=0 清单=4.0.0-rc.10    装上=4.0.0-rc.10
+absent-flag                  pnpm add cordis@4.0.0-rc.9 --save-exact exit=0 清单=4.0.0-rc.9     装上=4.0.0-rc.9
+absent-noflag                pnpm add cordis@4.0.0-rc.9              exit=0 清单=4.0.0-rc.9     装上=4.0.0-rc.9

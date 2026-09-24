@@ -1,13 +1,13 @@
 ---
 title: 热升级
-description: outdated 查过期包；update-all 一次 pnpm add 精确版本，同一条命令里逐条停用再启用，再整页重新加载，不重启；插件管理自己排最后、回执发出后才重新加载
+description: outdated 查过期包；update-all 一次 pnpm add 精确版本，同一条命令里逐条停用再启用，再整页重新加载，不重启；插件管理自己排最后、回执发出后才重新加载；内核包与 cordis 不热升级，由 update-kernel 装好、重启后生效
 ---
 
 # 热升级
 
-**本页回答**：怎么查出哪些包有新版本；为什么升级与重新加载必须在同一条命令里；升级计划按什么排；一次热升级从头到尾依次发生什么。重新加载一条条目的时序在[重新加载一条条目](/docs/plugin-manager/remount)。
+**本页回答**：怎么查出哪些包有新版本；为什么升级与重新加载必须在同一条命令里；升级计划按什么排；一次热升级从头到尾依次发生什么；内核包与 `cordis` 为什么另用一条命令升、它做了什么。重新加载一条条目的时序在[重新加载一条条目](/docs/plugin-manager/remount)。
 
-热升级管 home 里的全部包，插件管理自己和命令插件也在其中：它们各是 `cordis.yml` 里的一条条目，和别的插件一样升级。
+热升级管 home 里除内核包与 `cordis` 之外的全部包，插件管理自己和命令插件也在其中：它们各是 `cordis.yml` 里的一条条目，和别的插件一样升级。
 
 ## 查新版本
 
@@ -15,7 +15,7 @@ description: outdated 查过期包；update-all 一次 pnpm add 精确版本，�
 
 **怎么做**：退出码 1 表示「有过期包」，是结果不是失败；找不到 pnpm、输出解析不了都转成 `ok: false` 的回执，界面上只显示一句提示。它只读不写，不经过 BUSY 检查，但 pnpm 照样排进串行队列（见[同一时刻只允许一个改动](/docs/plugin-manager/home#同一时刻只允许一个改动busy)）。
 
-{/* ref file="../plugins/plugin-manager/src/index.ts" lines="482-501" */}
+{/* ref file="../plugins/plugin-manager/src/index.ts" lines="516-535" */}
 
 **守住它的测试**：
 
@@ -42,13 +42,16 @@ description: outdated 查过期包；update-all 一次 pnpm add 精确版本，�
 
 **是什么**：升哪些包、重新加载哪些条目、按什么顺序，由一个纯函数算出，单独测。
 
-{/* ref file="../plugins/plugin-manager/src/update-all.ts" lines="26-35" */}
+{/* ref file="../plugins/plugin-manager/src/update-all.ts" lines="27-45" */}
 
 - **精确版本**：用 `outdated` 查到的版本号，不用 `@latest` 标签——两次查询之间又发了一版，也不会装成回执上没写的那个
 - **每条条目各自重新加载**：被别的插件 inject 的插件重新加载时，cordis 会把依赖它的插件停用再启动，但那是重跑内存里的旧代码，磁盘上的新版本没有加载，所以不能指望这种连带
 - 包按包名排，包内的条目按条目树里的先后；本来就停用的条目保持停用，记为 `skipped`
 - **插件管理自己排最后**：它所在的包排在所有包之后，包内它那条条目也排最后
 - 给了 `only` 就只升点名的几个；点了名却不在过期清单里的，回执的 `note` 里列出来
+- **内核包与 `cordis` 不升**：过期清单里有它们（`only` 点了名也一样）就列进 `kernelManaged`，回执带上这个字段，`note` 指向 `update-kernel`；过期清单里没有它们时回执里没有这个字段。理由见下面[升内核](#升内核)
+
+{/* ref file="../plugins/plugin-manager/src/kernel-upgrade.ts" lines="9-10" */}
 
 **守住它的测试**：计划是纯函数，每一条都有测试。
 
@@ -59,6 +62,10 @@ description: outdated 查过期包；update-all 一次 pnpm add 精确版本，�
 {/* has file="../plugins/plugin-manager/tests/update-all.test.ts" text="执行时保持停用，不重新加载" */}
 
 {/* has file="../plugins/plugin-manager/tests/update-all.test.ts" text="点了名却不在过期清单里的进 ignored" */}
+
+{/* has file="../plugins/plugin-manager/tests/update-all.test.ts" text="过期清单里有它们：不进 pnpm 参数与 packages，列进 kernelManaged" */}
+
+{/* has file="../plugins/plugin-manager/tests/update-all.test.ts" text="only 点了它们的名也不升，照样列进 kernelManaged、不进 ignored" */}
 
 ## 一次热升级依次发生什么
 
@@ -73,12 +80,46 @@ description: outdated 查过期包；update-all 一次 pnpm add 精确版本，�
 
 **插件管理自己在回执之后**：升级清单里有插件管理自己时，它那条条目在回执发出之后才重新加载，回执里 `selfDeferred` 是 `true`，它的条目 `action` 是 `deferred`。理由与[重新加载插件管理自己](/docs/plugin-manager/remount#目标是插件管理自己先回执后重新加载)相同。
 
-{/* ref file="../plugins/plugin-manager/src/index.ts" lines="545-555" */}
+{/* ref file="../plugins/plugin-manager/src/index.ts" lines="582-592" */}
 
 {/* has file="../plugins/plugin-manager/tests/commands.test.ts" text="升级清单里有插件管理自己：自己那条先回 deferred，回执之后才重新加载，再整页重新加载" */}
 
 **整页重新加载**：经命令插件调用外壳的 `shell.reload`，按命令名查找，不 import 外壳。回执的 `reload`：`done` 已经重新加载；`deferred` 等插件管理自己重新加载完再执行；`unavailable` 命令表里没有它或它失败了，界面要手动刷新，原因在 `note` 里。
 
-{/* ref file="../plugins/plugin-manager/src/index.ts" lines="109-128" */}
+{/* ref file="../plugins/plugin-manager/src/index.ts" lines="113-134" */}
 
 **升到 MCP 入口自己**：`gwb-mcp` 重新加载时，进行中的 MCP 请求会中断，agent 要重连一次，再用 `plugin-manager.list` 核对版本与 `active`。
+
+## 升内核
+
+**是什么**：`update-kernel` 经 `applyToHome` 运行两次 pnpm：先 `pnpm add @godcreator/gwb-kernel-desktop@<version>`（不给 `version` 就是 `latest`），装完读 home 里内核包的 `package.json`，取它 `peerDependencies.cordis` 写的精确版本号，再 `pnpm add cordis@<那个版本>`，两次都带 `--save-exact`，home 的 `package.json` 里写精确版本号。不重新加载任何条目，也不整页重新加载；装上的内核版本和正在运行的不同时回执 `restartRequired: true`，`note` 说重启工作台后才生效、重启由人决定。
+
+**装完读回核对**：pnpm 退出码 0 不等于装上了要的版本。home 的 `package.json` 里 `cordis` 原来写成 `^4.0.0-rc.9` 时，pnpm 12 沿用 `^`，点名 `cordis@4.0.0-rc.9` 并带 `--save-exact` 照样装上 rc.10；原来写精确版本号、或原来没有这个包时才装对（devkit 仓 `probes/2609241510_pnpm-add-exact-prefix/`）。所以每次 pnpm 之后读 `node_modules` 里的清单：给了 `version` 时内核包要是那个版本，`cordis` 要是内核包 peer 里的版本，对不上就回 `ok: false`，说明把清单里那一项改成精确版本号再运行。
+
+{/* ref file="../plugins/plugin-manager/src/kernel-upgrade.ts" lines="44-54" */}
+
+**为什么不热升级**：内核在主进程里运行，停用再启用条目换不掉它；home 根上的 `cordis` 是内核与所有插件共用的那一份，内核与插件都已经 import 了它，换了也要重启才生效。所以一键热升级跳过这两个包，由这条命令单独升，什么时候重启由人决定。
+
+**为什么 `cordis` 要跟着对齐**：内核包把 `cordis` 写成 peer，pnpm 把它解析到 home 根上的那一份；home 根上的版本和内核包要的不同，内核就运行在它没验过的 `cordis` 上。内核包 peer 里的 `cordis` 因此必须是精确版本号，写成范围就说不清 home 根上该装哪一个，这时命令不装 `cordis`、回 `ok: false`。
+
+{/* ref file="../plugins/plugin-manager/src/kernel-upgrade.ts" lines="26-42" */}
+
+**失败时**：内核包装不上，什么都没改；内核包装上了、而 peer 里的 `cordis` 不是精确版本号或装 `cordis` 失败，回执 `ok: false`，`error` 说明内核包已经是哪个版本、`cordis` 没对齐、先别重启——这时重启，新内核会运行在没对齐的 `cordis` 上。装 `cordis` 失败时回执带 `kernel` 与 pnpm 输出的最后几行。
+
+{/* ref file="../plugins/plugin-manager/src/index.ts" lines="595-640" */}
+
+**范围不包含新内核的插件**：回执的 `pluginsOutsideRange` 列出 home 里 `keywords` 含 `gwb-plugin`、peer 里内核包的范围不包含新内核（或没写范围）的插件，按包名排。比对规则与 `list` 的 `kernelUntested` 是同一条（见[内核兼容性](/docs/plugin-manager/kernel-compat)），同样只报告：重启后它们照常加载，要不要先升它们由人决定。
+
+{/* ref file="../plugins/plugin-manager/src/kernel-upgrade.ts" lines="50-61" */}
+
+`from` 是装之前 home 里内核包、`cordis` 各自的版本，装之前没有这个包时回执里没有 `from`。
+
+**守住它的测试**：算新旧版本、校验 peer 里的 `cordis`、算 `pluginsOutsideRange` 是纯函数，有单元测试；整条命令在假 pnpm 上有测试；真的换内核只能实机验证：在隔离 home 里调 `plugin-manager.update-kernel`，重启那个 home，看 `runtime.json` 报的内核版本与 `list` 里的条目。
+
+{/* has file="../plugins/plugin-manager/tests/kernel-upgrade.test.ts" text="peer 里的 cordis 是范围不是精确版本号：报错并说出实际写的" */}
+
+{/* has file="../plugins/plugin-manager/tests/kernel-upgrade.test.ts" text="范围不包含新内核的、没写范围的插件算在内，包含的不算；按包名排" */}
+
+{/* has file="../plugins/plugin-manager/tests/commands.test.ts" text="先装内核包、再按它 peer 里的版本装 cordis；不重新加载任何条目；回执带新旧版本与范围不含新内核的插件" */}
+
+{/* has file="../plugins/plugin-manager/tests/commands.test.ts" text="装 cordis 时 pnpm 失败：回执带上已经装好的内核版本，说明 cordis 没对齐、先别重启" */}

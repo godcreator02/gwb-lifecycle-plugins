@@ -9,6 +9,11 @@ export function requireKernel(ctx: Pick<GwbContext, 'gwbKernel'>): GwbKernelApi 
   return kernel
 }
 
+/** 版本号只留 x.y.z 三段（去掉预发布段与构建段）：插件 peer 里内核包的范围按它写成 `^x.y.z`。调用方保证传入的是合法版本号 */
+export function versionCore(version: string): string {
+  return version.replace(/[-+].*$/, '')
+}
+
 export function isRecord(value: unknown): value is Record<string, unknown> {
   return typeof value === 'object' && value !== null && !Array.isArray(value)
 }

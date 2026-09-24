@@ -1,13 +1,14 @@
 import path from 'node:path'
 import { describe, expect, it } from 'vitest'
 import { DEFAULT_REGISTRY } from '../src/dev.js'
+import { KERNEL_PACKAGE } from '../src/kernel-compat.js'
 import {
   checkTicket,
   dirtyLines,
+  kernelPeerProblems,
   peerProblems,
   requiresProblems,
   runRelease,
-  testedKernelProblems,
   ticketManifestOf,
   ticketRefusal,
   typecheckArgs,
@@ -15,9 +16,9 @@ import {
 } from '../src/release.js'
 
 /**
- * 发正式版这条链比开发版多一道「git 树干净」的守卫、少一整个 home 那半——测的就是这些
- * 差出来的部分:守卫的次序(全在发第一个包之前)、范围怎么写(>= 而不是钉准确号)、
- * 同号拒发时那句话有没有把「去仓里抬号」说清。全是边角上现形的判断,假件里跑得完。
+ * 发正式版比发开发版多一道「git 工作区干净」的检查，少了装进 home 的那部分。这里测多出来的部分：检查的次序
+ * （全在发第一个包之前）、同一次发的包之间的范围写成 `^新版本号`、同号拒发时有没有说清「先在仓里升版本号」。
+ * 都是只在边界情况里出现的判断，用假的依赖就能跑完。
  */
 
 const REPO = 'D:/fake-repo'
@@ -28,7 +29,11 @@ const SHELL = '@godcreator/gwb-shell'
 const API = '@godcreator/gwb-plugin-api'
 const REACT = '@godcreator/gwb-shared-react'
 
-const KERNEL = '0.2.7'
+/** 运行中的内核版本号 */
+const KERNEL = '0.3.0'
+
+/** 插件包 peer 里写对了的内核包 */
+const KERNEL_PEER = { [KERNEL_PACKAGE]: '^0.3.0' }
 
 const EXPORTS = { '.': { types: './dist/index.d.ts', default: './dist/index.js' } }
 
@@ -51,7 +56,6 @@ const T = (peers: Record<string, string>, devs: Record<string, string>, version 
   peers,
   devs,
   plugin,
-  testedKernel: undefined,
   requires: undefined,
   allDevs: devs,
 })
@@ -88,18 +92,23 @@ describe('checkTicket：版本号与 dev 范围', () => {
   })
 })
 
-describe('peerProblems：插件包的 peer 只写 cordis', () => {
-  it('只有 peer cordis 且产物 import 了 cordis：干净', () => {
-    expect(peerProblems(T({ cordis: '^4.0.0-rc.9' }, {}, '0.3.0', true), true)).toEqual({ problems: [], reminders: [] })
+describe('peerProblems：插件包的 peer 只写 cordis 与内核包', () => {
+  it('peer 只有 cordis 与内核包、且产物 import 了 cordis：干净', () => {
+    expect(peerProblems(T({ cordis: '^4.0.0-rc.9', ...KERNEL_PEER }, {}, '0.3.0', true), true)).toEqual({ problems: [], reminders: [] })
   })
 
-  it('cordis 以外的 peer 一律拒，逐条说按「运行时谁提供」写 dev 还是 dependencies', () => {
-    const got = peerProblems(T({ [SHELL]: '^0.13.3', [API]: '^0.2.7', react: '^19.0.0' }, {}, '0.3.0', true), false)
+  it('peer 只有内核包、产物没有 import cordis：干净', () => {
+    expect(peerProblems(T(KERNEL_PEER, {}, '0.3.0', true), false)).toEqual({ problems: [], reminders: [] })
+  })
+
+  it('cordis 与内核包以外的 peer 一律拒，逐条说按「运行时谁提供」写 dev 还是 dependencies', () => {
+    const got = peerProblems(T({ [SHELL]: '^0.13.3', [API]: '^0.2.7', react: '^19.0.0', ...KERNEL_PEER }, {}, '0.3.0', true), false)
     expect(got.problems).toEqual([
       expect.stringContaining(`peer 写了 ${SHELL}`),
       expect.stringContaining(`peer 写了 ${API}`),
       expect.stringContaining('peer 写了 react'),
     ])
+    expect(got.problems[0]).toContain(KERNEL_PACKAGE)
     expect(got.problems[0]).toContain('devDependencies')
     expect(got.problems[0]).toContain('dependencies,并在清单里写明原因')
   })
@@ -131,47 +140,58 @@ describe('ticketRefusal', () => {
   })
 })
 
-describe('ticketManifestOf：是不是插件、测过的内核版本', () => {
-  it('keywords 含 gwb-plugin 的是插件，gwb.testedKernel 原样读出', () => {
-    expect(ticketManifestOf(pluginManifestOf(A, '0.3.0', { testedKernel: '0.2.7' }))).toMatchObject({ plugin: true, testedKernel: '0.2.7' })
+describe('ticketManifestOf：是不是插件、全部 peer', () => {
+  it('keywords 含 gwb-plugin 的是插件，peer 不分 scope 全部读出（内核包也在里面）', () => {
+    const text = pluginManifestOf(A, '0.3.0', undefined, { peerDependencies: { cordis: '^4.0.0-rc.9', ...KERNEL_PEER } })
+    expect(ticketManifestOf(text)).toMatchObject({ plugin: true, peers: { cordis: '^4.0.0-rc.9', ...KERNEL_PEER } })
   })
 
-  it('没有 gwb-plugin 的不是插件；gwb.testedKernel 没写或不是字符串时是 undefined', () => {
-    expect(ticketManifestOf(manifestOf(A, '0.3.0'))).toMatchObject({ plugin: false, testedKernel: undefined })
-    expect(ticketManifestOf(pluginManifestOf(A, '0.3.0', { testedKernel: 27 }))).toMatchObject({ plugin: true, testedKernel: undefined })
+  it('没有 gwb-plugin 的不是插件', () => {
+    expect(ticketManifestOf(manifestOf(A, '0.3.0'))).toMatchObject({ plugin: false, peers: {} })
   })
 })
 
-describe('testedKernelProblems：插件包的 gwb.testedKernel', () => {
-  const P = (testedKernel: string | undefined, plugin = true) => ({ name: A, version: '0.3.0', peers: {}, devs: {}, plugin, testedKernel, requires: undefined, allDevs: {} })
+describe('kernelPeerProblems：插件包 peer 里的内核包', () => {
+  const P = (peers: Record<string, string>, plugin = true) => T(peers, {}, '0.3.0', plugin)
 
-  it('和运行中的内核在同一条版本线上：放行（0.x 比前两位，≥1 只比主版本号）', () => {
-    expect(testedKernelProblems(P('0.2.1'), '0.2.7')).toEqual([])
-    expect(testedKernelProblems(P('1.0.0'), '1.9.4')).toEqual([])
+  it('写了 ^x.y.z 且包含运行中的内核：放行（0.x 次版本号相同，≥1 主版本号相同，都不低于下限）', () => {
+    expect(kernelPeerProblems(P({ [KERNEL_PACKAGE]: '^0.3.0' }), '0.3.4')).toEqual([])
+    expect(kernelPeerProblems(P({ [KERNEL_PACKAGE]: '^1.0.0' }), '1.9.4')).toEqual([])
+    expect(kernelPeerProblems(P({ [KERNEL_PACKAGE]: '^0.3.0' }), '0.3.1-dev.202609241500')).toEqual([])
   })
 
   it('不是插件包：不查', () => {
-    expect(testedKernelProblems(P(undefined, false), '0.2.7')).toEqual([])
+    expect(kernelPeerProblems(P({}, false), KERNEL)).toEqual([])
   })
 
   it('没写：拒，说在哪儿写、写什么', () => {
-    expect(testedKernelProblems(P(undefined), '0.2.7')).toEqual([expect.stringContaining('没写 gwb.testedKernel')])
-    expect(testedKernelProblems(P(undefined), '0.2.7')[0]).toContain('"testedKernel": "0.2.7"')
+    const got = kernelPeerProblems(P({ cordis: '^4.0.0-rc.9' }), KERNEL)
+    expect(got).toEqual([expect.stringContaining(`peer 里没写内核包 ${KERNEL_PACKAGE}`)])
+    expect(got[0]).toContain(`"${KERNEL_PACKAGE}": "^0.3.0"`)
   })
 
-  it('不是合法版本号：拒', () => {
-    expect(testedKernelProblems(P('^0.2.0'), '0.2.7')).toEqual([expect.stringContaining('不是合法的版本号')])
+  it('运行中的是开发版内核：建议的范围只取 x.y.z 三段', () => {
+    expect(kernelPeerProblems(P({}), '0.3.1-dev.202609241500')[0]).toContain(`"${KERNEL_PACKAGE}": "^0.3.1"`)
   })
 
-  it('版本线不同：拒，说改成运行中的内核版本', () => {
-    const got = testedKernelProblems(P('0.1.9'), '0.2.7')
-    expect(got).toEqual([expect.stringContaining('不在同一条版本线上')])
-    expect(got[0]).toContain('"0.2.7"')
-    expect(testedKernelProblems(P('1.9.4'), '2.0.0')).toHaveLength(1)
+  it('写法不是 ^x.y.z：拒（精确号、>=、~、少一段、带预发布段都算）', () => {
+    for (const bad of ['0.3.0', '>=0.3.0', '~0.3.0', '^0.3', '^0.3.0-dev.1']) {
+      const got = kernelPeerProblems(P({ [KERNEL_PACKAGE]: bad }), KERNEL)
+      expect(got, bad).toEqual([expect.stringContaining('不是 ^x.y.z')])
+      expect(got[0]).toContain('"^0.3.0"')
+    }
+  })
+
+  it('不包含运行中的内核：拒，说在运行中的内核上验过之后改成什么', () => {
+    const older = kernelPeerProblems(P({ [KERNEL_PACKAGE]: '^0.2.7' }), KERNEL)
+    expect(older).toEqual([expect.stringContaining('不包含运行中的内核 0.3.0')])
+    expect(older[0]).toContain('改成 "^0.3.0"')
+    expect(kernelPeerProblems(P({ [KERNEL_PACKAGE]: '^0.3.2' }), KERNEL)).toHaveLength(1)
+    expect(kernelPeerProblems(P({ [KERNEL_PACKAGE]: '^1.9.4' }), '2.0.0')).toHaveLength(1)
   })
 
   it('运行中的内核版本号不合法：直接抛错', () => {
-    expect(() => testedKernelProblems(P('0.2.7'), 'dev')).toThrow(/运行中的内核版本号/)
+    expect(() => kernelPeerProblems(P(KERNEL_PEER), 'dev')).toThrow(/内核版本号不是合法的版本号/)
   })
 })
 
@@ -190,7 +210,6 @@ describe('requiresProblems：插件包的 gwb.requires', () => {
     peers: {},
     devs: {},
     plugin,
-    testedKernel: KERNEL,
     requires,
     allDevs,
   })
@@ -336,8 +355,8 @@ describe('发正式版', () => {
       latest: { [SHELL]: '0.9.0', [API]: '0.2.0' },
       files: {
         [path.resolve(REPO, 'a/package.json')]: full(A, '0.0.3', { [SHELL]: '^0.8.0' }, { [SHELL]: '0.8.0' }),
-        [path.resolve(REPO, 'b/package.json')]: pluginManifestOf(B, '0.2.0', { testedKernel: KERNEL }, {
-          peerDependencies: { [API]: '^0.1.1' },
+        [path.resolve(REPO, 'b/package.json')]: pluginManifestOf(B, '0.2.0', undefined, {
+          peerDependencies: { [API]: '^0.1.1', ...KERNEL_PEER },
           devDependencies: { [API]: '0.1.1' },
         }),
       },
@@ -360,7 +379,7 @@ describe('发正式版', () => {
   it('插件包的产物有不在名单上的包名 import、有空 import：拒', async () => {
     const deps = fake({
       files: {
-        [path.resolve(REPO, 'a/package.json')]: pluginManifestOf(A, '0.1.0', { testedKernel: KERNEL }),
+        [path.resolve(REPO, 'a/package.json')]: pluginManifestOf(A, '0.1.0', undefined, { peerDependencies: KERNEL_PEER }),
         [path.resolve(REPO, 'a/dist/index.js')]: "import YAML from 'yaml';\nimport {} from '@godcreator/gwb-shell';\n",
       },
     })
@@ -430,7 +449,7 @@ describe('发正式版', () => {
   it('检查过了：写了 peer cordis 而产物没 import 它，只提醒不拒，提醒带进回执', async () => {
     const deps = fake({
       files: {
-        [path.resolve(REPO, 'a/package.json')]: pluginManifestOf(A, '0.1.0', { testedKernel: KERNEL }, { peerDependencies: { cordis: '^4.0.0-rc.9' } }),
+        [path.resolve(REPO, 'a/package.json')]: pluginManifestOf(A, '0.1.0', undefined, { peerDependencies: { cordis: '^4.0.0-rc.9', ...KERNEL_PEER } }),
       },
     })
     const out = await runRelease({ repoDir: REPO, runningKernel: KERNEL, packages: ['a'] }, deps)
@@ -438,11 +457,11 @@ describe('发正式版', () => {
     if (out.ok) expect(out.data.reminders).toEqual([expect.stringContaining(`${A}@0.1.0:写了 peer cordis`)])
   })
 
-  it('插件包的 gwb.testedKernel 不对：构建之后、发之前拒，一个都不发，每个包的问题一次列全', async () => {
+  it('插件包 peer 里的内核包不对：构建之后、发之前拒，一个都不发，每个包的问题一次列全', async () => {
     const deps = fake({
       files: {
         [path.resolve(REPO, 'a/package.json')]: pluginManifestOf(A, '0.1.0'),
-        [path.resolve(REPO, 'b/package.json')]: pluginManifestOf(B, '0.2.0', { testedKernel: '0.1.4' }),
+        [path.resolve(REPO, 'b/package.json')]: pluginManifestOf(B, '0.2.0', undefined, { peerDependencies: { [KERNEL_PACKAGE]: '^0.2.7' } }),
       },
     })
     const out = await runRelease({ repoDir: REPO, runningKernel: KERNEL, packages: ['a', 'b'] }, deps)
@@ -451,15 +470,15 @@ describe('发正式版', () => {
     expect(deps.calls.some((one) => one.includes('pnpm build'))).toBe(true)
     expect(deps.calls.some((one) => one.startsWith('publish'))).toBe(false)
     expect(out.error).toContain('2 个包 2 条')
-    expect(out.error).toContain(`${A}@0.1.0:\n  - 没写 gwb.testedKernel`)
-    expect(out.error).toContain(`${B}@0.2.0:\n  - gwb.testedKernel 是 0.1.4`)
+    expect(out.error).toContain(`${A}@0.1.0:\n  - peer 里没写内核包 ${KERNEL_PACKAGE}`)
+    expect(out.error).toContain(`${B}@0.2.0:\n  - peer 里内核包 ${KERNEL_PACKAGE} 写的是 "^0.2.7"`)
   })
 
   it('插件包的 gwb.requires 不对：构建之后、发之前拒，一个都不发；写对了照常发', async () => {
     const wrong = fake({
       latest: { [SHELL]: '0.5.0' },
       files: {
-        [path.resolve(REPO, 'a/package.json')]: pluginManifestOf(A, '0.1.0', { testedKernel: KERNEL, requires: { [SHELL]: '0.5.1' } }, { devDependencies: { [SHELL]: '^0.5.0' } }),
+        [path.resolve(REPO, 'a/package.json')]: pluginManifestOf(A, '0.1.0', { requires: { [SHELL]: '0.5.1' } }, { peerDependencies: KERNEL_PEER, devDependencies: { [SHELL]: '^0.5.0' } }),
       },
     })
     const refused = await runRelease({ repoDir: REPO, runningKernel: KERNEL, packages: ['a'] }, wrong)
@@ -471,16 +490,16 @@ describe('发正式版', () => {
     const right = fake({
       latest: { [SHELL]: '0.5.0' },
       files: {
-        [path.resolve(REPO, 'a/package.json')]: pluginManifestOf(A, '0.1.0', { testedKernel: KERNEL, requires: { [SHELL]: '0.5.0' } }, { devDependencies: { [SHELL]: '^0.5.0' } }),
+        [path.resolve(REPO, 'a/package.json')]: pluginManifestOf(A, '0.1.0', { requires: { [SHELL]: '0.5.0' } }, { peerDependencies: KERNEL_PEER, devDependencies: { [SHELL]: '^0.5.0' } }),
       },
     })
     const shipped = await runRelease({ repoDir: REPO, runningKernel: KERNEL, packages: ['a'] }, right)
     expect(shipped.ok).toBe(true)
   })
 
-  it('插件包的 gwb.testedKernel 和运行中的内核同线：照常发', async () => {
-    const deps = fake({ files: { [path.resolve(REPO, 'a/package.json')]: pluginManifestOf(A, '0.1.0', { testedKernel: '0.2.3' }) } })
-    const out = await runRelease({ repoDir: REPO, runningKernel: KERNEL, packages: ['a'] }, deps)
+  it('插件包 peer 里的内核包范围包含运行中的内核：照常发', async () => {
+    const deps = fake({ files: { [path.resolve(REPO, 'a/package.json')]: pluginManifestOf(A, '0.1.0', undefined, { peerDependencies: KERNEL_PEER }) } })
+    const out = await runRelease({ repoDir: REPO, runningKernel: '0.3.2', packages: ['a'] }, deps)
     expect(out.ok).toBe(true)
     expect(deps.calls).toContain(`publish 0.1.0 @${path.resolve(REPO, 'a')}`)
   })

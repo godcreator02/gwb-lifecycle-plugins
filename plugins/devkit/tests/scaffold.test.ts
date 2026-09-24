@@ -28,17 +28,17 @@ import {
   writePluginPage,
   writeRepo,
 } from '../src/scaffold.js'
-import { declaredTestedKernel, testedOnSameKernelLine } from '../src/tested-kernel.js'
+import { KERNEL_PACKAGE, declaredKernelRange, isCaretRange, kernelRangeCovers } from '../src/kernel-compat.js'
 
 /**
- * 建仓与加件的纯机。**落盘那几条真写临时目录**——`writeRepo` 的活就是往盘上放文件，
- * 拿替身测等于没测。`planScaffoldPlugin` 要验仓的形状，也是在临时目录里现搭。
+ * 建仓与加插件的纯逻辑。**写磁盘的那几条真的写临时目录**——`writeRepo` 做的就是往磁盘上写文件，
+ * 用替身测等于没测。`planScaffoldPlugin` 要检查仓的形状，也是在临时目录里现建一个仓。
  */
 
 const TEMPLATE_ROOT = path.join(path.dirname(fileURLToPath(import.meta.url)), '..', 'template')
 
 /** 运行建仓命令的内核版本号 */
-const KERNEL = '0.2.7'
+const KERNEL = '0.3.0'
 
 const sandboxes: string[] = []
 function sandbox(): string {
@@ -69,7 +69,7 @@ describe('短名校验', () => {
 
 describe('planScaffold：校验与派生', () => {
   it('短名派生出包名与插件名，title 缺省用短名', () => {
-    const plan = planScaffold({ name: 'hello-world', dir: 'D:\\tmp\\x', testedKernel: KERNEL })
+    const plan = planScaffold({ name: 'hello-world', dir: 'D:\\tmp\\x', kernelVersion: KERNEL })
     expect(plan.name).toBe('hello-world')
     expect(plan.pkg).toBe(`${SCOPE}/gwb-hello-world`)
     expect(plan.pluginName).toBe('gwb-hello-world')
@@ -77,31 +77,31 @@ describe('planScaffold：校验与派生', () => {
   })
 
   it('title 给了就用给的，两头空白削掉；空白串等于没给', () => {
-    expect(planScaffold({ name: 'x', dir: 'D:\\tmp\\x', title: '  打招呼  ', testedKernel: KERNEL }).title).toBe('打招呼')
-    expect(planScaffold({ name: 'x', dir: 'D:\\tmp\\x', title: '   ', testedKernel: KERNEL }).title).toBe('x')
+    expect(planScaffold({ name: 'x', dir: 'D:\\tmp\\x', title: '  打招呼  ', kernelVersion: KERNEL }).title).toBe('打招呼')
+    expect(planScaffold({ name: 'x', dir: 'D:\\tmp\\x', title: '   ', kernelVersion: KERNEL }).title).toBe('x')
   })
 
   it('dir 绝对化：相对路径按当前工作目录算，那不是调用方心里那个「相对谁」', () => {
-    expect(path.isAbsolute(planScaffold({ name: 'x', dir: 'tmp/x', testedKernel: KERNEL }).dir)).toBe(true)
+    expect(path.isAbsolute(planScaffold({ name: 'x', dir: 'tmp/x', kernelVersion: KERNEL }).dir)).toBe(true)
   })
 
   it('短名不合规就拒，报错里带上规则；dir 空着也拒', () => {
     for (const bad of ['', 'Hello', 'hello_world']) {
-      expect(() => planScaffold({ name: bad, dir: 'D:\\tmp\\x', testedKernel: KERNEL })).toThrow(/kebab-case/)
+      expect(() => planScaffold({ name: bad, dir: 'D:\\tmp\\x', kernelVersion: KERNEL })).toThrow(/kebab-case/)
     }
-    expect(() => planScaffold({ name: 'x', dir: '   ', testedKernel: KERNEL })).toThrow(/dir/)
+    expect(() => planScaffold({ name: 'x', dir: '   ', kernelVersion: KERNEL })).toThrow(/dir/)
   })
 
   it('docs 缺省是建：人记得事后补第二条命令的概率，跟那一堆仓至今没有站是同一个概率', () => {
-    expect(planScaffold({ name: 'x', dir: 'D:\\tmp\\x', testedKernel: KERNEL }).docs).toBe(true)
-    expect(planScaffold({ name: 'x', dir: 'D:\\tmp\\x', docs: false, testedKernel: KERNEL }).docs).toBe(false)
+    expect(planScaffold({ name: 'x', dir: 'D:\\tmp\\x', kernelVersion: KERNEL }).docs).toBe(true)
+    expect(planScaffold({ name: 'x', dir: 'D:\\tmp\\x', docs: false, kernelVersion: KERNEL }).docs).toBe(false)
   })
 
   it('port 不给就是 undefined（本包不猜一个写进 README）；给了要在 1024–65535', () => {
-    expect(planScaffold({ name: 'x', dir: 'D:\\tmp\\x', testedKernel: KERNEL }).port).toBeUndefined()
-    expect(planScaffold({ name: 'x', dir: 'D:\\tmp\\x', port: 4321, testedKernel: KERNEL }).port).toBe(4321)
+    expect(planScaffold({ name: 'x', dir: 'D:\\tmp\\x', kernelVersion: KERNEL }).port).toBeUndefined()
+    expect(planScaffold({ name: 'x', dir: 'D:\\tmp\\x', port: 4321, kernelVersion: KERNEL }).port).toBe(4321)
     for (const bad of [80, 70000, 4321.5]) {
-      expect(() => planScaffold({ name: 'x', dir: 'D:\\tmp\\x', port: bad, testedKernel: KERNEL })).toThrow(/port/)
+      expect(() => planScaffold({ name: 'x', dir: 'D:\\tmp\\x', port: bad, kernelVersion: KERNEL })).toThrow(/port/)
     }
   })
 })
@@ -109,7 +109,7 @@ describe('planScaffold：校验与派生', () => {
 describe('planScaffoldPlugin：往薄壳仓加件', () => {
   it('派生同一套身份，dir 直指 <repo>/plugins/<短名>', () => {
     const repo = fakeWorkspace()
-    const plan = planScaffoldPlugin({ name: 'world', repo, title: '第二件', testedKernel: KERNEL })
+    const plan = planScaffoldPlugin({ name: 'world', repo, title: '第二件', kernelVersion: KERNEL })
     expect(plan.pkg).toBe(`${SCOPE}/gwb-world`)
     expect(plan.pluginName).toBe('gwb-world')
     expect(plan.repoDir).toBe(repo)
@@ -118,26 +118,26 @@ describe('planScaffoldPlugin：往薄壳仓加件', () => {
   })
 
   it('repo 不在、yaml 不在（老裸根单件仓）、yaml 没有 plugins/ 那条，三种都拒，话里带路', () => {
-    expect(() => planScaffoldPlugin({ name: 'x', repo: path.join(sandbox(), 'nope'), testedKernel: KERNEL })).toThrow(/不在/)
+    expect(() => planScaffoldPlugin({ name: 'x', repo: path.join(sandbox(), 'nope'), kernelVersion: KERNEL })).toThrow(/不在/)
     const bare = path.join(sandbox(), 'bare')
     fs.mkdirSync(bare, { recursive: true })
-    expect(() => planScaffoldPlugin({ name: 'x', repo: bare, testedKernel: KERNEL })).toThrow(/薄壳 workspace/)
+    expect(() => planScaffoldPlugin({ name: 'x', repo: bare, kernelVersion: KERNEL })).toThrow(/薄壳 workspace/)
     const noPlugins = fakeWorkspace('packages:\n  - docs-site\n')
-    expect(() => planScaffoldPlugin({ name: 'x', repo: noPlugins, testedKernel: KERNEL })).toThrow(/薄壳 workspace/)
+    expect(() => planScaffoldPlugin({ name: 'x', repo: noPlugins, kernelVersion: KERNEL })).toThrow(/薄壳 workspace/)
     for (const bad of ['', 'Hello', 'x--']) {
-      expect(() => planScaffoldPlugin({ name: bad, repo: fakeWorkspace(), testedKernel: KERNEL })).toThrow(/kebab-case/)
+      expect(() => planScaffoldPlugin({ name: bad, repo: fakeWorkspace(), kernelVersion: KERNEL })).toThrow(/kebab-case/)
     }
-    expect(() => planScaffoldPlugin({ name: 'x', repo: '   ', testedKernel: KERNEL })).toThrow(/repo/)
+    expect(() => planScaffoldPlugin({ name: 'x', repo: '   ', kernelVersion: KERNEL })).toThrow(/repo/)
   })
 })
 
 describe('docsBlock：README 里讲站的那段', () => {
   it('建了站就讲怎么跑；端口给了才敢写死，没给只说去哪儿看', () => {
-    const withPort = placeholders(planScaffold({ name: 'x', dir: 'D:\\tmp\\x', port: 4321, testedKernel: KERNEL })).docsBlock ?? ''
+    const withPort = placeholders(planScaffold({ name: 'x', dir: 'D:\\tmp\\x', port: 4321, kernelVersion: KERNEL })).docsBlock ?? ''
     expect(withPort).toContain('cd docs-site')
     expect(withPort).toContain('http://localhost:4321')
 
-    const noPort = placeholders(planScaffold({ name: 'x', dir: 'D:\\tmp\\x', testedKernel: KERNEL })).docsBlock ?? ''
+    const noPort = placeholders(planScaffold({ name: 'x', dir: 'D:\\tmp\\x', kernelVersion: KERNEL })).docsBlock ?? ''
     expect(noPort).toContain('cd docs-site')
     // 猜一个端口写进 README，读者照着敲的那条 pnpm dev 就是错的
     expect(noPort).not.toMatch(/localhost:\d/)
@@ -145,7 +145,7 @@ describe('docsBlock：README 里讲站的那段', () => {
   })
 
   it('没建站就讲怎么补一个——两步，而且点名那两个件的命令', () => {
-    const block = placeholders(planScaffold({ name: 'x', dir: 'D:\\tmp\\x', docs: false, testedKernel: KERNEL })).docsBlock ?? ''
+    const block = placeholders(planScaffold({ name: 'x', dir: 'D:\\tmp\\x', docs: false, kernelVersion: KERNEL })).docsBlock ?? ''
     expect(block).not.toContain('cd docs-site')
     expect(block).toContain('docs-site.create')
     expect(block).toContain('docfirst.attach')
@@ -156,7 +156,7 @@ describe('docsBlock：README 里讲站的那段', () => {
 })
 
 describe('nextSteps：按站真建到哪一步分三支', () => {
-  const plan = planScaffold({ name: 'x', dir: 'D:\\tmp\\x', testedKernel: KERNEL })
+  const plan = planScaffold({ name: 'x', dir: 'D:\\tmp\\x', kernelVersion: KERNEL })
 
   it('骨架铺了、六区也装了，才给 docs-site 那几步，端口有就报出来', () => {
     const steps = nextSteps(plan, { built: true, attached: true, port: 4321 }).join('\n')
@@ -179,7 +179,7 @@ describe('nextSteps：按站真建到哪一步分三支', () => {
   })
 
   it('不给 site 就照计划里的意思说', () => {
-    expect(nextSteps(planScaffold({ name: 'x', dir: 'D:\\tmp\\x', docs: false, testedKernel: KERNEL })).join('\n')).toContain(
+    expect(nextSteps(planScaffold({ name: 'x', dir: 'D:\\tmp\\x', docs: false, kernelVersion: KERNEL })).join('\n')).toContain(
       'docs-site.create',
     )
     // 计划里要建站 = 两步都走，走到底那一支
@@ -198,7 +198,7 @@ describe('nextSteps：按站真建到哪一步分三支', () => {
 
   it('nextStepsPlugin：不建站；写了插件页就报出路径，没写就说以后建站要补哪一页；尾巴是 README 的插件清单', () => {
     const repo = fakeWorkspace()
-    const plan = planScaffoldPlugin({ name: 'w', repo, testedKernel: KERNEL })
+    const plan = planScaffoldPlugin({ name: 'w', repo, kernelVersion: KERNEL })
     const written = nextStepsPlugin(plan, 'D:\\repo\\docs-site\\content\\docs\\plugins\\w.mdx').join('\n')
     expect(written).toContain('"packages":["plugins/w"]')
     expect(written).toContain('doc:render')
@@ -264,7 +264,7 @@ describe('包内 template/：两区', () => {
   })
 
   it('真渲染一套：占位符一个不剩，薄壳根 + 件包的树形都对', () => {
-    const files = renderTemplate(TEMPLATE_ROOT, planScaffold({ name: 'hello', dir: 'D:\\tmp\\x', title: '打招呼', testedKernel: KERNEL }))
+    const files = renderTemplate(TEMPLATE_ROOT, planScaffold({ name: 'hello', dir: 'D:\\tmp\\x', title: '打招呼', kernelVersion: KERNEL }))
     expect(files.map((f) => f.rel).sort()).toEqual([
       '.gitignore',
       'README.md',
@@ -311,7 +311,7 @@ describe('包内 template/：两区', () => {
 
   it('renderPlugin 只渲染件包那半：rel 相对件包根，仓半的文件一个都不在', () => {
     const repo = fakeWorkspace()
-    const files = renderPlugin(TEMPLATE_ROOT, planScaffoldPlugin({ name: 'world', repo, testedKernel: KERNEL }))
+    const files = renderPlugin(TEMPLATE_ROOT, planScaffoldPlugin({ name: 'world', repo, kernelVersion: KERNEL }))
     expect(files.length).toBeGreaterThan(0)
     // 仓半不在：根壳、README、workspace 是建仓的事，加件不碰
     expect(files.some((f) => f.rel === 'pnpm-workspace.yaml' || f.rel === 'README.md')).toBe(false)
@@ -319,35 +319,44 @@ describe('包内 template/：两区', () => {
     for (const file of files) expect(file.text).not.toContain('{{')
   })
 
-  it('生成的插件包写了 gwb.testedKernel：建仓与加插件都是运行命令的那个内核的版本号，发版前检查认', () => {
-    const fromScaffold = renderTemplate(TEMPLATE_ROOT, planScaffold({ name: 'hello', dir: 'D:\\tmp\\x', testedKernel: KERNEL }))
-    const fromPlugin = renderPlugin(TEMPLATE_ROOT, planScaffoldPlugin({ name: 'world', repo: fakeWorkspace(), testedKernel: KERNEL }))
+  it('生成的插件包 peer 里写了内核包 ^<运行命令的内核版本号>：建仓与加插件都一样，发版前检查认', () => {
+    const fromScaffold = renderTemplate(TEMPLATE_ROOT, planScaffold({ name: 'hello', dir: 'D:\\tmp\\x', kernelVersion: KERNEL }))
+    const fromPlugin = renderPlugin(TEMPLATE_ROOT, planScaffoldPlugin({ name: 'world', repo: fakeWorkspace(), kernelVersion: KERNEL }))
     for (const manifestText of [
       fromScaffold.find((f) => f.rel === 'plugins/hello/package.json')?.text,
       fromPlugin.find((f) => f.rel === 'package.json')?.text,
     ]) {
       const manifest: unknown = JSON.parse(manifestText ?? '')
-      expect(declaredTestedKernel(manifest)).toBe(KERNEL)
-      expect(testedOnSameKernelLine(declaredTestedKernel(manifest), KERNEL)).toBe(true)
+      const range = declaredKernelRange(manifest)
+      expect(range).toBe(`^${KERNEL}`)
+      expect(isCaretRange(range ?? '')).toBe(true)
+      expect(kernelRangeCovers(range, KERNEL)).toBe(true)
+      expect(manifestText).not.toContain('testedKernel')
     }
   })
 
-  it('生成的清单按「依赖怎么写」：peer 只可能是 cordis，且只在 node 侧按值 import 了 cordis 时才写', () => {
-    const files = renderTemplate(TEMPLATE_ROOT, planScaffold({ name: 'hello', dir: 'D:\\tmp\\x', testedKernel: KERNEL }))
+  it('运行建仓命令的是开发版内核：peer 里的内核包范围只取 x.y.z 三段', () => {
+    const files = renderPlugin(TEMPLATE_ROOT, planScaffoldPlugin({ name: 'world', repo: fakeWorkspace(), kernelVersion: '0.3.1-dev.202609241500' }))
+    const manifest: unknown = JSON.parse(files.find((f) => f.rel === 'package.json')?.text ?? '')
+    expect(declaredKernelRange(manifest)).toBe('^0.3.1')
+  })
+
+  it('生成的清单按「依赖怎么写」：peer 里有内核包；cordis 只在 node 侧按值 import 了 cordis 时才写', () => {
+    const files = renderTemplate(TEMPLATE_ROOT, planScaffold({ name: 'hello', dir: 'D:\\tmp\\x', kernelVersion: KERNEL }))
     const manifest = JSON.parse(files.find((f) => f.rel === 'plugins/hello/package.json')?.text ?? '') as {
       peerDependencies?: Record<string, string>
       devDependencies: Record<string, string>
     }
     const nodeSources = files.filter((f) => f.rel.startsWith('plugins/hello/src/') && !f.rel.startsWith('plugins/hello/src/client/'))
     const importsCordisByValue = nodeSources.some((f) => /^import\s+(?!type\b)[^'"]*from\s*['"]cordis['"]/m.test(f.text))
-    const peers = Object.keys(manifest.peerDependencies ?? {})
-    expect(peers).toEqual(importsCordisByValue ? ['cordis'] : [])
+    const peers = Object.keys(manifest.peerDependencies ?? {}).sort()
+    expect(peers).toEqual(importsCordisByValue ? [KERNEL_PACKAGE, 'cordis'].sort() : [KERNEL_PACKAGE])
     // 按值 import 了就 peer 与 dev 各一份：dev 给本地构建与类型检查用
     expect(manifest.devDependencies['cordis']).toBeDefined()
   })
 
   it('生成的清单：词汇表包、命令总线、外壳写 dev；已停发的 gwb-tokens、gwb-shared-react 不出现', () => {
-    const files = renderTemplate(TEMPLATE_ROOT, planScaffold({ name: 'hello', dir: 'D:\\tmp\\x', testedKernel: KERNEL }))
+    const files = renderTemplate(TEMPLATE_ROOT, planScaffold({ name: 'hello', dir: 'D:\\tmp\\x', kernelVersion: KERNEL }))
     const text = files.find((f) => f.rel === 'plugins/hello/package.json')?.text ?? ''
     const manifest = JSON.parse(text) as { devDependencies: Record<string, string> }
     for (const pkg of ['@godcreator/gwb-plugin-api', '@godcreator/gwb-commands', '@godcreator/gwb-shell']) {
@@ -360,7 +369,7 @@ describe('包内 template/：两区', () => {
     const devkitManifest = JSON.parse(fs.readFileSync(path.resolve(TEMPLATE_ROOT, '..', 'package.json'), 'utf8')) as {
       devDependencies: Record<string, string>
     }
-    const files = renderTemplate(TEMPLATE_ROOT, planScaffold({ name: 'hello', dir: 'D:\\tmp\\x', testedKernel: KERNEL }))
+    const files = renderTemplate(TEMPLATE_ROOT, planScaffold({ name: 'hello', dir: 'D:\\tmp\\x', kernelVersion: KERNEL }))
     const manifest = JSON.parse(files.find((f) => f.rel === 'plugins/hello/package.json')?.text ?? '') as {
       devDependencies: Record<string, string>
     }
@@ -369,7 +378,7 @@ describe('包内 template/：两区', () => {
   })
 
   it('生成的 build.ts 不手抄外置名单：从外壳清单的 gwb.shared 读键', () => {
-    const files = renderTemplate(TEMPLATE_ROOT, planScaffold({ name: 'hello', dir: 'D:\\tmp\\x', testedKernel: KERNEL }))
+    const files = renderTemplate(TEMPLATE_ROOT, planScaffold({ name: 'hello', dir: 'D:\\tmp\\x', kernelVersion: KERNEL }))
     const buildScript = files.find((f) => f.rel === 'plugins/hello/build.ts')?.text ?? ''
     expect(buildScript).toContain("import.meta.resolve('@godcreator/gwb-shell/package.json')")
     expect(buildScript).toContain("gwb['shared']")
@@ -381,7 +390,7 @@ describe('包内 template/：两区', () => {
   })
 
   it('生成的样式入口从外壳导出的 theme.reference.css 引令牌映射，不再引已停发的 gwb-tokens', () => {
-    const files = renderTemplate(TEMPLATE_ROOT, planScaffold({ name: 'hello', dir: 'D:\\tmp\\x', testedKernel: KERNEL }))
+    const files = renderTemplate(TEMPLATE_ROOT, planScaffold({ name: 'hello', dir: 'D:\\tmp\\x', kernelVersion: KERNEL }))
     const styles = files.find((f) => f.rel === 'plugins/hello/src/client/styles.css')?.text ?? ''
     const imports = [...styles.replaceAll(/\/\*[\s\S]*?\*\//g, '').matchAll(/^@import '([^']+)'/gm)].map((m) => m[1])
     expect(imports).toContain('@godcreator/gwb-shell/theme.reference.css')
@@ -389,7 +398,7 @@ describe('包内 template/：两区', () => {
   })
 
   it('生成的产物测试：node 侧只放行内置模块、electron、cordis；浏览器侧只放行外壳 gwb.shared 的键', () => {
-    const files = renderTemplate(TEMPLATE_ROOT, planScaffold({ name: 'hello', dir: 'D:\\tmp\\x', testedKernel: KERNEL }))
+    const files = renderTemplate(TEMPLATE_ROOT, planScaffold({ name: 'hello', dir: 'D:\\tmp\\x', kernelVersion: KERNEL }))
     const artifactTest = files.find((f) => f.rel === 'plugins/hello/tests/artifact.test.ts')?.text ?? ''
     const allowed = /const NODE_SIDE_ALLOWED = new Set\(\[([^\]]*)\]\)/.exec(artifactTest)?.[1] ?? ''
     expect([...allowed.matchAll(/'([^']+)'/g)].map((m) => m[1]).sort()).toEqual(['cordis', 'electron'])
@@ -400,7 +409,7 @@ describe('包内 template/：两区', () => {
   })
 
   it('生成的产物测试查颜色类只用主题令牌：色名从外壳的 theme.reference.css 与本插件样式入口读，不手抄名单', () => {
-    const files = renderTemplate(TEMPLATE_ROOT, planScaffold({ name: 'hello', dir: 'D:\\tmp\\x', testedKernel: KERNEL }))
+    const files = renderTemplate(TEMPLATE_ROOT, planScaffold({ name: 'hello', dir: 'D:\\tmp\\x', kernelVersion: KERNEL }))
     const artifactTest = files.find((f) => f.rel === 'plugins/hello/tests/artifact.test.ts')?.text ?? ''
     expect(artifactTest).toContain("resolve('@godcreator/gwb-shell/theme.reference.css')")
     expect(artifactTest).toContain("path.resolve(here, '../src/client/styles.css')")
@@ -411,7 +420,7 @@ describe('包内 template/：两区', () => {
 
   it('生成的自述检查把 docsDir 指到仓根文档站的现状区，inject 那一条不会因为找不到站而跳过', () => {
     const repoDir = path.join(sandbox(), 'repo')
-    const files = renderTemplate(TEMPLATE_ROOT, planScaffold({ name: 'hello', dir: repoDir, testedKernel: KERNEL }))
+    const files = renderTemplate(TEMPLATE_ROOT, planScaffold({ name: 'hello', dir: repoDir, kernelVersion: KERNEL }))
     const selfReport = files.find((f) => f.rel === 'plugins/hello/tests/self-report.test.ts')?.text ?? ''
     const docsDirArg = /docsDir: path\.resolve\(here, '([^']+)'\)/.exec(selfReport)?.[1]
     expect(docsDirArg, 'self-report.test.ts 里没有给 docsDir').toBeDefined()
@@ -420,8 +429,8 @@ describe('包内 template/：两区', () => {
   })
 
   it('模板里的占位符全在 placeholders 的表上——认不出的当场抛，那正是这条要钉的', () => {
-    expect(() => renderTemplate(TEMPLATE_ROOT, planScaffold({ name: 'x', dir: 'D:\\tmp\\x', docs: false, testedKernel: KERNEL }))).not.toThrow()
-    expect(() => renderPlugin(TEMPLATE_ROOT, planScaffoldPlugin({ name: 'x', repo: fakeWorkspace(), testedKernel: KERNEL }))).not.toThrow()
+    expect(() => renderTemplate(TEMPLATE_ROOT, planScaffold({ name: 'x', dir: 'D:\\tmp\\x', docs: false, kernelVersion: KERNEL }))).not.toThrow()
+    expect(() => renderPlugin(TEMPLATE_ROOT, planScaffoldPlugin({ name: 'x', repo: fakeWorkspace(), kernelVersion: KERNEL }))).not.toThrow()
   })
 })
 
@@ -446,7 +455,7 @@ describe('writeRepo：真写临时目录', () => {
 
   it('端到端：薄壳仓里加一件，盘上长出 plugins/world/ 那半', () => {
     const repo = fakeWorkspace()
-    const plan = planScaffoldPlugin({ name: 'world', repo, testedKernel: KERNEL })
+    const plan = planScaffoldPlugin({ name: 'world', repo, kernelVersion: KERNEL })
     writeRepo(plan.dir, renderPlugin(TEMPLATE_ROOT, plan))
     expect(fs.readFileSync(path.join(repo, 'plugins', 'world', 'package.json'), 'utf8')).toContain('@godcreator/gwb-world')
     // 仓根原样：只有搭仓时写的那份 yaml，件那半没往根上放任何东西
@@ -482,7 +491,7 @@ async function runSelfReportGuard(root: string, docsDir: string): Promise<{ name
 
 describe('插件页：让建好站的新仓第一次 pnpm check 就过自述检查', () => {
   it('插件页写出了模板插件 inject 的每个服务名，占位符一个不剩', () => {
-    const plan = planScaffold({ name: 'hello', dir: 'D:\\tmp\\x', title: '打招呼', testedKernel: KERNEL })
+    const plan = planScaffold({ name: 'hello', dir: 'D:\\tmp\\x', title: '打招呼', kernelVersion: KERNEL })
     const entry = renderTemplate(TEMPLATE_ROOT, plan).find((f) => f.rel === 'plugins/hello/src/index.ts')?.text ?? ''
     const page = renderPluginPage(TEMPLATE_ROOT, plan)
     expect(page.rel).toBe('docs-site/content/docs/plugins/hello.mdx')
@@ -494,8 +503,8 @@ describe('插件页：让建好站的新仓第一次 pnpm check 就过自述检�
   })
 
   it('建仓与加插件都不把插件页混进写仓根或插件包的那批文件', () => {
-    const fromScaffold = renderTemplate(TEMPLATE_ROOT, planScaffold({ name: 'hello', dir: 'D:\\tmp\\x', testedKernel: KERNEL }))
-    const fromPlugin = renderPlugin(TEMPLATE_ROOT, planScaffoldPlugin({ name: 'world', repo: fakeWorkspace(), testedKernel: KERNEL }))
+    const fromScaffold = renderTemplate(TEMPLATE_ROOT, planScaffold({ name: 'hello', dir: 'D:\\tmp\\x', kernelVersion: KERNEL }))
+    const fromPlugin = renderPlugin(TEMPLATE_ROOT, planScaffoldPlugin({ name: 'world', repo: fakeWorkspace(), kernelVersion: KERNEL }))
     for (const file of [...fromScaffold, ...fromPlugin]) expect(file.rel).not.toContain('docs-site')
   })
 
@@ -515,14 +524,14 @@ describe('插件页：让建好站的新仓第一次 pnpm check 就过自述检�
     const target = pluginPageTarget(repo, 'w') ?? ''
     fs.mkdirSync(path.dirname(target), { recursive: true })
     fs.writeFileSync(target, '原有', 'utf8')
-    const page = renderPluginPage(TEMPLATE_ROOT, planScaffoldPlugin({ name: 'w', repo, testedKernel: KERNEL }))
+    const page = renderPluginPage(TEMPLATE_ROOT, planScaffoldPlugin({ name: 'w', repo, kernelVersion: KERNEL }))
     expect(() => writePluginPage(target, page)).toThrow(/已经存在/)
     expect(fs.readFileSync(target, 'utf8')).toBe('原有')
   })
 
   it('端到端：建仓、站装好六区、写插件页，生成的插件包跑自述检查五项全过；不写插件页则 inject 那一项不过', async () => {
     const repoDir = path.join(sandbox(), 'repo')
-    const plan = planScaffold({ name: 'hello', dir: repoDir, testedKernel: KERNEL })
+    const plan = planScaffold({ name: 'hello', dir: repoDir, kernelVersion: KERNEL })
     writeRepo(repoDir, renderTemplate(TEMPLATE_ROOT, plan))
     fakeAttachedSite(repoDir)
     const root = path.join(repoDir, 'plugins', 'hello')
@@ -539,12 +548,12 @@ describe('插件页：让建好站的新仓第一次 pnpm check 就过自述检�
 
   it('端到端：往装好六区的仓里加第二个插件，两个插件的自述检查都过', async () => {
     const repoDir = path.join(sandbox(), 'repo')
-    const plan = planScaffold({ name: 'hello', dir: repoDir, testedKernel: KERNEL })
+    const plan = planScaffold({ name: 'hello', dir: repoDir, kernelVersion: KERNEL })
     writeRepo(repoDir, renderTemplate(TEMPLATE_ROOT, plan))
     fakeAttachedSite(repoDir)
     writePluginPage(pluginPageTarget(repoDir, plan.name) ?? '', renderPluginPage(TEMPLATE_ROOT, plan))
 
-    const second = planScaffoldPlugin({ name: 'world', repo: repoDir, testedKernel: KERNEL })
+    const second = planScaffoldPlugin({ name: 'world', repo: repoDir, kernelVersion: KERNEL })
     writeRepo(second.dir, renderPlugin(TEMPLATE_ROOT, second))
     writePluginPage(pluginPageTarget(repoDir, second.name) ?? '', renderPluginPage(TEMPLATE_ROOT, second))
 
@@ -560,7 +569,7 @@ describe('插件页：让建好站的新仓第一次 pnpm check 就过自述检�
 describe('模板插件过 repo-kit 的插件守卫', () => {
   it('端到端：建仓后 import 生成的 src/index.ts，插件守卫四项全过；ping 命令的参数形状写在 usage 里', async () => {
     const repoDir = path.join(sandbox(), 'repo')
-    const plan = planScaffold({ name: 'hello', dir: repoDir, testedKernel: KERNEL })
+    const plan = planScaffold({ name: 'hello', dir: repoDir, kernelVersion: KERNEL })
     writeRepo(repoDir, renderTemplate(TEMPLATE_ROOT, plan))
     const entry = (await import(pathToFileURL(path.join(repoDir, 'plugins', 'hello', 'src', 'index.ts')).href)) as {
       apply: (ctx: never) => void

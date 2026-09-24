@@ -1,4 +1,5 @@
 import path from 'node:path'
+import { KERNEL_PACKAGE } from './kernel-compat.js'
 import { isRecord } from './vocab.js'
 import { bareImage, type ProcessProbe } from './probes.js'
 
@@ -247,11 +248,14 @@ export interface LaunchInput {
   homesRoot: string
   /** 给了就在命令行上加 `--remote-debugging-port` */
   cdp?: number
-  /** 给了就在启动内核之前装好基础插件：写 cordis.yml 条目并 pnpm add（只有 home.new 用） */
-  base?: boolean
+  /**
+   * 给了就在启动之前把内核包（这个精确版本）、cordis 与基础插件装进 home、写 cordis.yml 条目（只有 home.new 用）。
+   * 启动器只从 home 里加载内核，home 里没有内核包就启动不了
+   */
+  install?: { kernelVersion: string }
 }
 
-// ── 基础插件 ──────────────────────────────────────────────────────────────────
+// ── 装进新 home 的包：内核包、cordis 与基础插件 ────────────────────────────────
 
 /** 一个开箱能用的测试 home 最少要装的插件。写死、不做参数：要加别的，装完再 `plugin-manager.install` */
 export const BASE_PLUGINS: ReadonlyArray<{ id: string; pkg: string }> = [
@@ -274,33 +278,124 @@ export function baseYaml(): string {
   return BASE_PLUGINS.map((p) => `- id: ${p.id}\n  name: '${p.pkg}'`).join('\n') + '\n'
 }
 
-/** 装基础插件的 pnpm add 命令行（Windows 上 pnpm 是 .cmd，要经 cmd /c） */
-export function baseInstallPlan(home: string, platform: NodeJS.Platform): {
-  command: string
-  args: string[]
-  cwd: string
-} {
-  const all = [...BASE_PLUGINS.map((p) => p.pkg), ...BASE_SHARED]
-  const args = ['add', ...all]
+type RunPlan = { command: string; args: string[]; cwd: string }
+
+/** 在 home 里运行 `pnpm add <args…>` 的命令行（Windows 上 pnpm 是 .cmd，要经 cmd /c） */
+function pnpmAddPlan(home: string, addArgs: string[], platform: NodeJS.Platform): RunPlan {
+  const args = ['add', ...addArgs]
   return platform === 'win32'
     ? { command: 'cmd', args: ['/c', 'pnpm', ...args], cwd: home }
     : { command: 'pnpm', args, cwd: home }
 }
 
-/** 装基础插件的超时 */
+/** 装内核包：精确版本带 `--save-exact`。清单里已有 `^` 声明时 pnpm 12 照样写回 `^`、退出码 0 却装上更新的版本（probes/2609241510_pnpm-add-exact-prefix），所以只用在清单里还没有这一项的新 home 上，装完核对版本 */
+export function kernelInstallPlan(home: string, kernelVersion: string, platform: NodeJS.Platform): RunPlan {
+  return pnpmAddPlan(home, ['--save-exact', `${KERNEL_PACKAGE}@${kernelVersion}`], platform)
+}
+
+/** 装 cordis：内核包 peer 里写的精确版本、带 `--save-exact`，限制同 `kernelInstallPlan` */
+export function cordisInstallPlan(home: string, cordisVersion: string, platform: NodeJS.Platform): RunPlan {
+  return pnpmAddPlan(home, ['--save-exact', `cordis@${cordisVersion}`], platform)
+}
+
+/** 装基础插件与 BASE_SHARED：不写版本，取源上的 latest，清单里写 `^` 范围 */
+export function baseInstallPlan(home: string, platform: NodeJS.Platform): RunPlan {
+  return pnpmAddPlan(home, [...BASE_PLUGINS.map((p) => p.pkg), ...BASE_SHARED], platform)
+}
+
+/** 装包（内核包、cordis、基础插件各一次）的超时 */
 export const BASE_INSTALL_TIMEOUT_MS = 300_000
 
-/** cordis.yml 已存在就不写（内核的规矩也是不覆盖）；装不上就不启动 */
-async function installBasePlugins(home: string, deps: HomeDeps): Promise<{ ok: false; error: string } | undefined> {
+/** 装进 home 的某个包的清单 */
+export function installedManifestFile(home: string, pkg: string): string {
+  return path.join(home, 'node_modules', ...pkg.split('/'), 'package.json')
+}
+
+/** 装进 home 的内核包清单 */
+export function kernelManifestFile(home: string): string {
+  return installedManifestFile(home, KERNEL_PACKAGE)
+}
+
+/** 装进 home 的包清单：读得出、版本是要装的那个才回清单，否则回拒绝理由 */
+export function installedManifestAtVersion(
+  manifestText: string | undefined,
+  pkg: string,
+  expectedVersion: string,
+  home: string,
+): { ok: true; manifest: Record<string, unknown> } | { ok: false; error: string } {
+  const file = installedManifestFile(home, pkg)
+  if (manifestText === undefined) return { ok: false, error: `${pkg} 装完了,可它的清单读不到:${file}` }
+  let manifest: unknown
+  try {
+    manifest = JSON.parse(manifestText)
+  } catch (err) {
+    return { ok: false, error: `${pkg} 的清单不是合法 JSON(${file}):${String(err)}` }
+  }
+  if (!isRecord(manifest)) return { ok: false, error: `${pkg} 的清单不是 JSON 对象:${file}` }
+  if (manifest.version !== expectedVersion) {
+    return { ok: false, error: `要装的 ${pkg} 是 ${expectedVersion},home 里装上的却是 ${String(manifest.version)}(${file})` }
+  }
+  return { ok: true, manifest }
+}
+
+const EXACT_VERSION = /^(0|[1-9]\d*)\.(0|[1-9]\d*)\.(0|[1-9]\d*)(?:-[0-9A-Za-z.-]+)?$/
+
+/**
+ * 从装上的内核包清单里取它 peer 里的 cordis 版本：home 根上的 cordis 必须是这个精确版本，内核与插件才解析到同一份。
+ * 清单读不到、装上的版本不是要装的那个、peer 里的 cordis 不是精确版本号，都拒
+ */
+export function cordisVersionForKernel(
+  manifestText: string | undefined,
+  kernelVersion: string,
+  home: string,
+): { ok: true; cordis: string } | { ok: false; error: string } {
+  const installed = installedManifestAtVersion(manifestText, KERNEL_PACKAGE, kernelVersion, home)
+  if (!installed.ok) return installed
+  const peers = installed.manifest.peerDependencies
+  const cordis = isRecord(peers) ? peers.cordis : undefined
+  if (typeof cordis !== 'string' || !EXACT_VERSION.test(cordis)) {
+    return {
+      ok: false,
+      error: `内核包 ${KERNEL_PACKAGE}@${kernelVersion} 的 peerDependencies.cordis 是 ${JSON.stringify(cordis)},不是精确版本号:home 根上的 cordis 只能照精确版本装(${kernelManifestFile(home)})`,
+    }
+  }
+  return { ok: true, cordis }
+}
+
+/** 运行一条装包命令；失败时回带 pnpm 输出最后几行的拒绝理由 */
+async function refusalIfInstallFailed(
+  plan: RunPlan,
+  what: string,
+  whereToLook: string,
+  deps: HomeDeps,
+): Promise<{ ok: false; error: string } | undefined> {
+  const installed = await deps.run(plan, BASE_INSTALL_TIMEOUT_MS)
+  if (installed.ok) return undefined
+  return { ok: false, error: `${what} 装不上(pnpm add 失败;${whereToLook})。输出的最后几行:\n${installed.tail}` }
+}
+
+/**
+ * cordis.yml 已存在就不写（内核的规矩也是不覆盖）。依次装内核包、cordis、基础插件：cordis 的精确版本从装上的内核包清单里读；
+ * 基础插件装的时候 home 根上已经有 cordis，它们的 peer cordis 解析到同一份。内核包与 cordis 装完都核对版本，哪一步不成都不启动
+ */
+async function installKernelCordisAndBasePlugins(home: string, kernelVersion: string, deps: HomeDeps): Promise<{ ok: false; error: string } | undefined> {
   if (!deps.fs.exists(path.join(home, 'cordis.yml'))) {
     deps.fs.writeText(path.join(home, 'cordis.yml'), baseYaml())
   }
-  const installed = await deps.run(baseInstallPlan(home, deps.platform), BASE_INSTALL_TIMEOUT_MS)
-  if (installed.ok) return undefined
-  return {
-    ok: false,
-    error: `基础插件装不上(pnpm add 失败;查 scope 路由与源连不连得上)。输出的最后几行:\n${installed.tail}`,
-  }
+  const kernelFailure = await refusalIfInstallFailed(
+    kernelInstallPlan(home, kernelVersion, deps.platform),
+    `内核包 ${KERNEL_PACKAGE}@${kernelVersion}`,
+    '查源上有没有这个版本、scope 路由、源连不连得上',
+    deps,
+  )
+  if (kernelFailure !== undefined) return kernelFailure
+  const cordis = cordisVersionForKernel(deps.fs.readText(kernelManifestFile(home)), kernelVersion, home)
+  if (!cordis.ok) return cordis
+  const cordisFailure = await refusalIfInstallFailed(cordisInstallPlan(home, cordis.cordis, deps.platform), `cordis@${cordis.cordis}`, '查源连不连得上', deps)
+  if (cordisFailure !== undefined) return cordisFailure
+  const cordisInstalled = installedManifestAtVersion(deps.fs.readText(installedManifestFile(home, 'cordis')), 'cordis', cordis.cordis, home)
+  if (!cordisInstalled.ok) return cordisInstalled
+  return refusalIfInstallFailed(baseInstallPlan(home, deps.platform), '基础插件', '查 scope 路由与源连不连得上', deps)
 }
 
 /** 观察一会儿，只抓刚启动就退出：查不出时接着等，只有确定不在了才中断 */
@@ -338,11 +433,11 @@ export async function launchHome(input: LaunchInput, deps: HomeDeps): Promise<La
   if (existing !== undefined && recordedPidIsHomeProcess(await deps.processName(existing.pid), deps.execPath) === true) {
     return { ok: false, error: `${input.name} 已经有一个实例在运行(pid ${existing.pid})——先停掉它,或直接用那个窗口` }
   }
-  // home 的 package.json、空 cordis.yml 与 runtime.json 都由内核启动后自己生成，这里只建目录
+  // package.json 由装包时的 pnpm add 生成，runtime.json 由内核启动后写，这里只建目录
   deps.fs.ensureDir(home)
-  if (input.base === true) {
-    const baseFailure = await installBasePlugins(home, deps)
-    if (baseFailure !== undefined) return baseFailure
+  if (input.install !== undefined) {
+    const installFailure = await installKernelCordisAndBasePlugins(home, input.install.kernelVersion, deps)
+    if (installFailure !== undefined) return installFailure
   }
   const pid = deps.spawn(plan, guiChildEnv(deps.env, input.name))
   if (pid === undefined) return { ok: false, error: '起不来:子进程没拿到 pid,看宿主日志' }

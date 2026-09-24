@@ -90,7 +90,7 @@ const STRUCTURE_USAGE = [
 
 const HOME_USAGE = [
   'home 命令的参数：',
-  '  devkit.home.new  { short 必给（kebab-case 短名） }——开 <short>-<yyMMddHHmm> 的新 home。拉宿主安装版起窗、自动装底座七件，调试口自动挑',
+  '  devkit.home.new  { short 必给（kebab-case 短名） }——开 <short>-<yyMMddHHmm> 的新 home。启动之前装好内核包（运行中的内核的精确版本）、cordis（内核包要的精确版本）与七个基础插件，再用宿主安装版启动，调试端口自动选',
   '  devkit.home.open { name 必给（完整 home 名） }——重开一个已有的 home，不 build。机器重启之后回到现场走这条',
   '  devkit.home.rm   { name，force? }——删一个 home。没在跑的直接删；还在跑的要 force（连停带删，等进程真退再删）；目录真不在了才回已删',
   '                     default 是日常那份：不 force 不删，而且它在跑的时候 force 也不删——自己关掉那扇窗再来',
@@ -121,7 +121,7 @@ const RELEASE_USAGE = [
   '**号在仓里抬**：发的是 package.json 里声明的那个号，同号在源上就拒——要发新的一版，先抬号、提交，再来',
   '**仓根 git 树不干净就拒**：正式版只从提交过的状态发',
   '**发版前检查没过就拒**（构建之后，所有包一次列全）：自己不在 0.0.x；@godcreator 的 dev 范围包含源上 dist-tags.latest；产物里没有空 import（import { type X } 留下的）；包目录里 pnpm exec tsc --noEmit -p <tsconfig> --skipLibCheck false 通过（node 侧有 tsconfig.build.json 就查它、没有查 tsconfig.json、两份都没有就拒，有 src/client/tsconfig.json 再查一次；测试与构建脚本不查）',
-  '**插件包另加**（keywords 含 gwb-plugin）：peer 里只有 cordis，node 侧产物按值 import 了 cordis 就必须写它；node 侧产物（exports["."] 入口顺着相对 import 走到的文件）的包名 import 只有 node 内置模块、electron、cordis；浏览器侧产物（dist/client.js 与本包 gwb.shared 指到的文件）只 import importmap 里的名字；gwb.testedKernel 写了、是合法版本号、和运行中的内核在同一条版本线上（主版本号为 0 比前两位，≥1 只比主版本号）；写了 gwb.requires 的，它是 { 包名: 最低版本号 } 的对象、每个值是 x.y.z、每个包也写在 devDependencies 里、要求的版本不高于 dev 范围的下限（dev 写 workspace: 的不比下限）',
+  '**插件包另加**（keywords 含 gwb-plugin）：peer 里只有 cordis 与内核包 @godcreator/gwb-kernel-desktop，node 侧产物按值 import 了 cordis 就必须写 peer cordis；node 侧产物（exports["."] 入口顺着相对 import 走到的文件）的包名 import 只有 node 内置模块、electron、cordis；浏览器侧产物（dist/client.js 与本包 gwb.shared 指到的文件）只 import importmap 里的名字；peer 里写了内核包、写法是 ^x.y.z、范围包含运行中的内核（主版本号为 0 时次版本号相同，≥1 时主版本号相同，并且不低于下限）；写了 gwb.requires 的，它是 { 包名: 最低版本号 } 的对象、每个值是 x.y.z、每个包也写在 devDependencies 里、要求的版本不高于 dev 范围的下限（dev 写 workspace: 的不比下限）',
   '**这条链只碰源、不碰任何 home**，从哪个 home 调都行；升 default 是下一步的事，走 plugin-manager.update-all',
   '例：{"dir":"D:\\\\unitfolders\\\\evew5-gwbapps\\\\gwb-block-note","packages":["packages/model","packages/engine","packages/client","plugins/gwb-bn-core","plugins/gwb-bn-comment"]}',
 ].join('\n')
@@ -210,9 +210,9 @@ function registerHomeCommands({ ctx, log, commands, homeDeps }: Wiring): void {
       {
         name: 'devkit.home.new',
         plugin: '@godcreator/gwb-devkit',
-        description: '开一个测试 home（拉宿主安装版、铺底座、调试口自动挑）',
+        description: '开一个测试 home（装内核包、cordis 与基础插件，用宿主安装版启动，调试端口自动选）',
         usage:
-          '{short 必给（kebab-case）}——名字长成 <short>-<yyMMddHHmm>。拉宿主自己那个 exe 再开一扇窗（安装版对 GWB_HOME 同样成立；不 build 内核、不认内核仓，内核版本跟安装包走），起之前自动装底座七件，调试口自动挑一个空的。返回里带着现有 home 清单，开新那一刻正好清旧的',
+          '{short 必给（kebab-case）}——名字是 <short>-<yyMMddHHmm>。启动之前往新 home 里依次 pnpm add 三次（写好 cordis.yml 条目）：先装内核包 @godcreator/gwb-kernel-desktop，精确版本是运行这条命令的内核的 gwbKernel.version，带 --save-exact；再装装上的内核包 peerDependencies.cordis 写的那个精确版本的 cordis，同样带 --save-exact；最后装七个基础插件。内核包与 cordis 装完都读 node_modules 里的清单核对版本。安装包只带启动器、从 home 里加载内核，所以内核包必须装上；哪一步没成都不启动。然后用宿主自己那个 exe 再开一个窗口（安装版认 GWB_HOME；不构建内核、不认内核仓），调试端口自动选一个空的。回执里带着现有 home 清单，开新的时候顺便清理旧的',
       },
       async (args) => {
         if (!isRecord(args)) return { ok: false, error: `参数要是个对象。\n${HOME_USAGE}` }
@@ -227,7 +227,10 @@ function registerHomeCommands({ ctx, log, commands, homeDeps }: Wiring): void {
         }
         const port = await cdpPortFor(root, homeName, homeDeps)
         if (!port.ok) return { ok: false, error: port.error }
-        const outcome = await launchHome({ name: homeName, homesRoot: root, cdp: port.cdp, base: true }, homeDeps)
+        const outcome = await launchHome(
+          { name: homeName, homesRoot: root, cdp: port.cdp, install: { kernelVersion: requireKernel(ctx).version } },
+          homeDeps,
+        )
         if (!outcome.ok) {
           log.warn(`home.new 没成：${outcome.error}`)
           return outcome
@@ -481,7 +484,7 @@ function registerReleaseCommand({ ctx, log, commands }: Wiring): void {
         plugin: '@godcreator/gwb-devkit',
         description: '发正式版到团队源（git 工作区干净→构建→验产物→发版前检查→在临时目录里组装并发布）',
         usage:
-          '{dir 必给（仓根绝对路径）, packages?（包目录，相对仓根，按依赖顺序；不给就是仓根自己）}。一条走完：仓根 git 工作区干净（有未提交改动就拒，一个都不发）→ 仓根 pnpm build → 照 files 白名单验产物 → 同号已在源上就拒 → 发版前检查（每个要发的包：自己不在 0.0.x；@godcreator 的 dev 范围包含源上 dist-tags.latest，workspace: 跳过，范围内落后放行；产物里没有空 import、相对 import 指向的文件都在；包目录里 pnpm exec tsc --noEmit -p <tsconfig> --skipLibCheck false 通过——node 侧有 tsconfig.build.json 就查它、没有查 tsconfig.json、两份都没有就拒，有 src/client/tsconfig.json 再查一次，测试与构建脚本不查。keywords 含 gwb-plugin 的插件包另加：peer 里只有 cordis，node 侧产物按值 import 了 cordis 就必须写 peer cordis；node 侧产物——exports["."] 的运行时入口（没有 exports 时是 main）顺着相对 import 走到的文件——的包名 import 只有 node 内置模块、electron、cordis；浏览器侧产物——dist/client.js 与本包 gwb.shared 指到的文件，同样顺着相对 import 走——只 import importmap 里的名字，名字取本包与它依赖到的包的 gwb.shared 键，依赖的清单从包目录的 node_modules 现读；package.json 的 gwb.testedKernel 写了、是合法版本号、和运行中的内核 gwbKernel.version 在同一条版本线上——主版本号为 0 比前两位，≥1 只比主版本号。没过就一个都不发，回执按包一次列全；写了 peer cordis 而 node 侧产物没 import 它只提醒，带在回执 reminders 里）→ 在临时目录里组装发布内容并发布（不改仓里任何文件；tag latest；workspace: 依赖写成 ^<工作区里那个号>，这一次同发的写成 ^新号）→ 按给定顺序发完。**号在仓里升**（改 package.json 提交），同号永不重发。只碰源不碰任何 home；升 default 走 plugin-manager.update-all',
+          '{dir 必给（仓根绝对路径）, packages?（包目录，相对仓根，按依赖顺序；不给就是仓根自己）}。一条走完：仓根 git 工作区干净（有未提交改动就拒，一个都不发）→ 仓根 pnpm build → 照 files 白名单验产物 → 同号已在源上就拒 → 发版前检查（每个要发的包：自己不在 0.0.x；@godcreator 的 dev 范围包含源上 dist-tags.latest，workspace: 跳过，范围内落后放行；产物里没有空 import、相对 import 指向的文件都在；包目录里 pnpm exec tsc --noEmit -p <tsconfig> --skipLibCheck false 通过——node 侧有 tsconfig.build.json 就查它、没有查 tsconfig.json、两份都没有就拒，有 src/client/tsconfig.json 再查一次，测试与构建脚本不查。keywords 含 gwb-plugin 的插件包另加：peer 里只有 cordis 与内核包 @godcreator/gwb-kernel-desktop，node 侧产物按值 import 了 cordis 就必须写 peer cordis；node 侧产物——exports["."] 的运行时入口（没有 exports 时是 main）顺着相对 import 走到的文件——的包名 import 只有 node 内置模块、electron、cordis；浏览器侧产物——dist/client.js 与本包 gwb.shared 指到的文件，同样顺着相对 import 走——只 import importmap 里的名字，名字取本包与它依赖到的包的 gwb.shared 键，依赖的清单从包目录的 node_modules 现读；peer 里写了内核包、写法是 ^x.y.z、范围包含运行中的内核 gwbKernel.version——主版本号为 0 时次版本号相同，≥1 时主版本号相同，并且不低于下限，预发布段不看。没过就一个都不发，回执按包一次列全；写了 peer cordis 而 node 侧产物没 import 它只提醒，带在回执 reminders 里）→ 在临时目录里组装发布内容并发布（不改仓里任何文件；tag latest；workspace: 依赖写成 ^<工作区里那个号>，这一次同发的写成 ^新号）→ 按给定顺序发完。**号在仓里升**（改 package.json 提交），同号永不重发。只碰源不碰任何 home；升 default 走 plugin-manager.update-all',
       },
       async (args) => {
         if (!isRecord(args)) return { ok: false, error: `参数要是个对象。\n${RELEASE_USAGE}` }
@@ -522,9 +525,9 @@ function registerAuditDepsCommand(wiring: Wiring): void {
       {
         name: 'devkit.audit-deps',
         plugin: '@godcreator/gwb-devkit',
-        description: '全生态依赖对账：各插件仓 @godcreator 的 dev 依赖对照团队源上的最新正式版，插件包的 peer 只许 cordis；只报告',
+        description: '全生态依赖对账：各插件仓 @godcreator 的 dev 依赖对照团队源上的最新正式版，插件包的 peer 只许 cordis 与内核包；只报告',
         usage:
-          '{root?（容器根绝对路径，缺省现问命令总线 unit-folder.list 回的 container）, registry?（缺省个人源）}。无参数直接调也行。回执 { ok, data: { root, registry, repos, manifests, packages, retired, testUnits, findings, byKind } }——findings 逐条 { kind, repo, manifest, pkg, detail }；kind：dead-pin（钉了源上没有的版本，装必炸）/ behind（dev 钉落后源上 dist-tags.latest 但还在 ^<dev 钉> 范围内，提示，等各自下次发版；dev 号不算最新）/ out-of-range（最新已出 ^ 范围，上游出了破坏版，必须跟进）/ loose-dev-pin（dev 写法既不是精确号也不是 ^ 范围）/ peer-not-cordis（keywords 含 gwb-plugin 的插件包 peer 里写了 cordis 以外的包，peer 只写宿主提供的 cordis，下次发版时 devkit.release 会拒）。退役单元（unit.json 的 status 是 retired）与**测试件**（kind 是「测试件」的单元，测试用途的示范件）整个不扫，名字分别列在 retired 与 testUnits；private: true 的清单不发布，只查 dev、不查 peer。只报告不拦。只读不改：扫仓、读 package.json、问源',
+          '{root?（容器根绝对路径，缺省现问命令总线 unit-folder.list 回的 container）, registry?（缺省个人源）}。无参数直接调也行。回执 { ok, data: { root, registry, repos, manifests, packages, retired, testUnits, findings, byKind } }——findings 逐条 { kind, repo, manifest, pkg, detail }；kind：dead-pin（钉了源上没有的版本，装必炸）/ behind（dev 钉落后源上 dist-tags.latest 但还在 ^<dev 钉> 范围内，提示，等各自下次发版；dev 号不算最新）/ out-of-range（最新已出 ^ 范围，上游出了破坏版，必须跟进）/ loose-dev-pin（dev 写法既不是精确号也不是 ^ 范围）/ peer-not-cordis（keywords 含 gwb-plugin 的插件包 peer 里写了 cordis 与内核包 @godcreator/gwb-kernel-desktop 以外的包，下次发版时 devkit.release 会拒；peer 里内核包写没写对由发版前检查查，这里不查）。退役单元（unit.json 的 status 是 retired）与**测试件**（kind 是「测试件」的单元，测试用途的示范件）整个不扫，名字分别列在 retired 与 testUnits；private: true 的清单不发布，只查 dev、不查 peer。只报告不拦。只读不改：扫仓、读 package.json、问源',
       },
       async (args) => {
         const askedRoot = isRecord(args) && typeof args.root === 'string' ? args.root.trim() : ''
@@ -548,7 +551,7 @@ function registerAuditDepsCommand(wiring: Wiring): void {
         const byKind = countByKind(findings)
         log.info(
           `devkit.audit-deps：${String(repoDirs.length)} 仓 ${String(manifests.length)} 份 manifest 对 ${String(pkgs.length)} 个包（退役单元 ${String(retired.length)} 个、测试件 ${String(testUnits.length)} 个不扫）——` +
-            `源上没有的版本 ${String(byKind['dead-pin'])}、出范围 ${String(byKind['out-of-range'])}、范围内落后 ${String(byKind.behind)}、peer 写了 cordis 以外的包 ${String(byKind['peer-not-cordis'])}`,
+            `源上没有的版本 ${String(byKind['dead-pin'])}、出范围 ${String(byKind['out-of-range'])}、范围内落后 ${String(byKind.behind)}、peer 写了 cordis 与内核包以外的包 ${String(byKind['peer-not-cordis'])}`,
         )
         return { ok: true, data: { root, registry: registryBase, repos: repoDirs.length, manifests: manifests.length, packages: pkgs.length, retired, testUnits, findings, byKind } }
       },
@@ -655,7 +658,7 @@ function registerScaffoldCommand(wiring: Wiring): void {
         }
         // 想不想建站与建不建得成是两件事：站点插件没装时 README 里那段话也得跟着改，所以在渲染之前定下来
         const canDocs = args.docs !== false && hasCommand(CREATE_SITE_COMMAND)
-        const testedKernel = requireKernel(ctx).version
+        const kernelVersion = requireKernel(ctx).version
         let plan
         try {
           plan = planScaffold({
@@ -664,7 +667,7 @@ function registerScaffoldCommand(wiring: Wiring): void {
             ...(typeof args.title === 'string' && args.title.trim() !== '' ? { title: args.title } : {}),
             docs: canDocs,
             ...(typeof args.port === 'number' ? { port: args.port } : {}),
-            testedKernel,
+            kernelVersion,
           })
         } catch (err) {
           return { ok: false, error: `${err instanceof Error ? err.message : String(err)}\n\n${SCAFFOLD_USAGE}` }
@@ -724,14 +727,14 @@ function registerScaffoldPluginCommand({ ctx, log, commands }: Wiring): void {
         if (templateRoot === null) {
           return { ok: false, error: '包内 template/pkg/ 不在——这一版没把它带进包（files 白名单漏了），换一版' }
         }
-        const testedKernel = requireKernel(ctx).version
+        const kernelVersion = requireKernel(ctx).version
         let plan
         try {
           plan = planScaffoldPlugin({
             name: typeof args.name === 'string' ? args.name : '',
             repo: typeof args.repo === 'string' ? args.repo : '',
             ...(typeof args.title === 'string' && args.title.trim() !== '' ? { title: args.title } : {}),
-            testedKernel,
+            kernelVersion,
           })
         } catch (err) {
           return { ok: false, error: `${err instanceof Error ? err.message : String(err)}\n\n${SCAFFOLD_PLUGIN_USAGE}` }

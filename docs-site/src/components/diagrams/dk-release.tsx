@@ -18,7 +18,7 @@ const ITEMS: ChainItem[] = [
 ]
 
 const EVERY_PACKAGE = ['不在 0.0.x', 'dev 范围含源上的 latest', '产物里没有空 import', '相对 import 的文件都在', 'tsc --noEmit 类型检查']
-const PLUGIN_ONLY = ['peer 只有 cordis', '包名 import 的两份名单', 'gwb.testedKernel 版本线', 'gwb.requires 写法']
+const PLUGIN_ONLY = ['peer 只有 cordis、内核包', '包名 import 的两份名单', '内核包范围含运行中内核', 'gwb.requires 写法']
 
 const STEPS: { title: string; detail: string; active: number; refused?: boolean }[] = [
   { title: '全貌', detail: '六格依次做，前五格任何一处没过，一个包都不发。它只碰团队源、不碰任何 home，不改仓里任何文件，从哪个 home 调用都可以。', active: -1 },

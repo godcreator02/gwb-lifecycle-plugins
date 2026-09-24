@@ -91,9 +91,9 @@ description: plugin-manager.search 在配好的 npm 源上检索插件，地址�
 
 ## 不改 home，不经 BUSY
 
-**是什么**：四条命令用普通的 `on` 登记，不经 BUSY 检查，也不排进 pnpm 的串行队列。
+**是什么**：四条命令用不带 BUSY 检查的 `registerCommand` 登记，也不排进 pnpm 的串行队列。
 
-{/* ref file="../plugins/plugin-manager/src/index.ts" lines="358-365" */}
+{/* ref file="../plugins/plugin-manager/src/index.ts" lines="392-399" */}
 
 **为什么**：BUSY 与串行队列防的是两次改动同时改 home 的 `package.json`；这四条要么只读网络与文件，要么改的是机器级 `~/.npmrc`，不碰 home。检索可能要等好几条源，排在安装后面只会让「可装」列表等到安装做完才出来。
 

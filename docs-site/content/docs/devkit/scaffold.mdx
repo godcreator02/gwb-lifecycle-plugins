@@ -18,7 +18,7 @@ workspace 仓：仓根是一个不发布的 private 包（`pnpm build` / `pnpm c
 插件的文件写到磁盘之后才建文档站，而建站是两步，两步都不是本包的命令；站装好六区之后，再往现状区写一页插件页草稿。加插件不建站：整个仓一个站，仓里已有装好六区的站时，只往现状区加这个插件的插件页；README 里插件清单的更新由写文档的人做（`nextStepsPlugin` 最后一步提醒）。
 
 <Diagram name="dk-scaffold" title="devkit.scaffold 建仓的七步：前三步在本包里，第 4、5 步经命令总线交给别的插件">
-- 第 1 步 `planScaffold` 算计划：校验短名，派生包名 `@godcreator/gwb-<短名>` 与插件名，`gwb.testedKernel` 取运行中内核的版本号；不碰磁盘
+- 第 1 步 `planScaffold` 算计划：校验短名，派生包名 `@godcreator/gwb-<短名>` 与插件名，peer 里内核包的范围取运行中内核版本号的 x.y.z 三段；不碰磁盘
 - 第 2 步在内存里渲染 `template/repo/`、`template/pkg/` 与插件页，认不出的占位符当场抛错
 - 第 3 步 `writeRepo` 写磁盘：目标目录必须还不存在；仓根写四个文件，插件包写到 `plugins/<短名>/`
 - 第 4 步经命令总线调站点插件的 `docs-site.create`，生成 `docs-site/` 骨架（回执 `docs.built`）；第 5 步紧接着调 docfirst 插件的 `docfirst.attach` 装六区（回执 `docs.attached`）。这两步画成虚线框：哪个插件没装就跳过，建仓不算失败
@@ -36,9 +36,9 @@ workspace 仓：仓根是一个不发布的 private 包（`pnpm build` / `pnpm c
 
 五个类型，两条流程：建仓（参数 `ScaffoldInput` → 计划 `ScaffoldPlan` → 渲染好的 `RenderedFile[]`）、加插件（`ScaffoldPluginInput` → `ScaffoldPluginPlan` → 同样的 `RenderedFile[]`）。
 
-{/* ref file="../plugins/devkit/src/scaffold.ts" lines="25-87" */}
+{/* ref file="../plugins/devkit/src/scaffold.ts" lines="26-88" */}
 
-`ScaffoldPlan` 与 `ScaffoldPluginPlan` 算出来之后，后面每一步只看计划，不再回头看参数。两种参数里的 `testedKernel` 不是命令参数：`src/index.ts` 从运行中的内核服务取 `gwbKernel.version` 传进来，渲染时填进生成的 `package.json` 的 `gwb.testedKernel`。
+`ScaffoldPlan` 与 `ScaffoldPluginPlan` 算出来之后，后面每一步只看计划，不再回头看参数。两种参数里的 `kernelVersion` 不是命令参数：`src/index.ts` 从运行中的内核服务取 `gwbKernel.version` 传进来，计划里只留 x.y.z 三段（开发版内核去掉预发布段），渲染时填进生成的 `package.json` peer 里内核包的范围 `^x.y.z`。
 
 ## 提供的接口
 
@@ -46,31 +46,31 @@ workspace 仓：仓根是一个不发布的 private 包（`pnpm build` / `pnpm c
 
 模块导出一串纯函数，`src/index.ts` 按顺序调用：
 
-{/* ref file="../plugins/devkit/src/scaffold.ts" lines="113-134" */}
+{/* ref file="../plugins/devkit/src/scaffold.ts" lines="114-135" */}
 
 校验、派生、转成绝对路径、填缺省值都在这一处做完，没有读写磁盘。抛出的每一句都写明该怎么改。
 
 加插件的计划**要读磁盘**（建仓的不读）：`repo` 必须已经是 workspace 仓才收。
 
-{/* ref file="../plugins/devkit/src/scaffold.ts" lines="136-162" */}
+{/* ref file="../plugins/devkit/src/scaffold.ts" lines="137-163" */}
 
 **整套模板先在内存里渲染完再写磁盘。** 占位符出错是这条流程上最可能的失败，而目标目录一旦开始写就没有干净的回滚点。
 
-{/* ref file="../plugins/devkit/src/scaffold.ts" lines="272-278" */}
+{/* ref file="../plugins/devkit/src/scaffold.ts" lines="270-278" */}
 
 认不出的占位符当场抛错。生成的仓里留一个 `{{typo}}`，它会一直留在别人的 package.json 里，到那时已经没人知道它本来该是什么。所以给模板加了新占位符，`placeholders()` 必须同时加一项。
 
 两部分各写到哪里由一个纯函数决定：`repo/` 写到仓根，`pkg/` 写到 `plugins/<短名>/`，**不属于这两部分的文件当场抛错**——模板里每个文件都得声明自己属于哪部分，没声明的文件写下去，谁也说不清它属于仓根还是插件包。
 
-{/* ref file="../plugins/devkit/src/scaffold.ts" lines="290-301" */}
+{/* ref file="../plugins/devkit/src/scaffold.ts" lines="242-254" */}
 
 建仓渲染仓根与插件包两部分，插件页不在里面；加插件只渲染插件包那部分，路径相对插件包根。`writeRepo` 的「目标必须还不存在」于是检查的是 `plugins/<短名>/`，仓根不碰。插件页单独渲染、单独写，见下一节。
 
-{/* ref file="../plugins/devkit/src/scaffold.ts" lines="269-286" */}
+{/* ref file="../plugins/devkit/src/scaffold.ts" lines="270-287" */}
 
 目标目录必须还不存在。建仓与加插件都是一次性动作，往已有目录里写文件没有干净的回滚点。
 
-{/* ref file="../plugins/devkit/src/scaffold.ts" lines="344-352" */}
+{/* ref file="../plugins/devkit/src/scaffold.ts" lines="289-298" */}
 
 ## 依赖的接口
 
@@ -84,17 +84,17 @@ workspace 仓：仓根是一个不发布的 private 包（`pnpm build` / `pnpm c
 
 **建站是两步，顺序不能反，中间不能插别的事。**
 
-{/* ref file="../plugins/devkit/src/index.ts" lines="786-798" */}
+{/* ref file="../plugins/devkit/src/index.ts" lines="789-801" */}
 
 `docfirst.attach` 只在还没写过内容的骨架上装得了，这条由它自己检查。生成骨架与装六区连着做，中间没人改过文件，整个覆盖才安全；给一个用了半年的站做自动改写不安全。`devkit.scaffold` 里这两步紧挨着，正是那个安全的时刻。
 
 **站没建成不算建仓失败。** 插件的文件早已写到磁盘，所以回执里这两个字段才是实际结果：
 
-{/* ref file="../plugins/devkit/src/index.ts" lines="772-784" */}
+{/* ref file="../plugins/devkit/src/index.ts" lines="775-787" */}
 
 `built` 表示骨架生成了没有，`attached` 表示六区装了没有，`nextSteps` 按这两个字段分三种情况。回执里给一条不存在的 `cd docs-site` 比不给更糟，所以生成的 README 里讲文档站的那段话，也是在渲染之前按「站点插件在不在」定下来的：
 
-{/* ref file="../plugins/devkit/src/scaffold.ts" lines="205-210" */}
+{/* ref file="../plugins/devkit/src/index.ts" lines="659-660" */}
 
 ## 插件页：让新仓第一次 `pnpm check` 就通过
 
@@ -102,11 +102,11 @@ workspace 仓：仓根是一个不发布的 private 包（`pnpm build` / `pnpm c
 
 插件页草稿写出插件名、包名、命令 `<短名>.ping`、窗格 `main` 与注入的两个服务，分功能、接口、依赖、不做的事四节。**只在仓根的文档站装好了六区时写**（判据是 `docs-site/docfirst.config.mjs` 在）：
 
-{/* ref file="../plugins/devkit/src/scaffold.ts" lines="312-326" */}
+{/* ref file="../plugins/devkit/src/scaffold.ts" lines="313-327" */}
 
 没有站时自述检查那一项本来就通过，不用写；站只有骨架、六区还没装时不能写——`docfirst.attach` 只在没加过页的骨架上装得了，多一页它就拒绝。所以 `devkit.scaffold` 在建站两步之后才写：
 
-{/* ref file="../plugins/devkit/src/index.ts" lines="715-717" */}
+{/* ref file="../plugins/devkit/src/index.ts" lines="687-690" */}
 
 `devkit.scaffold.plugin` 在写任何文件之前先查插件页在不在，在就拒，不覆盖。没写插件页的几种情况（没建站、只有骨架、六区没装成），`nextSteps` / `nextStepsPlugin` 都写明装好六区之后在哪个路径写插件页、至少写出哪些服务名。
 
@@ -114,7 +114,7 @@ workspace 仓：仓根是一个不发布的 private 包（`pnpm build` / `pnpm c
 
 给一份参数，看抛什么、算出什么；给一个临时目录，看磁盘上写下了什么。整个过程不启动进程、不开窗口，`tests/scaffold.test.ts` 直接测这几件事：
 
-短名的正则会不会放过 `x--` 这种结尾；`planScaffold` 的派生与缺省值；`planScaffoldPlugin` 对不存在的 repo、`pnpm-workspace.yaml` 里没有 `plugins/` 那条（旧布局仓）的拒绝；`docsBlock` 在建站与不建站时写的是两段不同的话；`nextSteps` / `nextStepsPlugin` 各种情况写了什么、`packages` 参数有没有带上；生成的 `package.json` 写了 `gwb.testedKernel` 且过得了发版前检查的比对；认不出的占位符真的会抛错；`.tpl` 后缀与三部分的去向（`landRel`）对不对；包内 `template/` 里每个文件都声明了属于哪部分；生成的清单只在 node 侧按值 import 了 `cordis` 时写 peer、词汇表包版本与 devkit 自己的一致；构建脚本与产物测试从外壳清单的 `gwb.shared` 读名单、样式入口从外壳引令牌映射；产物测试的颜色类白名单从外壳的 `theme.reference.css` 与样式入口读色名，不手抄；插件页写出了模板插件 `inject` 的每个服务名；在临时 workspace 仓里真的生成一个 `plugins/<短名>/`；`writeRepo` 对已存在的目录真的拒绝。
+短名的正则会不会放过 `x--` 这种结尾；`planScaffold` 的派生与缺省值；`planScaffoldPlugin` 对不存在的 repo、`pnpm-workspace.yaml` 里没有 `plugins/` 那条（旧布局仓）的拒绝；`docsBlock` 在建站与不建站时写的是两段不同的话；`nextSteps` / `nextStepsPlugin` 各种情况写了什么、`packages` 参数有没有带上；生成的 `package.json` 在 peer 里写了内核包 `^<运行命令的内核版本号>`、过得了发版前检查的比对，开发版内核只取 x.y.z 三段；认不出的占位符真的会抛错；`.tpl` 后缀与三部分的去向（`landRel`）对不对；包内 `template/` 里每个文件都声明了属于哪部分；生成的清单 peer 里有内核包、只在 node 侧按值 import 了 `cordis` 时才写 peer `cordis`，词汇表包版本与 devkit 自己的一致；构建脚本与产物测试从外壳清单的 `gwb.shared` 读名单、样式入口从外壳引令牌映射；产物测试的颜色类白名单从外壳的 `theme.reference.css` 与样式入口读色名，不手抄；插件页写出了模板插件 `inject` 的每个服务名；在临时 workspace 仓里真的生成一个 `plugins/<短名>/`；`writeRepo` 对已存在的目录真的拒绝。
 
 模板文件清单那一条最容易被忽略：`files` 白名单漏掉 `template`，包照样发得出去、也装得上，直到有人调 `devkit.scaffold` 才报「包内 template/ 不在」。
 

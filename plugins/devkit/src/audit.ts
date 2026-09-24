@@ -1,5 +1,7 @@
 // 纯函数，不读磁盘、不联网；扫仓与问源在 node-audit-deps.ts
 
+import { KERNEL_PACKAGE } from './kernel-compat.js'
+
 /** 一份 package.json 里查得到的那部分 */
 export interface ManifestDeps {
   /** peerDependencies 的全部条目 */
@@ -20,6 +22,7 @@ export interface RegistryInfo {
   latest?: string
 }
 
+/** `peer-not-cordis`：插件包 peer 里写了 cordis 与内核包以外的包 */
 export type FindingKind = 'dead-pin' | 'behind' | 'out-of-range' | 'loose-dev-pin' | 'peer-not-cordis'
 
 export interface Finding {
@@ -153,7 +156,7 @@ function devDependencyIssue(range: string, registryInfo: RegistryInfo): { kind: 
 
 function peerNotCordisDetail(pkg: string, range: string): string {
   return (
-    `peer 写了 ${pkg}（"${range}"）：peer 只写宿主提供、node 侧产物里按值 import 的 cordis。按「运行时谁提供」改写——` +
+    `peer 写了 ${pkg}（"${range}"）：peer 只写 home 根上的两个包——node 侧产物里按值 import 的 cordis，与声明兼容哪些内核的内核包 ${KERNEL_PACKAGE}。按「运行时谁提供」改写——` +
     `另一个插件、接口定义包、importmap 里的包、运行时自己用的库、构建时才用的包写 dev；打包不进产物的自用库写 dependencies 并写明原因。` +
     `下次发版时 devkit.release 会拒`
   )
@@ -182,7 +185,7 @@ export function auditManifest(
   if (deps.private || !deps.plugin) return findings
 
   for (const [pkg, range] of Object.entries(deps.peers)) {
-    if (pkg === 'cordis') continue
+    if (pkg === 'cordis' || pkg === KERNEL_PACKAGE) continue
     report('peer-not-cordis', pkg, peerNotCordisDetail(pkg, range))
   }
   return findings

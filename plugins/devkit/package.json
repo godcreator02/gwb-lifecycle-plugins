@@ -21,8 +21,7 @@
     "template"
   ],
   "gwb": {
-    "title": "开发套件",
-    "testedKernel": "0.2.7"
+    "title": "开发套件"
   },
   "scripts": {
     "build": "tsc -p tsconfig.json",
@@ -32,8 +31,11 @@
     "prepublishOnly": "pnpm build"
   },
   "//dependencies": "站那半的两条命令（docs-site.create / docfirst.attach）只按名字在命令总线上找——本包不依赖站件与 docfirst 件的任何包，那正是三者互不依赖的判据",
+  "peerDependencies": {
+    "@godcreator/gwb-kernel-desktop": "^0.3.0"
+  },
   "devDependencies": {
-    "@godcreator/gwb-plugin-api": "^0.2.7",
+    "@godcreator/gwb-plugin-api": "^0.3.0",
     "@godcreator/gwb-commands": "0.4.5",
     "@godcreator/gwb-node-cli": "0.4.5",
     "@godcreator/gwb-shell": "0.13.3",

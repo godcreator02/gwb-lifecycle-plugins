@@ -15,7 +15,7 @@ import { auditStructure, scanRepo, type StructureFinding } from '../src/structur
 const TEMPLATE_ROOT = path.join(path.dirname(fileURLToPath(import.meta.url)), '..', 'template')
 
 /** 运行建仓命令的内核版本号 */
-const KERNEL = '0.2.7'
+const KERNEL = '0.3.0'
 
 const sandboxes: string[] = []
 function sandbox(): string {
@@ -101,7 +101,7 @@ function audit(dir: string): { shape: string; kinds: string[]; findings: Structu
 describe('round-trip：模板产物零 findings（正本焊接）', () => {
   it('建仓：renderTemplate 的产物过检，一条不剩', () => {
     const dir = path.join(sandbox(), 'repo')
-    writeRepo(dir, renderTemplate(TEMPLATE_ROOT, planScaffold({ name: 'hello', dir, docs: false, testedKernel: KERNEL })))
+    writeRepo(dir, renderTemplate(TEMPLATE_ROOT, planScaffold({ name: 'hello', dir, docs: false, kernelVersion: KERNEL })))
     const report = audit(dir)
     expect(report.shape).toBe('workspace')
     expect(report.findings).toEqual([])
@@ -109,8 +109,8 @@ describe('round-trip：模板产物零 findings（正本焊接）', () => {
 
   it('加件：往同一个仓再加第二件，两件都过检', () => {
     const dir = path.join(sandbox(), 'repo')
-    writeRepo(dir, renderTemplate(TEMPLATE_ROOT, planScaffold({ name: 'hello', dir, docs: false, testedKernel: KERNEL })))
-    const plan = planScaffoldPlugin({ name: 'world', repo: dir, testedKernel: KERNEL })
+    writeRepo(dir, renderTemplate(TEMPLATE_ROOT, planScaffold({ name: 'hello', dir, docs: false, kernelVersion: KERNEL })))
+    const plan = planScaffoldPlugin({ name: 'world', repo: dir, kernelVersion: KERNEL })
     writeRepo(plan.dir, renderPlugin(TEMPLATE_ROOT, plan))
     expect(audit(dir).findings).toEqual([])
     expect(scanRepo(dir).members.map((m) => m.dir).sort()).toEqual(['plugins/hello', 'plugins/world'])

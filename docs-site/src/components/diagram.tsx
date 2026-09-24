@@ -23,7 +23,6 @@ import { PmPnpmLookup } from './diagrams/pm-pnpm-lookup'
 import { PmRemount } from './diagrams/pm-remount'
 import { PmRequires } from './diagrams/pm-requires'
 import { PmSources } from './diagrams/pm-sources'
-import { PmTestedKernel } from './diagrams/pm-tested-kernel'
 import { PmUninstall } from './diagrams/pm-uninstall'
 import { PmUpgrade } from './diagrams/pm-upgrade'
 import { PmUpgradeGap } from './diagrams/pm-upgrade-gap'
@@ -49,7 +48,6 @@ const drawings: Record<string, () => ReactNode> = {
   'pm-pnpm-lookup': () => <PmPnpmLookup />,
   'pm-sources': () => <PmSources />,
   'pm-requires': () => <PmRequires />,
-  'pm-tested-kernel': () => <PmTestedKernel />,
   'dk-scaffold': () => <DkScaffold />,
   'dk-dev-loop': () => <DkDevLoop />,
   'dk-home-new': () => <DkHomeNew />,

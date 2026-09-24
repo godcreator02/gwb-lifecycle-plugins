@@ -1,17 +1,17 @@
 ---
 title: 对外只有命令
-description: 16 条命令是插件管理唯一的调用方式；服务 gwbPluginManager 只表示装了；命令的参数与回执类型由插件管理导出，改了形状就升 0.x 的 x
+description: 17 条命令是插件管理唯一的调用方式；服务 gwbPluginManager 只表示装了；命令的参数与回执类型由插件管理导出，改了形状就升 0.x 的 x
 ---
 
 # 对外只有命令
 
 **本页回答**：插件管理有哪些命令、各收什么参数、回什么；为什么对外只有命令，服务为什么只表示「装了」；回执的类型归谁定义；改了命令怎么升版本号。
 
-## 16 条命令
+## 17 条命令
 
 | 命令 | 参数 | 回执（`data`） | 细节 |
 | --- | --- | --- | --- |
-| `list` | 无 | 按包列出：包名、spec、是否装了、`testedKernel`、`kernelUntested`、`requires`、`unmetRequires`、`requiresInvalid`、条目（id、entryId、启停、是否 `ACTIVE`、显示名） | [两层](/docs/plugin-manager/home#包与条目两层)、[测过的内核](/docs/plugin-manager/kernel-compat)、[要求的插件版本](/docs/plugin-manager/requires) |
+| `list` | 无 | 按包列出：包名、spec、是否装了、`kernelRange`、`kernelUntested`、`requires`、`unmetRequires`、`requiresInvalid`、条目（id、entryId、启停、是否 `ACTIVE`、显示名） | [两层](/docs/plugin-manager/home#包与条目两层)、[内核兼容性](/docs/plugin-manager/kernel-compat)、[要求的插件版本](/docs/plugin-manager/requires) |
 | `install` | `{ pkg, spec? }` | `{ ok, pkg, entryId }` | [安装](/docs/plugin-manager/install) |
 | `uninstall` | `{ pkg }` | `{ ok, pkg, removedEntries }` | [卸载](/docs/plugin-manager/install#卸载先删条目后卸包) |
 | `add-entry` | `{ pkg, id?, config? }` | `{ entryId }` | [选 id](/docs/plugin-manager/ids#选-id-时看磁盘上的归属记录) |
@@ -19,7 +19,8 @@ description: 16 条命令是插件管理唯一的调用方式；服务 gwbPlugin
 | `enable` / `disable` | `{ entryId }` | 无 | [两层](/docs/plugin-manager/home#条目只经-loader-的条目树) |
 | `remount` | `{ entryId }` | `{ id, action, state }` | [重新加载](/docs/plugin-manager/remount) |
 | `outdated` | 无 | `{ ok, updates: { 包名: { current, latest } } }` | [热升级](/docs/plugin-manager/upgrade#查新版本) |
-| `update-all` | `{ only? }` | `{ updated, selfDeferred, reload, note? }` | [热升级](/docs/plugin-manager/upgrade) |
+| `update-all` | `{ only? }` | `{ updated, selfDeferred, reload, kernelManaged?, note? }` | [热升级](/docs/plugin-manager/upgrade) |
+| `update-kernel` | `{ version? }` | `{ ok, kernel: { from?, to }, cordis: { from?, to }, restartRequired, pluginsOutsideRange, note }` | [升内核](/docs/plugin-manager/upgrade#升内核) |
 | `transfer-owner` | `{ id, pkg }` | `{ id, pkg, data, settings }` | [转归属](/docs/plugin-manager/ids#转归属transfer-owner) |
 | `set-label` | `{ entryId, label }` | 无 | [显示名](/docs/plugin-manager/ids#显示名存在自己的数据里) |
 | `search` | `{ scope? }` | `{ ok, packages: [{ pkg, version, description, keywords }], note? }` | [找插件](/docs/plugin-manager/sources#从哪装就在哪搜) |
@@ -32,21 +33,21 @@ description: 16 条命令是插件管理唯一的调用方式；服务 gwbPlugin
 - 参数写错（包名、版本范围、id、scope 不合规，条目不存在，改或删 `@godcreator`）直接报错；执行中的失败（找不到 pnpm、pnpm 失败）返回 `ok: false`，`error` 里是原因，pnpm 输出的最后几行既拼进 `error`，也原样放在 `data.tail`
 - 每条命令的 `description` 与 `usage` 写着参数形状，agent 经 MCP 入口的 `search` 读到的就是它们
 
-{/* ref file="../plugins/plugin-manager/src/index.ts" lines="271-276" */}
+{/* ref file="../plugins/plugin-manager/src/index.ts" lines="295-300" */}
 
 ## 服务只表示「装了」
 
-**是什么**：插件管理对外只有这 16 条命令。它提供的服务 `gwbPluginManager` 是一个普通对象 `{ contract: 1 }`，上面没有方法；别的插件 inject 它，只为跟着插件管理一起加载、卸载（插件管理窗格就这样用它）。
+**是什么**：插件管理对外只有这 17 条命令。它提供的服务 `gwbPluginManager` 是一个普通对象 `{ contract: 1 }`，上面没有方法；别的插件 inject 它，只为跟着插件管理一起加载、卸载（插件管理窗格就这样用它）。
 
 **为什么**：同一件事如果既能调命令、又能调服务方法，两种调用方式会慢慢变得不一致，而 BUSY 这类检查只加在命令上，服务方法会绕过去。命令表是页面、agent、插件共用的同一份：页面经 `window.gwb.command`，agent 经 MCP 入口，插件经命令插件，调的都是同一条命令。服务只留给命令表达不了的东西——让别的插件往这里登记东西、需要跟着提供方一起重新加载的生命周期；插件管理没有这类扩展点，所以服务只剩「装了」这一个意思。
 
 **怎么做**：只表示存在的服务不需要认出调用方，用 `ctx.provide` 提供普通对象，不继承 cordis 的 `Service` 类——插件管理因此也不在运行时 import `cordis`。命令登记在命令插件（`gwbCommands`）上，插件管理用局部注入取得它，命令插件卸载时这些命令跟着注销、它再加载时重新登记。数据插件（`gwbData`）、设置插件（`gwbSettings`）、说明书插件（`gwbSkills`）也是可选的局部注入，缺了只少一部分功能。
 
-{/* ref file="../plugins/plugin-manager/src/index.ts" lines="159-164" */}
+{/* ref file="../plugins/plugin-manager/src/index.ts" lines="183-188" */}
 
-{/* ref file="../plugins/plugin-manager/src/index.ts" lines="204-209" */}
+{/* ref file="../plugins/plugin-manager/src/index.ts" lines="228-233" */}
 
-{/* ref file="../plugins/plugin-manager/src/index.ts" lines="248-267" */}
+{/* ref file="../plugins/plugin-manager/src/index.ts" lines="272-291" */}
 
 **守住它的测试**：插件管理只取 cordis、loader、词汇表包和四个可选插件的类型，构建产物里一个包名 import 都不该有；包的 `description` 要写全服务、说明书、命令三项，注入的服务名要在这个目录的页面里写到。
 
@@ -62,7 +63,7 @@ description: 16 条命令是插件管理唯一的调用方式；服务 gwbPlugin
 
 <Diagram name="pm-commands" title="页面、agent、别的插件都经命令调用；别的插件只 inject 这个服务来跟着它加载、卸载">
 - 三类调用方——插件管理窗格、经 MCP 入口的 agent、主进程里的别的插件——都经命令插件按名字调用 `plugin-manager.*`
-- 插件管理里是 16 条命令，安装、卸载、热升级、重新加载经过同一道 BUSY 检查
+- 插件管理里是 17 条命令，安装、卸载、热升级、升内核、重新加载经过同一道 BUSY 检查
 - 服务 `gwbPluginManager` 的值是 `{ contract: 1 }`，上面没有方法；别的插件 inject 它只为跟着插件管理一起加载、卸载
 </Diagram>
 
@@ -72,7 +73,7 @@ description: 16 条命令是插件管理唯一的调用方式；服务 gwbPlugin
 
 ## 回执类型由插件管理导出
 
-**是什么**：命令的参数与回执类型由插件管理自己导出（`InstallResult`、`UpdateAllResult`、`UninstallResult`、`RemountedEntry`、`PluginPackageView`、`KernelTestStatus`、`RequiresStatus`、`UnmetRequire` 等），命令名也导出成常量（`LIST_COMMAND` 等）。
+**是什么**：命令的参数与回执类型由插件管理自己导出（`InstallResult`、`UpdateAllResult`、`KernelManagedPackage`、`UpdateKernelResult`、`VersionChange`、`UninstallResult`、`RemountedEntry`、`PluginPackageView`、`KernelCompatStatus`、`RequiresStatus`、`UnmetRequire` 等），命令名也导出成常量（`LIST_COMMAND` 等）。
 
 **为什么**：谁提供接口，谁定义类型。类型放在调用方那边，就等于调用方持有契约，插件管理改了回执也没人拦得住。
 
@@ -80,7 +81,7 @@ description: 16 条命令是插件管理唯一的调用方式；服务 gwbPlugin
 
 ## 改了命令形状就升 x
 
-**是什么**：插件管理的版本号独立于内核，还在 0.x。改了命令名、参数或回执的形状，删了命令，改了服务的值，都是破坏性变更：升 x，并把服务值里的 `contract` 加一。加命令、加可选参数、回执加字段、修 bug 升 y——`list` 回执加上 `testedKernel` 与 `kernelUntested`、`requires` 与 `unmetRequires` 与 `requiresInvalid` 都属于回执加字段。
+**是什么**：插件管理的版本号独立于内核，还在 0.x。改了命令名、参数或回执的形状，删了命令，改了服务的值，都是破坏性变更：升 x，并把服务值里的 `contract` 加一。加命令、加可选参数、回执加字段、修 bug 升 y——加 `update-kernel` 属于加命令，`list` 回执加上 `requires` 与 `unmetRequires` 与 `requiresInvalid`、`update-all` 回执加上 `kernelManaged` 都属于回执加字段；把回执里已有的字段改名或改含义属于改形状。
 
 **为什么**：下游（插件管理窗格、别的插件、agent 的说明书、`devkit.dev`）按命令名与回执形状写死了调用；x 变了，它们写的版本范围就不再匹配，要各自确认、适配后再升。`contract` 让 inject 了服务的插件在运行时也能看出插件管理有过破坏性变更。
 

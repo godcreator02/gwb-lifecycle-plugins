@@ -87,15 +87,21 @@ describe('auditManifest：dev 钉那一档', () => {
   })
 })
 
-describe('auditManifest：插件包的 peer 只许 cordis', () => {
-  it('peer 只有 cordis：干净', () => {
-    expect(auditManifest('r', '.', pub({ cordis: '^4.0.0-rc.9' }, {}), {})).toEqual([])
+describe('auditManifest：插件包的 peer 只许 cordis 与内核包', () => {
+  it('peer 只有 cordis 与内核包：干净', () => {
+    expect(auditManifest('r', '.', pub({ cordis: '^4.0.0-rc.9', '@godcreator/gwb-kernel-desktop': '^0.3.0' }, {}), {})).toEqual([])
   })
 
-  it('cordis 以外的 peer 一条一笔 peer-not-cordis，不管写法、不问源', () => {
-    const got = auditManifest('r', '.', pub({ '@godcreator/gwb-shell': '^0.13.3', react: '>=19', cordis: '^4.0.0-rc.9' }, {}), {})
+  it('cordis 与内核包以外的 peer 一条一笔 peer-not-cordis，不管写法、不问源', () => {
+    const got = auditManifest(
+      'r',
+      '.',
+      pub({ '@godcreator/gwb-shell': '^0.13.3', react: '>=19', cordis: '^4.0.0-rc.9', '@godcreator/gwb-kernel-desktop': '^0.3.0' }, {}),
+      {},
+    )
     expect(got.map((f) => `${f.kind} ${f.pkg}`)).toEqual(['peer-not-cordis @godcreator/gwb-shell', 'peer-not-cordis react'])
     expect(got[0]?.detail).toContain('按「运行时谁提供」改写')
+    expect(got[0]?.detail).toContain('@godcreator/gwb-kernel-desktop')
   })
 
   it('不是插件包（库）：peer 不查', () => {

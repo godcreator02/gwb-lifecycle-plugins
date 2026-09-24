@@ -43,6 +43,7 @@ vi.mock('../src/pnpm.js', async (importOriginal) => {
 const { apply } = await import('../src/index.js')
 
 const OWN_PKG = '@godcreator/gwb-plugin-manager'
+const KERNEL_PKG = '@godcreator/gwb-kernel-desktop'
 const ACTIVE = 2
 
 interface FakeEntry {
@@ -215,9 +216,13 @@ afterEach(() => {
 const settle = (): Promise<void> => new Promise((resolve) => setTimeout(resolve, 20))
 
 describe('plugin-manager.list', () => {
-  it('包与条目两层对上，带内核测试状态与没满足的要求；条目指向没装的包报 installed: false', async () => {
+  it('包与条目两层对上，带 peer 里内核包的范围与没满足的要求；条目指向没装的包报 installed: false', async () => {
     writeHomeDependencies({ '@x/gwb-a': '^1.0.0' })
-    writeInstalledManifest('@x/gwb-a', { version: '1.2.0', gwb: { testedKernel: '0.2.1', requires: { '@x/gwb-b': '1.0.0' } } })
+    writeInstalledManifest('@x/gwb-a', {
+      version: '1.2.0',
+      peerDependencies: { [KERNEL_PKG]: '^0.2.1' },
+      gwb: { requires: { '@x/gwb-b': '1.0.0' } },
+    })
     writeInstalledManifest('@x/gwb-b', { version: '0.9.0' })
     const pm = mount({ entries: { a: '@x/gwb-a', ghost: '@x/gwb-ghost' } })
     const listed = (await pm.run('plugin-manager.list')) as { pkg: string }[]
@@ -226,7 +231,7 @@ describe('plugin-manager.list', () => {
       spec: '^1.0.0',
       installed: true,
       entries: [{ id: 'a', entryId: 'home:a', pkg: '@x/gwb-a', disabled: false, active: true, group: false }],
-      testedKernel: '0.2.1',
+      kernelRange: '^0.2.1',
       kernelUntested: false,
       requires: { '@x/gwb-b': '1.0.0' },
       unmetRequires: [{ pkg: '@x/gwb-b', required: '1.0.0', installed: '0.9.0' }],
@@ -487,5 +492,178 @@ describe('plugin-manager.update-all', () => {
       error: 'pnpm add @x/gwb-foo@1.1.0 失败（退出码 1）。一条条目都没动\npnpm 说的原因',
       data: { ok: false, updated: [], selfDeferred: false, error: 'pnpm add @x/gwb-foo@1.1.0 失败（退出码 1）。一条条目都没动', tail: 'pnpm 说的原因' },
     })
+  })
+
+  it('过期清单里有内核包与 cordis：不升它们，回执 kernelManaged 列出来，note 指向 update-kernel', async () => {
+    fakePnpm.captureExitCode = 1
+    fakePnpm.captureStdout = JSON.stringify({
+      '@x/gwb-foo': { current: '1.0.0', latest: '1.1.0' },
+      [KERNEL_PKG]: { current: '0.3.0', latest: '0.3.1' },
+      cordis: { current: '4.0.0-rc.9', latest: '4.0.0-rc.10' },
+    })
+    const pm = mount({ entries: { foo: '@x/gwb-foo' }, shellReload: true })
+    const result = (await pm.run('plugin-manager.update-all')) as GwbResult & { data: { updated: { pkg: string }[]; kernelManaged: unknown; note: string } }
+    expect(fakePnpm.calls.map((call) => call.args)).toEqual([['outdated', '--json'], ['add', '@x/gwb-foo@1.1.0']])
+    expect(result.data.updated.map((p) => p.pkg)).toEqual(['@x/gwb-foo'])
+    expect(result.data.kernelManaged).toEqual([
+      { pkg: KERNEL_PKG, from: '0.3.0', to: '0.3.1' },
+      { pkg: 'cordis', from: '4.0.0-rc.9', to: '4.0.0-rc.10' },
+    ])
+    expect(result.data.note).toContain('plugin-manager.update-kernel')
+  })
+
+  it('过期清单里只有内核包：不运行 pnpm add，也不说「全都最新」', async () => {
+    fakePnpm.captureExitCode = 1
+    fakePnpm.captureStdout = JSON.stringify({ [KERNEL_PKG]: { current: '0.3.0', latest: '0.3.1' } })
+    const pm = mount({ entries: {} })
+    const result = (await pm.run('plugin-manager.update-all')) as GwbResult & { data: { updated: unknown[]; kernelManaged: unknown; note: string } }
+    expect(fakePnpm.calls.map((call) => call.args[0])).toEqual(['outdated'])
+    expect(result.data.updated).toEqual([])
+    expect(result.data.kernelManaged).toEqual([{ pkg: KERNEL_PKG, from: '0.3.0', to: '0.3.1' }])
+    expect(result.data.note).not.toContain('全都最新')
+    expect(result.data.note).toContain('plugin-manager.update-kernel')
+  })
+
+  it('过期清单里没有内核管的包：回执里没有 kernelManaged 字段', async () => {
+    fakePnpm.captureExitCode = 1
+    fakePnpm.captureStdout = JSON.stringify({ '@x/gwb-foo': { current: '1.0.0', latest: '1.1.0' } })
+    const pm = mount({ entries: { foo: '@x/gwb-foo' }, shellReload: true })
+    const result = (await pm.run('plugin-manager.update-all')) as GwbResult & { data: Record<string, unknown> }
+    expect('kernelManaged' in result.data).toBe(false)
+  })
+})
+
+describe('plugin-manager.update-kernel', () => {
+  const NEW_KERNEL_MANIFEST = { name: KERNEL_PKG, version: '0.4.0', peerDependencies: { cordis: '4.0.0' } }
+
+  function plugin(kernelRange: string): Record<string, unknown> {
+    return { version: '1.0.0', keywords: ['gwb', 'gwb-plugin'], peerDependencies: { [KERNEL_PKG]: kernelRange } }
+  }
+
+  /** 假 pnpm 装内核包时写入 `kernelManifest`，装 cordis 时写入对应版本的 cordis 清单 */
+  function installsOnAdd(kernelManifest: Record<string, unknown>): void {
+    fakePnpm.afterRun = (args) => {
+      const spec = args[1] ?? ''
+      if (spec.startsWith(`${KERNEL_PKG}@`)) writeInstalledManifest(KERNEL_PKG, kernelManifest)
+      if (spec.startsWith('cordis@')) writeInstalledManifest('cordis', { name: 'cordis', version: spec.slice('cordis@'.length) })
+    }
+  }
+
+  it('先装内核包、再按它 peer 里的版本装 cordis；不重新加载任何条目；回执带新旧版本与范围不含新内核的插件', async () => {
+    writeHomeDependencies({ [KERNEL_PKG]: '^0.3.0', cordis: '4.0.0-rc.9', '@x/gwb-old': '^1.0.0', '@x/gwb-new': '^1.0.0', '@x/lib': '^1.0.0' })
+    writeInstalledManifest(KERNEL_PKG, { name: KERNEL_PKG, version: '0.3.0', peerDependencies: { cordis: '4.0.0-rc.9' } })
+    writeInstalledManifest('cordis', { name: 'cordis', version: '4.0.0-rc.9' })
+    writeInstalledManifest('@x/gwb-old', plugin('^0.3.0'))
+    writeInstalledManifest('@x/gwb-new', plugin('^0.4.0'))
+    writeInstalledManifest('@x/lib', { version: '1.0.0' })
+    installsOnAdd(NEW_KERNEL_MANIFEST)
+    const pm = mount({ entries: { old: '@x/gwb-old' }, shellReload: true })
+    const storeBefore = JSON.stringify(pm.tree.store)
+
+    expect(await pm.run('plugin-manager.update-kernel')).toEqual({
+      ok: true,
+      data: {
+        ok: true,
+        kernel: { from: '0.3.0', to: '0.4.0' },
+        cordis: { from: '4.0.0-rc.9', to: '4.0.0' },
+        restartRequired: true,
+        pluginsOutsideRange: ['@x/gwb-old'],
+        note: '主进程里的内核换不掉，重启工作台后才生效；重启由人决定',
+      },
+    })
+    expect(fakePnpm.calls.map((call) => call.args)).toEqual([
+      ['add', `${KERNEL_PKG}@latest`, '--save-exact'],
+      ['add', 'cordis@4.0.0', '--save-exact'],
+    ])
+    expect(JSON.stringify(pm.tree.store)).toBe(storeBefore)
+    expect(pm.shellReloads).toBe(0)
+  })
+
+  it('给了 version 就装那个版本；装之前 home 里没有内核包与 cordis 时回执没有 from', async () => {
+    installsOnAdd({ name: KERNEL_PKG, version: '0.3.1', peerDependencies: { cordis: '4.0.0-rc.9' } })
+    const pm = mount({ entries: {} })
+    const result = (await pm.run('plugin-manager.update-kernel', { version: '0.3.1' })) as GwbResult & { data: Record<string, unknown> }
+    expect(fakePnpm.calls.map((call) => call.args)).toEqual([
+      ['add', `${KERNEL_PKG}@0.3.1`, '--save-exact'],
+      ['add', 'cordis@4.0.0-rc.9', '--save-exact'],
+    ])
+    expect(result.data['kernel']).toEqual({ to: '0.3.1' })
+    expect(result.data['cordis']).toEqual({ to: '4.0.0-rc.9' })
+  })
+
+  it('pnpm 退出码 0 但装上的 cordis 不是内核要的版本（清单里原来写的是 ^）：ok false，说明先把清单改成精确版本号', async () => {
+    writeHomeDependencies({ [KERNEL_PKG]: '0.3.0', cordis: '^4.0.0-rc.9' })
+    fakePnpm.afterRun = (args) => {
+      const spec = args[1] ?? ''
+      if (spec.startsWith(`${KERNEL_PKG}@`)) writeInstalledManifest(KERNEL_PKG, { name: KERNEL_PKG, version: '0.3.1', peerDependencies: { cordis: '4.0.0-rc.9' } })
+      if (spec.startsWith('cordis@')) writeInstalledManifest('cordis', { name: 'cordis', version: '4.0.0-rc.10' })
+    }
+    const pm = mount({ entries: {} })
+    const result = (await pm.run('plugin-manager.update-kernel')) as GwbResult & { data: Record<string, unknown> }
+    expect(result.ok).toBe(false)
+    expect(result.error).toContain('4.0.0-rc.10')
+    expect(result.error).toContain('精确版本号')
+    expect(result.error).toContain('先别重启')
+    expect(result.data['kernel']).toEqual({ to: '0.3.1' })
+  })
+
+  it('给了 version，pnpm 退出码 0 但装上的内核包不是那个版本：ok false，不装 cordis', async () => {
+    installsOnAdd({ name: KERNEL_PKG, version: '0.3.4', peerDependencies: { cordis: '4.0.0-rc.9' } })
+    const pm = mount({ entries: {} })
+    const result = (await pm.run('plugin-manager.update-kernel', { version: '0.3.1' })) as GwbResult
+    expect(result.ok).toBe(false)
+    expect(result.error).toContain('0.3.4')
+    expect(result.error).toContain('0.3.1')
+    expect(fakePnpm.calls).toHaveLength(1)
+  })
+
+  it('装上的就是正在运行的内核版本：restartRequired 是 false', async () => {
+    installsOnAdd({ name: KERNEL_PKG, version: '0.2.7', peerDependencies: { cordis: '4.0.0-rc.9' } })
+    const pm = mount({ entries: {} })
+    const result = (await pm.run('plugin-manager.update-kernel', { version: '0.2.7' })) as GwbResult & { data: Record<string, unknown> }
+    expect(result.data['restartRequired']).toBe(false)
+  })
+
+  it('内核包 peer 里的 cordis 不是精确版本号：不装 cordis，ok false 说明，别重启', async () => {
+    installsOnAdd({ name: KERNEL_PKG, version: '0.4.0', peerDependencies: { cordis: '^4.0.0' } })
+    const pm = mount({ entries: {} })
+    const result = (await pm.run('plugin-manager.update-kernel')) as GwbResult
+    expect(result.ok).toBe(false)
+    expect(result.error).toContain('精确版本号')
+    expect(result.error).toContain('先别重启')
+    expect(fakePnpm.calls.map((call) => call.args)).toEqual([['add', `${KERNEL_PKG}@latest`, '--save-exact']])
+  })
+
+  it('装内核包时 pnpm 失败：不装 cordis，error 带上输出的最后几行', async () => {
+    fakePnpm.runExitCode = 1
+    const pm = mount({ entries: {} })
+    expect(await pm.run('plugin-manager.update-kernel')).toEqual({
+      ok: false,
+      error: `pnpm add ${KERNEL_PKG}@latest 失败（退出码 1）\npnpm 说的原因`,
+      data: { ok: false, error: `pnpm add ${KERNEL_PKG}@latest 失败（退出码 1）`, tail: 'pnpm 说的原因' },
+    })
+    expect(fakePnpm.calls).toHaveLength(1)
+  })
+
+  it('装 cordis 时 pnpm 失败：回执带上已经装好的内核版本，说明 cordis 没对齐、先别重启', async () => {
+    fakePnpm.afterRun = (args) => {
+      if ((args[1] ?? '').startsWith(`${KERNEL_PKG}@`)) writeInstalledManifest(KERNEL_PKG, NEW_KERNEL_MANIFEST)
+      else fakePnpm.runExitCode = 1
+    }
+    const pm = mount({ entries: {} })
+    const result = (await pm.run('plugin-manager.update-kernel')) as GwbResult & { data: Record<string, unknown> }
+    expect(result.ok).toBe(false)
+    expect(result.data['kernel']).toEqual({ to: '0.4.0' })
+    expect(result.data['tail']).toBe('pnpm 说的原因')
+    expect(result.error).toContain('pnpm add cordis@4.0.0 失败（退出码 1）')
+    expect(result.error).toContain('先别重启')
+  })
+
+  it('version 不合规、参数不是对象：直接抛错，不运行 pnpm', async () => {
+    const pm = mount({ entries: {} })
+    await expect(pm.run('plugin-manager.update-kernel', { version: '-r' })).rejects.toThrow('不合规')
+    await expect(pm.run('plugin-manager.update-kernel', { version: '' })).rejects.toThrow('version 给了就要是个非空字符串')
+    await expect(pm.run('plugin-manager.update-kernel', '0.4.0')).rejects.toThrow('参数要是一个对象')
+    expect(fakePnpm.calls).toEqual([])
   })
 })

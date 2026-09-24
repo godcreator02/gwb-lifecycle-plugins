@@ -14,15 +14,18 @@ import { parseOutdated, type UpdateInfo } from './outdated.js'
 import { entriesForPackage } from './uninstall.js'
 import { ownEntryId, treeOf, type EntryTreeLike } from './tree.js'
 import { BusyGate } from './busy.js'
-import { fiberStateOf, planUpdateAll, type PlannedEntry, type UpdateAllPlan } from './update-all.js'
+import { fiberStateOf, planUpdateAll, type KernelManagedPackage, type PlannedEntry, type UpdateAllPlan } from './update-all.js'
 import { remountNow, remountOne, remountSelfLater, type RemountedEntry } from './remount.js'
-import { kernelTestStatusOf } from './tested-kernel.js'
+import { KERNEL_PACKAGE, kernelCompatStatusOf } from './kernel-compat.js'
+import { CORDIS_PACKAGE, installedVersionMismatch, kernelUpgradeTargetOf, pluginsOutsideKernelRange, versionChangeOf, type VersionChange } from './kernel-upgrade.js'
 import { declaredRequires, installedVersionOf, requiresStatusOf } from './requires.js'
 import { addSource, listSources, removeSource, searchPlugins, type PackageSourcesDeps } from './package-sources.js'
 
 export type { EntrySnapshot, PluginEntryView, PluginPackageView } from './inventory.js'
 export type { RemountedEntry } from './remount.js'
-export type { KernelTestStatus } from './tested-kernel.js'
+export type { KernelCompatStatus } from './kernel-compat.js'
+export type { VersionChange } from './kernel-upgrade.js'
+export type { KernelManagedPackage } from './update-all.js'
 export type { RequiresStatus, UnmetRequire } from './requires.js'
 export type { SearchReceipt, SourceAddResult, SourceListResult, SourceRemoveResult, SourceReport } from './package-sources.js'
 export type { SearchRow } from './search.js'
@@ -51,6 +54,7 @@ export const REMOUNT_COMMAND = 'plugin-manager.remount'
 export const SET_LABEL_COMMAND = 'plugin-manager.set-label'
 export const OUTDATED_COMMAND = 'plugin-manager.outdated'
 export const UPDATE_ALL_COMMAND = 'plugin-manager.update-all'
+export const UPDATE_KERNEL_COMMAND = 'plugin-manager.update-kernel'
 export const UNINSTALL_COMMAND = 'plugin-manager.uninstall'
 export const TRANSFER_OWNER_COMMAND = 'plugin-manager.transfer-owner'
 export const SEARCH_COMMAND = 'plugin-manager.search'
@@ -119,7 +123,27 @@ export interface UpdateAllResult {
    * 没有升级任何包或整体失败时，没有这个字段
    */
   reload?: 'done' | 'deferred' | 'unavailable'
-  /** 需要提醒的情况：全都最新、only 里列出但不在过期清单里的包、界面要手动刷新 */
+  /** 过期了、但版本由内核决定而没升的内核包与 cordis；过期清单里没有它们时没有这个字段 */
+  kernelManaged?: KernelManagedPackage[]
+  /** 需要提醒的情况：全都最新、only 里列出但不在过期清单里的包、内核管的包要用哪条命令升、界面要手动刷新 */
+  note?: string
+  /** 失败时的原因 */
+  error?: string
+  /** pnpm 失败时输出的最后几行，失败原因在里面 */
+  tail?: string
+}
+
+/** 升内核的回执 */
+export interface UpdateKernelResult {
+  ok: boolean
+  /** 成功时有；装 cordis 失败时也有（内核包已经装上了） */
+  kernel?: VersionChange
+  /** 成功才有 */
+  cordis?: VersionChange
+  /** 成功才有：主进程里的内核换不掉，重启工作台后才生效 */
+  restartRequired?: boolean
+  /** 成功才有：home 里 peer 范围不包含新内核（或没写范围）的插件，按包名排 */
+  pluginsOutsideRange?: string[]
   note?: string
   /** 失败时的原因 */
   error?: string
@@ -167,7 +191,7 @@ class PluginManager {
   private readonly ctx: GwbContext
   /** pnpm 的工作目录，也是 home 的 package.json 所在的目录 */
   private readonly homeDir: string
-  /** 运行中的内核版本号，`list` 拿它和各包声明的 `gwb.testedKernel` 比对 */
+  /** 运行中的内核版本号，`list` 拿它和各包 peer 里内核包的范围比对 */
   private readonly kernelVersion: string
   /** 机器级是包源路由的正本（`source.add` / `source.remove` 改它），home 级只读 */
   private readonly npmrc: { user: string; home: string }
@@ -266,12 +290,12 @@ class PluginManager {
     })
   }
 
-  /** 改 home 里的包与条目的命令；安装、卸载、一键热升级、重新加载经过 BUSY 检查 */
+  /** 改 home 里的包与条目的命令；安装、卸载、一键热升级、升内核、重新加载经过 BUSY 检查 */
   private registerHomeCommands(registerCommand: RegisterCommand, registerBusyGuardedCommand: RegisterCommand): void {
     registerCommand(
       LIST_COMMAND,
-      'home 里装了哪些包、各有哪些条目、有没有没在当前内核上测过或要求的插件版本没满足的',
-      '回执按包列：包名、spec、条目（id、entryId、启停、是否 ACTIVE、显示名）、testedKernel（包的 package.json 里 gwb.testedKernel 声明的内核版本号，没声明时没有这个字段）、kernelUntested（声明的版本与运行中的内核不在同一条版本线上，或没声明、声明的不是合法版本号，就是 true；主版本号为 0 时比前两位，≥1 时只比主版本号）、requires（包的 package.json 里 gwb.requires 原样照抄：{ 包名: 最低版本号 x.y.z }，没写时没有这个字段）、unmetRequires（没满足的要求 [{ pkg, required, installed? }]：home 里装的版本低于 required、required 不是合法的 x.y.z、或没装（没有 installed 字段）；全都满足时是空数组）、requiresInvalid（gwb.requires 写了但不是「包名 → 字符串」的对象时说明哪里不对，这时不比对）。只报告，不拦加载。无参数',
+      'home 里装了哪些包、各有哪些条目、有没有 peer 范围不包含当前内核或要求的插件版本没满足的',
+      `回执按包列：包名、spec、条目（id、entryId、启停、是否 ACTIVE、显示名）、kernelRange（包的 package.json 里 peerDependencies["${KERNEL_PACKAGE}"] 写的范围，没写时没有这个字段）、kernelUntested（范围不包含运行中的内核就是 true，没写、写的不是 ^x.y.z 也算；^x.y.z 在主版本号为 0 时要求次版本号相同，≥1 时要求主版本号相同，并且不低于 x.y.z）、requires（包的 package.json 里 gwb.requires 原样照抄：{ 包名: 最低版本号 x.y.z }，没写时没有这个字段）、unmetRequires（没满足的要求 [{ pkg, required, installed? }]：home 里装的版本低于 required、required 不是合法的 x.y.z、或没装（没有 installed 字段）；全都满足时是空数组）、requiresInvalid（gwb.requires 写了但不是「包名 → 字符串」的对象时说明哪里不对，这时不比对）。只报告，不拦加载。无参数`,
       () => this.list(),
     )
 
@@ -342,9 +366,19 @@ class PluginManager {
     registerBusyGuardedCommand(
       UPDATE_ALL_COMMAND,
       '一键热升级过期包，不重启',
-      `一次 pnpm add 把过期包升到 outdated 返回的精确版本，再逐条停用→启用，重新加载成新版本（原本停用的跳过；插件管理自己排最后、回执发出后才重新加载），最后 shell.reload 整页重新加载。回执 { updated: [{ pkg, from, to, entries: [{ id, action, state }] }], selfDeferred, reload, note? }。参数 { only?: string[] }（只升这几个包；不给就全升）；${BUSY_USAGE_NOTE}`,
+      `一次 pnpm add 把过期包升到 outdated 返回的精确版本，再逐条停用→启用，重新加载成新版本（原本停用的跳过；插件管理自己排最后、回执发出后才重新加载），最后 shell.reload 整页重新加载。内核包 ${KERNEL_PACKAGE} 与 ${CORDIS_PACKAGE} 不升（only 点了名也不升），用 ${UPDATE_KERNEL_COMMAND} 升。回执 { updated: [{ pkg, from, to, entries: [{ id, action, state }] }], selfDeferred, reload, kernelManaged?: [{ pkg, from, to }]（过期了但没升的内核包与 cordis，过期清单里没有它们时没有这个字段）, note? }。参数 { only?: string[] }（只升这几个包；不给就全升）；${BUSY_USAGE_NOTE}`,
       async (args) => {
         const result = await this.updateAll(onlyPackagesArgOf(args))
+        return receiptWithPnpmTail(result)
+      },
+    )
+
+    registerBusyGuardedCommand(
+      UPDATE_KERNEL_COMMAND,
+      '升级 home 里的内核包，并把 home 根上的 cordis 对齐到内核要的版本；重启工作台后生效',
+      `先 pnpm add ${KERNEL_PACKAGE}@<version，不给就是 latest>，再读装上的内核包 peerDependencies 里的 cordis（必须是精确版本号）pnpm add ${CORDIS_PACKAGE}@<那个版本>，两个都按精确版本号写进 home 的 package.json。不重新加载任何条目：主进程里的内核换不掉，重启工作台后才生效，重启由人决定。回执 { ok, kernel: { from?, to }, cordis: { from?, to }, restartRequired（装上的版本与正在运行的内核不同时是 true）, pluginsOutsideRange: [包名…]（keywords 含 gwb-plugin、peer 里内核包的范围不包含新内核或没写范围的插件）, note }，装之前 home 里没有的包没有 from；失败回 { ok: false, error, kernel?, tail? }，内核包已装上而 cordis 没对齐时带 kernel、error 说明先别重启。参数 { version? }；${BUSY_USAGE_NOTE}`,
+      async (args) => {
+        const result = await this.updateKernel(versionArgOf(args))
         return receiptWithPnpmTail(result)
       },
     )
@@ -418,7 +452,7 @@ class PluginManager {
     const installedVersions = await this.installedVersionsFor(manifestsByPackage)
     return reconciledPackages.map((view) => {
       const manifest = manifestsByPackage.get(view.pkg)
-      return { ...view, ...kernelTestStatusOf(manifest, this.kernelVersion), ...requiresStatusOf(manifest, installedVersions) }
+      return { ...view, ...kernelCompatStatusOf(manifest, this.kernelVersion), ...requiresStatusOf(manifest, installedVersions) }
     })
   }
 
@@ -510,8 +544,11 @@ class PluginManager {
     const plan = planUpdateAll(checked.updates, this.tree.store, ownEntryId(this.ctx), only)
     const notes: string[] = []
     if (plan.ignored.length > 0) notes.push(`only 里这几个不在过期清单里，没动：${plan.ignored.join('、')}`)
+    if (plan.kernelManaged.length > 0) notes.push(kernelManagedNoteOf(plan.kernelManaged))
+    const kernelManagedField = plan.kernelManaged.length === 0 ? {} : { kernelManaged: plan.kernelManaged }
     if (plan.packages.length === 0) {
-      return { ok: true, updated: [], selfDeferred: false, note: ['全都最新', ...notes].join('；') }
+      const everythingUpToDate = plan.kernelManaged.length === 0
+      return { ok: true, updated: [], selfDeferred: false, ...kernelManagedField, note: [...(everythingUpToDate ? ['全都最新'] : []), ...notes].join('；') }
     }
 
     const pnpmLookup = locatePnpm()
@@ -539,7 +576,7 @@ class PluginManager {
       const reload = await runShellReload(commandBus)
       if (reload.note !== undefined) notes.push(reload.note)
       this.log.info(`一键热升级完成：${summary}${reload.reload === 'done' ? '；界面已整页重载' : ''}`)
-      return { ok: true, updated, selfDeferred: false, reload: reload.reload, ...noteOf(notes) }
+      return { ok: true, updated, selfDeferred: false, reload: reload.reload, ...kernelManagedField, ...noteOf(notes) }
     }
 
     // 本插件自己在回执之后重新加载：闭包只持有 tree、id、命令插件的引用与 logger，不调 this 上的其他方法
@@ -552,7 +589,86 @@ class PluginManager {
     const canReload = hasCommand(commandBus, SHELL_RELOAD_COMMAND)
     if (!canReload) notes.push(`命令表里没有 ${SHELL_RELOAD_COMMAND}，界面要手动刷新`)
     this.log.info(`一键热升级：${summary}；插件管理自己（${id}）在回执之后重新加载${canReload ? '，随后整页重载' : ''}`)
-    return { ok: true, updated, selfDeferred: true, reload: canReload ? 'deferred' : 'unavailable', ...noteOf(notes) }
+    return { ok: true, updated, selfDeferred: true, reload: canReload ? 'deferred' : 'unavailable', ...kernelManagedField, ...noteOf(notes) }
+  }
+
+  /** 版本写法不合规直接抛；pnpm 失败、内核包 peer 里的 cordis 不是精确版本号都转成回执。不重新加载任何条目 */
+  async updateKernel(version?: string): Promise<UpdateKernelResult> {
+    const kernelSpec = installSpec(KERNEL_PACKAGE, version ?? 'latest')
+
+    const pnpmLookup = locatePnpm()
+    if (!pnpmLookup.ok) {
+      this.log.warn(`升不了内核：${pnpmLookup.error}`)
+      return { ok: false, error: pnpmLookup.error }
+    }
+
+    const kernelBefore = installedVersionOf(await readInstalledPackageManifest(this.homeDir, KERNEL_PACKAGE))
+    const cordisBefore = installedVersionOf(await readInstalledPackageManifest(this.homeDir, CORDIS_PACKAGE))
+
+    this.log.info(`用 ${describePnpm(pnpmLookup)} 装 ${kernelSpec}`)
+    // 内核包与 cordis 都写精确版本号：home 根上的 cordis 必须等于内核包 peer 里的那个版本，写成 ^ 以后重装会解析到别的版本
+    const kernelRun = await this.applyToHome(pnpmLookup.file, { add: [kernelSpec], saveExact: true })
+    if (!kernelRun.ok) {
+      const failure = describeAddFailure(`pnpm add ${kernelSpec}`, kernelRun)
+      this.log.warn(`${failure.error}\n${failure.tail ?? ''}`)
+      return { ok: false, ...failure }
+    }
+
+    const target = kernelUpgradeTargetOf(await readInstalledPackageManifest(this.homeDir, KERNEL_PACKAGE))
+    if (!target.ok) {
+      const error = `${kernelSpec} 装上了，但${target.error}。cordis 没动，home 里的内核与 cordis 可能对不上，先别重启`
+      this.log.warn(error)
+      return { ok: false, error }
+    }
+    const kernelMismatch = version === undefined ? undefined : installedVersionMismatch(KERNEL_PACKAGE, version, target.kernelVersion)
+    if (kernelMismatch !== undefined) {
+      const error = `${kernelMismatch}。cordis 没动，先别重启`
+      this.log.warn(error)
+      return { ok: false, error }
+    }
+    const kernel = versionChangeOf(kernelBefore, target.kernelVersion)
+
+    const cordisSpec = installSpec(CORDIS_PACKAGE, target.cordisVersion)
+    const cordisRun = await this.applyToHome(pnpmLookup.file, { add: [cordisSpec], saveExact: true })
+    if (!cordisRun.ok) {
+      const failure = describeAddFailure(`pnpm add ${cordisSpec}`, cordisRun)
+      const error = `${failure.error}。内核包已经是 ${target.kernelVersion}，home 根上的 cordis 没对齐到它要的 ${target.cordisVersion}，先别重启`
+      this.log.warn(`${error}\n${failure.tail ?? ''}`)
+      return { ok: false, kernel, error, ...(failure.tail === undefined ? {} : { tail: failure.tail }) }
+    }
+    const cordisMismatch = installedVersionMismatch(
+      CORDIS_PACKAGE,
+      target.cordisVersion,
+      installedVersionOf(await readInstalledPackageManifest(this.homeDir, CORDIS_PACKAGE)),
+    )
+    if (cordisMismatch !== undefined) {
+      const error = `${cordisMismatch}。内核包已经是 ${target.kernelVersion}，先别重启`
+      this.log.warn(error)
+      return { ok: false, kernel, error }
+    }
+
+    const pluginsOutsideRange = pluginsOutsideKernelRange(await this.readHomePackageManifests(), target.kernelVersion)
+    const cordis = versionChangeOf(cordisBefore, target.cordisVersion)
+    this.log.info(
+      `内核包装成 ${target.kernelVersion}、cordis 对齐到 ${target.cordisVersion}，重启工作台后生效` +
+        (pluginsOutsideRange.length === 0 ? '' : `；peer 范围不包含新内核的插件：${pluginsOutsideRange.join('、')}`),
+    )
+    const restartRequired = target.kernelVersion !== this.kernelVersion
+    return {
+      ok: true,
+      kernel,
+      cordis,
+      restartRequired,
+      pluginsOutsideRange,
+      note: restartRequired ? '主进程里的内核换不掉，重启工作台后才生效；重启由人决定' : `装上的就是正在运行的内核 ${this.kernelVersion}，不用重启`,
+    }
+  }
+
+  /** home 的 dependencies 里每个包 → 它装在 node_modules 里的清单（没装的是 undefined） */
+  private async readHomePackageManifests(): Promise<Map<string, unknown>> {
+    const manifestsByPackage = new Map<string, unknown>()
+    await this.readInstalledManifests(Object.keys(await readHomeDependencies(this.homeDir)), manifestsByPackage)
+    return manifestsByPackage
   }
 
   /** 按计划逐条重新加载；本插件自己那条（启用着的）只记 deferred，交给调用方在回执之后处理 */
@@ -731,9 +847,9 @@ class PluginManager {
     return lastSeparator === -1 ? bareEntryId : `${ownFullId.slice(0, lastSeparator + 1)}${bareEntryId}`
   }
 
-  /** 改 home 的唯一入口：安装、升级、卸载都经这里运行 pnpm，排进同一个串行队列 */
-  private applyToHome(pnpm: string, change: { add: readonly string[] } | { remove: readonly string[] }): Promise<PnpmResult> {
-    const args = 'add' in change ? ['add', ...change.add] : ['remove', ...change.remove]
+  /** 改 home 的唯一入口：安装、升级、卸载都经这里运行 pnpm，排进同一个串行队列。`saveExact` 让 home 的清单写精确版本号，不写 `^` */
+  private applyToHome(pnpm: string, change: { add: readonly string[]; saveExact?: true } | { remove: readonly string[] }): Promise<PnpmResult> {
+    const args = 'add' in change ? ['add', ...change.add, ...(change.saveExact ? ['--save-exact'] : [])] : ['remove', ...change.remove]
     return this.enqueuePnpm(() => runPnpm({ pnpm, cwd: this.homeDir, args }))
   }
 
@@ -763,6 +879,11 @@ async function runShellReload(commandBus: GwbCommands | undefined): Promise<{ re
   return { reload: 'unavailable', note: `${SHELL_RELOAD_COMMAND} 失败（${result.error ?? '没有给出原因'}），界面要手动刷新` }
 }
 
+function kernelManagedNoteOf(kernelManaged: readonly KernelManagedPackage[]): string {
+  const listed = kernelManaged.map((p) => `${p.pkg} ${p.from} → ${p.to}`).join('、')
+  return `这几个由内核决定版本，没升：${listed}。内核包用 ${UPDATE_KERNEL_COMMAND} 升，cordis 随它对齐`
+}
+
 function noteOf(notes: readonly string[]): { note?: string } {
   return notes.length === 0 ? {} : { note: notes.join('；') }
 }
@@ -783,6 +904,12 @@ function onlyPackagesArgOf(args: unknown): string[] | undefined {
     throw new Error('only 给了就要是个非空字符串数组，比如 { "only": ["@godcreator/gwb-hello"] }')
   }
   return only as string[]
+}
+
+/** 不传、传空对象都表示装源上的 latest；给了 version 就要是非空字符串 */
+function versionArgOf(args: unknown): string | undefined {
+  if (args === undefined || args === null) return undefined
+  return optionalString(argsObjectOf(args), 'version')
 }
 
 /** 不传、传空对象都是查全部源；给了 scope 就要是非空字符串 */

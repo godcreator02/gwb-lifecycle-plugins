@@ -9,7 +9,7 @@ description: 按「运行时这份代码由谁提供」决定写 peer、dev、de
 
 ## 规则
 
-**peer 只写由宿主（内核）提供、插件在构建产物里按值 import 的 `cordis`；其余一律写 dev。** 按值 import 指 import 的是运行时的值，不只是类型。
+**peer 只写 home 根上的两个包：插件在构建产物里按值 import 的 `cordis`，与声明兼容哪些内核的内核包 `@godcreator/gwb-kernel-desktop`；其余一律写 dev。** 按值 import 指 import 的是运行时的值，不只是类型。内核包每个插件包都写（见[兼容哪个内核](/docs/rules/kernel-compat)），`cordis` 只在按值 import 时写。
 
 构建产物里剩下的包名 import（直接写包名、不带相对路径的 import，比如 `from 'cordis'`）只能是：
 
@@ -23,6 +23,7 @@ description: 按「运行时这份代码由谁提供」决定写 peer、dev、de
 | 运行时由谁提供 | 写法 |
 | --- | --- |
 | 宿主提供、插件按值 import（`extends Service` 这类） | peer `cordis`，dev 里也写一份给本地构建和类型检查 |
+| 内核（不 import，只声明兼容哪些内核） | peer `@godcreator/gwb-kernel-desktop`，范围 `^<验证时的内核版本号>` |
 | 运行环境自带（node 内置模块、`electron`） | 不声明 |
 | 页面通过 importmap 提供（react 的四个包名） | dev；浏览器侧代码构建时外置 |
 | 另一个插件 | dev，只取类型；运行时经 inject 和命令使用（见[插件之间怎么交互](/docs/rules/interaction)） |
@@ -45,7 +46,7 @@ export function apply(ctx: Context) {
 }
 ```
 
-**peer 的意思是「运行时要从 home 里解析到这个包」**，所以只看构建产物里有没有这个包名 import。d.ts 里有 `declare module 'cordis'` 也不写 peer：那只是类型，用这些类型的一方自己在 dev 里列 `cordis`。插件照样依赖 cordis 的协议，但这份兼容性不靠 peer 表达：宿主换 cordis 大版本是内核的破坏性版本，内核的版本线跟着变，所有插件都要在新内核上重新验过、改写 `gwb.testedKernel`（见[在哪个内核上测过](/docs/rules/tested-kernel)）。
+**peer `cordis` 的意思是「运行时要从 home 里解析到这个包」**，所以只看构建产物里有没有这个包名 import。d.ts 里有 `declare module 'cordis'` 也不写 peer：那只是类型，用这些类型的一方自己在 dev 里列 `cordis`。插件照样依赖 cordis 的协议，但这份兼容性不靠 peer `cordis` 表达：宿主换 cordis 大版本是内核的破坏性版本，内核升 x，所有插件都要在新内核上重新验过、改写 peer 里内核包的范围（见[兼容哪个内核](/docs/rules/kernel-compat)）。
 
 **`cordis` 不写进 `dependencies`**：那等于插件自带一份 cordis。provide、inject、跟着依赖一起重新加载照常工作，但跨拷贝的 `instanceof` 判断为 false，出错时报错也不指向根因。同一个道理，代码里不写 `instanceof Service`。
 
@@ -66,9 +67,9 @@ export function apply(ctx: Context) {
 
 ## 例子：插件管理的清单
 
-插件管理不按值 import `cordis`（它的服务用 `ctx.provide` 提供一个普通对象），所以一条 peer 都没有。它自带的 pnpm 是一个原生可执行文件，运行时按路径找到它、打包不进构建产物，所以写在 `dependencies`；别的插件、词汇表包、`cordis`、loader 全在 dev：
+插件管理不按值 import `cordis`（它的服务用 `ctx.provide` 提供一个普通对象），所以 peer 里只有内核包。它自带的 pnpm 是一个原生可执行文件，运行时按路径找到它、打包不进构建产物，所以写在 `dependencies`；别的插件、词汇表包、`cordis`、loader 全在 dev：
 
-{/* ref file="../plugins/plugin-manager/package.json" lines="32-50" */}
+{/* ref file="../plugins/plugin-manager/package.json" lines="32-53" */}
 
 它对别的插件只 import 类型，构建产物里这几句整句消失：
 
@@ -76,9 +77,9 @@ export function apply(ctx: Context) {
 
 ## 例子：模板生成的清单
 
-`devkit.scaffold` 生成的插件在 node 侧只 `import type`，构建产物里没有 `cordis`，所以清单里没有 peer；词汇表包、`gwb-commands`、`gwb-shell` 与 `cordis` 都写在 dev：
+`devkit.scaffold` 生成的插件在 node 侧只 `import type`，构建产物里没有 `cordis`，所以 peer 里只有内核包；词汇表包、`gwb-commands`、`gwb-shell` 与 `cordis` 都写在 dev：
 
-{/* ref file="../plugins/devkit/template/pkg/package.json.tpl" lines="30-30" */}
+{/* ref file="../plugins/devkit/template/pkg/package.json.tpl" lines="29-33" */}
 
 模板带的产物测试按上面两份名单查构建产物：node 侧放行 node 内置模块、`electron`、`cordis`；浏览器侧只放行外壳清单 `gwb.shared` 的键：
 
@@ -92,4 +93,4 @@ devkit 与插件管理两个插件在 `skipLibCheck: false` 下类型检查不�
 
 - cordis 靠 `Symbol.for` 协议键在多份拷贝之间工作，插件自带一份也好、home 里另有一份也好，只有跨拷贝的 `instanceof` 为 false。实测记录在内核仓 `probes/2609231600_cordis-multi-copy/`
 - 只写 dev 时，类型引用到的包靠 pnpm 默认的提升来解析，少列一个就悄悄变成 any，关掉 `skipLibCheck` 才报出来。实测记录在内核仓 `probes/2609231600_types-without-peer/`
-- peer 只警告、不拦截，也管不到运行时实际解析到哪个版本；把它收窄成「宿主提供」这一种含义，依赖就只剩两种写法
+- peer 只警告、不拦截，也管不到运行时实际解析到哪个版本；只留给 home 根上的 `cordis` 与内核包，别的依赖就只有 dev 与 `dependencies` 两种写法

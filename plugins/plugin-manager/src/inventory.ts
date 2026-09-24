@@ -1,5 +1,5 @@
+import type { KernelCompatStatus } from './kernel-compat.js'
 import type { RequiresStatus } from './requires.js'
-import type { KernelTestStatus } from './tested-kernel.js'
 import { isRecord } from './vocab.js'
 
 // 零 I/O 纯逻辑：这个文件里不 import node:fs
@@ -40,8 +40,8 @@ export interface ReconciledPackage {
   entries: PluginEntryView[]
 }
 
-/** 一个包在 `list` 里的样子：对照结果加上它在哪个内核版本上测过、它要求的别的包满没满足 */
-export interface PluginPackageView extends ReconciledPackage, KernelTestStatus, RequiresStatus {}
+/** 一个包在 `list` 里的样子：对照结果加上它 peer 里内核包的范围包不包含运行中的内核、它要求的别的包满没满足 */
+export interface PluginPackageView extends ReconciledPackage, KernelCompatStatus, RequiresStatus {}
 
 /** home 的 `package.json` → 包名 → 版本范围。格式不对的部分当作没有，不因此作废整份 */
 export function toDependencies(raw: unknown): Record<string, string> {

@@ -17,6 +17,7 @@ description: 这个仓里反复出现的词各指什么、在哪一页定义；�
 | 隔离 home | 为一次验证新开、验完就删的 home。一次验证开一个新的，不复用上一次留下的 | [测试 home](/docs/devkit/home) |
 | 控制台 home | 运行 `devkit.dev` 的那个 home（通常是 `default`）。它操作别的 home，不操作自己 | [改一版看一版](/docs/devkit/dev) |
 | 基础插件 | `devkit.home.new` 在新 home 启动前装好的七个插件：命令、外壳、数据、设置、说明书、插件管理、基础界面 | [测试 home](/docs/devkit/home) |
+| 内核包 | `@godcreator/gwb-kernel-desktop`：内核作为 npm 包装在每个 home 的根上，和 `cordis` 并列（安装包只带启动器，启动器从 home 里加载内核）。插件在 peer 里写它的范围 `^x.y.z`，声明兼容哪些内核 | [兼容哪个内核](/docs/rules/kernel-compat) |
 | 团队源 | gitea 个人源 `https://git.tianshen02.online:28377/api/packages/godcreator/npm/`，常驻，是 gwb 生态发版与安装唯一的 npm 源；scope 路由与发布 token 写在用户级 `~/.npmrc` | 说明书「gwb-release」 |
 | 包源 | npmrc 里的一条 scope 路由加上它的凭据行：某个 scope 的包从哪个 npm 源装。第三方的包源写在机器级 `~/.npmrc`，由插件管理的 `source.*` 增删；`@godcreator` 那条是团队源，不经它改 | [找插件与配包源](/docs/plugin-manager/sources) |
 | 开发版 | 版本号形如 `<patch+1>-dev.<时间戳>`、tag 为 `dev` 的一次性版本，只为把此刻的改动装进一个隔离 home，不影响 `latest` | [改一版看一版](/docs/devkit/dev) |
@@ -32,9 +33,8 @@ description: 这个仓里反复出现的词各指什么、在哪一页定义；�
 | 建仓 | `devkit.scaffold` 把新插件的骨架写进一个新目录，插件文件与文档站分两部分完成 | [建仓与加插件](/docs/devkit/scaffold) |
 | workspace 仓 | 仓根是不发布的 private 包，插件在 `plugins/<短名>/`、别的包在 `packages/`。模板只生成这一种布局；代码注释里叫「薄壳」 | [建仓与加插件](/docs/devkit/scaffold) |
 | 旧布局仓 | 仓根本身就是插件包的仓，结构体检里叫 `bare-root-single`。改到哪个就迁哪个 | [结构体检](/docs/devkit/structure) |
-| 发版前检查 | `devkit.release` 构建之后、发第一个包之前查的那几条：版本不在 0.0.x、dev 范围、peer 只写 `cordis`、构建产物里的包名 import 与空 import、关掉 `skipLibCheck` 的类型检查、`gwb.testedKernel`、`gwb.requires` 的写法。代码里的函数名与旧文档里叫「上车检票」 | [开发套件](/docs/devkit#发正式版的检查) |
+| 发版前检查 | `devkit.release` 构建之后、发第一个包之前查的那几条：版本不在 0.0.x、dev 范围、peer 只写 `cordis` 与内核包、构建产物里的包名 import 与空 import、关掉 `skipLibCheck` 的类型检查、peer 里内核包的范围、`gwb.requires` 的写法。代码里的函数名与旧文档里叫「上车检票」 | [开发套件](/docs/devkit#发正式版的检查) |
 | 最低版本要求 | 插件在 `package.json` 的 `gwb.requires` 里写的「home 里这个包不低于 x.y.z」。`plugin-manager.list` 报没满足的（`unmetRequires`），只报告不拦 | [要求别的插件的最低版本](/docs/rules/requires) |
-| 版本线 | 比对 `gwb.testedKernel` 用的范围：主版本号为 0 时是前两位（`0.2.7` 属于 `0.2`），主版本号不为 0 时是主版本号 | [在哪个内核上测过](/docs/rules/tested-kernel) |
 | 纯逻辑 | 不读写磁盘、不启动进程、只看输入输出的那部分代码，测试用假实现跑完。对面是只执行、不判断的 `node-*-deps.ts`。代码注释里叫「纯机」 | [关键设计](/docs/design#纯逻辑与真机器操作分开) |
 | 六区 | docfirst 文档站的六个目录：现状、轨迹、交接、未来、生成文件正本、反馈候选 | [开发](/docs/develop#文档站) |
 

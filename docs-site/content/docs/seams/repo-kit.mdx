@@ -50,7 +50,7 @@ repo-kit 保证：只导出上面几样；不是插件的包一条用例都不�
 
 **模板里 repo-kit 的版本下限靠手工对齐**：模板写 `^0.3.0`，repo-kit 的 `package.json` 里是当前版本 0.3.0；没有检查比对两处。规矩写在本仓 AGENTS 的「模板」一节：模板里 `@godcreator` 包的 `^` 范围要包含源上的 `dist-tags.latest`，改之前先 `pnpm view` 查。
 
-{/* ref file="../plugins/devkit/template/pkg/package.json.tpl" lines="31-35" */}
+{/* ref file="../plugins/devkit/template/pkg/package.json.tpl" lines="34-38" */}
 
 {/* ref file="../packages/repo-kit/package.json" lines="2-3" */}
 

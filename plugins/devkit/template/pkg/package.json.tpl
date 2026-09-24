@@ -10,8 +10,7 @@
   },
   "files": ["dist", "src"],
   "gwb": {
-    "title": "{{title}}",
-    "testedKernel": "{{testedKernel}}"
+    "title": "{{title}}"
   },
   "keywords": ["gwb", "gwb-plugin"],
   "//repository": "发到 gitea 后补上这一条：{ type: git, url: https://git.tianshen02.online:28377/godcreator/<仓>.git }——gitea 发布时读它把包关联到仓（2026-09-18 实测：整个包关联到仓，仓与包不在同一个 owner 下也关联得上）",
@@ -27,10 +26,14 @@
     "prepublishOnly": "pnpm build"
   },
   "engines": { "node": ">=24" },
-  "//devDependencies": "没有 peer：node 侧构建产物里没有按值 import cordis（只 import type），所以 cordis 也只写 dev。命令总线、外壳、词汇表包只取类型，运行时经 inject 使用；react 由页面的 importmap 提供，构建时不打包。规矩见 devkit 文档站「依赖怎么写」",
+  "//peerDependencies": "peer 里的内核包声明这个插件兼容哪些内核：范围写 ^<验证时那个内核的版本号>，插件管理拿它和 home 里装的内核比。node 侧构建产物里没有按值 import cordis（只 import type），所以 peer 里没有 cordis。规矩见 devkit 文档站「兼容哪个内核」与「依赖怎么写」",
+  "peerDependencies": {
+    "@godcreator/gwb-kernel-desktop": "^{{kernelVersion}}"
+  },
+  "//devDependencies": "cordis 只写 dev（给本地构建与类型检查）。命令总线、外壳、词汇表包只取类型，运行时经 inject 使用；react 由页面的 importmap 提供，构建时不打包",
   "devDependencies": {
     "@godcreator/gwb-commands": "^0.4.5",
-    "@godcreator/gwb-plugin-api": "^0.2.7",
+    "@godcreator/gwb-plugin-api": "^0.3.0",
     "@godcreator/gwb-repo-kit": "^0.3.0",
     "@godcreator/gwb-shell": "^0.13.5",
     "@tailwindcss/cli": "^4.3.0",

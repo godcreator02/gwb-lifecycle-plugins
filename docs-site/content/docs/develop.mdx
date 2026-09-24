@@ -71,7 +71,7 @@ pnpm build          # 只构建 plugins/* 与 packages/*，tsc 直接输出 dist
 
 1. **隔离 home 里验证通过**，`pnpm check`、文档站的 `pnpm doc` 都通过
 2. **升 `package.json` 的版本号并提交**。同一个版本号永不重发；git 工作区要干净
-3. **插件包的 `gwb.testedKernel`** 写它验证时所用的内核版本。`devkit.release` 拿它和运行这条命令的 home 的内核比，不在同一条版本线上就拒（[在哪个内核上测过](/docs/rules/tested-kernel)）
+3. **插件包 peer 里内核包的范围** `^x.y.z` 要包含验证时所用的内核。`devkit.release` 拿它和运行这条命令的 home 的内核比，不包含就拒（[兼容哪个内核](/docs/rules/kernel-compat)）
 4. **调 `devkit.release`**，`packages` 按依赖顺序排：
    - 只发开发套件：`devkit.release {"dir":"<本仓根>","packages":["plugins/devkit"]}`
    - repo-kit 也改了：`["packages/repo-kit","plugins/devkit"]`

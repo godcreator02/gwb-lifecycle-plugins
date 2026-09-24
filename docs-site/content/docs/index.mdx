@@ -22,8 +22,8 @@ god 工作台写插件用的一套东西：开发套件 `gwb-devkit`（建仓、
 | # | 接缝 | 连接的模块 | 接口 | 细节在 |
 | --- | --- | --- | --- | --- |
 | 1 | 工作台服务 | 开发套件、插件管理 ↔ 命令总线、命令行工具、说明书 | 登记命令、登记 `devkit.cdp`、登记说明书 | [工作台服务](/docs/seams/workbench) |
-| 2 | devkit 调插件管理（约定） | `devkit.dev`、`devkit.home.new` ↔ 插件管理 | 经 CDP 调 `plugin-manager.list` / `remount`；`home.new` 自己写条目、装基础插件 | [devkit 调插件管理](/docs/seams/plugin-manager-calls) |
-| 3 | 测过的内核与要求的插件版本（约定） | 插件的 `gwb.testedKernel`、`gwb.requires` ↔ `devkit.release`、`plugin-manager.list` | 版本线比对规则、最低版本号判法，各两份 | [测过的内核与要求的插件版本](/docs/seams/tested-kernel) |
+| 2 | devkit 调插件管理（约定） | `devkit.dev`、`devkit.home.new` ↔ 插件管理 | 经 CDP 调 `plugin-manager.list` / `remount`；`home.new` 自己写条目、装内核包与基础插件 | [devkit 调插件管理](/docs/seams/plugin-manager-calls) |
+| 3 | 兼容哪个内核与要求的插件版本（约定） | 插件 peer 里的内核包范围、`gwb.requires` ↔ `devkit.release`、`plugin-manager.list` | 内核范围比对规则、最低版本号判法，各两份 | [兼容哪个内核与要求的插件版本](/docs/seams/kernel-peer) |
 | 4 | 仓侧检查 | repo-kit ↔ 开发套件、插件管理、模板生成的仓 | `registerSelfReportGuard`、`registerPluginGuard` | [仓侧检查](/docs/seams/repo-kit) |
 | 5 | 模板与结构体检 | 建仓模板 ↔ `devkit.audit-structure` | 模板生成的仓结构体检零发现 | [模板与结构体检](/docs/seams/template-audit) |
 | 6 | 借用别的插件的命令（约定） | 建仓、结构体检、插件管理 ↔ 站点插件、docfirst、unit-folder、外壳 | 按名字调 `docs-site.create`、`docfirst.attach`、`unit-folder.list`、`shell.reload` | [借用别的插件的命令](/docs/seams/borrowed-commands) |
@@ -39,7 +39,7 @@ god 工作台写插件用的一套东西：开发套件 `gwb-devkit`（建仓、
 | 包名 | 在哪 | 讲什么 | 页 |
 | --- | --- | --- | --- |
 | `@godcreator/gwb-devkit` | `plugins/devkit` | 开发套件：写插件这条路上每一步的命令 | [gwb-devkit](/docs/devkit) |
-| `@godcreator/gwb-plugin-manager` | `plugins/plugin-manager` | 插件管理：装卸包、增删条目、热升级、报告没在当前内核上测过的插件与没满足的插件版本要求 | [gwb-plugin-manager](/docs/plugin-manager) |
+| `@godcreator/gwb-plugin-manager` | `plugins/plugin-manager` | 插件管理：装卸包、增删条目、热升级、升内核、报告 peer 范围不包含当前内核的插件与没满足的插件版本要求 | [gwb-plugin-manager](/docs/plugin-manager) |
 | `@godcreator/gwb-repo-kit` | `packages/repo-kit` | 仓侧检查：各插件仓测试里用的自我描述与插件形状检查 | [gwb-repo-kit](/docs/repo-kit) |
 
 ## 怎么读这张图

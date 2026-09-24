@@ -10,8 +10,8 @@ import {
 } from './dev.js'
 import { caretFloor, compareVersions, inCaret } from './audit.js'
 import { artifactFindings } from './artifact-check.js'
-import { declaredTestedKernel, kernelVersionLine, testedOnSameKernelLine } from './tested-kernel.js'
-import { isRecord } from './vocab.js'
+import { KERNEL_PACKAGE, isCaretRange, kernelRangeCovers } from './kernel-compat.js'
+import { isRecord, versionCore } from './vocab.js'
 
 /** git 工作区的状态。`dirty` 里是 porcelain 条目原文（两列状态加路径） */
 export type GitStatus = { ok: true; dirty: string[] } | { ok: false; error: string }
@@ -40,7 +40,7 @@ export interface ReleaseInput {
   repoDir: string
   /** 要发的包目录，相对仓根，按依赖顺序（被依赖的排前面）。空表＝仓根自己 */
   packages: string[]
-  /** 运行中的内核版本号（devkit 自己的 `gwbKernel.version`），插件包的 `gwb.testedKernel` 和它比对 */
+  /** 运行中的内核版本号（devkit 自己的 `gwbKernel.version`）。插件包 peer 里内核包的范围必须包含它 */
   runningKernel: string
 }
 
@@ -75,7 +75,7 @@ export function dirtyLines(tail: string): string[] {
 const SCOPE = '@godcreator/'
 const EXACT = /^\d+\.\d+\.\d+$/
 
-/** 发版前检查要看的那部分清单：包自己的版本号，全部 peer，`@godcreator/*` 的 dev，是不是插件，测过的内核版本 */
+/** 发版前检查要看的那部分清单：包自己的版本号，全部 peer（含内核包），`@godcreator/*` 的 dev，是不是插件 */
 export interface TicketManifest {
   name: string
   version: string
@@ -85,8 +85,6 @@ export interface TicketManifest {
   devs: Record<string, string>
   /** `keywords` 里有 `gwb-plugin` */
   plugin: boolean
-  /** `gwb.testedKernel` 的值；没写或不是字符串时是 undefined */
-  testedKernel: string | undefined
   /** `gwb.requires` 的原值；没写时是 undefined */
   requires: unknown
   /** devDependencies 的全部条目，`gwb.requires` 的每个包都要在这里 */
@@ -127,7 +125,6 @@ export function ticketManifestOf(text: string | undefined): TicketManifest | und
     peers: trimmedStringEntriesOf(peerDependencies, () => true),
     devs: trimmedStringEntriesOf(devDependencies, (key) => key.startsWith(SCOPE)),
     plugin: Array.isArray(keywords) && keywords.includes('gwb-plugin'),
-    testedKernel: declaredTestedKernel(doc),
     requires: isRecord(doc) && isRecord(doc['gwb']) ? doc['gwb']['requires'] : undefined,
     allDevs: trimmedStringEntriesOf(devDependencies, () => true),
   }
@@ -177,19 +174,25 @@ function requireProblem(pkg: string, minimum: unknown, devRange: string | undefi
   return []
 }
 
-/** 不是插件包的不查。拒三类：没写；不是合法版本号；和运行中的内核不在同一条版本线上 */
-export function testedKernelProblems(manifest: TicketManifest, runningKernel: string): string[] {
+/**
+ * 不是插件包的不查。拒三类：peer 里没写内核包；写法不是 `^x.y.z`；范围不包含运行中的内核。
+ * 建议写的范围是 `^<运行中的内核的 x.y.z>`。运行中的内核版本号不合法直接抛错（它来自内核自己的包清单）
+ */
+export function kernelPeerProblems(manifest: TicketManifest, runningKernel: string): string[] {
   if (!manifest.plugin) return []
-  const declared = manifest.testedKernel
-  if (testedOnSameKernelLine(declared, runningKernel)) return []
+  const declared = manifest.peers[KERNEL_PACKAGE]
+  if (kernelRangeCovers(declared, runningKernel)) return []
+  const suggested = `^${versionCore(runningKernel)}`
   if (declared === undefined) {
-    return [`没写 gwb.testedKernel:在运行中的内核 ${runningKernel} 上验过之后,在 package.json 的 gwb 字段里写 "testedKernel": "${runningKernel}"`]
+    return [
+      `peer 里没写内核包 ${KERNEL_PACKAGE}:在运行中的内核 ${runningKernel} 上验过之后,在 package.json 的 peerDependencies 里写 "${KERNEL_PACKAGE}": "${suggested}"`,
+    ]
   }
-  if (kernelVersionLine(declared) === undefined) {
-    return [`gwb.testedKernel 是 "${declared}",不是合法的版本号:要写成 x.y.z,如 "${runningKernel}"`]
+  if (!isCaretRange(declared)) {
+    return [`peer 里内核包 ${KERNEL_PACKAGE} 写的是 "${declared}",不是 ^x.y.z:peer 只许这一种写法,改成 "${suggested}"`]
   }
   return [
-    `gwb.testedKernel 是 ${declared},和运行中的内核 ${runningKernel} 不在同一条版本线上(主版本号为 0 比前两位,≥1 只比主版本号):在 ${runningKernel} 上验过之后,改成 "${runningKernel}"`,
+    `peer 里内核包 ${KERNEL_PACKAGE} 写的是 "${declared}",不包含运行中的内核 ${runningKernel}(主版本号为 0 时次版本号相同,≥1 时主版本号相同,并且不低于范围的下限):在 ${runningKernel} 上验过之后,改成 "${suggested}"`,
   ]
 }
 
@@ -227,16 +230,17 @@ export function checkTicket(manifest: TicketManifest, latest: Record<string, str
 }
 
 /**
- * 不是插件包的不查：库由用它的插件打包进产物，它的 peer 不进 home。别的 peer 一律拒；产物 import 了 `cordis`
- * 而 peer 里没有，拒；写了 peer `cordis` 而产物没有 import 它，只提醒（多一条 peer 不会让插件装不上）
+ * 不是插件包的不查：库由用它的插件打包进产物，它的 peer 不进 home。`cordis` 与内核包以外的 peer 一律拒（内核包写没写对由
+ * `kernelPeerProblems` 查）；产物 import 了 `cordis` 而 peer 里没有，拒；写了 peer `cordis` 而产物没有 import 它，只提醒
+ * （多一条 peer 不会让插件装不上）
  */
 export function peerProblems(manifest: TicketManifest, nodeImportsCordis: boolean): Pick<Ticket, 'problems' | 'reminders'> {
   if (!manifest.plugin) return { problems: [], reminders: [] }
   const problems = Object.keys(manifest.peers)
-    .filter((pkg) => pkg !== 'cordis')
+    .filter((pkg) => pkg !== 'cordis' && pkg !== KERNEL_PACKAGE)
     .map(
       (pkg) =>
-        `peer 写了 ${pkg}:peer 只写宿主提供、node 侧产物里按值 import 的 cordis。按「运行时谁提供」改写——` +
+        `peer 写了 ${pkg}:peer 只写 home 根上的两个包——node 侧产物里按值 import 的 cordis,与声明兼容哪些内核的内核包 ${KERNEL_PACKAGE}。按「运行时谁提供」改写——` +
         `另一个插件、接口定义包、importmap 里的包、运行时自己用的库(打包进产物)、构建时才用的包都写 devDependencies;` +
         `打包不进产物的自用库(原生可执行文件、运行时按路径读自己文件的包)写 dependencies,并在清单里写明原因`,
     )
@@ -393,7 +397,7 @@ async function ticketFor(checkedPackage: CheckedPackage, latest: Record<string, 
   const problems = [
     ...checkTicket(ticket, latest).problems,
     ...peers.problems,
-    ...testedKernelProblems(ticket, runningKernel),
+    ...kernelPeerProblems(ticket, runningKernel),
     ...requiresProblems(ticket),
     ...artifacts.problems,
     ...(await typecheckProblems(pkgDir, deps)),

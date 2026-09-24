@@ -1,6 +1,6 @@
 ---
 title: 2 devkit 调插件管理
-description: 连接 devkit 与插件管理：devkit.dev 经 CDP 在目标页面调 plugin-manager.list 与 plugin-manager.remount，回执形状在 devkit 里手写；devkit.home.new 自己往 cordis.yml 写条目、用 pnpm 装基础插件；devkit.dev 直接改目标 home 的 package.json 再 pnpm install——都靠约定
+description: 连接 devkit 与插件管理：devkit.dev 经 CDP 在目标页面调 plugin-manager.list 与 plugin-manager.remount，回执形状在 devkit 里手写；devkit.home.new 自己往 cordis.yml 写条目、用 pnpm 装内核包、cordis 与基础插件；devkit.dev 直接改目标 home 的 package.json 再 pnpm install——都靠约定
 ---
 
 **本页回答**：devkit 在哪几处用到插件管理，每一处靠什么对上；插件管理改了命令名或回执，devkit 哪里先出问题；devkit 在哪几处绕过插件管理直接改 home。
@@ -31,11 +31,11 @@ description: 连接 devkit 与插件管理：devkit.dev 经 CDP 在目标页面�
 
 {/* ref file="../plugins/plugin-manager/src/inventory.ts" lines="10-24" */}
 
-**二、`devkit.home.new` 自己写 `cordis.yml`、自己装基础插件。** 新 home 在内核启动之前，由 devkit 写一份七条条目的 `cordis.yml`（文件已存在就不写），再用 PATH 上的 pnpm 运行 `pnpm add`，七个插件里包括插件管理：
+**二、`devkit.home.new` 自己写 `cordis.yml`、自己装内核包、cordis 与基础插件。** 新 home 在内核启动之前，由 devkit 写一份七条条目的 `cordis.yml`（文件已存在就不写），再用 PATH 上的 pnpm 依次运行三次 `pnpm add`：内核包（运行中的内核版本，精确版本号）、`cordis`（装上的内核包 peer 里写的精确版本号）、七个基础插件（其中有插件管理）。内核包与 `cordis` 装完读 `node_modules` 里的清单核对版本，对不上不启动：
 
-{/* ref file="../plugins/devkit/src/home.ts" lines="256-288" */}
+{/* ref file="../plugins/devkit/src/home.ts" lines="258-304" */}
 
-{/* ref file="../plugins/devkit/src/home.ts" lines="293-304" */}
+{/* ref file="../plugins/devkit/src/home.ts" lines="377-399" */}
 
 **三、`devkit.dev` 自己改目标 home 的清单。** 把这次发的准确版本号写进目标 home 的 `package.json`，再在那个 home 里运行 `pnpm install`（PATH 上的 pnpm），装完读 `node_modules/<包>/package.json` 核对版本；失败时把清单改回原样。不用 `plugin-manager.install`，因为它对已装的包会再加一条条目：
 
@@ -56,7 +56,7 @@ devkit 保证：
 
 **这几处都靠约定**：devkit 不 import 插件管理的类型，也不读 `gwbPluginManager` 的 `contract`（它经 CDP 调用，拿不到那个服务），回执形状在 `dev.ts` 里手写。约定写在三处：插件管理 `remount` 与 `list` 两条命令的 `usage`、`dev.ts` 的 `entriesOf` 与 `remount`、本仓 AGENTS。目标 home 的插件管理早于 0.4.0 时没有 `remount`，devkit 的报错里写着这个版本要求。
 
-内核仓文档站的「home 布局与条目树」一页写的是：插件管理是唯一写 home 的插件，`cordis.yml` 只经条目树改，`package.json` 与 `node_modules/` 只经插件管理自带的 pnpm 改。`devkit.home.new` 在内核启动前直接写 `cordis.yml`、用 PATH 上的 pnpm 运行 `pnpm add`；`devkit.dev` 直接写目标 home 的 `package.json`、用 PATH 上的 pnpm 运行 `pnpm install`。本站[插件管理的 home 页](/docs/plugin-manager/home)把 `devkit.dev` 列为例外，没有提 `devkit.home.new`。
+内核仓文档站的「home 布局与条目树」一页写的是：插件管理是唯一写 home 的插件，`cordis.yml` 只经条目树改，`package.json` 与 `node_modules/` 只经插件管理自带的 pnpm 改。`devkit.home.new` 在内核启动前直接写 `cordis.yml`、用 PATH 上的 pnpm 运行三次 `pnpm add`；`devkit.dev` 直接写目标 home 的 `package.json`、用 PATH 上的 pnpm 运行 `pnpm install`。本站[插件管理的 home 页](/docs/plugin-manager/home)把 `devkit.dev` 列为例外，没有提 `devkit.home.new`。
 
 ## 不负责的事
 

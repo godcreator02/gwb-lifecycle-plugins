@@ -31,9 +31,10 @@
 里的一条条目加载，**单独发版**。它和开发套件放在同一个仓里，是因为两边互相依赖的地方多：
 
 * `devkit.dev` 装完开发版调 `plugin-manager.remount` 重新加载，再用 `plugin-manager.list` 取证；`devkit.home.new`
-  在新 home 启动前把插件管理作为基础插件装进去
-* `gwb.testedKernel` 两边都用：插件管理在 `list` 里拿它和运行中的内核比对，`devkit.release` 发版前拒绝没写对的插件包。
-  比对规则两边各存一份（两个包的 `src/tested-kernel.ts`），**改规则时两份在同一个提交里一起改**
+  在新 home 启动前把内核包、cordis 与插件管理等基础插件装进去
+* 插件 peer 里内核包 `@godcreator/gwb-kernel-desktop` 的范围两边都用：插件管理在 `list` 里拿它和 home 里装的内核比对，
+  `devkit.release` 发版前拒绝没写对的插件包。比对规则两边各存一份（两个包的 `src/kernel-compat.ts`，devkit 的
+  `tests/kernel-compat-parity.test.ts` 对照两份），**改规则时两份在同一个提交里一起改**
 
 放在同一个仓里，这些地方一个提交就能改两边。插件管理的设计、命令与机制在文档站 `content/docs/plugin-manager/`，
 说明书 `gwb-plugin-manager` 的正本是 `docs-site/content/outputs/skills/gwb-plugin-manager.mdx`。
@@ -116,14 +117,14 @@ findings 里那条 info 按实际文件名列好了 git mv 清单；改已有的
 一条规则管所有文件）；**每个文件都得声明属于哪一部分**——`landRel` 对不属于任何部分的文件直接抛错，
 没声明的写下去就是一堆没人认领的文件。
 
-**模板里 `@godcreator` 包的版本号跟着源走**：只写 devDependencies，写 `^<版本>`，范围要包含源上的 `dist-tags.latest`；
+**模板里 `@godcreator` 包的版本号跟着源走**：除了 peer 里的内核包，只写 devDependencies，写 `^<版本>`，范围要包含源上的 `dist-tags.latest`；
 词汇表包 `@godcreator/gwb-plugin-api` 的写法与 devkit 自己的 dev 一致（`tests/scaffold.test.ts` 查这一条）。
-模板插件在 node 侧只 `import type`，清单里没有 peer（规矩见文档站「依赖怎么写」）。
+模板插件在 node 侧只 `import type`，peer 里只有内核包，范围是 `^<运行建仓命令的内核版本号>`（规矩见文档站「依赖怎么写」「兼容哪个内核」）。
 范围不含 latest，新仓第一次发版就被发版前检查拦下；写了源上没有的版本，新仓 `pnpm install` 直接失败——
 改模板里的版本号之前先用 `pnpm view <包> dist-tags.latest` 查。模板的起始版本号是 0.1.0（0.0.x 过不了发版前检查）。
 模板生成的两份测试调用 repo-kit，改 repo-kit 的导出或用例时模板里的登记代码与版本号一起改。
 
-**占位符就这七个**：`{{name}}`、`{{title}}`、`{{pkg}}`、`{{pkgName}}`、`{{cssPrefix}}`、`{{testedKernel}}`（运行建仓命令的内核版本号）、`{{docsBlock}}`。
+**占位符就这七个**：`{{name}}`、`{{title}}`、`{{pkg}}`、`{{pkgName}}`、`{{cssPrefix}}`、`{{kernelVersion}}`（运行建仓命令的内核版本号的 x.y.z 三段）、`{{docsBlock}}`。
 **认不出的占位符直接抛错**——给模板加了新占位符，`src/scaffold.ts` 的 `placeholders()`
 必须同时加一条，否则下一次建仓整个失败（而不是留一个 `{{typo}}` 写进别人的 package.json 里）。
 

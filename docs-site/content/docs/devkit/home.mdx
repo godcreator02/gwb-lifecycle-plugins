@@ -1,9 +1,9 @@
 ---
 title: 测试 home
-description: devkit.home.new / open / list / rm：开一个装好基础插件的隔离 home、重开、列出、删除，按名字找到一个 home 的调试端口，以及每一步各检查什么
+description: devkit.home.new / open / list / rm：开一个装好内核包、cordis 与基础插件的隔离 home、重开、列出、删除，按名字找到一个 home 的调试端口，以及每一步各检查什么
 ---
 
-**本页回答**：一个测试 home 是怎么打开的、名字为什么是那个形状、启动的是哪个应用、装了哪些基础插件、调试端口是怎么选出来的、删一个 home 之前检查什么，以及「我要操作哪个 home」是怎么变成一个调试端口的。
+**本页回答**：一个测试 home 是怎么打开的、名字为什么是那个形状、启动的是哪个应用、装了哪些包、调试端口是怎么选出来的、删一个 home 之前检查什么，以及「我要操作哪个 home」是怎么变成一个调试端口的。
 
 ## 管什么
 
@@ -15,9 +15,9 @@ home 在 `%APPDATA%\gwb-kernel\homes\<名>\`。打开哪一个由环境变量 `G
 
 ## 不知道什么
 
-不知道 home 里的插件加载成功没有。那归插件管理，问 `plugin-manager.list`。`devkit.home.new` 只在启动之前写好 `cordis.yml` 并装好基础插件，装完不核对。
+不知道 home 里的插件加载成功没有。那归插件管理，问 `plugin-manager.list`。`devkit.home.new` 只在启动之前写好 `cordis.yml`、装好内核包、cordis 与基础插件；装完只核对装上的内核包版本与它要的 cordis 版本，插件加载成功没有不核对。
 
-**不写运行时记录**，只读。`package.json`、空的 `cordis.yml` 与 `runtime.json` 都由内核自己生成，`runtime.json` 里的 `mcp` 字段由 MCP 入口插件 `gwb-mcp` 补上；这部分代码只建目录，然后读。
+**不写运行时记录**，只读。`runtime.json` 由内核启动时生成，其中的 `mcp` 字段由 MCP 入口插件 `gwb-mcp` 补上；这部分代码只建目录（`new` 还装包、写 `cordis.yml`），然后读。
 
 不知道调试端口拿来干什么，只负责选一个、放到命令行上、再从记录里读回来。
 
@@ -27,25 +27,25 @@ home 在 `%APPDATA%\gwb-kernel\homes\<名>\`。打开哪一个由环境变量 `G
 
 运行时记录，一个 home 一份，home 删了它也就没了：
 
-{/* ref file="../plugins/devkit/src/home.ts" lines="29-47" */}
+{/* ref file="../plugins/devkit/src/home.ts" lines="30-48" */}
 
 **写它的是内核与 MCP 入口插件，不是本包。** 内核每次启动整份重写 `pid`、`startedAt`、`appDir`、`cdp`，`gwb-mcp` 绑定端口之后读出、补上 `mcp` 字段再写回（更早的 `command-http` 插件写的 `command-http` 字段在旧 home 的记录里还在，照读、只作参考）。谁写哪个字段按「谁知道这个值」分：调试端口是 Chromium 的命令行开关，只有启动进程的一方知道，而内核是唯一一定在场的进程；MCP 端口绑定成功之后才确定，只有那个插件知道。
 
 **少一个字段不算坏记录。** `cdp` 只有启动时带了那个开关才有，`mcp` 只有装了 MCP 入口插件且绑定成功才有。缺哪个字段就是那件事没发生。
 
-{/* ref file="../plugins/devkit/src/home.ts" lines="66-78" */}
+{/* ref file="../plugins/devkit/src/home.ts" lines="67-79" */}
 
 **进程退出了记录不删**，读的人负责确认进程还在。崩溃与被结束进程很常见，「退出时删」在这两种情况下根本不会执行；留着的那份是「它上一次用的哪个端口」的唯一线索，而下一次启动时内核会整份重写。
 
 `devkit.home.list` 列出来的是另一个类型，`running` 由记录里的 pid 当场查出来：
 
-{/* ref file="../plugins/devkit/src/home.ts" lines="366-377" */}
+{/* ref file="../plugins/devkit/src/home.ts" lines="461-472" */}
 
 两个端口按记录如实报，**不因为「进程看起来不在了」就去掉**：一个过时的端口正是人要看到的线索。
 
 名字的形状不是本包定的：
 
-{/* ref file="../plugins/devkit/src/home.ts" lines="5-6" */}
+{/* ref file="../plugins/devkit/src/home.ts" lines="6-7" */}
 
 比内核那条规则更严没有意义，名字最终由内核决定收不收。
 
@@ -57,7 +57,7 @@ home 在 `%APPDATA%\gwb-kernel\homes\<名>\`。打开哪一个由环境变量 `G
 - 第 1 步取名 `<短名>-<yyMMddHHmm>`，重名改用秒，再重名就拒
 - 第 2 步选调试端口：先沿用这个 home 上次的端口；被占了才另选，跳过别的 home 记录里的端口（过时的也算），再从 9400 起找没有进程监听的
 - 第 3 步定启动计划：启动宿主自己那个应用（日常是安装版），不构建内核；同一个 home 已有实例在运行就拒
-- 第 4 步（只有 `new`）：写 `cordis.yml`，在 home 目录里 `pnpm add` 七个基础插件与 `@godcreator/gwb-plugin-api`，装不上就不启动
+- 第 4 步（只有 `new`）：写 `cordis.yml`；在 home 目录里依次 `pnpm add` 三次：内核包（运行中的内核的精确版本，`--save-exact`）、内核包 peer 里写的那个精确版本的 `cordis`（`--save-exact`）、七个基础插件与 `@godcreator/gwb-plugin-api`；内核包与 `cordis` 装完都核对版本，哪一步不成都不启动
 - 第 5 步启动：环境变量 `GWB_HOME=<名>`，命令行带 `--remote-debugging-port=<端口>` 与 `--disable-backgrounding-occluded-windows`
 - 第 6 步观察五秒，只抓刚启动就退出；第 7 步读 `runtime.json`，读不到不算失败但回执说明
 - 之后 `devkit.dev`、`devkit.cdp`、`devkit.home.open` / `rm` 都只按名字找到它；改内核源码的验证是内核仓自己的流程（虚线框），不归开发套件
@@ -65,19 +65,27 @@ home 在 `%APPDATA%\gwb-kernel\homes\<名>\`。打开哪一个由环境变量 `G
 
 **名字是 `<短名>-<yyMMddHHmm>`**，重名了改用秒，再重名就直接拒：
 
-{/* ref file="../plugins/devkit/src/home.ts" lines="114-123" */}
+{/* ref file="../plugins/devkit/src/home.ts" lines="115-124" */}
 
 不悄悄加序号，因为名字里每一段都得能读出时间。同一个插件的 home 因此在目录里挨在一起、按时间排，正好是清理时要的顺序。
 
-**`devkit.home.new` 在启动之前装好基础插件。** 写 `cordis.yml`（文件已存在就不写），再在 home 目录里 `pnpm add` 这七个插件与词汇表包；装不上就不启动，回执里带 pnpm 输出的最后几十行。这张清单写死、不做参数，要加别的插件，装完再用 `plugin-manager.install`：
+**`devkit.home.new` 在启动之前装好内核包、cordis 与基础插件。** 安装包只带启动器，启动器从 home 里加载内核，home 里没有内核包就启动不了。写 `cordis.yml`（文件已存在就不写）之后在 home 目录里依次 `pnpm add` 三次：先装内核包 `@godcreator/gwb-kernel-desktop`，版本是运行这条命令的内核的精确版本（`gwbKernel.version`）；装完读 `node_modules` 里内核包的清单，版本对得上、peer 里的 `cordis` 是精确版本号，再装这个版本的 `cordis`，装完同样读清单核对版本；最后装七个基础插件与词汇表包。任何一步不成都不启动，回执里带 pnpm 输出的最后几十行：
 
-{/* ref file="../plugins/devkit/src/home.ts" lines="256-270" */}
+{/* ref file="../plugins/devkit/src/home.ts" lines="377-399" */}
 
-**`new` 与 `open` 都不构建内核、不认内核仓，启动的是宿主自己那个应用**：
+**内核包与 `cordis` 在 home 的 `package.json` 里必须是精确版本号**，所以这两次都带 `--save-exact`，并且只在清单里还没有这两项的新 home 上这样装：清单里已有 `^` 声明时，pnpm 12 的 `pnpm add <包>@<精确版本> --save-exact` 退出码是 0，写回的却还是 `^`、装上的是范围里更新的版本。装完读 `node_modules` 里的清单核对版本，就是为了抓住这种不报错的偏差（实测见轨迹卡[清单里原来写 ^ 时 pnpm add 照样装上更新的预发布版](/trajectory/2026-09-24-pnpm-add-keeps-caret)）。
 
-{/* ref file="../plugins/devkit/src/home.ts" lines="127-135" */}
+**顺序是内核包、`cordis`、基础插件**：`cordis` 的版本要照内核包 peer 里写的精确版本装，这个版本只有内核包装上之后才读得到；基础插件装的时候 home 根上已经有 `cordis`，它们的 peer `cordis` 解析到同一份，内核与插件用的是同一份 cordis。基础插件不带 `--save-exact`，清单里写 `^` 范围。
 
-home 里运行的永远是宿主当前运行着的那个应用，日常就是安装版，内核版本跟着安装包走；改了内核源码要验证，走内核仓自己的流程，这里不代劳。`open` 与 `new` 的区别在另一件事上：**机器重启之后回到原来那个 home 只有 `open`**，`new` 永远建新目录，插件得全部重装一遍。
+基础插件清单写死、不做参数，要加别的插件，装完再用 `plugin-manager.install`：
+
+{/* ref file="../plugins/devkit/src/home.ts" lines="260-274" */}
+
+**`new` 与 `open` 都不构建内核、不认内核仓，启动的是宿主自己那个应用**（安装版里只有启动器，内核从 home 里的内核包加载）：
+
+{/* ref file="../plugins/devkit/src/home.ts" lines="128-136" */}
+
+启动的永远是宿主当前运行着的那个应用，日常就是安装版；内核版本跟着 home 走：`new` 装的是运行这条命令的内核的版本，之后每个 home 里的内核包各自升级。改了内核源码要验证，走内核仓自己的流程，这里不代劳。`open` 与 `new` 的区别在另一件事上：**机器重启之后回到原来那个 home 只有 `open`**，`new` 永远建新目录，插件得全部重装一遍。
 
 启动进程之前还有一道检查：同一个 home 不能开两个实例。两个窗口写同一份日志、同一个 home，而按记录停止的那条路只认得记录里那一个。
 
@@ -85,19 +93,19 @@ home 里运行的永远是宿主当前运行着的那个应用，日常就是安
 
 启动之后观察五秒：
 
-{/* ref file="../plugins/devkit/src/home.ts" lines="306-319" */}
+{/* ref file="../plugins/devkit/src/home.ts" lines="401-414" */}
 
 「启动成功没有」没有接口可问，进程还活着是此刻唯一拿得到的信号。这五秒只为抓住「刚启动就退出」这一种最常见的失败（产物不在、端口被占），真正成功没有，由那个窗口和人来判断。
 
 **观察完再读一次记录**：
 
-{/* ref file="../plugins/devkit/src/home.ts" lines="352-361" */}
+{/* ref file="../plugins/devkit/src/home.ts" lines="447-456" */}
 
 记录是内核启动时才写的，而它是之后「按名字找到这个 home」的全部依据，所以回执里要说清它出现没有。**读不到不算启动失败**：窗口已经开了，只是这个内核版本还不写、或者写得晚。那时按名字定位与按记录停止都用不了，而且没有别的办法——之后的命令只认名字，只能停掉、换一个会写这份记录的内核再开。
 
 调试端口**放在命令行上，不放在环境变量里**：
 
-{/* ref file="../plugins/devkit/src/home.ts" lines="137-156" */}
+{/* ref file="../plugins/devkit/src/home.ts" lines="138-157" */}
 
 内核不认任何调试相关的环境变量，`--remote-debugging-port` 是 Chromium 自己的开关，写在命令行上就生效。开了调试端口就同时带 `--disable-backgrounding-occluded-windows`：窗口被完全挡住时 Chromium 停止渲染新帧，取证时发的输入事件会卡住、截图拿到的是旧画面。`new` 与 `open` 用同一个启动计划，两条都带。
 
@@ -109,27 +117,27 @@ home 里运行的永远是宿主当前运行着的那个应用，日常就是安
 
 被别人占了才另选，另选过两道筛。第一道：**别的** home 记录里写着的端口一律跳过，**过时的记录也算占着**——那份记录还指着这个端口，再分给第二个 home 的话，两份记录会同时声称自己是这个端口，而按名字定位全靠端口唯一。**自己那份记录不算**，不然重开一次时，自己上一次的记录会让这个端口被跳过、换成别的。
 
-{/* ref file="../plugins/devkit/src/home.ts" lines="405-414" */}
+{/* ref file="../plugins/devkit/src/home.ts" lines="500-509" */}
 
 第二道：此刻真有进程在监听的跳过，从 9400 起逐个问，问到空的就用。换了端口会在回执的 `cdpNote` 里说一句——不说的话，人会以为还是上次那个。
 
-{/* ref file="../plugins/devkit/src/home.ts" lines="416-430" */}
+{/* ref file="../plugins/devkit/src/home.ts" lines="511-525" */}
 
 **选好端口到 electron 真正绑定之间有一段时间**。这段时间里别人占了这个端口，记录里就会写着一个不属于它的端口。这段时间里被别人占了，这里既防不住、事后也改不了记录；这种情况由后面「监听端口的进程必须是记录里的 pid」那道检查抓住。一个空端口都找不到时直接拒、不启动——说明这台机器上有很多没停的 home，该清理了。
 
 给子进程的环境变量要**去掉 `ELECTRON_RUN_AS_NODE`**：
 
-{/* ref file="../plugins/devkit/src/home.ts" lines="158-171" */}
+{/* ref file="../plugins/devkit/src/home.ts" lines="159-172" */}
 
 插件运行在 Electron 主进程里，会启动 node 子进程的插件会带上这个变量。它漏进这里，启动的就不是一个窗口，而是一个看不见的 node 进程。
 
 **按名字定位：`resolveTarget`。** 它不是一条命令，是「我要操作哪个 home」这句话的实现——`devkit.dev` 的 `home` 参数经它变成调试端口。**这是唯一的一条路**：那条命令不收端口，给了当场拒，所以这个函数失败了就是真的连不上，没有别的办法绕过去。
 
-{/* ref file="../plugins/devkit/src/home.ts" lines="434-439" */}
+{/* ref file="../plugins/devkit/src/home.ts" lines="529-534" */}
 
 **三道检查都要过**，少一道就可能把这次改动推给另一个进程：
 
-{/* ref file="../plugins/devkit/src/home.ts" lines="440-466" */}
+{/* ref file="../plugins/devkit/src/home.ts" lines="535-561" */}
 
 记录读得出；pid 还活着，且认得出是一个 home 进程；那个 pid 确实在监听记录里的端口。端口会被下一个进程占用，pid 会被复用，所以「记录里写着 9401」本身不能当依据。「查不出」与「确定不在」分开报：前者不导出任何动作，后者是明确的「它没在运行」。
 
@@ -137,40 +145,40 @@ home 里运行的永远是宿主当前运行着的那个应用，日常就是安
 
 **`devkit.home.rm` 是删除，也是唯一会停止一个 home 的地方。** 停一个测试 home 唯一的用途就是接着删它，所以没有单独的停止命令：
 
-{/* ref file="../plugins/devkit/src/home.ts" lines="584-592" */}
+{/* ref file="../plugins/devkit/src/home.ts" lines="679-687" */}
 
 `force` 是同一个意思用在两处，都是**越过检查**：一处是「它还在运行，停了再删」，另一处是「`default` 是日常用的 home，确实要删」。**但两处不叠加**——`default` 正在运行时带了 `force` 也不停它。开发工具不该去关人正在用的窗口，那不是删一个测试 home，是打断人正在做的事；照实说，让人自己关。
 
-{/* ref file="../plugins/devkit/src/home.ts" lines="551-572" */}
+{/* ref file="../plugins/devkit/src/home.ts" lines="646-667" */}
 
 记录里的进程「查不出还在不在」时不删：不知道它还在不在用这个目录，删了可能删到正在使用的文件。停不掉也不删——删掉一半的目录加上大量 EBUSY 报错，比一句「没删成」难收拾得多。确实停了的话，停的是哪个 pid 写进回执：人得知道自己刚才顺带结束了一个进程。
 
 **「停了」指进程真的退出了，不是信号发出去了。** 发完信号按 pid 轮询，查到「不在」才算停；到时间还在、或者一直查不出，就回停不掉：
 
-{/* ref file="../plugins/devkit/src/home.ts" lines="476-491" */}
+{/* ref file="../plugins/devkit/src/home.ts" lines="571-586" */}
 
 **「已删」只认磁盘。** 删除调用返回成功不算数，每删一次核对一次目录还在不在；还在就等一会儿再删（刚停的 home 的子进程要几秒才释放文件句柄），试满次数还在就回没删掉，并列出还剩什么：
 
-{/* ref file="../plugins/devkit/src/home.ts" lines="574-582" */}
+{/* ref file="../plugins/devkit/src/home.ts" lines="669-677" */}
 
-{/* ref file="../plugins/devkit/src/home.ts" lines="596-605" */}
+{/* ref file="../plugins/devkit/src/home.ts" lines="691-700" */}
 
 停止之前**核对两次再结束进程**：映像名认得出是 home 进程，记录里有调试端口的，再核对监听那个端口的进程就是记录里的 pid：
 
-{/* ref file="../plugins/devkit/src/home.ts" lines="493-538" */}
+{/* ref file="../plugins/devkit/src/home.ts" lines="588-633" */}
 
 **手动启动的 home 也能这样停**：记录由内核写，所以不只 devkit 启动的 home 才有「它是谁」的依据。没有记录就照实说没有可停的，不猜、不按名字搜进程。
 
 ## 依赖的接口
 
-{/* ref file="../plugins/devkit/src/home.ts" lines="198-221" */}
+{/* ref file="../plugins/devkit/src/home.ts" lines="199-222" */}
 
 | 接口 | 用来做什么 | 运行时的实现 | 测试时的实现 |
 | --- | --- | --- | --- |
-| `fs` | 读运行时记录、列 home 目录、写 `cordis.yml`、删整个目录 | `node:fs`，删除是自己逐个遍历目录（见下） | 一张内存文件表加一张目录表，删除可以模拟「返回成功但目录还在」 |
+| `fs` | 读运行时记录与装上的内核包、`cordis` 的清单，列 home 目录、写 `cordis.yml`、删整个目录 | `node:fs`，删除是自己逐个遍历目录（见下） | 一张内存文件表加一张目录表，删除可以模拟「返回成功但目录还在」 |
 | `spawn` | 启动 detached 且**看得见**的 electron | `child_process.spawn`，不带 `windowsHide` | 记一笔，回假 pid |
 | `appSpawnPlan` | 拼再启动一次宿主应用的命令行：安装版启动那个 exe，开发态 electron 读不出应用目录就拒 | 从宿主进程的 `execPath` / `argv` 拼（`hostAppFacts` → `hostAppSpawnPlan`） | 回一份写死的计划（或抛错），不碰真宿主 |
-| `run` | 在前台跑安装基础插件的 `pnpm add` 到结束，回输出的最后几行 | 合并输出、超时结束进程 | 按预设回成功或失败 |
+| `run` | 在前台跑装内核包、`cordis`、基础插件的三条 `pnpm add` 到结束，回输出的最后几行 | 合并输出、超时结束进程 | 按预设回成功或失败 |
 | `processName` / `portOwner` / `kill` | 判断进程在不在、停进程 | `node-probe-deps.ts` | 直接给三种状态与端口占用者 |
 | `execPath` / `env` / `platform` | 认宿主映像名、拼安装命令行与子进程环境 | 宿主进程自己的值 | 给固定值，两种平台都能模拟 |
 
@@ -184,7 +192,7 @@ home 里运行的永远是宿主当前运行着的那个应用，日常就是安
 
 用假磁盘、假进程表、假时钟，整个流程在 `tests/home.test.ts` 里跑完，不真的启动窗口。
 
-测的是：名字重了怎么改用秒、秒也重了时直接拒；宿主是开发态 electron 而读不出应用目录时一个动作都不做；基础插件装不上时不启动进程，装的时候先写 `cordis.yml` 再 `pnpm add`；启动得来时环境变量与观察时间都对、读回的记录写进回执；记录没出现时不算失败但回执要说明；刚启动就退出时立刻报并指向那个 home 的日志；同一个 home 已有实例在运行时拒开第二个；选端口时记录里占着的与有进程监听的各自会不会被跳过（**过时记录里的端口也算占着**）；按名字定位的三道检查各自能拦住什么；停止之前的两次核对各自能拦住什么；`default` 不带 `force` 删不了、正在运行时带 `force` 也删不了；还在运行、没带 `force` 拒删，带了 `force` 先停再删，停不掉就不删；信号发出后进程晚几轮才退时等到它退、一直不退时不删；删除调用返回成功而目录还在时不说已删，晚一点删得掉时照删。
+测的是：名字重了怎么改用秒、秒也重了时直接拒；宿主是开发态 electron 而读不出应用目录时一个动作都不做；内核包、cordis 与基础插件哪一步装不上都不启动进程，装的时候先写 `cordis.yml`、再装内核包、读它清单里的 cordis 版本、再装 cordis、最后装基础插件，前两次带 `--save-exact`；内核包清单读不到、内核包或 cordis 装上的版本对不上、内核包 peer 里的 cordis 不是精确版本号时拒；启动得来时环境变量与观察时间都对、读回的记录写进回执；记录没出现时不算失败但回执要说明；刚启动就退出时立刻报并指向那个 home 的日志；同一个 home 已有实例在运行时拒开第二个；选端口时记录里占着的与有进程监听的各自会不会被跳过（**过时记录里的端口也算占着**）；按名字定位的三道检查各自能拦住什么；停止之前的两次核对各自能拦住什么；`default` 不带 `force` 删不了、正在运行时带 `force` 也删不了；还在运行、没带 `force` 拒删，带了 `force` 先停再删，停不掉就不删；信号发出后进程晚几轮才退时等到它退、一直不退时不删；删除调用返回成功而目录还在时不说已删，晚一点删得掉时照删。
 
 记录是**测试预先放在假磁盘上的**，不是 `launchHome` 写的——这正是现在的实际情况：启动之后它去读，读到什么算什么。测试里让假的 `spawn` 顺带把记录放上去，模拟的正是「内核启动时才写」这个时序。
 
@@ -194,6 +202,6 @@ home 里运行的永远是宿主当前运行着的那个应用，日常就是安
 
 **先读**：`launchHome`，开一个 home 的完整顺序都在里面；接着读 `resolveTarget`，按名字定位的三道检查都在里面。
 
-**读序**：最前面是命名的几个纯函数，接着是启动计划（命令行与环境变量）与基础插件清单，再往下是启动、列出、选端口、按名字定位、停止、删除六段流程——停止没有自己的命令，只被删除调用。
+**读序**：最前面是命名的几个纯函数，接着是启动计划（命令行与环境变量）与装进新 home 的包，再往下是启动、列出、选端口、按名字定位、停止、删除六段流程——停止没有自己的命令，只被删除调用。
 
 **可跳过**：`parseRecord` 是读记录，形状简单。
