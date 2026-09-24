@@ -5,7 +5,7 @@ description: 扩展点用服务、数据读写与动作用命令；扩展点服�
 
 # cordis 服务怎么提供和使用
 
-**本页回答**：一项能力该做成服务还是命令；提供服务用哪种写法；使用服务时 `inject` 的三种写法各在什么时候用；命令怎么登记；取内核接口、写类时要避开的坑。
+**本页回答**：一项能力该做成服务还是命令；提供服务用哪种写法；使用服务时 `inject` 的三种写法各在什么时候用；命令怎么登记；取内核接口、写类时容易出错的地方。
 
 ## 服务还是命令
 
@@ -43,7 +43,7 @@ export default class GwbExample extends Service {
 
 代价是构建产物里有 `import { Service } from 'cordis'`，要写 peer `cordis`（见[依赖怎么写](/docs/rules/deps)）。用 `ctx.provide` 提供普通对象的扩展点服务拿不到调用方的上下文，只能把注销函数还给调用方；调用方忘了包 `ctx.effect`，卸载之后注册的东西还留在表里。
 
-**不需要认出调用方的服务（存在标记服务）用 `ctx.provide`。** 它只是一个普通对象，不用 import `cordis`，也就不写 peer。插件管理就是这样：对外只有命令，服务 `gwbPluginManager` 只表示「插件管理装了」：
+**不需要认出调用方的服务（存在标记服务）用 `ctx.provide`。** 它只是一个普通对象，不用 import `cordis`，也就不写 peer `cordis`。插件管理就是这样：对外只有命令，服务 `gwbPluginManager` 只表示「插件管理装了」：
 
 {/* ref file="../plugins/plugin-manager/src/index.ts" lines="65-73" */}
 
@@ -69,11 +69,11 @@ export default class GwbExample extends Service {
 
 {/* ref file="../plugins/plugin-manager/src/index.ts" lines="242-260" */}
 
-**往继承了 `Service` 的服务里注册，不用自己包 `ctx.effect`**；往 `ctx.provide` 提供的扩展点服务里注册，要自己包。外壳 `gwbShell` 与命令总线 `gwbCommands`（0.4.6 起）都继承了 `Service`。模板注册窗格直接调；注册命令还包了一层 `ctx.effect`，因为模板的 dev 依赖范围还包含 0.4.6 之前、不会自动注销的命令总线：
+**往继承了 `Service` 的服务里注册，不用自己包 `ctx.effect`**；往 `ctx.provide` 提供的扩展点服务里注册，要自己包。外壳 `gwbShell` 与命令总线 `gwbCommands`（0.4.6 起）都继承了 `Service`。模板注册窗格直接调；注册命令还包着一层 `ctx.effect`，这是给 0.4.6 之前不会自动注销的命令总线准备的：
 
 {/* ref file="../plugins/devkit/template/pkg/src/index.ts.tpl" lines="28-45" */}
 
-模板的命令总线下限升到 0.4.6 之后，那一层包装可以删；不删也没有坏处，注销函数执行第二次什么也不做。
+模板 peer 里命令总线的下限已是 0.5.0，那一层包装可以删，还没删；不删也没有坏处，注销函数执行第二次什么也不做。
 
 ## 登记命令
 
@@ -83,12 +83,12 @@ export default class GwbExample extends Service {
 - `plugin` 可以不写，命令总线从调用方取它的包名；写了就必须等于自己的完整包名
 - 命令总线 `gwbCommands` 0.5.0 起在登记时检查：`name`、`description`、`usage` 缺一或只有空白，`plugin` 与调用方的包名不同，都直接抛错，插件加载失败。devkit 不检查这几条；`usage` 写没写对参数形状，没有工具检查
 
-## 几个坑
+## 容易出错的几处
 
 - **`gwbKernel` 用 `requireKernel(ctx)` 取，不写进 `inject`**：内核接口在根上下文上、永不撤销。`requireKernel` 与 `isRecord` 两个无状态小函数由各插件自带一份，内核包的包根只导出类型（插件管理那一份见本节末尾）
 - **不写 `instanceof Service`**：插件和宿主用的 cordis 可能是两份拷贝，跨拷贝判断为 false
 - **类的私有字段用 TS 的 `private`，不用 `#`**：cordis 派生上下文用 `Object.create(this)`，`#` 私有字段在派生出来的对象上一读就抛错
-- **每次重新加载都该清掉的状态放在 `apply` 里**：重新加载只重跑 `apply`，模块顶层的状态在同一版本重新加载时不会重置
+- **每次重新加载都该清掉的状态放在 `apply` 里**：重新加载只重新运行 `apply`，模块顶层的状态在同一版本重新加载时不会重置
 - **配置一律 `gwbSettings.define`**，条目上只写 `id`：写在 `cordis.yml` 条目上的配置界面看不见，agent 也不知道有它
 
 {/* ref file="../plugins/plugin-manager/src/vocab.ts" lines="3-10" */}

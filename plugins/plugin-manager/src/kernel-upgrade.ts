@@ -53,7 +53,8 @@ export function installedVersionMismatch(pkg: string, expected: string, installe
   )
 }
 
-function isPluginManifest(manifest: unknown): boolean {
+/** 是不是插件只看包清单 keywords 里有没有 gwb-plugin */
+export function isPluginManifest(manifest: unknown): boolean {
   if (!isRecord(manifest)) return false
   const keywords = manifest['keywords']
   return Array.isArray(keywords) && keywords.includes(PLUGIN_KEYWORD)

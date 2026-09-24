@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { readEntries, reconcile, toDependencies, toLabels, type EntrySnapshot } from '../src/inventory.js'
+import { installedVersionOf, readEntries, reconcile, toDependencies, toLabels, type EntrySnapshot } from '../src/inventory.js'
 
 interface FakeEntry {
   key: string
@@ -133,5 +133,13 @@ describe('包与条目对照', () => {
   it('按包名排序,界面上位置稳定', () => {
     const rows = reconcile({ zeta: '1', alpha: '1' }, [], {})
     expect(rows.map((r) => r.pkg)).toEqual(['alpha', 'zeta'])
+  })
+})
+
+describe('installedVersionOf：装的版本号', () => {
+  it('读清单的 version；读不到或不是字符串时是 undefined', () => {
+    expect(installedVersionOf({ version: '0.5.0' })).toBe('0.5.0')
+    expect(installedVersionOf(undefined)).toBeUndefined()
+    expect(installedVersionOf({ version: 5 })).toBeUndefined()
   })
 })

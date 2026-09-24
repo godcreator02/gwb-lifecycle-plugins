@@ -8,7 +8,7 @@ import type {} from '@godcreator/gwb-settings'
 import type {} from '@godcreator/gwb-skills'
 import { npmrcFiles, readHomeDependencies, readInstalledPackageManifest } from './home.js'
 import { assertId, assertIdUsable, assertPkgName, bareId, installSpec, isPkgName, pickId, type IdOwners } from './ids.js'
-import { readEntries, reconcile, toLabels, type PluginPackageView } from './inventory.js'
+import { installedVersionOf, readEntries, reconcile, toLabels, type PluginPackageView } from './inventory.js'
 import { describeAddFailure, describePnpm, locatePnpm, runPnpm, runPnpmCapture, type PnpmResult } from './pnpm.js'
 import { parseOutdated, type UpdateInfo } from './outdated.js'
 import { entriesForPackage } from './uninstall.js'
@@ -18,7 +18,7 @@ import { fiberStateOf, planUpdateAll, type KernelManagedPackage, type PlannedEnt
 import { remountNow, remountOne, remountSelfLater, type RemountedEntry } from './remount.js'
 import { KERNEL_PACKAGE } from './kernel-compat.js'
 import { CORDIS_PACKAGE, installedVersionMismatch, kernelStatusInList, kernelUpgradeTargetOf, pluginsOutsideKernelRange, versionChangeOf, type VersionChange } from './kernel-upgrade.js'
-import { declaredRequires, installedVersionOf, requiresStatusOf } from './requires.js'
+import { declaredPluginPeers, peerStatusOf } from './peers.js'
 import { addSource, listSources, removeSource, searchPlugins, type PackageSourcesDeps } from './package-sources.js'
 
 export type { EntrySnapshot, PluginEntryView, PluginPackageView } from './inventory.js'
@@ -26,7 +26,7 @@ export type { RemountedEntry } from './remount.js'
 export type { KernelCompatStatus } from './kernel-compat.js'
 export type { VersionChange } from './kernel-upgrade.js'
 export type { KernelManagedPackage } from './update-all.js'
-export type { RequiresStatus, UnmetRequire } from './requires.js'
+export type { PeerStatus, UnmetPeer } from './peers.js'
 export type { SearchReceipt, SourceAddResult, SourceListResult, SourceRemoveResult, SourceReport } from './package-sources.js'
 export type { SearchRow } from './search.js'
 
@@ -70,7 +70,7 @@ export interface PluginManagerPresence {
   contract: number
 }
 
-const PRESENCE: PluginManagerPresence = { contract: 2 }
+const PRESENCE: PluginManagerPresence = { contract: 3 }
 
 /** 转移归属的回执。`data` / `settings` 是 false 说明对应的插件没装、那部分没有处理 */
 export interface TransferOwnerResult {
@@ -110,12 +110,23 @@ export interface UpdatedPackage {
   entries: RemountedEntry[]
 }
 
+/** 一键热升级中没升级、但 peer 里写了换了目录的包，跟着重新加载的一个包 */
+export interface DependentPackage {
+  pkg: string
+  /** 它 peer 里写了的、这次换了目录的包（升级了的，或同样跟着重新加载的），按包名排 */
+  because: string[]
+  /** 它的每条条目各自的处理结果 */
+  entries: RemountedEntry[]
+}
+
 /** 一键热升级的回执 */
 export interface UpdateAllResult {
   ok: boolean
   /** 升级了的包。pnpm 失败时为空——没有升级任何包、没有改动任何条目 */
   updated: UpdatedPackage[]
-  /** 本插件自己在升级清单里：它的条目在回执发出后才重新加载，重新加载完再整页重载 */
+  /** 跟着重新加载的包，在 `updated` 之后处理。没有、或 pnpm 失败时为空 */
+  dependents: DependentPackage[]
+  /** 本插件自己在升级或跟着重新加载的包里：它的条目在回执发出后才重新加载，重新加载完再整页重载 */
   selfDeferred: boolean
   /**
    * 整页重载是否执行：`done` 表示 `shell.reload` 已经执行；`deferred` 表示等本插件自己重新加载完再执行；
@@ -294,8 +305,8 @@ class PluginManager {
   private registerHomeCommands(registerCommand: RegisterCommand, registerBusyGuardedCommand: RegisterCommand): void {
     registerCommand(
       LIST_COMMAND,
-      'home 里装了哪些包、各有哪些条目、有没有 peer 范围不包含当前内核或要求的插件版本没满足的',
-      `回执按包列：包名、spec、条目（id、entryId、启停、是否 ACTIVE、显示名）、kernelRange（包的 package.json 里 peerDependencies["${KERNEL_PACKAGE}"] 写的范围，没写时没有这个字段）、kernelUntested（只标插件——keywords 含 gwb-plugin、不是内核包与 cordis 的包：范围不包含运行中的内核就是 true，没写、写的不是 ^x.y.z 也算；别的包与清单读不到的包一律 false；^x.y.z 在主版本号为 0 时要求次版本号相同，≥1 时要求主版本号相同，并且不低于 x.y.z）、requires（包的 package.json 里 gwb.requires 原样照抄：{ 包名: 最低版本号 x.y.z }，没写时没有这个字段）、unmetRequires（没满足的要求 [{ pkg, required, installed? }]：home 里装的版本低于 required、required 不是合法的 x.y.z、或没装（没有 installed 字段）；全都满足时是空数组）、requiresInvalid（gwb.requires 写了但不是「包名 → 字符串」的对象时说明哪里不对，这时不比对）。只报告，不拦加载。无参数`,
+      'home 里装了哪些包、各有哪些条目、有没有 peer 范围不包含当前内核或 peer 里写的别的包没满足的',
+      `回执按包列：包名、spec、条目（id、entryId、启停、是否 ACTIVE、显示名）、kernelRange（包的 package.json 里 peerDependencies["${KERNEL_PACKAGE}"] 写的范围，没写时没有这个字段）、kernelUntested（只标插件——keywords 含 gwb-plugin、不是内核包与 cordis 的包：范围不包含运行中的内核就是 true，没写、写的不是 ^x.y.z 也算；别的包与清单读不到的包一律 false；^x.y.z 在主版本号为 0 时要求次版本号相同，≥1 时要求主版本号相同，并且不低于 x.y.z）、unmetPeers（只看插件 peer 里除了内核包与 ${CORDIS_PACKAGE} 之外的包，home 里没满足的列成 [{ pkg, range, installed? }]：没装（没有 installed 字段；peerDependenciesMeta 里 optional: true 的没装不算）、装着的版本不在范围里、或范围不是 ^x.y.z，range 原样照抄，范围规则同上；每个包都有这个字段，不是插件、清单读不到、全都满足时是空数组）。只报告，不拦加载。无参数`,
       () => this.list(),
     )
 
@@ -366,7 +377,7 @@ class PluginManager {
     registerBusyGuardedCommand(
       UPDATE_ALL_COMMAND,
       '一键热升级过期包，不重启',
-      `一次 pnpm add 把过期包升到 outdated 返回的精确版本，再逐条停用→启用，重新加载成新版本（原本停用的跳过；插件管理自己排最后、回执发出后才重新加载），最后 shell.reload 整页重新加载。内核包 ${KERNEL_PACKAGE} 与 ${CORDIS_PACKAGE} 不升（only 点了名也不升），用 ${UPDATE_KERNEL_COMMAND} 升。回执 { updated: [{ pkg, from, to, entries: [{ id, action, state }] }], selfDeferred, reload, kernelManaged?: [{ pkg, from, to }]（过期了但没升的内核包与 cordis，过期清单里没有它们时没有这个字段）, note? }。参数 { only?: string[] }（只升这几个包；不给就全升）；${BUSY_USAGE_NOTE}`,
+      `一次 pnpm add 把过期包升到 outdated 返回的精确版本，再逐条停用→启用，重新加载成新版本（原本停用的跳过；插件管理自己排最后、回执发出后才重新加载），最后 shell.reload 整页重新加载。peer 里写了被升级包的插件被 pnpm 装进了新目录，它们的条目在同一条命令里跟着重新加载（peer 写了这些插件的，一层层往外同样处理）。内核包 ${KERNEL_PACKAGE} 与 ${CORDIS_PACKAGE} 不升（only 点了名也不升），用 ${UPDATE_KERNEL_COMMAND} 升。回执 { updated: [{ pkg, from, to, entries: [{ id, action, state }] }], dependents: [{ pkg, because: [它 peer 里写了的、换了目录的包], entries: [{ id, action, state }] }], selfDeferred, reload, kernelManaged?: [{ pkg, from, to }]（过期了但没升的内核包与 cordis，过期清单里没有它们时没有这个字段）, note? }。参数 { only?: string[] }（只升这几个包；不给就全升）；${BUSY_USAGE_NOTE}`,
       async (args) => {
         const result = await this.updateAll(onlyPackagesArgOf(args))
         return receiptWithPnpmTail(result)
@@ -452,7 +463,7 @@ class PluginManager {
     const installedVersions = await this.installedVersionsFor(manifestsByPackage)
     return reconciledPackages.map((view) => {
       const manifest = manifestsByPackage.get(view.pkg)
-      return { ...view, ...kernelStatusInList(view.pkg, manifest, this.kernelVersion), ...requiresStatusOf(manifest, installedVersions) }
+      return { ...view, ...kernelStatusInList(view.pkg, manifest, this.kernelVersion), ...peerStatusOf(manifest, installedVersions) }
     })
   }
 
@@ -463,17 +474,15 @@ class PluginManager {
   }
 
   /**
-   * 包 → 装着的版本号。`gwb.requires` 点名、而 dependencies 与条目都没提到的包也去 `node_modules` 读一次清单；
+   * 包 → 装着的版本号。插件 peer 里点名、而 dependencies 与条目都没提到的包也去 `node_modules` 读一次清单；
    * 不合包名规则的键不拿去拼路径（`..` 之类会读到 `node_modules` 外面），按没装报
    */
   private async installedVersionsFor(manifestsByPackage: Map<string, unknown>): Promise<Map<string, string>> {
-    const requiredButUnreadPackages = new Set<string>()
+    const peeredButUnreadPackages = new Set<string>()
     for (const manifest of manifestsByPackage.values()) {
-      const declared = declaredRequires(manifest)
-      if (declared.kind !== 'declared') continue
-      for (const pkg of Object.keys(declared.requires)) if (!manifestsByPackage.has(pkg) && isPkgName(pkg)) requiredButUnreadPackages.add(pkg)
+      for (const { pkg } of declaredPluginPeers(manifest)) if (!manifestsByPackage.has(pkg) && isPkgName(pkg)) peeredButUnreadPackages.add(pkg)
     }
-    await this.readInstalledManifests([...requiredButUnreadPackages], manifestsByPackage)
+    await this.readInstalledManifests([...peeredButUnreadPackages], manifestsByPackage)
     const installedVersions = new Map<string, string>()
     for (const [pkg, manifest] of manifestsByPackage) {
       const version = installedVersionOf(manifest)
@@ -541,14 +550,15 @@ class PluginManager {
     const checked = await this.outdated()
     if (!checked.ok || checked.updates === undefined) return failedUpdateAll(checked.error ?? '查不出过期清单')
 
-    const plan = planUpdateAll(checked.updates, this.tree.store, ownEntryId(this.ctx), only)
+    // 升级前读清单就够了：跟着重新加载的包本身不升级，它的 peer 在这次安装前后不变
+    const plan = planUpdateAll(checked.updates, this.tree.store, ownEntryId(this.ctx), await this.readHomePackageManifests(), only)
     const notes: string[] = []
     if (plan.ignored.length > 0) notes.push(`only 里这几个不在过期清单里，没动：${plan.ignored.join('、')}`)
     if (plan.kernelManaged.length > 0) notes.push(kernelManagedNoteOf(plan.kernelManaged))
     const kernelManagedField = plan.kernelManaged.length === 0 ? {} : { kernelManaged: plan.kernelManaged }
     if (plan.packages.length === 0) {
       const everythingUpToDate = plan.kernelManaged.length === 0
-      return { ok: true, updated: [], selfDeferred: false, ...kernelManagedField, note: [...(everythingUpToDate ? ['全都最新'] : []), ...notes].join('；') }
+      return { ok: true, updated: [], dependents: [], selfDeferred: false, ...kernelManagedField, note: [...(everythingUpToDate ? ['全都最新'] : []), ...notes].join('；') }
     }
 
     const pnpmLookup = await locatePnpm()
@@ -567,16 +577,18 @@ class PluginManager {
       return { ...failedUpdateAll(error), ...(failure.tail === undefined ? {} : { tail: failure.tail }) }
     }
 
-    // 旧版本目录已经删除：升级了的每条条目都必须在这条命令里重新加载，中间不留间隔
-    const { updated, ownEntry } = await this.remountUpgradedEntries(plan)
-    const summary = updated.map((p) => `${p.pkg} ${p.from} → ${p.to}`).join('，')
+    // 旧版本目录随时可能被 pnpm 清掉（home 设了 modulesCacheMaxAge: 0 时同一次安装就删）：换了目录的每条条目都在这条命令里重新加载，中间不留间隔
+    const { updated, dependents, ownEntry } = await this.remountUpgradedEntries(plan)
+    const summary =
+      updated.map((p) => `${p.pkg} ${p.from} → ${p.to}`).join('，') +
+      (dependents.length === 0 ? '' : `；跟着重新加载 ${dependents.map((d) => d.pkg).join('、')}`)
     const commandBus = this.commandBus
 
     if (ownEntry === undefined) {
       const reload = await runShellReload(commandBus)
       if (reload.note !== undefined) notes.push(reload.note)
       this.log.info(`一键热升级完成：${summary}${reload.reload === 'done' ? '；界面已整页重载' : ''}`)
-      return { ok: true, updated, selfDeferred: false, reload: reload.reload, ...kernelManagedField, ...noteOf(notes) }
+      return { ok: true, updated, dependents, selfDeferred: false, reload: reload.reload, ...kernelManagedField, ...noteOf(notes) }
     }
 
     // 本插件自己在回执之后重新加载：闭包只持有 tree、id、命令插件的引用与 logger，不调 this 上的其他方法
@@ -589,7 +601,7 @@ class PluginManager {
     const canReload = hasCommand(commandBus, SHELL_RELOAD_COMMAND)
     if (!canReload) notes.push(`命令表里没有 ${SHELL_RELOAD_COMMAND}，界面要手动刷新`)
     this.log.info(`一键热升级：${summary}；插件管理自己（${id}）在回执之后重新加载${canReload ? '，随后整页重载' : ''}`)
-    return { ok: true, updated, selfDeferred: true, reload: canReload ? 'deferred' : 'unavailable', ...kernelManagedField, ...noteOf(notes) }
+    return { ok: true, updated, dependents, selfDeferred: true, reload: canReload ? 'deferred' : 'unavailable', ...kernelManagedField, ...noteOf(notes) }
   }
 
   /** 版本写法不合规直接抛；pnpm 失败、内核包 peer 里的 cordis 不是精确版本号都转成回执。不重新加载任何条目 */
@@ -671,13 +683,14 @@ class PluginManager {
     return manifestsByPackage
   }
 
-  /** 按计划逐条重新加载；本插件自己那条（启用着的）只记 deferred，交给调用方在回执之后处理 */
-  private async remountUpgradedEntries(plan: UpdateAllPlan): Promise<{ updated: UpdatedPackage[]; ownEntry: PlannedEntry | undefined }> {
-    const updated: UpdatedPackage[] = []
+  /** 按计划逐条重新加载：先升级了的包，再跟着重新加载的包；本插件自己那条（启用着的）只记 deferred，交给调用方在回执之后处理 */
+  private async remountUpgradedEntries(
+    plan: UpdateAllPlan,
+  ): Promise<{ updated: UpdatedPackage[]; dependents: DependentPackage[]; ownEntry: PlannedEntry | undefined }> {
     let ownEntry: PlannedEntry | undefined
-    for (const plannedPackage of plan.packages) {
+    const remountEntriesOf = async (plannedEntries: readonly PlannedEntry[]): Promise<RemountedEntry[]> => {
       const entries: RemountedEntry[] = []
-      for (const entry of plannedPackage.entries) {
+      for (const entry of plannedEntries) {
         if (entry.self && !entry.disabled) {
           ownEntry = entry
           entries.push({ id: entry.id, action: 'deferred', state: fiberStateOf(this.tree.store[entry.id]) })
@@ -685,9 +698,17 @@ class PluginManager {
         }
         entries.push(await this.remountPlanned(entry))
       }
-      updated.push({ pkg: plannedPackage.pkg, from: plannedPackage.from, to: plannedPackage.to, entries })
+      return entries
     }
-    return { updated, ownEntry }
+    const updated: UpdatedPackage[] = []
+    for (const plannedPackage of plan.packages) {
+      updated.push({ pkg: plannedPackage.pkg, from: plannedPackage.from, to: plannedPackage.to, entries: await remountEntriesOf(plannedPackage.entries) })
+    }
+    const dependents: DependentPackage[] = []
+    for (const plannedDependent of plan.dependents) {
+      dependents.push({ pkg: plannedDependent.pkg, because: plannedDependent.because, entries: await remountEntriesOf(plannedDependent.entries) })
+    }
+    return { updated, dependents, ownEntry }
   }
 
   /** 本来就停用的跳过（保持停用），修改条目树时抛出的错误转成 failed */
@@ -862,7 +883,7 @@ class PluginManager {
 }
 
 function failedUpdateAll(error?: string): UpdateAllResult {
-  return { ok: false, updated: [], selfDeferred: false, ...(error === undefined ? {} : { error }) }
+  return { ok: false, updated: [], dependents: [], selfDeferred: false, ...(error === undefined ? {} : { error }) }
 }
 
 function hasCommand(commandBus: GwbCommands | undefined, name: string): boolean {

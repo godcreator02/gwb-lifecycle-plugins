@@ -1,6 +1,7 @@
 import fs from 'node:fs'
 import path from 'node:path'
 import { unitRetired, unitTest, type ManifestDeps, type RegistryInfo } from './audit.js'
+import { isPluginManifest } from './release.js'
 
 // 扫容器根找仓、读各仓的 package.json、向 registry 问现值，都是读磁盘与联网，没有单元测试；判定在 audit.ts
 
@@ -58,15 +59,15 @@ export function collectManifests(repoDir: string): { rel: string; deps: Manifest
     } catch {
       continue
     }
-    const deps = extractDeps(parsed)
+    const deps = extractDeps(parsed, path.dirname(path.join(repoDir, rel)))
     if (deps === undefined) continue
     out.push({ rel: rel === 'package.json' ? '.' : path.dirname(rel), deps })
   }
   return out
 }
 
-/** 挑出 dev 里的 @godcreator 条目与全部 peer；两样都没有回 undefined（这份不查） */
-function extractDeps(pkg: Record<string, unknown>): ManifestDeps | undefined {
+/** 挑出 dev 里的 @godcreator 条目与全部 peer，peer 里哪些是插件从包目录 node_modules 里装着的清单看；两样都没有回 undefined（这份不查） */
+function extractDeps(pkg: Record<string, unknown>, packageDir: string): ManifestDeps | undefined {
   const pick = (key: string, keep: (name: string) => boolean): Record<string, string> => {
     const src = pkg[key]
     if (typeof src !== 'object' || src === null) return {}
@@ -79,7 +80,19 @@ function extractDeps(pkg: Record<string, unknown>): ManifestDeps | undefined {
   const peers = pick('peerDependencies', () => true)
   const devs = pick('devDependencies', (name) => name.startsWith('@godcreator/'))
   const plugin = Array.isArray(pkg.keywords) && pkg.keywords.includes('gwb-plugin')
-  return Object.keys(peers).length + Object.keys(devs).length > 0 ? { peers, devs, private: pkg.private === true, plugin } : undefined
+  const peerPlugins = Object.keys(peers).filter((name) => isPluginManifest(readInstalledManifest(packageDir, name)))
+  return Object.keys(peers).length + Object.keys(devs).length > 0 ? { peers, devs, private: pkg.private === true, plugin, peerPlugins } : undefined
+}
+
+/** 包目录 node_modules 里装着的某个包的清单；没装、认不出回 undefined */
+function readInstalledManifest(packageDir: string, name: string): unknown {
+  const text = readText(path.join(packageDir, 'node_modules', ...name.split('/'), 'package.json'))
+  if (text === undefined) return undefined
+  try {
+    return JSON.parse(text) as unknown
+  } catch {
+    return undefined
+  }
 }
 
 /** packument 的 versions 键是全部版本号，dist-tags.latest 是最新正式版；404 是源上没这个包 */

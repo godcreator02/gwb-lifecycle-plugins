@@ -43,7 +43,7 @@ export function makeAppSpawnPlan(): HomeDeps['appSpawnPlan'] {
 
 /** 前台运行一条命令到结束：stdout 与 stderr 合在一起收，超时就结束进程；只回最后几行，报错在最后 */
 export function runCaptured(
-  plan: { command: string; args: string[]; cwd: string },
+  plan: { command: string; args: string[]; cwd: string; env?: Record<string, string> },
   timeoutMs: number,
 ): Promise<{ ok: boolean; tail: string }> {
   return new Promise((resolve) => {
@@ -55,7 +55,8 @@ export function runCaptured(
     }
     let child
     try {
-      child = spawn(plan.command, plan.args, { cwd: plan.cwd, stdio: ['ignore', 'pipe', 'pipe'], windowsHide: true })
+      const env = plan.env === undefined ? process.env : { ...process.env, ...plan.env }
+      child = spawn(plan.command, plan.args, { cwd: plan.cwd, env, stdio: ['ignore', 'pipe', 'pipe'], windowsHide: true })
     } catch (err) {
       resolve({ ok: false, tail: String(err) })
       return

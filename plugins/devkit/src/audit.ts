@@ -12,6 +12,8 @@ export interface ManifestDeps {
   private: boolean
   /** `keywords` 含 `gwb-plugin`：只有插件包查 peer */
   plugin: boolean
+  /** peer 里是插件的那些包（包目录 node_modules 里装着的清单 keywords 含 gwb-plugin，或同时含 cordis 与 plugin）；没装的不在里面 */
+  peerPlugins: string[]
 }
 
 /** 一个包在 registry 上的现值 */
@@ -22,7 +24,7 @@ export interface RegistryInfo {
   latest?: string
 }
 
-/** `peer-not-cordis`：插件包 peer 里写了 cordis 与内核包以外的包 */
+/** `peer-not-cordis`：插件包 peer 里写了 cordis、内核包、插件以外的包 */
 export type FindingKind = 'dead-pin' | 'behind' | 'out-of-range' | 'loose-dev-pin' | 'peer-not-cordis'
 
 export interface Finding {
@@ -134,12 +136,18 @@ export function inCaret(floor: string, version: string): boolean {
   return compareVersions(version, floor) >= 0 && compareVersions(version, caretCeiling(floor)) < 0
 }
 
-/** 一条 @godcreator dev 依赖的问题；没问题回 undefined */
-function devDependencyIssue(range: string, registryInfo: RegistryInfo): { kind: FindingKind; detail: string } | undefined {
+/** 一条 @godcreator dev 依赖或插件 peer 的问题；没问题回 undefined。dev 可写精确号或 `^x.y.z`，peer 只许 `^x.y.z` */
+function godcreatorDependencyIssue(
+  field: 'dev' | 'peer',
+  range: string,
+  registryInfo: RegistryInfo,
+): { kind: FindingKind; detail: string } | undefined {
   // 精确号就是验过的下限，^ 范围取它的下限
-  const testedFloor = EXACT.test(range) ? range : caretFloor(range)
+  const testedFloor = field === 'dev' && EXACT.test(range) ? range : caretFloor(range)
   if (testedFloor === undefined) {
-    return { kind: 'loose-dev-pin', detail: `dev 版本既不是精确号也不是 ^ 范围：${range}` }
+    return field === 'dev'
+      ? { kind: 'loose-dev-pin', detail: `dev 版本既不是精确号也不是 ^ 范围：${range}` }
+      : { kind: 'loose-dev-pin', detail: `peer 只许写 ^x.y.z，写的是 ${range}——下次发版时 devkit.release 会拒` }
   }
   if (registryInfo.versions.length === 0) {
     return { kind: 'dead-pin', detail: `写的是 ${testedFloor}，源上没有这个包——安装会失败` }
@@ -151,18 +159,18 @@ function devDependencyIssue(range: string, registryInfo: RegistryInfo): { kind: 
   if (inCaret(testedFloor, registryInfo.latest)) {
     return { kind: 'behind', detail: `写的是 ${testedFloor}，源上最新 ${registryInfo.latest}，还在 ^${testedFloor} 范围内——不用处理，范围声明的意思就是信任上游的 semver` }
   }
-  return { kind: 'out-of-range', detail: `写的是 ${testedFloor}，源上最新 ${registryInfo.latest} 已出 ^${testedFloor} 范围——上游发了破坏性版本，必须追：先适配代码，再把 dev 升上去` }
+  return { kind: 'out-of-range', detail: `写的是 ${testedFloor}，源上最新 ${registryInfo.latest} 已出 ^${testedFloor} 范围——上游发了破坏性版本，必须追：先适配代码，再把 ${field} 升上去` }
 }
 
 function peerNotCordisDetail(pkg: string, range: string): string {
   return (
-    `peer 写了 ${pkg}（"${range}"）：peer 只写 home 根上的两个包——node 侧产物里按值 import 的 cordis，与声明兼容哪些内核的内核包 ${KERNEL_PACKAGE}。按「运行时谁提供」改写——` +
-    `另一个插件、接口定义包、importmap 里的包、运行时自己用的库、构建时才用的包写 dev；打包不进产物的自用库写 dependencies 并写明原因。` +
-    `下次发版时 devkit.release 会拒`
+    `peer 写了 ${pkg}（"${range}"）：插件的 peer 只写 home 里装着的三类包——node 侧产物里按值 import 的 cordis、声明兼容哪些内核的内核包 ${KERNEL_PACKAGE}、用到的别的插件。` +
+    `它不是插件（或包目录的 node_modules 里读不到它的清单，先 pnpm install）。按「运行时谁提供」改写——接口定义包、importmap 里的包、运行时自己用的库、构建时才用的包写 dev；` +
+    `打包不进产物的自用库写 dependencies 并写明原因。下次发版时 devkit.release 会拒`
   )
 }
 
-/** 源上没有这个包时写什么版本都算 dead-pin；落后时范围是 `^<dev 下限>`，还在范围内是 behind，出了范围是 out-of-range */
+/** 源上没有这个包时写什么版本都算 dead-pin；落后时范围是 `^<dev 或 peer 的下限>`，还在范围内是 behind，出了范围是 out-of-range。插件的 peer 里不是插件的包记 peer-not-cordis */
 export function auditManifest(
   repo: string,
   manifest: string,
@@ -178,7 +186,7 @@ export function auditManifest(
     const registryInfo = registry[pkg]
     if (registryInfo === undefined) continue
     if (range === 'workspace:*') continue // 同仓包走本地解析，源上本来就没有
-    const issue = devDependencyIssue(range, registryInfo)
+    const issue = godcreatorDependencyIssue('dev', range, registryInfo)
     if (issue !== undefined) report(issue.kind, pkg, issue.detail)
   }
 
@@ -186,7 +194,14 @@ export function auditManifest(
 
   for (const [pkg, range] of Object.entries(deps.peers)) {
     if (pkg === 'cordis' || pkg === KERNEL_PACKAGE) continue
-    report('peer-not-cordis', pkg, peerNotCordisDetail(pkg, range))
+    if (!deps.peerPlugins.includes(pkg)) {
+      report('peer-not-cordis', pkg, peerNotCordisDetail(pkg, range))
+      continue
+    }
+    const registryInfo = registry[pkg]
+    if (registryInfo === undefined || range.startsWith('workspace:')) continue
+    const issue = godcreatorDependencyIssue('peer', range, registryInfo)
+    if (issue !== undefined) report(issue.kind, pkg, issue.detail)
   }
   return findings
 }

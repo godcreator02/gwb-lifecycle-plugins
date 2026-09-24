@@ -1,11 +1,11 @@
 ---
 title: 安装与卸载
-description: install 在一条命令里装包并加一条条目，只等写入、不等加载；home 里只有插件、内核包与 cordis，所以不装 peer、不判断是不是库；uninstall 先删条目后卸包、不回滚
+description: install 在一条命令里装包并加一条条目，只等写入、不等加载；home 里只有插件、内核包与 cordis，所以不替插件装它 peer 里的插件、不判断是不是库；uninstall 先删条目后卸包、不回滚
 ---
 
 # 安装与卸载
 
-**本页回答**：装一个包要经过哪几步、每一步失败时回执是什么样；为什么建条目不等加载；为什么安装不装 peer、也不判断是不是库；卸载为什么先删条目、失败不回滚。
+**本页回答**：装一个包要经过哪几步、每一步失败时回执是什么样；为什么建条目不等加载；为什么安装不替插件装它 peer 里的插件、也不判断是不是库；卸载为什么先删条目、失败不回滚。
 
 ## 装包与加条目在一条命令里
 
@@ -51,20 +51,21 @@ description: install 在一条命令里装包并加一条条目，只等写入�
 
 ## home 里只有插件、内核包与 cordis
 
-**是什么**：安装只装你点名的那个包，不读它的 `peerDependencies`、不替它装任何别的包，也不按 `keywords` 猜它是不是库。
+**是什么**：安装只装你点名的那个包，不替它装它 peer 里写的插件或任何别的包，也不按 `keywords` 猜它是不是库。pnpm 默认会把缺的 peer 自动补装进来，插件管理启动 pnpm 时把这一项关掉了（见 [pnpm](/docs/plugin-manager/pnpm#参数环境与读回什么)）。
 
 **为什么**：插件代码运行时用到的东西，各有提供方，不需要另外装进 home：
 
 <Diagram name="pm-home-contents" title="home 的 node_modules 里只有插件、内核包与 cordis；插件运行时用到的东西各由谁提供">
-- 内核包 `@godcreator/gwb-kernel-desktop` 与 `cordis` 装在 home 根上，由创建 home 的一方装、由 `update-kernel` 升；`cordis` 的版本等于内核包 peer 里写的那个，内核与插件 import 的是同一份。插件的 peer 只该写这两个包
+- 内核包 `@godcreator/gwb-kernel-desktop` 与 `cordis` 装在 home 根上，由创建 home 的一方装、由 `update-kernel` 升；`cordis` 的版本等于内核包 peer 里写的那个，内核与插件 import 的是同一份
+- 插件用到的别的插件写在它的 peer 里，是 home 里另一个有条目的插件，装不装由人决定；没装或版本不在范围里，`list` 的 `unmetPeers` 报出来
 - 页面上必须只有一份的运行时代码经页面的 importmap 提供：importmap 里只有内核包声明的 react 四个包名，别的包写了 `gwb.shared` 内核不收
 - 插件自己用的库、接口定义包打包进它自己的构建产物
 - 只取类型的 import（内核包导出的接口类型、别的插件的类型）编译后就消失了
 </Diagram>
 
-所以 home 里除了内核包与 `cordis` 只该有插件，插件管理没有什么需要替插件额外装的。插件管理自己也没有运行时依赖：pnpm 是用户装在机器上的，不在 home 里。
+所以 home 里除了内核包与 `cordis` 只该有插件，插件管理没有什么需要替插件额外装的：插件 peer 里的插件是另一个要由人装、要加条目的插件，被 pnpm 自动补装进来的那份没有条目，也不在 home 的 `package.json` 里。插件管理自己也没有运行时依赖：pnpm 是用户装在机器上的，不在 home 里。
 
-**代价**：没按这个规矩写的插件——peer 写了别的包、构建产物里留着没打包的库——装上以后运行时找不到依赖，加载失败，在 `list` 里显示为未加载。装了一个没有 `apply` 的包（比如一个库），条目照样加上、加载失败（日志 `invalid plugin, expect function or object with apply`），不要它就 `uninstall`。
+**代价**：没按这个规矩写的插件——peer 写了插件以外的包、构建产物里留着没打包的库——装上以后运行时找不到依赖，加载失败，在 `list` 里显示为未加载。装了一个没有 `apply` 的包（比如一个库），条目照样加上、加载失败（日志 `invalid plugin, expect function or object with apply`），不要它就 `uninstall`。
 
 ## 卸载：先删条目、后卸包
 
@@ -81,7 +82,7 @@ description: install 在一条命令里装包并加一条条目，只等写入�
 - 反过来先卸包：条目会指向一个不在 home 里的包
 </Diagram>
 
-{/* ref file="../plugins/plugin-manager/src/index.ts" lines="679-708" */}
+{/* ref file="../plugins/plugin-manager/src/index.ts" lines="725-754" */}
 
 只删一条条目、保留包，用 `remove-entry`。
 

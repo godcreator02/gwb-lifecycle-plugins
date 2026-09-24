@@ -216,13 +216,12 @@ afterEach(() => {
 const settle = (): Promise<void> => new Promise((resolve) => setTimeout(resolve, 20))
 
 describe('plugin-manager.list', () => {
-  it('包与条目两层对上，带 peer 里内核包的范围与没满足的要求；条目指向没装的包报 installed: false、不标内核兼容', async () => {
+  it('包与条目两层对上，带 peer 里内核包的范围与没满足的别的 peer；条目指向没装的包报 installed: false、不标内核兼容', async () => {
     writeHomeDependencies({ '@x/gwb-a': '^1.0.0' })
     writeInstalledManifest('@x/gwb-a', {
       version: '1.2.0',
       keywords: ['gwb', 'gwb-plugin'],
-      peerDependencies: { [KERNEL_PKG]: '^0.2.1' },
-      gwb: { requires: { '@x/gwb-b': '1.0.0' } },
+      peerDependencies: { [KERNEL_PKG]: '^0.2.1', cordis: '4.0.0-rc.10', '@x/gwb-b': '^1.0.0', '@x/gwb-missing': '^0.3.0' },
     })
     writeInstalledManifest('@x/gwb-b', { version: '0.9.0' })
     const pm = mount({ entries: { a: '@x/gwb-a', ghost: '@x/gwb-ghost' } })
@@ -234,17 +233,29 @@ describe('plugin-manager.list', () => {
       entries: [{ id: 'a', entryId: 'home:a', pkg: '@x/gwb-a', disabled: false, active: true, group: false }],
       kernelRange: '^0.2.1',
       kernelUntested: false,
-      requires: { '@x/gwb-b': '1.0.0' },
-      unmetRequires: [{ pkg: '@x/gwb-b', required: '1.0.0', installed: '0.9.0' }],
+      unmetPeers: [
+        { pkg: '@x/gwb-b', range: '^1.0.0', installed: '0.9.0' },
+        { pkg: '@x/gwb-missing', range: '^0.3.0' },
+      ],
     })
     expect(listed.find((view) => view.pkg === '@x/gwb-ghost')).toEqual({
       pkg: '@x/gwb-ghost',
       installed: false,
       entries: [{ id: 'ghost', entryId: 'home:ghost', pkg: '@x/gwb-ghost', disabled: false, active: true, group: false }],
       kernelUntested: false,
-      unmetRequires: [],
+      unmetPeers: [],
     })
     expect(listed.map((view) => view.pkg)).toEqual([...listed.map((view) => view.pkg)].sort((a, b) => a.localeCompare(b)))
+  })
+
+  it('peer 写的包装着且在范围里：unmetPeers 是空数组；不合包名规则的 peer 不拿去拼路径、按没装报', async () => {
+    writeHomeDependencies({ '@x/gwb-a': '^1.0.0', '@x/gwb-b': '^1.0.0' })
+    writeInstalledManifest('@x/gwb-a', { version: '1.0.0', keywords: ['gwb-plugin'], peerDependencies: { '@x/gwb-b': '^1.0.0' } })
+    writeInstalledManifest('@x/gwb-b', { version: '1.3.0', keywords: ['gwb-plugin'], peerDependencies: { '../escape': '^1.0.0' } })
+    const pm = mount({ entries: {} })
+    const listed = (await pm.run('plugin-manager.list')) as { pkg: string; unmetPeers: unknown }[]
+    expect(listed.find((view) => view.pkg === '@x/gwb-a')?.unmetPeers).toEqual([])
+    expect(listed.find((view) => view.pkg === '@x/gwb-b')?.unmetPeers).toEqual([{ pkg: '../escape', range: '^1.0.0' }])
   })
 })
 
@@ -423,7 +434,7 @@ describe('plugin-manager.outdated', () => {
 describe('plugin-manager.update-all', () => {
   it('全都最新：不运行 pnpm add，note 说全都最新', async () => {
     const pm = mount({ entries: {} })
-    expect(await pm.run('plugin-manager.update-all')).toEqual({ ok: true, data: { ok: true, updated: [], selfDeferred: false, note: '全都最新' } })
+    expect(await pm.run('plugin-manager.update-all')).toEqual({ ok: true, data: { ok: true, updated: [], dependents: [], selfDeferred: false, note: '全都最新' } })
     expect(fakePnpm.calls.map((call) => call.args[0])).toEqual(['outdated'])
   })
 
@@ -447,6 +458,7 @@ describe('plugin-manager.update-all', () => {
             ],
           },
         ],
+        dependents: [],
         selfDeferred: false,
         reload: 'done',
         note: 'only 里这几个不在过期清单里，没动：@x/gwb-other',
@@ -474,6 +486,7 @@ describe('plugin-manager.update-all', () => {
       data: {
         ok: true,
         updated: [{ pkg: OWN_PKG, from: '0.7.0', to: '0.7.1', entries: [{ id: 'plugin-manager', action: 'deferred', state: 'ACTIVE' }] }],
+        dependents: [],
         selfDeferred: true,
         reload: 'deferred',
       },
@@ -491,8 +504,64 @@ describe('plugin-manager.update-all', () => {
     expect(await pm.run('plugin-manager.update-all')).toEqual({
       ok: false,
       error: 'pnpm add @x/gwb-foo@1.1.0 失败（退出码 1）。一条条目都没动\npnpm 说的原因',
-      data: { ok: false, updated: [], selfDeferred: false, error: 'pnpm add @x/gwb-foo@1.1.0 失败（退出码 1）。一条条目都没动', tail: 'pnpm 说的原因' },
+      data: { ok: false, updated: [], dependents: [], selfDeferred: false, error: 'pnpm add @x/gwb-foo@1.1.0 失败（退出码 1）。一条条目都没动', tail: 'pnpm 说的原因' },
     })
+  })
+
+  it('peer 写了被升级包的插件：它的条目在同一条命令里跟着重新加载（停用的跳过），回执 dependents 列出来', async () => {
+    fakePnpm.captureExitCode = 1
+    fakePnpm.captureStdout = JSON.stringify({ '@x/gwb-foo': { current: '1.0.0', latest: '1.1.0' } })
+    writeHomeDependencies({ '@x/gwb-foo': '^1.0.0', '@x/gwb-bar': '^1.0.0', '@x/gwb-plain': '^1.0.0' })
+    writeInstalledManifest('@x/gwb-foo', { version: '1.0.0', keywords: ['gwb-plugin'] })
+    writeInstalledManifest('@x/gwb-bar', { version: '1.0.0', keywords: ['gwb-plugin'], peerDependencies: { [KERNEL_PKG]: '^0.2.0', '@x/gwb-foo': '^1.0.0' } })
+    writeInstalledManifest('@x/gwb-plain', { version: '1.0.0', keywords: ['gwb-plugin'], peerDependencies: { [KERNEL_PKG]: '^0.2.0' } })
+    const pm = mount({ entries: { foo: '@x/gwb-foo', bar: '@x/gwb-bar', 'bar-off': '@x/gwb-bar', plain: '@x/gwb-plain' }, shellReload: true })
+    pm.tree.store['bar-off']!.disabled = true
+    const plainFiberBefore = pm.tree.store['plain']!.fiber
+    expect(await pm.run('plugin-manager.update-all')).toEqual({
+      ok: true,
+      data: {
+        ok: true,
+        updated: [{ pkg: '@x/gwb-foo', from: '1.0.0', to: '1.1.0', entries: [{ id: 'foo', action: 'remounted', state: 'ACTIVE' }] }],
+        dependents: [
+          {
+            pkg: '@x/gwb-bar',
+            because: ['@x/gwb-foo'],
+            entries: [
+              { id: 'bar', action: 'remounted', state: 'ACTIVE' },
+              { id: 'bar-off', action: 'skipped', state: 'disabled' },
+            ],
+          },
+        ],
+        selfDeferred: false,
+        reload: 'done',
+      },
+    })
+    expect(fakePnpm.calls.map((call) => call.args)).toEqual([['outdated', '--json'], ['add', '@x/gwb-foo@1.1.0']])
+    expect(pm.tree.store['plain']!.fiber).toBe(plainFiberBefore)
+    expect(pm.shellReloads).toBe(1)
+  })
+
+  it('插件管理自己的 peer 写了被升级的包：别的都在命令里做完，自己那条先回 deferred，回执之后才重新加载', async () => {
+    fakePnpm.captureExitCode = 1
+    fakePnpm.captureStdout = JSON.stringify({ '@x/gwb-foo': { current: '1.0.0', latest: '1.1.0' } })
+    writeHomeDependencies({ '@x/gwb-foo': '^1.0.0', [OWN_PKG]: '^0.9.0' })
+    writeInstalledManifest('@x/gwb-foo', { version: '1.0.0', keywords: ['gwb-plugin'] })
+    writeInstalledManifest(OWN_PKG, { version: '0.9.0', keywords: ['gwb-plugin'], peerDependencies: { '@x/gwb-foo': '^1.0.0' } })
+    const pm = mount({ entries: { foo: '@x/gwb-foo' }, shellReload: true })
+    expect(await pm.run('plugin-manager.update-all')).toEqual({
+      ok: true,
+      data: {
+        ok: true,
+        updated: [{ pkg: '@x/gwb-foo', from: '1.0.0', to: '1.1.0', entries: [{ id: 'foo', action: 'remounted', state: 'ACTIVE' }] }],
+        dependents: [{ pkg: OWN_PKG, because: ['@x/gwb-foo'], entries: [{ id: 'plugin-manager', action: 'deferred', state: 'ACTIVE' }] }],
+        selfDeferred: true,
+        reload: 'deferred',
+      },
+    })
+    expect(pm.shellReloads).toBe(0)
+    await settle()
+    expect(pm.shellReloads).toBe(1)
   })
 
   it('过期清单里有内核包与 cordis：不升它们，回执 kernelManaged 列出来，note 指向 update-kernel', async () => {

@@ -219,28 +219,33 @@ function installsOnRuns(deps: HomeDeps, fs: HomeFs, kernelManifestText: string, 
 }
 
 describe('装进新 home 的东西：内核包、cordis 与基础插件', () => {
-  it('装内核包：直接启动找到的 pnpm，add --save-exact 精确版本', () => {
+  const NO_AUTO_PEERS = { pnpm_config_auto_install_peers: 'false' }
+
+  it('装内核包：直接启动找到的 pnpm，add --save-exact 精确版本，不自动补装 peer', () => {
     expect(kernelInstallPlan(HOME, KERNEL_VERSION, PNPM)).toEqual({
       command: PNPM,
       args: ['add', '--save-exact', `${KERNEL_PACKAGE}@${KERNEL_VERSION}`],
       cwd: HOME,
+      env: NO_AUTO_PEERS,
     })
     expect(kernelInstallPlan(HOME, '0.3.1-dev.202609241500', PNPM)).toEqual({
       command: PNPM,
       args: ['add', '--save-exact', `${KERNEL_PACKAGE}@0.3.1-dev.202609241500`],
       cwd: HOME,
+      env: NO_AUTO_PEERS,
     })
   })
 
   it('装 cordis：pnpm add --save-exact 精确版本', () => {
-    expect(cordisInstallPlan(HOME, '4.0.0-rc.9', PNPM)).toEqual({ command: PNPM, args: ['add', '--save-exact', 'cordis@4.0.0-rc.9'], cwd: HOME })
+    expect(cordisInstallPlan(HOME, '4.0.0-rc.9', PNPM)).toEqual({ command: PNPM, args: ['add', '--save-exact', 'cordis@4.0.0-rc.9'], cwd: HOME, env: NO_AUTO_PEERS })
   })
 
-  it('装基础插件：只装插件，不写版本、不带 --save-exact', () => {
+  it('装基础插件：只装插件，不写版本、不带 --save-exact，不自动补装 peer', () => {
     const plan = baseInstallPlan(HOME, PNPM)
     expect(plan.command).toBe(PNPM)
     expect(plan.cwd).toBe(HOME)
     expect(plan.args).toEqual(['add', ...BASE_PLUGINS.map((one) => one.pkg)])
+    expect(plan.env).toEqual(NO_AUTO_PEERS)
   })
 
   it('装上的包清单：版本是要装的那个才回清单；读不到、不是 JSON、版本对不上都拒，说清是哪个文件、装上的是哪个版本', () => {

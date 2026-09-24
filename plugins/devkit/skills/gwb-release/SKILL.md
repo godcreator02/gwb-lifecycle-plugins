@@ -33,13 +33,13 @@ description: 升版本号、改依赖版本号、发版时读。
 上游发版时下游一个数字都不动，由下游在自己发版时决定跟不跟。
 
 1. 确定要不要跟：
-   * 自己发版时，`devkit.release` 拿每个 `@godcreator` 的 dev 对照源上 `dist-tags.latest`：还在范围内（含相等）放行，一个数字都不动；已出范围（上游出了新的次版本线）必须跟
-   * 要用上游的新东西：下限升到带那个东西的版本。上游是别的插件、它太旧时新东西静默失效（比如外壳新加的主题令牌取不到值）的，在 `package.json` 的 `gwb.requires` 写 `{ "<包名>": "<这个版本>" }`，`plugin-manager.list` 会报 home 里装的版本不够新（规矩见 gwb-devkit 附件 `references/rules.md` 的「要求别的插件的最低版本」）
+   * 自己发版时，`devkit.release` 拿每个 `@godcreator` 的 dev 对照源上 `dist-tags.latest`：还在范围内（含相等）放行，一个数字都不动；已出范围（上游出了新的次版本线）必须跟。插件包 peer 里的每个 `@godcreator` 插件只比和 latest 在不在同一条线（0.x 比 x，≥1 比主版本号）：同一条线放行，不在同一条线必须跟
+   * 要用上游的新东西：下限升到带那个东西的版本。上游是别的插件（经 `ctx.inject` 用它的服务、import 它的类型）的，它写在 peer 里，改的就是 peer 的下限；home 里装的版本不够新时 `plugin-manager.list` 的 `unmetPeers` 会报出来（规矩见 gwb-devkit 附件 `references/rules.md` 的「用到的插件写 peer」）
    * 想看全生态谁落后：`devkit.audit-deps`（见参考）
-2. 改写法：`@godcreator` 包写在 dev，`^<源上已经发了的版本>`（精确号也合法）；同仓的包写 `workspace:*`，`devkit.release` 发版时写成 `^<版本>`。插件包 peer 里的内核包 `@godcreator/gwb-kernel-desktop` 例外，写 `^<验证时那个内核的版本号>`（见第三节第 1 步）。依赖写进 peer、dev 还是 `dependencies`，照 gwb-devkit 附件 `references/rules.md` 的「依赖怎么写」
+2. 改写法：`@godcreator` 的库、接口定义包写在 dev，`^<源上已经发了的版本>`（精确号也合法）；用到的别的插件写在 peer，只许 `^<源上已经发了的版本>`，可选使用的在 `peerDependenciesMeta` 标 `optional: true`；同仓的包写 `workspace:*`，`devkit.release` 发版时写成 `^<版本>`。插件包 peer 里的内核包 `@godcreator/gwb-kernel-desktop` 写 `^<验证时那个内核的版本号>`（见第三节第 1 步）。依赖写进 peer、dev 还是 `dependencies`，照 gwb-devkit 附件 `references/rules.md` 的「依赖怎么写」
 3. 出范围的先适配代码，再 `pnpm install`、`pnpm check`
 
-**完成判据**：`pnpm check` 全绿；`devkit.audit-deps` 的回执里这个仓没有 `dead-pin`、`out-of-range`、`loose-dev-pin`、`peer-not-cordis`。
+**完成判据**：`pnpm check` 全绿；`devkit.audit-deps` 的回执里这个仓没有 `dead-pin`、`out-of-range`、`loose-dev-pin`、`peer-not-cordis`（dev 依赖与插件 peer 里的插件都算）。
 
 ## 三、发正式版
 
@@ -53,8 +53,8 @@ description: 升版本号、改依赖版本号、发版时读。
 
 ## 四、发破坏性版本多做的两步
 
-1. **发之前**：调 `devkit.audit-deps`，找出 dev 依赖这个包的下游（发完它们会报 `out-of-range`），往每个下游仓文档站 feedback 区的 `inbox.mdx` 投一条「要跟 X 0.9」
-2. **发之后**：升 default 之前先让下游跟上，或用 `plugin-manager.update-all {"only":[…]}` 只升别的——插件之间不写 peer，一键更新不会提示下游配着出了范围的上游运行。改了名字（命令名、说明书名、术语）的，再查两遍：
+1. **发之前**：调 `devkit.audit-deps`，找出 dev 或 peer 里写了这个包的下游（发完它们会报 `out-of-range`），往每个下游仓文档站 feedback 区的 `inbox.mdx` 投一条「要跟 X 0.9」
+2. **发之后**：升 default 之前先让下游跟上，或用 `plugin-manager.update-all {"only":[…]}` 只升别的。插件的 peer 写了它用到的插件：升级之后 `plugin-manager.list` 的 `unmetPeers` 会报出 peer 范围不包含新版本的下游，`update-all` 会把 peer 写了被升级包的插件一起重新加载，但不拦它们配着出了范围的上游运行。改了名字（命令名、说明书名、术语）的，再查两遍：
    * 拿旧名字搜 MCP 入口的 instructions、各仓 AGENTS 里讲命令的段落、所有随包说明书的描述
    * 文档里点名的每个说明书名与命令名，拿 `skill.list` 与 `index` 现查一遍，指向不存在的就改
 
@@ -79,19 +79,19 @@ description: 升版本号、改依赖版本号、发版时读。
 
 插件包（`keywords` 含 `gwb-plugin`）另查：
 
-| 检什么                                                                                                                                   | 没过                                           |
-| ------------------------------------------------------------------------------------------------------------------------------------- | -------------------------------------------- |
-| peer 里有 `cordis` 与内核包 `@godcreator/gwb-kernel-desktop` 以外的包                                                                           | 拒，写明按「运行时谁提供」改写成 dev 还是 `dependencies`       |
-| node 侧产物按值 import 了 `cordis`，peer 里却没有                                                                                                | 拒                                            |
-| 写了 peer `cordis`，node 侧产物却没有 import 它                                                                                                 | 不拒，回执 `reminders` 里提醒                        |
-| node 侧产物（`exports["."]` 入口顺着相对 import 走到的文件）的包名 import 不是 node 内置模块、`electron`、`cordis`                                               | 拒                                            |
-| 浏览器侧产物（`dist/client.js` 顺着相对 import 走到的文件）的包名 import 不在页面 importmap 里——importmap 只有内核包清单 `gwb.shared` 的键，从包目录 `node_modules` 里装好的内核包读 | 拒；内核包的清单读不到也拒，提示 peer 写上内核包、再 `pnpm install` |
-| peer 里没写内核包 `@godcreator/gwb-kernel-desktop`、写法不是 `^x.y.z`、或范围不包含运行中的内核（主版本号为 0 时次版本号相同，≥1 时主版本号相同，并且不低于下限；预发布段不看）                    | 拒，写明该改成的 `^<运行中的内核的 x.y.z>`                  |
-| 写了 `gwb.requires` 而它不是对象、某个值不是合法的 x.y.z、某个包不在 `devDependencies` 里、或要求的版本高于 dev 范围的下限（dev 写 `workspace:` 的不比下限）；没写不查                   | 拒                                            |
+| 检什么                                                                                                                                                   | 没过                                                             |
+| ----------------------------------------------------------------------------------------------------------------------------------------------------- | -------------------------------------------------------------- |
+| peer 里有 `cordis`、内核包 `@godcreator/gwb-kernel-desktop`、插件以外的包（是不是插件读包目录 `node_modules` 里它的清单：`keywords` 含 `gwb-plugin`，或同时含 `cordis` 与 `plugin`；读不到也拒） | 拒，写明按「运行时谁提供」改写成 dev 还是 `dependencies`；读不到时先在仓根 `pnpm install` |
+| peer 里的 `@godcreator` 插件（内核包与 `workspace:` 除外）写法不是 `^x.y.z`、问不出源上的 latest、或和源上 latest 不在同一条线（主版本号为 0 时比次版本号，≥1 时比主版本号）                                | 拒：先适配代码、在隔离 home 验过，再把 peer 改成 `^<latest>`                     |
+| node 侧产物按值 import 了 `cordis`，peer 里却没有                                                                                                                | 拒                                                              |
+| 写了 peer `cordis`，node 侧产物却没有 import 它                                                                                                                 | 不拒，回执 `reminders` 里提醒                                          |
+| node 侧产物（`exports["."]` 入口顺着相对 import 走到的文件）的包名 import 不是 node 内置模块、`electron`、`cordis`                                                               | 拒                                                              |
+| 浏览器侧产物（`dist/client.js` 顺着相对 import 走到的文件）的包名 import 不在页面 importmap 里——importmap 只有内核包清单 `gwb.shared` 的键，从包目录 `node_modules` 里装好的内核包读                 | 拒；内核包的清单读不到也拒，提示 peer 写上内核包、再 `pnpm install`                   |
+| peer 里没写内核包 `@godcreator/gwb-kernel-desktop`、写法不是 `^x.y.z`、或范围不包含运行中的内核（主版本号为 0 时次版本号相同，≥1 时主版本号相同，并且不低于下限；预发布段不看）                                    | 拒，写明该改成的 `^<运行中的内核的 x.y.z>`                                    |
 
 ### `devkit.audit-deps` 报什么
 
-只报告、不拦，扫容器根下各仓：`dead-pin`（写的版本源上没有）、`out-of-range`（latest 已出范围，必须跟）、`behind`（范围内落后，不用处理）、`loose-dev-pin`（写法既不是精确号也不是 `^`）、`peer-not-cordis`（插件包的 peer 里有 `cordis` 与内核包以外的包，下次发版会被拒）。
+只报告、不拦，扫容器根下各仓的 `@godcreator` dev 依赖，以及插件包 peer 里的插件（是不是插件看包目录 `node_modules` 里装着的清单：`keywords` 含 `gwb-plugin`，或同时含 `cordis` 与 `plugin`；`workspace:` 跳过）：`dead-pin`（写的版本源上没有）、`out-of-range`（latest 已出范围，必须跟）、`behind`（范围内落后，不用处理）、`loose-dev-pin`（dev 写法既不是精确号也不是 `^`；peer 不是 `^x.y.z`）、`peer-not-cordis`（插件包的 peer 里有 `cordis`、内核包、插件以外的包，没装、读不到清单的也记这条，下次发版 `devkit.release` 会拒）。
 
 ### 手工发版
 

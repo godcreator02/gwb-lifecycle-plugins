@@ -13,7 +13,7 @@ home 里的插件分两层：**包**是 pnpm 装进 `package.json` 与 `node_mod
 
 **为什么分两层**：装包是 pnpm 的事，加载是 loader 的事，pnpm 和 loader 各有自己的清单。只装包、不加条目，插件不会运行；条目指向的包被删了，条目还在。插件管理的工作就是让两层对应上，并且如实报告对不上的地方。
 
-**怎么做**：`list` 读 home 的 `package.json` 和条目树，按包名对照，两层都不丢；再给每个包读它自己的 `package.json`，带上它 peer 里内核包的范围包不包含运行中的内核（见[内核兼容性](/docs/plugin-manager/kernel-compat)）、它要求的插件版本满没满足（见[要求的插件版本](/docs/plugin-manager/requires)）：
+**怎么做**：`list` 读 home 的 `package.json` 和条目树，按包名对照，两层都不丢；再给每个包读它自己的 `package.json`，带上它 peer 里内核包的范围包不包含运行中的内核（见[内核兼容性](/docs/plugin-manager/kernel-compat)）、peer 里别的插件满没满足（见[peer 满没满足](/docs/plugin-manager/peers)）：
 
 <Diagram name="pm-list" title="list 把 package.json 与 cordis.yml 两层对上，两层都不丢">
 - 左边是 home 的 `package.json` 里的依赖，中间是 `cordis.yml` 的条目，右边是 `list` 按包名排好的结果
@@ -40,7 +40,7 @@ home 的 `package.json` 读不到或不是 JSON 时当空表：它由 pnpm 写�
 
 {/* has file="../plugins/plugin-manager/tests/home.test.ts" text="清单不在、坏了都当空表" */}
 
-{/* has file="../plugins/plugin-manager/tests/commands.test.ts" text="包与条目两层对上，带 peer 里内核包的范围与没满足的要求；条目指向没装的包报 installed: false" */}
+{/* has file="../plugins/plugin-manager/tests/commands.test.ts" text="包与条目两层对上，带 peer 里内核包的范围与没满足的别的 peer；条目指向没装的包报 installed: false" */}
 
 ## 只有插件管理写 home
 

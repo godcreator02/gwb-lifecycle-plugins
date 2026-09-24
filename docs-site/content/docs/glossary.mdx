@@ -34,9 +34,10 @@ description: 这个仓里反复出现的词各指什么、在哪一页定义；�
 | 建仓 | `devkit.scaffold` 把新插件的骨架写进一个新目录，插件文件与文档站分两部分完成 | [建仓与加插件](/docs/devkit/scaffold) |
 | workspace 仓 | 仓根是不发布的 private 包，插件在 `plugins/<短名>/`、别的包在 `packages/`。模板只生成这一种布局；代码注释里叫「薄壳」 | [建仓与加插件](/docs/devkit/scaffold) |
 | 旧布局仓 | 仓根本身就是插件包的仓，结构体检里叫 `bare-root-single`。改到哪个就迁哪个 | [结构体检](/docs/devkit/structure) |
-| 发版前检查 | `devkit.release` 构建之后、发第一个包之前查的那几条：版本不在 0.0.x、dev 范围、peer 只写 `cordis` 与内核包、构建产物里的包名 import 与空 import、关掉 `skipLibCheck` 的类型检查、peer 里内核包的范围、`gwb.requires` 的写法。代码里的函数名与旧文档里叫「上车检票」 | [开发套件](/docs/devkit#发正式版的检查) |
-| 最低版本要求 | 插件在 `package.json` 的 `gwb.requires` 里写的「home 里这个包不低于 x.y.z」。`plugin-manager.list` 报没满足的（`unmetRequires`），只报告不拦 | [要求别的插件的最低版本](/docs/rules/requires) |
-| 纯逻辑 | 不读写磁盘、不启动进程、只看输入输出的那部分代码，测试用假实现跑完。对面是只执行、不判断的 `node-*-deps.ts`。代码注释里叫「纯机」 | [关键设计](/docs/design#纯逻辑与真机器操作分开) |
+| 发版前检查 | `devkit.release` 构建之后、发第一个包之前查的那几条：版本不在 0.0.x、dev 范围、peer 只写 `cordis`、内核包与插件、peer 里的插件和源上 latest 在同一条线、构建产物里的包名 import 与空 import、关掉 `skipLibCheck` 的类型检查、peer 里内核包的范围。代码里的函数名与旧文档里叫「上车检票」 | [开发套件](/docs/devkit#发正式版的检查) |
+| peer | 插件 `package.json` 的 `peerDependencies`：运行时从 home 里得到的包——按值 import 的 `cordis`、内核包、用到的别的插件。可选使用的插件在 `peerDependenciesMeta` 标 `optional`。`plugin-manager.list` 报没满足的（`unmetPeers`），只报告不拦 | [用到的插件写 peer](/docs/rules/plugin-peers) |
+| 同一条线 | 两个版本号之间没有破坏性版本：主版本号为 0 时次版本号相同，≥1 时主版本号相同。`devkit.release` 拿它比 peer 里的插件和源上的 latest | [用到的插件写 peer](/docs/rules/plugin-peers) |
+| 纯逻辑 | 不读写磁盘、不启动进程、只看输入输出的那部分代码，测试用假实现运行完。对面是只执行、不判断的 `node-*-deps.ts`。代码注释里叫「纯机」 | [关键设计](/docs/design#纯逻辑与真机器操作分开) |
 | 六区 | docfirst 文档站的六个目录：现状、轨迹、交接、未来、生成文件正本、反馈候选 | [开发](/docs/develop#文档站) |
 
 一个词进表的门槛：在两页以上出现，或者读者第一次见会问「这是什么」。名字定了就别改，改名是历史，去轨迹区写一张卡。
@@ -75,4 +76,5 @@ description: 这个仓里反复出现的词各指什么、在哪一页定义；�
 | `kernel-dir` 设置与启动 home 时构建内核 | 0.12.0 | 启动 home 用宿主安装版；改内核源码的验证走内核仓自己的流程；`audit-deps` 的容器根问 `unit-folder.list` |
 | `devkit.cdp-eval` | 0.4.0 | `eval` 是 `devkit.cdp` 的一个动作 |
 | `devkit.livedoc` | 0.3.0 | 核对、确认、生成都在仓里运行：`cd <仓>\docs-site` 之后 `pnpm doc` / `pnpm doc:confirm` / `pnpm doc:render` |
+| 清单字段 `gwb.requires`；`plugin-manager.list` 回执的 `requires`、`unmetRequires`、`requiresInvalid` | 插件管理 0.9.0、devkit 0.18.15 | 用到的别的插件写进 `peerDependencies`（`^x.y.z`，可选的标 `optional`），`list` 看 `unmetPeers`。见[轨迹卡](/trajectory/2026-09-24-plugins-peer-each-other) |
 | `plugin-sources.search` / `add` / `list` / `remove`、说明书 `gwb-plugin-sources` | `gwb-plugin-sources` 0.1.0 之后不再发 | 并回插件管理：`plugin-manager.search`、`plugin-manager.source.add` / `list` / `remove`，参数与回执不变；说明书读 `gwb-plugin-manager`。见[轨迹卡](/trajectory/2026-09-24-plugin-sources-back-to-plugin-manager) |

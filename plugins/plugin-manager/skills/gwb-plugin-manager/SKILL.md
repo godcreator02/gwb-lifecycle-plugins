@@ -1,6 +1,6 @@
 ---
 name: gwb-plugin-manager
-description: 装插件、找插件或配包源、升级插件、升内核、查插件 peer 里的内核范围包不包含当前内核或它要求的别的插件版本满没满足、增删改条目、插件装了却没加载时读。
+description: 装插件、找插件或配包源、升级插件、升内核、查插件 peer 里的内核范围包不包含当前内核或 peer 里的别的插件满没满足、增删改条目、插件装了却没加载时读。
 ---
 
 # 插件管理
@@ -38,11 +38,11 @@ home 里有两层：
 ## 升级插件
 
 1. `plugin-manager.outdated` 看谁有新版本，回 `包名 → { current, latest }`
-2. `plugin-manager.update-all`（只升几个给 `{"only":["<包名>"]}`）。一条命令做完：一次 `pnpm add` 升到精确版本 → 升了的包的每条条目重新加载（本来停用的保持停用）→ 整页重新加载，不重启
-3. 读回执 `updated[].entries[]`：`state` 为 `ACTIVE` 才算加载成功。`selfDeferred: true` 表示插件管理自己在回执发出后才重新加载，过一会儿用 `list` 核对；升到 gwb-mcp 自己时进行中的 MCP 请求会断，重连一次。回执带 `kernelManaged` 表示内核包或 `cordis` 有新版本、这条命令没升它们，按下一节升内核
+2. `plugin-manager.update-all`（只升几个给 `{"only":["<包名>"]}`）。一条命令做完：一次 `pnpm add` 升到精确版本 → 升了的包的每条条目重新加载（本来停用的保持停用）→ peer 写了被升级包的插件（一层层往外）的条目也跟着重新加载 → 整页重新加载，不重启
+3. 读回执 `updated[].entries[]` 与 `dependents[].entries[]`：`state` 为 `ACTIVE` 才算加载成功；`dependents[].because` 是它 peer 里写了的、这次换了目录的包。`selfDeferred: true` 表示插件管理自己在回执发出后才重新加载，过一会儿用 `list` 核对；升到 gwb-mcp 自己时进行中的 MCP 请求会断，重连一次。回执带 `kernelManaged` 表示内核包或 `cordis` 有新版本、这条命令没升它们，按下一节升内核
 4. `plugin-manager.list` 核对版本与 `active`，再调一次 `index`
 
-**完成判据**：`outdated` 里除内核包与 `cordis` 外不再有这次升的包；`list` 里它们的版本是新版、条目 `active` 为 true。
+**完成判据**：`outdated` 里除内核包与 `cordis` 外不再有这次升的包；`list` 里它们的版本是新版、条目 `active` 为 true，`dependents` 里的包条目 `active` 也为 true。
 
 升级前的隔离 home 验证、上游发了破坏性版本时怎么升，见说明书 `gwb-release`。
 
@@ -57,21 +57,22 @@ home 里有两层：
 
 **完成判据**：回执 `ok` 为 true，人已知道要重启和 `pluginsOutsideRange` 里的插件；重启后 `runtime.json` 报的内核版本是 `kernel.to`。
 
-## 查哪些插件的内核范围不包含当前内核、要求的插件版本没满足
+## 查哪些插件的内核范围不包含当前内核、peer 里的插件没满足
 
 1. `plugin-manager.list`，看每个包的 `kernelUntested` 与 `kernelRange`
    * `kernelRange`：包清单 `peerDependencies` 里内核包 `@godcreator/gwb-kernel-desktop` 的范围，没写时没有这个字段
    * `kernelUntested` 为 true：插件（keywords 含 gwb-plugin）的范围不包含运行中的内核，或没写、写的不是 `^x.y.z`。库、第三方 cordis 插件、内核包与 cordis 不标。`^x.y.z` 在主版本号为 0 时要求次版本号相同（`^0.3.0` 包含 `0.3.4`，不包含 `0.4.0`），≥1 时要求主版本号相同，并且不低于 x.y.z
-2. 同一份回执里看每个包的 `unmetRequires` 与 `requiresInvalid`
-   * `requires`：包清单 `gwb.requires` 原样照抄，`{ 包名: 最低版本号 x.y.z }`，意思是运行时 home 里这些包不低于这个版本；没写时没有这个字段
-   * `unmetRequires`：没满足的要求，每条 `{ pkg, required, installed? }`——装的版本低于 `required`、`required` 不是合法的 x.y.z、或没装（没有 `installed` 字段）；全都满足时是空数组。装的是 `0.5.0-dev.1` 不满足要求 `0.5.0`
-   * `requiresInvalid`：`gwb.requires` 写了但不是「包名 → 字符串」的对象，说明哪里不对；这时不比对
-3. 列出 `kernelUntested` 为 true 的包、`unmetRequires` 不空或带 `requiresInvalid` 的包。这些都只是报告、照常加载；出了问题先怀疑它们
+2. 同一份回执里看每个包的 `unmetPeers`：插件 peer 里内核包与 `cordis` 以外、home 里没满足的包，每条 `{ pkg, range, installed? }`
+   * 没装：没有 `installed` 字段；`peerDependenciesMeta` 里标了 `optional: true` 的没装不算
+   * 装着但版本不在 `range` 里：带 `installed`，比法与内核范围相同，预发布段不看
+   * `range` 不是 `^x.y.z`：原样照抄，算没满足
+   * 不是插件、清单读不到、全都满足时是空数组
+3. 列出 `kernelUntested` 为 true 的包、`unmetPeers` 不空的包。这些都只是报告、照常加载；出了问题先怀疑它们
    * 范围不包含当前内核：到那个插件的仓里在隔离 home 验证后改 peer 里内核包的范围再发版（说明书 `gwb-devkit`、`gwb-release`）
-   * 被要求的包太旧或没装：升级或安装那个包，`update-all {"only":["<被要求的包名>"]}` 或 `install`
-   * `requiresInvalid`、`required` 不合法：到那个插件的仓里改写法再发版，`devkit.release` 会拒写错的
+   * peer 里的插件太旧或没装：升级或安装那个插件，`update-all {"only":["<那个插件的包名>"]}` 或 `install`；装着的版本比范围新（上游出了破坏性版本）的，到写 peer 的那个插件的仓里适配后改 peer 再发版
+   * `range` 不是 `^x.y.z`：到那个插件的仓里改写法再发版，`devkit.release` 会拒写错的
 
-**完成判据**：给出 `kernelUntested` 为 true 的全部包名与各自的 `kernelRange`，`unmetRequires` 不空的全部包名与每条没满足的要求，带 `requiresInvalid` 的包名与原因。
+**完成判据**：给出 `kernelUntested` 为 true 的全部包名与各自的 `kernelRange`，`unmetPeers` 不空的全部包名与每条没满足的 peer。
 
 ## 增删改条目
 
@@ -103,7 +104,7 @@ home 里有两层：
 * **重新加载一条条目只用 `remount`**：它一条命令做完停用与启用。目标是插件管理自己或命令总线（`gwb-commands`）时，分两条调的话 `disable` 一返回命令表就没了，`enable` 调不进去，条目停在停用状态
 * **同一时刻只允许一个改动**：`install`、`uninstall`、`update-all`、`update-kernel`、`remount` 正在运行时再调回 `{ ok: false, error: "BUSY…" }`，等前一个返回回执后再调。`search`、`source.*` 不改 home，不受这条限制
 * **失败回执**：参数写错（包名、版本范围、id、scope 不合规，条目不存在，改或删 `@godcreator`）直接报错；执行中失败回 `ok: false`，`error` 是原因，pnpm 输出的最后几行在 `data.tail`。`update-all` 的 pnpm 失败时一条条目都没动
-* **install 只装点名的包**：不装它的 peer，也不判断它是不是库。装了一个没有 `apply` 的包，条目照样加上、加载失败，用 `uninstall` 删掉
+* **install 只装点名的包**：不装它 peer 里的插件，也不判断它是不是库。插件管理启动 pnpm 时带环境变量 `pnpm_config_auto_install_peers=false`，pnpm 也不会自动补装缺的 peer；缺的看 `list` 的 `unmetPeers`，要用就另外 `install`。人在 home 里手工运行 pnpm 时自己设这个环境变量，命令行参数 `--config.auto-install-peers=false` 会被 pnpm 忽略。装了一个没有 `apply` 的包，条目照样加上、加载失败，用 `uninstall` 删掉
 * **是不是插件只看包清单 `keywords` 里有没有 `gwb-plugin`**，名字不参与。`search` 回的是这条规则筛出的全部结果，不维护的旧包也在里面
 * **源地址按 scope 从两份 npmrc 找**：先找 `@scope:registry=`，再找 `registry=`，每一种都是 home 级 `<home>/.npmrc` 优先于机器级 `~/.npmrc`，都没写就是 npm 官方源。这和 pnpm 安装读的是同一批配置行，从哪装就在哪搜
 * **包源命令只写机器级 `~/.npmrc`**，本机所有 home 共用；home 级那份只放手工加的行。在隔离 home 里调 `source.add` 改的也是机器级，验完删掉。home 级有同名 scope 时生效的是 home 级那条，`source.add` 的 `note` 会提醒

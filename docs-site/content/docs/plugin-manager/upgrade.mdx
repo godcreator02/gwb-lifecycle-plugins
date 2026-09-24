@@ -1,11 +1,11 @@
 ---
 title: 热升级
-description: outdated 查过期包；update-all 一次 pnpm add 精确版本，同一条命令里逐条停用再启用，再整页重新加载，不重启；插件管理自己排最后、回执发出后才重新加载；内核包与 cordis 不热升级，由 update-kernel 装好、重启后生效
+description: outdated 查过期包；update-all 一次 pnpm add 精确版本，同一条命令里逐条停用再启用，peer 写了被升级包的插件一起重新加载，再整页重新加载，不重启；插件管理自己排最后、回执发出后才重新加载；内核包与 cordis 不热升级，由 update-kernel 装好、重启后生效
 ---
 
 # 热升级
 
-**本页回答**：怎么查出哪些包有新版本；为什么升级与重新加载必须在同一条命令里；升级计划按什么排；一次热升级从头到尾依次发生什么；内核包与 `cordis` 为什么另用一条命令升、它做了什么。重新加载一条条目的时序在[重新加载一条条目](/docs/plugin-manager/remount)。
+**本页回答**：怎么查出哪些包有新版本；为什么升级与重新加载必须在同一条命令里；升级计划按什么排；为什么 peer 写了被升级包的插件也要一起重新加载；一次热升级从头到尾依次发生什么；内核包与 `cordis` 为什么另用一条命令升、它做了什么。重新加载一条条目的时序在[重新加载一条条目](/docs/plugin-manager/remount)。
 
 热升级管 home 里除内核包与 `cordis` 之外的全部包，插件管理自己和命令插件也在其中：它们各是 `cordis.yml` 里的一条条目，和别的插件一样升级。
 
@@ -25,13 +25,13 @@ description: outdated 查过期包；update-all 一次 pnpm add 精确版本，�
 
 ## 升级与重新加载在同一条命令里
 
-**是什么**：`update-all` 一条命令做完：一次 `pnpm add` 把过期包升到精确版本 → 逐条重新加载 → 整页重新加载。只升某几个包也用它，给 `only`；没有「只升包、不重新加载」的命令。
+**是什么**：`update-all` 一条命令做完：一次 `pnpm add` 把过期包升到精确版本 → 逐条重新加载（peer 写了被升级包的插件也在其中）→ 整页重新加载。只升某几个包也用它，给 `only`；没有「只升包、不重新加载」的命令。
 
-**为什么**：pnpm 装新版本时会删掉旧版本目录。升级之后、重新加载之前只要隔着一条命令，旧版插件就在自己的目录已经删掉之后还运行一段，读自己的文件就读不到：
+**为什么**：pnpm 装上新版本之后，旧版本目录随时可能被清掉——默认保留一段时间（pnpm 文档写的是 7 天），home 设了 `modulesCacheMaxAge: 0` 时同一次安装就删。升级之后、重新加载之前只要隔着一条命令，旧版插件就可能在自己的目录已经删掉之后还运行一段，读自己的文件就读不到：
 
 <Diagram name="pm-upgrade-gap" title="分两条命令时，旧版插件在目录删掉之后还要运行一段">
-- 分两条命令：`pnpm add` 装上 A@1.1、删掉 A@1.0 的目录；到另一条命令停用再启用之前，旧版 A 还在运行，读自己的文件就读不到
-- 同一条命令：`pnpm add` 一结束马上停用再启用，旧版 A 在目录删掉之后不再运行
+- 分两条命令：`pnpm add` 装上 A@1.1，A@1.0 的目录随时可能被清掉；到另一条命令停用再启用之前，旧版 A 还在运行，目录清掉之后读自己的文件就读不到
+- 同一条命令：`pnpm add` 一结束马上停用再启用，旧版 A 不再依赖旧目录
 </Diagram>
 
 **例外**：命令本该保持原子、一条只做一件事，多步流程写进说明书由调用方一步步调。`update-all` 是允许的例外：升级与重新加载都依赖「这次升级之前磁盘上是哪个版本」，拆开就有上图那段空档。`pnpm add` 失败时一条条目都不动。
@@ -42,12 +42,13 @@ description: outdated 查过期包；update-all 一次 pnpm add 精确版本，�
 
 **是什么**：升哪些包、重新加载哪些条目、按什么顺序，由一个纯函数算出，单独测。
 
-{/* ref file="../plugins/plugin-manager/src/update-all.ts" lines="27-45" */}
+{/* ref file="../plugins/plugin-manager/src/update-all.ts" lines="49-65" */}
 
 - **精确版本**：用 `outdated` 查到的版本号，不用 `@latest` 标签——两次查询之间又发了一版，也不会装成回执上没写的那个
-- **每条条目各自重新加载**：被别的插件 inject 的插件重新加载时，cordis 会把依赖它的插件停用再启动，但那是重跑内存里的旧代码，磁盘上的新版本没有加载，所以不能指望这种连带
+- **每条条目各自重新加载**：被别的插件 inject 的插件重新加载时，cordis 会把依赖它的插件停用再启动，但那是重新运行内存里的旧代码，磁盘上的新版本没有加载，所以不能指望这种连带
 - 包按包名排，包内的条目按条目树里的先后；本来就停用的条目保持停用，记为 `skipped`
-- **插件管理自己排最后**：它所在的包排在所有包之后，包内它那条条目也排最后
+- **跟着重新加载的包排在升级的包之后**：peer 写了被升级包的插件，理由与找法见下一节
+- **插件管理自己排最后**：它所在的包排在所有包之后（在升级的包里是这样，在跟着重新加载的包里也是这样），包内它那条条目也排最后
 - 给了 `only` 就只升点名的几个；点了名却不在过期清单里的，回执的 `note` 里列出来
 - **内核包与 `cordis` 不升**：过期清单里有它们（`only` 点了名也一样）就列进 `kernelManaged`，回执带上这个字段，`note` 指向 `update-kernel`；过期清单里没有它们时回执里没有这个字段。理由见下面[升内核](#升内核)
 
@@ -67,26 +68,52 @@ description: outdated 查过期包；update-all 一次 pnpm add 精确版本，�
 
 {/* has file="../plugins/plugin-manager/tests/update-all.test.ts" text="only 点了它们的名也不升，照样列进 kernelManaged、不进 ignored" */}
 
+## peer 写了被升级包的插件一起重新加载
+
+**是什么**：升级了某个包，home 里 peer 写了它的插件（可选的 peer 也算）不升级，但它的条目在同一条命令里跟着重新加载；peer 写了这些插件的插件同样处理，一层层往外找，直到没有新的。回执的 `dependents` 按处理顺序列出这些包，每个带 `because`（它 peer 里写了的、这次换了目录的包）与各条条目的结果；原本停用的条目照样 `skipped`，插件管理自己在里面时照旧排最后、记 `deferred`，回执 `selfDeferred` 是 `true`。只看 home 的 dependencies 里的插件（`keywords` 含 `gwb-plugin`），内核包与 `cordis` 不算。
+
+**为什么**：pnpm 的虚拟存储目录名带着 peer 的版本，A 的 peer 写了 B，B 一升级，A 就被装进新目录（`A@1.0.0_B@1.0.0` 变成 `A@1.0.0_B@1.1.0`），而 pnpm 的输出里只写 B 变了。只重新加载 B 的话，正在运行的 A 还是从旧目录加载的、拿到的还是旧的 B；旧目录被清掉之后 A 再加载自己的文件就会失败（实验见 devkit 仓 `probes/2609242300_peer-between-plugins/`）。一层层往外找是按同一条目录名规则推出来的：C 的 peer 写了 A，A 换了目录，C 的目录名里带着 A，也跟着换——这一层还没在隔离 home 里实测。
+
+**怎么做**：跟着重新加载的包在 `pnpm add` 之前就算好：它们本身不升级，peer 在这次安装前后不变，所以用升级之前读到的 home 里各包的清单。
+
+{/* ref file="../plugins/plugin-manager/src/update-all.ts" lines="28-40" */}
+
+{/* ref file="../plugins/plugin-manager/src/update-all.ts" lines="75-109" */}
+
+{/* ref file="../plugins/plugin-manager/src/index.ts" lines="113-120" */}
+
+**守住它的测试**：
+
+{/* has file="../plugins/plugin-manager/tests/update-all.test.ts" text="peer 写了被升级的包：进 dependents，because 列出它 peer 的被升级包" */}
+
+{/* has file="../plugins/plugin-manager/tests/update-all.test.ts" text="peer 写了跟着换目录的插件的也算（一层层往外找），because 写它 peer 的那个" */}
+
+{/* has file="../plugins/plugin-manager/tests/update-all.test.ts" text="本身就在升级的包、内核包与 cordis、不是插件的包、peer 没写被升级包的插件：都不算" */}
+
+{/* has file="../plugins/plugin-manager/tests/update-all.test.ts" text="插件管理自己的 peer 写了被升级的包：它排在 dependents 最后，标 self，selfIncluded 真" */}
+
+{/* has file="../plugins/plugin-manager/tests/commands.test.ts" text="peer 写了被升级包的插件：它的条目在同一条命令里跟着重新加载（停用的跳过），回执 dependents 列出来" */}
+
 ## 一次热升级依次发生什么
 
 <Diagram name="pm-upgrade" title="一键热升级的时间线：每条横道是一个参与方，竖虚线是回执发出的时刻">
-- 调用方调用 `update-all`；插件管理查过期包，定计划
-- 插件管理一次 `pnpm add` 精确版本；磁盘上 A@1.0 的目录删掉、A@1.1 装上
-- 条目 A 停用再启用，重新解析拿到 A@1.1，回到 `ACTIVE`
+- 调用方调用 `update-all`；插件管理查过期包，定计划（含 peer 写了 A 的插件 B）
+- 插件管理一次 `pnpm add` 精确版本；磁盘上 A@1.1 装上，B 也换进新目录，旧目录随时可能被清掉
+- 条目 A 停用再启用，重新解析拿到 A@1.1，回到 `ACTIVE`；接着条目 B 同样停用再启用
 - 回执发出，调用方收到 `selfDeferred: true`、`reload: deferred`
 - 下一个宏任务里重新加载插件管理自己，拿到新版本
 - 外壳 `shell.reload` 整页重新加载，窗格拿到新版本的页面代码
 </Diagram>
 
-**插件管理自己在回执之后**：升级清单里有插件管理自己时，它那条条目在回执发出之后才重新加载，回执里 `selfDeferred` 是 `true`，它的条目 `action` 是 `deferred`。理由与[重新加载插件管理自己](/docs/plugin-manager/remount#目标是插件管理自己先回执后重新加载)相同。
+**插件管理自己在回执之后**：升级的包或跟着重新加载的包里有插件管理自己时，它那条条目在回执发出之后才重新加载，回执里 `selfDeferred` 是 `true`，它的条目 `action` 是 `deferred`。理由与[重新加载插件管理自己](/docs/plugin-manager/remount#目标是插件管理自己先回执后重新加载)相同。
 
-{/* ref file="../plugins/plugin-manager/src/index.ts" lines="582-592" */}
+{/* ref file="../plugins/plugin-manager/src/index.ts" lines="594-604" */}
 
 {/* has file="../plugins/plugin-manager/tests/commands.test.ts" text="升级清单里有插件管理自己：自己那条先回 deferred，回执之后才重新加载，再整页重新加载" */}
 
 **整页重新加载**：经命令插件调用外壳的 `shell.reload`，按命令名查找，不 import 外壳。回执的 `reload`：`done` 已经重新加载；`deferred` 等插件管理自己重新加载完再执行；`unavailable` 命令表里没有它或它失败了，界面要手动刷新，原因在 `note` 里。
 
-{/* ref file="../plugins/plugin-manager/src/index.ts" lines="113-134" */}
+{/* ref file="../plugins/plugin-manager/src/index.ts" lines="122-145" */}
 
 **升到 MCP 入口自己**：`gwb-mcp` 重新加载时，进行中的 MCP 请求会中断，agent 要重连一次，再用 `plugin-manager.list` 核对版本与 `active`。
 
@@ -110,7 +137,7 @@ description: outdated 查过期包；update-all 一次 pnpm add 精确版本，�
 
 **范围不包含新内核的插件**：回执的 `pluginsOutsideRange` 列出 home 里 `keywords` 含 `gwb-plugin`、peer 里内核包的范围不包含新内核（或没写范围）的插件，按包名排。比对规则与 `list` 的 `kernelUntested` 是同一条（见[内核兼容性](/docs/plugin-manager/kernel-compat)），同样只报告：重启后它们照常加载，要不要先升它们由人决定。
 
-{/* ref file="../plugins/plugin-manager/src/kernel-upgrade.ts" lines="50-61" */}
+{/* ref file="../plugins/plugin-manager/src/kernel-upgrade.ts" lines="72-83" */}
 
 `from` 是装之前 home 里内核包、`cordis` 各自的版本，装之前没有这个包时回执里没有 `from`。
 

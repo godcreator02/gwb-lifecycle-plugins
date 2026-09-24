@@ -32,6 +32,11 @@
 * 插件 peer 里内核包 `@godcreator/gwb-kernel-desktop` 的范围两边都用：插件管理在 `list` 里拿它和 home 里装的内核比对，
   `devkit.release` 发版前拒绝没写对的插件包。比对规则两边各存一份（两个包的 `src/kernel-compat.ts`，devkit 的
   `tests/kernel-compat-parity.test.ts` 对照两份），**改规则时两份在同一个提交里一起改**
+* 插件 peer 里写的别的插件两边也都用：插件管理在 `list` 里报 `unmetPeers`、`update-all` 把 peer 写了被升级包的插件一起重新加载，
+  `devkit.release` 发版前拒 peer 里不是插件的包、和源上 latest 不在同一条线的插件
+* **两边启动 pnpm 一律带环境变量 `pnpm_config_auto_install_peers=false`**（devkit 的 `PNPM_ENV`、插件管理的 `spawnPlan`）：
+  不带的话 pnpm 把插件 peer 里 home 没装的插件自动装进 `.pnpm`，成了没有条目、插件管理不认的包；
+  命令行参数 `--config.auto-install-peers=false` 会被 pnpm 忽略，别拿它代替
 
 放在同一个仓里，这些地方一个提交就能改两边。插件管理的设计、命令与机制在文档站 `content/docs/plugin-manager/`，
 说明书 `gwb-plugin-manager` 的正本是 `docs-site/content/outputs/skills/gwb-plugin-manager.mdx`。
@@ -59,7 +64,7 @@ pnpm build          # 只构建 plugins/*，tsc 直接输出 dist/，没有打�
 
 **`pnpm check` 不构建。** 它检查的是源码，全绿只说明源码没问题，跟「装出来能不能运行」是两件事。
 
-开发套件的 `tests/provides-declaration.test.ts` 拿两个插件自己的 `package.json` 与源码跑一遍 `gwb.provides` 的检查：
+开发套件的 `tests/provides-declaration.test.ts` 拿两个插件自己的 `package.json` 与源码运行一遍 `gwb.provides` 的检查：
 加减了服务，同一个提交里改 `gwb.provides`（发版前检查与 `devkit.audit-structure` 查的是同一条）。
 
 文档站的检查**不在 `pnpm check` 里**——它要运行文档站的解析过程，太慢。单独运行：
@@ -111,12 +116,13 @@ findings 里那条 info 按实际文件名列好了 git mv 清单；改已有的
 
 `template/` 下的文件一律带 `.tpl` 后缀，写到磁盘时去掉（`npm pack` 不打包 `.gitignore` 是固定行为，
 一条规则管所有文件）；**每个文件都得声明属于哪一部分**——`landRel` 对不属于任何部分的文件直接抛错，
-没声明的写下去就是一堆没人认领的文件。
+没声明的写下去就是一堆不属于任何部分的文件。
 
-**模板里 `@godcreator` 包的版本号跟着源走**：除了 peer 里的内核包，只写 devDependencies，写 `^<版本>`，范围要包含源上的 `dist-tags.latest`；
-内核给插件的接口类型（`GwbContext` 等）从 peer 里的内核包 `import type`，不另写 dev（`tests/scaffold.test.ts` 查生成的源码与清单）。
-模板插件在 node 侧只 `import type`，peer 里只有内核包，范围是 `^<运行建仓命令的内核版本号>`（规矩见文档站「依赖怎么写」「兼容哪个内核」）。
-范围不含 latest，新仓第一次发版就被发版前检查拦下；写了源上没有的版本，新仓 `pnpm install` 直接失败——
+**模板里 `@godcreator` 包的版本号跟着源走**：peer 里是内核包与模板用到的两个插件（命令总线 `gwb-commands`、外壳 `gwb-shell`），
+别的 `@godcreator` 包写 devDependencies，都写 `^<版本>`；peer 里的插件要和源上的 `dist-tags.latest` 在同一条线，dev 的范围要包含它。
+内核与这两个插件的类型从 peer 里的包 `import type`，不另写 dev（`tests/scaffold.test.ts` 查生成的源码与清单）。
+模板插件在 node 侧只 `import type`，peer 里没有 `cordis`，内核包的范围是 `^<运行建仓命令的内核版本号>`（规矩见文档站「依赖怎么写」「用到的插件写 peer」「兼容哪个内核」）。
+和 latest 不在同一条线、范围不含 latest，新仓第一次发版就被发版前检查拦下；写了源上没有的版本，新仓 `pnpm install` 直接失败——
 改模板里的版本号之前先用 `pnpm view <包> dist-tags.latest` 查。模板的起始版本号是 0.1.0（0.0.x 过不了发版前检查）。
 
 **占位符就这七个**：`{{name}}`、`{{title}}`、`{{pkg}}`、`{{pkgName}}`、`{{cssPrefix}}`、`{{kernelVersion}}`（运行建仓命令的内核版本号的 x.y.z 三段）、`{{docsBlock}}`。

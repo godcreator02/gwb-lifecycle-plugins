@@ -18,11 +18,11 @@ const ITEMS: ChainItem[] = [
 ]
 
 const EVERY_PACKAGE = ['不在 0.0.x', 'dev 范围含源上的 latest', '产物里没有空 import', '相对 import 的文件都在', 'tsc --noEmit 类型检查', 'gwb.provides 与源码对得上']
-const PLUGIN_ONLY = ['peer 只有 cordis、内核包', '包名 import 的两份名单', '内核包范围含运行中内核', 'gwb.requires 写法']
+const PLUGIN_ONLY = ['peer 只许三类包', 'peer 插件与 latest 同线', '包名 import 的两份名单', '内核包范围含运行中内核']
 
 const STEPS: { title: string; detail: string; active: number; refused?: boolean }[] = [
   { title: '全貌', detail: '六格依次做，前五格任何一处没过，一个包都不发。它只碰团队源、不碰任何 home，不改仓里任何文件，从哪个 home 调用都可以。', active: -1 },
-  { title: '第 1 步：git 工作区干净', detail: '在仓根运行 git status --porcelain=v1，有一条改动就拒，连构建都不跑；不是 git 仓也拒。发出去的必须是提交过的状态。', active: 0 },
+  { title: '第 1 步：git 工作区干净', detail: '在仓根运行 git status --porcelain=v1，有一条改动就拒，连构建都不运行；不是 git 仓也拒。发出去的必须是提交过的状态。', active: 0 },
   { title: '第 2 步：仓根 pnpm build', detail: '在仓根构建，不在包目录：同仓的包常常用着另一个包的产物。构建失败，一个都不发。', active: 1 },
   { title: '第 3 步：产物都在', detail: '按 package.json 的 files 白名单查：不带 ! 与通配的每一项都得在包目录里。不另列一份名单，免得两份对不上。', active: 2 },
   { title: '第 4 步：版本号没发过', detail: '同一个版本号永不重发：源上已经有这个版本号就拒。要发新的一版，先升 package.json 的版本号、提交，再调用。', active: 3 },

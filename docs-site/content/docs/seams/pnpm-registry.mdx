@@ -1,6 +1,6 @@
 ---
 title: 9 pnpm 与包源
-description: 连接 devkit、插件管理与 pnpm、npm 源、两份 npmrc、gitea 插件的设置：两个插件用同一个 pnpm——用户装在两个固定位置之一的 pnpm 12，按同一套规则找、核对版本，直接启动；插件管理用它改 home，devkit 用它做 build / publish / view / install / add；团队源地址写在 devkit 里，开发版打 dev、正式版打 latest，audit-deps 用 fetch 直接读 packument；插件管理按 scope 从两份 npmrc 找源、调 registry 的检索接口找插件、读写机器级 ~/.npmrc 的包源，owner 写法按名字调 settings.get 读 gitea 分区
+description: 连接 devkit、插件管理与 pnpm、npm 源、两份 npmrc、gitea 插件的设置：两个插件用同一个 pnpm——用户装在两个固定位置之一的 pnpm 12，按同一套规则找、核对版本，直接启动，关掉自动补装 peer；插件管理用它改 home，devkit 用它做 build / publish / view / install / add；团队源地址写在 devkit 里，开发版打 dev、正式版打 latest，audit-deps 用 fetch 直接读 packument；插件管理按 scope 从两份 npmrc 找源、调 registry 的检索接口找插件、读写机器级 ~/.npmrc 的包源，owner 写法按名字调 settings.get 读 gitea 分区
 ---
 
 **本页回答**：两个插件用的是哪一个 pnpm、怎么找到它、各拿它做什么；团队源的地址写在哪、哪几处显式传、哪几处靠用户的 `~/.npmrc`；开发版与正式版怎么分开；依赖对账怎么查源；插件管理找插件、配包源时读写哪两份 npmrc、怎么决定去哪条源检索、读 gitea 插件的哪两项设置。
@@ -33,11 +33,17 @@ description: 连接 devkit、插件管理与 pnpm、npm 源、两份 npmrc、git
 | `pnpm install` | 目标 home | `devkit.dev` | 不带 |
 | `pnpm add <七个基础插件>` | 新 home | `devkit.home.new` | 不带 |
 
-{/* ref file="../plugins/devkit/src/dev.ts" lines="261-264" */}
+{/* ref file="../plugins/devkit/src/dev.ts" lines="269-272" */}
 
 {/* ref file="../plugins/devkit/src/node-dev-deps.ts" lines="207-211" */}
 
 {/* ref file="../plugins/devkit/src/node-dev-deps.ts" lines="305-314" */}
+
+**两个插件都关掉 pnpm 的自动补装 peer**：启动 pnpm 时环境变量原样传下去，只加一项 `pnpm_config_auto_install_peers=false`（插件管理另去掉 `ELECTRON_RUN_AS_NODE`）。插件的 peer 写了别的插件，home 里没装那个插件时，pnpm 默认把它不声不响装进 `node_modules/.pnpm`，不写进 home 的 `package.json`、没有条目，插件管理也不认它。命令行参数 `--config.auto-install-peers=false` 会被 pnpm 忽略，只有环境变量或 home 的 `pnpm-workspace.yaml` 关得掉（实验见本仓 `probes/2609242300_peer-between-plugins/`）：
+
+{/* ref file="../plugins/devkit/src/dev.ts" lines="263-267" */}
+
+{/* ref file="../plugins/plugin-manager/src/pnpm-path.ts" lines="7-16" */}
 
 **团队源地址**：写死在 `dev.ts`，`devkit.dev` 与 `devkit.release` 都只用它，不收参数；`devkit.audit-deps` 缺省也用它，可以给 `registry` 换：
 
@@ -83,6 +89,8 @@ description: 连接 devkit、插件管理与 pnpm、npm 源、两份 npmrc、git
 
 ## 约定
 
+两个插件都保证：启动 pnpm 时带 `pnpm_config_auto_install_peers=false`，不让 pnpm 把插件 peer 里缺的插件自动装进 home。人在 home 里手工运行 pnpm 时要自己设这个环境变量。
+
 插件管理保证：
 - 改 home 的 pnpm 都排进同一个串行队列
 - `source.add` / `source.remove` 只改机器级 `~/.npmrc`，home 级只读；`@godcreator` 的路由与凭据不改不删
@@ -119,6 +127,10 @@ gitea 插件需要保证的（gitea 插件仓的约定）：条目 id 是 `gitea
 pnpm 与源都只在实机上真正运行；单元测试覆盖命令行怎么拼、用哪一份 pnpm、源地址是哪个，以及 npmrc 的解析与改写、检索响应的解析与插件判断：
 
 {/* has file="../plugins/devkit/tests/dev.test.ts" text="直接启动找到的那个 pnpm 可执行文件，不经 shell" */}
+
+{/* has file="../plugins/devkit/tests/dev.test.ts" text="pnpm 不自动补装缺的 peer：带上关掉它的环境变量" */}
+
+{/* has file="../plugins/plugin-manager/tests/pnpm-path.test.ts" text="调用方环境里自动补装 peer 是开着的也照样关掉" */}
 
 {/* has file="../plugins/plugin-manager/tests/pnpm-location.test.ts" text="先是官方安装脚本的默认位置，再是 npm 全局装的 pnpm 包里的原生可执行文件" */}
 

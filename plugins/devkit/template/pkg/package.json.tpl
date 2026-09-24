@@ -26,14 +26,14 @@
     "prepublishOnly": "pnpm build"
   },
   "engines": { "node": ">=24" },
-  "//peerDependencies": "peer 里的内核包声明这个插件兼容哪些内核：范围写 ^<验证时那个内核的版本号>，插件管理拿它和 home 里装的内核比。node 侧构建产物里没有按值 import cordis（只 import type），所以 peer 里没有 cordis。规矩见 devkit 文档站「兼容哪个内核」与「依赖怎么写」",
+  "//peerDependencies": "peer 写运行时要从 home 里得到的东西：内核包（范围写 ^<验证时那个内核的版本号>）、用到的插件——命令总线（登记命令）与外壳（注册窗格、样式令牌）。插件管理拿这些范围和 home 里装的版本比；插件仓里 pnpm 把 peer 装进 node_modules，类型从那里取。node 侧构建产物里没有按值 import cordis（只 import type），所以 peer 里没有 cordis。规矩见 devkit 文档站「兼容哪个内核」与「依赖怎么写」",
   "peerDependencies": {
-    "@godcreator/gwb-kernel-desktop": "^{{kernelVersion}}"
-  },
-  "//devDependencies": "cordis 只写 dev（给本地构建与类型检查）。命令总线、外壳只取类型，运行时经 inject 使用；内核给插件的接口类型从 peer 里的内核包取；react 由页面的 importmap 提供，构建时不打包",
-  "devDependencies": {
+    "@godcreator/gwb-kernel-desktop": "^{{kernelVersion}}",
     "@godcreator/gwb-commands": "^0.5.0",
-    "@godcreator/gwb-shell": "^0.13.7",
+    "@godcreator/gwb-shell": "^0.13.7"
+  },
+  "//devDependencies": "cordis 只写 dev（给本地构建与类型检查）；react 由页面的 importmap 提供，构建时不打包",
+  "devDependencies": {
     "@tailwindcss/cli": "^4.3.0",
     "@tailwindcss/node": "^4.3.0",
     "@types/node": "^24.0.0",

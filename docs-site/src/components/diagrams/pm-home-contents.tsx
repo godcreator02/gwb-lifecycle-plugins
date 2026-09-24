@@ -1,6 +1,7 @@
 /**
  * home 里有什么：左边是 home 的 node_modules 里的插件包与内核包，右边是插件代码运行时用到的东西各由谁提供。
- * cordis 与 react 由内核包提供（react 经页面 importmap，importmap 里只有内核包声明的名字），自己用的库打包进插件的构建产物，只取类型的 import 编译后就没了。
+ * cordis 与 react 由内核包提供（react 经页面 importmap，importmap 里只有内核包声明的名字），自己用的库打包进插件的构建产物，只取类型的 import 编译后就没了；
+ * 插件 peer 里写的别的插件是 home 里另一个有条目的插件，由人装。
  */
 
 import { Arrow, Box, BORDER, FG, MUTED, Note } from './parts'
@@ -27,7 +28,7 @@ export function PmHomeContents() {
       <Arrow from={[368, 210]} to={[470, 224]} label="声明" />
 
       <Note x={380} y={284} anchor="middle" size={11.5} color={MUTED}>
-        插件的依赖都有着落，不需要另外装进 home——所以插件管理不装 peer，也不判断装的是不是库
+        插件用到的东西各有提供方，peer 里的别的插件由人装——所以插件管理不替插件装 peer，也不判断装的是不是库
       </Note>
     </svg>
   )

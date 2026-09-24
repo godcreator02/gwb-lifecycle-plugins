@@ -20,7 +20,7 @@ import { PmInstall } from './diagrams/pm-install'
 import { PmList } from './diagrams/pm-list'
 import { PmPickId } from './diagrams/pm-pick-id'
 import { PmRemount } from './diagrams/pm-remount'
-import { PmRequires } from './diagrams/pm-requires'
+import { PmPeers } from './diagrams/pm-peers'
 import { PmSources } from './diagrams/pm-sources'
 import { PmUninstall } from './diagrams/pm-uninstall'
 import { PmUpgrade } from './diagrams/pm-upgrade'
@@ -43,7 +43,7 @@ const drawings: Record<string, () => ReactNode> = {
   'pm-upgrade-gap': () => <PmUpgradeGap />,
   'pm-pick-id': () => <PmPickId />,
   'pm-sources': () => <PmSources />,
-  'pm-requires': () => <PmRequires />,
+  'pm-peers': () => <PmPeers />,
   'dk-scaffold': () => <DkScaffold />,
   'dk-dev-loop': () => <DkDevLoop />,
   'dk-home-new': () => <DkHomeNew />,

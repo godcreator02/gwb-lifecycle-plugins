@@ -8,7 +8,7 @@ const reg = (versions: string[], latest: string | undefined = versions.filter((v
 })
 
 /** 一份发布的插件清单（不是 private，keywords 含 gwb-plugin） */
-const pub = (peers: Record<string, string>, devs: Record<string, string>): ManifestDeps => ({ peers, devs, private: false, plugin: true })
+const pub = (peers: Record<string, string>, devs: Record<string, string>, peerPlugins: string[] = []): ManifestDeps => ({ peers, devs, private: false, plugin: true, peerPlugins })
 
 describe('compareVersions：逐段数字比', () => {
   it('0.10.0 大于 0.9.9——字符串比会翻车的那种', () => {
@@ -87,12 +87,12 @@ describe('auditManifest：dev 钉那一档', () => {
   })
 })
 
-describe('auditManifest：插件包的 peer 只许 cordis 与内核包', () => {
+describe('auditManifest：插件包的 peer 只许 cordis、内核包与插件', () => {
   it('peer 只有 cordis 与内核包：干净', () => {
     expect(auditManifest('r', '.', pub({ cordis: '^4.0.0-rc.9', '@godcreator/gwb-kernel-desktop': '^0.3.0' }, {}), {})).toEqual([])
   })
 
-  it('cordis 与内核包以外的 peer 一条一笔 peer-not-cordis，不管写法、不问源', () => {
+  it('cordis、内核包、插件以外的 peer 一条一笔 peer-not-cordis，不管写法、不问源', () => {
     const got = auditManifest(
       'r',
       '.',
@@ -101,11 +101,37 @@ describe('auditManifest：插件包的 peer 只许 cordis 与内核包', () => {
     )
     expect(got.map((f) => `${f.kind} ${f.pkg}`)).toEqual(['peer-not-cordis @godcreator/gwb-shell', 'peer-not-cordis react'])
     expect(got[0]?.detail).toContain('按「运行时谁提供」改写')
+    expect(got[0]?.detail).toContain('读不到它的清单')
     expect(got[0]?.detail).toContain('@godcreator/gwb-kernel-desktop')
   })
 
+  it('peer 里的插件对照源上的 latest：范围内落后 behind、出范围 out-of-range、不是 ^x.y.z 记 loose、workspace: 跳过', () => {
+    const got = auditManifest(
+      'r',
+      '.',
+      pub(
+        { '@godcreator/gwb-shell': '^0.13.3', '@godcreator/gwb-commands': '^0.4.1', '@godcreator/gwb-skills': '0.4.5', '@godcreator/gwb-data': 'workspace:*' },
+        {},
+        ['@godcreator/gwb-shell', '@godcreator/gwb-commands', '@godcreator/gwb-skills', '@godcreator/gwb-data'],
+      ),
+      {
+        '@godcreator/gwb-shell': reg(['0.13.3', '0.13.7']),
+        '@godcreator/gwb-commands': reg(['0.4.1', '0.5.0']),
+        '@godcreator/gwb-skills': reg(['0.4.5']),
+        '@godcreator/gwb-data': reg(['0.1.7']),
+      },
+    )
+    expect(got.map((f) => `${f.kind} ${f.pkg}`)).toEqual([
+      'behind @godcreator/gwb-shell',
+      'out-of-range @godcreator/gwb-commands',
+      'loose-dev-pin @godcreator/gwb-skills',
+    ])
+    expect(got[1]?.detail).toContain('再把 peer 升上去')
+    expect(got[2]?.detail).toContain('peer 只许写 ^x.y.z')
+  })
+
   it('不是插件包（库）：peer 不查', () => {
-    const lib: ManifestDeps = { peers: { react: '^19.0.0' }, devs: {}, private: false, plugin: false }
+    const lib: ManifestDeps = { peers: { react: '^19.0.0' }, devs: {}, private: false, plugin: false, peerPlugins: [] }
     expect(auditManifest('r', 'packages/lib', lib, {})).toEqual([])
   })
 })

@@ -334,7 +334,7 @@ describe('包内 template/：两区', () => {
     expect(declaredKernelRange(manifest)).toBe('^0.3.1')
   })
 
-  it('生成的清单按「依赖怎么写」：peer 里有内核包；cordis 只在 node 侧按值 import 了 cordis 时才写', () => {
+  it('生成的清单按「依赖怎么写」：peer 里有内核包与用到的两个插件；cordis 只在 node 侧按值 import 了 cordis 时才写', () => {
     const files = renderTemplate(TEMPLATE_ROOT, planScaffold({ name: 'hello', dir: 'D:\\tmp\\x', kernelVersion: KERNEL }))
     const manifest = JSON.parse(files.find((f) => f.rel === 'plugins/hello/package.json')?.text ?? '') as {
       peerDependencies?: Record<string, string>
@@ -343,17 +343,19 @@ describe('包内 template/：两区', () => {
     const nodeSources = files.filter((f) => f.rel.startsWith('plugins/hello/src/') && !f.rel.startsWith('plugins/hello/src/client/'))
     const importsCordisByValue = nodeSources.some((f) => /^import\s+(?!type\b)[^'"]*from\s*['"]cordis['"]/m.test(f.text))
     const peers = Object.keys(manifest.peerDependencies ?? {}).sort()
-    expect(peers).toEqual(importsCordisByValue ? [KERNEL_PACKAGE, 'cordis'].sort() : [KERNEL_PACKAGE])
+    const usedPlugins = ['@godcreator/gwb-commands', '@godcreator/gwb-shell']
+    expect(peers).toEqual([KERNEL_PACKAGE, ...usedPlugins, ...(importsCordisByValue ? ['cordis'] : [])].sort())
     // 按值 import 了就 peer 与 dev 各一份：dev 给本地构建与类型检查用
     expect(manifest.devDependencies['cordis']).toBeDefined()
   })
 
-  it('生成的清单：命令总线、外壳写 dev；已停发的 gwb-tokens、gwb-shared-react、gwb-plugin-api 不出现', () => {
+  it('生成的清单：命令总线、外壳写 peer、不写 dev；已停发的 gwb-tokens、gwb-shared-react、gwb-plugin-api 不出现', () => {
     const files = renderTemplate(TEMPLATE_ROOT, planScaffold({ name: 'hello', dir: 'D:\\tmp\\x', kernelVersion: KERNEL }))
     const text = files.find((f) => f.rel === 'plugins/hello/package.json')?.text ?? ''
-    const manifest = JSON.parse(text) as { devDependencies: Record<string, string> }
+    const manifest = JSON.parse(text) as { peerDependencies: Record<string, string>; devDependencies: Record<string, string> }
     for (const pkg of ['@godcreator/gwb-commands', '@godcreator/gwb-shell']) {
-      expect(manifest.devDependencies[pkg], `${pkg} 不在 dev 里`).toBeDefined()
+      expect(manifest.peerDependencies[pkg], `${pkg} 不在 peer 里`).toMatch(/^\^\d+\.\d+\.\d+$/)
+      expect(manifest.devDependencies[pkg], `${pkg} 不该再写 dev`).toBeUndefined()
     }
     for (const retired of ['gwb-tokens', 'gwb-shared-react', 'gwb-plugin-api']) expect(text).not.toContain(retired)
   })

@@ -1,0 +1,47 @@
+---
+title: 插件之间的运行时要求写 peer：删掉 gwb.requires，发版检查只比 0.x 的 x，pnpm 关掉自动补装 peer，热升级一起重新加载写 peer 的插件
+born-at: 2026-09-24T23:38
+type: choice
+parent: [2026-09-08-gwb-devkit]
+label: 插件写 peer
+domain: 生态规范
+---
+
+这张卡推翻同一天早些时候定的 `gwb.requires`。
+supersedes:: [要求别的插件的最低版本：清单字段 gwb.requires 加报告](2026-09-24-requires-field-and-report.md)
+
+## 背景
+
+同一天早些时候定了清单字段 `gwb.requires`：插件在 `package.json` 里写「home 里别的插件至少到哪一版」，插件管理的 `list` 报 `unmetRequires`，`devkit.release` 查写法与 dev 下限。当时不写成 peer 的理由是「peer 等于把别的插件当成运行时依赖，和各插件各自安装、各自升级冲突」。复审时发现这条理由不成立：插件 peer 里写内核包，意思本来就是「运行时 home 里的内核要在这个范围里」，插件并不按值 import 内核包；别的插件和插件之间是同一种关系，`gwb.requires` 实际上是自己另造了一个只报告的 peer。人决定改成 peer，交接页 `content/spec/peer-between-plugins.mdx` 列的五条待决定都按推荐项确认。
+
+真正要先弄清的是 pnpm 在 home 里怎么装插件之间的 peer，为此做了探针 `probes/2609242300_peer-between-plugins/`（提交 ced56f7），结论见下面的依据。
+
+## 否掉的候选
+
+- **保留 `gwb.requires`**：pnpm 与别的工具都不认这个字段，插件管理与 devkit 要各存一份「合法最低版本号」的判法、再加一个对照测试保持一致，发版检查还要另查它与 dev 下限的关系。peer 是 npm 的标准写法，插件仓里 pnpm 按它把被依赖的插件装进 `node_modules`，类型也从那里取，别的插件不用再另写 dev
+- **peer 只写 `cordis` 与内核包，别的插件照旧只写 dev**：dev 只管本地开发，管不到 home 里装的版本，也就说不出「这个插件运行时要求外壳至少到哪一版」，这正是当初加 `gwb.requires` 要解决的问题
+- **发版检查要求 peer 范围包含源上 latest（与 dev 同一条规则）**：这条检查要回答的只是「上游有没有出破坏性版本」。按全生态的升版本号规则，0.x 只有破坏契约时升 x，≥1 只有破坏时升主版本号，所以只比 x（或主版本号）就是这个问题的答案；「下限不高于 latest」是另一个问题（写了源上没有的版本），插件仓里 `pnpm install` 按 peer 装被依赖的插件时就会失败，发版之前已经暴露。更细的「落后但在范围内」由 `devkit.audit-deps` 报 `behind`，只提醒不拦。「0.x 只比 x」是用户在 2026-09-24 的会话里定的，上面是理由
+- **在每个 home 的 `pnpm-workspace.yaml` 写 `autoInstallPeers: false`**：人在 home 里手工运行 pnpm 时也生效，但要由创建 home 的一方写，已有的 home（包括 `default`）都要补一遍。改成在启动 pnpm 的地方带环境变量，只改 devkit 与插件管理两处代码，已有的 home 不用迁移
+- **命令行参数 `--config.auto-install-peers=false`**：探针里被 pnpm 忽略，照样自动补装（exit 0）；`--config.autoInstallPeers=false` 同样被忽略，`--auto-install-peers=false` 直接报参数不认识（exit 2）
+- **开 pnpm 的严格 peer（`strictPeerDependencies`）**：探针里它报错退出，但 `node_modules` 已经按同样的方式写完，拦不住，只会让插件管理的安装回执变成失败
+
+## 结论与边界
+
+采用 peer：插件运行时要从 home 里得到的东西——`cordis`（按值 import 时）、内核包、用到的别的插件（经 `ctx.inject` 用它的服务，或 import 它的类型）——都写进 `peerDependencies`，范围只许 `^x.y.z`；只是可选使用的插件在 `peerDependenciesMeta` 里标 `optional: true`。`gwb.requires` 整个删掉，插件管理的 `list` 改报 `unmetPeers`（只看插件 peer 里内核包与 `cordis` 以外的包，optional 的没装不算、装了但不在范围里照样算），插件管理因为删了回执字段升到 0.9.0、服务的 `contract` 升到 3。`devkit.release` 对 peer 里的 `@godcreator` 插件（内核包与 `workspace:` 除外）只比它和源上 latest 在不在同一条线（0.x 比 x，≥1 比主版本号），peer 里只许 `cordis`、内核包和插件，内核包照旧比运行中的内核。devkit 与插件管理启动 pnpm 一律带环境变量 `pnpm_config_auto_install_peers=false`。`update-all` 升级了某个包之后，把 home 里 peer 写了它的插件一起重新加载，并一层层往外找 peer 写了这些插件的插件，回执 `dependents` 列出来。
+
+边界：pnpm 的行为只在探针里验过——pnpm 12.4.2、Windows、假包 `probe-a` / `probe-b` / `probe-c` 从本机只读源按版本号装，只有一层 peer（A 的 peer 写 B）。**没验过的**：一层层往外找（C 的 peer 写 A、A 的 peer 写 B，升级 B 时 C 是否也换目录）是按 pnpm 目录名带着 peer 版本推出来的，尚待实测；旧目录默认保留多久只引了 pnpm 文档的 7 天，探针没有等。一层的情形在隔离 home `kernel05-2609242251`（内核 0.5.0）上用真实插件验过：把说明书插件钉到 0.4.4 再装，devkit 与插件管理在 `.pnpm` 里的目录名都变了，`plugin-manager.list` 给两者都报 `unmetPeers: [{ pkg: "@godcreator/gwb-skills", range: "^0.4.5", installed: "0.4.4" }]`；`update-all {"only":["@godcreator/gwb-skills"]}` 升回 0.4.5，回执 `dependents` 里 devkit 已重新加载、插件管理 `deferred` 且 `selfDeferred: true`，之后全部条目在运行、`unmetPeers` 全空、日志这段没有 error。「缺了必需的 peer 不会被装进来」没在 home 里另造场景，只有探针与单元测试。
+
+## 依据
+
+探针的 registry 系列与真 home 一致（从源上按版本号装），结论以它为准：
+
+- **被 peer 的包升级，写 peer 的包换目录**（`probes/2609242300_peer-between-plugins/runs/21-registry-upgrade-b-edit-manifest.txt`）：A 的虚拟存储目录从 `probe-a@1.0.0_probe-b@1.0.0` 变成 `probe-a@1.0.0_probe-b@1.1.0`，没有 peer 的 C 不动；pnpm 的输出里只列了 B。旧目录默认还在；home 设 `modulesCacheMaxAge: 0` 时同一次安装就删掉（`runs/23-registry-upgrade-b-cache-max-age-0.txt`）。所以只重新加载 B 的话，正在运行的 A 还是从旧目录加载的、经它同级的链接拿到的仍是 B 1.0.0，旧目录被清掉之后 A 再加载自己的文件就会失败——这就是 `update-all` 要把写 peer 的插件在同一条命令里一起重新加载的依据
+- **缺 peer 默认自动补装**（`runs/24-registry-missing-peer.txt`）：home 里只有 A 时 `pnpm install` exit 0、没有警告，装上了 B 1.1.0，但 B 不写进 home 的 `package.json`、不出现在 `node_modules/probe-b`，只在 `.pnpm` 里——在 home 里它是一个没有条目、插件管理不认的包。环境变量 `pnpm_config_auto_install_peers=false` 与 home 的 `autoInstallPeers: false` 都能关掉，关掉后只有一行警告，B 没装
+- **范围不满足只警告**（`runs/25-registry-peer-range-unmet.txt`）：home 里是 B 2.0.0、A 要 `^1.0.0`，exit 0、一行警告，A 直接链到 B 2.0.0，不另装一份 1.x。所以插件管理对 peer 只报告、不拦加载
+
+## 代价与遗留
+
+- 几乎每个插件都 peer 命令总线：命令总线一热升级，home 里大部分插件都会跟着重新加载。cordis 在命令总线重新加载时本来就会让 inject 它的插件跟着重新加载，多出来的只是从新目录重新 import
+- 人在 home 里手工运行 pnpm 时要自己设这个环境变量，否则缺的 peer 仍会被自动补装；内核仓 `INSTALL.md` 要补这一步（未实施）
+- 插件管理的 dev 暂时还列着接口类型包 `@godcreator/gwb-plugin-api ^0.4.1`：命令总线 0.5.0 的类型声明还从它取 `GwbResult`，少了它 `commandBus.run` 的回执成了 error 类型、oxlint 不过。命令总线改成从内核包取类型之后删掉
+- 各插件仓要把用到的别的插件从 dev 挪到 peer，和适配内核 0.5 放在同一轮重发（未实施，等往各仓收件页投通知）

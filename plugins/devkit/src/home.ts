@@ -1,4 +1,5 @@
 import path from 'node:path'
+import { pnpmPlan, type RunPlan } from './dev.js'
 import { KERNEL_PACKAGE } from './kernel-compat.js'
 import { isRecord } from './vocab.js'
 import { bareImage, type ProcessProbe } from './probes.js'
@@ -204,7 +205,7 @@ export interface HomeDeps {
   appSpawnPlan(cdp?: number): Promise<{ command: string; args: string[]; cwd: string }>
   /** 前台运行一条命令到结束：成没成，加输出的最后几行 */
   run(
-    plan: { command: string; args: string[]; cwd: string },
+    plan: RunPlan,
     timeoutMs: number,
   ): Promise<{ ok: boolean; tail: string }>
   /** 查 pid 对应的进程：running / gone / unknown 三种（见 probes 的 ProcessProbe） */
@@ -272,11 +273,9 @@ export function baseYaml(): string {
   return BASE_PLUGINS.map((p) => `- id: ${p.id}\n  name: '${p.pkg}'`).join('\n') + '\n'
 }
 
-type RunPlan = { command: string; args: string[]; cwd: string }
-
-/** 在 home 里运行 `pnpm add <args…>` 的命令行：直接启动 pnpm 的原生可执行文件 */
+/** 在 home 里运行 `pnpm add <args…>` 的命令行：直接启动 pnpm 的原生可执行文件，不自动补装缺的 peer */
 function pnpmAddPlan(home: string, addArgs: string[], pnpm: string): RunPlan {
-  return { command: pnpm, args: ['add', ...addArgs], cwd: home }
+  return pnpmPlan(['add', ...addArgs], home, pnpm)
 }
 
 /** 装内核包：精确版本带 `--save-exact`。清单里已有 `^` 声明时 pnpm 12 照样写回 `^`、退出码 0 却装上更新的版本（probes/2609241510_pnpm-add-exact-prefix），所以只用在清单里还没有这一项的新 home 上，装完核对版本 */

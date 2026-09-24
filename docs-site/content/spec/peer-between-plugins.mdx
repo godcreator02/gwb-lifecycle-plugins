@@ -5,19 +5,19 @@ description: 插件用到别的插件（服务、命令、样式令牌）就在 
 
 # 插件之间的运行时要求写 peer
 
-**本页回答**：插件「要求 home 里别的插件至少到哪一版」为什么改写成 peer、pnpm 装 peer 时有哪两个坑、插件管理与发版检查各改什么、哪几件事要人先定。
+**本页回答**：插件「要求 home 里别的插件至少到哪一版」为什么改写成 peer、pnpm 装 peer 时有哪两处要处理、插件管理与发版检查各改什么、哪几件事要人先定。
 
-**状态：人定要改（2026-09-24），待决定五条等人确认；还没动代码。实验材料已提交（`probes/2609242300_peer-between-plugins/`）。**
+**状态：五条待决定都按推荐项确认；devkit 仓的代码、现状页、说明书与轨迹卡已改完（未提交）。还剩隔离 home 实测、发版、内核仓 `INSTALL.md`、通知下游。实验材料已提交（`probes/2609242300_peer-between-plugins/`）。**
 
 ## 验收
 
-- [ ] 插件的 peer 可以写 `cordis`、内核包与别的插件（清单 `keywords` 含 `gwb-plugin` 的包）；库、接口定义包不许进 peer
-- [ ] `gwb.requires` 删掉：插件清单不再写，插件管理不再报，发版检查不再查
-- [ ] 发版检查：peer 里每个 `@godcreator` 插件的范围要包含源上 `latest`（出范围就是上游出了破坏版，先适配）；内核包的范围照旧要包含运行中的内核；peer 里出现插件、`cordis`、内核包以外的包就拒
-- [ ] 插件管理 `list`：每个包报 home 里没满足的 peer（没装、版本不在范围里）；只报告，不拦加载、不拦安装
-- [ ] 插件管理 `update-all`：升级了某个包，home 里 peer 写了它的插件的条目一起重新加载，回执里列出来
-- [ ] home 里不会自动补装缺的 peer：插件管理、`devkit.home.new`、`devkit.dev` 与 `INSTALL.md` 的手工步骤都关掉 pnpm 的自动补装
-- [ ] 模板：用到的插件（命令总线、外壳）从 dev 挪到 peer
+- [x] 插件的 peer 可以写 `cordis`、内核包与别的插件（清单 `keywords` 含 `gwb-plugin` 的包）；库、接口定义包不许进 peer
+- [x] `gwb.requires` 删掉：插件清单不再写，插件管理不再报，发版检查不再查
+- [x] 发版检查：peer 里每个 `@godcreator` 插件的范围要和源上 `latest` 在同一条线（0.x 比 x，≥1 比主版本号；不在同一条线就是上游出了破坏版，先适配）；内核包的范围照旧要包含运行中的内核；peer 里出现插件、`cordis`、内核包以外的包就拒
+- [x] 插件管理 `list`：每个包报 home 里没满足的 peer（没装、版本不在范围里）；只报告，不拦加载、不拦安装
+- [x] 插件管理 `update-all`：升级了某个包，home 里 peer 写了它的插件的条目一起重新加载，回执里列出来
+- [ ] home 里不会自动补装缺的 peer：插件管理、`devkit.home.new`、`devkit.dev` 与 `INSTALL.md` 的手工步骤都关掉 pnpm 的自动补装（插件管理与 devkit 两处已做，差内核仓 `INSTALL.md`）
+- [x] 模板：用到的插件（命令总线、外壳）从 dev 挪到 peer
 - [ ] 隔离 home 实测：升级一个被 peer 的插件后，写 peer 的插件换到新目录并在运行；home 里缺一个 peer 时不会被自动装上，`list` 报出来
 
 ## 由来
@@ -48,11 +48,11 @@ description: 插件用到别的插件（服务、命令、样式令牌）就在 
 - **关掉自动补装**：见待决定第 1 条
 - **迁移**：各插件把用到的别的插件从 dev 挪到 peer、删 `gwb.requires`（现在没有插件写过），和适配内核 0.5 放在同一轮重发；往下游收件页再投一条
 
-## 待决定
+## 待决定（五条都已按推荐项确认）
 
 1. **关掉自动补装放在哪**：推荐**启动 pnpm 时带环境变量** `pnpm_config_auto_install_peers=false`：插件管理与 devkit 在自己启动 pnpm 的地方加上，`INSTALL.md` 的手工步骤先设这个变量。只改两处代码，已有的 home 不用迁移。另一种是每个 home 的 `pnpm-workspace.yaml` 写 `autoInstallPeers: false`：人手工在 home 里运行 pnpm 也生效，但要由创建 home 的一方写，已有的 home（包括 default）都要补
 2. **插件管理升哪一位**：`list` 回执删掉三个字段，按 gwb-release 是破坏性改动，推荐**升 x（0.9.0），服务的 `contract` 加一**，发之前通知界面插件仓（窗格只读 `kernelRange` / `kernelUntested`，实际不受影响）
-3. **dev 里 `@godcreator` 库还查不查源上 `latest`**：推荐**继续查**：库是打包进产物的，不跟上游也能跑，但跟着查能让全生态的库版本不散开；查法不变
+3. **dev 里 `@godcreator` 库还查不查源上 `latest`**：推荐**继续查**：库是打包进产物的，不跟上游也能运行，但跟着查能让全生态的库版本不散开；查法不变
 4. **内核包的 peer 比对谁**：推荐**不变，比运行中的内核**：它说明「在这个内核上验过」，比源上 `latest` 更贴近实际
 5. **哪些插件依赖要写 peer**：推荐**运行时用到的全写**（服务、命令、样式令牌），包括命令总线。代价：几乎每个插件都 peer 命令总线，命令总线一热升级，home 里大部分插件都会被一起重新加载；cordis 在命令总线重新加载时本来就会让 inject 它的插件跟着重新加载，所以实际多出来的只是「从新目录重新 import」
 
@@ -60,9 +60,9 @@ description: 插件用到别的插件（服务、命令、样式令牌）就在 
 
 **第一步：devkit 仓（插件管理与 devkit）**
 
-- [ ] 插件管理：`list` 的 `unmetPeers`、删 `requires` 三个字段；`update-all` 重新加载写 peer 的插件；启动 pnpm 时关掉自动补装（待决定第 1 条）；测试先写
-- [ ] devkit：发版检查改查 peer；删 `gwb.requires` 的检查与两份判法的对照测试；`home.new` / `dev` 启动 pnpm 时关掉自动补装；模板把命令总线、外壳挪到 peer
-- [ ] 现状页：依赖怎么写、要求的插件版本（删页或改写）、兼容哪个内核、插件管理的 list 与热升级、发版检查、说明书 gwb-release / gwb-devkit / gwb-plugin-manager；写轨迹卡，`supersedes::` 指向「要求别的插件的最低版本」那张
+- [x] 插件管理：`list` 的 `unmetPeers`、删 `requires` 三个字段；`update-all` 重新加载写 peer 的插件；启动 pnpm 时关掉自动补装（待决定第 1 条）；测试先写
+- [x] devkit：发版检查改查 peer；删 `gwb.requires` 的检查与两份判法的对照测试；`home.new` / `dev` 启动 pnpm 时关掉自动补装；模板把命令总线、外壳挪到 peer
+- [x] 现状页：依赖怎么写、要求的插件版本（删页或改写）、兼容哪个内核、插件管理的 list 与热升级、发版检查、说明书 gwb-release / gwb-devkit / gwb-plugin-manager；写轨迹卡，`supersedes::` 指向「要求别的插件的最低版本」那张
 - [ ] 隔离 home 实测（验收最后一条）；发版（版本号按待决定第 2 条问人）
 
 **第二步：内核仓**
@@ -83,4 +83,5 @@ description: 插件用到别的插件（服务、命令、样式令牌）就在 
 
 新的在上。
 
+- 2026-09-24｜五条待决定按推荐项确认；插件管理 0.9.0（contract 3）与 devkit 0.18.15 的代码改完，现状页、说明书正本改完，规则页改成「用到的插件写 peer」，写轨迹卡 2026-09-24-plugins-peer-each-other（取代 2026-09-24-requires-field-and-report）；都还没提交、没发版｜总控台派出的文档会话
 - 2026-09-24｜人定 peer 要改；写方案。实验（`probes/2609242300_peer-between-plugins/`，提交 ced56f7）测到升级被 peer 的包会让写 peer 的包换目录、缺 peer 默认自动补装、范围不满足只警告｜总控台会话

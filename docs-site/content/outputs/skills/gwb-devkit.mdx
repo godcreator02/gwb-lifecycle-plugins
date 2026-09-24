@@ -8,13 +8,13 @@ description: 写新插件、改插件、在隔离 home 里验证改动时读；�
 
 ## 新写一个插件
 
-1. 调 `devkit.capabilities`：看这个 home 提供哪些服务（`inject` 段带各自的 usage）、已装的包有哪些 import 入口与类型文件。要用的能力已经有了就接上它
+1. 调 `devkit.capabilities`：看这个 home 提供哪些服务（`inject` 段带各自的 usage）、已装的包有哪些 import 入口与类型文件。要用的能力已经有了就直接用它
 2. 带界面的插件，先读外壳的说明书 `skill.read {"name":"gwb-shell"}`
 3. 建仓：`devkit.scaffold {"name":"<kebab 短名>","dir":"<还不存在的绝对路径>","title":"<显示名>"}`；往已有的 workspace 仓再加一个插件用 `devkit.scaffold.plugin {"repo":"<仓根>","name":"<短名>"}`。照回执里的 `nextSteps` 做完（`docs.built` / `docs.attached` 是文档站实际建成没有）
 4. 把模板改成真插件，每一处都守「写插件的规矩」：
    - `src/index.ts`：模板的 `<短名>.ping` 与窗格 `main` 换成真正的命令与窗格。命令照模板那条的写法登记：`name`、`description`、`usage` 都是非空字符串，`description` 一句话说做什么，参数形状写进 `usage`，无参数写「无参数」；`plugin` 可以不写（命令总线 0.5.0 起从调用方取），写了必须等于自己的完整包名。命令总线 0.5.0 起缺字段或 `plugin` 不对就在登记时抛错，插件加载失败
    - `tests/`：不启动进程、不开窗口就能测的逻辑抽成纯函数来测；真要启动子进程的用例打 `slow` 标签。模板带的 `tests/prefix.test.ts`（类名前缀）与 `tests/artifact.test.ts`（构建产物）不用改
-   - `package.json`：peer 里内核包 `@godcreator/gwb-kernel-desktop` 的范围 `^x.y.z` 要包含验证时用的内核（模板写的是运行建仓命令的那个内核）；`description` 改成一句话说这个插件做什么；提供服务就在 `gwb.provides` 里按服务名写一条 `summary` 与 `usage`（源码提供的每个服务都要有，发版前检查与 `devkit.audit-structure` 都查）；有了 `skills/` 目录就把 `skills` 加进 `files`
+   - `package.json`：peer 里内核包 `@godcreator/gwb-kernel-desktop` 的范围 `^x.y.z` 要包含验证时用的内核（模板写的是运行建仓命令的那个内核）；用到的别的插件（经 `ctx.inject` 用它的服务、import 它的类型）写进 peer，范围 `^x.y.z`，只是可选使用的在 `peerDependenciesMeta` 标 `optional: true`，不再另写 dev（模板已写命令总线与外壳，不用外壳就删掉那一项）；`description` 改成一句话说这个插件做什么；提供服务就在 `gwb.provides` 里按服务名写一条 `summary` 与 `usage`（源码提供的每个服务都要有，发版前检查与 `devkit.audit-structure` 都查）；有了 `skills/` 目录就把 `skills` 加进 `files`
    - 文档站的插件页 `docs-site/content/docs/plugins/<短名>.mdx`：照实际功能改写功能、接口、依赖、不做的事四节
 5. 仓根 `pnpm build`，再 `pnpm check`
 
@@ -53,13 +53,13 @@ description: 写新插件、改插件、在隔离 home 里验证改动时读；�
 
 规矩总表在附件 `references/rules.md`（`skill.read {"name":"gwb-devkit","file":"references/rules.md"}`），一条一行，写着每条由哪道检查把关。表里的链接 `/docs/rules/<页>` 对应 devkit 仓 `docs-site/content/docs/rules/<页>.mdx`（仓的位置用 `unit-folder.list` 查），每条的做法与例子在那一页。
 
-## 参考：约定与坑
+## 参考：约定与容易出错的地方
 
 - **是不是插件看 `keywords`**：插件写 `["gwb", "gwb-plugin"]`（模板已带），库与共享包只写 `["gwb"]`。插件管理的「可装」列表按 `gwb-plugin` 筛
 - **内核的接口类型从内核包的包根 `import type`**：`import type { GwbContext } from '@godcreator/gwb-kernel-desktop'`，peer 里写着内核包，不另写 dev。包根只导出类型，`isRecord`、`requireKernel` 这类无状态小函数由插件自带一份（devkit 的 `src/vocab.ts`）
 - **node 侧的测试只 import `.ts`**：node 侧的 tsc 没开 jsx
 - **`apply` 里的 async 自己 catch 并写日志**：reject 了不报错，现象是「加载了但什么都没发生」
-- **重新加载只重跑 `apply`**：每次重新加载都该清掉的状态放在 `apply` 里，要跨重新加载保留的放在模块顶层
+- **重新加载只重新运行 `apply`**：每次重新加载都该清掉的状态放在 `apply` 里，要跨重新加载保留的放在模块顶层
 - **`gwb.provides` 的键**：服务按服务名，import 入口按 import 时写的说明符（主入口写包名，子路径写 `包名/子路径`）；键两种都不是、源码提供的服务没写、`summary` 或 `usage` 为空，`devkit.release` 都拒
 - **说明书跟它描述的代码同仓同提交**，随那个包发布；每个插件只登记自己的说明书
 - **文档站的 README**：第一次在站目录 `pnpm doc:render` 之前，把手写 README 里要留的内容搬进 `content/outputs/readme.mdx`，render 会整份覆盖 README

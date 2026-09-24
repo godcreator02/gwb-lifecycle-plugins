@@ -14,16 +14,16 @@ description: 写 gwb 插件要守的规矩一条一行：做法在哪一页、�
 - **版本号升哪一位**：照说明书 `gwb-release`（`skill.read {"name":"gwb-release"}`），全生态一套
 - **一件事该进内核还是做成插件**：判据在内核仓文档站的「关键设计」页——只有第一个插件运行之前必须完成的事才进内核，其余一律做成插件
 
-写一个新插件，先读[依赖怎么写](/docs/rules/deps)和[cordis 服务怎么提供和使用](/docs/rules/services)，再读[卸载清理](/docs/rules/dispose)；要和别的插件打交道时读[插件之间怎么交互](/docs/rules/interaction)；带界面的读[页面代码与 importmap](/docs/rules/importmap)；发版之前读[兼容哪个内核](/docs/rules/kernel-compat)。
+写一个新插件，先读[依赖怎么写](/docs/rules/deps)和[cordis 服务怎么提供和使用](/docs/rules/services)，再读[卸载清理](/docs/rules/dispose)；要和别的插件打交道时读[插件之间怎么交互](/docs/rules/interaction)与[用到的插件写 peer](/docs/rules/plugin-peers)；带界面的读[页面代码与 importmap](/docs/rules/importmap)；发版之前读[兼容哪个内核](/docs/rules/kernel-compat)。
 
 ## 有哪些检查
 
-| 检查 | 什么时候跑 | 没过会怎样 |
+| 检查 | 什么时候运行 | 没过会怎样 |
 | --- | --- | --- |
 | `devkit.release` 的发版前检查 | 构建之后、发第一个包之前 | 一个包都不发，回执按包列全 |
 | `devkit.audit-deps` | 手动调，扫一个容器根下的各仓 | 只报告，不拦 |
 | `devkit.audit-structure` | 手动调，查一个仓或全生态 | 只报告，不拦 |
-| 模板带的产物测试 | 构建之后跑 `pnpm check`（没有 `dist/` 时整组跳过） | 测试红 |
+| 模板带的产物测试 | 构建之后运行 `pnpm check`（没有 `dist/` 时整组跳过） | 测试红 |
 
 模板带的产物测试是 `devkit.scaffold` 生成进每个插件的 `tests/artifact.test.ts`。
 
@@ -31,7 +31,7 @@ description: 写 gwb 插件要守的规矩一条一行：做法在哪一页、�
 
 | 规矩 | 做法见 | 由谁检查 | 现状 |
 | --- | --- | --- | --- |
-| peer 只写 home 根上的两个包——构建产物里按值 import 的 `cordis` 与内核包 `@godcreator/gwb-kernel-desktop`，其余写 dev | [依赖](/docs/rules/deps) | `devkit.release` 拒 peer 里 `cordis` 与内核包以外的包、拒 node 侧产物按值 import 了 `cordis` 却没写 peer，写了 peer `cordis` 而产物没 import 只提醒；`devkit.audit-deps` 报 `peer-not-cordis` | — |
+| peer 只写运行时从 home 里得到的三类包——构建产物里按值 import 的 `cordis`、内核包 `@godcreator/gwb-kernel-desktop`、用到的别的插件，其余写 dev | [依赖](/docs/rules/deps) | `devkit.release` 拒 peer 里 `cordis`、内核包、插件以外的包（是不是插件读包目录 `node_modules` 里它的清单，读不到也拒）、拒 node 侧产物按值 import 了 `cordis` 却没写 peer，写了 peer `cordis` 而产物没 import 只提醒；`devkit.audit-deps` 报 `peer-not-cordis` | — |
 | `cordis` 不写进 `dependencies` | [依赖](/docs/rules/deps) | `devkit.audit-structure`（`cordis-in-dependencies`，error） | — |
 | `@godcreator` 包的 dev 写 `^` 范围或精确号，范围包含源上最新的正式版 | [依赖](/docs/rules/deps) | `devkit.release` 拒写法认不出、下限比源上 latest 新、latest 已出范围；`devkit.audit-deps` 报 `dead-pin`、`behind`、`out-of-range`、`loose-dev-pin` | — |
 | 构建产物里的包名 import 只能是 node 内置模块、`electron`、`cordis` 与页面 importmap 里的名字 | [依赖](/docs/rules/deps) | `devkit.release` 两侧都查，浏览器侧只放行内核包清单 `gwb.shared` 的键（从包目录 `node_modules` 里装好的内核包读，读不到也拒）；模板带的产物测试同样查两侧 | — |
@@ -55,12 +55,14 @@ description: 写 gwb 插件要守的规矩一条一行：做法在哪一页、�
 | 插件的数据目录只由它自己读写 | [交互](/docs/rules/interaction) | 没有工具检查 | — |
 | 自己启动或创建的一切，卸载时清理掉，并返回 promise | [卸载清理](/docs/rules/dispose) | 没有工具检查 | — |
 | 插件包在 peer 里写内核包 `@godcreator/gwb-kernel-desktop`，范围 `^x.y.z` 包含运行中的内核 | [兼容哪个内核](/docs/rules/kernel-compat) | `devkit.release` 拒没写、写法不是 `^x.y.z`、范围不包含运行中的内核；`plugin-manager.list` 按包报范围不包含 home 里内核的插件 | — |
-| 用到别的插件某个版本才有的东西时写 `gwb.requires`（包名 → 最低版本号 x.y.z），每个包也写在 dev 里、要求不高于 dev 下限 | [要求的插件版本](/docs/rules/requires) | `devkit.release` 拒不是对象、值不是 x.y.z、包不在 dev 里、要求高于 dev 下限；`plugin-manager.list` 按包报 `unmetRequires` | — |
+| 经 `ctx.inject` 用到、或 import 了类型的别的插件写进 peer，范围 `^x.y.z`，可选使用的在 `peerDependenciesMeta` 标 `optional: true`；不再另写 dev | [用到的插件写 peer](/docs/rules/plugin-peers) | `devkit.release` 拒 peer 里的 `@godcreator` 插件写法不是 `^x.y.z`、和源上 latest 不在同一条线（0.x 比 x，≥1 比主版本号）；`devkit.audit-deps` 对照源上 latest 报 `dead-pin`、`behind`、`out-of-range`、`loose-dev-pin`；`plugin-manager.list` 按包报 `unmetPeers` | 用到了没写进 peer 的插件没有工具检查 |
 | 0.x 里只在破坏契约时升 x，其余升 y；0.0.x 先升到 0.1.0；同一个号不重发 | 说明书 `gwb-release` | `devkit.release` 拒 0.0.x 与源上已有的号；升哪一位没有工具检查 | — |
 
 ## 这个仓自己还没照做的
 
-插件管理（`plugins/plugin-manager/`）与 devkit 插件的清单都按上面的规矩写：peer 里只有内核包；插件管理的服务只表示「插件管理装了」，上面没有方法。还差三处：
+插件管理（`plugins/plugin-manager/`）与 devkit 插件的清单都按上面的规矩写：peer 里是内核包与用到的插件；插件管理的服务只表示「插件管理装了」，上面没有方法。还差四处：
+
+- **插件管理的 dev 暂时列着接口类型包 `@godcreator/gwb-plugin-api`**：命令总线 0.5.0 的类型声明还从它取 `GwbResult`，少了它 `commandBus.run` 的回执成了 error 类型、oxlint 不过。命令总线改成从内核包取类型之后删掉
 
 - **devkit 与插件管理等内核包 0.5.0 发版**：两个包的接口类型改从内核包的包根 `import type`，peer 写 `^0.5.0`。0.5.0 发到源上、仓根 `pnpm install` 装上之前，包根还不导出这些类型，类型检查与发版前检查都过不了
 - **模板注册命令还包着 `ctx.effect`**：命令总线 0.4.6 起随调用方卸载自动注销命令，模板对命令总线的 dev 下限已是 0.5.0，这层包装可以删，还没删

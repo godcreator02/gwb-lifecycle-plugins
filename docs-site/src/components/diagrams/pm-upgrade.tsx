@@ -1,14 +1,14 @@
 'use client'
 
 /**
- * 一键热升级的时间线：横轴是时间，每条横道是一个参与方。每一步在它那条横道上点亮一个方框；
+ * 一键热升级的时间线：横轴是时间，每条横道是一个参与方（B 的 peer 写了被升级的 A，跟着重新加载）。每一步在它那条横道上点亮一个方框；
  * 已经发生的保持显示，还没发生的调淡。竖虚线是回执发出的时刻：插件管理自己排在它之后。
  */
 
 import { Box, BORDER, FG, MUTED, Note, StepCaption } from './parts'
 import { StepControls, useSteps } from './steps'
 
-const LANES = ['调用方', 'plugin-manager', '磁盘 node_modules', '条目 A（被升级的插件）', '插件管理自己的条目', '外壳']
+const LANES = ['调用方', 'plugin-manager', '磁盘 node_modules', '条目 A、B（B 的 peer 写了 A）', '插件管理自己的条目', '外壳']
 
 interface Event {
   lane: number
@@ -18,7 +18,7 @@ interface Event {
 const STEPS: { title: string; detail: string; events: Event[] }[] = [
   {
     title: '调用 update-all，定计划',
-    detail: '先查过期包，再由纯函数算出计划：升哪些包、每个包的每条条目都要重新加载、插件管理自己排最后。',
+    detail: '先查过期包，再由纯函数算出计划：升哪些包、每个包的每条条目都要重新加载、peer 写了被升级包的插件 B 跟着重新加载、插件管理自己排最后。',
     events: [
       { lane: 0, lines: ['update-all'] },
       { lane: 1, lines: ['查过期包', '定计划'] },
@@ -26,16 +26,16 @@ const STEPS: { title: string; detail: string; events: Event[] }[] = [
   },
   {
     title: '一次 pnpm add 精确版本',
-    detail: '一次装完全部过期包，用查到的版本号而不是 @latest。pnpm 装上 A@1.1 的同时删掉 A@1.0 的目录；这一步失败就一条条目都不动。',
+    detail: '一次装完全部过期包，用查到的版本号而不是 @latest。pnpm 装上 A@1.1；B 的目录名带着 A 的版本，也换进新目录。旧目录随时可能被清掉；这一步失败就一条条目都不动。',
     events: [
       { lane: 1, lines: ['一次', 'pnpm add'] },
-      { lane: 2, lines: ['A@1.0 删掉', 'A@1.1 装上'] },
+      { lane: 2, lines: ['A@1.1 装上', 'B 换新目录'] },
     ],
   },
   {
-    title: '条目 A 停用再启用',
-    detail: '在同一条命令里做：停用 → 等旧的卸载完 → 启用 → 等新的加载完。启用时按真实路径重新解析，拿到的就是 A@1.1。',
-    events: [{ lane: 3, lines: ['停用→启用', 'ACTIVE'] }],
+    title: '条目 A、B 停用再启用',
+    detail: '在同一条命令里做：先 A，再跟着重新加载的 B，每条都是停用 → 等旧的卸载完 → 启用 → 等新的加载完。启用时按真实路径重新解析，拿到的就是新目录里的代码。',
+    events: [{ lane: 3, lines: ['A、B', '停用→启用'] }],
   },
   {
     title: '回执发出',
@@ -58,7 +58,7 @@ const LANE_Y = (lane: number) => 34 + lane * 48
 const COL_X = (step: number) => 176 + step * 96
 
 export function PmUpgrade() {
-  const all = [{ title: '全貌', detail: '一条命令里按时间先后做完：定计划 → 一次 pnpm add → 逐条停用再启用 → 回执 → 重新加载插件管理自己 → 整页重新加载。', events: [] as Event[] }, ...STEPS]
+  const all = [{ title: '全貌', detail: '一条命令里按时间先后做完：定计划 → 一次 pnpm add → 逐条停用再启用（升级的包，再是 peer 写了它的包） → 回执 → 重新加载插件管理自己 → 整页重新加载。', events: [] as Event[] }, ...STEPS]
   const state = useSteps(all.length, 3000)
   const current = all[state.step]!
   const replyX = COL_X(3) - 4

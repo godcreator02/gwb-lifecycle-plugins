@@ -37,9 +37,11 @@ description: 连接插件管理与 cordis 的 loader、include：插件管理从
 - 只经自己那条条目的上一层取树，不写死内核那条 include 条目的 id
 - 调用条目树之后不读回 `cordis.yml` 核对，以内存里的条目树为准
 
-loader 与 include 需要保证的：`entry.parent.tree` 这条取法、四个方法的行为、`store` 里每一项的字段名、`FiberState` 的成员顺序。这些是 loader、include、cordis 的内部结构，不是公开接口，**靠约定**加测试：内核仓承诺这几个包的版本一变就升内核版本号的 x；插件管理在 `devDependencies` 里写与内核相同的精确版本，并在 peer 里用内核包的范围记下对应的内核版本（见[兼容哪个内核](/docs/seams/kernel-peer)）。
+loader 与 include 需要保证的：`entry.parent.tree` 这条取法、四个方法的行为、`store` 里每一项的字段名、`FiberState` 的成员顺序。这些是 loader、include、cordis 的内部结构，不是公开接口，**靠约定**加测试：内核仓承诺这几个包的版本一变就升内核版本号的 x；插件管理在 `devDependencies` 里写与内核相同的精确版本，并在 peer 里用内核包的范围记下对应的内核版本（见[peer 里的内核包与插件](/docs/seams/kernel-peer)）。
 
-{/* ref file="../plugins/plugin-manager/package.json" lines="32-43" */}
+{/* ref file="../plugins/plugin-manager/package.json" lines="33-34" */}
+
+{/* ref file="../plugins/plugin-manager/package.json" lines="46-51" */}
 
 ## 不负责的事
 
@@ -49,7 +51,7 @@ loader 与 include 需要保证的：`entry.parent.tree` 这条取法、四个�
 
 ## 测试
 
-`tests/loader.test.ts` 照内核的顺序搭一个真实的 loader 与 include，把取树、增改删、重新加载各跑一遍；`tests/fiber-state.test.ts` 读已安装 cordis 的 `fiber.d.ts`，核对照抄的状态名表：
+`tests/loader.test.ts` 照内核的顺序搭一个真实的 loader 与 include，把取树、增改删、重新加载各运行一遍；`tests/fiber-state.test.ts` 读已安装 cordis 的 `fiber.d.ts`，核对照抄的状态名表：
 
 {/* has file="../plugins/plugin-manager/tests/loader.test.ts" text="从插件自己的上下文取到条目树与自己的 entryId" */}
 

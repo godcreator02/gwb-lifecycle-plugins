@@ -31,7 +31,7 @@ description: 连接 devkit 与插件管理：devkit.dev 经 CDP 在目标页面�
 
 {/* ref file="../plugins/plugin-manager/src/inventory.ts" lines="10-24" */}
 
-**二、`devkit.home.new` 自己写 `cordis.yml`、自己装内核包、cordis 与基础插件。** 新 home 在内核启动之前，由 devkit 写一份七条条目的 `cordis.yml`（文件已存在就不写），再用命令开头找到的 pnpm（两个固定位置之一，见[pnpm 与包源](/docs/seams/pnpm-registry)）依次运行三次 `pnpm add`：内核包（运行中的内核版本，精确版本号）、`cordis`（装上的内核包 peer 里写的精确版本号）、七个基础插件（其中有插件管理）。内核包与 `cordis` 装完读 `node_modules` 里的清单核对版本，对不上不启动：
+**二、`devkit.home.new` 自己写 `cordis.yml`、自己装内核包、cordis 与基础插件。** 新 home 在内核启动之前，由 devkit 写一份七条条目的 `cordis.yml`（文件已存在就不写），再用命令开头找到的 pnpm（两个固定位置之一，见[pnpm 与包源](/docs/seams/pnpm-registry)）依次运行三次 `pnpm add`：内核包（运行中的内核版本，精确版本号）、`cordis`（装上的内核包 peer 里写的精确版本号）、七个基础插件（其中有插件管理）。三次都带环境变量 `pnpm_config_auto_install_peers=false`，基础插件 peer 里写的插件不会被 pnpm 自动补装。内核包与 `cordis` 装完读 `node_modules` 里的清单核对版本，对不上不启动：
 
 {/* ref file="../plugins/devkit/src/home.ts" lines="257-295" */}
 
@@ -66,7 +66,7 @@ devkit 保证：
 
 ## 测试
 
-两边各用假实现测，没有测试把两边接在一起跑。devkit 这边：
+两边各用假实现测，没有测试把两边连在一起运行。devkit 这边：
 
 {/* has file="../plugins/devkit/tests/dev.test.ts" text="装了不重挂比没装还糟：每条条目一条 remount，不拆成停用加启用两条" */}
 

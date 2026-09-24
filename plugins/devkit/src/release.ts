@@ -89,10 +89,6 @@ export interface TicketManifest {
   devs: Record<string, string>
   /** `keywords` 里有 `gwb-plugin` */
   plugin: boolean
-  /** `gwb.requires` 的原值；没写时是 undefined */
-  requires: unknown
-  /** devDependencies 的全部条目，`gwb.requires` 的每个包都要在这里 */
-  allDevs: Record<string, string>
 }
 
 /** 一个包的检查结论。`problems` 非空就拒；`reminders` 只提醒不拒 */
@@ -129,53 +125,25 @@ export function ticketManifestOf(text: string | undefined): TicketManifest | und
     peers: trimmedStringEntriesOf(peerDependencies, () => true),
     devs: trimmedStringEntriesOf(devDependencies, (key) => key.startsWith(SCOPE)),
     plugin: Array.isArray(keywords) && keywords.includes('gwb-plugin'),
-    requires: isRecord(doc) && isRecord(doc['gwb']) ? doc['gwb']['requires'] : undefined,
-    allDevs: trimmedStringEntriesOf(devDependencies, () => true),
   }
 }
 
-const MINIMUM_VERSION = /^(0|[1-9]\d*)\.(0|[1-9]\d*)\.(0|[1-9]\d*)$/
-
-/**
- * 是不是合法的最低版本号：x.y.z，每段是不带前导零的数字，不带预发布段与构建段。
- * 与插件管理的 `src/requires.ts` 各存一份、不跨包 import；`tests/requires-parity.test.ts` 对照两份
- */
-export function isMinimumVersion(value: string): boolean {
-  return MINIMUM_VERSION.test(value)
+/** 包清单是不是一个插件：keywords 含 `gwb-plugin`，或者是 cordis 官方插件（keywords 同时含 `cordis` 与 `plugin`，如 `@cordisjs/plugin-timer`） */
+export function isPluginManifest(manifest: unknown): boolean {
+  if (!isRecord(manifest) || !Array.isArray(manifest['keywords'])) return false
+  const keywords = manifest['keywords']
+  return keywords.includes('gwb-plugin') || (keywords.includes('cordis') && keywords.includes('plugin'))
 }
 
-/**
- * 不是插件包的、没写 `gwb.requires` 的不查。拒四类：不是对象；某个值不是 x.y.z；某个包不在 devDependencies 里；
- * 要求的版本高于 dev 范围的下限。dev 写 `workspace:` 的不比下限：发出去写成 `^工作区里的版本号`
- */
-export function requiresProblems(manifest: TicketManifest): string[] {
-  if (!manifest.plugin || manifest.requires === undefined) return []
-  const requires = manifest.requires
-  if (!isRecord(requires)) {
-    return [`gwb.requires 是 ${JSON.stringify(requires)}:要写成对象 { "<包名>": "<最低版本号 x.y.z>" }`]
-  }
-  return Object.entries(requires).flatMap(([pkg, minimum]) => requireProblem(pkg, minimum, manifest.allDevs[pkg]))
-}
+const VERSION_CORE = /^(\d+)\.(\d+)\.(\d+)/
 
-/** `gwb.requires` 里一条要求的问题；没问题时是空表 */
-function requireProblem(pkg: string, minimum: unknown, devRange: string | undefined): string[] {
-  if (typeof minimum !== 'string' || !isMinimumVersion(minimum)) {
-    return [`gwb.requires 里 ${pkg} 是 ${JSON.stringify(minimum)}:最低版本号要写成 x.y.z(不带 ^、不带预发布段),如 "0.5.0"`]
-  }
-  if (devRange === undefined) {
-    return [`gwb.requires 写了 ${pkg},devDependencies 里却没有:dev 里写上 "^${minimum}",对着它开发和验证`]
-  }
-  if (devRange.startsWith('workspace:')) return []
-  const floor = EXACT.test(devRange) ? devRange : caretFloor(devRange)
-  if (floor === undefined) {
-    return [`gwb.requires 写了 ${pkg},devDependencies 里它是 "${devRange}",认不出下限:dev 要写 ^x.y.z 或精确号`]
-  }
-  if (compareVersions(minimum, floor) > 0) {
-    return [
-      `gwb.requires 要求 ${pkg} ≥ ${minimum},高于 devDependencies "${devRange}" 的下限 ${floor}:本地没对着 ${minimum} 验过。把 dev 升到 "^${minimum}"、跑 check、在隔离 home 验过再发`,
-    ]
-  }
-  return []
+/** 两个版本号在不在同一条线上：主版本号为 0 时只看次版本号（0.x），≥1 时只看主版本号；认不出的算不在 */
+export function sameReleaseLine(a: string, b: string): boolean {
+  const first = VERSION_CORE.exec(a)
+  const second = VERSION_CORE.exec(b)
+  if (first === null || second === null) return false
+  if (first[1] !== second[1]) return false
+  return first[1] !== '0' || first[2] === second[2]
 }
 
 /**
@@ -201,8 +169,32 @@ export function kernelPeerProblems(manifest: TicketManifest, runningKernel: stri
 }
 
 /**
- * `latest` 是各 `@godcreator` 包在源上的 `dist-tags.latest`（问不出的缺席）。拒两类：自己在 0.0.x；
- * dev 写法认不出下限、下限比源上 latest 还新、或 latest 已出 dev 范围。范围内落后（含相等）放行；`workspace:` 的不查
+ * peer 里 `@godcreator` 插件（内核包除外，它比运行中的内核）的范围要和源上 latest 在同一条线上：0.x 只看 x，≥1 只看主版本号。
+ * 不在同一条线就是上游出了破坏版，先适配再抬范围；`workspace:` 的不查。不是插件包的不查：库的 peer 不进 home
+ */
+function peerLineProblems(manifest: TicketManifest, latest: Record<string, string | undefined>): string[] {
+  if (!manifest.plugin) return []
+  const problems: string[] = []
+  for (const [pkg, range] of Object.entries(manifest.peers)) {
+    if (!pkg.startsWith(SCOPE) || pkg === KERNEL_PACKAGE || range.startsWith('workspace:')) continue
+    if (!isCaretRange(range)) {
+      problems.push(`peer ${pkg} 写的是 "${range}":peer 只许写 ^x.y.z`)
+      continue
+    }
+    const latestOnRegistry = latest[pkg]
+    if (latestOnRegistry === undefined) {
+      problems.push(`peer ${pkg} 是 "${range}":问不出源上的 dist-tags.latest(源不通,或它还没发过正式版),查不了`)
+    } else if (!sameReleaseLine(range.slice(1), latestOnRegistry)) {
+      problems.push(`peer ${pkg} 是 "${range}",源上 latest ${latestOnRegistry}(不在同一条线:上游出了破坏版):先适配代码、在隔离 home 验过,再把 peer 抬到 "^${latestOnRegistry}"`)
+    }
+  }
+  return problems
+}
+
+/**
+ * `latest` 是各 `@godcreator` 包在源上的 `dist-tags.latest`（问不出的缺席）。拒三类：自己在 0.0.x；
+ * dev 写法认不出下限、下限比源上 latest 还新、或 latest 已出 dev 范围（范围内落后、含相等放行）；
+ * peer 里的 `@godcreator` 插件和源上 latest 不在同一条线。`workspace:` 的不查
  */
 export function checkTicket(manifest: TicketManifest, latest: Record<string, string | undefined>): Ticket {
   const problems: string[] = []
@@ -229,25 +221,36 @@ export function checkTicket(manifest: TicketManifest, latest: Record<string, str
       problems.push(`dev ${pkg} 是 "${range}",源上 latest ${latestOnRegistry}(出范围:上游出了破坏版):先适配代码,再把 dev 抬到 "^${latestOnRegistry}",跑 check`)
     }
   }
+  problems.push(...peerLineProblems(manifest, latest))
 
   return { pkg: `${manifest.name}@${manifest.version}`, problems, reminders: [] }
 }
 
 /**
- * 不是插件包的不查：库由用它的插件打包进产物，它的 peer 不进 home。`cordis` 与内核包以外的 peer 一律拒（内核包写没写对由
- * `kernelPeerProblems` 查）；产物 import 了 `cordis` 而 peer 里没有，拒；写了 peer `cordis` 而产物没有 import 它，只提醒
+ * 不是插件包的不查：库由用它的插件打包进产物，它的 peer 不进 home。peer 只许三类：`cordis`、内核包（写没写对由
+ * `kernelPeerProblems` 查）、别的插件（`peerManifestOf` 读包目录 node_modules 里它的清单，`isPluginManifest` 判）；
+ * 别的一律拒。产物 import 了 `cordis` 而 peer 里没有，拒；写了 peer `cordis` 而产物没有 import 它，只提醒
  * （多一条 peer 不会让插件装不上）
  */
-export function peerProblems(manifest: TicketManifest, nodeImportsCordis: boolean): Pick<Ticket, 'problems' | 'reminders'> {
+export function peerProblems(
+  manifest: TicketManifest,
+  nodeImportsCordis: boolean,
+  peerManifestOf: (pkg: string) => unknown,
+): Pick<Ticket, 'problems' | 'reminders'> {
   if (!manifest.plugin) return { problems: [], reminders: [] }
-  const problems = Object.keys(manifest.peers)
-    .filter((pkg) => pkg !== 'cordis' && pkg !== KERNEL_PACKAGE)
-    .map(
-      (pkg) =>
-        `peer 写了 ${pkg}:peer 只写 home 根上的两个包——node 侧产物里按值 import 的 cordis,与声明兼容哪些内核的内核包 ${KERNEL_PACKAGE}。按「运行时谁提供」改写——` +
-        `另一个插件、接口定义包、importmap 里的包、运行时自己用的库(打包进产物)、构建时才用的包都写 devDependencies;` +
-        `打包不进产物的自用库(原生可执行文件、运行时按路径读自己文件的包)写 dependencies,并在清单里写明原因`,
-    )
+  const problems: string[] = []
+  for (const pkg of Object.keys(manifest.peers).filter((one) => one !== 'cordis' && one !== KERNEL_PACKAGE)) {
+    const peerManifest = peerManifestOf(pkg)
+    if (peerManifest === undefined) {
+      problems.push(`peer 写了 ${pkg},包目录的 node_modules 里读不到它的清单:先在仓根 pnpm install,不猜它是不是插件`)
+    } else if (!isPluginManifest(peerManifest)) {
+      problems.push(
+        `peer 写了 ${pkg},它不是插件(keywords 里没有 gwb-plugin,也不是 cordis 官方插件):peer 只写运行时从 home 里得到的东西——cordis、内核包 ${KERNEL_PACKAGE}、用到的别的插件。` +
+          `库、接口定义包、importmap 里的包、构建时才用的包写 devDependencies、打包进产物;` +
+          `打包不进产物的自用库(原生可执行文件、运行时按路径读自己文件的包)写 dependencies,并在清单里写明原因`,
+      )
+    }
+  }
   const peersCordis = 'cordis' in manifest.peers
   if (nodeImportsCordis && !peersCordis) {
     problems.push('node 侧产物按值 import 了 cordis,peer 里却没有:写 peer cordis(dev 里也留一份给本地构建和类型检查)')
@@ -371,11 +374,14 @@ function readTicketManifests(planned: PlannedPackage[], deps: ReleaseDeps): Refu
   return checked
 }
 
-/** 各包 `@godcreator` dev 依赖（`workspace:` 的除外）在源上的 latest */
+/** 各包 `@godcreator` dev 依赖与 peer 里 `@godcreator` 插件（内核包、`workspace:` 的除外）在源上的 latest */
 async function latestOfUpstreams(checked: CheckedPackage[], deps: ReleaseDeps): Promise<Record<string, string | undefined>> {
   const upstreams = new Set<string>()
   for (const { ticket } of checked) {
     for (const [pkg, range] of Object.entries(ticket.devs)) if (!range.startsWith('workspace:')) upstreams.add(pkg)
+    for (const [pkg, range] of Object.entries(ticket.peers)) {
+      if (pkg.startsWith(SCOPE) && pkg !== KERNEL_PACKAGE && !range.startsWith('workspace:')) upstreams.add(pkg)
+    }
   }
   const latest: Record<string, string | undefined> = {}
   for (const pkg of upstreams) latest[pkg] = await deps.latest(pkg, DEFAULT_REGISTRY)
@@ -398,12 +404,20 @@ async function ticketFor(checkedPackage: CheckedPackage, latest: Record<string, 
   const parsed: unknown = JSON.parse(text)
   const doc = isRecord(parsed) ? parsed : {}
   const artifacts = artifactFindings(pkgDir, doc, ticket.plugin, deps)
-  const peers = peerProblems(ticket, artifacts.nodeImportsCordis)
+  const peerManifestOf = (pkg: string): unknown => {
+    const text = deps.readText(path.join(pkgDir, 'node_modules', ...pkg.split('/'), 'package.json'))
+    if (text === undefined) return undefined
+    try {
+      return JSON.parse(text) as unknown
+    } catch {
+      return undefined
+    }
+  }
+  const peers = peerProblems(ticket, artifacts.nodeImportsCordis, peerManifestOf)
   const problems = [
     ...checkTicket(ticket, latest).problems,
     ...peers.problems,
     ...kernelPeerProblems(ticket, runningKernel),
-    ...requiresProblems(ticket),
     ...providesDeclarationProblems(doc, deps.sourceTextOf(pkgDir)),
     ...artifacts.problems,
     ...(await typecheckProblems(pkgDir, deps)),

@@ -11,11 +11,11 @@ description: 插件在 peerDependencies 里给内核包 @godcreator/gwb-kernel-d
 
 **是什么**：插件包在 `package.json` 的 `peerDependencies` 里写 `"@godcreator/gwb-kernel-desktop": "^x.y.z"`，x.y.z 是它验过的那个内核的版本号。内核包和 `cordis` 装在 home 根上，pnpm 安装插件时顺带核对这个范围。插件管理自己也写了：
 
-{/* ref file="../plugins/plugin-manager/package.json" lines="32-33" */}
+{/* ref file="../plugins/plugin-manager/package.json" lines="33-34" */}
 
 **为什么**：插件依赖内核提供的 cordis、loader 与 home 布局，这些随内核版本变化。内核是 home 里的一个 npm 包，用 npm 标准的 peer 写法声明兼容范围，pnpm 与插件管理读的是同一个字段。出了问题时，先看这个范围就知道该不该怀疑内核换了版本。
 
-插件管理自己的测试也按这个范围对齐：`loader.test.ts` 用的 loader、include、cordis 是 `devDependencies` 里写死的精确版本，要和范围下限那个内核用的一致；内核换了其中任何一个，就把这几个版本改成内核的、跑一遍测试，再改 peer 里的范围。
+插件管理自己的测试也按这个范围对齐：`loader.test.ts` 用的 loader、include、cordis 是 `devDependencies` 里写死的精确版本，要和范围下限那个内核用的一致；内核换了其中任何一个，就把这几个版本改成内核的、运行一遍测试，再改 peer 里的范围。
 
 ## 比对规则：^x.y.z 包不包含运行中的内核
 
@@ -27,7 +27,7 @@ description: 插件在 peerDependencies 里给内核包 @godcreator/gwb-kernel-d
 
 运行中的内核版本号来自内核服务 `gwbKernel` 的 `version`；它不是合法版本号，说明内核坏了，直接报错。
 
-**守住它的测试**：规则在 devkit 的对照测试里逐条写着，同一组输入跑 devkit 与插件管理两份：
+**守住它的测试**：规则在 devkit 的对照测试里逐条写着，同一组输入运行 devkit 与插件管理两份：
 
 {/* has file="../plugins/devkit/tests/kernel-compat-parity.test.ts" text="0.x：次版本号相同且不低于下限；开发版按 x.y.z 三段比" */}
 
@@ -45,7 +45,7 @@ description: 插件在 peerDependencies 里给内核包 @godcreator/gwb-kernel-d
 - `kernelUntested`：范围不包含运行中的内核就是 `true`，包括没写、写的不是 `^x.y.z`
 
 **只标插件**：`keywords` 里有 `gwb-plugin`、又不是内核包与 `cordis` 自己的包才比。库、第三方 cordis 插件（如 `@cordisjs/plugin-timer`）、
-内核包与 `cordis`、清单读不到的包都不该声明兼容哪个内核，一律 `kernelUntested: false`、不带 `kernelRange`——不然窗格里这些包都挂着「内核未测过」，
+内核包与 `cordis`、清单读不到的包都不该声明兼容哪个内核，一律 `kernelUntested: false`、不带 `kernelRange`——不然窗格里这些包都显示「内核未测过」，
 真正没迁的插件反而看不出来。是不是插件的判法与 `update-kernel` 回执里的 `pluginsOutsideRange` 相同：
 
 {/* ref file="../plugins/plugin-manager/src/kernel-upgrade.ts" lines="62-69" */}
@@ -79,7 +79,7 @@ description: 插件在 peerDependencies 里给内核包 @godcreator/gwb-kernel-d
 - **`plugin-manager.update-kernel`**：装完新内核，列出 home 里 `keywords` 含 `gwb-plugin`、范围不包含新内核（或没写范围）的插件，放在回执的 `pluginsOutsideRange` 里，同样只报告，见[升内核](/docs/plugin-manager/upgrade#升内核)
 - **`devkit.release`**：构建之后、发第一个包之前，检查每个插件包（`keywords` 含 `gwb-plugin` 的）peer 里内核包的范围：必须写了、是 `^x.y.z`、并且包含运行中的内核。有一个不对就一个都不发，回执里说该改成什么。不是插件的包（库、工具包）不查
 
-**两份规则**：比对规则在 devkit 与插件管理里各有一份（两边的 `src/kernel-compat.ts`），不跨包 import——devkit 不依赖插件管理的包。两个包在同一个仓里，改规则时一个提交改两份；devkit 的对照测试拿同一组输入跑两份，结果不同就失败。
+**两份规则**：比对规则在 devkit 与插件管理里各有一份（两边的 `src/kernel-compat.ts`），不跨包 import——devkit 不依赖插件管理的包。两个包在同一个仓里，改规则时一个提交改两份；devkit 的对照测试拿同一组输入运行两份，结果不同就失败。
 
 {/* ref file="../plugins/plugin-manager/src/kernel-compat.ts" lines="1-3" */}
 

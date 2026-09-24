@@ -256,11 +256,19 @@ export interface RunPlan {
   command: string
   args: string[]
   cwd: string
+  /** 叠在宿主进程环境上的变量；没有就原样用宿主的环境 */
+  env?: Record<string, string>
 }
+
+/**
+ * pnpm 不自动补装缺的 peer：插件的 peer 写别的插件，home 里没装那个插件时补装进来，就成了一个没有条目、插件管理也不知道的包。
+ * 命令行参数 `--config.auto-install-peers=false` 关不掉，环境变量关得掉（probes/2609242300_peer-between-plugins）
+ */
+export const PNPM_ENV: Readonly<Record<string, string>> = { pnpm_config_auto_install_peers: 'false' }
 
 /** 直接启动 pnpm 的原生可执行文件（`locatePnpm` 找到并核对过版本的那个），不经 shell */
 export function pnpmPlan(args: string[], cwd: string, pnpm: string): RunPlan {
-  return { command: pnpm, args, cwd }
+  return { command: pnpm, args, cwd, env: { ...PNPM_ENV } }
 }
 
 export interface DevDeps {

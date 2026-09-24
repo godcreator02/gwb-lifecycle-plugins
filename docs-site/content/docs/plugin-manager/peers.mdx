@@ -1,0 +1,59 @@
+---
+title: peer 满没满足
+description: 插件在 peerDependencies 里写它用到的别的插件的 ^x.y.z；list 按包报 unmetPeers，只看插件 peer 里内核包与 cordis 以外的包，optional 的没装不算，只报告不拦加载；pnpm 在 home 里不自动补装缺的 peer
+---
+
+# peer 满没满足
+
+**本页回答**：`list` 回执里的 `unmetPeers` 怎么算出来；「装着的版本」从哪读；为什么只报告、不拦加载；缺的 peer 为什么不会被自动装上。什么时候该写 peer、怎么写见规矩页[用到的插件写 peer](/docs/rules/plugin-peers)。
+
+## list 回执里的 unmetPeers
+
+**是什么**：插件包在 `peerDependencies` 里写它用到的别的插件，范围 `^x.y.z`，意思是运行时 home 里那个插件装的版本在这个范围里；只是可选使用的在 `peerDependenciesMeta` 标 `optional: true`。`list` 给每个包读它装在 home 里的 `package.json`，回执里每个包都带 `unmetPeers`，每条是 `{ pkg, range, installed? }`：
+
+- 只看插件（`keywords` 含 `gwb-plugin`）peer 里内核包与 `cordis` 以外的包；内核包由 `kernelRange` / `kernelUntested` 报（见[内核兼容性](/docs/plugin-manager/kernel-compat)），`cordis` 由 `update-kernel` 对齐
+- 没装：列进来，没有 `installed` 字段；optional 的没装不算
+- 装着但版本不在范围里：列进来，带 `installed`；optional 的也一样
+- 范围不是 `^x.y.z`：`range` 原样照抄，算没满足
+- 不是插件的包、清单读不到的包、全都满足时是空数组
+
+<Diagram name="pm-peers" title="一个例子：gwb-foo 的 peer 写了外壳 ^0.13.7、数据插件 ^0.1.7（可选）、设置插件 ^0.3.3">
+- 插件 gwb-foo 的 `package.json`：peer 写外壳 `^0.13.7`、数据插件 `^0.1.7`、设置插件 `^0.3.3`，数据插件在 `peerDependenciesMeta` 里标 `optional: true`
+- `list` 读 home 的 `node_modules`：外壳装的是 0.12.4，不在范围里；数据插件没装；设置插件没装
+- `list` 回执里 gwb-foo 这一行的 `unmetPeers` 两条：外壳那条带 `installed: "0.12.4"`，设置插件那条没有 `installed`；数据插件是可选的，没装不算
+- 只报告：gwb-foo 照常加载，插件管理不替它升级外壳、不替它装设置插件
+</Diagram>
+
+{/* ref file="../plugins/plugin-manager/src/peers.ts" lines="18-34" */}
+
+{/* ref file="../plugins/plugin-manager/src/peers.ts" lines="77-89" */}
+
+**怎么比**：与内核包范围同一条规则——主版本号为 0 时次版本号相同，≥1 时主版本号相同，并且不低于 x.y.z；只比 x.y.z 三段，预发布段不看，装的是同一条线上的开发版也算在范围里。
+
+{/* ref file="../plugins/plugin-manager/src/peers.ts" lines="36-52" */}
+
+**「装着的版本」从哪读**：home 的 `node_modules/<包名>/package.json` 在，就算装了，版本取它的 `version`。`list` 本来就读 home 的 dependencies 与条目里每个包的清单；插件 peer 里点名了别的包时再补读一次。不合包名规则的键不拿去拼路径，按没装报。
+
+{/* ref file="../plugins/plugin-manager/src/index.ts" lines="458-492" */}
+
+**守住它的测试**：
+
+{/* has file="../plugins/plugin-manager/tests/peers.test.ts" text="没装的没有 installed 字段；装着但不在范围里的带上 installed" */}
+
+{/* has file="../plugins/plugin-manager/tests/peers.test.ts" text="可选的 peer：没装不算，装着但不在范围里照样算" */}
+
+{/* has file="../plugins/plugin-manager/tests/peers.test.ts" text="内核包与 cordis 不在这里报（内核包看 kernelRange / kernelUntested）" */}
+
+{/* has file="../plugins/plugin-manager/tests/commands.test.ts" text="peer 写的包装着且在范围里：unmetPeers 是空数组；不合包名规则的 peer 不拿去拼路径、按没装报" */}
+
+## 只报告，不拦加载
+
+**是什么**：`unmetPeers` 不空的插件照常加载、照常能装能升，插件管理不拦它，也不替它装或升级它 peer 里的插件。
+
+**为什么**：和 `kernelUntested` 同理（见[内核兼容性](/docs/plugin-manager/kernel-compat#只报告不拦加载)）：版本不够新多半只是某处样式或某个新功能不对，整个插件拦下来反而没法用；必需的服务真没装，cordis 本来就让插件停在等待状态。pnpm 自己对不满足的 peer 也只是警告，照样把写 peer 的插件链到 home 里装着的那一版。看到报告，升级或安装那个插件就解决了；要保证发出去的 peer 写得对，在发版时检查（`devkit.release`，见规矩页）。
+
+## 缺的 peer 不会被自动装上
+
+**是什么**：插件管理启动 pnpm 时带环境变量 `pnpm_config_auto_install_peers=false`，`install` 与 `update-all` 都不会把插件 peer 里 home 没装的插件顺带装进来（见 [pnpm](/docs/plugin-manager/pnpm#参数环境与读回什么)）。
+
+**为什么**：pnpm 默认会把缺的 peer 装进 `node_modules/.pnpm`，但不写进 home 的 `package.json`、不加条目，插件管理也不认它，成了一个谁也管不到的包。装哪个插件由人决定，缺的由 `unmetPeers` 报出来。

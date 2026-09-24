@@ -243,7 +243,11 @@ describe('日志', () => {
 
 describe('pnpm 的命令行', () => {
   it('直接启动找到的那个 pnpm 可执行文件，不经 shell', () => {
-    expect(pnpmPlan(['add', 'x'], 'D:/h', PNPM)).toEqual({ command: PNPM, args: ['add', 'x'], cwd: 'D:/h' })
+    expect(pnpmPlan(['add', 'x'], 'D:/h', PNPM)).toMatchObject({ command: PNPM, args: ['add', 'x'], cwd: 'D:/h' })
+  })
+
+  it('pnpm 不自动补装缺的 peer：带上关掉它的环境变量', () => {
+    expect(pnpmPlan(['install'], 'D:/h', PNPM).env).toEqual({ pnpm_config_auto_install_peers: 'false' })
   })
 })
 

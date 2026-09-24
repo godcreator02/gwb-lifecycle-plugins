@@ -128,7 +128,7 @@ const RELEASE_USAGE = [
   '**号在仓里抬**：发的是 package.json 里声明的那个号，同号在源上就拒——要发新的一版，先抬号、提交，再来',
   '**仓根 git 树不干净就拒**：正式版只从提交过的状态发',
   '**发版前检查没过就拒**（构建之后，所有包一次列全）：自己不在 0.0.x；@godcreator 的 dev 范围包含源上 dist-tags.latest；产物里没有空 import（import { type X } 留下的）；包目录里 pnpm exec tsc --noEmit -p <tsconfig> --skipLibCheck false 通过（node 侧有 tsconfig.build.json 就查它、没有查 tsconfig.json、两份都没有就拒，有 src/client/tsconfig.json 再查一次；测试与构建脚本不查）；keywords 含 gwb 或 gwb-plugin 的包，gwb.provides 与源码对应（源码提供的每个服务都有一条；每个键是源码提供的服务名或本包 exports 里的 import 说明符；每条的 summary、usage 是非空字符串）',
-  '**插件包另加**（keywords 含 gwb-plugin）：peer 里只有 cordis 与内核包 @godcreator/gwb-kernel-desktop，node 侧产物按值 import 了 cordis 就必须写 peer cordis；node 侧产物（exports["."] 入口顺着相对 import 走到的文件）的包名 import 只有 node 内置模块、electron、cordis；浏览器侧产物（dist/client.js）只 import 页面 importmap 里的名字——内核包清单 gwb.shared 的键（react 的四个），从包目录 node_modules 里装好的内核包读；内核包以外的包写了 gwb.shared 就拒；peer 里写了内核包、写法是 ^x.y.z、范围包含运行中的内核（主版本号为 0 时次版本号相同，≥1 时主版本号相同，并且不低于下限）；写了 gwb.requires 的，它是 { 包名: 最低版本号 } 的对象、每个值是 x.y.z、每个包也写在 devDependencies 里、要求的版本不高于 dev 范围的下限（dev 写 workspace: 的不比下限）',
+  '**插件包另加**（keywords 含 gwb-plugin）：peer 里只许 cordis、内核包 @godcreator/gwb-kernel-desktop 与别的插件（包目录 node_modules 里它的清单 keywords 含 gwb-plugin，或是 cordis 官方插件），peer 里每个 @godcreator 插件和源上 dist-tags.latest 在同一条线（0.x 只看 x，≥1 只看主版本号），node 侧产物按值 import 了 cordis 就必须写 peer cordis；node 侧产物（exports["."] 入口顺着相对 import 走到的文件）的包名 import 只有 node 内置模块、electron、cordis；浏览器侧产物（dist/client.js）只 import 页面 importmap 里的名字——内核包清单 gwb.shared 的键（react 的四个），从包目录 node_modules 里装好的内核包读；内核包以外的包写了 gwb.shared 就拒；peer 里写了内核包、写法是 ^x.y.z、范围包含运行中的内核（主版本号为 0 时次版本号相同，≥1 时主版本号相同，并且不低于下限）',
   '**这条链只碰源、不碰任何 home**，从哪个 home 调都行；升 default 是下一步的事，走 plugin-manager.update-all',
   '例：{"dir":"D:\\\\unitfolders\\\\evew5-gwbapps\\\\gwb-block-note","packages":["packages/model","packages/engine","packages/client","plugins/gwb-bn-core","plugins/gwb-bn-comment"]}',
 ].join('\n')
@@ -507,7 +507,7 @@ function registerReleaseCommand({ ctx, log, commands }: Wiring): void {
         plugin: '@godcreator/gwb-devkit',
         description: '发正式版到团队源（git 工作区干净→构建→验产物→发版前检查→在临时目录里组装并发布）',
         usage:
-          '{dir 必给（仓根绝对路径）, packages?（包目录，相对仓根，按依赖顺序；不给就是仓根自己）}。一条走完：仓根 git 工作区干净（有未提交改动就拒，一个都不发）→ 仓根 pnpm build → 照 files 白名单验产物 → 同号已在源上就拒 → 发版前检查（每个要发的包：自己不在 0.0.x；@godcreator 的 dev 范围包含源上 dist-tags.latest，workspace: 跳过，范围内落后放行；产物里没有空 import、相对 import 指向的文件都在；包目录里 pnpm exec tsc --noEmit -p <tsconfig> --skipLibCheck false 通过——node 侧有 tsconfig.build.json 就查它、没有查 tsconfig.json、两份都没有就拒，有 src/client/tsconfig.json 再查一次，测试与构建脚本不查；keywords 含 gwb 或 gwb-plugin 的包，gwb.provides 与源码对应——源码（src/ 下 super(ctx, 名)、ctx.provide(名)、new X(ctx, 名) 三种写法）提供的每个服务都有一条，每个键是源码提供的服务名或本包 exports 里的 import 说明符（主入口写包名，子路径写 包名/子路径），每条的 summary、usage 是非空字符串。keywords 含 gwb-plugin 的插件包另加：peer 里只有 cordis 与内核包 @godcreator/gwb-kernel-desktop，node 侧产物按值 import 了 cordis 就必须写 peer cordis；node 侧产物——exports["."] 的运行时入口（没有 exports 时是 main）顺着相对 import 走到的文件——的包名 import 只有 node 内置模块、electron、cordis；浏览器侧产物——dist/client.js，同样顺着相对 import 走——只 import 页面 importmap 里的名字，也就是内核包清单 gwb.shared 的键，从包目录 node_modules 里装好的内核包现读；内核包以外的包写了 gwb.shared 就拒；peer 里写了内核包、写法是 ^x.y.z、范围包含运行中的内核 gwbKernel.version——主版本号为 0 时次版本号相同，≥1 时主版本号相同，并且不低于下限，预发布段不看。没过就一个都不发，回执按包一次列全；写了 peer cordis 而 node 侧产物没 import 它只提醒，带在回执 reminders 里）→ 在临时目录里组装发布内容并发布（不改仓里任何文件；tag latest；workspace: 依赖写成 ^<工作区里那个号>，这一次同发的写成 ^新号）→ 按给定顺序发完。**号在仓里升**（改 package.json 提交），同号永不重发。只碰源不碰任何 home；升 default 走 plugin-manager.update-all',
+          '{dir 必给（仓根绝对路径）, packages?（包目录，相对仓根，按依赖顺序；不给就是仓根自己）}。一条走完：仓根 git 工作区干净（有未提交改动就拒，一个都不发）→ 仓根 pnpm build → 照 files 白名单验产物 → 同号已在源上就拒 → 发版前检查（每个要发的包：自己不在 0.0.x；@godcreator 的 dev 范围包含源上 dist-tags.latest，workspace: 跳过，范围内落后放行；产物里没有空 import、相对 import 指向的文件都在；包目录里 pnpm exec tsc --noEmit -p <tsconfig> --skipLibCheck false 通过——node 侧有 tsconfig.build.json 就查它、没有查 tsconfig.json、两份都没有就拒，有 src/client/tsconfig.json 再查一次，测试与构建脚本不查；keywords 含 gwb 或 gwb-plugin 的包，gwb.provides 与源码对应——源码（src/ 下 super(ctx, 名)、ctx.provide(名)、new X(ctx, 名) 三种写法）提供的每个服务都有一条，每个键是源码提供的服务名或本包 exports 里的 import 说明符（主入口写包名，子路径写 包名/子路径），每条的 summary、usage 是非空字符串。keywords 含 gwb-plugin 的插件包另加：peer 里只许 cordis、内核包 @godcreator/gwb-kernel-desktop 与别的插件（包目录 node_modules 里它的清单 keywords 含 gwb-plugin，或是 cordis 官方插件），peer 里每个 @godcreator 插件和源上 dist-tags.latest 在同一条线（0.x 只看 x，≥1 只看主版本号）；node 侧产物按值 import 了 cordis 就必须写 peer cordis；node 侧产物——exports["."] 的运行时入口（没有 exports 时是 main）顺着相对 import 走到的文件——的包名 import 只有 node 内置模块、electron、cordis；浏览器侧产物——dist/client.js，同样顺着相对 import 走——只 import 页面 importmap 里的名字，也就是内核包清单 gwb.shared 的键，从包目录 node_modules 里装好的内核包现读；内核包以外的包写了 gwb.shared 就拒；peer 里写了内核包、写法是 ^x.y.z、范围包含运行中的内核 gwbKernel.version——主版本号为 0 时次版本号相同，≥1 时主版本号相同，并且不低于下限，预发布段不看。没过就一个都不发，回执按包一次列全；写了 peer cordis 而 node 侧产物没 import 它只提醒，带在回执 reminders 里）→ 在临时目录里组装发布内容并发布（不改仓里任何文件；tag latest；workspace: 依赖写成 ^<工作区里那个号>，这一次同发的写成 ^新号）→ 按给定顺序发完。**号在仓里升**（改 package.json 提交），同号永不重发。只碰源不碰任何 home；升 default 走 plugin-manager.update-all',
       },
       async (args) => {
         if (!isRecord(args)) return { ok: false, error: `参数要是个对象。\n${RELEASE_USAGE}` }
@@ -550,9 +550,9 @@ function registerAuditDepsCommand(wiring: Wiring): void {
       {
         name: 'devkit.audit-deps',
         plugin: '@godcreator/gwb-devkit',
-        description: '全生态依赖对账：各插件仓 @godcreator 的 dev 依赖对照团队源上的最新正式版，插件包的 peer 只许 cordis 与内核包；只报告',
+        description: '全生态依赖对账：各插件仓 @godcreator 的 dev 依赖与插件包 peer 里的插件对照团队源上的最新正式版，插件包的 peer 只许 cordis、内核包与插件；只报告',
         usage:
-          '{root?（容器根绝对路径，缺省现问命令总线 unit-folder.list 回的 container）, registry?（缺省个人源）}。无参数直接调也行。回执 { ok, data: { root, registry, repos, manifests, packages, retired, testUnits, findings, byKind } }——findings 逐条 { kind, repo, manifest, pkg, detail }；kind：dead-pin（钉了源上没有的版本，装必炸）/ behind（dev 钉落后源上 dist-tags.latest 但还在 ^<dev 钉> 范围内，提示，等各自下次发版；dev 号不算最新）/ out-of-range（最新已出 ^ 范围，上游出了破坏版，必须跟进）/ loose-dev-pin（dev 写法既不是精确号也不是 ^ 范围）/ peer-not-cordis（keywords 含 gwb-plugin 的插件包 peer 里写了 cordis 与内核包 @godcreator/gwb-kernel-desktop 以外的包，下次发版时 devkit.release 会拒；peer 里内核包写没写对由发版前检查查，这里不查）。退役单元（unit.json 的 status 是 retired）与**测试件**（kind 是「测试件」的单元，测试用途的示范件）整个不扫，名字分别列在 retired 与 testUnits；private: true 的清单不发布，只查 dev、不查 peer。只报告不拦。只读不改：扫仓、读 package.json、问源',
+          '{root?（容器根绝对路径，缺省现问命令总线 unit-folder.list 回的 container）, registry?（缺省个人源）}。无参数直接调也行。回执 { ok, data: { root, registry, repos, manifests, packages, retired, testUnits, findings, byKind } }——findings 逐条 { kind, repo, manifest, pkg, detail }；kind：dead-pin（写了源上没有的版本，安装会失败）/ behind（dev 或插件 peer 的下限落后源上 dist-tags.latest 但还在 ^<下限> 范围内，只提示，等各自下次发版；开发版号不算最新）/ out-of-range（最新已出 ^ 范围，上游发了破坏性版本，必须跟）/ loose-dev-pin（dev 写法既不是精确号也不是 ^ 范围，或插件 peer 不是 ^x.y.z）/ peer-not-cordis（keywords 含 gwb-plugin 的插件包 peer 里写了 cordis、内核包 @godcreator/gwb-kernel-desktop、插件以外的包——是不是插件看包目录 node_modules 里装着的清单，没装的也记这一条；下次发版时 devkit.release 会拒；peer 里内核包写没写对由发版前检查查，这里不查）。退役单元（unit.json 的 status 是 retired）与**测试件**（kind 是「测试件」的单元，测试用途的示范件）整个不扫，名字分别列在 retired 与 testUnits；private: true 的清单不发布，只查 dev、不查 peer。只报告不拦。只读不改：扫仓、读 package.json、问源',
       },
       async (args) => {
         const askedRoot = isRecord(args) && typeof args.root === 'string' ? args.root.trim() : ''
@@ -570,13 +570,13 @@ function registerAuditDepsCommand(wiring: Wiring): void {
           for (const one of collectManifests(dir)) manifests.push({ repo: repoRel(dir), manifest: one.rel, deps: one.deps })
         }
         if (manifests.length === 0) return { ok: false, error: `${root} 下面一份带 @godcreator 依赖的 package.json 都没扫到——root 是不是给错了` }
-        const pkgs = [...new Set(manifests.flatMap((m) => Object.keys(m.deps.devs)))]
+        const pkgs = [...new Set(manifests.flatMap((m) => [...Object.keys(m.deps.devs), ...m.deps.peerPlugins.filter((pkg) => pkg.startsWith('@godcreator/'))]))]
         const registry = await fetchRegistry(pkgs, registryBase)
         const findings = manifests.flatMap((m) => auditManifest(m.repo, m.manifest, m.deps, registry))
         const byKind = countByKind(findings)
         log.info(
           `devkit.audit-deps：${String(repoDirs.length)} 仓 ${String(manifests.length)} 份 manifest 对 ${String(pkgs.length)} 个包（退役单元 ${String(retired.length)} 个、测试件 ${String(testUnits.length)} 个不扫）——` +
-            `源上没有的版本 ${String(byKind['dead-pin'])}、出范围 ${String(byKind['out-of-range'])}、范围内落后 ${String(byKind.behind)}、peer 写了 cordis 与内核包以外的包 ${String(byKind['peer-not-cordis'])}`,
+            `源上没有的版本 ${String(byKind['dead-pin'])}、出范围 ${String(byKind['out-of-range'])}、范围内落后 ${String(byKind.behind)}、peer 写了 cordis、内核包、插件以外的包 ${String(byKind['peer-not-cordis'])}`,
         )
         return { ok: true, data: { root, registry: registryBase, repos: repoDirs.length, manifests: manifests.length, packages: pkgs.length, retired, testUnits, findings, byKind } }
       },

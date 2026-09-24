@@ -35,13 +35,13 @@ devkit 对命令总线用了三个方法：`register(定义, 处理函数)` 登�
 
 devkit 源码里没有注入 `gwbSettings`，它没有设置项。
 
-**插件管理的四个依赖全部局部注入**：`gwbData`、`gwbSettings`、`gwbCommands`、`gwbSkills`。它自己提供服务 `gwbPluginManager`，值只有 `{ contract: 2 }`，没有方法：
+**插件管理的四个依赖全部局部注入**：`gwbData`、`gwbSettings`、`gwbCommands`、`gwbSkills`。它自己提供服务 `gwbPluginManager`，值只有 `{ contract: 3 }`，没有方法：
 
 {/* ref file="../plugins/plugin-manager/src/index.ts" lines="183-188" */}
 
 {/* ref file="../plugins/plugin-manager/src/index.ts" lines="272-284" */}
 
-这些服务的类型来自各服务包自带的 `declare module 'cordis'`：两个插件都只做 `import type`，服务包写在 `devDependencies` 里，运行时不 import：
+这些服务的类型来自各服务包自带的 `declare module 'cordis'`：两个插件都只做 `import type`，服务包写在 peer 里（必需的命令总线直接写，局部注入可选使用的标 `optional`，见[用到的插件写 peer](/docs/rules/plugin-peers)），运行时不 import：
 
 {/* ref file="../plugins/devkit/src/index.ts" lines="5-9" */}
 
@@ -66,11 +66,11 @@ devkit 的就绪日志从 `list()` 里筛出 `plugin` 等于包名 `@godcreator/
 ## 不负责的事
 
 - 服务的方法签名、命令总线的回执信封由各服务所在的插件决定，devkit 与插件管理只按类型使用
-- devkit 不检查这些服务的版本；类型对不上只在 devkit 自己的类型检查里暴露
+- 两个插件在运行时不检查这些服务的版本：peer 里写的范围由 `devkit.release` 发版前对照源上的 latest、由 `plugin-manager.list` 在 home 里比对并报 `unmetPeers`；类型对不上只在各自的类型检查里暴露
 - 插件管理不注入 `gwbShell`：整页重载经命令 `shell.reload`，见[借用别的插件的命令](/docs/seams/borrowed-commands)
 
 ## 测试
 
-两个插件都没有测试把 `apply` 跑在真实的服务上。插件管理的 `tests/commands.test.ts` 在假的上下文上运行 `apply`、按命令名调登记下来的处理函数；devkit 的 `tests/ready-log.test.ts` 用假的命令总线运行 `apply`，检查就绪日志列出的命令数等于登记时 `plugin` 写本包包名的命令数：
+两个插件都没有测试把 `apply` 运行在真实的服务上。插件管理的 `tests/commands.test.ts` 在假的上下文上运行 `apply`、按命令名调登记下来的处理函数；devkit 的 `tests/ready-log.test.ts` 用假的命令总线运行 `apply`，检查就绪日志列出的命令数等于登记时 `plugin` 写本包包名的命令数：
 
 {/* has file="../plugins/devkit/tests/ready-log.test.ts" text="列出总线上 plugin 是本包包名的全部命令" */}
