@@ -1,7 +1,4 @@
-/**
- * 薄壳传进来的 vitest 三件套，只要结构对得上。收窄在这儿——repo-kit 不依赖 vitest
- * 本身，消费仓用哪一版都行，也不会解析出第二份实例。
- */
+/** 调用方传进来的 vitest 的 describe / it / expect，只要求结构对得上 */
 export interface GuardExpect {
   toBe(expected: unknown): void
   toEqual(expected: unknown): void
