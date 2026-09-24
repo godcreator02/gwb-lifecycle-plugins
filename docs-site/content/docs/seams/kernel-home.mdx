@@ -1,6 +1,6 @@
 ---
 title: 8 内核与 home runtime.json
-description: 连接 devkit.home.* 与 cdp.mjs 和内核 exe：起 home 用 GWB_HOME 与两个 Chromium 开关，找 home 读内核写的 runtime.json（两处各自解析），home 根目录有两套算法，日志按 gwb.log 的行格式切级别，home 名的正则注释说抄自内核
+description: 连接 devkit.home.* 与 cdp.mjs 和内核 exe：起 home 用 GWB_HOME 与两个 Chromium 开关，找 home 读内核写的 runtime.json（两处各自解析），home 根目录由 cdp.mjs 的 homesRootOf 一处算出、src/index.ts 也 import 它，日志按 gwb.log 的行格式切级别，home 名的正则注释说抄自内核
 ---
 
 **本页回答**：devkit 怎么起一个 home、怎么找到一个正在运行的 home；它依赖内核的哪几样东西；这些东西在 devkit 里写了几份。
@@ -31,11 +31,11 @@ description: 连接 devkit.home.* 与 cdp.mjs 和内核 exe：起 home 用 GWB_H
 
 {/* ref file="../plugins/devkit/bin/cdp.mjs" lines="182-199" */}
 
-**home 根目录有两套算法**：`src/index.ts` 从 devkit 所在 home 的 `dataDir` 往上两级再接 `homes`；`cdp.mjs` 写死 `%APPDATA%\gwb-kernel\homes`，只在 Windows 上认得出：
+**home 根目录只有一种算法**：`<appData>/gwb-kernel/homes`，`<appData>` 按 Electron `app.getPath('appData')` 的规则取（Windows 是 `%APPDATA%`），与内核 `main.ts` 里 `GWB_HOME` 是名字时相同。算法写在零依赖的 `bin/cdp.mjs` 里，`src/index.ts` 从那里 import，两处用的是同一个函数；Windows 上没有 `APPDATA` 直接报错：
 
-{/* ref file="../plugins/devkit/src/index.ts" lines="209-215" */}
+{/* ref file="../plugins/devkit/bin/cdp.mjs" lines="99-116" */}
 
-{/* ref file="../plugins/devkit/bin/cdp.mjs" lines="98-101" */}
+{/* has file="../plugins/devkit/src/index.ts" text="import { homesRootOf } from '../bin/cdp.mjs'" */}
 
 **gwb.log**：`devkit.dev` 在装包之前记下日志文件的长度，最后只读新增的部分，按每行空白分隔的第二段判断级别，`error` 算失败、`warn` 另报。行格式 `<ISO 时间> <级别> <名字> <正文>` 由内核定：
 
@@ -54,11 +54,11 @@ devkit 保证：
 - 定位一个 home 只凭名字，端口从记录里查，连上后再用页面自报的名字核对
 - `default` 不删（不带 `force`），正在运行的 `default` 带 `force` 也不删
 
-**这些都靠约定**：devkit 与内核之间没有代码接口。`runtime.json` 的字段名写在内核的 `main.ts`、devkit 的 `parseRecord` 与 `cdp.mjs` 的 `portOf` 三处；home 根目录写在内核的 `main.ts`、devkit 的 `homesRoot` 与 `cdp.mjs` 的 `homesRootOf` 三处；日志行格式写在内核的 `main.ts` 与 `dev.ts` 的 `errorLines` 两处。
+**这些都靠约定**：devkit 与内核之间没有代码接口。`runtime.json` 的字段名写在内核的 `main.ts`、devkit 的 `parseRecord` 与 `cdp.mjs` 的 `portOf` 三处；home 根目录写在内核的 `main.ts` 与 `cdp.mjs` 的 `homesRootOf` 两处（devkit 的 `src/index.ts` import 后者）；日志行格式写在内核的 `main.ts` 与 `dev.ts` 的 `errorLines` 两处。
 
-两处与内核现状对不上的地方照实记：
-- 内核仓 `main.ts` 里没有检查 `GWB_HOME` 的正则：值里带路径分隔符就当目录用，否则拼到 `homes` 下。「抄自内核」只在 devkit 的注释里
-- `homesRoot` 从 `dataDir` 往上两级推，前提是 devkit 所在的 home 本身在 `homes` 下；用带路径的 `GWB_HOME` 起的 home 里，这样推出来的不是 home 根
+一处与内核现状对不上的地方照实记：内核仓 `main.ts` 里没有检查 `GWB_HOME` 的正则：值里带路径分隔符就当目录用，否则拼到 `homes` 下。「抄自内核」只在 devkit 的注释里。
+
+devkit 所在的 home 用带路径的 `GWB_HOME` 启动时，它自己不在 home 根下，但 home 根照样按 `<appData>` 算，`devkit.home.*` 与 `devkit.dev` 找的仍是 `<appData>/gwb-kernel/homes` 下的 home。
 
 ## 不负责的事
 
@@ -69,6 +69,8 @@ devkit 保证：
 ## 测试
 
 `tests/home.test.ts` 用假的文件系统与进程探测跑完整的起、定位、停、删：
+
+{/* has file="../plugins/devkit/tests/cdp.test.ts" text="别的平台与 Electron 的 appData 相同：macOS 在 Application Support，其余在 XDG_CONFIG_HOME 或 ~/.config" */}
 
 {/* has file="../plugins/devkit/tests/home.test.ts" text="读得回来的是内核写的那份；半截 JSON、形状不对、pid 不像样都当没有" */}
 

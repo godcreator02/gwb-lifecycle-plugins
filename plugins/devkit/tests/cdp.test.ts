@@ -46,17 +46,30 @@ describe('被 import 时不动手', () => {
 })
 
 describe('home 根与 home 目录', () => {
-  it('Windows 上是 %APPDATA%\\gwb-kernel\\homes，别处认不出就回 undefined', () => {
+  it('Windows 上是 %APPDATA%\\gwb-kernel\\homes，没有 APPDATA 就报错', () => {
     expect(homesRootOf({ APPDATA: path.join(os.tmpdir(), 'Roaming') }, 'win32')).toBe(
       path.join(os.tmpdir(), 'Roaming', 'gwb-kernel', 'homes'),
     )
-    expect(homesRootOf({}, 'win32')).toBeUndefined()
-    expect(homesRootOf({ APPDATA: 'x' }, 'linux')).toBeUndefined()
+    expect(() => homesRootOf({}, 'win32')).toThrow(/APPDATA/)
   })
 
-  it('home 目录是根下同名那一格；根认不出就抛', () => {
+  it('别的平台与 Electron 的 appData 相同：macOS 在 Application Support，其余在 XDG_CONFIG_HOME 或 ~/.config', () => {
+    const userHome = path.join(os.tmpdir(), 'someone')
+    expect(homesRootOf({}, 'darwin', userHome)).toBe(path.join(userHome, 'Library', 'Application Support', 'gwb-kernel', 'homes'))
+    expect(homesRootOf({ XDG_CONFIG_HOME: path.join(userHome, 'cfg') }, 'linux', userHome)).toBe(
+      path.join(userHome, 'cfg', 'gwb-kernel', 'homes'),
+    )
+    expect(homesRootOf({}, 'linux', userHome)).toBe(path.join(userHome, '.config', 'gwb-kernel', 'homes'))
+  })
+
+  it('home 目录是根下同名那一格', () => {
     expect(homeDirOf('cdpshot-2609181130', path.dirname(HOME))).toBe(HOME)
-    expect(() => homeDirOf('x', undefined)).toThrow(/home 根/)
+  })
+
+  it('devkit 插件的 home 根就是这个函数：src/index.ts 从 cdp.mjs import，不另写一份', () => {
+    const indexSource = fs.readFileSync(new URL('../src/index.ts', import.meta.url), 'utf8')
+    expect(indexSource).toContain("import { homesRootOf } from '../bin/cdp.mjs'")
+    expect(indexSource).not.toMatch(/dataDir, '\.\.', '\.\.'/)
   })
 })
 

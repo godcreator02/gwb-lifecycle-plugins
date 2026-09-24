@@ -71,6 +71,7 @@
 // 那半一起动。
 
 import fs from 'node:fs'
+import os from 'node:os'
 import path from 'node:path'
 import { fileURLToPath } from 'node:url'
 
@@ -95,14 +96,27 @@ const [home, verb, ...args] = rest
 /** 本包的根（`bin/` 的上一层）。写盘的落点不许在它里面 */
 export const PACKAGE_ROOT = path.dirname(path.dirname(fileURLToPath(import.meta.url)))
 
-/** home 根。只在 Windows 上认得出：`%APPDATA%\gwb-kernel\homes`；别处回 undefined，不猜 */
-export function homesRootOf(env = process.env, platform = process.platform) {
-  return platform === 'win32' && env.APPDATA ? path.join(env.APPDATA, 'gwb-kernel', 'homes') : undefined
+/**
+ * home 根：`<appData>/gwb-kernel/homes`，与内核 `main.ts` 里 `GWB_HOME` 是名字时的算法相同。
+ * `<appData>` 是 Electron `app.getPath('appData')` 的值：Windows 是 `%APPDATA%`，macOS 是
+ * `~/Library/Application Support`，其余是 `$XDG_CONFIG_HOME`（没设时 `~/.config`）。
+ * devkit 的 `src/index.ts` 也从这里 import，两处用同一份。
+ */
+export function homesRootOf(env = process.env, platform = process.platform, userHome = os.homedir()) {
+  return path.join(appDataOf(env, platform, userHome), 'gwb-kernel', 'homes')
+}
+
+function appDataOf(env, platform, userHome) {
+  if (platform === 'win32') {
+    if (!env.APPDATA) throw new Error('环境变量 APPDATA 没有设置——Windows 上 home 根在 %APPDATA%\\gwb-kernel\\homes，没有它算不出来')
+    return env.APPDATA
+  }
+  if (platform === 'darwin') return path.join(userHome, 'Library', 'Application Support')
+  return env.XDG_CONFIG_HOME || path.join(userHome, '.config')
 }
 
 /** home 名 → 那个 home 的目录。`root` 是 `homesRootOf()` 的结果 */
 export function homeDirOf(name, root) {
-  if (root === undefined) throw new Error('认不出 home 根在哪——这支只在 Windows 上认得出 home 根')
   return path.join(root, name)
 }
 
@@ -757,7 +771,7 @@ async function assertHome(send) {
 // ---------------------------------------------------------------------------
 
 /**
- * 被 `node <本文件>` 起的时候才动手；被 import 时（单测）只交出上面那几个纯函数。
+ * 被 `node <本文件>` 起的时候才动手；被 import 时（单测与 `src/index.ts`）只交出上面那几个纯函数。
  * `import.meta.main` 是 Node 24.2 起的；更老的 Node 上它不在，退回拿 argv[1] 比真实路径——
  * home 里的包路径经 pnpm 的 junction，两头都得过 realpath 才比得上。
  */

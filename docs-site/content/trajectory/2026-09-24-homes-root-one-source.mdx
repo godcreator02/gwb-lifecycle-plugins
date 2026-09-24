@@ -1,0 +1,29 @@
+---
+title: home 根目录只算一处：devkit 插件 import CDP 驱动里的函数
+born-at: 2026-09-24T10:10
+type: choice
+parent: [2026-09-11-address-a-home-by-name]
+label: home 根一处
+domain: 测试 home
+---
+
+## 背景
+
+devkit 里有两份 home 根目录的算法。插件那边（`src/index.ts`）从自己所在 home 的 `gwbKernel.dataDir` 往上两级再接 `homes`；CDP 驱动（`bin/cdp.mjs`）写死 `%APPDATA%\gwb-kernel\homes`，只在 Windows 上算得出。内核自己（`main.ts`）的算法是 `GWB_HOME` 为名字时放在 Electron 的 `appData` 下的 `gwb-kernel/homes`。devkit 所在的 home 用带路径的 `GWB_HOME` 启动时，它不在 `homes` 下，往上两级推出来的就不是 home 根。
+
+## 结论与边界
+
+- 只留一个函数 `homesRootOf`，写在 `bin/cdp.mjs`：`<appData>/gwb-kernel/homes`，`<appData>` 按 Electron `app.getPath('appData')` 的规则取（Windows `%APPDATA%`、macOS `~/Library/Application Support`、其余 `$XDG_CONFIG_HOME` 或 `~/.config`），与内核一致；Windows 上没有 `APPDATA` 直接报错
+- 插件那边从 `../bin/cdp.mjs` import 它，类型写在旁边手写的 `bin/cdp.d.mts` 里，只声明这一个函数；`cdp.mjs` 仍是零依赖的单文件纯 JS，不进类型检查
+- home 根不再从 `dataDir` 推；`dataDir` 只用来认出 devkit 自己所在的 home
+
+## 否掉的候选
+
+- **两处各写一份同样的规则，加测试比对**：`cdp.mjs` 本来就导出纯函数，被 import 时只交出函数、不连 CDP（单测一直这么用），能直接 import 就不需要第二份
+- **把规则放进一个新的共享文件，两边都 import**：`cdp.mjs` 在工作台启动不了时要能单独运行，单文件是它的前提，多一个文件就多一个跟着发、跟着找的东西
+- **继续从 `dataDir` 推**：前提「devkit 所在的 home 在 `homes` 下」不总成立
+
+## 代价与遗留
+
+- 插件加载时会执行 `cdp.mjs` 顶层那几行（读命令行参数、算超时），不连 CDP，也不读写文件
+- `bin/cdp.d.mts` 是手写的类型，`homesRootOf` 改参数时要一起改

@@ -40,6 +40,7 @@ import {
 } from './scaffold.js'
 import { joinProvides, serviceSight } from './services.js'
 import { importFacesOf } from './capabilities.js'
+import { homesRootOf } from '../bin/cdp.mjs'
 
 export const name = 'gwb-devkit'
 export const inject = ['gwbCommands']
@@ -206,13 +207,6 @@ export function apply(ctx: GwbContext): void {
     platform: process.platform,
   }
 
-  /**
-   * home 根从内核的 dataDir 推：`<userData>/homes/<名>` → 上两级再接 `homes`。
-   * **不写死应用名**——内核哪天改了 userData 的名字，这儿也不漂。
-   */
-  function homesRoot(): string {
-    return path.join(path.resolve(requireKernel(ctx).dataDir, '..', '..'), 'homes')
-  }
 
   /**
    * 这一趟起 home 用哪个调试口。**自动定，定不出来就不起**——名字是唯一的地址之后，
@@ -253,7 +247,7 @@ export function apply(ctx: GwbContext): void {
         if (!isRecord(args)) return { ok: false, error: `参数要是个对象。\n${HOME_USAGE}` }
         const short = asHomeName(args.short)
         if (short === undefined) return { ok: false, error: `short 缺了或不是 kebab-case。\n${HOME_USAGE}` }
-        const root = homesRoot()
+        const root = homesRootOf()
         let name: string
         try {
           name = nextName(short, homeDeps.now(), (candidate) => homeDeps.fs.exists(path.join(root, candidate)))
@@ -285,7 +279,7 @@ export function apply(ctx: GwbContext): void {
         if (!isRecord(args)) return { ok: false, error: `参数要是个对象。\n${HOME_USAGE}` }
         const name = asHomeName(args.name)
         if (name === undefined) return { ok: false, error: `name 缺了或不是 kebab-case。\n${HOME_USAGE}` }
-        const root = homesRoot()
+        const root = homesRootOf()
         if (!homeDeps.fs.exists(path.join(root, name))) {
           return { ok: false, error: `${path.join(root, name)} 不在——没有这个 home（看 devkit.home.list）` }
         }
@@ -318,7 +312,7 @@ export function apply(ctx: GwbContext): void {
         if (!isRecord(args)) return { ok: false, error: `参数要是个对象。\n${HOME_USAGE}` }
         const name = asHomeName(args.name)
         if (name === undefined) return { ok: false, error: `name 缺了或不是 kebab-case。\n${HOME_USAGE}` }
-        const outcome = await removeHome(path.join(homesRoot(), name), name, args.force === true, homeDeps)
+        const outcome = await removeHome(path.join(homesRootOf(), name), name, args.force === true, homeDeps)
         if (outcome.ok) log.info(`devkit.home.rm：${outcome.note}`)
         else log.warn(`devkit.home.rm 没成：${outcome.note}`)
         return outcome.ok ? { ok: true, data: outcome } : { ok: false, error: outcome.note }
@@ -330,7 +324,7 @@ export function apply(ctx: GwbContext): void {
     bus.register(
       { name: 'devkit.home.list', plugin: '@godcreator/gwb-devkit', description: '列出全部测试 home 与各自的口', usage: '名字（带时间戳）、谁还在跑、CDP 口、MCP 门（mcp 格；老 home 的 command-http 格照报当线索）。无参数' },
       async () => {
-        const root = homesRoot()
+        const root = homesRootOf()
         return { ok: true, data: { root, homes: await listHomes(root, homeDeps) } }
       },
     ),
@@ -462,7 +456,7 @@ export function apply(ctx: GwbContext): void {
     }
     const name = asHomeName(args.home)
     if (name === undefined) return { ok: false, error: `home 缺了或不是个合格的 home 名（kebab-case）。\n${DEV_USAGE}` }
-    const found = await resolveTarget(homesRoot(), name, homeDeps)
+    const found = await resolveTarget(homesRootOf(), name, homeDeps)
     if (!found.ok) return { ok: false, error: found.error }
     return { ok: true, cdp: found.cdp, name }
   }
