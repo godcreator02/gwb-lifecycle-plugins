@@ -137,17 +137,17 @@ export function planScaffold(input: ScaffoldInput): ScaffoldPlan {
 export function planScaffoldPlugin(input: ScaffoldPluginInput): ScaffoldPluginPlan {
   const name = validShortName(input.name)
   const rawRepo = input.repo.trim()
-  if (rawRepo === '') throw new Error('repo 是必给的：薄壳仓根的绝对路径（pnpm-workspace.yaml 住的那层）')
+  if (rawRepo === '') throw new Error('repo 是必给的：workspace 仓根的绝对路径（pnpm-workspace.yaml 所在的那一层）')
   const repoDir = path.resolve(rawRepo)
   if (!fs.existsSync(repoDir) || !fs.statSync(repoDir).isDirectory()) {
-    throw new Error(`${repoDir} 不在——repo 给的是薄壳仓根，不是件包目录`)
+    throw new Error(`${repoDir} 不在——repo 给的是 workspace 仓根，不是插件包目录`)
   }
   const yamlPath = path.join(repoDir, 'pnpm-workspace.yaml')
   const yaml = fs.existsSync(yamlPath) ? fs.readFileSync(yamlPath, 'utf8') : ''
   if (!/^\s*-\s+plugins\//m.test(yaml)) {
     throw new Error(
       `${repoDir} 不是薄壳 workspace：pnpm-workspace.yaml 里没有 plugins/ 那条。` +
-        '老裸根单件仓（仓根即包根）加件前先迁成薄壳：件包 git mv 进 plugins/<短名>/、根换 private 壳（照 devkit 仓的样子），再来',
+        '仓根就是插件的旧布局仓，加插件之前先迁成 workspace 布局：插件包的文件 git mv 进 plugins/<短名>/，仓根换成 private: true 的 package.json（照 devkit 仓），再来',
     )
   }
   return {
