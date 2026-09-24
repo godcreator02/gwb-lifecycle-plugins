@@ -273,6 +273,8 @@ interface FakeOptions {
 }
 
 /** 一条 run 是不是类型检查；是的话回它查的那份 tsconfig */
+const PNPM = 'C:\\Users\\u\\AppData\\Local\\pnpm\\bin\\pnpm.exe'
+
 function typecheckedTsconfig(args: string[]): string | undefined {
   if (!args.includes('--skipLibCheck')) return undefined
   return args[args.indexOf('-p') + 1]
@@ -294,6 +296,7 @@ function fake(options: FakeOptions = {}): ReleaseDeps & { calls: string[]; range
     calls,
     ranges,
     platform: 'win32',
+    pnpm: PNPM,
     readText: (file) => files[path.resolve(file)],
     exists: (target) => path.resolve(target) in files || target.endsWith('dist'),
     sourceTextOf: (pkgDir) => options.sources?.[path.relative(REPO, pkgDir).replaceAll('\\', '/')] ?? '',
@@ -303,7 +306,7 @@ function fake(options: FakeOptions = {}): ReleaseDeps & { calls: string[]; range
       return { ok: true, dirty: options.dirty ?? [] }
     },
     async run(plan, _timeoutMs) {
-      calls.push(`run ${plan.args.join(' ')} @${plan.cwd}`)
+      calls.push(`run ${plan.command === PNPM ? 'pnpm' : plan.command} ${plan.args.join(' ')} @${plan.cwd}`)
       const tsconfig = typecheckedTsconfig(plan.args)
       const typecheckOutput = tsconfig === undefined ? undefined : options.typecheckFails?.[tsconfig]
       if (typecheckOutput !== undefined) return { ok: false, tail: typecheckOutput }
@@ -404,7 +407,7 @@ describe('发正式版', () => {
   it('没有 tsconfig.build.json：在包目录里用 pnpm exec tsc、关掉 skipLibCheck 按 tsconfig.json 查；没过就拒，带上查的是哪份与输出尾巴', async () => {
     const deps = fake({ typecheckFails: { 'tsconfig.json': "index.d.ts(52,32): error TS2304: Cannot find name 'HTMLElement'." } })
     const out = await runRelease({ repoDir: REPO, runningKernel: KERNEL, packages: ['a'] }, deps)
-    expect(deps.calls).toContain(`run /c pnpm ${typecheckArgs('tsconfig.json').join(' ')} @${path.resolve(REPO, 'a')}`)
+    expect(deps.calls).toContain(`run pnpm ${typecheckArgs('tsconfig.json').join(' ')} @${path.resolve(REPO, 'a')}`)
     expect(typechecksOf(deps.calls, path.resolve(REPO, 'a'))).toEqual(['tsconfig.json'])
     expect(out.ok).toBe(false)
     if (out.ok) return

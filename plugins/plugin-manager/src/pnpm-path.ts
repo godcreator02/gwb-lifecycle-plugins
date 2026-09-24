@@ -1,10 +1,3 @@
-/** 本机平台那份原生 pnpm：包名与包里可执行文件的文件名 */
-export function pnpmExecutableOf(platform: string, arch: string): { pkg: string; bin: string } {
-  return { pkg: `@pnpm/exe.${platform}-${arch}`, bin: platform === 'win32' ? 'pnpm.exe' : 'pnpm' }
-}
-
-export type LookupResult = { ok: true; file: string; version: string } | { ok: false; error: string }
-
 export interface SpawnPlan {
   command: string
   args: string[]

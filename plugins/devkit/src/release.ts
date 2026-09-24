@@ -36,6 +36,8 @@ export interface ReleaseDeps {
   /** 包目录 `src/` 下全部 `.ts` / `.tsx` 连成的一份文本，按它找源码提供的服务 */
   sourceTextOf(pkgDir: string): string
   platform: NodeJS.Platform
+  /** pnpm 的可执行文件：命令开头 `locatePnpm` 找到并核对过版本的那个 */
+  pnpm: string
 }
 
 export interface ReleaseInput {
@@ -386,7 +388,7 @@ async function typecheckProblems(pkgDir: string, deps: ReleaseDeps): Promise<str
   if (tsconfigs === undefined) return [NO_TSCONFIG_PROBLEM]
   const problems: string[] = []
   for (const tsconfig of tsconfigs) {
-    const typecheck = await deps.run(pnpmPlan(typecheckArgs(tsconfig), pkgDir, deps.platform), BUILD_TIMEOUT_MS)
+    const typecheck = await deps.run(pnpmPlan(typecheckArgs(tsconfig), pkgDir, deps.pnpm), BUILD_TIMEOUT_MS)
     if (!typecheck.ok) problems.push(typecheckProblem(tsconfig, typecheck.tail))
   }
   return problems
@@ -429,7 +431,7 @@ export async function runRelease(input: ReleaseInput, deps: ReleaseDeps): Promis
   if (dirtyTree !== undefined) return dirtyTree
 
   // 在仓根构建，不在包目录：工作区里的插件常常用着同仓另一个包的产物
-  const built = await deps.run(pnpmPlan(['build'], input.repoDir, deps.platform), BUILD_TIMEOUT_MS)
+  const built = await deps.run(pnpmPlan(['build'], input.repoDir, deps.pnpm), BUILD_TIMEOUT_MS)
   if (!built.ok) return { ok: false, error: `仓根 pnpm build 没成,一个都没发。输出的最后几行:\n${built.tail}` }
 
   const plan = await planPackages(input, deps)

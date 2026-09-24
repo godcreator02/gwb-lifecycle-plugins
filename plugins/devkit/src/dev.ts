@@ -258,11 +258,9 @@ export interface RunPlan {
   cwd: string
 }
 
-/** pnpm 在 Windows 上是 `.cmd`，不经 `cmd /c` 启动就 ENOENT。与 home.ts 的 buildPlan 同一个做法 */
-export function pnpmPlan(args: string[], cwd: string, platform: NodeJS.Platform): RunPlan {
-  return platform === 'win32'
-    ? { command: 'cmd', args: ['/c', 'pnpm', ...args], cwd }
-    : { command: 'pnpm', args, cwd }
+/** 直接启动 pnpm 的原生可执行文件（`locatePnpm` 找到并核对过版本的那个），不经 shell */
+export function pnpmPlan(args: string[], cwd: string, pnpm: string): RunPlan {
+  return { command: pnpm, args, cwd }
 }
 
 export interface DevDeps {
@@ -291,6 +289,8 @@ export interface DevDeps {
   /** 停掉目标 home 的进程，再用同一个 home 启动。主进程里的内核换不掉，内核包换了版本只有重启才生效 */
   restartHome(home: string): Promise<{ ok: true; note: string } | { ok: false; error: string }>
   platform: NodeJS.Platform
+  /** pnpm 的可执行文件：命令开头 `locatePnpm` 找到并核对过版本的那个 */
+  pnpm: string
 }
 
 // ── 一次流程 ──────────────────────────────────────────────────────────────────
@@ -455,7 +455,7 @@ async function installIntoHome(
     const written = deps.writeText(manifestFile, pinnedText)
     if (!written.ok) return { ok: false, error: `写不进 ${manifestFile}:${written.error}`, data: { shipped } }
   }
-  const installed = await deps.run(pnpmPlan(['install'], target.home, deps.platform), ADD_TIMEOUT_MS)
+  const installed = await deps.run(pnpmPlan(['install'], target.home, deps.pnpm), ADD_TIMEOUT_MS)
   if (!installed.ok) {
     // 留着「声明了新版本号、磁盘上是旧版本」的清单，下一个在这个 home 里运行 pnpm 的人会不明不白地装上它
     const restored = pinnedText === original ? { ok: true as const } : deps.writeText(manifestFile, original)
@@ -531,7 +531,7 @@ export async function runDev(input: DevInput, deps: DevDeps): Promise<DevOutcome
   if (!target.ok) return { ok: false, error: target.error }
 
   // 在仓根构建，不在包目录：工作区里的插件常常用着同仓另一个包的产物
-  const built = await deps.run(pnpmPlan(['build'], input.repoDir, deps.platform), BUILD_TIMEOUT_MS)
+  const built = await deps.run(pnpmPlan(['build'], input.repoDir, deps.pnpm), BUILD_TIMEOUT_MS)
   if (!built.ok) return { ok: false, error: `仓根 pnpm build 没成,一步都没往下走。输出的最后几行:\n${built.tail}` }
 
   const plan = await planDevVersions(input, deps)

@@ -1,29 +1,14 @@
 import fs from 'node:fs'
 import { describe, expect, it } from 'vitest'
-import { describePnpm, pnpmExecutableOf, spawnPlan } from '../src/pnpm-path.js'
-import { locatePnpm, tailLines } from '../src/pnpm.js'
+import { describePnpm, spawnPlan } from '../src/pnpm-path.js'
+import { tailLines } from '../src/pnpm.js'
 
-const EXE = 'C:\\home\\node_modules\\.pnpm\\@pnpm+exe.win32-x64@12.4.2\\node_modules\\@pnpm\\exe.win32-x64\\pnpm.exe'
+const EXE = 'C:\\Users\\u\\AppData\\Local\\pnpm\\bin\\pnpm.exe'
 
-describe('用自己依赖里的那份 pnpm', () => {
-  it('Windows 上是 @pnpm/exe.win32-x64 包里的 pnpm.exe', () => {
-    expect(pnpmExecutableOf('win32', 'x64')).toEqual({ pkg: '@pnpm/exe.win32-x64', bin: 'pnpm.exe' })
-  })
-
-  it('别的平台可执行文件不带 .exe', () => {
-    expect(pnpmExecutableOf('linux', 'arm64')).toEqual({ pkg: '@pnpm/exe.linux-arm64', bin: 'pnpm' })
-  })
-
-  it('从本插件的位置解析到依赖里那个可执行文件，版本与 package.json 写的相同', () => {
-    const manifest = JSON.parse(fs.readFileSync(new URL('../package.json', import.meta.url), 'utf8')) as { dependencies: Record<string, string> }
-    const found = locatePnpm()
-    expect(found).toMatchObject({ ok: true, version: manifest.dependencies['@pnpm/exe.win32-x64'] })
-    expect(found.ok && fs.existsSync(found.file)).toBe(true)
-  })
-
-  it('依赖里只有 pnpm 的可执行文件包，没有带安装脚本的 pnpm 包', () => {
-    const manifest = JSON.parse(fs.readFileSync(new URL('../package.json', import.meta.url), 'utf8')) as { dependencies: Record<string, string> }
-    expect(Object.keys(manifest.dependencies)).toEqual(['@pnpm/exe.win32-x64'])
+describe('不自带 pnpm', () => {
+  it('包清单里没有 dependencies：pnpm 由用户装在固定位置', () => {
+    const manifest = JSON.parse(fs.readFileSync(new URL('../package.json', import.meta.url), 'utf8')) as { dependencies?: unknown }
+    expect(manifest.dependencies).toBeUndefined()
   })
 })
 

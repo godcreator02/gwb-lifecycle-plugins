@@ -250,9 +250,9 @@ export interface LaunchInput {
   cdp?: number
   /**
    * 给了就在启动之前把内核包（这个精确版本）、cordis 与基础插件装进 home、写 cordis.yml 条目（只有 home.new 用）。
-   * 启动器只从 home 里加载内核，home 里没有内核包就启动不了
+   * 启动器只从 home 里加载内核，home 里没有内核包就启动不了。`pnpm` 是 `locatePnpm` 找到并核对过版本的可执行文件
    */
-  install?: { kernelVersion: string }
+  install?: { kernelVersion: string; pnpm: string }
 }
 
 // ── 装进新 home 的包：内核包、cordis 与基础插件 ────────────────────────────────
@@ -280,27 +280,24 @@ export function baseYaml(): string {
 
 type RunPlan = { command: string; args: string[]; cwd: string }
 
-/** 在 home 里运行 `pnpm add <args…>` 的命令行（Windows 上 pnpm 是 .cmd，要经 cmd /c） */
-function pnpmAddPlan(home: string, addArgs: string[], platform: NodeJS.Platform): RunPlan {
-  const args = ['add', ...addArgs]
-  return platform === 'win32'
-    ? { command: 'cmd', args: ['/c', 'pnpm', ...args], cwd: home }
-    : { command: 'pnpm', args, cwd: home }
+/** 在 home 里运行 `pnpm add <args…>` 的命令行：直接启动 pnpm 的原生可执行文件 */
+function pnpmAddPlan(home: string, addArgs: string[], pnpm: string): RunPlan {
+  return { command: pnpm, args: ['add', ...addArgs], cwd: home }
 }
 
 /** 装内核包：精确版本带 `--save-exact`。清单里已有 `^` 声明时 pnpm 12 照样写回 `^`、退出码 0 却装上更新的版本（probes/2609241510_pnpm-add-exact-prefix），所以只用在清单里还没有这一项的新 home 上，装完核对版本 */
-export function kernelInstallPlan(home: string, kernelVersion: string, platform: NodeJS.Platform): RunPlan {
-  return pnpmAddPlan(home, ['--save-exact', `${KERNEL_PACKAGE}@${kernelVersion}`], platform)
+export function kernelInstallPlan(home: string, kernelVersion: string, pnpm: string): RunPlan {
+  return pnpmAddPlan(home, ['--save-exact', `${KERNEL_PACKAGE}@${kernelVersion}`], pnpm)
 }
 
 /** 装 cordis：内核包 peer 里写的精确版本、带 `--save-exact`，限制同 `kernelInstallPlan` */
-export function cordisInstallPlan(home: string, cordisVersion: string, platform: NodeJS.Platform): RunPlan {
-  return pnpmAddPlan(home, ['--save-exact', `cordis@${cordisVersion}`], platform)
+export function cordisInstallPlan(home: string, cordisVersion: string, pnpm: string): RunPlan {
+  return pnpmAddPlan(home, ['--save-exact', `cordis@${cordisVersion}`], pnpm)
 }
 
 /** 装基础插件与 BASE_SHARED：不写版本，取源上的 latest，清单里写 `^` 范围 */
-export function baseInstallPlan(home: string, platform: NodeJS.Platform): RunPlan {
-  return pnpmAddPlan(home, [...BASE_PLUGINS.map((p) => p.pkg), ...BASE_SHARED], platform)
+export function baseInstallPlan(home: string, pnpm: string): RunPlan {
+  return pnpmAddPlan(home, [...BASE_PLUGINS.map((p) => p.pkg), ...BASE_SHARED], pnpm)
 }
 
 /** 装包（内核包、cordis、基础插件各一次）的超时 */
@@ -378,12 +375,17 @@ async function refusalIfInstallFailed(
  * cordis.yml 已存在就不写（内核的规矩也是不覆盖）。依次装内核包、cordis、基础插件：cordis 的精确版本从装上的内核包清单里读；
  * 基础插件装的时候 home 根上已经有 cordis，它们的 peer cordis 解析到同一份。内核包与 cordis 装完都核对版本，哪一步不成都不启动
  */
-async function installKernelCordisAndBasePlugins(home: string, kernelVersion: string, deps: HomeDeps): Promise<{ ok: false; error: string } | undefined> {
+async function installKernelCordisAndBasePlugins(
+  home: string,
+  install: { kernelVersion: string; pnpm: string },
+  deps: HomeDeps,
+): Promise<{ ok: false; error: string } | undefined> {
+  const { kernelVersion, pnpm } = install
   if (!deps.fs.exists(path.join(home, 'cordis.yml'))) {
     deps.fs.writeText(path.join(home, 'cordis.yml'), baseYaml())
   }
   const kernelFailure = await refusalIfInstallFailed(
-    kernelInstallPlan(home, kernelVersion, deps.platform),
+    kernelInstallPlan(home, kernelVersion, pnpm),
     `内核包 ${KERNEL_PACKAGE}@${kernelVersion}`,
     '查源上有没有这个版本、scope 路由、源连不连得上',
     deps,
@@ -391,11 +393,11 @@ async function installKernelCordisAndBasePlugins(home: string, kernelVersion: st
   if (kernelFailure !== undefined) return kernelFailure
   const cordis = cordisVersionForKernel(deps.fs.readText(kernelManifestFile(home)), kernelVersion, home)
   if (!cordis.ok) return cordis
-  const cordisFailure = await refusalIfInstallFailed(cordisInstallPlan(home, cordis.cordis, deps.platform), `cordis@${cordis.cordis}`, '查源连不连得上', deps)
+  const cordisFailure = await refusalIfInstallFailed(cordisInstallPlan(home, cordis.cordis, pnpm), `cordis@${cordis.cordis}`, '查源连不连得上', deps)
   if (cordisFailure !== undefined) return cordisFailure
   const cordisInstalled = installedManifestAtVersion(deps.fs.readText(installedManifestFile(home, 'cordis')), 'cordis', cordis.cordis, home)
   if (!cordisInstalled.ok) return cordisInstalled
-  return refusalIfInstallFailed(baseInstallPlan(home, deps.platform), '基础插件', '查 scope 路由与源连不连得上', deps)
+  return refusalIfInstallFailed(baseInstallPlan(home, pnpm), '基础插件', '查 scope 路由与源连不连得上', deps)
 }
 
 /** 观察一会儿，只抓刚启动就退出：查不出时接着等，只有确定不在了才中断 */
@@ -436,7 +438,7 @@ export async function launchHome(input: LaunchInput, deps: HomeDeps): Promise<La
   // package.json 由装包时的 pnpm add 生成，runtime.json 由内核启动后写，这里只建目录
   deps.fs.ensureDir(home)
   if (input.install !== undefined) {
-    const installFailure = await installKernelCordisAndBasePlugins(home, input.install.kernelVersion, deps)
+    const installFailure = await installKernelCordisAndBasePlugins(home, input.install, deps)
     if (installFailure !== undefined) return installFailure
   }
   const pid = deps.spawn(plan, guiChildEnv(deps.env, input.name))

@@ -26,7 +26,8 @@ import { runRelease } from './release.js'
 import { auditManifest, countByKind, type ManifestDeps } from './audit.js'
 import { collectManifests, collectRepos, fetchRegistry } from './node-audit-deps.js'
 import { auditStructure, scanRepo, tallyKinds, type StructureFinding } from './structure.js'
-import { CDP_ENTRY, devDeps, releaseDeps } from './node-dev-deps.js'
+import { CDP_ENTRY, devDepsWith, releaseDepsWith } from './node-dev-deps.js'
+import { locatePnpm } from './pnpm-location.js'
 import { homeFs, makeAppSpawnPlan, makeGuiSpawn, runCaptured } from './node-home-deps.js'
 import {
   NAME_RE,
@@ -231,10 +232,12 @@ function registerHomeCommands({ ctx, log, commands, homeDeps }: Wiring): void {
         } catch (err) {
           return { ok: false, error: String(err instanceof Error ? err.message : err) }
         }
+        const pnpm = await locatePnpm()
+        if (!pnpm.ok) return { ok: false, error: pnpm.error }
         const port = await cdpPortFor(root, homeName, homeDeps)
         if (!port.ok) return { ok: false, error: port.error }
         const outcome = await launchHome(
-          { name: homeName, homesRoot: root, cdp: port.cdp, install: { kernelVersion: requireKernel(ctx).version } },
+          { name: homeName, homesRoot: root, cdp: port.cdp, install: { kernelVersion: requireKernel(ctx).version, pnpm: pnpm.file } },
           homeDeps,
         )
         if (!outcome.ok) {
@@ -470,7 +473,9 @@ function registerDevCommand({ ctx, log, commands, homeDeps }: Wiring): void {
         if (!target.ok) return { ok: false, error: target.error }
         const dir = typeof args.dir === 'string' ? args.dir.trim() : ''
         if (dir === '' || !path.isAbsolute(dir)) return { ok: false, error: `dir 要是仓根的绝对路径。\n${DEV_USAGE}` }
-        if (!devDeps.exists(dir)) return { ok: false, error: `${dir} 不在——dir 给的是仓根，不是包目录` }
+        if (!fs.existsSync(dir)) return { ok: false, error: `${dir} 不在——dir 给的是仓根，不是包目录` }
+        const pnpm = await locatePnpm()
+        if (!pnpm.ok) return { ok: false, error: pnpm.error }
         const input: DevInput = {
           home: target.name,
           repoDir: path.resolve(dir),
@@ -479,7 +484,7 @@ function registerDevCommand({ ctx, log, commands, homeDeps }: Wiring): void {
           ownHome: requireKernel(ctx).dataDir,
         }
         log.info(`devkit.dev：仓 ${input.repoDir} → ${target.name}（调试口 ${String(target.cdp)}）`)
-        const deps: DevDeps = { ...devDeps, restartHome: (home) => restartTestHome(home, homeDeps) }
+        const deps: DevDeps = { ...devDepsWith(pnpm.file), restartHome: (home) => restartTestHome(home, homeDeps) }
         const outcome = await runDev(input, deps)
         if (!outcome.ok) {
           log.warn(`devkit.dev 没成：${outcome.error}`)
@@ -509,10 +514,12 @@ function registerReleaseCommand({ ctx, log, commands }: Wiring): void {
         if (!isRecord(args)) return { ok: false, error: `参数要是个对象。\n${RELEASE_USAGE}` }
         const dir = typeof args.dir === 'string' ? args.dir.trim() : ''
         if (dir === '' || !path.isAbsolute(dir)) return { ok: false, error: `dir 要是仓根的绝对路径。\n${RELEASE_USAGE}` }
-        if (!releaseDeps.exists(dir)) return { ok: false, error: `${dir} 不在——dir 给的是仓根，不是包目录` }
+        if (!fs.existsSync(dir)) return { ok: false, error: `${dir} 不在——dir 给的是仓根，不是包目录` }
+        const pnpm = await locatePnpm()
+        if (!pnpm.ok) return { ok: false, error: pnpm.error }
         const packages = packagesArgOf(args)
         log.info(`devkit.release：仓 ${path.resolve(dir)}（${packages.length === 0 ? '仓根自己' : packages.join('、')}）`)
-        const outcome = await runRelease({ repoDir: path.resolve(dir), packages, runningKernel: requireKernel(ctx).version }, releaseDeps)
+        const outcome = await runRelease({ repoDir: path.resolve(dir), packages, runningKernel: requireKernel(ctx).version }, releaseDepsWith(pnpm.file))
         if (!outcome.ok) {
           log.warn(`devkit.release 没成：${outcome.error}`)
           return outcome.data === undefined

@@ -38,6 +38,7 @@ const HOME = 'D:/fake-homes/bn-2609111200'
  */
 const OWN = 'D:/fake-homes/console-2609111100'
 const PKG = '@godcreator/gwb-fake'
+const PNPM = 'C:\\Users\\u\\AppData\\Local\\pnpm\\bin\\pnpm.exe'
 
 /** 一份最小清单：名字、号、一个产物目录 */
 const MANIFEST = JSON.stringify({ name: PKG, version: '0.3.1', files: ['dist'] })
@@ -89,6 +90,7 @@ function fake(options: FakeOptions = {}): DevDeps & { calls: string[]; files: Re
     calls,
     files,
     platform: 'win32',
+    pnpm: PNPM,
     now: () => Date.UTC(2026, 8, 11, 12, 0),
     readText: (file) => files[path.resolve(file)],
     writeText(file, text) {
@@ -104,7 +106,7 @@ function fake(options: FakeOptions = {}): DevDeps & { calls: string[]; files: Re
       calls.push(`sleep ${String(ms)}`)
     },
     async run(plan, _timeoutMs) {
-      calls.push(`run ${plan.args.join(' ')} @${plan.cwd}`)
+      calls.push(`run ${plan.command === PNPM ? 'pnpm' : plan.command} ${plan.args.join(' ')} @${plan.cwd}`)
       const ok = options.failRun === undefined || !plan.args.join(' ').includes(options.failRun)
       // 假 pnpm install：照 home 清单把声明的号摆进 node_modules（范围去掉前缀当它解析成了下限）
       if (ok && plan.args.includes('install') && !options.staleInstall) {
@@ -240,9 +242,8 @@ describe('日志', () => {
 })
 
 describe('pnpm 的命令行', () => {
-  it('Windows 上借 cmd /c 一层，不然 ENOENT', () => {
-    expect(pnpmPlan(['add', 'x'], 'D:/h', 'win32')).toMatchObject({ command: 'cmd', args: ['/c', 'pnpm', 'add', 'x'] })
-    expect(pnpmPlan(['add', 'x'], '/h', 'linux')).toMatchObject({ command: 'pnpm', args: ['add', 'x'] })
+  it('直接启动找到的那个 pnpm 可执行文件，不经 shell', () => {
+    expect(pnpmPlan(['add', 'x'], 'D:/h', PNPM)).toEqual({ command: PNPM, args: ['add', 'x'], cwd: 'D:/h' })
   })
 })
 

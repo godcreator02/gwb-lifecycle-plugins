@@ -17,7 +17,7 @@ description: install 在一条命令里装包并加一条条目，只等写入�
 
 <Diagram name="pm-install" title="安装一个包：三步依次做，每一步失败时回执是什么样，回执里逐步多出哪几行">
 1. **校验参数**：包名与版本范围不合规就抛错——拦的是 `-r` 这类会被 pnpm 当成命令行选项的参数。参数全程以数组传给 pnpm、不经过 shell。只有调用方写错才抛，下面每一种失败都转成 `ok: false` 的回执
-2. **一次 `pnpm add`**：先找到自己依赖里的 pnpm（见 [pnpm](/docs/plugin-manager/pnpm)），再经 `applyToHome` 排进串行队列运行。失败时回执带 pnpm 输出的最后几行
+2. **一次 `pnpm add`**：先在两个固定位置找到 pnpm 并核对版本（见 [pnpm](/docs/plugin-manager/pnpm)），再经 `applyToHome` 排进串行队列运行。失败时回执带 pnpm 输出的最后几行
 3. **选 id，加一条条目**：id 的规则见[id 与归属](/docs/plugin-manager/ids)，经条目树 `create` 写进 `cordis.yml`，回执带 `entryId`。写不进 `cordis.yml` 时回执 `ok: false`，包留在 home 里、不回滚——删包比留着危险
 </Diagram>
 
@@ -62,7 +62,7 @@ description: install 在一条命令里装包并加一条条目，只等写入�
 - 只取类型的包（词汇表包）编译后就消失了
 </Diagram>
 
-所以 home 里除了内核包与 `cordis` 只该有插件，插件管理没有什么需要替插件额外装的。插件管理自己的 `@pnpm/exe.win32-x64` 是它的普通依赖，随它一起装进 home 的 pnpm 目录，不是 home 的直接依赖。
+所以 home 里除了内核包与 `cordis` 只该有插件，插件管理没有什么需要替插件额外装的。插件管理自己也没有运行时依赖：pnpm 是用户装在机器上的，不在 home 里。
 
 **代价**：没按这个规矩写的插件——peer 写了别的包、构建产物里留着没打包的库——装上以后运行时找不到依赖，加载失败，在 `list` 里显示为未加载。装了一个没有 `apply` 的包（比如一个库），条目照样加上、加载失败（日志 `invalid plugin, expect function or object with apply`），不要它就 `uninstall`。
 

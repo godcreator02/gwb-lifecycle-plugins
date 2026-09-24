@@ -1,0 +1,39 @@
+---
+title: 插件管理不再自带 pnpm：插件管理与 devkit 只认用户装在两个固定位置的 pnpm 12，核对版本
+born-at: 2026-09-24T20:30
+type: choice
+parent: [2026-09-08-gwb-devkit]
+label: pnpm 固定位置
+domain: 插件管理
+---
+
+## 背景
+
+插件管理在 `dependencies` 里写固定版本的 `@pnpm/exe.win32-x64`，随插件管理装进 home；devkit 用 PATH 上的 pnpm，经 `cmd /c` 启动。这样同一个 home 会被两个版本可能不同的 pnpm 改，而第一次装 home 时插件管理还不在，只能用机器上的 pnpm。
+
+人先提出把 pnpm 打进安装包（exe），装完就能用同一个 pnpm。讨论后否掉：安装包只在换 Electron 或改启动器时重打，放进 pnpm 就多一个重打的理由，所有 home 被迫用同一个 pnpm 版本，插件管理还得多一条对安装包目录或启动器环境变量的依赖。
+
+接着考虑「只认 pnpm 12 官方安装脚本的默认位置」。读了官方脚本（没运行）：pnpm 11 起 `pnpm setup` 把 pnpm 链接进 `%LOCALAPPDATA%\pnpm\bin`，这台机器上没有这个位置的 pnpm；再考虑「路径写进设置项、可以改」，设置跟着 home 走，每个新 home 都要写一遍。最后查到这台机器上 `npm i -g pnpm` 装的 pnpm 12 包里有原生可执行文件 `%APPDATA%\npm\node_modules\pnpm\pnpm.exe`（PATH 上的 `pnpm.cmd` 转去调用的就是它，版本 12.4.2），人定为两个位置都认。
+
+## 结论与边界
+
+- 插件管理删掉 `@pnpm/exe.win32-x64` 依赖；pnpm 由用户照 `INSTALL.md` 装
+- 插件管理与 devkit 用同一套规则找 pnpm：按顺序检查 `%LOCALAPPDATA%\pnpm\bin\pnpm.exe`、`%APPDATA%\npm\node_modules\pnpm\pnpm.exe`，第一个存在的作数，运行 `--version` 核对是 12.x 并且不低于 12.4.2；不存在、版本不对都报错，不去试另一个位置，不找 PATH、不读设置、不读 `PNPM_HOME`
+- 规则写在两个插件各自的 `src/pnpm-location.ts`，逐字相同，由 devkit 的对照测试保证（与内核范围比对规则同一种做法）
+- devkit 的 `home.new`、`dev`、`release` 在命令开头找一次，找到的文件直接启动，不再经 `cmd /c`
+- 两个位置都是原生可执行文件，保留了自带 `@pnpm/exe` 时「直接启动、没有 shell 引号转义」的好处
+
+不做：不替人装 pnpm；不支持 corepack、volta 之类装在别处的 pnpm；官方脚本装出来的 `bin\` 里是不是真的 `pnpm.exe`，这台机器上没装、还没验证。
+
+pivots-from:: [插件管理迁入 devkit 仓：仍是普通插件，和 devkit 一起开发](2026-09-24-plugin-manager-joins-devkit.md)
+
+## 代价与遗留
+
+- 插件管理多了一个运行环境要求：机器上没有这两个位置的 pnpm 12，要运行 pnpm 的命令全部回 `ok: false`
+- devkit 的两条命令改 home 时不经插件管理的串行队列，这一点没变；变的只是两边用的是同一个 pnpm
+- 升级顺序：旧版插件管理还带着自己的 pnpm，先用它把新版插件管理与 devkit 升进 default；机器上要先有两个位置之一的 pnpm 12
+
+## 依据
+
+- 本机实测：`%APPDATA%\npm\node_modules\pnpm\pnpm.exe --version` 输出 12.4.2，与 `pnpm.exe` 同目录的 `pnpm` 大小相同；`%LOCALAPPDATA%\pnpm\pnpm.exe` 不存在
+- 构建后在本机调插件管理的 `locatePnpm()`，回 `{ ok: true, file: "…\\npm\\node_modules\\pnpm\\pnpm.exe", version: "12.4.2" }`

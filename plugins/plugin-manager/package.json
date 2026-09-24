@@ -1,6 +1,6 @@
 {
   "name": "@godcreator/gwb-plugin-manager",
-  "version": "0.8.2",
+  "version": "0.8.3",
   "author": {
     "name": "godcreator"
   },
@@ -31,9 +31,6 @@
   },
   "peerDependencies": {
     "@godcreator/gwb-kernel-desktop": "^0.4.0"
-  },
-  "dependencies": {
-    "@pnpm/exe.win32-x64": "12.4.2"
   },
   "devDependencies": {
     "@cordisjs/plugin-include": "1.1.0",

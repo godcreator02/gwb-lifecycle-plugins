@@ -1,11 +1,9 @@
 import { spawn, type ChildProcessByStdio } from 'node:child_process'
-import fs from 'node:fs'
-import { createRequire } from 'node:module'
-import path from 'node:path'
 import type { Readable } from 'node:stream'
-import { pnpmExecutableOf, spawnPlan, type LookupResult } from './pnpm-path.js'
+import { spawnPlan } from './pnpm-path.js'
 
 export { describePnpm } from './pnpm-path.js'
+export { locatePnpm } from './pnpm-location.js'
 
 /** 失败时回执带输出的最后几行：pnpm 把原因放在最后 */
 export const TAIL_LINES = 12
@@ -39,31 +37,6 @@ export function tailLines(text: string, max = TAIL_LINES): string {
   while (lines.length > 0 && lines[lines.length - 1]!.trim() === '') lines.pop()
   while (lines.length > 0 && lines[0]!.trim() === '') lines.shift()
   return lines.slice(-max).join('\n')
-}
-
-function versionForLogOf(manifestFile: string): string {
-  try {
-    const manifest: unknown = JSON.parse(fs.readFileSync(manifestFile, 'utf8'))
-    if (typeof manifest === 'object' && manifest !== null && typeof (manifest as { version?: unknown }).version === 'string') {
-      return (manifest as { version: string }).version
-    }
-  } catch {
-    // 版本号只用于日志，读不出来不影响运行
-  }
-  return '?'
-}
-
-export function locatePnpm(): LookupResult {
-  const { pkg, bin } = pnpmExecutableOf(process.platform, process.arch)
-  let manifestFile: string
-  try {
-    manifestFile = createRequire(import.meta.url).resolve(`${pkg}/package.json`)
-  } catch {
-    return { ok: false, error: `插件管理的依赖里没有 ${pkg}（本机是 ${process.platform}-${process.arch}，插件管理只依赖了 Windows x64 那份）；是 Windows x64 的话，重装一次插件管理` }
-  }
-  const file = path.join(path.dirname(manifestFile), bin)
-  if (!fs.existsSync(file)) return { ok: false, error: `${pkg} 里没有 ${bin}（找的是 ${file}），重装一次插件管理` }
-  return { ok: true, file, version: versionForLogOf(manifestFile) }
 }
 
 function spawnPnpm(file: string, cwd: string, args: readonly string[]): ChildProcessByStdio<null, Readable, Readable> {

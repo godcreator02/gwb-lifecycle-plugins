@@ -1,27 +1,29 @@
 ---
 title: 9 pnpm 与包源
-description: 连接 devkit、插件管理与 pnpm、npm 源、两份 npmrc、gitea 插件的设置：插件管理只用自己依赖里的 @pnpm/exe，devkit 用 PATH 上的 pnpm 做 build / publish / view / install / add；团队源地址写在 devkit 里，开发版打 dev、正式版打 latest，audit-deps 用 fetch 直接读 packument；插件管理按 scope 从两份 npmrc 找源、调 registry 的检索接口找插件、读写机器级 ~/.npmrc 的包源，owner 写法按名字调 settings.get 读 gitea 分区
+description: 连接 devkit、插件管理与 pnpm、npm 源、两份 npmrc、gitea 插件的设置：两个插件用同一个 pnpm——用户装在两个固定位置之一的 pnpm 12，按同一套规则找、核对版本，直接启动；插件管理用它改 home，devkit 用它做 build / publish / view / install / add；团队源地址写在 devkit 里，开发版打 dev、正式版打 latest，audit-deps 用 fetch 直接读 packument；插件管理按 scope 从两份 npmrc 找源、调 registry 的检索接口找插件、读写机器级 ~/.npmrc 的包源，owner 写法按名字调 settings.get 读 gitea 分区
 ---
 
-**本页回答**：两个插件各用哪一个 pnpm、做什么；团队源的地址写在哪、哪几处显式传、哪几处靠用户的 `~/.npmrc`；开发版与正式版怎么分开；依赖对账怎么查源；插件管理找插件、配包源时读写哪两份 npmrc、怎么决定去哪条源检索、读 gitea 插件的哪两项设置。
+**本页回答**：两个插件用的是哪一个 pnpm、怎么找到它、各拿它做什么；团队源的地址写在哪、哪几处显式传、哪几处靠用户的 `~/.npmrc`；开发版与正式版怎么分开；依赖对账怎么查源；插件管理找插件、配包源时读写哪两份 npmrc、怎么决定去哪条源检索、读 gitea 插件的哪两项设置。
 
 ## 连接的模块
 
-- 插件管理：`plugins/plugin-manager/src/pnpm.ts`、`src/pnpm-path.ts`；找插件与配包源在 `src/package-sources.ts`、`src/sources.ts`、`src/search.ts`、`src/registry.ts`、`src/home.ts`
-- devkit：`src/dev.ts`、`src/release.ts`、`src/home.ts`、`src/node-dev-deps.ts`、`src/node-audit-deps.ts`
-- pnpm 可执行文件；团队包源（gitea 上 `godcreator` 组织的 npm 源）与第三方包源；npmjs、Verdaccio、gitea 都实现的 npm registry 检索接口
+- 插件管理：`plugins/plugin-manager/src/pnpm.ts`、`src/pnpm-path.ts`、`src/pnpm-location.ts`；找插件与配包源在 `src/package-sources.ts`、`src/sources.ts`、`src/search.ts`、`src/registry.ts`、`src/home.ts`
+- devkit：`src/pnpm-location.ts`、`src/dev.ts`、`src/release.ts`、`src/home.ts`、`src/node-dev-deps.ts`、`src/node-audit-deps.ts`
+- 用户装的 pnpm 12 可执行文件；团队包源（gitea 上 `godcreator` 组织的 npm 源）与第三方包源；npmjs、Verdaccio、gitea 都实现的 npm registry 检索接口
 - 两份 npmrc：机器级 `~/.npmrc`（插件管理的 `source.add` / `source.remove` 改它）与 home 级 `<home>/.npmrc`（只读）；pnpm 安装时读的是同一批配置行
 - gitea 插件（gitea 插件仓 gwb-gitea）的设置：`gitea` 分区的 `base-url` 与 `token`，经设置插件的命令 `settings.get` 读
 
 ## 接口
 
-**插件管理的 pnpm**：`dependencies` 里固定版本的 `@pnpm/exe.win32-x64`，从插件管理自己的位置解析，直接启动里面的可执行文件，不看 PATH。只在 home 里运行 `add`、`remove`、`outdated --json`，不传 `--registry`，源由用户级 `~/.npmrc` 决定。细节见[插件管理的 pnpm](/docs/plugin-manager/pnpm)。
+**两个插件用同一个 pnpm**：每条要运行 pnpm 的命令开头按顺序检查两个位置——`%LOCALAPPDATA%\pnpm\bin\pnpm.exe`（pnpm 12 官方安装脚本的默认位置）、`%APPDATA%\npm\node_modules\pnpm\pnpm.exe`（npm 全局装的 pnpm 包里的原生可执行文件）——第一个存在的作数，运行 `--version` 核对是 12.x 并且不低于 12.4.2；不存在、版本不对都报错，不去试另一个位置，不看 PATH。找到的文件直接启动，不经 shell。规则写在 `src/pnpm-location.ts`，两个插件各存一份、逐字相同，由 devkit 的对照测试保证：
 
-{/* ref file="../plugins/plugin-manager/package.json" lines="35-37" */}
+{/* ref file="../plugins/plugin-manager/src/pnpm-location.ts" lines="22-28" */}
 
-{/* ref file="../plugins/plugin-manager/src/pnpm-path.ts" lines="1-4" */}
+{/* has file="../plugins/devkit/tests/pnpm-location-parity.test.ts" text="src/pnpm-location.ts 两份逐字相同" */}
 
-**devkit 的 pnpm**：PATH 上的 `pnpm`，Windows 上经 `cmd /c`。用在五处：
+**插件管理拿它做什么**：只在 home 里运行 `add`、`remove`、`outdated --json`，不传 `--registry`，源由用户级 `~/.npmrc` 决定。细节见[插件管理的 pnpm](/docs/plugin-manager/pnpm)。
+
+**devkit 拿它做什么**：`devkit.home.new`、`devkit.dev`、`devkit.release` 三条命令开头各找一次，找不到就回 `ok: false`、什么都不做。用在五处：
 
 | 命令 | 在哪运行 | 谁调 | 带 `--registry` |
 | --- | --- | --- | --- |
@@ -82,7 +84,7 @@ description: 连接 devkit、插件管理与 pnpm、npm 源、两份 npmrc、git
 ## 约定
 
 插件管理保证：
-- 改 home 的 pnpm 只有自己依赖里那一份，排进同一个串行队列
+- 改 home 的 pnpm 都排进同一个串行队列
 - `source.add` / `source.remove` 只改机器级 `~/.npmrc`，home 级只读；`@godcreator` 的路由与凭据不改不删
 - `source.add` 同一个 scope 已有就原地替换；换源、删源时，旧源的凭据行只在没有别的 scope 还指向它时才删；写完重读一遍，读不到写进去的行就回 `ok: false`
 - 回执与日志里不带 token：写进去的行里 token 换成 `***`，`source.list` 只报有没有 token
@@ -100,7 +102,7 @@ devkit 保证：
 
 gitea 插件需要保证的（gitea 插件仓的约定）：条目 id 是 `gitea`，设置名是 `base-url` 与 `token`。
 
-**同一个 home 可能被两个不同的 pnpm 改**：插件管理用它自带的那份（`package.json` 里写的版本），`devkit.home.new` 与 `devkit.dev` 用 PATH 上的那份；两处都不检查对方的版本。
+**改 home 的是同一个 pnpm，但不在同一个队列里**：插件管理、`devkit.home.new`、`devkit.dev` 找到的是同一个文件；插件管理的改动排进它自己的串行队列，devkit 的两条命令不经过这个队列。
 
 本仓 AGENTS 写「手工发版别手写 `--registry`，scope 对应的源写在 `~/.npmrc`」；`devkit.dev` 与 `devkit.release` 的 `publish` 与 `view` 显式带 `--registry`。
 
@@ -116,9 +118,9 @@ gitea 插件需要保证的（gitea 插件仓的约定）：条目 id 是 `gitea
 
 pnpm 与源都只在实机上真正运行；单元测试覆盖命令行怎么拼、用哪一份 pnpm、源地址是哪个，以及 npmrc 的解析与改写、检索响应的解析与插件判断：
 
-{/* has file="../plugins/devkit/tests/dev.test.ts" text="Windows 上借 cmd /c 一层，不然 ENOENT" */}
+{/* has file="../plugins/devkit/tests/dev.test.ts" text="直接启动找到的那个 pnpm 可执行文件，不经 shell" */}
 
-{/* has file="../plugins/plugin-manager/tests/pnpm-path.test.ts" text="从本插件的位置解析到依赖里那个可执行文件，版本与 package.json 写的相同" */}
+{/* has file="../plugins/plugin-manager/tests/pnpm-location.test.ts" text="先是官方安装脚本的默认位置，再是 npm 全局装的 pnpm 包里的原生可执行文件" */}
 
 {/* has file="../plugins/devkit/tests/release.test.ts" text="源是团队源" */}
 

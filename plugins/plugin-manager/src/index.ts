@@ -486,7 +486,7 @@ class PluginManager {
   async install(pkg: string, spec?: string): Promise<InstallResult> {
     const packageSpec = installSpec(pkg, spec)
 
-    const pnpmLookup = locatePnpm()
+    const pnpmLookup = await locatePnpm()
     if (!pnpmLookup.ok) {
       this.log.warn(`装不了 ${packageSpec}：${pnpmLookup.error}`)
       return { ok: false, pkg, error: pnpmLookup.error }
@@ -515,7 +515,7 @@ class PluginManager {
 
   /** `pnpm outdated --json` 的退出码 1 表示「存在过期包」，是结果不是失败 */
   async outdated(): Promise<OutdatedReceipt> {
-    const pnpmLookup = locatePnpm()
+    const pnpmLookup = await locatePnpm()
     if (!pnpmLookup.ok) return { ok: false, error: pnpmLookup.error }
 
     const pnpmRun = await this.enqueuePnpm(() =>
@@ -551,7 +551,7 @@ class PluginManager {
       return { ok: true, updated: [], selfDeferred: false, ...kernelManagedField, note: [...(everythingUpToDate ? ['全都最新'] : []), ...notes].join('；') }
     }
 
-    const pnpmLookup = locatePnpm()
+    const pnpmLookup = await locatePnpm()
     if (!pnpmLookup.ok) {
       this.log.warn(`升不了：${pnpmLookup.error}`)
       return failedUpdateAll(pnpmLookup.error)
@@ -596,7 +596,7 @@ class PluginManager {
   async updateKernel(version?: string): Promise<UpdateKernelResult> {
     const kernelSpec = installSpec(KERNEL_PACKAGE, version ?? 'latest')
 
-    const pnpmLookup = locatePnpm()
+    const pnpmLookup = await locatePnpm()
     if (!pnpmLookup.ok) {
       this.log.warn(`升不了内核：${pnpmLookup.error}`)
       return { ok: false, error: pnpmLookup.error }
@@ -713,7 +713,7 @@ class PluginManager {
     const removedIds = entriesForPackage(this.tree.store, pkg)
     for (const id of removedIds) this.tree.remove(id)
 
-    const pnpmLookup = locatePnpm()
+    const pnpmLookup = await locatePnpm()
     if (!pnpmLookup.ok) {
       this.log.warn(`卸不了 ${pkg}：条目已删除（${removedIds.length} 条），${pnpmLookup.error}`)
       return { ok: false, pkg, removedEntries: removedIds, error: pnpmLookup.error }

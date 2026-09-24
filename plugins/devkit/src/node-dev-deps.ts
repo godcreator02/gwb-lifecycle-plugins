@@ -162,6 +162,7 @@ async function publishStaged(input: {
   registry: string
   tag: 'dev' | 'latest'
   deps: Record<string, string>
+  pnpm: string
 }): Promise<{ ok: boolean; tail: string }> {
   let manifest: DistManifest
   try {
@@ -205,7 +206,7 @@ async function publishStaged(input: {
     )
     // 开发版标 dev、不动 latest：源上这些包同时被别的仓使用，开发版占了 latest 它们就不明不白地换了代码
     return await runCaptured(
-      pnpmPlan(['publish', '--no-git-checks', '--tag', input.tag, '--registry', input.registry], stage, process.platform),
+      pnpmPlan(['publish', '--no-git-checks', '--tag', input.tag, '--registry', input.registry], stage, input.pnpm),
       PUBLISH_TIMEOUT_MS,
     )
   } catch (err) {
@@ -220,14 +221,14 @@ async function publishStaged(input: {
   }
 }
 
-/** 「改一版看一版」在这台机器上的实现。重启 home 要用到测试 home 的启停，由 index.ts 接上 */
-export const devDeps: Omit<DevDeps, 'restartHome'> = {
+/** 「改一版看一版」在这台机器上的实现。`pnpm` 是命令开头找到的那个；重启 home 要用到测试 home 的启停，由 index.ts 接上 */
+export const devDepsWith = (pnpm: string): Omit<DevDeps, 'restartHome'> => ({
   run: (plan: RunPlan, timeoutMs: number) => runCaptured(plan, timeoutMs),
   cdp: runCdp,
   publish: (input) =>
-    publishStaged({ pkgDir: input.pkgDir, version: input.version, registry: input.registry, tag: 'dev', deps: input.siblings }),
+    publishStaged({ pkgDir: input.pkgDir, version: input.version, registry: input.registry, tag: 'dev', deps: input.siblings, pnpm }),
   async published(spec, registry) {
-    const seen = await runCaptured(pnpmPlan(['view', spec, 'version', '--registry', registry], os.tmpdir(), process.platform), 60_000)
+    const seen = await runCaptured(pnpmPlan(['view', spec, 'version', '--registry', registry], os.tmpdir(), pnpm), 60_000)
     return seen.ok
   },
   readText(file) {
@@ -276,13 +277,14 @@ export const devDeps: Omit<DevDeps, 'restartHome'> = {
   now: () => Date.now(),
   sleep: (ms) => new Promise((resolve) => setTimeout(resolve, ms)),
   platform: process.platform,
-}
+  pnpm,
+})
 
 /** git status 的上限。卡住说明 git 本身出了问题 */
 const GIT_TIMEOUT_MS = 30_000
 
 /**
- * git 是 exe（不像 pnpm 是 .cmd），不用经 cmd /c。runCaptured 回的是 stdout 与 stderr 合在一起的最后几行，
+ * git 是 exe，直接启动。runCaptured 回的是 stdout 与 stderr 合在一起的最后几行，
  * 所以按 porcelain 条目的样子认改动：safe.directory 警告之类不算，不然一句无害的警告就让发版永远不成
  */
 async function gitStatusOf(repoDir: string): Promise<{ ok: true; dirty: string[] } | { ok: false; error: string }> {
@@ -295,17 +297,17 @@ async function gitStatusOf(repoDir: string): Promise<{ ok: true; dirty: string[]
   return { ok: true, dirty }
 }
 
-/** 发正式版在这台机器上的实现。publish 与开发版共用 publishStaged，只差 tag 与依赖写法 */
-export const releaseDeps: ReleaseDeps = {
+/** 发正式版在这台机器上的实现。`pnpm` 是命令开头找到的那个；publish 与开发版共用 publishStaged，只差 tag 与依赖写法 */
+export const releaseDepsWith = (pnpm: string): ReleaseDeps => ({
   run: (plan: RunPlan, timeoutMs: number) => runCaptured(plan, timeoutMs),
   publish: (input) =>
-    publishStaged({ pkgDir: input.pkgDir, version: input.version, registry: input.registry, tag: 'latest', deps: input.ranges }),
+    publishStaged({ pkgDir: input.pkgDir, version: input.version, registry: input.registry, tag: 'latest', deps: input.ranges, pnpm }),
   published: async (spec, registry) => {
-    const seen = await runCaptured(pnpmPlan(['view', spec, 'version', '--registry', registry], os.tmpdir(), process.platform), 60_000)
+    const seen = await runCaptured(pnpmPlan(['view', spec, 'version', '--registry', registry], os.tmpdir(), pnpm), 60_000)
     return seen.ok
   },
   latest: async (pkg, registry) => {
-    const seen = await runCaptured(pnpmPlan(['view', pkg, 'dist-tags.latest', '--registry', registry], os.tmpdir(), process.platform), 60_000)
+    const seen = await runCaptured(pnpmPlan(['view', pkg, 'dist-tags.latest', '--registry', registry], os.tmpdir(), pnpm), 60_000)
     if (!seen.ok) return undefined
     const lines = seen.tail.split(/\r?\n/).map((line) => line.trim())
     return lines.reverse().find((line) => /^\d+\.\d+\.\d+(?:-[0-9A-Za-z.-]+)?$/.test(line))
@@ -323,4 +325,5 @@ export const releaseDeps: ReleaseDeps = {
   },
   sourceTextOf: sourceTextUnder,
   platform: process.platform,
-}
+  pnpm,
+})

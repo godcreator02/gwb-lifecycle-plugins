@@ -25,7 +25,7 @@ description: 插件管理是唯一写 home 的插件——装卸包、增删条�
 - **选条目 id**：沿用本包留在磁盘上的旧 id，避开别的包的数据与设置，见[id 与归属](/docs/plugin-manager/ids)
 - **改显示名、转归属**：显示名存在插件管理自己的数据里；插件改了包名时把一个 id 的数据与设置转给新包，见[id 与归属](/docs/plugin-manager/ids#转归属transfer-owner)
 - **同一时刻只允许一个改动**：安装、卸载、热升级、升内核、重新加载重入时回 BUSY，所有 pnpm 排进同一个串行队列，见[home 的两层与唯一写入者](/docs/plugin-manager/home#同一时刻只允许一个改动busy)
-- **用自己依赖里固定版本的 pnpm**：直接启动、不设超时，见 [pnpm](/docs/plugin-manager/pnpm)
+- **只用两个固定位置的 pnpm 12**：官方安装脚本的默认位置、npm 全局装的 pnpm 包，第一个存在的作数，核对版本；直接启动、不设超时，见 [pnpm](/docs/plugin-manager/pnpm)
 - **找可装的插件**：在配好的每条 npm 源上检索，地址按 scope 从两份 npmrc 里找、和 pnpm 安装读同一批配置行；是不是插件只看包清单 `keywords` 里的 `gwb-plugin`，见[找插件与配包源](/docs/plugin-manager/sources)
 - **配第三方包源**：往机器级 `~/.npmrc` 增删 scope 路由与凭据，`@godcreator` 不改不删，token 不进回执；这几条不改 home、不经 BUSY，见[找插件与配包源](/docs/plugin-manager/sources#包源只写机器级-npmrc)
 
@@ -75,7 +75,7 @@ description: 插件管理是唯一写 home 的插件——装卸包、增删条�
 | --- | --- | --- |
 | 内核服务 `gwbKernel` 的 `dataDir` 与 `version` | home 目录（pnpm 的工作目录、`package.json` 所在的目录）；运行中的内核版本号，和各包 peer 里内核包的范围比对 | 构造时报错「ctx.gwbKernel 不在」，插件管理不加载；内核版本号不合法时 `list` 报错 |
 | loader 的条目树：`store`、`create`、`update`、`remove`、`resolve` | 读条目、加删条目、启用停用、重新加载 | 构造时报错：取不到条目树（插件管理不是经 `cordis.yml` 的条目加载的），或条目树少了某个方法（loader 的接口变了），都说清是哪一种 |
-| `@pnpm/exe.win32-x64`（`dependencies` 里的固定版本） | `add`、`remove`、`outdated --json` | 要运行 pnpm 的命令回 `ok: false`，原因是插件管理的依赖里没有它、要重装插件管理；`list`、启停条目不受影响 |
+| 用户装的 pnpm 12（`%LOCALAPPDATA%\pnpm\bin\pnpm.exe` 或 `%APPDATA%\npm\node_modules\pnpm\pnpm.exe`，版本不低于 12.4.2） | `add`、`remove`、`outdated --json` | 要运行 pnpm 的命令回 `ok: false`，原因里写明检查了哪两个位置、找到的版本不对时该装哪个版本；`list`、启停条目不受影响 |
 | home 的 `package.json` | 装了哪些包、各自的版本范围 | 读不到或解析不了就当空表：`list` 里只有条目那一层 |
 | 装在 home 里的每个包自己的 `package.json` | 读 `peerDependencies` 里内核包的范围、`gwb.requires`，以及被要求的包装的 `version`；`update-kernel` 另读新装的内核包的 `version` 与 `peerDependencies.cordis`、各插件的 `keywords` | 文件不在就当不是插件，`kernelUntested` 是 `false`；被要求的包文件不在就算没装；文件在但读不了、或不是合法 JSON，`list` 与 `update-kernel` 报错并带上文件路径；内核包 peer 里的 `cordis` 不是精确版本号时 `update-kernel` 不装 `cordis`、回 `ok: false` |
 | 命令插件 `gwbCommands`（`@godcreator/gwb-commands`，局部注入） | 登记 17 条命令；热升级后按名字查找并执行 `shell.reload`；`source.add` 的 `owner` 写法按名字调 `settings.get` | 命令登记不上，插件管理没有调用方式；服务照常提供 |
@@ -106,5 +106,5 @@ description: 插件管理是唯一写 home 的插件——装卸包、增删条�
 - **不重启工作台**：`update-kernel` 装完只在回执里说要重启，重启由人决定；主进程里的内核热替换不了
 - **一键热升级不动内核包与 `cordis`**：它们的版本由内核决定，经 `update-kernel` 一起升
 - **不拦要求没满足的插件，也不替它升级被要求的包**：`unmetRequires` 只报告，升不升由人或 agent 决定；发版前拒绝没写对 `gwb.requires` 的包是 `devkit.release` 的事
-- **不管机器上装没装 pnpm、装的哪个版本**：只用自己依赖里的那一份
+- **不替人装 pnpm，也不找 PATH 上的 pnpm**：两个固定位置都没有、或版本不对，就报错说明该怎么装
 - **不猜承载 `cordis.yml` 的条目叫什么**：条目树从自己那条条目的上一层取

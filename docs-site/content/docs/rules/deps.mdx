@@ -67,9 +67,9 @@ export function apply(ctx: Context) {
 
 ## 例子：插件管理的清单
 
-插件管理不按值 import `cordis`（它的服务用 `ctx.provide` 提供一个普通对象），所以 peer 里只有内核包。它自带的 pnpm 是一个原生可执行文件，运行时按路径找到它、打包不进构建产物，所以写在 `dependencies`；别的插件、词汇表包、`cordis`、loader 全在 dev：
+插件管理不按值 import `cordis`（它的服务用 `ctx.provide` 提供一个普通对象），所以 peer 里只有内核包。它运行的 pnpm 是用户装在机器上的外部程序，照上表最后一行不声明，用的时候在两个固定位置检测它在不在（见[插件管理的 pnpm](/docs/plugin-manager/pnpm)），所以没有 `dependencies`；别的插件、词汇表包、`cordis`、loader 全在 dev：
 
-{/* ref file="../plugins/plugin-manager/package.json" lines="32-52" */}
+{/* ref file="../plugins/plugin-manager/package.json" lines="32-49" */}
 
 它对别的插件只 import 类型，构建产物里这几句整句消失：
 

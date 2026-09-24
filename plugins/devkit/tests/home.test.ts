@@ -53,6 +53,7 @@ const ROOT = 'D:/fake-homes'
 const NAME = 'data-2609081430'
 const HOME = path.join(ROOT, NAME)
 const HOST = 'C:/apps/gwb-kernel.exe'
+const PNPM = 'C:\\Users\\u\\AppData\\Local\\pnpm\\bin\\pnpm.exe'
 const RECORD: HomeRecord = { pid: 4242, startedAt: 1_000, appDir: 'D:/fake-app' }
 
 /** 内核往 home 里写的运行时记录。**devkit 只读它**，所以测试里由测试自己写 */
@@ -220,26 +221,26 @@ function installsOnRuns(deps: HomeDeps, fs: HomeFs, kernelManifestText: string, 
 }
 
 describe('装进新 home 的东西：内核包、cordis 与基础插件', () => {
-  it('装内核包：pnpm add --save-exact 精确版本（Windows 上经 cmd /c）', () => {
-    expect(kernelInstallPlan(HOME, KERNEL_VERSION, 'win32')).toEqual({
-      command: 'cmd',
-      args: ['/c', 'pnpm', 'add', '--save-exact', `${KERNEL_PACKAGE}@${KERNEL_VERSION}`],
+  it('装内核包：直接启动找到的 pnpm，add --save-exact 精确版本', () => {
+    expect(kernelInstallPlan(HOME, KERNEL_VERSION, PNPM)).toEqual({
+      command: PNPM,
+      args: ['add', '--save-exact', `${KERNEL_PACKAGE}@${KERNEL_VERSION}`],
       cwd: HOME,
     })
-    expect(kernelInstallPlan(HOME, '0.3.1-dev.202609241500', 'linux')).toEqual({
-      command: 'pnpm',
+    expect(kernelInstallPlan(HOME, '0.3.1-dev.202609241500', PNPM)).toEqual({
+      command: PNPM,
       args: ['add', '--save-exact', `${KERNEL_PACKAGE}@0.3.1-dev.202609241500`],
       cwd: HOME,
     })
   })
 
   it('装 cordis：pnpm add --save-exact 精确版本', () => {
-    expect(cordisInstallPlan(HOME, '4.0.0-rc.9', 'linux')).toEqual({ command: 'pnpm', args: ['add', '--save-exact', 'cordis@4.0.0-rc.9'], cwd: HOME })
+    expect(cordisInstallPlan(HOME, '4.0.0-rc.9', PNPM)).toEqual({ command: PNPM, args: ['add', '--save-exact', 'cordis@4.0.0-rc.9'], cwd: HOME })
   })
 
   it('装基础插件：基础插件与词汇表包不写版本、不带 --save-exact', () => {
-    const plan = baseInstallPlan(HOME, 'linux')
-    expect(plan.command).toBe('pnpm')
+    const plan = baseInstallPlan(HOME, PNPM)
+    expect(plan.command).toBe(PNPM)
     expect(plan.cwd).toBe(HOME)
     expect(plan.args).toEqual(['add', ...BASE_PLUGINS.map((one) => one.pkg), '@godcreator/gwb-plugin-api'])
   })
@@ -399,7 +400,7 @@ describe('launchHome：拼宿主拉起计划、起它、落记录、看五秒', 
 
   it('内核包装不上：不装 cordis 与基础插件、不启动宿主，输出的最后几行带回来', async () => {
     const { deps, state } = fakeDeps({ runs: [{ ok: false, tail: 'ERR!坏的' }] })
-    const outcome = await launchHome({ name: NAME, homesRoot: ROOT, install: { kernelVersion: KERNEL_VERSION } }, deps)
+    const outcome = await launchHome({ name: NAME, homesRoot: ROOT, install: { kernelVersion: KERNEL_VERSION, pnpm: PNPM } }, deps)
     expect(outcome.ok).toBe(false)
     if (!outcome.ok) {
       expect(outcome.error).toContain('ERR!坏的')
@@ -413,12 +414,12 @@ describe('launchHome：拼宿主拉起计划、起它、落记录、看五秒', 
     const fs = fakeFs({}, { [ROOT]: [] })
     const { deps, state } = fakeDeps({ fs, processes: { 4242: 'gwb-kernel.exe' } })
     installsOnRuns(deps, fs, kernelManifest())
-    const outcome = await launchHome({ name: NAME, homesRoot: ROOT, install: { kernelVersion: KERNEL_VERSION } }, deps)
+    const outcome = await launchHome({ name: NAME, homesRoot: ROOT, install: { kernelVersion: KERNEL_VERSION, pnpm: PNPM } }, deps)
     expect(outcome.ok).toBe(true)
     expect(state.runCalls.map((call) => call.timeoutMs)).toEqual([BASE_INSTALL_TIMEOUT_MS, BASE_INSTALL_TIMEOUT_MS, BASE_INSTALL_TIMEOUT_MS])
     expect(state.runCalls.map((call) => call.plan.cwd)).toEqual([HOME, HOME, HOME])
-    expect(state.runCalls[0]?.plan.args).toEqual(['/c', 'pnpm', 'add', '--save-exact', `${KERNEL_PACKAGE}@${KERNEL_VERSION}`])
-    expect(state.runCalls[1]?.plan.args).toEqual(['/c', 'pnpm', 'add', '--save-exact', 'cordis@4.0.0-rc.9'])
+    expect(state.runCalls[0]?.plan).toMatchObject({ command: PNPM, args: ['add', '--save-exact', `${KERNEL_PACKAGE}@${KERNEL_VERSION}`] })
+    expect(state.runCalls[1]?.plan).toMatchObject({ command: PNPM, args: ['add', '--save-exact', 'cordis@4.0.0-rc.9'] })
     expect(state.runCalls[2]?.plan.args).toContain('@godcreator/gwb-commands')
     expect(state.runCalls[2]?.plan.args).not.toContain('--save-exact')
     expect(deps.fs.exists(path.join(HOME, 'cordis.yml'))).toBe(true)
@@ -429,7 +430,7 @@ describe('launchHome：拼宿主拉起计划、起它、落记录、看五秒', 
     const fs = fakeFs({}, { [ROOT]: [] })
     const { deps, state } = fakeDeps({ fs, processes: { 4242: 'gwb-kernel.exe' } })
     installsOnRuns(deps, fs, kernelManifest({ peerDependencies: { cordis: '^4.0.0-rc.9' } }))
-    const outcome = await launchHome({ name: NAME, homesRoot: ROOT, install: { kernelVersion: KERNEL_VERSION } }, deps)
+    const outcome = await launchHome({ name: NAME, homesRoot: ROOT, install: { kernelVersion: KERNEL_VERSION, pnpm: PNPM } }, deps)
     expect(outcome.ok).toBe(false)
     if (!outcome.ok) expect(outcome.error).toContain('不是精确版本号')
     expect(state.runCalls).toHaveLength(1)
@@ -440,7 +441,7 @@ describe('launchHome：拼宿主拉起计划、起它、落记录、看五秒', 
     const fs = fakeFs({}, { [ROOT]: [] })
     const { deps, state } = fakeDeps({ fs, processes: { 4242: 'gwb-kernel.exe' } })
     installsOnRuns(deps, fs, kernelManifest({ version: '0.3.1' }))
-    const outcome = await launchHome({ name: NAME, homesRoot: ROOT, install: { kernelVersion: KERNEL_VERSION } }, deps)
+    const outcome = await launchHome({ name: NAME, homesRoot: ROOT, install: { kernelVersion: KERNEL_VERSION, pnpm: PNPM } }, deps)
     expect(outcome.ok).toBe(false)
     if (!outcome.ok) expect(outcome.error).toContain('home 里装上的却是 0.3.1')
     expect(state.runCalls).toHaveLength(1)
@@ -451,7 +452,7 @@ describe('launchHome：拼宿主拉起计划、起它、落记录、看五秒', 
     const fs = fakeFs({}, { [ROOT]: [] })
     const { deps, state } = fakeDeps({ fs, processes: { 4242: 'gwb-kernel.exe' } })
     installsOnRuns(deps, fs, kernelManifest(), cordisManifest('4.0.0-rc.10'))
-    const outcome = await launchHome({ name: NAME, homesRoot: ROOT, install: { kernelVersion: KERNEL_VERSION } }, deps)
+    const outcome = await launchHome({ name: NAME, homesRoot: ROOT, install: { kernelVersion: KERNEL_VERSION, pnpm: PNPM } }, deps)
     expect(outcome.ok).toBe(false)
     if (!outcome.ok) expect(outcome.error).toContain('home 里装上的却是 4.0.0-rc.10')
     expect(state.runCalls).toHaveLength(2)
@@ -466,7 +467,7 @@ describe('launchHome：拼宿主拉起计划、起它、落记录、看五秒', 
       const fs = fakeFs({}, { [ROOT]: [] })
       const { deps, state } = fakeDeps({ fs, runs })
       installsOnRuns(deps, fs, kernelManifest())
-      const outcome = await launchHome({ name: NAME, homesRoot: ROOT, install: { kernelVersion: KERNEL_VERSION } }, deps)
+      const outcome = await launchHome({ name: NAME, homesRoot: ROOT, install: { kernelVersion: KERNEL_VERSION, pnpm: PNPM } }, deps)
       expect(outcome.ok).toBe(false)
       if (!outcome.ok) expect(outcome.error).toContain('ERR!坏的')
       expect(state.runCalls).toHaveLength(runs.length)

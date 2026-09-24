@@ -1,45 +1,36 @@
 ---
 title: pnpm
-description: 插件管理只用自己依赖里固定版本的 @pnpm/exe.win32-x64，不看设置、不看 PATH；直接启动那个文件、环境原样传下去、不设超时；只读退出码与输出的最后几行，outdated 另读 stdout 上的 JSON；卸载时不结束正在运行的 pnpm
+description: 插件管理不自带 pnpm，只认用户装在两个固定位置的 pnpm 12：官方安装脚本的默认位置、npm 全局装的 pnpm 包里的原生可执行文件，第一个存在的作数，再核对版本；不看设置、不看 PATH；直接启动那个文件、环境原样传下去、不设超时；只读退出码与输出的最后几行，outdated 另读 stdout 上的 JSON；卸载时不结束正在运行的 pnpm
 ---
 
 # pnpm
 
 **本页回答**：插件管理用的是哪个 pnpm、怎么找到它；怎么启动它、带什么参数与环境、读回什么；卸载时正在运行的 pnpm 为什么不结束。pnpm 什么时候运行、为什么排队，见[只有插件管理写 home](/docs/plugin-manager/home#包只经-applytohome排进一个串行队列)。
 
-## 只用自己依赖里的那份 pnpm
+## 只认两个固定位置的 pnpm
 
-**是什么**：插件管理的 `dependencies` 写固定版本的 `@pnpm/exe.win32-x64`，随插件管理一起装进 home。运行时从插件管理自己的位置解析这个包，启动里面的 `pnpm.exe`。不读设置、不找 PATH，机器上装没装 pnpm、装的哪个版本，都和插件管理无关。
+**是什么**：pnpm 由用户照 `INSTALL.md` 装好，插件管理不自带。每次要运行 pnpm 时按顺序检查两个位置，第一个存在的文件作数：
 
-{/* ref file="../plugins/plugin-manager/package.json" lines="35-37" */}
+1. `%LOCALAPPDATA%\pnpm\bin\pnpm.exe`：pnpm 12 官方安装脚本的默认位置
+2. `%APPDATA%\npm\node_modules\pnpm\pnpm.exe`：`npm i -g pnpm` 装的 pnpm 12 包里的原生可执行文件，PATH 上的 `pnpm.cmd` 转去调用的就是它
+
+{/* ref file="../plugins/plugin-manager/src/pnpm-location.ts" lines="22-28" */}
+
+找到之后运行一次 `--version` 核对版本：主版本号要是 12，并且不低于 12.4.2。两个位置都没有、`--version` 运行失败、版本不对，一律报错，报错里写明检查的是哪个路径、该装哪个版本；**不去试另一个位置，也不找 PATH、不读设置、不读 `PNPM_HOME`**。devkit 用的是同一套规则，两个插件各存一份 `src/pnpm-location.ts`、逐字相同，由 devkit 的 `tests/pnpm-location-parity.test.ts` 对照。
+
+{/* ref file="../plugins/plugin-manager/src/pnpm-location.ts" lines="7-8" */}
 
 **为什么**：
 
-- 各人机器上装的 pnpm 版本不同，出过兼容问题。固定一份，所有 home 改动时用的都是同一个版本；升级 pnpm 就是给插件管理发一版
-- 依赖的是可执行文件包，不是 `pnpm` 包：`pnpm` 包带安装脚本，pnpm 默认不运行依赖的安装脚本，每次改 home 都会以 `ERR_PNPM_IGNORED_BUILDS` 退出码 1 结束；`@pnpm/exe.win32-x64` 的包里只有一个 `pnpm.exe`
-- 原生可执行文件可以直接启动，不用开 shell，也就没有参数引号转义的问题
+- 装机、插件管理、devkit 用的是同一个 pnpm：第一次装 home 时插件管理还不在，只能用机器上的 pnpm，自带一份就会有两个版本改同一个 home
+- 只认固定位置、不看 PATH：PATH 上排在前面的是哪一份，每台机器都不一样；两个位置都是原生可执行文件，可以直接启动，不用开 shell，也就没有参数引号转义的问题
+- 核对版本：pnpm 大版本之间 `node_modules` 的布局与输出格式会变，版本不对就当场报错，不带着错的版本改 home
 
-**怎么做**：
+**守住它的测试**：两个位置的顺序、第一个存在的作数、版本不对不去试第二个、`--version` 失败与环境变量缺失都报错；包清单里没有 `dependencies`。
 
-<Diagram name="pm-pnpm-lookup" title="插件管理从自己的依赖里找到 pnpm">
-- home 按 pnpm 的布局存放：插件管理和它依赖的 `@pnpm/exe.win32-x64` 在 `node_modules/.pnpm/` 下同一个目录里
-- 插件管理从自己的位置按 node 的规则解析 `@pnpm/exe.win32-x64/package.json`，旁边的 `pnpm.exe` 就是要启动的文件，工作目录是 home
-- 包或文件找不到：报错，让人重装插件管理
-- 插件管理升级时 pnpm 版本可能跟着变。pnpm 只把链接换到新版本目录，旧目录和正在运行的那个文件留在原处，不会因为文件被占用而失败
-</Diagram>
+{/* has file="../plugins/plugin-manager/tests/pnpm-location.test.ts" text="第一个位置的版本不对：报错，不去试第二个" */}
 
-{/* ref file="../plugins/plugin-manager/src/pnpm.ts" lines="44-67" */}
-
-{/* ref file="../plugins/plugin-manager/src/pnpm-path.ts" lines="1-4" */}
-
-- 包名带平台：现在只依赖了 Windows x64 那份，别的平台上找不到，直接报错
-- 日志里写的是用了哪个版本、哪个文件；版本号读旁边的 `package.json`，只用于日志，读不出来就是 `?`
-
-**守住它的测试**：
-
-{/* has file="../plugins/plugin-manager/tests/pnpm-path.test.ts" text="从本插件的位置解析到依赖里那个可执行文件" */}
-
-{/* has file="../plugins/plugin-manager/tests/pnpm-path.test.ts" text="依赖里只有 pnpm 的可执行文件包" */}
+{/* has file="../plugins/plugin-manager/tests/pnpm-path.test.ts" text="包清单里没有 dependencies：pnpm 由用户装在固定位置" */}
 
 ## 参数、环境与读回什么
 
@@ -49,7 +40,7 @@ description: 插件管理只用自己依赖里固定版本的 @pnpm/exe.win32-x6
 
 **环境**：原样传下去，用户的 `~/.npmrc`、pnpm 配置（`@godcreator` 的包源、包龄豁免）照常读到；只去掉 `ELECTRON_RUN_AS_NODE`——它只对 electron 有意义，留着会传给 pnpm 启动的依赖构建脚本。直接启动这个文件，不开 shell。
 
-{/* ref file="../plugins/plugin-manager/src/pnpm-path.ts" lines="14-19" */}
+{/* ref file="../plugins/plugin-manager/src/pnpm-path.ts" lines="7-12" */}
 
 **不设超时**：装一个大包本来就可能要几分钟，定一个时限只会在慢网络上错误地结束正常的安装；网络层的超时 pnpm 自己有。真卡住了，由人去结束进程。
 
