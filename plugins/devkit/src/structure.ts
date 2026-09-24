@@ -2,26 +2,26 @@ import fs from 'node:fs'
 import path from 'node:path'
 
 /**
- * 结构体检：对一个仓（或整个生态）只读地回答「离当前标准形有多远」。
+ * 结构体检：对一个仓（或整个生态）只读地回答「离模板生成的布局有多远」。
  *
- * 与另外几件验机的分工，**各管一段、不立第二正本**：
+ * 与别的检查分工，同一条规矩只由一处检查：
  *
- * - 依赖钉版与 peer 规矩 → `devkit.audit-deps` 与发版检票
- * - 自述三格 / 服务名 / skill 数 → repo-kit 的 self-report 守卫（住各仓 tests）
- * - 文档论断 → docfirst
- * - 产物形状 → 各仓 artifact 测试
- * - **这儿管形状与静态红线**：仓形（薄壳 / 裸根单件）、件包自足、短名派生链、
- *   `files` 白名单、`prepublishOnly`，外加两条机械可判的红线（cordis 写在
- *   dependencies、tsconfig `paths` 与 `link:` / `file:` 依赖）
+ * - 依赖版本写法与 peer 规矩 → `devkit.audit-deps` 与发版前检查
+ * - description 的三项自述 / 服务名 / 说明书份数 → repo-kit 的自述守卫（在各仓 tests 里）
+ * - 文档里的说法 → docfirst
+ * - 构建产物的形状 → 各仓的产物测试
+ * - **这里查布局与能静态判断的红线**：仓的布局（workspace / 仓根就是插件）、插件包自带配置、
+ *   名字派生链、`files` 白名单、`prepublishOnly`，外加三条红线（cordis 写在 dependencies、
+ *   tsconfig `paths` 除包内 `@/*` 之外的映射、`link:` / `file:` 依赖）
  *
- * 规则的正本是 scaffold 模板——「模板产物零 findings」的 round-trip 测试焊着这两边：
- * 模板改了形而检查器没跟上，当场红；检查器加了规则而模板产物过不了，也当场红。
+ * 规则以 scaffold 模板为准：往返测试断言模板生成的仓零 findings，模板改了布局而规则没跟上，
+ * 或规则加了一条而模板生成的仓过不了，测试都会失败。
  *
- * 裸根单件仓不判死刑：报 `bare-root-single` 形 + 一条 info 级 finding，detail 里给
- * 这个仓**按实际文件名拼好的**迁移清单——「随触随迁」的那个「触」就是这条命令。
+ * 仓根就是插件的旧布局不算错：报 `bare-root-single` 布局加一条 info 级 finding，detail 里是
+ * 按这个仓实际文件名列好的迁移清单。
  */
 
-/** findings 的三级：error 长不成 / 装不上 / 必炸；warn 活得下去但偏离当前形；info 是提示 */
+/** findings 的三级：error 构建不出来 / 装不上 / 一定出错；warn 能用但偏离当前布局；info 是提示 */
 export type FindingLevel = 'error' | 'warn' | 'info'
 
 export interface StructureFinding {
@@ -72,7 +72,7 @@ export function tallyKinds(findings: { kind: string }[]): Record<string, number>
   return out
 }
 
-// ── 扫描那半（fs）──────────────────────────────────────────────────────────
+// ── 扫描（读磁盘）──────────────────────────────────────────────────────────
 
 function readText(full: string): string | null {
   try {
@@ -163,7 +163,7 @@ export function scanRepo(root: string): RepoScan {
   return { root, rootEntries, workspaceYaml, rootManifest, members }
 }
 
-// ── 规则那半（纯机）────────────────────────────────────────────────────────
+// ── 规则（纯函数）──────────────────────────────────────────────────────────
 
 function keywordsOf(manifest: Record<string, unknown> | null): string[] {
   const raw: unknown = manifest?.['keywords']
@@ -206,7 +206,7 @@ function isPluginMember(member: MemberScan): boolean {
 
 /**
  * `src/index.ts` 里 `export const name = '…'` 的值，不在就是 null。单双引号都认——
- * 引号风格不是派生链的一环，拿它当判据只会造误报
+ * 引号风格不是名字派生链的一部分，拿它当判据只会误报
  */
 function entryNameOf(source: string | null): string | null {
   if (source === null) return null
@@ -214,9 +214,75 @@ function entryNameOf(source: string | null): string | null {
   return m === null ? null : (m[1] ?? null)
 }
 
-/** 裸根单件仓的迁移清单：按 '.' 成员的实际条目拼 git mv 序列 */
+/** tsconfig 是 JSONC：去掉字符串外的注释与对象、数组末尾的逗号再交给 JSON.parse */
+function jsoncToJson(text: string): string {
+  let out = ''
+  let i = 0
+  while (i < text.length) {
+    const c = text[i] ?? ''
+    if (c === '"') {
+      let j = i + 1
+      while (j < text.length && text[j] !== '"') j += text[j] === '\\' ? 2 : 1
+      out += text.slice(i, j + 1)
+      i = j + 1
+    } else if (c === '/' && text[i + 1] === '/') {
+      while (i < text.length && text[i] !== '\n') i++
+    } else if (c === '/' && text[i + 1] === '*') {
+      const end = text.indexOf('*/', i + 2)
+      i = end === -1 ? text.length : end + 2
+    } else {
+      out += c
+      i++
+    }
+  }
+  return out.replaceAll(/,(\s*[}\]])/g, '$1')
+}
+
+/** shadcn CLI 读包根 tsconfig 的 `@/*` 决定组件放到哪，这是 paths 唯一放行的键 */
+const SHADCN_ALIAS = '@/*'
+
+/**
+ * tsconfig 的 `compilerOptions.paths` 为什么不合规，合规时回 null。
+ * 合规只有两种：没有 paths（或是空对象）；只有 `@/*` 一项，且每个目标都是 `./` 开头、规范化之后
+ * 不出包目录（只查包根那几份 tsconfig，目标按包目录解析——TS 7 没有 baseUrl，paths 相对 tsconfig 所在目录）。
+ * 解析不了的 tsconfig 只要文本里有 `"paths"` 就算不合规：确认不了它只有包内的 `@/*`。
+ */
+export function tsconfigPathsViolation(text: string): string | null {
+  let parsed: unknown
+  try {
+    parsed = JSON.parse(jsoncToJson(text))
+  } catch (err) {
+    if (!text.includes('"paths"')) return null
+    return `tsconfig 解析不了（${err instanceof Error ? err.message : String(err)}），确认不了 paths 只有包内的 ${SHADCN_ALIAS}`
+  }
+  const compilerOptions = isPlainRecord(parsed) ? parsed['compilerOptions'] : undefined
+  const paths = isPlainRecord(compilerOptions) ? compilerOptions['paths'] : undefined
+  if (paths === undefined) return null
+  if (!isPlainRecord(paths)) return 'tsconfig 的 paths 不是对象'
+  const keys = Object.keys(paths)
+  if (keys.length === 0) return null
+  if (keys.length !== 1 || keys[0] !== SHADCN_ALIAS) return `tsconfig 的 paths 有 ${keys.join('、')}，只能有 ${SHADCN_ALIAS} 一项`
+  const targets = paths[SHADCN_ALIAS]
+  if (!Array.isArray(targets) || targets.length === 0) return `tsconfig 的 paths 里 ${SHADCN_ALIAS} 的目标要是非空数组`
+  const outside = targets.filter((target) => typeof target !== 'string' || !targetStaysInPackage(target))
+  if (outside.length > 0) return `tsconfig 的 paths 里 ${SHADCN_ALIAS} 指到了包目录之外：${outside.map(String).join('、')}`
+  return null
+}
+
+function targetStaysInPackage(target: string): boolean {
+  const slashed = target.replaceAll('\\', '/')
+  if (!slashed.startsWith('./')) return false
+  const normalized = path.posix.normalize(slashed)
+  return normalized !== '..' && !normalized.startsWith('../')
+}
+
+function isPlainRecord(value: unknown): value is Record<string, unknown> {
+  return typeof value === 'object' && value !== null && !Array.isArray(value)
+}
+
+/** 旧布局仓的迁移清单：按 '.' 成员的实际条目列出 git mv 序列 */
 function migrationDetail(member: MemberScan): string {
-  // 留在根上的：git 元物、锁、站、仓级文档与忽略表；其余是件包的东西，跟着走
+  // 留在仓根的：.git、锁文件、文档站、仓级文档与忽略表；其余属于插件包，一起移走
   const stays = new Set(['.git', 'node_modules', 'dist', 'docs-site', '.gitignore', 'pnpm-lock.yaml', 'pnpm-workspace.yaml', 'AGENTS.md', 'README.md'])
   const movable = member.entries.filter((one) => !stays.has(one))
   return [
@@ -229,7 +295,7 @@ function migrationDetail(member: MemberScan): string {
 }
 
 /**
- * 规则机。喂一份扫描，回一份报告——不碰盘、不看网络，纯函数。
+ * 检查规则。输入扫描结果，输出报告——不读磁盘、不访问网络，纯函数。
  */
 export function auditStructure(scan: RepoScan): StructureReport {
   const findings: StructureFinding[] = []
@@ -271,18 +337,19 @@ export function auditStructure(scan: RepoScan): StructureReport {
       continue
     }
 
-    // ── 分区：件住 plugins/，非件包住 packages/ ────────────────────────────
+    // ── 分区：插件放 plugins/，别的包放 packages/ ──────────────────────────
     if (member.dir.startsWith('packages/') && isPlugin) {
       add('plugin-in-packages-zone', 'warn', member.dir, 'keywords 自报 gwb-plugin，却住在 packages/——件住 plugins/，看包名就知道住哪儿的那条习俗就破了')
     }
 
-    // ── 静态红线（件与非件包都管）────────────────────────────────────────
+    // ── 静态红线（插件与别的包都查）──────────────────────────────────────
     if ('cordis' in depsOf(member.manifest, 'dependencies')) {
       add('cordis-in-dependencies', 'error', `${member.dir}/package.json`, 'cordis 写在 dependencies——home 里会有第二份实例，Service 身份对不上、挂不上，报错不指根因（红线二）。该住 devDependencies')
     }
     for (const [file, text] of Object.entries(member.tsconfigs)) {
-      if (/"paths"\s*:\s*\{[^}]/.test(text)) {
-        add('tsconfig-paths', 'error', `${member.dir}/${file}`, 'tsconfig 开了 paths——源码里不许有指回别的仓的路径（红线一），映射出来的问题运行期才炸')
+      const violation = tsconfigPathsViolation(text)
+      if (violation !== null) {
+        add('tsconfig-paths', 'error', `${member.dir}/${file}`, `${violation}——源码里不许有指回别的仓的路径（红线一），映射出来的问题运行期才出错；只放行 shadcn CLI 要的包内 @/*（如 "./src/*"）`)
       }
     }
     for (const field of ['dependencies', 'devDependencies', 'peerDependencies', 'optionalDependencies']) {
@@ -295,7 +362,7 @@ export function auditStructure(scan: RepoScan): StructureReport {
 
     if (!isPlugin) continue
 
-    // ── 件包层：派生链、白名单、自足 ──────────────────────────────────────
+    // ── 插件包：名字派生链、files 白名单、自带配置 ────────────────────────
     const pkgName = nameOf(member.manifest)
     const scopeMatch = /^@godcreator\/gwb-(.+)$/.exec(pkgName)
     if (scopeMatch === null) {
@@ -310,8 +377,8 @@ export function auditStructure(scan: RepoScan): StructureReport {
     }
     const entryName = entryNameOf(member.entrySource)
     const expectedEntry = shortFromPkg === '' ? null : `gwb-${shortFromPkg}`
-    // Service 形（export default class … extends Service）：没有也不需要 export const name，
-    // 名字住 super(ctx, "…") 那格里——第三环无从核，只核入口在不在（base-plugins 的 data 那批）
+    // Service 形式（export default class … extends Service）：没有也不需要 export const name，
+    // 名字写在 super(ctx, "…") 里——第三环查不了，只查入口文件在不在（基础插件仓的数据插件那批）
     const serviceForm = member.entrySource !== null && entryName === null && /export default/.test(member.entrySource)
     if (member.entrySource === null) {
       add('name-chain', 'error', `${member.dir}/src/index.ts`, '缺 src/index.ts——件包的 node 半入口')

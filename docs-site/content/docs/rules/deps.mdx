@@ -59,7 +59,7 @@ export function apply(ctx: Context) {
 
 ## 清单与构建的硬要求
 
-- **源码里不指回别的仓**：不开 tsconfig `paths`，不写 `link:`、`file:` 依赖，不写跨仓的 `workspace:`。映射出来的路径只在本机成立，发出去没人装得上
+- **源码里不指回别的仓**：tsconfig `paths` 只允许一项 `@/*`、且指向包目录之内（如 `"@/*": ["./src/client/*"]`），不写 `link:`、`file:` 依赖，不写跨仓的 `workspace:`。映射出来的路径只在本机成立，发出去没人装得上。放行 `@/*` 是因为 shadcn CLI 要从包根 tsconfig 的这一项读组件放在哪，它映射到包自己的目录，不指回别的仓
 - **留着 `prepublishOnly: pnpm build`**：`pnpm check` 不构建，少了它手工 `pnpm publish` 会把上一版的 `dist/` 原样发出去，而且不报错
 - **`files` 白名单列全**：少一项，装包那一刻就少东西，也不报错
 - **node 侧用 tsc 直接输出时，相对 import 带 `.js`**：构建产物给 node 直接加载，ESM 不补扩展名

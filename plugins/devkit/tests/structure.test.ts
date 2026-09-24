@@ -7,9 +7,9 @@ import { planScaffold, planScaffoldPlugin, renderPlugin, renderTemplate, writeRe
 import { auditStructure, scanRepo, type StructureFinding } from '../src/structure.js'
 
 /**
- * 结构体检的规则机。**真写临时目录**——scan 本来就是走盘的，拿替身测等于没测。
- * 最要紧的一条是 round-trip：scaffold 模板的产物必须零 findings——模板是形状的正本，
- * 检查器是被这条测试焊住不漂的投影。
+ * 结构体检的规则。**真写临时目录**——扫描本来就读磁盘，用替身测等于没测。
+ * 最要紧的是往返测试：scaffold 模板生成的仓必须零 findings——规则以模板为准，
+ * 这条测试保证两边一致。
  */
 
 const TEMPLATE_ROOT = path.join(path.dirname(fileURLToPath(import.meta.url)), '..', 'template')
@@ -35,7 +35,7 @@ function writeFiles(dir: string, files: Record<string, string>): void {
   }
 }
 
-/** 件包 manifest 的覆盖面——结构化改，不做字符串手术（stringify 出来的没有空格可对） */
+/** 插件包 manifest 要覆盖的字段——按结构改，不改字符串（stringify 出来的文本没有空格可以对齐） */
 interface ManifestOver {
   name?: string
   keywords?: string[]
@@ -45,7 +45,7 @@ interface ManifestOver {
   devDependencies?: Record<string, string>
 }
 
-/** 一个合规件包的文件表（root 相对件包根）。over 替换/追加文件，值给 null 就删 */
+/** 一个合规插件包的文件表（路径相对插件包根）。over 替换或追加文件，值给 null 就删 */
 function pluginFiles(short: string, over: Record<string, string | null> = {}, manifestOver: ManifestOver = {}): Record<string, string> {
   const files: Record<string, string> = {
     'package.json': JSON.stringify({
@@ -68,7 +68,7 @@ function pluginFiles(short: string, over: Record<string, string | null> = {}, ma
   return files
 }
 
-/** 一个合规薄壳仓的文件表（root 相对仓根） */
+/** 一个合规 workspace 仓的文件表（路径相对仓根） */
 function workspaceFiles(
   short: string,
   pluginOver: Record<string, string | null> = {},
@@ -160,14 +160,14 @@ describe('件包层', () => {
   })
 
   it('Service 形（default export）不是断链——第三环无从核，放过；双引号也认', () => {
-    // base-plugins 的 data 那批是真 Service 形件，拿引号风格或形态当判据只会造误报
+    // 基础插件仓的数据插件那批是 Service 形式的插件，拿引号风格或写法当判据只会误报
     expect(audit(build(workspaceFiles('x', { 'src/index.ts': 'export default class X extends Service {}\n' }))).findings).toEqual([])
     expect(audit(build(workspaceFiles('x', { 'src/index.ts': 'export const name = "gwb-x"\n' }))).findings).toEqual([])
   })
 
   it('plugins/ 目录用全名（gwb- 前缀）→ warn，block-note 式历史形状', () => {
-    // 短名取 'gwb-foo'：包名跟着目录派生（@godcreator/gwb-gwb-foo），链是扣上的，
-    // 单独把「目录名带前缀」这条 warn 摘出来
+    // 短名取 'gwb-foo'：包名跟着目录派生（@godcreator/gwb-gwb-foo），派生链是对的，
+    // 只剩「目录名带前缀」这一条 warn
     expect(audit(build(workspaceFiles('gwb-foo'))).kinds).toEqual(['plugin-dir-full-name'])
   })
 
@@ -221,6 +221,47 @@ describe('静态红线', () => {
     expect(withPaths.kinds).toEqual(['tsconfig-paths'])
     const emptyPaths = audit(build(workspaceFiles('x', { 'tsconfig.json': '{"compilerOptions":{"paths":{}}}\n' })))
     expect(emptyPaths.findings).toEqual([])
+  })
+
+  it('paths 只有指向包内的 @/* 一项时放行：界面插件仓 shell / baseui 的写法，带注释与末尾逗号', () => {
+    const shellStyle = [
+      '{',
+      '  "extends": "../../tsconfig.base.json",',
+      '  "compilerOptions": {',
+      '    // 只给 shadcn CLI 看，"paths": {"@x/*": ["../x"]} 写在注释里不算',
+      '    /* 不写 baseUrl */',
+      '    "paths": {',
+      '      "@/*": ["./src/client/*"],',
+      '    },',
+      '  },',
+      '  "include": ["src/*.ts"]',
+      '}',
+    ].join('\n')
+    expect(audit(build(workspaceFiles('x', { 'tsconfig.json': shellStyle }))).findings).toEqual([])
+    const plain = '{"compilerOptions":{"paths":{"@/*":["./src/*"]}}}\n'
+    expect(audit(build(workspaceFiles('x', { 'tsconfig.json': plain }))).findings).toEqual([])
+  })
+
+  it('@/* 以外还有别的键、@/* 指出包目录、目标不以 ./ 开头、目标为空，都报 tsconfig-paths', () => {
+    for (const paths of [
+      '{"@/*":["./src/*"],"@x/*":["./x/*"]}',
+      '{"@/*":["../other/src/*"]}',
+      '{"@/*":["./src/../../other/*"]}',
+      '{"@/*":["src/*"]}',
+      '{"@/*":[]}',
+      '{"@x/*":["./src/*"]}',
+    ]) {
+      const report = audit(build(workspaceFiles('x', { 'tsconfig.json': `{"compilerOptions":{"paths":${paths}}}\n` })))
+      expect(report.kinds, paths).toEqual(['tsconfig-paths'])
+    }
+  })
+
+  it('解析不了的 tsconfig：有 "paths" 就报（确认不了只有包内的 @/*），没有就不报', () => {
+    const broken = audit(build(workspaceFiles('x', { 'tsconfig.json': '{"compilerOptions":{"paths":{"@/*":["./src/*"]}\n' })))
+    expect(broken.kinds).toEqual(['tsconfig-paths'])
+    expect(broken.findings[0]?.detail).toContain('解析不了')
+    const brokenWithoutPaths = audit(build(workspaceFiles('x', { 'tsconfig.json': '{"compilerOptions":{\n' })))
+    expect(brokenWithoutPaths.findings).toEqual([])
   })
 
   it('link: / file: 依赖 → error，哪个字段里都一样', () => {

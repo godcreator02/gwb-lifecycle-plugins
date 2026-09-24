@@ -22,7 +22,7 @@ description: devkit.audit-structure 只读地回答一个仓（或全生态）�
 | 文档里的说法 | docfirst |
 | 构建产物的形状 | 各仓的产物测试 |
 
-同一条规矩多一处检查就多一处可能不一致。结构体检只管**布局与能静态判断的红线**：仓的布局、插件包是否自带全部配置、名字派生链、`files` 白名单、`prepublishOnly`，外加三条能从文件直接判断的红线（`cordis` 写在 dependencies、tsconfig 开了 `paths`、`link:` / `file:` 依赖）。跨仓的 `workspace:` 依赖不查。
+同一条规矩多一处检查就多一处可能不一致。结构体检只管**布局与能静态判断的红线**：仓的布局、插件包是否自带全部配置、名字派生链、`files` 白名单、`prepublishOnly`，外加三条能从文件直接判断的红线（`cordis` 写在 dependencies、tsconfig 的 `paths` 有包内 `@/*` 以外的映射、`link:` / `file:` 依赖）。跨仓的 `workspace:` 依赖不查。
 
 **不放进发版前检查**：发版前检查拦发版，这条是日常查看；warn 也拦发版的话，这个工具就没人用了。
 
@@ -52,7 +52,7 @@ description: devkit.audit-structure 只读地回答一个仓（或全生态）�
 
 ## 怎么单独测
 
-`tests/structure.test.ts` 真写临时目录（扫描本来就读磁盘）：往返测试两条（建仓、加插件）；布局判断（旧布局仓收到 info 迁移清单、不是插件仓的不报、有 `plugins/` 目录而 `pnpm-workspace.yaml` 没那条的报 `shape-unknown`、workspace 仓根的三条 warn）；插件包每一类问题一条（名字派生链两环、目录用全名、插件放在 `packages/`、白名单、`prepublishOnly`、配置不全、有浏览器代码却缺构建配置）；静态红线三条（`cordis` 的位置、`paths` 非空才报、本地协议依赖）。
+`tests/structure.test.ts` 真写临时目录（扫描本来就读磁盘）：往返测试两条（建仓、加插件）；布局判断（旧布局仓收到 info 迁移清单、不是插件仓的不报、有 `plugins/` 目录而 `pnpm-workspace.yaml` 没那条的报 `shape-unknown`、workspace 仓根的三条 warn）；插件包每一类问题一条（名字派生链两环、目录用全名、插件放在 `packages/`、白名单、`prepublishOnly`、配置不全、有浏览器代码却缺构建配置）；静态红线（`cordis` 的位置、`paths` 非空才报、只有指向包内的 `@/*` 时放行、别的写法与解析不了的 tsconfig 照报、本地协议依赖）。
 
 ## 代码地图
 
