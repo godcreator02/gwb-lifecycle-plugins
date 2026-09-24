@@ -1,24 +1,38 @@
 import fs from 'node:fs'
+import { builtinModules, createRequire } from 'node:module'
 import path from 'node:path'
 import { fileURLToPath } from 'node:url'
 import { describe, expect, it } from 'vitest'
 
 /**
- * 产物守卫。缺产物时整组跳过——门禁不依赖 build。
+ * 构建产物的检查。没有 dist/ 时整组跳过——`pnpm check` 不构建。
  *
- * 这个插件有**两半**：node 半走 tsc（index.js），浏览器半走 esbuild（client.js），
- * 样式走 tailwindcss（style.css）。三样规矩分别钉：相对 import 带 .js、裸名只有
- * 词汇表包、样式围栏是前缀本身且不烤字面量 fallback。
+ * 这个插件的产物分三样：node 侧 tsc 输出（index.js），浏览器侧 esbuild 输出（client.js），
+ * 样式 tailwindcss 输出（style.css）。分别检查：node 侧相对 import 带 .js；包名 import 两侧各有
+ * 放行名单（见下）；样式的类名全带前缀、var() 的 fallback 里没有写死的值。
  */
 const here = path.dirname(fileURLToPath(import.meta.url))
 const distDir = path.resolve(here, '../dist')
 const built = fs.existsSync(distDir)
 
-if (!built) console.warn('[{{pkgName}}] dist/ 还没造出来，产物组跳过（pnpm build 之后再跑）')
+if (!built) console.warn('[{{pkgName}}] dist/ 还没生成，产物检查整组跳过（pnpm build 之后再跑）')
 
 const CLIENT = 'client.js'
-/** node 半运行时真 import 的。契约包与那几个件都是 import type，整句擦除，不该出现 */
-const ALLOWED_BARE = new Set(['@godcreator/gwb-plugin-api'])
+/** node 侧产物里允许留下的包名 import：node 内置模块、electron、宿主提供的 cordis。别的插件与词汇表包只 import type，编译后整句消失 */
+const NODE_SIDE_ALLOWED = new Set(['electron', 'cordis'])
+const isNodeBuiltin = (spec: string): boolean => spec.startsWith('node:') || builtinModules.includes(spec)
+/** 浏览器侧产物里允许留下的包名 import：importmap 的提供方（外壳）在清单 gwb.shared 里声明的键 */
+function sharedNamesOfShell(): Set<string> {
+  const manifestPath = createRequire(import.meta.url).resolve('@godcreator/gwb-shell/package.json')
+  const manifest: unknown = JSON.parse(fs.readFileSync(manifestPath, 'utf8'))
+  const gwb = isRecord(manifest) ? manifest['gwb'] : undefined
+  const shared = isRecord(gwb) ? gwb['shared'] : undefined
+  if (!isRecord(shared)) throw new Error(`${manifestPath} 里没有 gwb.shared：装的外壳版本不提供 importmap`)
+  return new Set(Object.keys(shared))
+}
+function isRecord(value: unknown): value is Record<string, unknown> {
+  return typeof value === 'object' && value !== null && !Array.isArray(value)
+}
 /** 正则锚行首：字符串字面量里的 import 总带着缩进，顶格的才是真的顶层 import */
 const RELATIVE = /^import\s+(?:[^'"]*from\s*)?['"](\.[^'"]*)['"]/gm
 const BARE = /^import\s+(?:[^'"]*from\s*)?['"]([^'".][^'"]*)['"]/gm
@@ -27,10 +41,10 @@ const BARE = /^import\s+(?:[^'"]*from\s*)?['"]([^'".][^'"]*)['"]/gm
 const CSS_COMMENT = /\/\*[\s\S]*?\*\//g
 /**
  * 一条规则的选择器：`{` 之前那段。**只在这一段里找类**——全文搜 `.xxx` 会把声明值里的
- * 小数（`0.25rem` 的 `.25rem`）也捞成类选择器
+ * 小数（`0.25rem` 的 `.25rem`）也当成类选择器
  */
 const PRELUDE = /(?:^|[{};])([^{};]*)\{/g
-/** 一个类选择器。转义序列（`.{{cssPrefix}}\:flex` 里那个 `\:`）整体吃掉 */
+/** 一个类选择器。转义序列（`.{{cssPrefix}}\:flex` 里那个 `\:`）整体算进类名 */
 const CLASS_SELECTOR = /\.(?:\\.|[A-Za-z0-9_-])+/g
 /** 唯一放行的非前缀类：`.dark` 是页面级亮暗标志，只以祖先身份出现 */
 const DARK_FLAG = new Set(['.dark'])
@@ -46,11 +60,10 @@ function classSelectors(css: string): string[] {
 }
 
 /**
- * **字面量 fallback 守卫**：令牌包 ≥0.1.1 起，被本件用到的出厂主题键全部由映射面接管
- * 到页面变量，`var(--x, 0.25rem)` 这类烤死在件里的 fallback 必然消失。这条钉住反转：
- * var() 的 fallback 若是字面量即红——症状是升了令牌没重编、或谁手写了兜底值，
- * 两种都不报错，但页面上令牌改了样式不动。放行：var() 引用、currentcolor、空、
- * 下面那份 tw-animate 机制缺省名单。
+ * **var() 的 fallback 里不许有写死的值**：外壳导出的 `theme.reference.css` 把本插件用到的
+ * Tailwind 主题键全部映射到页面变量，`var(--x, 0.25rem)` 这类写死在插件里的 fallback 就不该出现。
+ * 出现了说明外壳升级后没重新构建、或有人手写了默认值，两种都不报错，但页面上令牌改了样式不跟着变。
+ * 放行：var() 引用、currentcolor、空、下面那份 tw-animate-css 自带的默认值名单。
  */
 const BAKED_BY_TW_ANIMATE = new Set([
   'var(--tw-duration,.15s)',
@@ -73,7 +86,7 @@ const BAKED_BY_TW_ANIMATE = new Set([
   'var(--tw-exit-blur,0)',
 ])
 
-/** 把 @property 与 @supports 的整块换成空白：机制块不进字面量判 */
+/** 把 @property 与 @supports 的整块换成空白：这两类块里的默认值是 Tailwind 自己的，不参与 fallback 检查 */
 function blankMechanism(css: string): string {
   const chars = css.split('')
   for (const name of ['@property', '@supports']) {
@@ -96,7 +109,7 @@ function blankMechanism(css: string): string {
   return chars.join('')
 }
 
-/** 每个 var() 调用的完整文本（括号配平吃到闭合，嵌套的各自也算一条） */
+/** 每个 var() 调用的完整文本（括号配对直到闭合，嵌套的各自也算一条） */
 function varCalls(css: string): string[] {
   const out: string[] = []
   let i = css.indexOf('var(')
@@ -147,18 +160,27 @@ function literalFallbacks(css: string): string[] {
 
 describe.skipIf(!built)('产物', () => {
   const all = built ? fs.readdirSync(distDir).filter((f) => f.endsWith('.js')) : []
-  const nodeHalf = all.filter((f) => f !== CLIENT)
+  const nodeSide = all.filter((f) => f !== CLIENT)
 
-  it('两半都在——node 半至少有 index.js，浏览器半有 client.js，外加 style.css', () => {
-    // node 半＝所有 .js 减掉 client.js；拆出 store.js 等新文件也照收
-    expect(nodeHalf).toContain('index.js')
+  /** 一组产物文件里所有顶层包名 import 的说明符 */
+  function bareImportsOf(files: string[]): Set<string> {
+    const bare = new Set<string>()
+    for (const file of files) {
+      for (const m of fs.readFileSync(path.join(distDir, file), 'utf8').matchAll(BARE)) bare.add(m[1]!)
+    }
+    return bare
+  }
+
+  it('三样产物都在：node 侧至少有 index.js，浏览器侧有 client.js，外加 style.css', () => {
+    // node 侧 = 所有 .js 减掉 client.js；以后拆出 store.js 这类新文件也算在内
+    expect(nodeSide).toContain('index.js')
     expect(all).toContain(CLIENT)
     expect(fs.existsSync(path.join(distDir, 'style.css'))).toBe(true)
   })
 
-  it('node 半：相对 import 一律带扩展名——产物给 node 直接加载，ESM 不做补全', () => {
+  it('node 侧：相对 import 一律带扩展名——产物给 node 直接加载，ESM 不补扩展名', () => {
     const bad: string[] = []
-    for (const file of nodeHalf) {
+    for (const file of nodeSide) {
       const text = fs.readFileSync(path.join(distDir, file), 'utf8')
       for (const m of text.matchAll(RELATIVE)) {
         if (!m[1]!.endsWith('.js')) bad.push(`${file}: ${m[1]!}`)
@@ -167,30 +189,28 @@ describe.skipIf(!built)('产物', () => {
     expect(bad).toEqual([])
   })
 
-  it('node 半：裸名只有词汇表包', () => {
-    const bare = new Set<string>()
-    for (const file of nodeHalf) {
-      const text = fs.readFileSync(path.join(distDir, file), 'utf8')
-      for (const m of text.matchAll(BARE)) {
-        const spec = m[1]!
-        if (!spec.startsWith('node:')) bare.add(spec)
-      }
-    }
-    expect([...bare].filter((s) => !ALLOWED_BARE.has(s))).toEqual([])
+  it('node 侧：包名 import 只有 node 内置模块、electron、cordis', () => {
+    const bad = [...bareImportsOf(nodeSide)].filter((spec) => !isNodeBuiltin(spec) && !NODE_SIDE_ALLOWED.has(spec))
+    expect(bad).toEqual([])
   })
 
-  it('style.css 里的类选择器一律 .{{cssPrefix}}\\: 开头——围栏就是前缀本身', () => {
+  it('浏览器侧：包名 import 只有外壳 gwb.shared 里声明的名字——别的名字页面上解析不到', () => {
+    const shared = sharedNamesOfShell()
+    expect([...bareImportsOf([CLIENT])].filter((spec) => !shared.has(spec))).toEqual([])
+  })
+
+  it('style.css 里的类选择器一律 .{{cssPrefix}}\\: 开头——样式只作用于本插件靠的就是前缀', () => {
     const bad = classSelectors(fs.readFileSync(path.join(distDir, 'style.css'), 'utf8'))
       .filter((s) => !s.startsWith('.{{cssPrefix}}\\:') && !DARK_FLAG.has(s))
       .sort()
     expect(bad).toEqual([])
   })
 
-  it('style.css 里没有 data-gwb-plugin——围栏换成前缀之后不依赖任何祖先关系', () => {
+  it('style.css 里没有 data-gwb-plugin——靠类名前缀，不依赖任何祖先关系', () => {
     expect(fs.readFileSync(path.join(distDir, 'style.css'), 'utf8')).not.toContain('data-gwb-plugin')
   })
 
-  it('style.css 的 var() fallback 不藏字面量——主题值整页一份，由令牌表供', () => {
+  it('style.css 的 var() fallback 里没有写死的值——令牌的值全页一份，由外壳提供', () => {
     const bad = literalFallbacks(fs.readFileSync(path.join(distDir, 'style.css'), 'utf8')).sort()
     expect(bad).toEqual([])
   })

@@ -80,11 +80,11 @@ export function apply(ctx: Context) {
 
 {/* ref file="../plugins/devkit/template/pkg/package.json.tpl" lines="30-37" */}
 
-## 这个仓里还没照做的
-
-模板带的产物测试按旧规矩查 node 侧的包名 import：只放行词汇表包，没有放行 `cordis`：
+模板带的产物测试按上面两份名单查构建产物：node 侧放行 node 内置模块、`electron`、`cordis`；浏览器侧只放行外壳清单 `gwb.shared` 的键：
 
 {/* ref file="../plugins/devkit/template/pkg/tests/artifact.test.ts.tpl" lines="19-21" */}
+
+## 这个仓里还没照做的
 
 devkit 插件自己的清单把词汇表包和 `gwb-shell` 写成了 peer：
 
