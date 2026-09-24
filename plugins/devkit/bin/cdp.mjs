@@ -1,74 +1,44 @@
-// 在真工作台的页面里动手：连 CDP，发真鼠标、真按键、截图、跑工作台命令，结果打成 JSON。
+// 在真实工作台的页面里操作：连 CDP，发真实的鼠标与按键、截图、执行工作台命令，结果打印成 JSON。
+// 零依赖、单文件、纯 JS：工作台启动不了时也能直接 `node <devkit 包根>/bin/cdp.mjs <home 名> <动作>`；
+// 工作台运行时经命令总线调 `devkit.cdp {"args":["<home 名>","<动作>",…]}`（经 gwbNodeCli 登记，见 src/index.ts）。
 //
-// 管什么：把「一个选择器」翻成「视口里的一个点」，检查那个点上最上面的确实是它，
-// 然后让浏览器把事件派下去；外加几条不看界面、只问工作台的动作（cmd / reload / home）。
-// 不知道什么：页面里有什么、点完该发生什么——那是调用方的事。
-//
-// **这支脚本是本件的身体，也是工作台起不来时的那条路**：零依赖、单文件、纯 JS，
-// `node <devkit 包根>/bin/cdp.mjs <home 名> <动作>` 随时能跑。工作台跑着的时候走总线就够：
-// `devkit.cdp {"args":["<home 名>","<动作>",…]}`（经 gwbNodeCli 登记，见本包 src/index.ts）。
-// `devkit.dev` 那条链里，重挂、刷新、取证三步也是起它的子进程做的。
-//
-// **路径一概不看工作目录**：走总线时进程的工作目录是这支脚本自己所在的包目录，直接 node 跑时
-// 是敲命令那个 shell 的目录，同一个相对路径在两条路上指两样东西。所以截图缺省落**被截的那个
-// home 自己的目录** `<home>\out\cdp\`（那个现场的证据，跟着 home 走），要落别处给绝对路径；
-// `eval` 那个文件只收绝对路径。写盘的落点一律不许在本包目录与任何 `node_modules` 里——这支脚本
-// 装在 home 的 node_modules 里，往那儿写是弄脏一份装好的包。
-// 量一张表的脚本落哪儿是调用方的纪律，一次性的就落调用方自己的 `out/`（gitignore 着，本来就是
-// 随时可以清空的地方）——提交进仓的那种会跟着界面一起变黄，而且不报错。
-//
-// 为什么不在页面里自己造事件（`el.dispatchEvent(new PointerEvent(…))`）：
-// 造出来的事件**不做命中测试**，目标被浮层盖住照样打得中，而遮挡正是这套界面最容易出的错；
-// 造出来的事件 `isTrusted` 是假的，按可信输入设防的地方行为两样。这儿发的是浏览器层的事件，
-// 跟人的手一样，命中测试是浏览器自己做的。所以本件的价值不止「能点」，还在**点不着的时候
-// 会告状**：把挡路的那个元素报出来。
+// 路径一概不看工作目录：截图缺省存到被截的那个 home 自己的 `<home>\out\cdp\`，要存别处给绝对路径；
+// `eval` 的文件只收绝对路径。写磁盘的位置不许在本包目录与任何 `node_modules` 里。
 //
 // 用法：node <本文件> <home 名> <动作> [参数…]
 //
-// **第一个位置只收 home 名，不收端口**。口从那个 home 的 `runtime.json` 里查（内核开机写的
-// 那份），连上之后还会问一句这张页自报的 home 名对不对得上——记录只说「它起的时候用的是这个
-// 口」，不说「此刻这个口上还是它」。
-// 端口是个没有语义的数，敲错一位就落在另一个现场，而那个现场会老老实实收下你发的事件。
+// 第一个位置只收 home 名，不收端口：端口从那个 home 的 `runtime.json` 里查，连上之后还核对页面自报的 home 名。
 //
-//   eval   <文件> [JSON 参数]         在页面里跑一个函数：文件里写 `(args) => 一张表`；文件只收绝对路径
-//   shot   [输出.png] [选择器]        截图；给选择器就裁到它。缺省落 `<home>\out\cdp\`，给输出就给绝对路径
-//   move   <点>                       悬停——这套界面一半东西是悬停才出现的
+//   eval   <文件> [JSON 参数]         在页面里执行一个函数：文件里写 `(args) => 一张表`；文件只收绝对路径
+//   shot   [输出.png] [选择器]        截图；给选择器就裁到它。缺省存到 `<home>\out\cdp\`，给输出就给绝对路径
+//   move   <点>                       悬停：这套界面一半东西是悬停才出现的
 //   click  <点>                       命中检查过了才点
-//   rclick <点>                       右键（块菜单挂在 contextmenu 上，左键点不出来）
-//   drag   <点> <点>                  按下、分步移动、松开，一趟连接走完
-//   type   <文本>                     往当前焦点插字
-//   key    <键名>                     发一枚按键：Enter / Escape / Tab / Backspace / Delete / Arrow* / Home / End
+//   rclick <点>                       右键（块菜单在 contextmenu 上，左键点不出来）
+//   drag   <点> <点>                  按下、分步移动、松开，一次连接做完
+//   type   <文本>                     往当前焦点插入文字
+//   key    <键名>                     发一个按键：Enter / Escape / Tab / Backspace / Delete / Arrow* / Home / End
 //   scroll <点> [像素]                滚轮，正数往下，缺省 300
-//   cmd    <命令名> [JSON 参数]        在页面里跑一条工作台命令，回执原样打出来；命令失败退出码非零
-//   reload [选择器] [超时秒]           刷新这张页；给了选择器就等它出现再回（缺省等 20 秒）
-//   home                             这张页的件是从哪个 home 装的（回绝对路径，devkit.dev 拿它当守卫）
+//   cmd    <命令名> [JSON 参数]        在页面里执行一条工作台命令，回执原样打印；命令失败退出码非零
+//   reload [选择器] [超时秒]           刷新这个页面；给了选择器就等它出现再回（缺省等 20 秒）
+//   home                             这个页面的插件是从哪个 home 装的（回绝对路径，devkit.dev 用它检查目标）
 //
 // 「点」怎么写：`.bn-row` 纯选择器；`.bn-row@=观测独立性` 加「文字含这段」；
 // `.bn-blk@=非独立观测 >> .bn-cbtn` 用 >> 先划范围再往里找；`520,400` 直接给视口坐标。
-// 挑不出唯一一个的时候，候选的文字会一并报出来。
+// 选不出唯一一个时，候选的文字会一并报出来。
 // 开关：`--target <子串>` 页面不止一个时按标题或地址挑；`--mod ctrl,shift` 带修饰键；
-//       `--pad <像素>` 给 shot 的裁剪留边；`--size <宽>x<高>` 把视口当成这么大，扫容器查询的
-//       断点用（会话级，必须跟动作同一句，见 override）；
+//       `--pad <像素>` 给 shot 的裁剪留边；`--size <宽>x<高>` 把视口当成这么大，查容器查询的
+//       断点用（只对这次连接生效，必须跟动作写在同一次调用里，见 override）；
 //       `--timeout <秒>` 一条 CDP 消息等多久（cmd 缺省 900、reload 60、其余 15）。
 //
-// **只对隔离 home 用，绝不打 default。** 这儿发的是真操作，会真往库里写。
+// 只对隔离 home 用，绝不用在 default 上：这里发的是真实操作，会真的写数据。
 //
-// 内核这样起（两个开关缺一不可）：
+// 内核要这样启动（两个开关缺一不可）：
 //
 //   --remote-debugging-port=<端口> --disable-backgrounding-occluded-windows
 //
-// 前一个开门。**后一个是被真窗口撞出来的**：Chromium 在 Windows 上做遮挡检测，窗口被别的
-// 窗口整个盖住就判定不可见、停止产帧，于是截图拿到陈旧帧、`requestAnimationFrame` 一次都不回。
-// 关掉遮挡节流之后实测：另一扇最大化窗口压在上面、`document.hasFocus()` 为假，页面依旧
-// `visible`，rAF 一毫秒就回。
-//
-// 所以前台与否：**发事件从来不需要**，事件走渲染进程，跟操作系统焦点无关，也不抢人的鼠标键盘；
-// **看画面需要页面没被判定隐藏**，带上那个开关就够，不必真把窗口摆到最前。
-// 最小化是另一回事，那个开关救不了，别最小化。
-//
-// **动词表是稳的那一半**：通用浏览器输入加几条工作台契约，一年也不该变一次。量什么跟着界面
-// 走，所以量表的脚本一律外置成文件，由 `eval` 收路径——把它写进这儿，稳的那半就会跟着不稳的
-// 那半一起动。
+// 后一个关掉遮挡降频：窗口被别的窗口完全挡住时 Chromium 停止出新帧，截图拿到旧画面、`requestAnimationFrame` 不回调。
+// 发事件不需要窗口在前台（事件走渲染进程，跟系统焦点无关）；看画面需要页面没被判定为隐藏，带上那个开关就够。
+// 最小化这个开关管不了，别最小化。
 
 import fs from 'node:fs'
 import os from 'node:os'
@@ -90,17 +60,15 @@ for (const arg of process.argv.slice(2)) {
 const [home, verb, ...args] = rest
 
 // ---------------------------------------------------------------------------
-// 落点：一概不看工作目录（这一段全是纯函数，单测直接 import）
+// 写磁盘的位置：一概不看工作目录（这一段是纯函数，单测直接 import）
 // ---------------------------------------------------------------------------
 
-/** 本包的根（`bin/` 的上一层）。写盘的落点不许在它里面 */
+/** 本包的根（`bin/` 的上一层）。写磁盘的位置不许在它里面 */
 export const PACKAGE_ROOT = path.dirname(path.dirname(fileURLToPath(import.meta.url)))
 
 /**
- * home 根：`<appData>/gwb-kernel/homes`，与内核 `main.ts` 里 `GWB_HOME` 是名字时的算法相同。
- * `<appData>` 是 Electron `app.getPath('appData')` 的值：Windows 是 `%APPDATA%`，macOS 是
- * `~/Library/Application Support`，其余是 `$XDG_CONFIG_HOME`（没设时 `~/.config`）。
- * devkit 的 `src/index.ts` 也从这里 import，两处用同一份。
+ * home 根 `<appData>/gwb-kernel/homes`，与内核 `main.ts` 里 `GWB_HOME` 是名字时的算法相同。`<appData>` 是 Electron
+ * `app.getPath('appData')`：Windows 是 `%APPDATA%`，macOS 是 `~/Library/Application Support`，其余是 `$XDG_CONFIG_HOME`（没设时 `~/.config`）
  */
 export function homesRootOf(env = process.env, platform = process.platform, userHome = os.homedir()) {
   return path.join(appDataOf(env, platform, userHome), 'gwb-kernel', 'homes')
@@ -120,42 +88,33 @@ export function homeDirOf(name, root) {
   return path.join(root, name)
 }
 
-/**
- * 完整的绝对路径。Windows 上 `\foo` 也算 isAbsolute，可它挂在「进程当前那个盘」上、还是要看
- * 进程在哪，所以那边要带盘符或是 UNC。
- */
+/** Windows 上 `\foo` 也算 isAbsolute，可它落在进程当前所在的盘上，所以那边要带盘符或是 UNC */
 export function isFullPath(p) {
   if (typeof p !== 'string' || !path.isAbsolute(p)) return false
   return process.platform !== 'win32' || /^(?:[a-zA-Z]:[\\/]|[\\/]{2}[^\\/])/.test(p)
 }
 
-/**
- * 写盘前的守卫：完整的绝对路径、不在本包目录里、不在任何 `node_modules` 里。过不了就抛，
- * 一个字节都不落。回规整过的路径。
- */
+/** 完整的绝对路径、不在本包目录里、不在任何 `node_modules` 里；过不了就抛，回规整过的路径 */
 export function assertWritable(file, pkgRoot = PACKAGE_ROOT) {
   if (!isFullPath(file)) throw new Error(`落点 ${file} 不是完整的绝对路径——这支脚本不看工作目录，相对路径没有「相对于谁」`)
-  const norm = path.normalize(file)
-  const rel = path.relative(pkgRoot, norm)
-  if (rel === '' || (rel !== '..' && !rel.startsWith(`..${path.sep}`) && !path.isAbsolute(rel))) {
-    throw new Error(`落点 ${norm} 在 devkit 包目录 ${pkgRoot} 里——那是装好的包，写进去弄脏它、升级之后也找不回来`)
+  const normalized = path.normalize(file)
+  const relativeToPackage = path.relative(pkgRoot, normalized)
+  if (relativeToPackage === '' || (relativeToPackage !== '..' && !relativeToPackage.startsWith(`..${path.sep}`) && !path.isAbsolute(relativeToPackage))) {
+    throw new Error(`落点 ${normalized} 在 devkit 包目录 ${pkgRoot} 里——那是装好的包，写进去弄脏它、升级之后也找不回来`)
   }
-  if (norm.split(/[\\/]/).some((seg) => seg.toLowerCase() === 'node_modules')) {
-    throw new Error(`落点 ${norm} 在 node_modules 里——那是装好的依赖树，不是放产物的地方`)
+  if (normalized.split(/[\\/]/).some((seg) => seg.toLowerCase() === 'node_modules')) {
+    throw new Error(`落点 ${normalized} 在 node_modules 里——那是装好的依赖树，不是放产物的地方`)
   }
-  return norm
+  return normalized
 }
 
 /** `shot` 的两个位置参数：第一个以 .png 结尾就是输出路径、后面跟选择器；否则它就是选择器 */
 export function shotArgsOf(list) {
-  const out = list[0] !== undefined && list[0].toLowerCase().endsWith('.png')
-  return { given: out ? list[0] : undefined, sel: out ? list[1] : list[0] }
+  const firstIsOutput = list[0] !== undefined && list[0].toLowerCase().endsWith('.png')
+  return { given: firstIsOutput ? list[0] : undefined, sel: firstIsOutput ? list[1] : list[0] }
 }
 
-/**
- * 截图落哪。缺省落**被截的那个 home 自己的目录**：`<home>\out\cdp\shot-<时刻>.png`；给了输出就
- * 只收完整的绝对路径。两条都过 `assertWritable`。
- */
+/** 缺省存到 `<home>\out\cdp\shot-<时刻>.png`；给了输出就只收完整的绝对路径。两种都过 `assertWritable` */
 export function shotFileOf(given, homeDir, now = new Date(), pkgRoot = PACKAGE_ROOT) {
   if (given === undefined) {
     const stamp = now.toISOString().replace(/[:.]/g, '-').slice(0, 19)
@@ -167,7 +126,7 @@ export function shotFileOf(given, homeDir, now = new Date(), pkgRoot = PACKAGE_R
   return assertWritable(given, pkgRoot)
 }
 
-/** `eval` 那个文件：只收完整的绝对路径，回规整过的路径 */
+/** `eval` 的文件：只收完整的绝对路径，回规整过的路径 */
 export function evalFileOf(given) {
   if (given === undefined) throw new Error('eval 要一个文件的绝对路径，文件里写 `(args) => 一张表`')
   if (!isFullPath(given)) {
@@ -183,16 +142,7 @@ export function evalFileOf(given) {
 // 找到那个 home
 // ---------------------------------------------------------------------------
 
-/**
- * 第一个位置是 **home 名，不是端口**（0.5.0 起）。口从那个 home 的 `runtime.json` 里查
- * （内核开机写的那份）。
- *
- * **端口不再收**：它是一个没有语义的数，敲错一位就落在另一个现场，而那个现场会老老实实
- * 收下你发的事件。名字有拼写、有记录、连上之后还能跟页面自报的名字对一次（见 `assertHome`），
- * 三样端口都没有。给了数字当场拒，不静默改道。
- *
- * `dir` 是那个 home 的目录（`homeDirOf`）。
- */
+/** 端口从 `<dir>/runtime.json` 的 `cdp` 字段查；第一个位置给了数字当场拒，不悄悄当成端口 */
 function portOf(name, dir) {
   if (/^\d+$/.test(name)) {
     throw new Error(`第一个位置要 home 名，不是端口（给的是 ${name}）。哪个 home 在跑、口在哪，看 devkit.home.list`)
@@ -212,7 +162,7 @@ function portOf(name, dir) {
   return String(cdp)
 }
 
-/** 目标 home 的目录与调试口。直接跑的时候才填（见文件尾），被 import 时一直是 undefined */
+/** 目标 home 的目录与调试端口。直接运行时才填（见文件末尾），被 import 时一直是 undefined */
 let homeDir
 let port
 
@@ -225,24 +175,14 @@ const modifiers = (opts.mod ?? '')
 
 const pad = Number(opts.pad ?? 0)
 
-/**
- * 一条 CDP 消息等多久。看门狗防的是**页面卡住**，不是「这条命令干的活久」——所以
- * `cmd` 那档给得很宽：工作台的一条命令可能在装依赖、在构建、在发版，十几秒回不来是常态，
- * 按 15 秒掐掉的话，掐的是一条正在干活的命令，而那头不会因此停下（回执从此没人接）。
- * 输入与求值那几档还是 15 秒：它们要么立刻回，要么就是页面真卡住了。`--timeout <秒>` 可改。
- */
+/** 一条 CDP 消息等多久。防的是页面卡住，不是命令做的事久：`cmd` 可能在装依赖、在构建，所以给得宽 */
 const WATCHDOG_MS = Number(opts.timeout ?? (verb === 'cmd' ? 900 : verb === 'reload' ? 60 : 15)) * 1000
 
 // ---------------------------------------------------------------------------
 // 连上一个页面
 // ---------------------------------------------------------------------------
 
-/**
- * 能连的页面。devtools:// 是检查器自己那张页，不算。
- *
- * 连不上时**把原始错换成一句能读的话**：记录里那个口没人应答，压倒性的原因是那个 home
- * 已经退了而记录还留着（记录进程退了不删，这是故意的）。裸的 ECONNREFUSED 会让人去查网络。
- */
+/** devtools:// 是检查器自己的页面，不算。连不上时换成一句能读的话：多半是那个 home 已经退出、记录还留着 */
 async function pagesOf() {
   let list
   try {
@@ -255,10 +195,7 @@ async function pagesOf() {
 
 const brief = (list) => list.map((t) => ({ title: t.title, url: t.url }))
 
-/**
- * 连上唯一那个页面。**多于一个就报错，不猜**：一个 Electron 应用可以开好几个窗口，
- * 猜错了就是对着另一扇窗点，而且看不出来。
- */
+/** 只连唯一的那个页面，多于一个就报错、不猜：猜错了就是对着另一个窗口操作，而且看不出来 */
 async function connect() {
   const all = await pagesOf()
   const want = opts.target
@@ -272,7 +209,7 @@ async function connect() {
     ws.onerror = () => reject(new Error(`连不上 ${hit[0].webSocketDebuggerUrl}`))
   })
 
-  // 一趟连接要发好几条，回执按 id 认领；没人等的是事件通知，丢掉
+  // 一次连接发好几条，回执按 id 对上；没人等的是事件通知，丢掉
   const waiting = new Map()
   ws.onmessage = (m) => {
     const msg = JSON.parse(m.data)
@@ -285,7 +222,7 @@ async function connect() {
   const send = (method, params = {}) =>
     new Promise((resolve, reject) => {
       const id = (seq += 1)
-      // 每条都带看门狗：页面挂住的时候要拿到一句能读的话，不是无限期地停在那儿
+      // 每条都带超时：页面卡住时要拿到一句能读的话，而不是一直停在那里
       const bark = setTimeout(() => {
         waiting.delete(id)
         reject(new Error(`${method} 等了 ${WATCHDOG_MS / 1000} 秒没回。页面可能卡住了，或者被遮住停止产帧了`))
@@ -301,7 +238,7 @@ async function connect() {
   return { ws, send, page: hit[0] }
 }
 
-/** 在页面里求值，页面抛的异常照抛出来，不要装作成功 */
+/** 在页面里求值，页面抛的异常照样抛出来 */
 async function evaluate(send, expression) {
   const out = await send('Runtime.evaluate', { expression, awaitPromise: true, returnByValue: true })
   if (out.exceptionDetails) {
@@ -310,25 +247,14 @@ async function evaluate(send, expression) {
   return out.result?.value
 }
 
-/**
- * 等两帧，让悬停样式与重排落地再看、再点。
- *
- * **必须带兜底**：窗口被别的窗口整个盖住时，Chromium 判定它不可见就停止产帧，
- * `requestAnimationFrame` 从此一次都不回。没有兜底的话工具就永远停在「等下一帧」上，
- * 而且看不出是为什么。这个坑是拿真窗口撞出来的。
- */
+/** 等两帧，让悬停样式与重排生效。必须带超时：窗口被完全挡住时 Chromium 停止出新帧，rAF 一次都不回调 */
 const settle = (send) =>
   evaluate(send, `Promise.race([
     new Promise((done) => requestAnimationFrame(() => requestAnimationFrame(() => done('frame')))),
     new Promise((done) => setTimeout(() => done('no-frame'), 400)),
   ])`)
 
-/**
- * 页面看不看得见。看不见的时候截图拿到的是陈旧帧甚至空白，动画也不跑。
- *
- * 输入不受影响——发事件走的是渲染进程，跟操作系统的焦点无关，窗口压在底下照样收。
- * 所以只有要看画面的时候才把窗口抬起来，别的动作只如实报一句，不去抢人的焦点。
- */
+/** 看不见时截图是旧画面、动画不跑；输入不受影响，所以只有要看画面时才把窗口提到前面 */
 async function visibility(send, raise) {
   const before = await evaluate(send, 'document.visibilityState')
   if (before === 'visible') return { visible: true }
@@ -343,11 +269,8 @@ async function visibility(send, raise) {
 // ---------------------------------------------------------------------------
 
 /**
- * 这段字符串是要送进页面里跑的，所以只能用页面认得的东西。
- *
- * 回的形状固定：`ok` 说这个点打不打得中目标，`x`/`y` 只要**算得出来**就给（哪怕被盖住），
- * 因为滚轮这类动作本来就该落在最上面那个元素上，不需要打中目标。打不中时把挡路的那条
- * 祖先链和目标的 `pointer-events` 一起报出来——这两样合起来基本就说清了为什么点不着。
+ * 这段字符串送进页面里执行，只能用页面认得的东西。`ok` 说这个点打不打得中目标，`x`/`y` 只要算得出来就给
+ * （滚轮本来就该落在最上面那个元素上）；打不中时把挡住它的祖先链与目标的 `pointer-events` 一起报出来
  */
 const probeExpr = (steps) => `(() => {
   const brief = (n) => (n.textContent || '').replace(/\\s+/g, ' ').trim().slice(0, 30) || '(没字)';
@@ -361,8 +284,7 @@ const probeExpr = (steps) => `(() => {
   for (const step of ${JSON.stringify(steps)}) {
     const pool = [...root.querySelectorAll(step.css)];
     let all = step.text === null ? pool : pool.filter((n) => (n.textContent || '').includes(step.text));
-    // 块是嵌套的，父块的文字里必然含着子块的文字。同时命中祖孙时留最里面那个——
-    // 人指着屏幕说「这一块」，指的从来是最贴着字的那一层
+    // 父块的文字里必然含着子块的文字：同时命中祖孙时留最里面那个，人指的从来是最贴着字的那一层
     if (all.length > 1) all = all.filter((n) => !all.some((other) => other !== n && n.contains(other)));
     const at = step.css + (step.text === null ? '' : '@=' + step.text);
     if (all.length === 0) return { ok: false, why: '「' + at + '」没选中任何元素', candidates: pool.slice(0, 8).map(brief) };
@@ -379,8 +301,7 @@ const probeExpr = (steps) => `(() => {
   }
   const x = Math.round(Math.min(Math.max(r.left + r.width / 2, 1), innerWidth - 1));
   const y = Math.round(Math.min(Math.max(r.top + r.height / 2, 1), innerHeight - 1));
-  // 留边不能把左上角推成负数：负的裁剪框 Chrome 认不了，会**默默退回从原点截**，
-  // 图能出来、内容全错，最难发现的那一种。所以在这儿就夹住
+  // 留边不能把左上角推成负数：负的裁剪框 Chrome 不认，会不报错地从原点截，图出来了内容全错
   const px = Math.max(0, r.left + scrollX - ${pad});
   const py = Math.max(0, r.top + scrollY - ${pad});
   const clip = { x: px, y: py, width: r.right + scrollX + ${pad} - px, height: r.bottom + scrollY + ${pad} - py };
@@ -401,14 +322,8 @@ const probeExpr = (steps) => `(() => {
 })()`
 
 /**
- * 「点」怎么写：
- *   `.bn-row`                     纯选择器
- *   `.bn-row@=观测独立性`           选择器 + 含这段文字的那一个。界面里大量元素没有自己的
- *                                 选择器，按文字挑才是人看着屏幕会做的事
- *   `.bn-blk@=非独立观测 >> .bn-cbtn` 先收到写着那句话的块，再在它**里面**找按钮。同名按钮
- *                                 一屏十几个，只有先划定范围才说得清是哪一个
- *   `520,400`                     直接给视口坐标
- * 任何一步收不敛，候选的文字都会一并报出来，省得再跑一趟去看有哪些。
+ * 「点」的写法见文件开头。按文字挑是因为界面里大量元素没有自己的选择器；`>>` 先划范围，
+ * 因为同名按钮一屏十几个，只有先划定范围才说得清是哪一个
  */
 async function pointOf(send, arg) {
   const literal = /^(-?\d+),(-?\d+)$/.exec(arg ?? '')
@@ -430,7 +345,7 @@ async function pointOf(send, arg) {
 const mouse = (send, type, x, y, more = {}) =>
   send('Input.dispatchMouseEvent', { type, x, y, button: 'none', buttons: 0, clickCount: 0, modifiers, ...more })
 
-/** 按键表：CDP 要的是虚拟键码，不是 `KeyboardEvent.keyCode` 那套的名字 */
+/** CDP 要的是虚拟键码，不是 `KeyboardEvent.keyCode` 那套名字 */
 const KEYS = {
   Enter: { key: 'Enter', code: 'Enter', vk: 13, text: '\r' },
   Tab: { key: 'Tab', code: 'Tab', vk: 9, text: '\t' },
@@ -449,7 +364,7 @@ async function press(send, name) {
   const k = KEYS[name]
   if (k === undefined) throw new Error(`不认得这枚键：${name}。认得的：${Object.keys(KEYS).join(' / ')}`)
   const common = { key: k.key, code: k.code, windowsVirtualKeyCode: k.vk, nativeVirtualKeyCode: k.vk, modifiers }
-  // 有 text 的走 keyDown（浏览器据此插字），没有的走 rawKeyDown（纯控制键）
+  // 有 text 的发 keyDown（浏览器据此插入文字），没有的发 rawKeyDown（纯控制键）
   await send('Input.dispatchKeyEvent', k.text === undefined
     ? { type: 'rawKeyDown', ...common }
     : { type: 'keyDown', ...common, text: k.text, unmodifiedText: k.text })
@@ -457,20 +372,13 @@ async function press(send, name) {
 }
 
 // ---------------------------------------------------------------------------
-// 在页面里跑一个文件
+// 在页面里执行一个文件
 // ---------------------------------------------------------------------------
 
 /**
- * `eval <文件> [JSON 参数]` 的那段表达式。
- *
- * **文件里一律是一个函数表达式**：`(args) => 一张表`，想 await 就写成 async，求值这头
- * 等得住。不给参数就按空对象调。只有这一条规则——「是函数就调、不是就直接求值」是两条
- * 规则伪装成一条，而选错分支的那次不报错，只是回一个看不懂的值。
- *
- * **量什么不住这个文件**：界面改一版就要添一段、改一段，而这支脚本管的是「怎么把事件
- * 发进页面」，那件事一年也不该变一次。混在一起，稳的那半会跟着不稳的那半一起动。
- * 文件落哪儿是调用方的纪律：一次性的落 `out/`（gitignore 着），那儿本来就随时可以清空。
- * `target` 是 `evalFileOf` 过过的绝对路径。
+ * 文件里一律是一个函数表达式 `(args) => 一张表`，要 await 就写成 async；不给参数就按空对象调。
+ * 只有这一条规则：「是函数就调、不是就直接求值」其实是两条，选错分支时不报错、只回一个看不懂的值。
+ * `target` 是 `evalFileOf` 处理过的绝对路径
  */
 function callExpressionOf(target, rawArgs) {
   if (!fs.existsSync(target)) {
@@ -487,13 +395,7 @@ function callExpressionOf(target, rawArgs) {
   return `(${fs.readFileSync(target, 'utf8')})(${JSON.stringify(args)})`
 }
 
-/**
- * 这张页的件是从哪个 home 装的。
- *
- * 页面上那些 `file://` 地址里带着 home 的绝对路径（外壳注的样式表、共享 React 的
- * importmap 都是），所以**不用配置、不用猜**：问一趟正在跑的那张页就知道了。
- * `devkit.dev` 的守卫靠这一条定位，人也能拿它核对「我改的到底是不是这一个 home」。
- */
+/** 页面上的 `file://` 地址（外壳插入的样式表、importmap）里带着 home 的绝对路径，问一次正在运行的页面就知道 */
 const HOME_EXPR = `(() => {
   const urls = [];
   for (const el of document.querySelectorAll('script[src], link[href]')) urls.push(el.src || el.href);
@@ -503,7 +405,7 @@ const HOME_EXPR = `(() => {
   return urls.filter((u) => typeof u === 'string' && u.startsWith('file:///'));
 })()`
 
-/** 一串 `file://` 地址 → home 的绝对路径。找不到就说找不到，不猜 */
+/** 一串 `file://` 地址 → home 的绝对路径。找不到、不止一个都照实说，不猜 */
 function homeOf(urls) {
   const hits = new Map()
   for (const url of urls) {
@@ -523,21 +425,9 @@ function homeOf(urls) {
 // ---------------------------------------------------------------------------
 
 /**
- * `--size 宽x高`：把视口当成这么大，用来扫容器查询的断点。
- *
- * 改的是**视口**不是操作系统的窗口。`Browser` 那个域是浏览器级的，页面这条会话里没有；
- * 而 Electron 的窗口本来也不是 Chrome 的窗口，不值得去赌它认不认。断点问的本来就是
- * 「一格有多宽时怎么排」，覆盖视口问的是同一件事，样式引擎干的活一模一样。
- *
- * **它必须是开关，不能是动词**：这个覆盖是**会话级**的，连接一断就没了。鼠标位置、
- * 滚动位置这些住在页面里，跨连接留得住；这一个不留。所以它得跟真正要干的那件事同一趟
- * 连接里发——`shot --size 900x800` 是一句话，先 size 再 shot 是两句空话。
- *
- * **页面没在产帧的时候它是假的**，这儿会报一句。改视口只动 `innerWidth`；窗格的宽是
- * 外壳用 JS 排出来的，要等 `ResizeObserver` 与一次重排才跟着变，而那两样都骑在帧上。
- * 窗口被遮住或最小化时一帧都不产，于是 `innerWidth` 变了、窗格宽一个像素没动——量出来
- * 是**旧布局配新视口**，比量不到更糟，因为它看起来像个正经的数。撞到过一次：视口压到
- * 380，窗格照旧 2293。要扫断点，先让窗口露出来。
+ * `--size 宽x高`：改的是视口，不是系统窗口，用来查容器查询的断点。它只对这次连接生效，所以是开关、
+ * 不是动作：`shot --size 900x800` 是一次调用，先 size 再 shot 是两次什么都没做的调用。
+ * 页面没在出新帧时这个覆盖量不准：窗格宽度要等 ResizeObserver 与重排，都依赖帧，量到的是旧布局配新视口，这里会报一句
  */
 async function override(send) {
   if (opts.size === undefined) return {}
@@ -560,7 +450,7 @@ async function override(send) {
   return out
 }
 
-/** 点不着就停下，别把「没打中」当成「点过了」 */
+/** 点不到就停下，别把「没点到」当成「点过了」 */
 function insist(spot) {
   if (spot.ok) return spot
   process.exitCode = 1
@@ -584,7 +474,7 @@ async function run(send, target) {
 
     case 'click': {
       const spot = insist(await pointOf(send, args[0]))
-      // 先移过去再按：悬停才出现的东西，得让它先出来
+      // 先移过去再按：悬停才出现的东西得先让它出来
       await mouse(send, 'mouseMoved', spot.x, spot.y)
       await settle(send)
       await mouse(send, 'mousePressed', spot.x, spot.y, { button: 'left', buttons: 1, clickCount: 1 })
@@ -593,8 +483,7 @@ async function run(send, target) {
       return { did: 'click', ...spot }
     }
 
-    // 右键：这套界面的块菜单挂在 contextmenu 上，左键点不出来。
-    // 派的是真右键，浏览器自己合成 contextmenu 事件——跟人按右键走的是同一条路。
+    // 发的是真实的右键，contextmenu 事件由浏览器自己合成，跟人按右键是同一条路
     case 'rclick': {
       const spot = insist(await pointOf(send, args[0]))
       await mouse(send, 'mouseMoved', spot.x, spot.y)
@@ -610,7 +499,7 @@ async function run(send, target) {
       const to = insist(await pointOf(send, args[1]))
       await mouse(send, 'mouseMoved', from.x, from.y)
       await mouse(send, 'mousePressed', from.x, from.y, { button: 'left', buttons: 1, clickCount: 1 })
-      // 分步走：一步到位的拖拽很多实现认不出来，中间那几帧才是它判方向的依据
+      // 分步移动：一步到位的拖拽很多实现认不出来，中间那几次移动才是它判断方向的依据
       const steps = 12
       for (let i = 1; i <= steps; i += 1) {
         const x = Math.round(from.x + ((to.x - from.x) * i) / steps)
@@ -623,7 +512,7 @@ async function run(send, target) {
     }
 
     case 'scroll': {
-      // 滚轮不做命中检查：滚的本来就该是最上面那个元素，被盖住不是错
+      // 滚轮不做命中检查：滚的本来就该是最上面那个元素，被挡住不是错
       const spot = await pointOf(send, args[0])
       if (spot.x === undefined) insist(spot)
       const delta = Number(args[1] ?? 300)
@@ -645,14 +534,7 @@ async function run(send, target) {
       return { did: 'key', key: args[0] }
     }
 
-    /*
-     * 在页面里跑一条工作台命令。外壳把 `window.gwb.command(名, 参数)` 开给页面，件的
-     * 浏览器半用的就是这一条；从命令行够到它，等于**不经界面也能读写这个 home**——
-     * 铺数据、查状态、事后核对，都不用先在界面上点半天。
-     *
-     * 命令失败（不存在、参数不对）回的是 `{ ok: false }` 那张信封，不是抛异常。这儿把
-     * 退出码置成非零：串在脚本里的时候，「命令没跑成」必须让调用方看得见。
-     */
+    // 经外壳给页面的 window.gwb.command 执行工作台命令。命令失败回 { ok: false }、不抛异常，所以这里把退出码设成非零
     case 'cmd': {
       if (args[0] === undefined) throw new Error('cmd 要一个命令名，后面可以跟一段 JSON 当参数')
       let payload
@@ -672,15 +554,8 @@ async function run(send, target) {
     }
 
     /*
-     * 刷新，然后等页面真的回来。
-     *
-     * **必须等**：刷新途中执行上下文被销毁，那几百毫秒里求值一律抛；不等就接着量的话，
-     * 量到的要么是异常，要么是上一版的画面。等什么由调用方说了算——给个选择器，等它出现
-     * （`.bn-app` 就是「块笔记那一格挂好了」）；不给就只等 `readyState`。
-     *
-     * 浏览器那半的快循环就靠这一条：件的 dist 换了之后刷新一下，外壳会重新按 `file://`
-     * 地址取那份 client 与样式表。**node 那半（cordis 里已经挂着的模块）刷新不掉**，
-     * 改了命令、引擎、窗格注册那些，得重起工作台。
+     * 刷新之后必须等页面真的回来：刷新途中执行上下文被销毁，那几百毫秒里求值一律抛。给了选择器等它出现，不给只等 readyState。
+     * 刷新只换得掉页面代码；主进程里已经加载的模块刷新不掉
      */
     case 'reload': {
       await send('Page.enable')
@@ -706,37 +581,22 @@ async function run(send, target) {
       return { did: 'reload', 等到了: true, 等的是: wait ?? 'readyState' }
     }
 
-    /*
-     * 这张页的件是从哪个 home 装的。**连上就已经核对过了**（见 assertHome），所以这一条
-     * 回的不是「对不对得上」，是那个 home 的**绝对路径**：`devkit.dev` 拿它挡住 default
-     * 与本件自己住的那个 home。
-     */
+    // 连上时已经核对过名字（assertHome），这里回的是那个 home 的绝对路径
     case 'home':
       return { did: 'home', ...homeOf(await evaluate(send, HOME_EXPR)) }
 
     case 'shot': {
-      // 落点先算：给错了就在抬窗、截图之前停
+      // 先算存到哪：给错了在把窗口提到前面、截图之前就停
       const { given, sel } = shotArgsOf(args)
       const file = shotFileOf(given, homeDir)
       await send('Page.enable')
-      // 只有截图这一件真的要画面，所以只有它去抬窗口
+      // 只有截图真的要画面，所以只有它把窗口提到前面
       const seen = await visibility(send, true)
-      /*
-       * 裁剪只要那个盒子，**不要命中检查**。命中检查是给点击用的：要点中一个东西，它得
-       * 真的在那个点的最上面。裁图不点任何东西——一段长正文的中心点落在状态栏上是常态
-       * （元素比视口高，中心自然在视口外，夹回来就夹到了别的东西身上），那跟能不能截它
-       * 毫无关系。所以这儿只坚持「算得出盒子」，算不出才停。
-       */
+      // 裁剪只要盒子、不要命中检查：长元素的中心点落在别的元素上很常见，跟能不能截它无关
       const spot = sel === undefined ? undefined : await pointOf(send, sel)
       if (spot !== undefined && spot.clip === undefined) insist(spot)
       const clip = spot === undefined ? undefined : { ...spot.clip, scale: 1 }
-      /*
-       * captureBeyondViewport 让裁剪框可以伸到折叠线以下，不然长元素只截得到露出来的那截。
-       *
-       * **对长正文它只能给你一段空白**：正文是可视区渲染的，屏外的行根本没有元素，伸下去
-       * 截到的是真的什么都没有。所以整页长图这条路在这套界面上不成立——要看下面，滚过去
-       * 再截一张。
-       */
+      // captureBeyondViewport 让裁剪框能伸到可视区以外；长正文是按可视区渲染的，伸出去截到的是空白，要看下面就滚过去再截
       const out = await send('Page.captureScreenshot',
         clip === undefined ? { format: 'png' } : { format: 'png', clip, captureBeyondViewport: true })
       fs.mkdirSync(path.dirname(file), { recursive: true })
@@ -750,13 +610,8 @@ async function run(send, target) {
 }
 
 /**
- * 连上之后，问一句这张页属于哪个 home，跟你要的那个对不上就停。
- *
- * **记录只说「它起的时候用的是这个口」**，不说「此刻这个口上还是它」：进程可能已经退了、
- * 端口被下一个进程占走，而记录还躺在那儿指着那个数。名字是唯一的地址之后，这道核对就是
- * 「地址对不对」的最后一关——少了它，名字给的是一种假的安全感。
- *
- * 拿不出 home 的页也停：那说明这个口后头根本不是工作台的外壳页。
+ * 连上之后核对这个页面属于哪个 home，跟要的对不上就停：记录只说「它启动时用的是这个端口」，
+ * 不说「此刻这个端口上还是它」。拿不出 home 的页面也停：那不是工作台的外壳页
  */
 async function assertHome(send) {
   const found = homeOf(await evaluate(send, HOME_EXPR))
@@ -771,9 +626,8 @@ async function assertHome(send) {
 // ---------------------------------------------------------------------------
 
 /**
- * 被 `node <本文件>` 起的时候才动手；被 import 时（单测与 `src/index.ts`）只交出上面那几个纯函数。
- * `import.meta.main` 是 Node 24.2 起的；更老的 Node 上它不在，退回拿 argv[1] 比真实路径——
- * home 里的包路径经 pnpm 的 junction，两头都得过 realpath 才比得上。
+ * 被 `node <本文件>` 运行时才动手，被 import 时（单测与 `src/index.ts`）只交出上面那几个纯函数。
+ * `import.meta.main` 从 Node 24.2 起才有；更老的 Node 上比 argv[1] 与本文件的真实路径（home 里经 pnpm 的 junction，两边都要 realpath）
  */
 function invokedDirectly() {
   if (typeof import.meta.main === 'boolean') return import.meta.main
@@ -796,16 +650,12 @@ if (invokedDirectly()) {
     const viewport = await override(send)
     console.log(JSON.stringify({ page: page.title, 在哪个home: home, ...viewport, ...(await run(send, page)) }, null, 2))
   } finally {
-    /*
-     * 视口覆盖**必须自己撤**。它不像鼠标位置那样只是页面里的一点状态：断开连接不一定还原，
-     * 页面就那么卡在那个尺寸上，界面缩在窗口一角，下一个来看这扇窗的人只会觉得程序坏了。
-     * 这一条是把人的窗口弄坏一次之后加的。撤不掉也不能盖住本来要报的错，所以吞掉。
-     */
+    // 视口覆盖必须自己撤：断开连接不一定还原，页面会卡在那个尺寸上。撤不掉也不能盖住本来要报的错，所以不抛
     if (opts.size !== undefined && opts.size !== 'off') {
       try {
         await send('Emulation.clearDeviceMetricsOverride')
       } catch {
-        /* 连接已经断了就算了，下一趟 `--size off` 也能收 */
+        /* 连接已经断了就算了，下一次 `--size off` 也能撤 */
       }
     }
     ws.close()
