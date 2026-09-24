@@ -171,7 +171,6 @@ export function apply(ctx: GwbContext): void {
       now: () => Date.now(),
       execPath: process.execPath,
       env: process.env,
-      platform: process.platform,
     },
   }
 

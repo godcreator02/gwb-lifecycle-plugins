@@ -178,9 +178,9 @@ home 在 `%APPDATA%\gwb-kernel\homes\<名>\`。打开哪一个由环境变量 `G
 | `fs` | 读运行时记录与装上的内核包、`cordis` 的清单，列 home 目录、写 `cordis.yml`、删整个目录 | `node:fs`，删除是自己逐个遍历目录（见下） | 一张内存文件表加一张目录表，删除可以模拟「返回成功但目录还在」 |
 | `spawn` | 启动 detached 且**看得见**的 electron | `child_process.spawn`，不带 `windowsHide` | 记一笔，回假 pid |
 | `appSpawnPlan` | 拼再启动一次宿主应用的命令行：安装版启动那个 exe，开发态 electron 读不出应用目录就拒 | 从宿主进程的 `execPath` / `argv` 拼（`hostAppFacts` → `hostAppSpawnPlan`） | 回一份写死的计划（或抛错），不碰真宿主 |
-| `run` | 在前台跑装内核包、`cordis`、基础插件的三条 `pnpm add` 到结束，回输出的最后几行 | 合并输出、超时结束进程 | 按预设回成功或失败 |
+| `run` | 在前台跑装内核包、`cordis`、基础插件的三条 `pnpm add` 到结束，回输出的最后几行；pnpm 是 `home.new` 开头在两个固定位置找到的那个可执行文件，经 `install.pnpm` 传进来 | 合并输出、超时结束进程 | 按预设回成功或失败 |
 | `processName` / `portOwner` / `kill` | 判断进程在不在、停进程 | `node-probe-deps.ts` | 直接给三种状态与端口占用者 |
-| `execPath` / `env` / `platform` | 认宿主映像名、拼安装命令行与子进程环境 | 宿主进程自己的值 | 给固定值，两种平台都能模拟 |
+| `execPath` / `env` | 认宿主映像名、拼子进程环境 | 宿主进程自己的值 | 给固定值 |
 
 **映像名只认 electron 与宿主自己**：宿主是安装版时 exe 名是产品名，开发态是 electron。把 node 也认进来只会在 pid 被复用时多误判。
 

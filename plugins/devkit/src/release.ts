@@ -35,7 +35,6 @@ export interface ReleaseDeps {
   exists(target: string): boolean
   /** 包目录 `src/` 下全部 `.ts` / `.tsx` 连成的一份文本，按它找源码提供的服务 */
   sourceTextOf(pkgDir: string): string
-  platform: NodeJS.Platform
   /** pnpm 的可执行文件：命令开头 `locatePnpm` 找到并核对过版本的那个 */
   pnpm: string
 }

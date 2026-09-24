@@ -324,6 +324,5 @@ export const releaseDepsWith = (pnpm: string): ReleaseDeps => ({
     return fs.existsSync(target)
   },
   sourceTextOf: sourceTextUnder,
-  platform: process.platform,
   pnpm,
 })

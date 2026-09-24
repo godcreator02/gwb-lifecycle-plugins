@@ -295,7 +295,6 @@ function fake(options: FakeOptions = {}): ReleaseDeps & { calls: string[]; range
   return {
     calls,
     ranges,
-    platform: 'win32',
     pnpm: PNPM,
     readText: (file) => files[path.resolve(file)],
     exists: (target) => path.resolve(target) in files || target.endsWith('dist'),

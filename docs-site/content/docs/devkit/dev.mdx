@@ -87,6 +87,7 @@ description: devkit.dev 一条命令把工作区的改动换进另一个 home �
 | 读写磁盘的几个函数 | 读清单、查产物在不在、写目标 home 的清单、读回装上的包清单、取日志基线与新增部分 | `node:fs` | 内存里的文件表；假的 `pnpm install` 照清单放 `node_modules`，也能模拟「退出码 0 却没换版本」 |
 | `sleep` | 轮询插件管理重新加载自己、轮询重启后的 `shell.env` 时，两次之间等一会儿 | `setTimeout` | 只记一行、不真等 |
 | `restartHome` | 发了内核包时停掉目标 home 再启动 | `src/index.ts` 用测试 home 的停止与启动（`bringDownHome`、`launchHome`）接上，调试端口先沿用上次那个 | 记一行调用、可以让它失败 |
+| `pnpm` | 构建、发版、查版本、装进目标 home 时启动的 pnpm 可执行文件 | 命令开头在两个固定位置找到并核对过版本的那个（见[pnpm 与包源](/docs/seams/pnpm-registry)），找不到就不开始 | 一个假路径 |
 
 {/* ref file="../plugins/devkit/src/dev.ts" lines="268-294" */}
 

@@ -218,7 +218,6 @@ export interface HomeDeps {
   execPath: string
   /** 启动子进程的环境，经 guiChildEnv 处理 */
   env: NodeJS.ProcessEnv
-  platform: NodeJS.Platform
 }
 
 // ── 确认进程还在 ──────────────────────────────────────────────────────────────

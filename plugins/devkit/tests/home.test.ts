@@ -132,7 +132,6 @@ interface FakeOptions {
   /** 在 CDP 端口上监听的那个 pid；不给就是「查不出来」（那时只按映像名判断） */
   portOwner?: number
   execPath?: string
-  platform?: NodeJS.Platform
 }
 
 function fakeDeps(options: FakeOptions = {}) {
@@ -189,7 +188,6 @@ function fakeDeps(options: FakeOptions = {}) {
     now: () => state.clock,
     execPath,
     env: { PATH: 'x', npm_config_registry: 'http://nope/', ELECTRON_RUN_AS_NODE: '1' },
-    platform: options.platform ?? 'win32',
   }
   return { deps, state }
 }
