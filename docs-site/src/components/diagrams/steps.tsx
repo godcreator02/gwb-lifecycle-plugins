@@ -18,6 +18,19 @@ export function useSteps(count: number, intervalMs = 2600) {
   return { step, setStep, playing, setPlaying }
 }
 
+/**
+ * 这一步的说明，写在 svg 外面的 HTML 里：跟正文一样按屏宽折行、字号不随图缩小。
+ * 窄画布的图用它，不用 parts.tsx 里画在 svg 里的 StepCaption
+ */
+export function StepText({ title, detail }: { title: string; detail: string }) {
+  return (
+    <div className="diagram-step" aria-live="polite">
+      <strong>{title}</strong>
+      <span>{detail}</span>
+    </div>
+  )
+}
+
 /** 图下的三个按钮：上一步、下一步、暂停 / 自动播放 */
 export function StepControls({ count, state }: { count: number; state: ReturnType<typeof useSteps> }) {
   const { setStep, playing, setPlaying } = state

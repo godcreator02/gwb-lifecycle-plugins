@@ -7,6 +7,14 @@ description: plugin-manager.search 在配好的 npm 源上检索插件，地址�
 
 **本页回答**：`plugin-manager.search` 查哪些源、怎么判断一个包是插件；`source.add` / `list` / `remove` 改哪份文件、认哪几种行、token 怎么处理；`owner` 写法从哪读 gitea 的地址与 token；这四条命令为什么不经 BUSY。代码在 `src/package-sources.ts`（命令逻辑）、`src/sources.ts` 与 `src/search.ts`（纯逻辑）、`src/registry.ts`（网络）、`src/home.ts`（读写 npmrc）。
 
+<Diagram name="pm-sources" title="包源命令读写哪份 npmrc，search 怎么从 scope 查到插件">
+- 两份 npmrc：机器级 `~/.npmrc` 本机所有 home 共用；home 级 `<home>/.npmrc` 只读，同名行优先
+- `plugin-manager.source.add` / `source.remove` 只写机器级那份，`@godcreator` 不许改、不许删；`source.list` 与 `search` 两份都读
+- `search` 每个 scope 找一条源地址（先 `@scope:registry=`，再 `registry=`，都没写就是 npm 官方源），各条源并发发 `GET <源>/-/v1/search?text=<scope>&size=250`
+- 包清单 `keywords` 含 `gwb-plugin` 的才算插件，合并进 `packages`；没查成的源写进 `note`
+- 装包的 `plugin-manager.install` 经 pnpm 读的是同一批配置行，所以搜到的包就从这条源装
+</Diagram>
+
 ## 从哪装就在哪搜
 
 **是什么**：`search` 不给 `scope` 时，查两份 npmrc 里出现过的每个 scope，`@godcreator` 永远排第一（npmrc 里没写它时它走全局源），其余按名字排；各条源并发查，查成的合并进 `packages`，没查成的在 `note` 里写明是哪条、为什么，全部没查成才回 `ok: false`。给了 `scope` 只查那一条。

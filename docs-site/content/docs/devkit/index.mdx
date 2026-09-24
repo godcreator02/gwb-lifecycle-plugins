@@ -74,6 +74,14 @@ description: 开发套件是一个普通的 gwb 插件，把「在一个新文�
 
 `devkit.release` 依次做：仓根 git 工作区不干净就拒；仓根 `pnpm build`；按 `files` 白名单检查产物；同一个版本号已在源上就拒；发版前检查；在临时目录组装发布内容、发到 latest（`workspace:` 依赖写成 `^`：同一次发的写 `^新版本号`，其余写 `^<工作区里的版本号>`）。任何一个包没过检查，一个都不发，回执按包一次列全。它只碰团队源、不碰任何 home，所以从哪个 home 调用都可以。
 
+<Diagram name="dk-release" title="devkit.release 发正式版：六步依次做，任何一处没过，一个包都不发">
+- 第 1 步仓根 git 工作区干净（`git status`），不干净连构建都不跑；第 2 步仓根 `pnpm build`
+- 第 3 步按 `files` 白名单查产物都在；第 4 步查这个版本号在源上没发过
+- 第 5 步发版前检查，要发的包一起查、一次列全。每个包查五项：不在 0.0.x、`@godcreator` 的 dev 范围包含源上的 latest、产物里没有空 import、相对 import 指向的文件都在、`tsc --noEmit` 类型检查；插件包另查四项：peer 只有 `cordis`、包名 import 的两份名单、`gwb.testedKernel` 与运行中的内核在同一条版本线、`gwb.requires` 的写法
+- 第 6 步在临时目录组装发布内容，按 `packages` 给的顺序发到 latest
+- 最下面一格：任一项没过，一个包都不发，回执按包列出每一项问题
+</Diagram>
+
 发版前检查对每个要发的包查：
 
 - 自己不在 0.0.x；`@godcreator` 的 dev 依赖范围包含源上的 `dist-tags.latest`（写法认不出、下限比 latest 还新、latest 超出范围才拒，范围内落后放行）
@@ -117,6 +125,15 @@ description: 开发套件是一个普通的 gwb 插件，把「在一个新文�
 
 - `@godcreator` 的 dev 依赖：`dead-pin`（写的版本源上没有）、`behind`（落后 latest 但还在 `^` 范围内——提示，不用处理）、`out-of-range`（latest 超出范围，必须跟进）、`loose-dev-pin`（写法既不是准确版本号也不是 `^`）
 - 插件包（`keywords` 含 `gwb-plugin`）的 peer：`peer-not-cordis`（写了 `cordis` 以外的包，一条 peer 一条；不看写法、不问源）。库不查 peer
+
+<Diagram name="dk-audit-deps" title="依赖对账：一条 dev 依赖从上往下问四个问题，插件包的 peer 另查一条">
+- 一条 `@godcreator` 的 dev 依赖（`workspace:*` 不查）依次问：写法是准确版本号或 `^x.y.z` 吗？不是报 `loose-dev-pin`
+- 源上有这个版本号（准确版本号，或 `^` 的下限）吗？没有报 `dead-pin`，安装必然失败
+- 源上的 latest 比它新吗？不新就不报
+- latest 还在 `^` 范围内吗？在报 `behind`，只是提示；不在报 `out-of-range`，上游出了破坏性版本，必须跟进
+- 插件包的每条 peer，不是 `cordis` 就报一条 `peer-not-cordis`；`private` 的清单与库不查 peer
+- 除了 `behind`，四种都要处理（图里画成橙色框）；这条命令只报告，拦下发版是 `devkit.release` 的事
+</Diagram>
 
 {/* ref file="../plugins/devkit/src/audit.ts" lines="139-194" */}
 

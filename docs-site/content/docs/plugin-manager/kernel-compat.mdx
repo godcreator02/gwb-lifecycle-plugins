@@ -23,6 +23,13 @@ description: 插件在 package.json 的 gwb.testedKernel 写它在哪个内核�
 
 **为什么**：内核在 0.x 时次版本号变了就可能有破坏性变化，补丁版本不会；≥1 以后破坏性变化只在主版本号上。这和全生态升版本号的规则（说明书 [gwb-release](/outputs/skills/gwb-release)）对得上。
 
+<Diagram name="pm-tested-kernel" title="按版本线比对的例子：左边是插件声明的 gwb.testedKernel，右边是 list 报的 kernelUntested">
+- 运行中的内核是 0.2.7（主版本号为 0，比前两位）：声明 `0.2.1` 同在 0.2，`kernelUntested` 是 `false`；声明 `0.3.0` 不在同一条线、没写、写了不是合法版本号的 `"latest"`，都是 `true`
+- 运行中的内核是 1.4.0（主版本号 ≥1，只比主版本号）：声明 `1.0.2` 是 `false`，声明 `2.0.0` 是 `true`
+- 同一个结果两处用：`plugin-manager.list` 只报告、插件照常加载；`devkit.release` 对插件包，结果是 `true` 就拒发
+- 比对规则两个包各有一份，同一个提交一起改，对照测试拿同一组版本号比两份的结果
+</Diagram>
+
 {/* ref file="../plugins/plugin-manager/src/tested-kernel.ts" lines="19-41" */}
 
 运行中的内核版本号来自内核服务 `gwbKernel` 的 `version`；它不是合法版本号，说明内核坏了，直接报错。

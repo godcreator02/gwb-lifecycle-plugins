@@ -19,6 +19,21 @@ repo-kit 是一个库，不是插件（`keywords` 只写 `gwb`），不装进 ho
 
 插件守卫不查的两条：命令名以 `<短名>.` 开头——说明书插件 `@godcreator/gwb-skills` 登记的是 `skill.list` / `skill.read`，这条不对所有插件成立；`client` 指向的文件在构建产物里——测试里 `apply` 从 `src/` 加载，按 `import.meta.url` 算出的地址落在 `src/` 下，而 `pnpm check` 不构建。
 
+<Diagram name="rk-self-report-guard" title="自述守卫：读四样东西，登记五条用例">
+- 读的四样：包的 `package.json`（`description`、`gwb.provides`）、`src/` 下的 `.ts` / `.tsx`（按文本扫出提供与注入的服务名）、`skills/` 下带 `SKILL.md` 的目录、文档站现状区 `docsDir` 下的全部 `.mdx`
+- 前提：`keywords` 含 `gwb-plugin` 才登记用例，库直接跳过
+- 五条用例：`description` 写齐「服务」「skill」「命令 N 条」或「命令无」；源码提供的服务名都写进 `description`；`gwb.provides` 的键与源码提供的服务一一对应、`summary` 与 `usage` 不空；「skill N 份」等于带 `SKILL.md` 的目录数；源码注入的服务名都在现状区出现过（一个 `.mdx` 都没有时直接通过）
+- 不数命令条数
+</Diagram>
+
+<Diagram name="rk-plugin-guard" title="插件守卫：apply 在替身 ctx 上运行，四条用例只查结构">
+- 插件的 `apply`（测试里从 `src/` 加载）交给 `mountHarness`，在替身 `ctx` 上运行；替身有 `logger`、`effect`、`inject` 与 `gwbShell.registerPane`、`gwbCommands.register`，把登记的窗格与命令记下来
+- 第 1 条：`name` 等于 `pkgName`，`pkgName` 是 `gwb-<短名>`，`pkg` 以 `/gwb-<短名>` 结尾
+- 第 2 条：`apply` 在替身上运行不抛错；用了替身上没有的成员就会抛错
+- 第 3 条：记下的每条命令 `plugin` 是包名，`name`、`description`、`usage` 不空；第 4 条：记下的每个窗格 `id` 不空，给了 `client` / `style` 就是以 `.js` / `.css` 结尾的 `file:` 地址
+- 不查窗格与命令的个数、命令名前缀、`client` 文件在不在 `dist`
+</Diagram>
+
 ## 接口
 
 全部导出从 `src/index.ts` 出去：

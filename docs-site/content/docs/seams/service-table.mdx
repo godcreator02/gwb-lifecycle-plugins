@@ -11,6 +11,14 @@ description: 连接 devkit.services、devkit.capabilities 与两样东西：cord
 - cordis 4.0.0-rc.9 的运行时结构：由内核带进来，devkit 只在 `devDependencies` 里写同一版本
 - devkit 所在 home 里各包的 `package.json`：`<home>/package.json` 与 `<home>/node_modules/<包>/package.json`
 
+<Diagram name="seam-service-table" title="两条命令的两路数据：cordis 的运行时结构与各包的 package.json">
+- 上面一路是 cordis 4.0.0-rc.9 的运行时结构（不是文档化接口，靠约定）：从 `ctx.fiber` 沿 `parent.fiber` 往上最多 32 层，再遍历 `registry.entries()` 的 `runtime.fibers`；每个 fiber 的 `store` 只收 `impl.fiber` 是它自己的那些服务；提供者取 `fiber.entry.id` 与 `entry.options.name`
+- 两条命令都从这一路得到服务表：`devkit.services` 报服务由哪个条目、哪个包提供；`devkit.capabilities` 的 `inject` 段是同一张表
+- 下面一路是 home 里各包的 `package.json`：`gwb.provides` 的 `{ summary, usage }`、`gwb.shared`、`exports`、`keywords`，以及 home 的 `dependencies` 决定列哪些包
+- `gwb.provides` 的键在两条命令里不一样：贴到服务上时键是服务名，`devkit.capabilities` 的 `import` 段按模块说明符（包名或 `包名/子路径`）作键
+- cordis 的结构认不出时回空表并带 `note` 与 `saw`，不抛错；插件包的 `gwb.provides` 键与源码提供的服务一一对应，由 repo-kit 的自述守卫查
+</Diagram>
+
 ## 接口
 
 **cordis 这边**：从自己的 `ctx.fiber` 沿 `parent.fiber` 往上走（最多 32 层），再遍历 `ctx.registry.entries()` 里每个插件的 `runtime.fibers`；每个 fiber 读 `store` 里的每一项，只收 `impl.fiber` 就是这个 fiber 的；提供者取 `fiber.entry.id` 与 `entry.options.name`，没有条目时退回 `runtime.name`：

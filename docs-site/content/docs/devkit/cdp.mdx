@@ -32,7 +32,7 @@ description: bin/cdp.mjs（登记成 devkit.cdp）在一个工作台页面里操
 
 ## 不知道什么
 
-**不知道页面里有什么。** 要读取哪些值跟着界面走，界面改一版就要加一段、改一段；而这个脚本管的是怎么把事件发进页面，那件事一年也不该变一次。混在一起，稳定的部分会跟着不稳定的部分一起改。所以要读一组值就写一个文件，用 `eval <文件> [JSON 参数]` 送进页面执行。
+**不知道页面里有什么。** 要读取哪些值跟着界面走，界面改一版就要加一段、改一段；而这个脚本管的是怎么把事件发进页面，那件事很少需要改。混在一起，稳定的部分会跟着不稳定的部分一起改。所以要读一组值就写一个文件，用 `eval <文件> [JSON 参数]` 送进页面执行。
 
 {/* ref file="../plugins/devkit/bin/cdp.mjs" lines="464-489" */}
 
@@ -62,6 +62,15 @@ description: bin/cdp.mjs（登记成 devkit.cdp）在一个工作台页面里操
 - 工作台没运行时直接 `node <包根>/bin/cdp.mjs <home 名> <动作>`
 
 {/* ref file="../plugins/devkit/src/index.ts" lines="424-433" */}
+
+<Diagram name="dk-cdp" title="一次 CDP 驱动的运行：两个入口，同一个脚本，五步">
+- 两个入口：工作台运行时调 `devkit.cdp`（由 `gwbNodeCli` 登记，启动 node 子进程），工作台没运行时直接 `node bin/cdp.mjs`
+- 第 1 步按 home 名查端口：读 `<home 根>/<名>/runtime.json` 的 `cdp` 字段，给数字当场拒
+- 第 2 步连上唯一的页面：问 `http://127.0.0.1:<端口>/json/list`，候选不是正好一个就把候选列进报错；选定后用 WebSocket 连上
+- 第 3 步核对页面属于哪个 home：从页面上带 home 路径的 `file://` 地址读出名字，跟给的名字对不上就停
+- 第 4 步执行动作，以 `cmd` 为例：在页面里执行 `window.gwb.command(命令名, 参数)`
+- 第 5 步把结果作为一段 JSON 打到标准输出，失败时退出码非零；经 `devkit.cdp` 调用时回执带 stdout、stderr 与退出码
+</Diagram>
 
 **第一个位置只收 home 名**，端口从 `<home 根>/<名>/runtime.json` 里查出来。给数字当场拒，不悄悄换成别的理解：
 

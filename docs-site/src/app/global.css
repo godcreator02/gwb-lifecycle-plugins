@@ -77,6 +77,46 @@ html {
   border-color: var(--diagram-a);
   color: var(--diagram-a);
 }
+/* 窄画布（400 宽）的图：桌面上限宽居中，免得字放得太大；手机上铺满，字比 760 宽的图大近一倍 */
+.diagram-canvas svg.diagram-narrow {
+  max-width: 500px;
+  margin: 0 auto;
+}
+@media (max-width: 640px) {
+  .diagram-canvas {
+    padding: 8px 4px;
+  }
+}
+/* 分步动画这一步的说明，在图与按钮之间 */
+.diagram-step {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  min-height: 6.6em;
+  padding: 4px 16px 8px;
+  font-size: 13px;
+  line-height: 1.6;
+  color: var(--color-fd-muted-foreground);
+}
+.diagram-step strong {
+  color: var(--color-fd-foreground);
+  font-size: 13.5px;
+}
+/* 分步动画里这一步正在走的连线：虚线沿箭头方向移动 */
+.diagram-flow {
+  stroke-dasharray: 6 4;
+  animation: diagram-flow 0.9s linear infinite;
+}
+@keyframes diagram-flow {
+  to {
+    stroke-dashoffset: -10;
+  }
+}
+@media (prefers-reduced-motion: reduce) {
+  .diagram-flow {
+    animation: none;
+  }
+}
 
 .note {
   border: 1px solid rgba(86, 182, 232, 0.4);

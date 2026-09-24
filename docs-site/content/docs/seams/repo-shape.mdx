@@ -10,6 +10,16 @@ description: 连接 devkit.dev、devkit.release、结构体检、audit-deps 与�
 - devkit 的 `devkit.dev`（`src/dev.ts`）、`devkit.release`（`src/release.ts`、`src/artifact-check.ts`）、发布内容的组装（`src/node-dev-deps.ts`）、`devkit.audit-structure`（`src/structure.ts`）、`devkit.audit-deps`（`src/audit.ts`、`src/node-audit-deps.ts`）
 - 被处理的插件仓：别人的仓，也包括本仓
 
+<Diagram name="seam-repo-shape" title="被处理的仓要满足的约定，按目录树排；右边是依赖这条约定的命令">
+- `<单元>/unit.json`：`devkit.audit-deps` 与全生态的结构体检先读它决定跳不跳过这个单元
+- `<仓根>/.git`：`devkit.release` 要求工作区干净，不是 git 仓也拒
+- `<仓根>/package.json`：`devkit.dev` 与 `devkit.release` 在仓根运行 `pnpm build`
+- `<仓根>/pnpm-workspace.yaml`：组装发布内容时从包目录往上找到的第一个有它的目录是仓根
+- `plugins/*`、`packages/*`：结构体检只扫这两处，`devkit.audit-deps` 另读 `apps/*` 与 `docs-site`
+- `<包>/package.json`：`files` 是产物清单，`keywords` 含 `gwb-plugin` 表示插件，node 侧入口是 `exports["."]`
+- `<包>/dist/client.js` 是浏览器侧产物入口，`<包>/node_modules/` 里依赖的清单给出 importmap 的名字，`<包>/tsconfig.build.json`（没有就用 `tsconfig.json`）是类型检查的依据，这三条只有 `devkit.release` 用
+</Diagram>
+
 ## 接口
 
 **仓根能 `pnpm build`**：`devkit.dev` 与 `devkit.release` 都在调用方给的 `dir` 上运行 `pnpm build`，不在包目录里构建；失败就停：

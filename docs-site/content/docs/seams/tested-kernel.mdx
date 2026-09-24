@@ -13,6 +13,14 @@ description: 连接插件包 package.json 里的 gwb.testedKernel、gwb.requires
 - 内核：内核服务 `gwbKernel` 的 `version`，由内核仓提供
 - home 里装的别的插件：被 `gwb.requires` 点名的包，插件管理读它在 `node_modules` 里的 `package.json` 取 `version`
 
+<Diagram name="seam-version-fields" title="两个字段，两处读：devkit.release 在发版时拒，plugin-manager.list 在 home 里只报告">
+- 插件包的 `package.json` 里写 `gwb.testedKernel` 与 `gwb.requires`
+- `devkit.release` 发版时只查插件包：`gwb.testedKernel` 拿 devkit 所在 home 的 `gwbKernel.version` 比版本线；`gwb.requires` 查写法（是对象、值是 x.y.z、包在 dev 里、不高于 dev 下限）；没过就一个都不发，回执写改成什么
+- `plugin-manager.list` 每次列出时对每个包：`gwb.testedKernel` 拿插件管理所在 home 的 `gwbKernel.version` 比；`gwb.requires` 拿 home 里 `node_modules/<包>/package.json` 的版本比；报 `kernelUntested` 与 `unmetRequires`，只报告、照常加载
+- 判法两个包各有一份（两个 `tested-kernel.ts`、两个 `isMinimumVersion`），不跨包 import，对照测试拿同一组输入比两份的结果
+- 内核不读这两个字段；两处比的可以是不同的 home
+</Diagram>
+
 ## 接口
 
 **字段 `gwb.testedKernel`**：一个版本号字符串。两个包自己都写了：

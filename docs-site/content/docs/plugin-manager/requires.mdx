@@ -21,6 +21,13 @@ description: 插件在 package.json 的 gwb.requires 写它要求 home 里别的
 - `unmetRequires`：没满足的要求，每条是 `{ pkg, required, installed? }`。home 里装的版本低于 `required`、`required` 不是合法的 x.y.z、或者没装（这时没有 `installed` 字段），都列进来；全都满足、没写 `gwb.requires` 时是空数组
 - `requiresInvalid`：`gwb.requires` 写了但不是「包名 → 字符串」的对象时，说明哪里不对；这时一条都不比对
 
+<Diagram name="pm-requires" title="一个例子：gwb-foo 要求外壳至少 0.5.0、数据插件至少 0.3.0">
+- 插件 gwb-foo 的 `package.json` 写 `"gwb": { "requires": { "@godcreator/gwb-shell": "0.5.0", "@godcreator/gwb-data": "0.3.0" } }`
+- `list` 读 home 的 `node_modules`：外壳装的是 0.4.2，比要求低；数据插件没装
+- `list` 回执里 gwb-foo 这一行：`requires` 与声明相同；`unmetRequires` 两条，外壳那条带 `installed: "0.4.2"`，数据插件那条没有 `installed`
+- 只报告：gwb-foo 照常加载，插件管理不替它升级外壳
+</Diagram>
+
 {/* ref file="../plugins/plugin-manager/src/requires.ts" lines="11-29" */}
 
 {/* ref file="../plugins/plugin-manager/src/requires.ts" lines="88-103" */}

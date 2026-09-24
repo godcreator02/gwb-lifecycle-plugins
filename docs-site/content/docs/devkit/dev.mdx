@@ -13,6 +13,13 @@ description: devkit.dev 一条命令把工作区的改动换进另一个 home �
 
 {/* ref file="../plugins/devkit/src/dev.ts" lines="427-446" */}
 
+<Diagram name="dk-dev-loop" title="改一版看一版：改代码、调 devkit.dev 走完七步、读回执，再改下一版">
+- 左列在控制台 home 里做：`devkit.dev` 收 `home`、`dir`、`packages`，仓根 `pnpm build`，发开发版（版本号 `<patch+1>-dev.<yyyyMMddHHmm>`）到团队源
+- 右列在目标 home（隔离 home）里做，页面上的操作都经 `bin/cdp.mjs` 按 home 名连过去：先问页面它是哪个 home（`default` 与开发套件自己所在的 home 直接拒）；在 home 的 `package.json` 写准确版本号再 `pnpm install`，读回核对；每条条目发一条 `plugin-manager.remount`；整页刷新；最后取证
+- 取证三样：装上的是这次的版本号、条目是 `ACTIVE`、`gwb.log` 在装包之前那个长度之后新增的部分没有 error
+- 取证之后读回执、回到改代码，再调一次 `devkit.dev`；任何一步失败当场停，回执写明停在哪一步
+</Diagram>
+
 **重新加载是目标进程里的一条命令，不是这边发的两条。** 每条条目调一次 `plugin-manager.remount`，停用、等卸载完、启用、等加载完都在那一条命令里做完。拆成停用、启用两条的话，被换的正好是提供启用命令的插件管理自己、或者命令总线时，第二条没人接收，条目停在停用状态。回执有两种成功：`remounted` 表示回执之前就做完了，带着重新加载后的状态，只有 `ACTIVE` 算加载成功；`deferred` 是插件管理重新加载它自己，先发回执、下一个宏任务才动手，这边就轮询 `plugin-manager.list`，等它重新答复、那条条目在运行，超时没等到就回 `ok: false` 并说清卡在哪。所以目标 home 的插件管理要 0.4.0 起。
 
 {/* ref file="../plugins/devkit/src/dev.ts" lines="555-603" */}

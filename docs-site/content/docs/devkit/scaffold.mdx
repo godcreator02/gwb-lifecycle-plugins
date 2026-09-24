@@ -13,9 +13,18 @@ workspace 仓：仓根是一个不发布的 private 包（`pnpm build` / `pnpm c
 
 ## 管什么
 
-一个短名派生出一套身份：包名 `@godcreator/gwb-<短名>`、插件名 `gwb-<短名>`、命令名 `<短名>.<动作>` 的前半。这部分代码把包内 `template/` 的两部分按这套身份渲染好、写进一个还不存在的目录，再把「接下来做什么」放进回执。
+一个短名派生出一组名字：包名 `@godcreator/gwb-<短名>`、插件名 `gwb-<短名>`、命令名 `<短名>.<动作>` 的前半。这部分代码把包内 `template/` 的两部分按这组名字渲染好、写进一个还不存在的目录，再把「接下来做什么」放进回执。
 
 插件的文件写到磁盘之后才建文档站，而建站是两步，两步都不是本包的命令；站装好六区之后，再往现状区写一页插件页草稿。加插件不建站：整个仓一个站，仓里已有装好六区的站时，只往现状区加这个插件的插件页；README 里插件清单的更新由写文档的人做（`nextStepsPlugin` 最后一步提醒）。
+
+<Diagram name="dk-scaffold" title="devkit.scaffold 建仓的七步：前三步在本包里，第 4、5 步经命令总线交给别的插件">
+- 第 1 步 `planScaffold` 算计划：校验短名，派生包名 `@godcreator/gwb-<短名>` 与插件名，`gwb.testedKernel` 取运行中内核的版本号；不碰磁盘
+- 第 2 步在内存里渲染 `template/repo/`、`template/pkg/` 与插件页，认不出的占位符当场抛错
+- 第 3 步 `writeRepo` 写磁盘：目标目录必须还不存在；仓根写四个文件，插件包写到 `plugins/<短名>/`
+- 第 4 步经命令总线调站点插件的 `docs-site.create`，生成 `docs-site/` 骨架（回执 `docs.built`）；第 5 步紧接着调 docfirst 插件的 `docfirst.attach` 装六区（回执 `docs.attached`）。这两步画成虚线框：哪个插件没装就跳过，建仓不算失败
+- 第 6 步：`docs-site/docfirst.config.mjs` 在，才写插件页 `docs-site/content/docs/plugins/<短名>.mdx`
+- 第 7 步回执：`nextSteps` 按 `built` 与 `attached` 分三种情况写下一步
+</Diagram>
 
 ## 不知道什么
 
@@ -51,7 +60,7 @@ workspace 仓：仓根是一个不发布的 private 包（`pnpm build` / `pnpm c
 
 认不出的占位符当场抛错。生成的仓里留一个 `{{typo}}`，它会一直留在别人的 package.json 里，到那时已经没人知道它本来该是什么。所以给模板加了新占位符，`placeholders()` 必须同时加一项。
 
-两部分各写到哪里由一个纯函数决定：`repo/` 写到仓根，`pkg/` 写到 `plugins/<短名>/`，**不属于这两部分的文件当场抛错**——模板里每个文件都得声明自己属于哪部分，没声明的写下去就是一堆没人认领的文件。
+两部分各写到哪里由一个纯函数决定：`repo/` 写到仓根，`pkg/` 写到 `plugins/<短名>/`，**不属于这两部分的文件当场抛错**——模板里每个文件都得声明自己属于哪部分，没声明的文件写下去，谁也说不清它属于仓根还是插件包。
 
 {/* ref file="../plugins/devkit/src/scaffold.ts" lines="290-301" */}
 
