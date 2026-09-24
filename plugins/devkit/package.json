@@ -32,9 +32,6 @@
     "prepublishOnly": "pnpm build"
   },
   "//dependencies": "站那半的两条命令（docs-site.create / docfirst.attach）只按名字在命令总线上找——本包不依赖站件与 docfirst 件的任何包，那正是三者互不依赖的判据",
-  "dependencies": {
-    "yaml": "^2.8.0"
-  },
   "peerDependencies": {
     "@godcreator/gwb-plugin-api": "^0.2.7",
     "@godcreator/gwb-shell": "^0.13.3"

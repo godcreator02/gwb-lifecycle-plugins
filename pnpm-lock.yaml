@@ -73,10 +73,6 @@ importers:
         version: 4.1.11(@types/node@24.13.4)(vite@8.3.0(@types/node@24.13.4)(esbuild@0.28.2)(jiti@2.7.0)(yaml@2.9.1))
 
   plugins/devkit:
-    dependencies:
-      yaml:
-        specifier: ^2.8.0
-        version: 2.9.1
     devDependencies:
       '@godcreator/gwb-commands':
         specifier: 0.4.5
