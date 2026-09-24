@@ -15,7 +15,7 @@ description: 连接 devkit 与插件管理：devkit.dev 经 CDP 在目标页面�
 
 **一、`devkit.dev` 经 CDP 调两条命令。** devkit 运行在另一个 home 里，调用经 `bin/cdp.mjs` 的 `cmd` 动作发到目标页面的 `window.gwb.command`（通道见 [CDP 驱动 cdp.mjs](/docs/seams/cdp)）。重新加载一条条目只发一条 `plugin-manager.remount {"entryId": …}`：
 
-{/* ref file="../plugins/devkit/src/dev.ts" lines="491-522" */}
+{/* ref file="../plugins/devkit/src/dev.ts" lines="584-615" */}
 
 回执 `action` 是 `remounted` 时，`state` 必须是 `ACTIVE`；是 `deferred`（被重新加载的是插件管理自己）时，每 500 毫秒轮询一次 `plugin-manager.list`，60 秒内等到那条条目 `active: true`。插件管理这边的命令与处理：
 
@@ -25,7 +25,7 @@ description: 连接 devkit 与插件管理：devkit.dev 经 CDP 在目标页面�
 
 `plugin-manager.list` 的回执由 devkit 自己解析：认 `{ packages: [...] }` 与裸数组两种，按 `pkg` 找包，读每条条目的 `entryId` 与 `active`，一个包的**全部**条目都要重新加载：
 
-{/* ref file="../plugins/devkit/src/dev.ts" lines="125-140" */}
+{/* ref file="../plugins/devkit/src/dev.ts" lines="143-158" */}
 
 插件管理的 `list` 每个包带 `pkg`、`entries`，每条条目带完整 `entryId` 与按 fiber 状态算的 `active`：
 
@@ -39,7 +39,7 @@ description: 连接 devkit 与插件管理：devkit.dev 经 CDP 在目标页面�
 
 **三、`devkit.dev` 自己改目标 home 的清单。** 把这次发的准确版本号写进目标 home 的 `package.json`，再在那个 home 里运行 `pnpm install`（PATH 上的 pnpm），装完读 `node_modules/<包>/package.json` 核对版本；失败时把清单改回原样。不用 `plugin-manager.install`，因为它对已装的包会再加一条条目：
 
-{/* ref file="../plugins/devkit/src/dev.ts" lines="394-428" */}
+{/* ref file="../plugins/devkit/src/dev.ts" lines="435-474" */}
 
 ## 约定
 
