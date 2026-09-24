@@ -23,7 +23,7 @@ description: 连接 devkit.dev、devkit.release、devkit.scaffold.plugin 与被�
 
 **仓根能 `pnpm build`**：`devkit.dev` 与 `devkit.release` 都在调用方给的 `dir` 上运行 `pnpm build`，不在包目录里构建；失败就停：
 
-{/* ref file="../plugins/devkit/src/dev.ts" lines="533-535" */}
+{/* ref file="../plugins/devkit/src/dev.ts" lines="547-549" */}
 
 **`files` 白名单就是产物清单**：构建之后，白名单里不带 `!`、不带通配的每一项都得在包目录里；组装发布内容时只复制这些，带通配的直接拒：
 

@@ -20,11 +20,11 @@ description: bin/cdp.mjs（登记成 devkit.cdp）在一个工作台页面里操
 
 **问一个页面属于哪个 home**，靠的是页面上那些 `file://` 地址里带着的 home 路径（外壳插入的样式表就是）。不用配置、不用猜；出现不止一个 home 就直接说不猜，不挑一个。
 
-{/* ref file="../plugins/devkit/bin/cdp.mjs" lines="398-421" */}
+{/* ref file="../plugins/devkit/bin/cdp.mjs" lines="398-418" */}
 
 这个问题不只是 `home` 动作用，**每次运行都要问一次**：连上之后先拿它跟你给的名字对，对不上就停。
 
-{/* ref file="../plugins/devkit/bin/cdp.mjs" lines="612-624" */}
+{/* ref file="../plugins/devkit/bin/cdp.mjs" lines="609-621" */}
 
 记录只说「它启动的时候用的是这个端口」，不说「此刻这个端口上还是它」。进程可能已经退出、端口被下一个进程占用，而记录还留在那里指着这个端口。名字是唯一的定位方式之后，这道核对就是「连对了没有」的最后一道检查；少了它，按名字定位只是看起来安全。
 
@@ -100,7 +100,7 @@ description: bin/cdp.mjs（登记成 devkit.cdp）在一个工作台页面里操
 
 **决定文件写到哪的那部分有单元测试，其余只能实际运行。** 位置怎么算是一组纯函数（home 根目录、home 目录、截图位置、`eval` 的文件、写磁盘前的检查）。文件被 import 时只导出它们，文件末尾那段只在被 node 直接运行时才执行：
 
-{/* ref file="../plugins/devkit/bin/cdp.mjs" lines="628-651" */}
+{/* ref file="../plugins/devkit/bin/cdp.mjs" lines="625-648" */}
 
 `tests/cdp.test.ts` 直接 import 它、给路径看结果：截图缺省位置在被截图那个 home 的 `out\cdp\`、不在本包目录与任何 `node_modules` 里，两处相对路径都拒；另有一条检查整个文件里不出现 `process.cwd()`。
 
