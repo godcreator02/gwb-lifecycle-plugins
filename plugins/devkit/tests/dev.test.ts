@@ -5,6 +5,8 @@ import {
   DEFAULT_REGISTRY,
   DEFERRED_POLL_MS,
   DEFERRED_TIMEOUT_MS,
+  RESTART_TIMEOUT_MS,
+  SHELL_ENV_COMMAND,
   checkInstalled,
   collect,
   devVersion,
@@ -64,6 +66,10 @@ interface FakeOptions {
    * 同 patch 旧预发布号时就是这样（实测）
    */
   staleInstall?: boolean
+  /** `shell.env` 报的内核版本。null＝回执里没有 versions.kernel */
+  runningKernel?: string | null
+  /** 重启目标 home 失败时的原因 */
+  failRestart?: string
 }
 
 /** 目标 home 的清单：装过这个包，声明是 `^` 范围（plugin-manager.install 写出来的样子） */
@@ -125,6 +131,10 @@ function fake(options: FakeOptions = {}): DevDeps & { calls: string[]; files: Re
         const receipt = options.remount?.(entryId) ?? { ok: true, data: { id: entryId, action: 'remounted', state: 'ACTIVE' } }
         return { ok: true, data: { 回执: receipt }, tail: '' }
       }
+      if (args[0] === 'cmd' && args[1] === SHELL_ENV_COMMAND) {
+        const versions = options.runningKernel === null || options.runningKernel === undefined ? {} : { kernel: options.runningKernel }
+        return { ok: true, data: { 回执: { ok: true, data: { versions } } }, tail: '' }
+      }
       if (args[0] === 'cmd' && args[1] === 'plugin-manager.list') {
         if (silent > 0) {
           silent -= 1
@@ -143,6 +153,10 @@ function fake(options: FakeOptions = {}): DevDeps & { calls: string[]; files: Re
     },
     async published(spec) {
       return (options.published ?? []).includes(spec)
+    },
+    async restartHome(home) {
+      calls.push(`restart ${home}`)
+      return options.failRestart === undefined ? { ok: true, note: '已停 pid 1;起来了(pid 2)' } : { ok: false, error: options.failRestart }
     },
   }
 }
@@ -447,5 +461,76 @@ describe('部署的正是重挂那条路上的件', () => {
     if (!out.ok) return
     expect(out.data.shipped[0]?.remounted).toEqual(['home:commands'])
     expect(deps.calls.some((one) => one.startsWith('sleep'))).toBe(false)
+  })
+})
+
+describe('发内核包', () => {
+  const KERNEL = '@godcreator/gwb-kernel-desktop'
+  const KERNEL_DIR = 'apps/desktop'
+  const kernelManifest = (peerCordis: string): string =>
+    JSON.stringify({ name: KERNEL, version: '0.4.0', files: ['dist'], peerDependencies: { cordis: peerCordis } })
+  const homeWithKernel = `${JSON.stringify({ dependencies: { [KERNEL]: '0.4.0', cordis: '4.0.0-rc.9', [PKG]: '^0.3.1' } }, null, 2)}\n`
+  const kernelFiles = (peerCordis = '4.0.0-rc.10'): Record<string, string> => ({
+    [path.resolve(REPO, KERNEL_DIR, 'package.json')]: kernelManifest(peerCordis),
+    [path.resolve(HOME, 'package.json')]: homeWithKernel,
+  })
+  const kernelDev = devVersion('0.4.0', Date.UTC(2026, 8, 11, 12, 0))
+
+  it('内核包连同 peer 里的 cordis 写进清单一起装；重启目标 home 代替重挂与整页刷新，页面报出的就是这次的号', async () => {
+    const deps = fake({ packages: ONE_ENTRY, files: kernelFiles(), runningKernel: kernelDev })
+    const out = await runDev(input({ packages: [KERNEL_DIR] }), deps)
+    expect(out.ok).toBe(true)
+    if (!out.ok) return
+    expect(JSON.parse(deps.files[path.resolve(HOME, 'package.json')] ?? '{}')).toMatchObject({ dependencies: { [KERNEL]: kernelDev, cordis: '4.0.0-rc.10' } })
+    expect(out.data.kernel).toEqual({ version: kernelDev, restart: '已停 pid 1;起来了(pid 2)' })
+    expect(out.data).not.toHaveProperty('reload')
+    expect(deps.calls).toContain('restart bn-2609111200')
+    expect(deps.calls.some((one) => one.includes('plugin-manager.remount'))).toBe(false)
+    expect(deps.calls.some((one) => one.startsWith('cdp bn-2609111200 reload'))).toBe(false)
+  })
+
+  it('内核包和插件一起发：插件也不重挂，重启之后它本来就是按新装的包加载的', async () => {
+    const files = { ...kernelFiles(), [path.resolve(REPO, 'plugins/fake', 'package.json')]: MANIFEST }
+    const deps = fake({ packages: ONE_ENTRY, files, runningKernel: kernelDev })
+    const out = await runDev(input({ packages: [KERNEL_DIR, 'plugins/fake'] }), deps)
+    expect(out.ok).toBe(true)
+    expect(deps.calls.filter((one) => one.startsWith('restart'))).toHaveLength(1)
+    expect(deps.calls.some((one) => one.includes('plugin-manager.remount'))).toBe(false)
+  })
+
+  it('内核包 peer 里的 cordis 写的是范围：一个包都不发', async () => {
+    const deps = fake({ files: kernelFiles('^4.0.0-rc.10') })
+    const out = await runDev(input({ packages: [KERNEL_DIR] }), deps)
+    expect(out).toMatchObject({ ok: false })
+    if (!out.ok) expect(out.error).toContain('不是精确版本号')
+    expect(deps.calls.some((one) => one.startsWith('publish'))).toBe(false)
+  })
+
+  it('cordis 没装成要的版本：当场 ok:false，不重启', async () => {
+    const deps = fake({ files: kernelFiles(), staleInstall: true, runningKernel: kernelDev })
+    const out = await runDev(input({ packages: [KERNEL_DIR] }), deps)
+    expect(out).toMatchObject({ ok: false })
+    expect(deps.calls.some((one) => one.startsWith('restart'))).toBe(false)
+  })
+
+  it('重启没成：说清是装上之后停在了重启', async () => {
+    const out = await runDev(input({ packages: [KERNEL_DIR] }), fake({ files: kernelFiles(), failRestart: 'CDP 9400 端口上监听的是别的进程' }))
+    expect(out).toMatchObject({ ok: false })
+    if (!out.ok) expect(out.error).toContain('CDP 9400')
+  })
+
+  it('重启之后页面报的内核版本不是这次的号：当场判失败，不接着等', async () => {
+    const deps = fake({ files: kernelFiles(), runningKernel: '0.4.0' })
+    const out = await runDev(input({ packages: [KERNEL_DIR] }), deps)
+    expect(out).toMatchObject({ ok: false })
+    if (!out.ok) expect(out.error).toContain('0.4.0')
+    expect(deps.calls.filter((one) => one.includes(SHELL_ENV_COMMAND))).toHaveLength(1)
+  })
+
+  it('shell.env 一直报不出内核版本：到点 ok:false，说清卡在哪', async () => {
+    const deps = fake({ files: kernelFiles(), runningKernel: null })
+    const out = await runDev(input({ packages: [KERNEL_DIR] }), deps)
+    expect(out).toMatchObject({ ok: false })
+    if (!out.ok) expect(out.error).toContain(`${String(RESTART_TIMEOUT_MS / 1000)} 秒`)
   })
 })

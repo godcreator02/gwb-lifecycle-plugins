@@ -1,0 +1,37 @@
+---
+title: devkit.dev 发内核包时连同 cordis 写进清单一起装，改成重启目标 home，用 shell.env 报出的内核版本判断换没换上
+born-at: 2026-09-24T16:40
+type: choice
+parent: [2026-09-24-pnpm-add-keeps-caret]
+label: dev 发内核包
+domain: 开发循环
+---
+
+## 背景
+
+内核装进 home 之后（内核仓交接页「内核装进 home」第二步），内核的开发版要和插件一样用 `devkit.dev` 装进隔离 home 验证，不重新安装 exe。
+原来的流程是「装包 → 逐条重新加载条目 → 整页刷新」，内核包没有条目，主进程里运行着的内核也换不掉，这三步对它都不起作用。
+
+## 结论与边界
+
+- 发的包里有内核包 `@godcreator/gwb-kernel-desktop` 时，它 `peerDependencies.cordis` 写的精确版本号和这一趟发的包一起写进目标 home 的清单，
+  一次 `pnpm install`，一起读回核对。peer 里写的是范围就当场拒、一个包都不发：home 根上的 cordis 只能照精确版本装
+- 装完不重新加载条目、不整页刷新，改成停掉目标 home 再启动（复用测试 home 的停止与启动，调试端口先沿用上次那个）；同一趟一起发的插件
+  也不逐条重新加载，重启之后它们本来就按新装的包加载
+- 换没换上看页面：轮询 `shell.env`，回执里的 `versions.kernel` 就是这次发的版本号才算成；报出别的版本号当场判失败，不接着等；
+  90 秒问不到判失败并说清卡在哪。runtime.json 里内核也写了 `version`，但它是内核启动时写的，不经过页面，证明不了外壳页连着的就是新内核
+- 没选的路：在目标 home 里调 `plugin-manager.update-kernel`。它自己也装内核包与 cordis 并核对，但插件和内核一起发时就成了两次 pnpm，
+  而且要求目标 home 的插件管理 0.8.0 起；照现有「清单写准确号 + 一次 `pnpm install`」多写一行 cordis 就够了
+
+## 代价与遗留
+
+- 取证那一步照常只看这一趟发的包的条目；只发内核包时条目表是空的，回执写「0 条条目都在运行」，重启后其余条目活没活要另外用
+  `plugin-manager.list` 看
+- 重启要求目标 home 装着外壳（`shell.env` 是外壳的命令）；`devkit.home.new` 开的 home 都带着
+
+## 依据
+
+- `plugins/devkit/tests/dev.test.ts`「发内核包」一组 7 个用例
+- 实测：从隔离 home `release-devkit-2609241615` 调 `devkit.dev {"dir":"<内核仓>","packages":["apps/desktop"]}`，目标 `kernel-dev-2609241631`：
+  发出 `@godcreator/gwb-kernel-desktop@0.4.1-dev.202609241632`，装上并核对，重启后 `kernel.version` 是这个号，日志新增部分没有 error；
+  之后 `plugin-manager.list` 里 7 条条目全部 active

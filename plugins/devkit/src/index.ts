@@ -9,6 +9,7 @@ import type {} from '@godcreator/gwb-shell'
 import type {} from '@godcreator/gwb-skills'
 import {
   asHomeName,
+  bringDownHome,
   type HomeDeps,
   launchHome,
   listHomes,
@@ -20,7 +21,7 @@ import {
   CDP_PORT_TRIES,
 } from './home.js'
 import { kill, portOwner, processName } from './node-probe-deps.js'
-import { DEFAULT_REGISTRY, type DevInput, runDev } from './dev.js'
+import { DEFAULT_REGISTRY, type DevDeps, type DevInput, runDev } from './dev.js'
 import { runRelease } from './release.js'
 import { auditManifest, countByKind, type ManifestDeps } from './audit.js'
 import { collectManifests, collectRepos, fetchRegistry } from './node-audit-deps.js'
@@ -107,6 +108,8 @@ const DEV_USAGE = [
   '  dir       必给，仓根的绝对路径。构建在这儿跑',
   '  packages  可选，要发的包目录，相对仓根，**按依赖顺序**（被依赖的排前面）。不给就是仓根自己',
   '  waitFor   可选，刷新之后等页面上这个选择器出现才算刷回来了',
+  '**发内核包**（packages 里有 @godcreator/gwb-kernel-desktop 的包目录）：内核包连同它 peer 里的 cordis（必须是精确版本号）',
+  '一起写进目标 home 的清单再装；不重挂、不刷新，改成停掉目标 home 再启动，轮询 shell.env 直到页面报出的内核版本就是这次发的号',
   '**构建不可跳过**：产物不新就发＝发的是上一版，而回执一切正常。源也不收：这台机器上只有',
   '一个，就是 ' + DEFAULT_REGISTRY,
   '例：{"home":"bn-2609111200","dir":"D:\\\\unitfolders\\\\evew5-gwbapps\\\\gwb-block-note","packages":["packages/model","plugins/gwb-bn-core"]}',
@@ -409,6 +412,18 @@ function registerCdpCli(ctx: GwbContext): void {
 
 // ── 改一版看一版与发正式版 ────────────────────────────────────────────────────
 
+/** 停掉再启动同一个测试 home。调试端口照启动时的规则挑：先沿用上次那个 */
+async function restartTestHome(homeName: string, homeDeps: HomeDeps): Promise<{ ok: true; note: string } | { ok: false; error: string }> {
+  const root = homesRootOf()
+  const stopped = await bringDownHome(path.join(root, homeName), homeDeps)
+  if (!stopped.ok) return { ok: false, error: stopped.note }
+  const port = await cdpPortFor(root, homeName, homeDeps)
+  if (!port.ok) return port
+  const launched = await launchHome({ name: homeName, homesRoot: root, cdp: port.cdp }, homeDeps)
+  if (!launched.ok) return { ok: false, error: launched.error }
+  return { ok: true, note: `${stopped.note};${launched.note}` }
+}
+
 /**
  * 只收 home 名，不收端口：端口从那个 home 的 `runtime.json` 查并确认进程还在，名字再传下去跟页面自报的核对。
  * 给了 `cdp` 当场拒并告诉新写法，不静默改道
@@ -442,9 +457,9 @@ function registerDevCommand({ ctx, log, commands, homeDeps }: Wiring): void {
       {
         name: 'devkit.dev',
         plugin: '@godcreator/gwb-devkit',
-        description: '改一版看一版（build→发 dev 版→目标 home 热挂→取证）',
+        description: '改一版看一版（build→发 dev 版→目标 home 热挂→取证；发内核包时改成重启目标 home）',
         usage:
-          '{home 必给（目标 home 名，**只认名字不认端口**——口从它的 runtime.json 里查并验活）, dir 必给（仓根绝对路径）, packages?（包目录，相对仓根，按依赖顺序；不给就是仓根自己）, waitFor?（刷新后等这个选择器出现）}。一条走完：仓根 pnpm build → 发开发版（<patch+1>-dev.<戳>，标 dev 不动 latest）→ 目标 home 的 package.json 写那个准确号再 pnpm install，读回 node_modules 里装上的号核对（对不上当场 ok:false，不重挂）→ 逐条 plugin-manager.remount 重挂（一条命令做完停用再启用，目标 home 的 plugin-manager 要 ≥0.4.0；重挂 plugin-manager 自己时回执之后才动手，这边轮询到它回来）→ 整页重载 → 取证（装上的是这一趟的号、条目真 ACTIVE、日志增量里没有 error），取不到证就回 ok:false。**构建与源都不可给**：跳过构建就是发上一版，而这台机器只有一个源。**目标是 default 或本件自己所在的 home 都当场拒；页面自报的名字跟你给的对不上也拒**',
+          '{home 必给（目标 home 名，**只认名字不认端口**——口从它的 runtime.json 里查并验活）, dir 必给（仓根绝对路径）, packages?（包目录，相对仓根，按依赖顺序；不给就是仓根自己）, waitFor?（刷新后等这个选择器出现）}。一条走完：仓根 pnpm build → 发开发版（<patch+1>-dev.<戳>，标 dev 不动 latest）→ 目标 home 的 package.json 写那个准确号再 pnpm install，读回 node_modules 里装上的号核对（对不上当场 ok:false，不重挂）→ 逐条 plugin-manager.remount 重挂（一条命令做完停用再启用，目标 home 的 plugin-manager 要 ≥0.4.0；重挂 plugin-manager 自己时回执之后才动手，这边轮询到它回来）→ 整页重载 → 取证（装上的是这一趟的号、条目真 ACTIVE、日志增量里没有 error），取不到证就回 ok:false。**packages 里有内核包 @godcreator/gwb-kernel-desktop 时**：它 peer 里的 cordis（必须是精确版本号）也按准确号写进清单一起装并核对；不重挂、不整页重载，改成停掉目标 home 再启动（主进程里的内核换不掉），轮询 shell.env 直到 versions.kernel 就是这次发的号，回执多一格 kernel { version, restart }，再照常取证。**构建与源都不可给**：跳过构建就是发上一版，而这台机器只有一个源。**目标是 default 或本件自己所在的 home 都当场拒；页面自报的名字跟你给的对不上也拒**',
       },
       async (args) => {
         if (!isRecord(args)) return { ok: false, error: `参数要是个对象。\n${DEV_USAGE}` }
@@ -461,7 +476,8 @@ function registerDevCommand({ ctx, log, commands, homeDeps }: Wiring): void {
           ownHome: requireKernel(ctx).dataDir,
         }
         log.info(`devkit.dev：仓 ${input.repoDir} → ${target.name}（调试口 ${String(target.cdp)}）`)
-        const outcome = await runDev(input, devDeps)
+        const deps: DevDeps = { ...devDeps, restartHome: (home) => restartTestHome(home, homeDeps) }
+        const outcome = await runDev(input, deps)
         if (!outcome.ok) {
           log.warn(`devkit.dev 没成：${outcome.error}`)
           return outcome.data === undefined

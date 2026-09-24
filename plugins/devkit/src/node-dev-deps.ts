@@ -219,8 +219,8 @@ async function publishStaged(input: {
   }
 }
 
-/** 「改一版看一版」在这台机器上的实现 */
-export const devDeps: DevDeps = {
+/** 「改一版看一版」在这台机器上的实现。重启 home 要用到测试 home 的启停，由 index.ts 接上 */
+export const devDeps: Omit<DevDeps, 'restartHome'> = {
   run: (plan: RunPlan, timeoutMs: number) => runCaptured(plan, timeoutMs),
   cdp: runCdp,
   publish: (input) =>

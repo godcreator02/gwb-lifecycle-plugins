@@ -1,4 +1,5 @@
 import path from 'node:path'
+import { KERNEL_PACKAGE } from './kernel-compat.js'
 import { isRecord } from './vocab.js'
 
 /** 团队源：gitea 上 godcreator 组织的 npm registry，与用户级 `~/.npmrc` 里 `@godcreator` 那行同一个地址 */
@@ -18,6 +19,16 @@ export const CDP_TIMEOUT_MS = 120_000
 
 /** 取证时日志新增部分里最多回几行 */
 export const LOG_TAIL_LINES = 40
+
+/** 内核包 peer 里的 cordis 装在 home 根上，与内核包一起写进清单 */
+export const CORDIS_PACKAGE = 'cordis'
+
+/** 重启之后问内核版本的那条命令：回执 `versions.kernel` 是运行中的内核自己报的 */
+export const SHELL_ENV_COMMAND = 'shell.env'
+
+/** 重启之后轮询 `shell.env` 的间隔与总上限 */
+export const RESTART_POLL_MS = 1000
+export const RESTART_TIMEOUT_MS = 90_000
 
 // ── 版本号 ────────────────────────────────────────────────────────────────────
 
@@ -88,7 +99,12 @@ export interface Manifest {
   name: string
   version: string
   files?: string[]
+  /** `peerDependencies.cordis`。只有内核包用得上：home 根上的 cordis 照它装 */
+  peerCordis?: string
 }
+
+/** home 根上的 cordis 只能照精确版本装，内核包 peer 里写范围就没法定下装哪个 */
+const EXACT_VERSION = /^\d+\.\d+\.\d+(?:-[0-9A-Za-z.-]+)?$/
 
 /** `files` 里必须真在磁盘上的产物。否定式（`!py/**\/__pycache__`）与通配不算：拿去查存在必然「不在」 */
 export function literalArtifacts(files: readonly string[]): string[] {
@@ -105,13 +121,15 @@ export function parseManifest(text: string | undefined): Manifest | undefined {
     return undefined
   }
   if (!isRecord(doc)) return undefined
-  const { name, version, files } = doc
+  const { name, version, files, peerDependencies } = doc
   if (typeof name !== 'string' || name === '') return undefined
   if (typeof version !== 'string' || version === '') return undefined
+  const peerCordis = isRecord(peerDependencies) ? peerDependencies[CORDIS_PACKAGE] : undefined
   return {
     name,
     version,
     ...(Array.isArray(files) ? { files: files.filter((one): one is string => typeof one === 'string') } : {}),
+    ...(typeof peerCordis === 'string' ? { peerCordis } : {}),
   }
 }
 
@@ -270,6 +288,8 @@ export interface DevDeps {
   now(): number
   /** 等一会儿。轮询回执之后才重新加载的那一条时用 */
   sleep(ms: number): Promise<void>
+  /** 停掉目标 home 的进程，再用同一个 home 启动。主进程里的内核换不掉，内核包换了版本只有重启才生效 */
+  restartHome(home: string): Promise<{ ok: true; note: string } | { ok: false; error: string }>
   platform: NodeJS.Platform
 }
 
@@ -297,11 +317,19 @@ export interface ShippedPackage {
   note?: string
 }
 
+/** 这一趟发了内核包时：重启了目标 home，页面上报的内核版本就是这次发的号 */
+export interface KernelRestart {
+  version: string
+  restart: string
+}
+
 export interface DevReport {
   home: string
   homeName: string
   shipped: ShippedPackage[]
-  reload: unknown
+  /** 整页重新加载的结果。发了内核包时没有这一格，重启的结果在 `kernel` */
+  reload?: unknown
+  kernel?: KernelRestart
   /** 取证：该运行的条目在不在运行、日志新增部分里有没有新错 */
   evidence: Evidence
 }
@@ -348,7 +376,7 @@ async function probeTargetHome(input: DevInput, deps: DevDeps): Promise<Failure 
   )
 }
 
-interface PlannedDevPackage {
+export interface PlannedDevPackage {
   pkgDir: string
   manifest: Manifest
   version: string
@@ -369,6 +397,12 @@ async function planDevVersions(input: DevInput, deps: DevDeps): Promise<Failure 
     const missing = literalArtifacts(manifest.files ?? []).filter((one) => !deps.exists(path.join(pkgDir, one)))
     if (missing.length > 0) {
       return { ok: false, error: `${manifest.name} 的产物不全,没发:${missing.join('、')} 不在。仓根 pnpm build 刚跑过还缺,多半是 files 白名单里那一项根本没人生成` }
+    }
+    if (manifest.name === KERNEL_PACKAGE && (manifest.peerCordis === undefined || !EXACT_VERSION.test(manifest.peerCordis))) {
+      return {
+        ok: false,
+        error: `内核包的 peerDependencies.cordis 是 ${JSON.stringify(manifest.peerCordis ?? null)},不是精确版本号:home 根上的 cordis 只能照精确版本装(${path.join(pkgDir, 'package.json')})`,
+      }
     }
     const version = devVersion(manifest.version, deps.now())
     if (await deps.published(`${manifest.name}@${version}`, DEFAULT_REGISTRY)) {
@@ -391,16 +425,28 @@ async function publishDevVersions(planned: PlannedDevPackage[], siblings: Record
   return shipped
 }
 
+/** 写进目标 home 清单的准确版本号：这一趟发的每个包；发了内核包就再加上它 peer 里的 cordis */
+export function pinsFor(planned: readonly PlannedDevPackage[], shipped: readonly ShippedPackage[]): { pkg: string; version: string }[] {
+  const pins = shipped.map((one) => ({ pkg: one.pkg, version: one.version }))
+  const kernelCordis = planned.find((one) => one.manifest.name === KERNEL_PACKAGE)?.manifest.peerCordis
+  return kernelCordis === undefined ? pins : [...pins, { pkg: CORDIS_PACKAGE, version: kernelCordis }]
+}
+
 /**
  * 清单里写准确版本号再 `pnpm install`（不用 plugin-manager.install：对装过的包它还会再建一条条目），一次写齐一次装；
  * 装失败把清单放回原样；退出码 0 也要读回核对装上的版本号
  */
-async function installIntoHome(target: { home: string; name: string }, shipped: ShippedPackage[], deps: DevDeps): Promise<Failure | undefined> {
+async function installIntoHome(
+  target: { home: string; name: string },
+  pins: readonly { pkg: string; version: string }[],
+  shipped: ShippedPackage[],
+  deps: DevDeps,
+): Promise<Failure | undefined> {
   const manifestFile = path.join(target.home, HOME_MANIFEST)
   const original = deps.readText(manifestFile)
   if (original === undefined) return { ok: false, error: `读不到 ${target.name} 的清单(${manifestFile})——这不像一个装过插件的 home`, data: { shipped } }
   let pinnedText = original
-  for (const one of shipped) {
+  for (const one of pins) {
     const pinned = pinExact(pinnedText, one.pkg, one.version)
     if (!pinned.ok) return { ok: false, error: `改不了 ${target.name} 的清单(${manifestFile}):${pinned.error}`, data: { shipped } }
     pinnedText = pinned.text
@@ -413,18 +459,48 @@ async function installIntoHome(target: { home: string; name: string }, shipped: 
   if (!installed.ok) {
     // 留着「声明了新版本号、磁盘上是旧版本」的清单，下一个在这个 home 里运行 pnpm 的人会不明不白地装上它
     const restored = pinnedText === original ? { ok: true as const } : deps.writeText(manifestFile, original)
-    const wanted = shipped.map((one) => `${one.pkg}@${one.version}`).join('、')
+    const wanted = pins.map((one) => `${one.pkg}@${one.version}`).join('、')
     return {
       ok: false,
       error: `在 ${target.name} 里装 ${wanted} 没成${restored.ok ? '(清单已放回原样)' : `,清单也没放回去(${restored.error})——手工把 ${manifestFile} 改回来`}:\n${installed.tail}`,
       data: { shipped },
     }
   }
-  const landed = checkInstalled(target.home, shipped, deps.readText)
+  const landed = checkInstalled(target.home, pins, deps.readText)
   if (landed.wrong.length > 0) {
     return { ok: false, error: installedNote(target.name, landed.wrong), data: { shipped, installed: landed.rows } }
   }
   return undefined
+}
+
+/** `shell.env` 回执里运行中的内核版本。答不上来是 undefined */
+function runningKernelOf(receipt: { ok: boolean; data: unknown }): string | undefined {
+  if (!receipt.ok || !isRecord(receipt.data) || !isRecord(receipt.data.versions)) return undefined
+  const kernel = receipt.data.versions.kernel
+  return typeof kernel === 'string' ? kernel : undefined
+}
+
+/** 重启目标 home，轮询 `shell.env` 直到页面报出内核版本；报出的不是这次发的号当场判失败 */
+async function restartForKernel(home: string, expected: string, shipped: ShippedPackage[], deps: DevDeps): Promise<Failure | KernelRestart> {
+  const restarted = await deps.restartHome(home)
+  if (!restarted.ok) return { ok: false, error: `内核包 ${expected} 装上了,重启 ${home} 没成:${restarted.error}`, data: { shipped } }
+  const maxPolls = Math.ceil(RESTART_TIMEOUT_MS / RESTART_POLL_MS)
+  let lastObservation = '一次都没问到'
+  for (let i = 0; i < maxPolls; i += 1) {
+    const receipt = receiptOf((await deps.cdp(home, ['cmd', SHELL_ENV_COMMAND], CDP_TIMEOUT_MS)).data)
+    const running = runningKernelOf(receipt)
+    if (running === expected) return { version: running, restart: restarted.note }
+    if (running !== undefined) {
+      return { ok: false, error: `重启了 ${home},页面上报的内核版本是 ${running},不是这次发的 ${expected}——启动器加载的不是 home 里装上的那份内核包`, data: { shipped } }
+    }
+    lastObservation = receipt.ok ? `${SHELL_ENV_COMMAND} 答话了,回执里没有 versions.kernel` : `${SHELL_ENV_COMMAND} 没答话(${receipt.error ?? '没说原因'})`
+    await deps.sleep(RESTART_POLL_MS)
+  }
+  return {
+    ok: false,
+    error: `重启了 ${home},等了 ${String(RESTART_TIMEOUT_MS / 1000)} 秒没从 ${SHELL_ENV_COMMAND} 问到内核版本。卡在:${lastObservation}`,
+    data: { shipped },
+  }
 }
 
 /** 磁盘上换了不等于运行着的换了：每个包的全部条目各发一条 `plugin-manager.remount`；没有条目的包记一条说明 */
@@ -446,7 +522,10 @@ async function remountShippedEntries(home: string, homeName: string, shipped: Sh
   return undefined
 }
 
-/** 问目标页面 → 仓根构建 → 发开发版 → 装进目标 home → 重新加载 → 整页刷新 → 取证。任何一步失败当场停 */
+/**
+ * 问目标页面 → 仓根构建 → 发开发版 → 装进目标 home → 重新加载 → 整页刷新 → 取证。任何一步失败当场停。
+ * 发了内核包时，重新加载与整页刷新换成重启目标 home：重启之后每条条目都是按新装的包从头加载的
+ */
 export async function runDev(input: DevInput, deps: DevDeps): Promise<DevOutcome> {
   const target = await probeTargetHome(input, deps)
   if (!target.ok) return { ok: false, error: target.error }
@@ -463,17 +542,31 @@ export async function runDev(input: DevInput, deps: DevDeps): Promise<DevOutcome
   // 日志基线取在安装之前：从这一刻起新增的每一行都是这次引起的
   const logFile = path.join(target.home, LOG_FILE)
   const baseline = deps.size(logFile)
-  const installFailure = await installIntoHome(target, shipped, deps)
+  const installFailure = await installIntoHome(target, pinsFor(plan.planned, shipped), shipped, deps)
   if (installFailure !== undefined) return installFailure
 
-  const remountFailure = await remountShippedEntries(input.home, target.name, shipped, deps)
-  if (remountFailure !== undefined) return remountFailure
-
-  // 页面代码要整页重新加载才会按 file:// 重新取；给了选择器就等它出现，不然量到的是刷新途中或上一版的画面
-  const reloaded = await deps.cdp(input.home, ['reload', ...(input.waitFor === undefined ? [] : [input.waitFor])], CDP_TIMEOUT_MS)
+  const kernelShipped = shipped.find((one) => one.pkg === KERNEL_PACKAGE)
+  let kernel: KernelRestart | undefined
+  let reload: unknown
+  if (kernelShipped !== undefined) {
+    const restarted = await restartForKernel(input.home, kernelShipped.version, shipped, deps)
+    if ('ok' in restarted) return restarted
+    kernel = restarted
+  } else {
+    const remountFailure = await remountShippedEntries(input.home, target.name, shipped, deps)
+    if (remountFailure !== undefined) return remountFailure
+    // 页面代码要整页重新加载才会按 file:// 重新取；给了选择器就等它出现，不然量到的是刷新途中或上一版的画面
+    reload = (await deps.cdp(input.home, ['reload', ...(input.waitFor === undefined ? [] : [input.waitFor])], CDP_TIMEOUT_MS)).data
+  }
 
   const evidence = await collect(input.home, target.home, shipped, logFile, baseline, deps)
-  const report: DevReport = { home: target.home, homeName: target.name, shipped, reload: reloaded.data, evidence }
+  const report: DevReport = {
+    home: target.home,
+    homeName: target.name,
+    shipped,
+    ...(kernel === undefined ? { reload } : { kernel }),
+    evidence,
+  }
   if (!evidence.ok) return { ok: false, error: evidence.note, data: report }
   return { ok: true, data: report }
 }
