@@ -34,9 +34,9 @@ description: 连接 devkit.dev、devkit.release、结构体检、audit-deps 与�
 
 {/* ref file="../plugins/devkit/src/node-dev-deps.ts" lines="98-125" */}
 
-这里的「仓根」是从包目录推出来的：包目录下有 `pnpm-workspace.yaml` 就是它自己，否则取上一层。包在 `plugins/<名>/` 时，上一层是 `plugins/`：
+这里的「仓根」是从包目录往上找到的第一个有 `pnpm-workspace.yaml` 的目录；一路找到盘根都没有就报错，这个包不发：
 
-{/* ref file="../plugins/devkit/src/node-dev-deps.ts" lines="208-209" */}
+{/* ref file="../plugins/devkit/src/node-dev-deps.ts" lines="127-139" */}
 
 **git 工作区干净**：`devkit.release` 在构建之前运行 `git status --porcelain=v1`，有一条改动就一个都不发；不是 git 仓也拒。`devkit.dev` 不查：
 
@@ -69,3 +69,5 @@ devkit 保证：
 {/* has file="../plugins/devkit/tests/dev.test.ts" text="files 里的否定式与通配不算产物" */}
 
 {/* has file="../plugins/devkit/tests/node-dev-deps.test.ts" text="不是兄弟的 workspace: 换成 ^<工作区里那个号>；工作区里没有就 ^0.0.0" */}
+
+{/* has file="../plugins/devkit/tests/node-dev-deps.test.ts" text="包在 plugins/<名>/ 时，根是有 pnpm-workspace.yaml 的那层，packages/ 下的号找得到" */}

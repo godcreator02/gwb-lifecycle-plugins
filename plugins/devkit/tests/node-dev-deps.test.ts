@@ -1,10 +1,13 @@
-import { describe, expect, it } from 'vitest'
-import { distManifest } from '../src/node-dev-deps.js'
+import fs from 'node:fs'
+import os from 'node:os'
+import path from 'node:path'
+import { afterEach, describe, expect, it } from 'vitest'
+import { distManifest, releaseDeps, workspaceRootOf } from '../src/node-dev-deps.js'
 
 /**
- * `node-dev-deps.ts` 整层是环境胶水、不进单测，唯独 `distManifest` 不是胶水：它决定
- * 分发形态里每一条依赖写什么号。写错的那句话是「新件配旧库」——装得上、跑得欢、
- * 不报错，正是这套里最难查的一种。所以单独把它钉在这儿。
+ * `node-dev-deps.ts` 整层是环境胶水、不进单测，唯独 `distManifest` 与 `workspaceRootOf` 不是胶水：
+ * 它们决定分发形态里每一条依赖写什么号。写错的那句话是「新插件配旧库」——装得上、能运行、
+ * 不报错，是最难查的一种。所以单独在这儿测。
  */
 
 /** 一份典型的工作区清单：同仓兄弟用 workspace:，外来包用普通范围 */
@@ -82,5 +85,45 @@ describe('分发清单', () => {
     )
     expect(out.peerDependencies?.['@godcreator/gwb-sibling']).toBe('^0.3.9')
     expect(out.peerDependencies?.['@godcreator/gwb-plugin-api']).toBe('>=0.1.0')
+  })
+})
+
+describe('workspaceRootOf：从包目录往上找工作区根', () => {
+  const made: string[] = []
+  afterEach(() => {
+    for (const dir of made.splice(0)) fs.rmSync(dir, { recursive: true, force: true })
+  })
+
+  /** 临时目录里搭一个工作区：插件在 plugins/a，被它依赖的库在 packages/lib */
+  function workspaceWithPluginAndLib(): string {
+    const root = fs.mkdtempSync(path.join(os.tmpdir(), 'devkit-ws-'))
+    made.push(root)
+    const writeJson = (rel: string, value: unknown): void => {
+      fs.mkdirSync(path.dirname(path.join(root, rel)), { recursive: true })
+      fs.writeFileSync(path.join(root, rel), JSON.stringify(value))
+    }
+    fs.writeFileSync(path.join(root, 'pnpm-workspace.yaml'), "packages:\n  - 'plugins/*'\n  - 'packages/*'\n")
+    writeJson('package.json', { name: 'ws-root', version: '0.0.0', private: true })
+    writeJson('plugins/a/package.json', { name: '@x/a', version: '0.1.0', dependencies: { '@x/lib': 'workspace:*' } })
+    writeJson('packages/lib/package.json', { name: '@x/lib', version: '0.4.2' })
+    return root
+  }
+
+  it('包在 plugins/<名>/ 时，根是有 pnpm-workspace.yaml 的那层，packages/ 下的号找得到', () => {
+    const root = workspaceWithPluginAndLib()
+    const found = workspaceRootOf(path.join(root, 'plugins', 'a'))
+    expect(found).toBe(root)
+    expect(releaseDeps.workspaceVersions(found)['@x/lib']).toBe('0.4.2')
+  })
+
+  it('包目录自己有 pnpm-workspace.yaml 时就是它自己', () => {
+    const root = workspaceWithPluginAndLib()
+    expect(workspaceRootOf(root)).toBe(root)
+  })
+
+  it('一路往上都没有 pnpm-workspace.yaml：报错', () => {
+    const lonely = fs.mkdtempSync(path.join(os.tmpdir(), 'devkit-lonely-'))
+    made.push(lonely)
+    expect(() => workspaceRootOf(lonely)).toThrow(/pnpm-workspace\.yaml/)
   })
 })

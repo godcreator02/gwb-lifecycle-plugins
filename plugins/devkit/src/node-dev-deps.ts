@@ -125,6 +125,20 @@ function workspaceVersions(repoDir: string, depth = 2): Map<string, string> {
 }
 
 /**
+ * 包所在工作区的根:从包目录往上,第一个有 `pnpm-workspace.yaml` 的目录。`workspace:` 依赖的号
+ * 要在整个工作区里找——包在 `plugins/<名>/` 时,它依赖的库可能在 `packages/` 下。
+ */
+export function workspaceRootOf(pkgDir: string): string {
+  let dir = path.resolve(pkgDir)
+  for (;;) {
+    if (fs.existsSync(path.join(dir, 'pnpm-workspace.yaml'))) return dir
+    const up = path.dirname(dir)
+    if (up === dir) throw new Error(`从 ${pkgDir} 往上找到盘根都没有 pnpm-workspace.yaml——这个包不在 pnpm 工作区里`)
+    dir = up
+  }
+}
+
+/**
  * 把一份清单改成能发出去的样子:
  *
  * - **号换成这一趟那个**
@@ -205,10 +219,9 @@ async function publishStaged(input: {
     .map((one) => one.replace(/^!/, '').split(/[\\/]/).filter((seg) => seg !== '' && seg !== '**').pop())
     .filter((one): one is string => one !== undefined && !/[*?]/.test(one))
 
-  // 仓根按包目录往上找:`workspace:` 的号要在整个工作区里找,不是在这一个包里
-  const repoDir = path.resolve(input.pkgDir, fs.existsSync(path.join(input.pkgDir, 'pnpm-workspace.yaml')) ? '.' : '..')
   const stage = fs.mkdtempSync(path.join(os.tmpdir(), 'gwb-devkit-dev-'))
   try {
+    const repoDir = workspaceRootOf(input.pkgDir)
     for (const rel of positives) {
       const from = path.join(input.pkgDir, rel)
       if (!fs.existsSync(from)) return { ok: false, tail: `产物不在:${from}` }
