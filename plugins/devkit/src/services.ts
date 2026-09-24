@@ -69,23 +69,28 @@ function escapeRegExp(text: string): string {
   return text.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')
 }
 
+/** `headStart` 前面紧挨着（中间只有空白）的那段 `/** … *\/` 的起点；没有就是 `headStart` 自己 */
+function startWithDocComment(text: string, headStart: number): number {
+  const before = text.slice(0, headStart).trimEnd()
+  if (!before.endsWith('*/')) return headStart
+  const docStart = before.lastIndexOf('/**')
+  return docStart === -1 ? headStart : docStart
+}
+
 /**
  * 一份 .d.ts 里 `type` 这个名字的定义原文（interface / class / type 别名），连同紧挨在前面的文档注释；没定义回 undefined。
- * `import type { X } from '…'` 只是引用，不算定义
+ * 定义从行首写起；`import type { X }`、`import { type X }` 这类引用不在行首，不算
  */
 export function definitionOf(declarationText: string, type: string): string | undefined {
-  const head = new RegExp(
-    `(?:/\\*\\*(?:(?!\\*/)[\\s\\S])*\\*/\\s*)?(?:export\\s+)?(?:declare\\s+)?(?:abstract\\s+)?(interface|class|type)\\s+${escapeRegExp(type)}\\b`,
-    'g',
-  )
+  const head = new RegExp(`^[ \\t]*(?:export\\s+)?(?:declare\\s+)?(?:abstract\\s+)?(interface|class|type)\\s+${escapeRegExp(type)}\\b`, 'gm')
   for (const match of declarationText.matchAll(head)) {
-    const start = match.index
+    const start = startWithDocComment(declarationText, match.index)
     if (match[1] === 'type') {
-      const end = declarationText.indexOf(';', start)
+      const end = declarationText.indexOf(';', match.index)
       if (end !== -1) return declarationText.slice(start, end + 1).trim()
       continue
     }
-    const openBrace = declarationText.indexOf('{', start + match[0].length)
+    const openBrace = declarationText.indexOf('{', match.index + match[0].length)
     const closeBrace = openBrace === -1 ? -1 : matchingBrace(declarationText, openBrace)
     if (closeBrace !== -1) return declarationText.slice(start, closeBrace + 1).trim()
   }

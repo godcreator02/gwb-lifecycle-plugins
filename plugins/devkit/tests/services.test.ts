@@ -83,6 +83,8 @@ describe('definitionOf：取定义原文连同紧挨着的文档注释', () => {
 
   it('import type 只是引用，不算定义；名字前缀相同的别的类型不算', () => {
     expect(definitionOf(SHELL_DTS, 'GwbCommands')).toBeUndefined()
+    const inlineTypeImport = "import { type GwbCommandDef, type GwbCommands } from './registry.js';\nexport interface GwbCommands {\n    list(): string[];\n}\n"
+    expect(definitionOf(inlineTypeImport, 'GwbCommands')).toBe('export interface GwbCommands {\n    list(): string[];\n}')
     expect(definitionOf('export interface GwbCommandsExtra {\n}\n', 'GwbCommands')).toBeUndefined()
   })
 })
