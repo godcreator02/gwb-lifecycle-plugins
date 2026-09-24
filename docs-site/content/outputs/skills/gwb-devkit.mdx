@@ -75,10 +75,12 @@ description: 写或改 gwb 插件时读——建仓、写插件的红线、改�
 4. **改一版看一版**：`devkit.dev` 装进隔离 home，见下一节。完成＝回执 `ok: true`
 5. **装出来验证**：见「装出来验证」一节。完成＝四种「看着成了」一条都没犯
 6. **发版**：照 skill「gwb-release」。`devkit.release` 构建之后先做发版前检查：自己的版本号不在 0.0.x；
-   `@godcreator` 包的 dev 范围包含源上 latest（范围内落后放行，出范围必须先适配）；写成 peer 的 `@godcreator`
-   包写 `^<dev 下限>`；插件包的 `gwb.testedKernel` 和运行中的内核在同一条版本线上（没写、不是版本号、
-   不在同一条线都拒）。没过一个都不发，回执一次列全。发之前想看全生态谁落后，调 `devkit.audit-deps`
-   （`out-of-range` 必须处理，`behind` 是范围内落后，`peer-not-caret` 是 peer 还没改成 `^`）
+   `@godcreator` 包的 dev 范围包含源上 latest（范围内落后放行，出范围必须先适配）；构建产物里没有空 import；
+   包目录里 `tsc --noEmit -p tsconfig.json --skipLibCheck false` 通过。插件包另查：peer 只有 `cordis`；
+   node 侧产物的包名 import 只有 node 内置模块、`electron`、`cordis`，浏览器侧只有 importmap 里的名字；
+   `gwb.testedKernel` 和运行中的内核在同一条版本线上（没写、不是版本号、不在同一条线都拒）。没过一个都不发，
+   回执一次列全。发之前想看全生态谁落后，调 `devkit.audit-deps`（`out-of-range` 必须处理，`behind` 是范围内
+   落后，`peer-not-cordis` 是插件包 peer 里 `cordis` 以外的包）
 
 **改既有仓（加插件、迁移、重构）前后各跑一次 `devkit.audit-structure`**：error 级清零再动手，
 收尾时零 error 才算完；老式单插件仓收到的 info 迁移清单照着迁，迁完应零 findings。它只读，不管版本

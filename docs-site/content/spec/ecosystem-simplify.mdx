@@ -201,12 +201,12 @@ promise，退出时可能丢数据。
 
 - [ ] shell 导出外置包名的构建期函数
 - [ ] 模板：两侧都用 esbuild 打包、`cordis` 外置并写 peer、其余按「依赖怎么写」那张表写、调用 shell 的构建期函数、带上 `gwb.testedKernel`
-- [ ] `devkit.release`：构建产物检查（包名 import、`skipLibCheck: false` 类型检查、无空 import）；去掉 peer 那一类发版前检查
+- [x] `devkit.release`：构建产物检查（包名 import、`skipLibCheck: false` 类型检查、无空 import）；去掉 peer 那一类发版前检查，改成插件包 peer 只许 `cordis`；`devkit.audit-deps` 去掉 peer 下限四类、加 `peer-not-cordis`
 - [x] `devkit.release` 发插件前检查 `gwb.testedKernel`；`plugin-manager.list` 按包报 `testedKernel` 与 `kernelUntested`
 - [ ] `devkit.dev`：pack + `file:`，只构建被测包及其依赖；安装与重新加载先临时用现有插件管理命令，第四期换成统一入口
 - [ ] audit-deps / audit-structure 减少无用输出、支持无参数调用
 - [x] 写插件的规矩写进本站[写插件的规矩](/docs/rules)；说明书 `gwb-devkit` 的红线按新规矩改写，`gwb-release` 写明 `gwb.testedKernel` 的检查与内核升 x 的范围
-- [ ] 说明书 `gwb-release` 的依赖表（`@godcreator` peer 的写法）随发版前检查一起改成新规矩
+- [x] 说明书 `gwb-release` 的依赖表（`@godcreator` peer 的写法）随发版前检查一起改成新规矩
 
 **第三期：各插件迁移**
 
@@ -238,7 +238,6 @@ promise，退出时可能丢数据。
 | commands | 命令返回结构的类型放在词汇表包里；说明书服务的类型用 `as` 强转；服务用 `ctx.provide` 提供，要调用方自己包 `ctx.effect`（改成继承 `Service`、加 peer `cordis`） | 交互、服务 |
 | devkit 模板 | peer 写了词汇表包、commands、shell 和已停止发布的共享包；注册命令自己包 `ctx.effect`（commands 改完后删）；手抄外置名单；样式从 gwb-tokens 引用；没有 `gwb.testedKernel` | 依赖、服务、importmap、测过的内核 |
 | 几乎所有插件 | 词汇表包、其他插件写成 peer；Node 一侧构建产物里留着自用库的包名 import | 依赖 |
-| devkit | `yaml` 是没用到的依赖；peer 写了词汇表包与 shell | 依赖 |
 
 **第四期：插件管理成为唯一写 home 的插件**
 

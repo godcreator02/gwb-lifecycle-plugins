@@ -1,7 +1,7 @@
 ---
 title: 发版规则（SKILL 正本）
 name: gwb-release
-description: 发版、升版本号、改依赖版本号之前读——升哪一位、peer 怎么写、依赖什么时候跟、gwb.testedKernel 怎么查、发破坏性版本多做哪两步、发完怎么升 default。
+description: 发版、升版本号、改依赖版本号之前读——升哪一位、依赖怎么写、依赖什么时候跟、发版前检查查什么（含 gwb.testedKernel）、发破坏性版本多做哪两步、发完怎么升 default。
 ---
 
 # gwb 发版规则
@@ -36,24 +36,22 @@ description: 发版、升版本号、改依赖版本号之前读——升哪一�
 
 ## 二、依赖怎么写
 
-**哪些依赖写 peer，照 devkit 文档站「写插件的规矩」的「依赖怎么写」**：peer 只写宿主提供、构建产物里按值 import 的
-`cordis`，其余写 dev。下表里 peer 那两行是发版前检查现在对 `@godcreator` peer 的要求：还写着 `@godcreator` peer 的包，
-写法照它；迁成只写 `cordis` 之后就不涉及。
+**哪些依赖写 peer，照 devkit 文档站「写插件的规矩」的「依赖怎么写」**：插件包的 peer 只写宿主提供、构建产物里按值
+import 的 `cordis`，其余写 dev；打包不进产物的自用库写 `dependencies` 并写明原因。发版前检查拒 `cordis` 以外的 peer。
 
 | 位置 | 写法 | 意思 |
 | --- | --- | --- |
 | dev 里的 `@godcreator` 包 | `^` 范围（如 `^0.8.3`；精确号也合法） | 下限＝验过的那一版；范围内落后不用跟——对上游 semver 的信任就是范围声明的含义 |
-| `@godcreator` 的 peer | `^<dev 下限>`，如 `^0.8.3` | 下限＝验过的那一版；上限＝下一个破坏边界 |
-| 同仓的包之间 | dev 写 `workspace:*`；peer 写 `^<仓里当前版本>` | 同上 |
-| 生态外的依赖（cordis、react…） | 照各自原有写法 | — |
+| 插件包的 peer | 只有 `cordis`，且只在 node 侧产物按值 import 它时写 | 宿主提供的那一份 |
+| 同仓的包之间 | dev 写 `workspace:*` | 发版时写成 `^<仓里当前版本>` |
+| 生态外的依赖（cordis、react…） | dev；版本照各自原有写法 | react 由页面 importmap 提供，`cordis` 由宿主提供 |
 | 内核安装包 | 不带插件 | 由 agent 照内核仓 `INSTALL.md` 安装：写 home 的 `package.json`（插件不写版本，取 latest）与 `cordis.yml`，`pnpm install` |
 | home 的 `package.json` | 不管 | 一键更新按准确号装 |
 
-**pnpm 走默认**：peer 不匹配只警告、照装，仓与 home 的 `pnpm-workspace.yaml` 都不写 `strictPeerDependencies`。
-守 peer 写法的是上面的 `^` 与发版前检查（第三节）。
+**pnpm 走默认**：仓与 home 的 `pnpm-workspace.yaml` 都不写 `strictPeerDependencies`。
 
-**peer 还写着 `>=` 的仓，下次发版时 `devkit.release` 就拒**，改成 `^` 才发得出去。不去一次性改全生态，每个仓发版时
-自己改。`devkit.release` 发出去的 `workspace:` 依赖写成 `^`：同一次发的写 `^新号`，没跟着发的写 `^<工作区里那个号>`。
+**peer 还写着 `cordis` 以外的包的插件，下次发版时 `devkit.release` 就拒**，按「运行时谁提供」改写才发得出去。不去一次性改全生态，
+每个仓发版时自己改。`devkit.release` 发出去的 `workspace:` 依赖写成 `^`：同一次发的写 `^新号`，没跟着发的写 `^<工作区里那个号>`。
 
 ## 三、依赖数字什么时候动
 
@@ -61,29 +59,33 @@ description: 发版、升版本号、改依赖版本号之前读——升哪一�
 
 - **自己发版前**，发版前检查：每个 `@godcreator` 的 dev，现查 `pnpm view <包> dist-tags.latest`——
   - 还在范围内（含相等）：放行，一个数字都不动——范围内落后不用处理，锁文件里的版本也不用动
-  - 已出范围（上游出了新的次版本线）：这就必须跟——适配代码，dev 与 peer 的 `^` 一起升到新线，跑 check
+  - 已出范围（上游出了新的次版本线）：这就必须跟——适配代码，dev 的 `^` 升到新线，跑 check
 - **要用上游的新东西时**：随这次改动一起升，下限升到带那个东西的版本
 - `devkit.audit-deps` 报的 `behind`（范围内落后）是提示，不用处理；`out-of-range`（范围外）才是待办；
-  `peer-not-caret` 是还没改成 `^` 的 peer，下次发版会被拦下
+  `peer-not-cordis` 是插件包 peer 里 `cordis` 以外的包，下次发版会被拦下
 
 **发版前检查由 `devkit.release` 执行**，在构建之后、发第一个包之前，对每个要发的包逐条检：
 
 | 检什么 | 没过 |
 | --- | --- |
 | 自己的号是 0.0.x | 拒：先升到 0.1.0 |
-| `@godcreator` 的 peer 不是 `^x.y.z`（`>=`、精确号、`workspace:`、别的写法） | 拒，说改成什么 |
+| 插件包的 peer 里有 `cordis` 以外的包 | 拒，说按「运行时谁提供」该写 dev 还是 `dependencies` |
+| 插件包 node 侧产物按值 import 了 `cordis`，peer 里却没有 | 拒 |
 | `@godcreator` 的 dev 写法认不出下限、下限比源上 latest 还新、或 latest 已出 dev 范围（`workspace:` 跳过） | 拒「出范围：先适配再升」；范围内落后（含相等）一律放行 |
-| peer 下限 ≠ 对应 dev 下限（`workspace:` 的认工作区现在的号） | 拒 |
+| 构建产物里有 `import {} from '…'` 这种空 import（源码写了 `import { type X }`），或相对 import 指向的文件不在 | 拒 |
+| 插件包 node 侧产物（`exports["."]` 入口顺着相对 import 走到的文件）的包名 import 不是 node 内置模块、`electron`、`cordis` | 拒 |
+| 插件包浏览器侧产物（`dist/client.js` 与本包 `gwb.shared` 指到的文件）的包名 import 不在 importmap 里（本包与依赖的 `gwb.shared` 键） | 拒 |
+| 包目录里 `tsc --noEmit -p tsconfig.json --skipLibCheck false` 没过（用本仓装的 tsc） | 拒，带上输出的最后几行 |
 | 插件包（`keywords` 含 `gwb-plugin`）的 `gwb.testedKernel` 没写、不是合法版本号、或和运行中的内核不在同一条版本线上（主版本号为 0 比前两位，≥1 只比主版本号） | 拒，说在哪个内核上验过之后写什么 |
-| peer 指向的上游自己还在 0.0.x | 不拒，回执 `reminders` 里提醒一句 |
+| 插件包写了 peer `cordis`，node 侧产物却没有 import 它 | 不拒，回执 `reminders` 里提醒一句 |
 
 没过就一个都不发，回执按包一次列全。「运行中的内核」是调 `devkit.release` 的那个 home 里运行的内核。
 
 ## 四、发破坏性版本多做两步
 
-1. **发之前**：跑 `devkit.audit-deps`，找出 peer 会落到范围外的下游，往各自仓站 feedback 区的
-   `inbox.mdx` 投一条「要跟 X 0.9」。还写 `>=` 的下游（`peer-not-caret`）没有上限、不会报冲突，逐个确认
-2. **发之后**：一键更新遇到 `^` 没跟上的下游，pnpm 只出 peer 警告、照装，那个下游就配着出了它范围的上游运行。
+1. **发之前**：跑 `devkit.audit-deps`，找出 dev 依赖这个包的下游（发完之后它们会报 `out-of-range`），往各自仓站
+   feedback 区的 `inbox.mdx` 投一条「要跟 X 0.9」
+2. **发之后**：插件之间不写 peer，一键更新不会给出任何警告，没跟上的下游就配着出了它 dev 范围的上游运行。
    升 default 之前先让下游跟上，或 `plugin-manager.update-all {"only":[…]}` 只升别的
 
 ## 五、发版流程
@@ -100,7 +102,7 @@ description: 发版、升版本号、改依赖版本号之前读——升哪一�
 
    `packages` 是相对仓根的包目录，按依赖序（被依赖的在前）；一仓一包不用给。一条命令走完：
    git 树干净 → 仓根 `pnpm build` → 照 `files` 白名单验构建产物 → 同号已在源上就拒 → 发版前检查（见第三节）
-   → 在临时目录摆好分发用的清单、发到 `latest`。它不改仓里任何文件，只碰源、不碰 home，从哪个 home 调都行，
+   → 在临时目录组装发布用的清单、发到 `latest`。它不改仓里任何文件，只碰源、不碰 home，从哪个 home 调都行，
    但 `gwb.testedKernel` 是拿调它的那个 home 里的内核比的。
    临时目录里的清单没有 `scripts`，要跑仓里 `prepublishOnly` 的场景，在包目录手工
    `pnpm publish --no-git-checks`（scope 路由在用户级配置里，命令行不写 `--registry`）
