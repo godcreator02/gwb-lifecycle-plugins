@@ -2,25 +2,7 @@ import { builtinModules } from 'node:module'
 import path from 'node:path'
 import { isRecord } from './vocab.js'
 
-/**
- * 发版前的构建产物检查，纯函数：读盘只经调用方给的 `readText`，测试里给一张假文件表。
- *
- * **哪些文件算 node 侧、哪些算浏览器侧**，照模板生成的插件包的构建约定
- * （`template/pkg/build.ts.tpl` 与 `package.json.tpl` 的 `exports`）：
- *
- * - node 侧：`exports["."]` 的运行时入口（条件按对象里的顺序取第一个 `node` / `import` /
- *   `module-sync` / `default`；清单没有 `exports` 时取 `main`），加上从它顺着相对 import 走得到的
- *   文件。内核的 loader 按包名 import 插件，加载的就是这些。模板里是 tsc 从 `src/index.ts` 输出的
- *   `dist/index.js`
- * - 浏览器侧：`dist/client.js`（模板的 `build.ts` 用 esbuild 以 `platform: 'browser'` 输出的那个文件，
- *   node 侧用 `new URL('./client.js', import.meta.url)` 报给外壳），加上本包 `gwb.shared` 声明的子路径
- *   经 `exports` 指到的文件，再加上从它们顺着相对 import 走得到的文件
- * - 两边都走不到的文件不查：内核和页面都不会加载它
- *
- * 包名 import 指直接写包名、不带相对路径的 import。只认产物里的三种写法：行首的
- * `import … from '<名>'` / `export … from '<名>'` / `import '<名>'`（tsc 与 esbuild 输出的顶层 import
- * 都顶格写），以及非注释行里带字面量的 `import('<名>')`。
- */
+// 纯函数：读文件只经调用方给的 readText，测试里给一张假文件表
 
 /** 一个产物文件里的 import，按种类分开 */
 export interface ModuleImports {
@@ -32,6 +14,7 @@ export interface ModuleImports {
   empty: string[]
 }
 
+// 只认产物里的三种写法：顶格的 `import … from` / `export … from` / `import '<名>'`（tsc 与 esbuild 输出的顶层 import 都顶格写），以及非注释行里带字面量的 `import('<名>')`
 const STATIC_IMPORT = /^(?:import|export)\s*(?:[\w$*{}\s,]*?\s*from\s*)?(['"])([^'"\n]+)\1/gm
 const EMPTY_IMPORT = /^(?:import|export)\s*\{\s*\}\s*from\s*(['"])([^'"\n]+)\1/gm
 const DYNAMIC_IMPORT = /\bimport\(\s*(['"])([^'"\n]+)\1\s*\)/g
@@ -93,7 +76,7 @@ function runtimeTarget(target: unknown): string | undefined {
   return undefined
 }
 
-/** `exports` 里某个子路径（`.`、`./react`）指到的运行时文件，相对包目录 */
+/** `exports` 里某个子路径（`.`、`./react`）指到的运行时文件，相对包目录；没有 `exports` 时 `.` 取 `main` */
 export function exportTarget(manifest: Record<string, unknown>, subpath: string): string | undefined {
   const exported = manifest.exports
   if (exported === undefined) return subpath === '.' && typeof manifest.main === 'string' ? manifest.main : undefined
@@ -105,11 +88,11 @@ export function exportTarget(manifest: Record<string, unknown>, subpath: string)
 /** 清单里 `gwb.shared` 声明的名字。形状照内核计算 importmap 的那段：键是包名，值是非空的 `exports` 子路径 */
 export function sharedDeclarations(manifest: unknown): Record<string, string> {
   if (!isRecord(manifest) || !isRecord(manifest.gwb) || !isRecord(manifest.gwb.shared)) return {}
-  const out: Record<string, string> = {}
+  const subpathsByName: Record<string, string> = {}
   for (const [name, subpath] of Object.entries(manifest.gwb.shared)) {
-    if (name !== '' && typeof subpath === 'string' && subpath !== '') out[name] = subpath
+    if (name !== '' && typeof subpath === 'string' && subpath !== '') subpathsByName[name] = subpath
   }
-  return out
+  return subpathsByName
 }
 
 export interface ArtifactIo {
@@ -123,16 +106,17 @@ interface WalkedModules {
   broken: string[]
 }
 
+/** 从入口顺着相对 import 走到的全部文件 */
 function walkModules(pkgDir: string, entries: string[], io: ArtifactIo): WalkedModules {
   const modules = new Map<string, ModuleImports>()
   const broken: string[] = []
-  const pending = [...entries]
-  while (pending.length > 0) {
-    const file = pending.pop()!
+  const filesToRead = [...entries]
+  while (filesToRead.length > 0) {
+    const file = filesToRead.pop()!
     if (modules.has(file)) continue
     const code = io.readText(file)
     if (code === undefined) {
-      broken.push(`产物 ${shown(pkgDir, file)} 不在：构建之后它该在`)
+      broken.push(`产物 ${relativeToPackage(pkgDir, file)} 不在：构建之后它该在`)
       continue
     }
     const imports = importsOf(code)
@@ -140,20 +124,20 @@ function walkModules(pkgDir: string, entries: string[], io: ArtifactIo): WalkedM
     for (const spec of imports.relative) {
       const target = spec.startsWith('/') ? spec : path.resolve(path.dirname(file), spec)
       if (io.readText(target) === undefined) {
-        broken.push(`${shown(pkgDir, file)} 里 import 的 '${spec}' 不在：node 与浏览器都不补扩展名，相对 import 要写到带 .js 的文件名`)
+        broken.push(`${relativeToPackage(pkgDir, file)} 里 import 的 '${spec}' 不在：node 与浏览器都不补扩展名，相对 import 要写到带 .js 的文件名`)
         continue
       }
-      pending.push(target)
+      filesToRead.push(target)
     }
   }
   return { modules, broken }
 }
 
-function shown(pkgDir: string, file: string): string {
+function relativeToPackage(pkgDir: string, file: string): string {
   return path.relative(pkgDir, file).replaceAll('\\', '/')
 }
 
-/** 浏览器侧入口：模板 `build.ts` 输出的 `dist/client.js` */
+/** 浏览器侧入口：模板 `build.ts` 用 esbuild 输出的 `dist/client.js` */
 export const BROWSER_ENTRY = 'dist/client.js'
 
 export interface ArtifactFindings {
@@ -162,19 +146,8 @@ export interface ArtifactFindings {
   nodeImportsCordis: boolean
 }
 
-/**
- * 查一个被发包的构建产物。`plugin` 为 false（库、工具包）时只查空 import 与相对 import 指向的文件在不在；
- * 包名 import 的两份名单只管插件：库的 import 由用它的插件打包时解析，不在 home 里按包名解析。
- */
-export function artifactFindings(pkgDir: string, manifest: Record<string, unknown>, plugin: boolean, io: ArtifactIo): ArtifactFindings {
-  const problems: string[] = []
-  const pkgName = typeof manifest.name === 'string' ? manifest.name : pkgDir
-
-  const nodeEntry = exportTarget(manifest, '.')
-  if (nodeEntry === undefined) problems.push('清单里没有 exports["."]（或 main），找不到 node 侧入口')
-  const node = walkModules(pkgDir, nodeEntry === undefined ? [] : [path.resolve(pkgDir, nodeEntry)], io)
-
-  const ownShared = sharedDeclarations(manifest)
+/** `dist/client.js`（在的话）加上本包 `gwb.shared` 的子路径经 `exports` 指到的文件；子路径在 exports 里没有就记一条问题 */
+function browserEntriesOf(pkgDir: string, manifest: Record<string, unknown>, ownShared: Record<string, string>, io: ArtifactIo, problems: string[]): string[] {
   const browserEntries: string[] = []
   const clientFile = path.resolve(pkgDir, BROWSER_ENTRY)
   if (io.readText(clientFile) !== undefined) browserEntries.push(clientFile)
@@ -186,47 +159,79 @@ export function artifactFindings(pkgDir: string, manifest: Record<string, unknow
     }
     browserEntries.push(path.resolve(pkgDir, target))
   }
-  const browser = walkModules(pkgDir, browserEntries, io)
+  return browserEntries
+}
 
-  problems.push(...node.broken, ...browser.broken)
-  for (const [file, imports] of [...node.modules, ...browser.modules]) {
-    for (const spec of imports.empty) {
-      problems.push(`${shown(pkgDir, file)} 里有空 import：import {} from '${spec}'。源码里只引类型的写成 import type { X }，不写 import { type X }`)
-    }
-  }
+function emptyImportProblems(pkgDir: string, modules: [string, ModuleImports][]): string[] {
+  return modules.flatMap(([file, imports]) =>
+    imports.empty.map((spec) => `${relativeToPackage(pkgDir, file)} 里有空 import：import {} from '${spec}'。源码里只引类型的写成 import type { X }，不写 import { type X }`),
+  )
+}
 
-  let nodeImportsCordis = false
-  for (const imports of node.modules.values()) if (imports.bare.some((spec) => packageNameOf(spec) === 'cordis')) nodeImportsCordis = true
+function anyModuleImportsCordis(modules: Map<string, ModuleImports>): boolean {
+  return [...modules.values()].some((imports) => imports.bare.some((spec) => packageNameOf(spec) === 'cordis'))
+}
 
-  if (!plugin) return { problems, nodeImportsCordis }
-
-  for (const [file, imports] of node.modules) {
+function nodeSideBareImportProblems(pkgDir: string, nodeModules: Map<string, ModuleImports>): string[] {
+  const problems: string[] = []
+  for (const [file, imports] of nodeModules) {
     for (const spec of imports.bare.filter((one) => !allowedOnNodeSide(one))) {
       problems.push(
-        `node 侧产物 ${shown(pkgDir, file)} import 了 '${spec}'：node 侧只能 import node 内置模块、electron、cordis。` +
+        `node 侧产物 ${relativeToPackage(pkgDir, file)} import 了 '${spec}'：node 侧只能 import node 内置模块、electron、cordis。` +
           `另一个插件改成只 import 类型、运行时经 inject 与命令使用；自用的库打包进产物`,
       )
     }
   }
+  return problems
+}
 
-  const browserBare = [...browser.modules].flatMap(([file, imports]) => imports.bare.map((spec) => ({ file, spec })))
-  if (browserBare.length === 0) return { problems, nodeImportsCordis }
+function browserSideBareImportProblems(
+  pkgDir: string,
+  manifest: Record<string, unknown>,
+  ownShared: Record<string, string>,
+  browserModules: Map<string, ModuleImports>,
+  io: ArtifactIo,
+): string[] {
+  const browserBare = [...browserModules].flatMap(([file, imports]) => imports.bare.map((spec) => ({ file, spec })))
+  if (browserBare.length === 0) return []
+  const pkgName = typeof manifest.name === 'string' ? manifest.name : pkgDir
   const importmap = importmapNamesOf(pkgDir, manifest, ownShared, io)
-  problems.push(...importmap.problems)
+  const problems = [...importmap.problems]
   for (const { file, spec } of browserBare) {
     if (importmap.names.has(spec)) continue
     problems.push(
-      `浏览器侧产物 ${shown(pkgDir, file)} import 了 '${spec}'：${pkgName} 用得到的 importmap 里没有这个名字` +
+      `浏览器侧产物 ${relativeToPackage(pkgDir, file)} import 了 '${spec}'：${pkgName} 用得到的 importmap 里没有这个名字` +
         `（现有 ${importmap.names.size === 0 ? '无' : [...importmap.names].join('、')}）。打包进产物，或者从声明它的插件那里取外置名单`,
     )
   }
+  return problems
+}
+
+/**
+ * `plugin` 为 false（库、工具包）时只查空 import 与相对 import 指向的文件在不在；
+ * 包名 import 的两份名单只管插件：库的 import 由用它的插件打包时解析，不在 home 里按包名解析
+ */
+export function artifactFindings(pkgDir: string, manifest: Record<string, unknown>, plugin: boolean, io: ArtifactIo): ArtifactFindings {
+  const problems: string[] = []
+  const nodeEntry = exportTarget(manifest, '.')
+  if (nodeEntry === undefined) problems.push('清单里没有 exports["."]（或 main），找不到 node 侧入口')
+  const node = walkModules(pkgDir, nodeEntry === undefined ? [] : [path.resolve(pkgDir, nodeEntry)], io)
+  const ownShared = sharedDeclarations(manifest)
+  const browser = walkModules(pkgDir, browserEntriesOf(pkgDir, manifest, ownShared, io, problems), io)
+
+  problems.push(...node.broken, ...browser.broken)
+  problems.push(...emptyImportProblems(pkgDir, [...node.modules, ...browser.modules]))
+  const nodeImportsCordis = anyModuleImportsCordis(node.modules)
+  if (!plugin) return { problems, nodeImportsCordis }
+
+  problems.push(...nodeSideBareImportProblems(pkgDir, node.modules))
+  problems.push(...browserSideBareImportProblems(pkgDir, manifest, ownShared, browser.modules, io))
   return { problems, nodeImportsCordis }
 }
 
 /**
- * 本包能用的 importmap 名字：本包自己 `gwb.shared` 的键，加上本包依赖到的（dependencies、devDependencies、
- * peerDependencies）、声明了 `gwb.shared` 的包的键。依赖的清单从被发包自己的 `node_modules` 现读——pnpm 把
- * 直接依赖链接在那里；读不到就是没装，报出来，不猜。
+ * 本包能用的 importmap 名字：本包 `gwb.shared` 的键，加上本包依赖到的（dependencies、devDependencies、peerDependencies）
+ * 声明了 `gwb.shared` 的包的键。依赖的清单从本包的 `node_modules` 读（pnpm 把直接依赖链接在那里），读不到就报出来，不猜
  */
 function importmapNamesOf(
   pkgDir: string,
