@@ -1,3 +1,4 @@
+import { KERNEL_PACKAGE } from './kernel-compat.js'
 import type { ServiceProvides } from './services.js'
 
 /** 一个 import 入口：怎么写、类型定义在哪、有没有一句说明 */
@@ -15,7 +16,7 @@ export interface ImportFace {
   version?: string
   /** 身份：件＝插件（keywords 带 gwb-plugin）/ 库（只带 gwb）/ 第三方（都不是）；取值是回执契约 */
   kind: '件' | '库' | '第三方'
-  /** importmap 外置名：`gwb.shared` 的键，react 这类经页面 importmap 解析的包名 */
+  /** importmap 外置名：只有内核包带，是它清单 `gwb.shared` 的键（react 的四个包名）；别的包写了内核不收，这里也不报 */
   shared?: string[]
   entries: ImportEntry[]
 }
@@ -114,7 +115,7 @@ export async function importFacesOf(
     const provides = asRecord(asRecord(manifest['gwb'])?.['provides'])
     const version = typeof manifest['version'] === 'string' ? manifest['version'] : undefined
     const entries = importEntriesOf(pkg, manifest, provides)
-    const shared = sharedNamesOf(asRecord(manifest['gwb'])?.['shared'])
+    const shared = pkg === KERNEL_PACKAGE ? sharedNamesOf(asRecord(manifest['gwb'])?.['shared']) : undefined
     faces.push({
       pkg,
       ...(version === undefined ? {} : { version }),

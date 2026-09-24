@@ -6,7 +6,7 @@
 import { Arrow, Box, FG, Frame, MONO, MUTED, NARROW, Note } from './parts'
 
 const CORDIS = ['ctx.fiber → parent.fiber，最多 32 层', 'registry.entries() → runtime.fibers', 'fiber.store：只收 impl.fiber 是它的', 'fiber.entry.id、entry.options.name']
-const MANIFEST = ['gwb.provides：{ summary, usage }', 'gwb.shared、exports、keywords', 'home 的 dependencies：列哪些包']
+const MANIFEST = ['gwb.provides：{ summary, usage }', 'exports、keywords、内核包的 gwb.shared', 'home 的 dependencies：列哪些包']
 
 function Lines({ x, y, lines }: { x: number; y: number; lines: string[] }) {
   return (

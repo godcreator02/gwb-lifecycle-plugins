@@ -88,7 +88,7 @@ devkit 没有任何特权：装进 home 才有它的命令，加载不成功就�
 | 依赖对账 | `src/audit.ts` | `src/node-audit-deps.ts` | [开发套件](/docs/devkit#依赖对账的判据) |
 | 能用什么 | `src/services.ts`、`src/capabilities.ts` | 命令登记处读 home 里的 `package.json` | [开发套件](/docs/devkit) |
 | 进程与端口探测 | `src/probes.ts` | `src/node-probe-deps.ts` | [测试 home](/docs/devkit/home) |
-| 小工具 | `src/vocab.ts`：`isRecord` 与 `requireKernel`（词汇表包只提供类型，这两个函数由插件自带） | — | — |
+| 小工具 | `src/vocab.ts`：`isRecord` 与 `requireKernel`（内核包只导出类型，这两个函数由插件自带） | — | — |
 | CDP 驱动 | `bin/cdp.mjs` 里算文件位置的几个函数 | `bin/cdp.mjs` 其余部分 | [CDP 驱动](/docs/devkit/cdp) |
 | 命令登记 | — | `src/index.ts`：登记命令、检查参数、组装回执 | — |
 

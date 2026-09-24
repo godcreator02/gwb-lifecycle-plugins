@@ -31,7 +31,7 @@ description: 连接 devkit、插件管理与 pnpm、npm 源、两份 npmrc、git
 | `pnpm publish --no-git-checks --tag <dev 或 latest>` | 临时目录里组装好的发布内容 | `devkit.dev`、`devkit.release` | 带 |
 | `pnpm view <包@版本> version`、`pnpm view <包> dist-tags.latest` | 系统临时目录 | `devkit.dev`、`devkit.release` | 带 |
 | `pnpm install` | 目标 home | `devkit.dev` | 不带 |
-| `pnpm add <七个基础插件> @godcreator/gwb-plugin-api` | 新 home | `devkit.home.new` | 不带 |
+| `pnpm add <七个基础插件>` | 新 home | `devkit.home.new` | 不带 |
 
 {/* ref file="../plugins/devkit/src/dev.ts" lines="261-264" */}
 

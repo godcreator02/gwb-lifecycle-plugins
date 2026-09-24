@@ -87,9 +87,9 @@ description: 插件管理是唯一写 home 的插件——装卸包、增删条�
 | 机器级 `~/.npmrc` 与 home 级 `<home>/.npmrc` | 按 scope 找源地址与 token；`source.add` / `source.remove` 改机器级那份 | 文件不在当空文本；在但读不了，命令报错并带上路径 |
 | gitea 插件的设置：`gitea` 分区的 `base-url` 与 `token`，经设置插件的命令 `settings.get` 按名字读 | `source.add` 的 `owner` 写法拼源地址、取 token | 地址按代码里写的默认 gitea 实例拼；没显式给 token 时 `source.add` 回 `ok: false` |
 | cordis：`provide`、`effect`、`inject`、`logger` 与条目的加载状态 | 提供服务、局部注入、卸载时撤销、写日志、判断条目加载到哪一步 | 由内核提供，不会缺；cordis 的状态名变了，`list` 的「是否在运行」与重新加载的等待会判断错，由状态名对照测试拦住 |
-| 词汇表包 `@godcreator/gwb-plugin-api` | `GwbContext`、`GwbResult`、`GwbKernelApi` 的类型 | 只有类型，形状改坏了类型检查失败 |
+| 内核包 `@godcreator/gwb-kernel-desktop` 包根导出的类型（peer 里写的就是它） | `GwbContext`、`GwbResult`、`GwbKernelApi` 的类型 | 只有类型，形状改坏了类型检查失败 |
 
-插件管理不写 `export const inject`：命令、数据、设置、说明书四个插件都用 `ctx.inject` 局部注入，缺了只少一部分功能，插件管理照常加载。这四个插件与 cordis、loader、词汇表包都只取类型，写在 `devDependencies` 里，构建产物里没有它们的 import。
+插件管理不写 `export const inject`：命令、数据、设置、说明书四个插件都用 `ctx.inject` 局部注入，缺了只少一部分功能，插件管理照常加载。这四个插件与 cordis、loader 都只取类型，写在 `devDependencies` 里；内核的接口类型从 peer 里的内核包取。构建产物里没有它们的 import。
 
 内核对插件管理的承诺——home 的文件布局、loader 与 include 的版本、按真实路径解析包名——写在内核仓文档站的接缝页「home 布局与条目树」。
 

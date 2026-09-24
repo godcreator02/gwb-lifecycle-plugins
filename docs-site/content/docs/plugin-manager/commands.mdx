@@ -49,7 +49,7 @@ description: 17 条命令是插件管理唯一的调用方式；服务 gwbPlugin
 
 {/* ref file="../plugins/plugin-manager/src/index.ts" lines="272-291" */}
 
-**守住它的测试**：插件管理只取 cordis、loader、词汇表包和四个可选插件的类型，构建产物里一个包名 import 都不该有；包清单 `gwb.provides` 里的 `gwbPluginManager` 一条要与源码提供的服务对得上，这条由 devkit 的发版前检查与 `devkit.audit-structure` 查，devkit 的测试也拿本仓的插件管理跑一遍。
+**守住它的测试**：插件管理只取 cordis、loader、内核包和四个可选插件的类型，构建产物里一个包名 import 都不该有；包清单 `gwb.provides` 里的 `gwbPluginManager` 一条要与源码提供的服务对得上，这条由 devkit 的发版前检查与 `devkit.audit-structure` 查，devkit 的测试也拿本仓的插件管理跑一遍。
 
 {/* has file="../plugins/plugin-manager/tests/artifact.test.ts" text="除了 node 内置模块，一个包名 import 都没有" */}
 

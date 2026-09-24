@@ -9,7 +9,7 @@
 
 ## 插件包的结构（`plugins/{{name}}/`，配置都在包内）
 
-- **node 侧**（`src/index.ts`）：`apply` 里注册一个窗格、登记一条 `{{name}}.ping` 命令。命令总线、外壳、词汇表包都只 `import type`，
+- **node 侧**（`src/index.ts`）：`apply` 里注册一个窗格、登记一条 `{{name}}.ping` 命令。命令总线、外壳与内核包的接口类型都只 `import type`，
   构建产物里没有包名 import，这几个包连同 `cordis` 都写在 devDependencies。peer 里只有内核包 `@godcreator/gwb-kernel-desktop`，
   范围 `^<版本号>` 声明这个插件兼容哪些内核（建仓时写的是运行建仓命令的那个内核）；
 - **浏览器侧**（`src/client/`）：窗格里显示「你好」和一个计数按钮。类名一律以 `{{cssPrefix}}:` 开头，样式只作用于本插件

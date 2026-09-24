@@ -1,6 +1,6 @@
 import fs from 'node:fs'
 import path from 'node:path'
-import type { GwbContext } from '@godcreator/gwb-plugin-api'
+import type { GwbContext } from '@godcreator/gwb-kernel-desktop'
 import { isRecord, requireKernel } from './vocab.js'
 // 只为引入对方包里的 declare module 'cordis'：ctx 上那几个服务名的类型从那里来
 import type {} from '@godcreator/gwb-commands'
@@ -128,7 +128,7 @@ const RELEASE_USAGE = [
   '**号在仓里抬**：发的是 package.json 里声明的那个号，同号在源上就拒——要发新的一版，先抬号、提交，再来',
   '**仓根 git 树不干净就拒**：正式版只从提交过的状态发',
   '**发版前检查没过就拒**（构建之后，所有包一次列全）：自己不在 0.0.x；@godcreator 的 dev 范围包含源上 dist-tags.latest；产物里没有空 import（import { type X } 留下的）；包目录里 pnpm exec tsc --noEmit -p <tsconfig> --skipLibCheck false 通过（node 侧有 tsconfig.build.json 就查它、没有查 tsconfig.json、两份都没有就拒，有 src/client/tsconfig.json 再查一次；测试与构建脚本不查）；keywords 含 gwb 或 gwb-plugin 的包，gwb.provides 与源码对应（源码提供的每个服务都有一条；每个键是源码提供的服务名或本包 exports 里的 import 说明符；每条的 summary、usage 是非空字符串）',
-  '**插件包另加**（keywords 含 gwb-plugin）：peer 里只有 cordis 与内核包 @godcreator/gwb-kernel-desktop，node 侧产物按值 import 了 cordis 就必须写 peer cordis；node 侧产物（exports["."] 入口顺着相对 import 走到的文件）的包名 import 只有 node 内置模块、electron、cordis；浏览器侧产物（dist/client.js 与本包 gwb.shared 指到的文件）只 import importmap 里的名字；peer 里写了内核包、写法是 ^x.y.z、范围包含运行中的内核（主版本号为 0 时次版本号相同，≥1 时主版本号相同，并且不低于下限）；写了 gwb.requires 的，它是 { 包名: 最低版本号 } 的对象、每个值是 x.y.z、每个包也写在 devDependencies 里、要求的版本不高于 dev 范围的下限（dev 写 workspace: 的不比下限）',
+  '**插件包另加**（keywords 含 gwb-plugin）：peer 里只有 cordis 与内核包 @godcreator/gwb-kernel-desktop，node 侧产物按值 import 了 cordis 就必须写 peer cordis；node 侧产物（exports["."] 入口顺着相对 import 走到的文件）的包名 import 只有 node 内置模块、electron、cordis；浏览器侧产物（dist/client.js）只 import 页面 importmap 里的名字——内核包清单 gwb.shared 的键（react 的四个），从包目录 node_modules 里装好的内核包读；内核包以外的包写了 gwb.shared 就拒；peer 里写了内核包、写法是 ^x.y.z、范围包含运行中的内核（主版本号为 0 时次版本号相同，≥1 时主版本号相同，并且不低于下限）；写了 gwb.requires 的，它是 { 包名: 最低版本号 } 的对象、每个值是 x.y.z、每个包也写在 devDependencies 里、要求的版本不高于 dev 范围的下限（dev 写 workspace: 的不比下限）',
   '**这条链只碰源、不碰任何 home**，从哪个 home 调都行；升 default 是下一步的事，走 plugin-manager.update-all',
   '例：{"dir":"D:\\\\unitfolders\\\\evew5-gwbapps\\\\gwb-block-note","packages":["packages/model","packages/engine","packages/client","plugins/gwb-bn-core","plugins/gwb-bn-comment"]}',
 ].join('\n')
@@ -384,7 +384,7 @@ function registerServiceCommands({ ctx, commands }: Wiring): void {
         plugin: '@godcreator/gwb-devkit',
         description: '开发一个新插件能基于什么：可 inject 的服务、可 import 的包与入口、类型正本在哪——一站看全，别孤零零从零做',
         usage:
-          '无参数。回 { inject, import, commands } 三段。inject：这台 home 现挂的 cordis 服务，带各包 gwb.provides 自述（要接一面照 usage 写）。import：home 已装包逐个列——身份（件/库/第三方）、import 时写的入口说明符、d.ts 路径（符号级看原文，命令不摘抄）、importmap 外置名（shared，react 系那种）与意图自述。commands：指 search。事实现算不抄；没声明的入口照样列、只是少一句人话',
+          '无参数。回 { inject, import, commands } 三段。inject：这台 home 现挂的 cordis 服务，带各包 gwb.provides 自述（要接一面照 usage 写）。import：home 已装包逐个列——身份（件/库/第三方）、import 时写的入口说明符、d.ts 路径（符号级看原文，命令不摘抄）、importmap 外置名（shared，只有内核包那一项有：react 的四个包名）与意图自述。commands：指 search。事实现算不抄；没声明的入口照样列、只是少一句人话',
       },
       async () => ({ ok: true, data: await capabilitiesOf(ctx) }),
     ),
@@ -507,7 +507,7 @@ function registerReleaseCommand({ ctx, log, commands }: Wiring): void {
         plugin: '@godcreator/gwb-devkit',
         description: '发正式版到团队源（git 工作区干净→构建→验产物→发版前检查→在临时目录里组装并发布）',
         usage:
-          '{dir 必给（仓根绝对路径）, packages?（包目录，相对仓根，按依赖顺序；不给就是仓根自己）}。一条走完：仓根 git 工作区干净（有未提交改动就拒，一个都不发）→ 仓根 pnpm build → 照 files 白名单验产物 → 同号已在源上就拒 → 发版前检查（每个要发的包：自己不在 0.0.x；@godcreator 的 dev 范围包含源上 dist-tags.latest，workspace: 跳过，范围内落后放行；产物里没有空 import、相对 import 指向的文件都在；包目录里 pnpm exec tsc --noEmit -p <tsconfig> --skipLibCheck false 通过——node 侧有 tsconfig.build.json 就查它、没有查 tsconfig.json、两份都没有就拒，有 src/client/tsconfig.json 再查一次，测试与构建脚本不查；keywords 含 gwb 或 gwb-plugin 的包，gwb.provides 与源码对应——源码（src/ 下 super(ctx, 名)、ctx.provide(名)、new X(ctx, 名) 三种写法）提供的每个服务都有一条，每个键是源码提供的服务名或本包 exports 里的 import 说明符（主入口写包名，子路径写 包名/子路径），每条的 summary、usage 是非空字符串。keywords 含 gwb-plugin 的插件包另加：peer 里只有 cordis 与内核包 @godcreator/gwb-kernel-desktop，node 侧产物按值 import 了 cordis 就必须写 peer cordis；node 侧产物——exports["."] 的运行时入口（没有 exports 时是 main）顺着相对 import 走到的文件——的包名 import 只有 node 内置模块、electron、cordis；浏览器侧产物——dist/client.js 与本包 gwb.shared 指到的文件，同样顺着相对 import 走——只 import importmap 里的名字，名字取本包与它依赖到的包的 gwb.shared 键，依赖的清单从包目录的 node_modules 现读；peer 里写了内核包、写法是 ^x.y.z、范围包含运行中的内核 gwbKernel.version——主版本号为 0 时次版本号相同，≥1 时主版本号相同，并且不低于下限，预发布段不看。没过就一个都不发，回执按包一次列全；写了 peer cordis 而 node 侧产物没 import 它只提醒，带在回执 reminders 里）→ 在临时目录里组装发布内容并发布（不改仓里任何文件；tag latest；workspace: 依赖写成 ^<工作区里那个号>，这一次同发的写成 ^新号）→ 按给定顺序发完。**号在仓里升**（改 package.json 提交），同号永不重发。只碰源不碰任何 home；升 default 走 plugin-manager.update-all',
+          '{dir 必给（仓根绝对路径）, packages?（包目录，相对仓根，按依赖顺序；不给就是仓根自己）}。一条走完：仓根 git 工作区干净（有未提交改动就拒，一个都不发）→ 仓根 pnpm build → 照 files 白名单验产物 → 同号已在源上就拒 → 发版前检查（每个要发的包：自己不在 0.0.x；@godcreator 的 dev 范围包含源上 dist-tags.latest，workspace: 跳过，范围内落后放行；产物里没有空 import、相对 import 指向的文件都在；包目录里 pnpm exec tsc --noEmit -p <tsconfig> --skipLibCheck false 通过——node 侧有 tsconfig.build.json 就查它、没有查 tsconfig.json、两份都没有就拒，有 src/client/tsconfig.json 再查一次，测试与构建脚本不查；keywords 含 gwb 或 gwb-plugin 的包，gwb.provides 与源码对应——源码（src/ 下 super(ctx, 名)、ctx.provide(名)、new X(ctx, 名) 三种写法）提供的每个服务都有一条，每个键是源码提供的服务名或本包 exports 里的 import 说明符（主入口写包名，子路径写 包名/子路径），每条的 summary、usage 是非空字符串。keywords 含 gwb-plugin 的插件包另加：peer 里只有 cordis 与内核包 @godcreator/gwb-kernel-desktop，node 侧产物按值 import 了 cordis 就必须写 peer cordis；node 侧产物——exports["."] 的运行时入口（没有 exports 时是 main）顺着相对 import 走到的文件——的包名 import 只有 node 内置模块、electron、cordis；浏览器侧产物——dist/client.js，同样顺着相对 import 走——只 import 页面 importmap 里的名字，也就是内核包清单 gwb.shared 的键，从包目录 node_modules 里装好的内核包现读；内核包以外的包写了 gwb.shared 就拒；peer 里写了内核包、写法是 ^x.y.z、范围包含运行中的内核 gwbKernel.version——主版本号为 0 时次版本号相同，≥1 时主版本号相同，并且不低于下限，预发布段不看。没过就一个都不发，回执按包一次列全；写了 peer cordis 而 node 侧产物没 import 它只提醒，带在回执 reminders 里）→ 在临时目录里组装发布内容并发布（不改仓里任何文件；tag latest；workspace: 依赖写成 ^<工作区里那个号>，这一次同发的写成 ^新号）→ 按给定顺序发完。**号在仓里升**（改 package.json 提交），同号永不重发。只碰源不碰任何 home；升 default 走 plugin-manager.update-all',
       },
       async (args) => {
         if (!isRecord(args)) return { ok: false, error: `参数要是个对象。\n${RELEASE_USAGE}` }

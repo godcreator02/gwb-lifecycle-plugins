@@ -85,7 +85,7 @@ export default class GwbExample extends Service {
 
 ## 几个坑
 
-- **`gwbKernel` 用 `requireKernel(ctx)` 取，不写进 `inject`**：内核接口在根上下文上、永不撤销。`requireKernel` 与 `isRecord` 两个无状态小函数由各插件自带一份，词汇表包只提供类型（插件管理那一份见本节末尾）
+- **`gwbKernel` 用 `requireKernel(ctx)` 取，不写进 `inject`**：内核接口在根上下文上、永不撤销。`requireKernel` 与 `isRecord` 两个无状态小函数由各插件自带一份，内核包的包根只导出类型（插件管理那一份见本节末尾）
 - **不写 `instanceof Service`**：插件和宿主用的 cordis 可能是两份拷贝，跨拷贝判断为 false
 - **类的私有字段用 TS 的 `private`，不用 `#`**：cordis 派生上下文用 `Object.create(this)`，`#` 私有字段在派生出来的对象上一读就抛错
 - **每次重新加载都该清掉的状态放在 `apply` 里**：重新加载只重跑 `apply`，模块顶层的状态在同一版本重新加载时不会重置

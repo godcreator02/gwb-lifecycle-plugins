@@ -27,7 +27,7 @@ const STEPS: { title: string; detail: string; active: number }[] = [
     active: 1,
   },
   { title: '第 3 步：定启动计划', detail: '启动的是宿主自己那个应用，日常是安装版（只带启动器，内核从 home 里的内核包加载），不构建内核、不认内核仓；宿主是开发态 electron 而读不出应用目录时拒。同一个 home 已有实例在运行也拒。', active: 2 },
-  { title: '第 4 步：装内核包、cordis 与基础插件', detail: '只有 new 做这一步：cordis.yml 不在才写，写七个基础插件的条目；在 home 目录里依次 pnpm add 三次：内核包（运行中的内核的精确版本，--save-exact）；装上的内核包清单里 peer 写的那个精确版本的 cordis（--save-exact）；七个基础插件与 @godcreator/gwb-plugin-api。内核包与 cordis 装完都读 node_modules 里的清单核对版本。哪一步不成都不启动，回执带 pnpm 输出的最后几行。', active: 3 },
+  { title: '第 4 步：装内核包、cordis 与基础插件', detail: '只有 new 做这一步：cordis.yml 不在才写，写七个基础插件的条目；在 home 目录里依次 pnpm add 三次：内核包（运行中的内核的精确版本，--save-exact）；装上的内核包清单里 peer 写的那个精确版本的 cordis（--save-exact）；七个基础插件。内核包与 cordis 装完都读 node_modules 里的清单核对版本。哪一步不成都不启动，回执带 pnpm 输出的最后几行。', active: 3 },
   {
     title: '第 5 步：启动',
     detail: '环境变量 GWB_HOME 是这个 home 的名字，去掉 ELECTRON_RUN_AS_NODE；命令行带 --remote-debugging-port=<端口> 与 --disable-backgrounding-occluded-windows（窗口被挡住时也照常渲染）。',

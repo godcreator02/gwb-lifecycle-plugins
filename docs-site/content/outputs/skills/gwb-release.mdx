@@ -24,10 +24,10 @@ description: 升版本号、改依赖版本号、发版时读。
 
 **完成判据**：新版本号已提交；`pnpm view <包>@<新版本号> version` 没有输出（源上还没有这个号）；说得出这次升 x 还是 y 对应契约清单的哪一条。
 
-两类包另有口径：
+内核包另有口径：
 
-- **词汇表包** `@godcreator/gwb-plugin-api`（内核契约）：对插件只增不减的改动升 y
-- **内核**：改了接缝上已有的东西（包括升级 loader、include 的版本、改 home 的布局）升 x，只加东西升 y。内核升 x 后，插件 peer 里内核包的范围不再包含新内核，所有插件都要在新内核上重新验过、把范围改成 `^<新内核的版本号>`
+- **包根导出的接口类型**（`GwbContext`、`GwbKernelApi`、`GwbResult`、`GwbWindowApi`、`ShellBoot`，插件 `import type` 取）：只增不减（加类型、给已有类型加可选字段）升 y；删掉、改名、改形状、改调用方依赖的语义升 x
+- **接缝**：改了接缝上已有的东西（包括升级 loader、include 的版本、改 home 的布局）升 x，只加东西升 y。内核升 x 后，插件 peer 里内核包的范围不再包含新内核，所有插件都要在新内核上重新验过、把范围改成 `^<新内核的版本号>`
 
 ## 二、改依赖版本号
 
@@ -74,6 +74,7 @@ description: 升版本号、改依赖版本号、发版时读。
 | 自己在 0.0.x | 拒：先升到 0.1.0 |
 | `@godcreator` 的 dev：写法认不出下限、下限比源上 latest 新、latest 已出范围、或问不出源上的 latest（`workspace:` 跳过） | 拒；范围内落后（含相等）放行 |
 | 构建产物里有空 import（`import {} from '…'`，源码写了 `import { type X }`），或相对 import 指向的文件不在 | 拒 |
+| 不是内核包 `@godcreator/gwb-kernel-desktop`，清单里却写了 `gwb.shared` | 拒：页面 importmap 只收内核包声明的名字，删掉 `gwb.shared`，那份代码由用它的插件各自打包 |
 | 包目录里 `pnpm exec tsc --noEmit -p <tsconfig> --skipLibCheck false`：node 侧有 `tsconfig.build.json` 用它、没有用 `tsconfig.json`，有 `src/client/tsconfig.json` 再查一次浏览器侧；测试与构建脚本不查 | 拒，写明没过的是哪一份、带输出的最后几行；node 侧两份 tsconfig 都没有也拒 |
 | `keywords` 含 `gwb` 或 `gwb-plugin` 的包：`gwb.provides` 与源码对得上——源码（`src/` 下的 `super(ctx, '<名>')`、`ctx.provide('<名>', …)`、`new X(ctx, '<名>')`）提供的每个服务都有一条；每个键是源码提供的服务名，或本包 `exports` 里的 import 说明符（主入口写包名，子路径写 `包名/子路径`）；每条的 `summary`、`usage` 是非空字符串 | 拒，写明加哪条、删哪条或把哪一项改成什么；`devkit.audit-structure` 报同一条（`provides-declaration`，error） |
 
@@ -85,7 +86,7 @@ description: 升版本号、改依赖版本号、发版时读。
 | node 侧产物按值 import 了 `cordis`，peer 里却没有 | 拒 |
 | 写了 peer `cordis`，node 侧产物却没有 import 它 | 不拒，回执 `reminders` 里提醒 |
 | node 侧产物（`exports["."]` 入口顺着相对 import 走到的文件）的包名 import 不是 node 内置模块、`electron`、`cordis` | 拒 |
-| 浏览器侧产物（`dist/client.js` 与本包 `gwb.shared` 指到的文件）的包名 import 不在 importmap 里（本包与依赖的 `gwb.shared` 键） | 拒 |
+| 浏览器侧产物（`dist/client.js` 顺着相对 import 走到的文件）的包名 import 不在页面 importmap 里——importmap 只有内核包清单 `gwb.shared` 的键，从包目录 `node_modules` 里装好的内核包读 | 拒；内核包的清单读不到也拒，提示 peer 写上内核包、再 `pnpm install` |
 | peer 里没写内核包 `@godcreator/gwb-kernel-desktop`、写法不是 `^x.y.z`、或范围不包含运行中的内核（主版本号为 0 时次版本号相同，≥1 时主版本号相同，并且不低于下限；预发布段不看） | 拒，写明该改成的 `^<运行中的内核的 x.y.z>` |
 | 写了 `gwb.requires` 而它不是对象、某个值不是合法的 x.y.z、某个包不在 `devDependencies` 里、或要求的版本高于 dev 范围的下限（dev 写 `workspace:` 的不比下限）；没写不查 | 拒 |
 

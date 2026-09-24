@@ -236,11 +236,11 @@ describe('装进新 home 的东西：内核包、cordis 与基础插件', () => 
     expect(cordisInstallPlan(HOME, '4.0.0-rc.9', PNPM)).toEqual({ command: PNPM, args: ['add', '--save-exact', 'cordis@4.0.0-rc.9'], cwd: HOME })
   })
 
-  it('装基础插件：基础插件与词汇表包不写版本、不带 --save-exact', () => {
+  it('装基础插件：只装插件，不写版本、不带 --save-exact', () => {
     const plan = baseInstallPlan(HOME, PNPM)
     expect(plan.command).toBe(PNPM)
     expect(plan.cwd).toBe(HOME)
-    expect(plan.args).toEqual(['add', ...BASE_PLUGINS.map((one) => one.pkg), '@godcreator/gwb-plugin-api'])
+    expect(plan.args).toEqual(['add', ...BASE_PLUGINS.map((one) => one.pkg)])
   })
 
   it('装上的包清单：版本是要装的那个才回清单；读不到、不是 JSON、版本对不上都拒，说清是哪个文件、装上的是哪个版本', () => {

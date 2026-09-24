@@ -1,5 +1,6 @@
 import { describe, expect, it } from 'vitest'
 import { importFacesOf } from '../src/capabilities.js'
+import { KERNEL_PACKAGE } from '../src/kernel-compat.js'
 
 /** 假的已装包表：包名 → package.json */
 function manifestsOf(table: Record<string, unknown>): (pkg: string) => unknown {
@@ -45,28 +46,24 @@ describe('importFacesOf：import 面聚合', () => {
     expect(out[0]?.entries[1]?.dts).toBe('node_modules/@godcreator/gwb-paper-fetch/dist/library.d.ts')
   })
 
-  it('库：只带 gwb 的 keywords、gwb.shared 报出来、没声明的入口照样列', async () => {
+  it('库：只带 gwb 的 keywords、没声明的入口照样列；写了 gwb.shared 也不报外置名——内核不收', async () => {
     const table = {
-      '@godcreator/gwb-shared-react': {
+      '@godcreator/some-lib': {
         keywords: ['gwb'],
         exports: '.',
-        gwb: { shared: { react: './react', 'react-dom': './react-dom' } },
+        gwb: { shared: { '@godcreator/some-lib': './shared' } },
       },
     }
-    const out = await importFacesOf(['@godcreator/gwb-shared-react'], manifestsOf(table))
+    const out = await importFacesOf(['@godcreator/some-lib'], manifestsOf(table))
     expect(out[0]?.kind).toBe('库')
-    expect(out[0]?.shared).toEqual(['react', 'react-dom'])
-    expect(out[0]?.entries).toEqual([{ specifier: '@godcreator/gwb-shared-react' }])
+    expect(out[0]?.shared).toBeUndefined()
+    expect(out[0]?.entries).toEqual([{ specifier: '@godcreator/some-lib' }])
   })
 
-  it('gwb.shared 按内核的读法：只认「外置名 → 子路径」对象，子路径不是非空字符串的那项不报，数组写法不报', async () => {
-    const table = {
-      'with-bad-entries': { keywords: ['gwb'], gwb: { shared: { react: './react', 'react-dom': '', empty: 3 } } },
-      'array-form': { keywords: ['gwb'], gwb: { shared: ['react'] } },
-    }
-    const out = await importFacesOf(['with-bad-entries', 'array-form'], manifestsOf(table))
-    expect(out.find((f) => f.pkg === 'with-bad-entries')?.shared).toEqual(['react'])
-    expect(out.find((f) => f.pkg === 'array-form')?.shared).toBeUndefined()
+  it('内核包：gwb.shared 按内核的读法报外置名，只认「外置名 → 子路径」对象，子路径不是非空字符串的那项不报', async () => {
+    const table = { [KERNEL_PACKAGE]: { gwb: { shared: { react: './react', 'react-dom': '', empty: 3 } } } }
+    const out = await importFacesOf([KERNEL_PACKAGE], manifestsOf(table))
+    expect(out[0]?.shared).toEqual(['react'])
   })
 
   it('第三方（无 gwb keyword）与老式包（main/types 无 exports）', async () => {

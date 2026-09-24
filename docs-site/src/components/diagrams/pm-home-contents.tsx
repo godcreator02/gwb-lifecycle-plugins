@@ -1,6 +1,6 @@
 /**
  * home 里有什么：左边是 home 的 node_modules 里的插件包与内核包，右边是插件代码运行时用到的东西各由谁提供。
- * cordis 与 react 由内核包提供（react 经页面 importmap），自己用的库打包进插件的构建产物，只取类型的包编译后就没了。
+ * cordis 与 react 由内核包提供（react 经页面 importmap，importmap 里只有内核包声明的名字），自己用的库打包进插件的构建产物，只取类型的 import 编译后就没了。
  */
 
 import { Arrow, Box, BORDER, FG, MUTED, Note } from './parts'
@@ -19,8 +19,8 @@ export function PmHomeContents() {
         运行时由谁提供
       </Note>
       <Box x={470} y={40} w={276} h={56} lines={['内核（宿主）', "提供 cordis：import 'cordis' 用的是这一份"]} />
-      <Box x={470} y={120} w={276} h={50} lines={['只取类型的包', 'cordis 的类型、词汇表包：编译后消失']} dashed />
-      <Box x={470} y={196} w={276} h={56} lines={['页面的 importmap', 'react 由内核包给，别的名字由插件声明']} />
+      <Box x={470} y={120} w={276} h={50} lines={['只取类型的 import', '内核包与别的插件的类型：编译后消失']} dashed />
+      <Box x={470} y={196} w={276} h={56} lines={['页面的 importmap', '只有内核包声明的 react 四个包名']} />
 
       <Arrow from={[368, 70]} to={[470, 68]} label="按值 import cordis" />
       <Arrow from={[368, 118]} to={[470, 145]} dashed label="import type" labelAt="below" />

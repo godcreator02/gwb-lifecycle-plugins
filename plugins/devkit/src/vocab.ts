@@ -1,4 +1,4 @@
-import type { GwbContext, GwbKernelApi } from '@godcreator/gwb-plugin-api'
+import type { GwbContext, GwbKernelApi } from '@godcreator/gwb-kernel-desktop'
 
 /** 取内核服务。不要写进 `export const inject` */
 export function requireKernel(ctx: Pick<GwbContext, 'gwbKernel'>): GwbKernelApi {

@@ -6,7 +6,7 @@ import { describe, expect, it } from 'vitest'
 /**
  * 构建产物的检查：相对 import 带扩展名；包名 import 一个都没有。
  *
- * 「一个都没有」有两层意思：cordis、词汇表包只取类型，编译后就该消失；commands / data / settings /
+ * 「一个都没有」有两层意思：cordis、内核包的接口类型只取类型，编译后就该消失；commands / data / settings /
  * skills 四个插件在这里是**可选**的，源码里只有 `import type {}`。哪天有人把它写成运行时 import，
  * 这条会立即失败——不然的话，home 里没装那四个插件时插件管理加载失败，日志里只有一句
  * ERR_MODULE_NOT_FOUND，看不出是依赖写错了。

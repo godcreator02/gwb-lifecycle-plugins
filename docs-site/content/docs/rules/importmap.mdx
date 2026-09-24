@@ -1,30 +1,29 @@
 ---
 title: 页面代码与 importmap
-description: importmap 只放整个页面必须只有一份的运行时代码，react 由内核包提供，其余提供方只能是插件；浏览器侧代码怎么外置、别的依赖怎么打包
+description: 页面 importmap 里只有内核包清单 gwb.shared 声明的 react 四个包名，别的包写 gwb.shared 内核不收、发版前检查拒；浏览器侧代码怎么外置、别的依赖怎么打包
 ---
 
 # 页面代码与 importmap
 
-**本页回答**：插件的浏览器侧代码里哪些包由页面的 importmap 提供、哪些要自己打包；什么东西能进 importmap、谁能提供；外置名单从哪来。
+**本页回答**：插件的浏览器侧代码里哪些包由页面的 importmap 提供、哪些要自己打包；importmap 里的名字由谁声明；外置名单从哪来。
 
 ## 规则
 
-**importmap 只放整个页面必须只有一份的运行时代码**，现在就是 react 的四个包名（`react`、`react/jsx-runtime`、`react-dom`、`react-dom/client`），由内核包 `@godcreator/gwb-kernel-desktop` 0.4.1 起提供；别的名字的提供方只能是在 `cordis.yml` 里有条目的插件。
+**页面 importmap 里只有内核包 `@godcreator/gwb-kernel-desktop` 在自己清单的 `gwb.shared` 里声明的名字**，现在就是 react 的四个包名（`react`、`react/jsx-runtime`、`react-dom`、`react-dom/client`）。别的包——插件也好、库也好——都不写 `gwb.shared`：内核只读内核包自己的清单，别的包写了它不收；`devkit.release` 的发版前检查见到内核包以外的包写了 `gwb.shared` 就拒。
 
 ## 怎么判
 
-同一个模块在页面上出现两份就会出错（全局单例、hooks、跨组件树的 context 这类），才进 importmap。只是体积大、或者好几个插件都用，不进，各自打包进构建产物——页面从本机 `file://` 加载，重复几百 KB 可以接受。
+同一个模块在页面上出现两份就会出错（全局单例、hooks、跨组件树的 context 这类），才该由页面统一提供。只是体积大、或者好几个插件都用，不算，各自打包进构建产物——页面从本机 `file://` 加载，重复几百 KB 可以接受。现在满足这条的只有 react，它由内核包打包并声明。
 
-进了 importmap 之后：
+浏览器侧代码照这几条写：
 
-- **react 的四个包名由内核包提供**：内核包在自己清单的 `gwb.shared` 里声明它们，计算 importmap 时内核优先，插件声明这几个名字一律被忽略
-- **别的名字的提供方只能是有条目的插件**，在自己清单的 `gwb.shared` 里声明；库不声明 `gwb.shared`
-- **一个包名只有一个提供方**：两个插件声明同一个名字，内核计算 importmap 时全部拒绝
-- **外置名单只从提供方读**：外置名单是构建时不打包、留给 importmap 提供的包名清单。提供方在自己清单的 `gwb.shared` 里声明这些包名，各插件的构建脚本从装好的提供方包里读出来，不手抄。react 的提供方是内核包：插件 peer 里写了它，pnpm 把它装进插件的 `node_modules`，构建脚本从那里读
-- **共享的运行时升大版本，是提供方的破坏性版本**：react 升大版本就是内核包升 x
-- **插件之间共享 React context**，只能通过 importmap 的提供方，或者通过 props 传；各插件自带的库里的 context 在插件之间不通
+- **react 的四个包名外置**：构建时不打包，运行时由页面 importmap 解析
+- **其余依赖一律打包进构建产物**，包括别的插件发布的接口定义包、块笔记的解析库这类体积大的库。外置成包名而 importmap 里没有这个名字，运行时就是「Failed to resolve module specifier」
+- **外置名单只从内核包的清单读**：外置名单是构建时不打包、留给 importmap 提供的包名清单。插件 peer 里写了内核包，pnpm 把它装进插件的 `node_modules`，构建脚本从那里读出 `gwb.shared` 的键，不手抄
+- **react 升大版本就是内核包升 x**
+- **插件之间共享 React context**，只能靠 react 自己（全页一份）或者通过 props 传；各插件自带的库里的 context 在插件之间不通
 
-用到 importmap 里名字的插件，把那几个包写进 dev（见[依赖怎么写](/docs/rules/deps)）：构建时外置，运行时由页面解析。浏览器侧代码里的其余依赖一律打包进构建产物，外置成包名而 importmap 里没有这个名字，运行时就是「Failed to resolve module specifier」。
+用到 react 的插件，把那几个包写进 dev（见[依赖怎么写](/docs/rules/deps)）：构建时外置，运行时由页面解析。
 
 ## 例子：模板的浏览器侧构建
 
@@ -40,6 +39,14 @@ description: importmap 只放整个页面必须只有一份的运行时代码，
 
 {/* ref file="../plugins/devkit/template/pkg/tests/artifact.test.ts.tpl" lines="162-195" */}
 
+## 发版前怎么查
+
+`devkit.release` 对浏览器侧产物（`dist/client.js` 顺着相对 import 走到的文件）里的每个包名 import，拿内核包清单 `gwb.shared` 的键比对，清单从包目录的 `node_modules` 现读，读不到就拒并提示 peer 写上内核包、再 `pnpm install`；内核包以外的包，不论是插件还是库，清单里写了 `gwb.shared` 就拒（细节见[发正式版的检查](/docs/devkit#发正式版的检查)）：
+
+{/* has file="../plugins/devkit/tests/artifact-check.test.ts" text="浏览器侧 dist/client.js：名字只取内核包清单的 gwb.shared（从本包 node_modules 现读），别的依赖写了也不算" */}
+
+{/* has file="../plugins/devkit/tests/artifact-check.test.ts" text="内核包以外的包写了 gwb.shared：拒，插件与库都一样" */}
+
 ## 为什么
 
-importmap 是页面级的运行时服务，放什么由提供方声明、由内核在页面加载时计算。react 是全生态每个带界面的插件都用的运行时，和 cordis 一样由宿主给：升 react 就是升内核，不用再约定「谁来提供 react」。别的名字的提供方限定为插件，提供方就一定是 home 里有条目的包、有人管它的升级；库没有条目，能进 importmap 只是因为它碰巧被装成了 home 的直接依赖。
+importmap 是页面级的运行时服务，由内核在页面加载时写入。react 是全生态每个带界面的插件都用的运行时，和 cordis 一样由宿主给：升 react 就是升内核，不用再约定「谁来提供 react」。只收内核包一家，内核就不用扫描 home 里各包的清单、处理同名冲突，也不要求库装成 home 的直接依赖；别的共享代码各自打包，页面上多几份只多占体积、不影响正确性。拦截放在发版前检查上，写错的人发版那一刻就知道。决定的经过见轨迹卡[importmap 只收内核包的名字](/trajectory/2026-09-24-importmap-kernel-only-check)。

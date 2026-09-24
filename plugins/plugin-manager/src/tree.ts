@@ -1,4 +1,4 @@
-import type { GwbContext } from '@godcreator/gwb-plugin-api'
+import type { GwbContext } from '@godcreator/gwb-kernel-desktop'
 // 只取类型：loader 的 EntryTree，以及它给 cordis 的 Fiber 补上的 entry 字段；产物与 d.ts 里都没有这个包名
 import type { EntryTree } from '@cordisjs/plugin-loader'
 import { isRecord } from './vocab.js'

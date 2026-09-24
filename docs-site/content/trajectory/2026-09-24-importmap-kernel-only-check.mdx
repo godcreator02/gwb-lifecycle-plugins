@@ -1,0 +1,34 @@
+---
+title: importmap 只收内核包的名字：发版前检查只认内核包的 gwb.shared，别的包写了就拒；接口类型改从内核包取
+born-at: 2026-09-24T23:30
+type: choice
+parent: [2026-09-08-gwb-devkit]
+label: 只认内核包
+domain: 发版
+---
+
+pivots-from:: [发版前检查改查构建产物](2026-09-24-release-checks-artifacts.md)
+
+## 背景
+
+内核 0.5.0 做了两件事：不再扫描 home 里各包清单的 `gwb.shared`，页面 importmap 只剩内核包自己清单里声明的 react 四个包名；词汇表包 `@godcreator/gwb-plugin-api` 退役，`GwbContext`、`GwbKernelApi`、`GwbResult`、`GwbWindowApi`、`ShellBoot` 与 `window.gwb` 的全局声明改由内核包 `@godcreator/gwb-kernel-desktop` 的包根导出。插件 peer 里本来就写着内核包，pnpm 会把它装进插件的 `node_modules`，所以 `import type` 直接从内核包取，不用另加依赖。
+
+devkit 这边还按旧机制做事：发版前检查把本包与所有依赖声明的 `gwb.shared` 都算进 importmap 的名字；`devkit.capabilities` 给每个写了 `gwb.shared` 的包报外置名；`devkit.home.new` 把词汇表包当作 home 的直接依赖装进新 home；模板和两个插件从词汇表包取类型。
+
+原计划（全生态机制定案第五期、内核仓交接页「删掉 gwb.shared 扫描」）是等块笔记撤掉自己的声明、default 换过去之后再删机制。2026-09-24 人定：不等块笔记，跟内核 0.5.0 一起做。
+
+## 结论与边界
+
+- **浏览器侧产物只能 import 内核包清单 `gwb.shared` 的键**：清单从被发包目录的 `node_modules/@godcreator/gwb-kernel-desktop/package.json` 现读，读不到就拒，提示 peer 写上内核包再 `pnpm install`，不猜。别的依赖写的 `gwb.shared` 一概不算
+- **内核包以外的包写了 `gwb.shared` 就拒，插件与库一样**：内核不再读它们，也不警告，发版前检查是写错的人唯一能当场知道的地方。内核包自己的 `gwb.shared` 放行，它指到的文件仍当作浏览器侧入口，照查相对 import 与空 import
+- **`devkit.capabilities` 只给内核包报 `shared`**：别的包写了也不报，免得 agent 以为那些名字在页面上可用
+- **`devkit.home.new` 不再装词汇表包**：新 home 里除了内核包与 `cordis` 只有七个基础插件，和内核 `INSTALL.md`「只装插件」对上
+- **模板与本仓两个插件从内核包 `import type` 接口类型**：模板去掉词汇表包的 dev，命令总线 dev 跟到 `^0.5.0`；devkit 与插件管理去掉词汇表包的 dev，peer 写内核包 `^0.5.0`（devkit 0.18.14、插件管理 0.8.4，未发）
+
+否掉的做法是继续留着「依赖声明的 `gwb.shared` 也算」的放行：内核已经不收，检查再放行，就会让发出去的插件在页面上解析不到包名，而检查说它没问题。
+
+代价：每个插件都要重新发一版——peer 里内核包改成 `^0.5.0`（0.4.x 的范围不包含 0.5.0），源码里的 `import type` 从词汇表包改成内核包。块笔记 main 线的库如果还写着 `gwb.shared` 就发不出去。devkit 与插件管理自己要等内核包 0.5.0 发到源上、仓根 `pnpm install` 之后才过得了类型检查与发版前检查。
+
+## 依据
+
+内核仓交接页 `docs-site/content/spec/drop-shared-scan.mdx`（待决定第 4 条推荐拦）与内核仓工作区里的 0.5.0 改动（`apps/desktop/src/api.ts`、`packages/gwb-plugin-api` 删除）；块笔记仓 main 线提交 9e0b674 撤掉了 `gwb.shared`。未另存探针。

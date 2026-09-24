@@ -231,8 +231,8 @@ promise，退出时可能丢数据。
 - [ ] 先迁移在 default 里加载失败的 gitea、mineru、docfirst-workflow
 - [ ] commands 导出自己的返回结构类型；词汇表包收窄契约（`GwbResult`、`onShell`），并给它的 d.ts 补上 DOM 类型库
   声明——它引用了 `HTMLElement`，关掉 skipLibCheck 时自己先报 TS2304（内核仓 probe 01 的追加段）
-- [ ] 每个插件：两侧打包、清单按「依赖怎么写」那张表、不 `instanceof` 其他插件的对象与 `Service`、卸载清理返回 promise；块笔记系列插件契约版本不符时拒绝加载；
-  block-note 撤掉自己的 `gwb.shared`、块笔记系列插件把解析库各自打包进构建产物
+- [ ] 每个插件：两侧打包、清单按「依赖怎么写」那张表、不 `instanceof` 其他插件的对象与 `Service`、卸载清理返回 promise；块笔记系列插件契约版本不符时拒绝加载
+- [x] block-note 撤掉自己的 `gwb.shared`、块笔记系列插件把解析库各自打包进构建产物（块笔记仓 main 线提交 9e0b674）
 - [ ] 旧共享包 `gwb-shared-react` / `gwb-tokens` 在 registry 上标记弃用；cgm-alert、nas-suite 去掉对它们的依赖
 
 **迁移清单**（2026-09-23 拿现有插件对照规矩查出来的偏差；先定标准答案，这些留着一起改）。「规矩」一列对应[写插件的规矩](/docs/rules)的分页：
@@ -264,7 +264,7 @@ promise，退出时可能丢数据。
 - [ ] home 清单一律写精确版本号、以锁文件为准；整页重载只在 shell 变了时做（现在一键热升级每次都整页重载）
 - [ ] `devkit.dev` / `home.new` 改为调用插件管理的统一入口；`INSTALL.md` 的首次安装插件集清单改为从 devkit 的正本来
 - [ ] default home 清单里的库与共享包清出去，只剩插件（2026-09-24 查 default：非插件的除内核包与 `cordis` 外还有词汇表包 `@godcreator/gwb-plugin-api` 0.2.7、块笔记的库 `@godcreator/block-note` 0.5.3；`@cordisjs/plugin-timer` 是 cordis 官方的定时器插件，不算库）
-- [ ] `devkit.home.new` 不再把词汇表包装进新 home：`src/home.ts` 的 `BASE_SHARED` 把它当 home 的直接依赖装，和 `INSTALL.md`「只装插件、不装库，词汇表包运行时用不到」矛盾；删掉这一项，基础插件清单、测试与测试 home 页跟着改
+- [x] `devkit.home.new` 不再把词汇表包装进新 home：`src/home.ts` 的 `BASE_SHARED` 把它当 home 的直接依赖装，和 `INSTALL.md`「只装插件、不装库，词汇表包运行时用不到」矛盾；删掉这一项，基础插件清单、测试与测试 home 页跟着改
 
 **第五期：react 改由内核提供（提前到第三期之前做，见「已决定」）；删掉 `gwb.shared` 留到第三期之后**
 
@@ -272,5 +272,11 @@ promise，退出时可能丢数据。
 - [x] 内核打包 react 四个包，在自己清单的 `gwb.shared` 里声明、importmap 里内核优先；内核准入判据改写，写轨迹卡；内核升 0.4.1（人定）
 - [x] shell 不再带 react、不再声明 `gwb.shared`（0.13.7）
 - [ ] 带界面的插件按新来源外置 react：模板已改，外壳与基础界面在装了内核 0.4.1 的隔离 home 里验证过；其余插件随第三期迁移
-- [ ] block-note 撤掉声明之后删掉扫描 `gwb.shared` 的代码与它的测试、`plugin-manager.shared` 命令
+- [x] block-note 撤掉声明之后删掉扫描 `gwb.shared` 的代码与它的测试、`plugin-manager.shared` 命令：内核 0.5.0 删了扫描，importmap 只剩内核包自己声明的名字；devkit 发版前检查只认内核包的 `gwb.shared`、拒别的包写它；`plugin-manager.shared` 在本仓源码里已经没有
 - [ ] 各仓现状页改写并引用代码（内核、界面插件、devkit 三仓已改）；说明书（gwb-release、gwb-devkit、gwb-plugin-manager、gwb-shell）与 AGENTS 重新生成；删本页
+
+## 进度
+
+新的在上。
+
+- 2026-09-24｜内核 0.5.0 退役词汇表包、只收内核包的 `gwb.shared`；devkit 跟上：发版前检查浏览器侧只认内核包清单的名字、拒内核包以外写了 `gwb.shared` 的包，`devkit.capabilities` 只给内核包报外置名，`devkit.home.new` 不再装词汇表包，模板与两个插件从内核包取接口类型、peer 写 `^0.5.0`（devkit 0.18.14、插件管理 0.8.4，未发）。人定不等块笔记，勾掉第三期块笔记撤声明、第四期 `home.new` 与第五期删扫描三项｜devkit 仓会话

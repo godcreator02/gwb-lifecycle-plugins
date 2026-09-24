@@ -348,26 +348,20 @@ describe('包内 template/：两区', () => {
     expect(manifest.devDependencies['cordis']).toBeDefined()
   })
 
-  it('生成的清单：词汇表包、命令总线、外壳写 dev；已停发的 gwb-tokens、gwb-shared-react 不出现', () => {
+  it('生成的清单：命令总线、外壳写 dev；已停发的 gwb-tokens、gwb-shared-react、gwb-plugin-api 不出现', () => {
     const files = renderTemplate(TEMPLATE_ROOT, planScaffold({ name: 'hello', dir: 'D:\\tmp\\x', kernelVersion: KERNEL }))
     const text = files.find((f) => f.rel === 'plugins/hello/package.json')?.text ?? ''
     const manifest = JSON.parse(text) as { devDependencies: Record<string, string> }
-    for (const pkg of ['@godcreator/gwb-plugin-api', '@godcreator/gwb-commands', '@godcreator/gwb-shell']) {
+    for (const pkg of ['@godcreator/gwb-commands', '@godcreator/gwb-shell']) {
       expect(manifest.devDependencies[pkg], `${pkg} 不在 dev 里`).toBeDefined()
     }
-    for (const retired of ['gwb-tokens', 'gwb-shared-react']) expect(text).not.toContain(retired)
+    for (const retired of ['gwb-tokens', 'gwb-shared-react', 'gwb-plugin-api']) expect(text).not.toContain(retired)
   })
 
-  it('生成的清单里词汇表包的版本与 devkit 自己的 dev 写法一致', () => {
-    const devkitManifest = JSON.parse(fs.readFileSync(path.resolve(TEMPLATE_ROOT, '..', 'package.json'), 'utf8')) as {
-      devDependencies: Record<string, string>
-    }
+  it('生成的源码从 peer 里的内核包取接口类型', () => {
     const files = renderTemplate(TEMPLATE_ROOT, planScaffold({ name: 'hello', dir: 'D:\\tmp\\x', kernelVersion: KERNEL }))
-    const manifest = JSON.parse(files.find((f) => f.rel === 'plugins/hello/package.json')?.text ?? '') as {
-      devDependencies: Record<string, string>
-    }
-    const vocabulary = '@godcreator/gwb-plugin-api'
-    expect(manifest.devDependencies[vocabulary]).toBe(devkitManifest.devDependencies[vocabulary])
+    const nodeEntry = files.find((f) => f.rel === 'plugins/hello/src/index.ts')?.text ?? ''
+    expect(nodeEntry).toContain("import type { GwbContext } from '@godcreator/gwb-kernel-desktop'")
   })
 
   it('生成的 build.ts 不手抄外置名单：从内核包清单的 gwb.shared 读键', () => {

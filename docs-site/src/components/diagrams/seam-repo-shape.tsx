@@ -21,7 +21,7 @@ const ROWS: Row[] = [
   { path: 'plugins/*  packages/*', depth: 1, note: '成员放在这两处；对账另读 apps/*、docs-site', users: '体检 对账' },
   { path: '<包>/package.json', depth: 2, note: 'files 是产物清单，keywords 含 gwb-plugin 是插件', users: '全部' },
   { path: '<包>/dist/client.js', depth: 2, note: '浏览器侧产物入口；node 侧是 exports["."]', users: 'release' },
-  { path: '<包>/node_modules/', depth: 2, note: 'importmap 里的名字从依赖的清单现读', users: 'release' },
+  { path: '<包>/node_modules/', depth: 2, note: '页面 importmap 的名字从内核包清单现读', users: 'release' },
   { path: '<包>/tsconfig.build.json', depth: 2, note: '类型检查按它，没有就用 tsconfig.json', users: 'release' },
 ]
 

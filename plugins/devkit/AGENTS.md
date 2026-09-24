@@ -114,7 +114,7 @@ findings 里那条 info 按实际文件名列好了 git mv 清单；改已有的
 没声明的写下去就是一堆没人认领的文件。
 
 **模板里 `@godcreator` 包的版本号跟着源走**：除了 peer 里的内核包，只写 devDependencies，写 `^<版本>`，范围要包含源上的 `dist-tags.latest`；
-词汇表包 `@godcreator/gwb-plugin-api` 的写法与 devkit 自己的 dev 一致（`tests/scaffold.test.ts` 查这一条）。
+内核给插件的接口类型（`GwbContext` 等）从 peer 里的内核包 `import type`，不另写 dev（`tests/scaffold.test.ts` 查生成的源码与清单）。
 模板插件在 node 侧只 `import type`，peer 里只有内核包，范围是 `^<运行建仓命令的内核版本号>`（规矩见文档站「依赖怎么写」「兼容哪个内核」）。
 范围不含 latest，新仓第一次发版就被发版前检查拦下；写了源上没有的版本，新仓 `pnpm install` 直接失败——
 改模板里的版本号之前先用 `pnpm view <包> dist-tags.latest` 查。模板的起始版本号是 0.1.0（0.0.x 过不了发版前检查）。

@@ -1,5 +1,6 @@
 import { builtinModules } from 'node:module'
 import path from 'node:path'
+import { KERNEL_PACKAGE } from './kernel-compat.js'
 import { isRecord } from './vocab.js'
 
 // 纯函数：读文件只经调用方给的 readText，测试里给一张假文件表
@@ -185,23 +186,16 @@ function nodeSideBareImportProblems(pkgDir: string, nodeModules: Map<string, Mod
   return problems
 }
 
-function browserSideBareImportProblems(
-  pkgDir: string,
-  manifest: Record<string, unknown>,
-  ownShared: Record<string, string>,
-  browserModules: Map<string, ModuleImports>,
-  io: ArtifactIo,
-): string[] {
+function browserSideBareImportProblems(pkgDir: string, browserModules: Map<string, ModuleImports>, io: ArtifactIo): string[] {
   const browserBare = [...browserModules].flatMap(([file, imports]) => imports.bare.map((spec) => ({ file, spec })))
   if (browserBare.length === 0) return []
-  const pkgName = typeof manifest.name === 'string' ? manifest.name : pkgDir
-  const importmap = importmapNamesOf(pkgDir, manifest, ownShared, io)
+  const importmap = kernelImportmapNamesOf(pkgDir, io)
   const problems = [...importmap.problems]
   for (const { file, spec } of browserBare) {
     if (importmap.names.has(spec)) continue
     problems.push(
-      `浏览器侧产物 ${relativeToPackage(pkgDir, file)} import 了 '${spec}'：${pkgName} 用得到的 importmap 里没有这个名字` +
-        `（现有 ${importmap.names.size === 0 ? '无' : [...importmap.names].join('、')}）。打包进产物，或者从声明它的插件那里取外置名单`,
+      `浏览器侧产物 ${relativeToPackage(pkgDir, file)} import 了 '${spec}'：页面 importmap 里没有这个名字` +
+        `（只有内核包声明的 ${importmap.names.size === 0 ? '无' : [...importmap.names].join('、')}）。打包进产物，外置名单从内核包清单的 gwb.shared 读`,
     )
   }
   return problems
@@ -217,6 +211,12 @@ export function artifactFindings(pkgDir: string, manifest: Record<string, unknow
   if (nodeEntry === undefined) problems.push('清单里没有 exports["."]（或 main），找不到 node 侧入口')
   const node = walkModules(pkgDir, nodeEntry === undefined ? [] : [path.resolve(pkgDir, nodeEntry)], io)
   const ownShared = sharedDeclarations(manifest)
+  if (Object.keys(ownShared).length > 0 && manifest.name !== KERNEL_PACKAGE) {
+    problems.push(
+      `清单里写了 gwb.shared（${Object.keys(ownShared).join('、')}）：页面 importmap 只收内核包 ${KERNEL_PACKAGE} 声明的名字，别的包写了内核不收。` +
+        `删掉 gwb.shared，这份代码由用它的插件各自打包`,
+    )
+  }
   const browser = walkModules(pkgDir, browserEntriesOf(pkgDir, manifest, ownShared, io, problems), io)
 
   problems.push(...node.broken, ...browser.broken)
@@ -225,41 +225,23 @@ export function artifactFindings(pkgDir: string, manifest: Record<string, unknow
   if (!plugin) return { problems, nodeImportsCordis }
 
   problems.push(...nodeSideBareImportProblems(pkgDir, node.modules))
-  problems.push(...browserSideBareImportProblems(pkgDir, manifest, ownShared, browser.modules, io))
+  problems.push(...browserSideBareImportProblems(pkgDir, browser.modules, io))
   return { problems, nodeImportsCordis }
 }
 
 /**
- * 本包能用的 importmap 名字：本包 `gwb.shared` 的键，加上本包依赖到的（dependencies、devDependencies、peerDependencies）
- * 声明了 `gwb.shared` 的包的键。依赖的清单从本包的 `node_modules` 读（pnpm 把直接依赖链接在那里），读不到就报出来，不猜
+ * 页面 importmap 里的名字：内核包清单 `gwb.shared` 的键。清单从本包的 `node_modules` 读（插件 peer 写了内核包，
+ * pnpm 把它链接在那里），读不到就报出来，不猜
  */
-function importmapNamesOf(
-  pkgDir: string,
-  manifest: Record<string, unknown>,
-  ownShared: Record<string, string>,
-  io: ArtifactIo,
-): { names: Set<string>; problems: string[] } {
-  const names = new Set(Object.keys(ownShared))
-  const problems: string[] = []
-  const dependencyNames = new Set<string>()
-  for (const table of [manifest.dependencies, manifest.devDependencies, manifest.peerDependencies]) {
-    if (isRecord(table)) for (const name of Object.keys(table)) dependencyNames.add(name)
+function kernelImportmapNamesOf(pkgDir: string, io: ArtifactIo): { names: Set<string>; problems: string[] } {
+  const file = path.join(pkgDir, 'node_modules', ...KERNEL_PACKAGE.split('/'), 'package.json')
+  const text = io.readText(file)
+  if (text === undefined) {
+    return { names: new Set(), problems: [`内核包的清单读不到（${file}），算不出页面 importmap 里的名字：peer 写上内核包，再在仓根 pnpm install`] }
   }
-  for (const name of dependencyNames) {
-    const file = path.join(pkgDir, 'node_modules', ...name.split('/'), 'package.json')
-    const text = io.readText(file)
-    if (text === undefined) {
-      problems.push(`依赖 ${name} 的清单读不到（${file}），算不出 importmap 里的名字：先在仓根 pnpm install`)
-      continue
-    }
-    let doc: unknown
-    try {
-      doc = JSON.parse(text)
-    } catch (err) {
-      problems.push(`依赖 ${name} 的清单不是合法 JSON（${file}）：${String(err)}`)
-      continue
-    }
-    for (const shared of Object.keys(sharedDeclarations(doc))) names.add(shared)
+  try {
+    return { names: new Set(Object.keys(sharedDeclarations(JSON.parse(text)))), problems: [] }
+  } catch (err) {
+    return { names: new Set(), problems: [`内核包的清单不是合法 JSON（${file}）：${String(err)}`] }
   }
-  return { names, problems }
 }

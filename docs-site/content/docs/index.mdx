@@ -31,7 +31,7 @@ god 工作台写插件用的一套东西：开发套件 `gwb-devkit`（建仓、
 | 8 | 条目树 | 插件管理 ↔ cordis loader | `EntryTreeLike` 的 store / create / update / remove / resolve | [条目树](/docs/seams/entry-tree) |
 | 9 | pnpm 与包源 | 插件管理、开发套件 ↔ pnpm、npm 源、两份 npmrc、gitea 插件的设置 | 两个插件用同一个 pnpm（两个固定位置之一、核对版本）、发开发版与正式版；插件管理按 scope 找源、调 registry 的检索接口、读写 `~/.npmrc`、按名字调 `settings.get` 读 gitea 设置 | [pnpm 与包源](/docs/seams/pnpm-registry) |
 | 10 | 被测仓的形状（约定） | 改一版看一版、发正式版、结构体检、依赖对账 ↔ 被测插件仓 | 仓根 build 脚本、`files`、`keywords`、目录布局、git 工作区干净 | [被测仓的形状](/docs/seams/repo-shape) |
-| 11 | 服务表与包自述（约定） | `devkit.services`、`devkit.capabilities`、`gwb.provides` 检查 ↔ cordis 内部结构、各包 `package.json` 与源码 | `gwb.provides`、`gwb.shared`、`exports`、`keywords` | [服务表与包自述](/docs/seams/service-table) |
+| 11 | 服务表与包自述（约定） | `devkit.services`、`devkit.capabilities`、`gwb.provides` 检查 ↔ cordis 内部结构、各包 `package.json` 与源码 | `gwb.provides`、`exports`、`keywords`、内核包的 `gwb.shared` | [服务表与包自述](/docs/seams/service-table) |
 
 ## 包
 

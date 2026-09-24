@@ -1,5 +1,5 @@
 import os from 'node:os'
-import type { GwbContext, GwbResult } from '@godcreator/gwb-plugin-api'
+import type { GwbContext, GwbResult } from '@godcreator/gwb-kernel-desktop'
 import { isRecord, requireKernel } from './vocab.js'
 // 这几条 type import 只为引入对方的 `declare module 'cordis'`（commands 另取一个类型）；这些插件都是可选的：嵌套注入、写进 devDependencies
 import type { GwbCommands } from '@godcreator/gwb-commands'

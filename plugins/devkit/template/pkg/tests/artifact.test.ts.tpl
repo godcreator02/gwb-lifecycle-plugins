@@ -18,7 +18,7 @@ const built = fs.existsSync(distDir)
 if (!built) console.warn('[{{pkgName}}] dist/ 还没生成，产物检查整组跳过（pnpm build 之后再运行）')
 
 const CLIENT = 'client.js'
-/** node 侧产物里允许留下的包名 import：node 内置模块、electron、宿主提供的 cordis。别的插件与词汇表包只 import type，编译后整句消失 */
+/** node 侧产物里允许留下的包名 import：node 内置模块、electron、宿主提供的 cordis。别的插件与内核包的接口类型只 import type，编译后整句消失 */
 const NODE_SIDE_ALLOWED = new Set(['electron', 'cordis'])
 const isNodeBuiltin = (spec: string): boolean => spec.startsWith('node:') || builtinModules.includes(spec)
 /** 浏览器侧产物里允许留下的包名 import：react 的提供方（内核包）在清单 gwb.shared 里声明的键 */

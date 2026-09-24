@@ -17,7 +17,8 @@ description: 这个仓里反复出现的词各指什么、在哪一页定义；�
 | 隔离 home | 为一次验证新开、验完就删的 home。一次验证开一个新的，不复用上一次留下的 | [测试 home](/docs/devkit/home) |
 | 控制台 home | 运行 `devkit.dev` 的那个 home（通常是 `default`）。它操作别的 home，不操作自己 | [改一版看一版](/docs/devkit/dev) |
 | 基础插件 | `devkit.home.new` 在新 home 启动前装好的七个插件：命令、外壳、数据、设置、说明书、插件管理、基础界面 | [测试 home](/docs/devkit/home) |
-| 内核包 | `@godcreator/gwb-kernel-desktop`：内核作为 npm 包装在每个 home 的根上，和 `cordis` 并列（安装包只带启动器，启动器从 home 里加载内核）。插件在 peer 里写它的范围 `^x.y.z`，声明兼容哪些内核 | [兼容哪个内核](/docs/rules/kernel-compat) |
+| 内核包 | `@godcreator/gwb-kernel-desktop`：内核作为 npm 包装在每个 home 的根上，和 `cordis` 并列（安装包只带启动器，启动器从 home 里加载内核）。插件在 peer 里写它的范围 `^x.y.z`，声明兼容哪些内核；它的包根导出内核给插件的接口类型（`GwbContext` 等），插件只 `import type` | [兼容哪个内核](/docs/rules/kernel-compat) |
+| importmap | 页面上「包名 → 文件地址」的表，浏览器侧代码里的包名 import 靠它解析。里面只有内核包在清单 `gwb.shared` 里声明的 react 四个包名，别的包写 `gwb.shared` 内核不收 | [页面代码与 importmap](/docs/rules/importmap) |
 | 团队源 | gitea 个人源 `https://git.tianshen02.online:28377/api/packages/godcreator/npm/`，常驻，是 gwb 生态发版与安装唯一的 npm 源；scope 路由与发布 token 写在用户级 `~/.npmrc` | 说明书「gwb-release」 |
 | 包源 | npmrc 里的一条 scope 路由加上它的凭据行：某个 scope 的包从哪个 npm 源装。第三方的包源写在机器级 `~/.npmrc`，由插件管理的 `source.*` 增删；`@godcreator` 那条是团队源，不经它改 | [找插件与配包源](/docs/plugin-manager/sources) |
 | 开发版 | 版本号形如 `<patch+1>-dev.<时间戳>`、tag 为 `dev` 的一次性版本，只为把此刻的改动装进一个隔离 home，不影响 `latest` | [改一版看一版](/docs/devkit/dev) |
@@ -56,6 +57,7 @@ description: 这个仓里反复出现的词各指什么、在哪一页定义；�
 | **上车检票 / 检票** | 发版前检查 |
 | **底座** | 基础插件 |
 | **钉 / 钉版** | 依赖写准确版本号；在文档站里指代码引用 |
+| **词汇表包** | 内核接口的纯类型包 `@godcreator/gwb-plugin-api`，内核 0.5.0 起不再发。这些类型从内核包的包根 `import type`，见[轨迹卡](/trajectory/2026-09-24-importmap-kernel-only-check) |
 
 ## 退役的命令与参数
 

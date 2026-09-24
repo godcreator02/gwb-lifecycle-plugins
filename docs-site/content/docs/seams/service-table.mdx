@@ -1,6 +1,6 @@
 ---
 title: 11 服务表与包自述 gwb.provides
-description: 连接 devkit.services、devkit.capabilities 与两样东西：cordis 的内部结构（fiber.store、registry.entries、runtime.fibers，结构不对就回空表）和各包 package.json 里的 gwb.provides、gwb.shared、exports、keywords；gwb.provides 与源码对不对得上，由 devkit.release 与 devkit.audit-structure 在写的那一侧检查
+description: 连接 devkit.services、devkit.capabilities 与两样东西：cordis 的内部结构（fiber.store、registry.entries、runtime.fibers，结构不对就回空表）和各包 package.json 里的 gwb.provides、exports、keywords 与内核包的 gwb.shared；gwb.provides 与源码对不对得上，由 devkit.release 与 devkit.audit-structure 在写的那一侧检查
 ---
 
 **本页回答**：`devkit.services` 与 `devkit.capabilities` 的数据从哪来；它们读 cordis 的哪几个内部字段、读各包 `package.json` 的哪几个字段；读不到时回什么；`gwb.provides` 写得对不对由谁检查、按什么规则。
@@ -15,7 +15,7 @@ description: 连接 devkit.services、devkit.capabilities 与两样东西：cord
 <Diagram name="seam-service-table" title="两条命令的两路数据：cordis 的运行时结构与各包的 package.json">
 - 上面一路是 cordis 4.0.0-rc.9 的运行时结构（不是文档化接口，靠约定）：从 `ctx.fiber` 沿 `parent.fiber` 往上最多 32 层，再遍历 `registry.entries()` 的 `runtime.fibers`；每个 fiber 的 `store` 只收 `impl.fiber` 是它自己的那些服务；提供者取 `fiber.entry.id` 与 `entry.options.name`
 - 两条命令都从这一路得到服务表：`devkit.services` 报服务由哪个条目、哪个包提供；`devkit.capabilities` 的 `inject` 段是同一张表
-- 下面一路是 home 里各包的 `package.json`：`gwb.provides` 的 `{ summary, usage }`、`gwb.shared`、`exports`、`keywords`，以及 home 的 `dependencies` 决定列哪些包
+- 下面一路是 home 里各包的 `package.json`：`gwb.provides` 的 `{ summary, usage }`、`exports`、`keywords`、内核包的 `gwb.shared`，以及 home 的 `dependencies` 决定列哪些包
 - `gwb.provides` 的键在两条命令里不一样：贴到服务上时键是服务名，`devkit.capabilities` 的 `import` 段按模块说明符（包名或 `包名/子路径`）作键
 - cordis 的结构认不出时回空表并带 `note` 与 `saw`，不抛错；`gwb.provides` 与源码对不对得上，由 `devkit.release` 的发版前检查与 `devkit.audit-structure` 在写的那一侧查
 </Diagram>
@@ -38,7 +38,7 @@ description: 连接 devkit.services、devkit.capabilities 与两样东西：cord
 | --- | --- | --- |
 | `gwb.provides` | `devkit.services` | 键是**服务名**，值 `{ summary, usage }` 贴到那条服务上 |
 | `gwb.provides` | `devkit.capabilities` | 键是**模块说明符**（包名，或 `包名/子路径`），值贴到那个入口上 |
-| `gwb.shared` | `devkit.capabilities` | 与内核相同，按「外置名 → 本包 exports 子路径」的对象读；子路径是非空字符串的那些外置名报成 `shared` |
+| `gwb.shared`（只读内核包的） | `devkit.capabilities` | 与内核相同，按「外置名 → 本包 exports 子路径」的对象读；子路径是非空字符串的那些外置名报成内核包那一项的 `shared`。别的包写了不报 |
 | `exports`（没有就退回 `main` / `types`） | `devkit.capabilities` | 列出入口与 d.ts 路径，跳过 `./package.json` |
 | `keywords` | `devkit.capabilities` | 含 `gwb-plugin` 是插件，只含 `gwb` 是库，都没有是第三方 |
 | `dependencies`（home 的） | `devkit.capabilities` | 决定列哪些包 |
@@ -61,7 +61,7 @@ devkit 保证：这两条命令只读不写；读不到、形状不对的字段�
 
 cordis 需要保证的：`fiber.store`、`fiber.entry`、`fiber.parent`、`registry.entries()`、`runtime.fibers`、`runtime.name` 这几个字段。它们不是 cordis 的文档化接口，**靠约定**：写在 `services.ts` 的文件头注释（按 4.0.0-rc.9 的字段写），没有测试拿真实的 cordis 核对，结构变了的表现是回执变成空表加 `note`。
 
-`gwb.shared` 的读法与内核一致：内核把它当作「外置名 → 子路径」的对象读（见内核仓文档站的「页面上的包名 gwb.shared」接缝页），子路径不是非空字符串的那一项不进 importmap；`devkit.capabilities` 按同一条规则取外置名，写成数组或字符串的声明两边都不认：
+`gwb.shared` 只有内核包的算数：内核只读内核包自己清单里的这一项写页面 importmap，别的包写了内核不收，`devkit.capabilities` 也只给内核包报外置名。读法与内核一致：内核把它当作「外置名 → 子路径」的对象读（见内核仓文档站的「页面上的包名 gwb.shared」接缝页），子路径不是非空字符串的那一项不进 importmap；`devkit.capabilities` 按同一条规则取外置名，写成数组或字符串的声明两边都不认：
 
 {/* ref file="../plugins/devkit/src/capabilities.ts" lines="35-45" */}
 
@@ -81,9 +81,9 @@ cordis 需要保证的：`fiber.store`、`fiber.entry`、`fiber.parent`、`regis
 
 {/* has file="../plugins/devkit/tests/services.test.ts" text="拿不到那些表时回空表——换了形状、或宿主不是 cordis，都不抛" */}
 
-{/* has file="../plugins/devkit/tests/capabilities.test.ts" text="库：只带 gwb 的 keywords、gwb.shared 报出来、没声明的入口照样列" */}
+{/* has file="../plugins/devkit/tests/capabilities.test.ts" text="库：只带 gwb 的 keywords、没声明的入口照样列；写了 gwb.shared 也不报外置名——内核不收" */}
 
-{/* has file="../plugins/devkit/tests/capabilities.test.ts" text="gwb.shared 按内核的读法：只认「外置名 → 子路径」对象，子路径不是非空字符串的那项不报，数组写法不报" */}
+{/* has file="../plugins/devkit/tests/capabilities.test.ts" text="内核包：gwb.shared 按内核的读法报外置名，只认「外置名 → 子路径」对象，子路径不是非空字符串的那项不报" */}
 
 `gwb.provides` 的检查用手工构造的清单与源码文本测；本仓两个插件自己也跑一遍：
 

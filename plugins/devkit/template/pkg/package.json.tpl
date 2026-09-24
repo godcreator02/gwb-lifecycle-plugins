@@ -30,10 +30,9 @@
   "peerDependencies": {
     "@godcreator/gwb-kernel-desktop": "^{{kernelVersion}}"
   },
-  "//devDependencies": "cordis 只写 dev（给本地构建与类型检查）。命令总线、外壳、词汇表包只取类型，运行时经 inject 使用；react 由页面的 importmap 提供，构建时不打包",
+  "//devDependencies": "cordis 只写 dev（给本地构建与类型检查）。命令总线、外壳只取类型，运行时经 inject 使用；内核给插件的接口类型从 peer 里的内核包取；react 由页面的 importmap 提供，构建时不打包",
   "devDependencies": {
-    "@godcreator/gwb-commands": "^0.4.5",
-    "@godcreator/gwb-plugin-api": "^0.4.0",
+    "@godcreator/gwb-commands": "^0.5.0",
     "@godcreator/gwb-shell": "^0.13.7",
     "@tailwindcss/cli": "^4.3.0",
     "@tailwindcss/node": "^4.3.0",

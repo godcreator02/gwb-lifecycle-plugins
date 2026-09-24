@@ -11,7 +11,7 @@ description: 插件在 peerDependencies 里写内核包 @godcreator/gwb-kernel-d
 
 **插件包在 `peerDependencies` 里写内核包 `@godcreator/gwb-kernel-desktop`，范围写 `^x.y.z`，x.y.z 是验证这个插件时所用的内核版本。** 运行中的内核落在这个范围里，插件才发得出去。只查插件包（`keywords` 里有 `gwb-plugin`），库和工具包不写。
 
-内核包和 `cordis` 一样装在每个 home 的根上（安装包只带启动器，启动器从 home 里加载内核），所以兼容性用标准的 peer 写：pnpm 把它解析到 home 里装着的那一份，安装时顺带比一次范围（只警告）。插件不 import 内核包，这条 peer 只用来声明兼容哪些内核。
+内核包和 `cordis` 一样装在每个 home 的根上（安装包只带启动器，启动器从 home 里加载内核），所以兼容性用标准的 peer 写：pnpm 把它解析到 home 里装着的那一份，安装时顺带比一次范围（只警告）。插件运行时不 import 内核包，只从它的包根 `import type` 接口类型（`GwbContext` 等），编译后不留 import；这条 peer 声明兼容哪些内核，也让 pnpm 把内核包装进插件的 `node_modules`，类型检查、构建脚本与发版前检查都从那里读它。
 
 devkit 自己的清单：
 
@@ -23,7 +23,7 @@ devkit 自己的清单：
 
 {/* ref file="../plugins/devkit/src/kernel-compat.ts" lines="38-52" */}
 
-这和内核的版本号规矩对得上：内核改了接缝上已有的东西——包括升级 loader、include 的版本、改 home 的布局——就升 x，插件写的范围不再包含新内核，所有插件都要在新内核上重新验过。只加东西的内核版本升 y，范围照样包含，插件的声明照样有效。
+这和内核的版本号规矩对得上：内核改了接缝上已有的东西——包括升级 loader、include 的版本、改 home 的布局、删改包根导出的接口类型——就升 x，插件写的范围不再包含新内核，所有插件都要在新内核上重新验过。只加东西的内核版本升 y，范围照样包含，插件的声明照样有效。
 
 ## 谁在查
 

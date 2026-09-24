@@ -1,6 +1,6 @@
 {
   "name": "@godcreator/gwb-devkit",
-  "version": "0.18.13",
+  "version": "0.18.14",
   "author": {
     "name": "godcreator"
   },
@@ -32,10 +32,9 @@
   },
   "//dependencies": "建文档站的两条命令（docs-site.create / docfirst.attach）只按名字在命令总线上找——本包不依赖站点插件与 docfirst 插件的任何包，三者互不依赖",
   "peerDependencies": {
-    "@godcreator/gwb-kernel-desktop": "^0.4.0"
+    "@godcreator/gwb-kernel-desktop": "^0.5.0"
   },
   "devDependencies": {
-    "@godcreator/gwb-plugin-api": "^0.4.0",
     "@godcreator/gwb-commands": "^0.5.0",
     "@godcreator/gwb-node-cli": "0.4.5",
     "@godcreator/gwb-shell": "0.13.3",

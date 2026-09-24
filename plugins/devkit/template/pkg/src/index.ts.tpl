@@ -1,4 +1,4 @@
-import type { GwbContext } from '@godcreator/gwb-plugin-api'
+import type { GwbContext } from '@godcreator/gwb-kernel-desktop'
 // 空的类型 import 只为让两个包的 `declare module 'cordis'` 生效，ctx 上才有 gwbCommands / gwbShell 的类型
 import type {} from '@godcreator/gwb-commands'
 import type {} from '@godcreator/gwb-shell'

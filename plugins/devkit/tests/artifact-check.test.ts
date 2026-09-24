@@ -1,6 +1,7 @@
 import path from 'node:path'
 import { describe, expect, it } from 'vitest'
 import { allowedOnNodeSide, artifactFindings, exportTarget, importsOf, packageNameOf, sharedDeclarations } from '../src/artifact-check.js'
+import { KERNEL_PACKAGE } from '../src/kernel-compat.js'
 
 const PKG = path.resolve('/fake-pkg')
 
@@ -116,51 +117,58 @@ describe('artifactFindings', () => {
     expect(got.problems).toEqual([expect.stringContaining('找不到 node 侧入口')])
   })
 
-  it('浏览器侧 dist/client.js：名字要在依赖到的包声明的 gwb.shared 里（从本包 node_modules 现读）', () => {
+  it('浏览器侧 dist/client.js：名字只取内核包清单的 gwb.shared（从本包 node_modules 现读），别的依赖写了也不算', () => {
     const got = artifactFindings(
       PKG,
       plugin({ devDependencies: { '@godcreator/gwb-shell': '0.14.0', esbuild: '^0.27.0' } }),
       true,
       io({
         'dist/index.js': "import path from 'node:path';\n",
-        'dist/client.js': "import { jsx } from 'react/jsx-runtime';\nimport { createRoot } from 'react-dom/client';\nimport dayjs from 'dayjs';\n",
-        'node_modules/@godcreator/gwb-shell/package.json': JSON.stringify({
-          name: '@godcreator/gwb-shell',
+        'dist/client.js':
+          "import { jsx } from 'react/jsx-runtime';\nimport { createRoot } from 'react-dom/client';\nimport dayjs from 'dayjs';\nimport x from 'shell-shared';\n",
+        [`node_modules/${KERNEL_PACKAGE}/package.json`]: JSON.stringify({
+          name: KERNEL_PACKAGE,
           gwb: { shared: { react: './react', 'react/jsx-runtime': './react-jsx-runtime', 'react-dom/client': './react-dom-client' } },
         }),
-        'node_modules/esbuild/package.json': JSON.stringify({ name: 'esbuild' }),
+        'node_modules/@godcreator/gwb-shell/package.json': JSON.stringify({ name: '@godcreator/gwb-shell', gwb: { shared: { 'shell-shared': './x' } } }),
       }),
     )
-    expect(got.problems).toEqual([expect.stringContaining("浏览器侧产物 dist/client.js import 了 'dayjs'")])
+    expect(got.problems).toEqual([
+      expect.stringContaining("浏览器侧产物 dist/client.js import 了 'dayjs'"),
+      expect.stringContaining("浏览器侧产物 dist/client.js import 了 'shell-shared'"),
+    ])
     expect(got.problems[0]).toContain('react、react/jsx-runtime、react-dom/client')
   })
 
-  it('浏览器侧：依赖的清单读不到就报，不猜', () => {
-    const got = artifactFindings(
-      PKG,
-      plugin({ devDependencies: { '@godcreator/gwb-shell': '0.14.0' } }),
-      true,
-      io({ 'dist/index.js': '', 'dist/client.js': "import React from 'react';\n" }),
-    )
-    expect(got.problems).toEqual([expect.stringContaining('pnpm install'), expect.stringContaining("import 了 'react'")])
+  it('浏览器侧：内核包的清单读不到就报，不猜', () => {
+    const got = artifactFindings(PKG, plugin(), true, io({ 'dist/index.js': '', 'dist/client.js': "import React from 'react';\n" }))
+    expect(got.problems).toEqual([expect.stringContaining('内核包的清单读不到'), expect.stringContaining("import 了 'react'")])
   })
 
-  it('本包自己声明的 gwb.shared：指到的文件算浏览器侧，名字本包也能用', () => {
+  it('内核包以外的包写了 gwb.shared：拒，插件与库都一样', () => {
+    const shared = { gwb: { shared: { '@godcreator/some-lib': './shared' } } }
+    const files = io({ 'dist/index.js': '' })
+    const rejected = [expect.stringContaining('清单里写了 gwb.shared（@godcreator/some-lib）'), expect.stringContaining('gwb.shared 的 @godcreator/some-lib 指向 ./shared')]
+    expect(artifactFindings(PKG, plugin(shared), true, files).problems).toEqual(rejected)
+    expect(artifactFindings(PKG, { name: '@godcreator/some-lib', exports: EXPORTS, ...shared }, false, files).problems).toEqual(rejected)
+  })
+
+  it('内核包自己的 gwb.shared：放行，指到的文件算浏览器侧、查相对 import', () => {
     const got = artifactFindings(
       PKG,
-      plugin({
+      {
+        name: KERNEL_PACKAGE,
         exports: { ...EXPORTS, './react': './dist/react.js', './react-dom': './dist/react-dom.js' },
         gwb: { shared: { react: './react', 'react-dom': './react-dom', missing: './missing' } },
-      }),
-      true,
+      },
+      false,
       io({
         'dist/index.js': '',
-        'dist/client.js': "import React from 'react';\n",
         'dist/react.js': 'export default {};\n',
-        'dist/react-dom.js': "import * as r from 'react';\nimport fs from 'node:fs';\n",
+        'dist/react-dom.js': "import * as r from 'react';\nimport './gone.js';\n",
       }),
     )
-    expect(got.problems).toEqual([expect.stringContaining('gwb.shared 的 missing'), expect.stringContaining("dist/react-dom.js import 了 'node:fs'")])
+    expect(got.problems).toEqual([expect.stringContaining('gwb.shared 的 missing'), expect.stringContaining("import 的 './gone.js' 不在")])
   })
 
   it('没有浏览器侧（没有 dist/client.js、没有 gwb.shared）：不读依赖的清单', () => {

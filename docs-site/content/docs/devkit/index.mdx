@@ -95,13 +95,14 @@ description: 开发套件是一个普通的 gwb 插件，把「在一个新文�
 
 - 自己不在 0.0.x；`@godcreator` 的 dev 依赖范围包含源上的 `dist-tags.latest`（写法认不出、下限比 latest 还新、latest 超出范围才拒，范围内落后放行）
 - 构建产物里没有 `import {} from '…'` 这种空 import（源码写了 `import { type X }`），相对 import 指向的文件都在
+- 不是内核包的包，清单里没写 `gwb.shared`：页面 importmap 只收内核包声明的名字，插件和库写了都拒
 - 在包目录里用本仓装的 tsc 跑 `tsc --noEmit -p <tsconfig> --skipLibCheck false`，要通过。这项检查守的是构建产物的类型链，测试与构建脚本不查：node 侧有 `tsconfig.build.json` 就按它查，没有才按 `tsconfig.json` 查，两份都没有就拒；有 `src/client/tsconfig.json` 就再查一次浏览器侧。报错写明没过的是哪一份
 - `keywords` 含 `gwb` 或 `gwb-plugin` 的包：`gwb.provides` 与源码对得上——源码（`src/` 下的 `.ts` / `.tsx`）提供的每个服务都有一条；每个键是源码提供的服务名，或本包 `exports` 里的 import 说明符（主入口写包名，子路径写 `包名/子路径`）；每条的 `summary` 与 `usage` 是非空字符串。规则与消费方见[服务表与包自述](/docs/seams/service-table)，`devkit.audit-structure` 也查这一条
 
 插件包（`keywords` 含 `gwb-plugin`）另查：
 
 - peer 里只有 `cordis` 与内核包 `@godcreator/gwb-kernel-desktop`，别的 peer 一律拒，报错写明按「运行时谁提供」该改写成 dev 还是 `dependencies`；node 侧产物按值 import 了 `cordis` 而 peer 里没有，拒；写了 peer `cordis` 而产物没有 import 它，只在回执的 `reminders` 里提醒
-- node 侧产物的包名 import 只有 node 内置模块、`electron`、`cordis`；浏览器侧产物只 import importmap 里的名字
+- node 侧产物的包名 import 只有 node 内置模块、`electron`、`cordis`；浏览器侧产物只 import 页面 importmap 里的名字，也就是内核包清单 `gwb.shared` 的键
 - peer 里写了内核包，写法是 `^x.y.z`，范围包含运行中的内核（没写、写法不对、不包含都拒，拒绝理由里写着该改成的 `^<运行中的内核的 x.y.z>`）
 - 写了 `gwb.requires` 的：它是 `{ 包名: 最低版本号 }` 的对象，每个值是合法的 x.y.z，每个包也写在 `devDependencies` 里，要求的版本不高于 dev 范围的下限（dev 写 `workspace:` 的不比下限）；没写不查
 
@@ -121,13 +122,15 @@ peer 里内核包的检查：
 
 {/* ref file="../plugins/devkit/src/release.ts" lines="274-282" */}
 
-构建产物检查在 `src/artifact-check.ts`。哪些文件算 node 侧、哪些算浏览器侧，照模板生成的插件包的构建约定判断：node 侧是 `exports["."]` 的运行时入口（没有 `exports` 时是 `main`）加上顺着相对 import 走得到的文件，也就是内核的 loader 按包名 import 插件时加载的那些；浏览器侧是 `dist/client.js`（模板的 `build.ts` 用 esbuild 以 `platform: 'browser'` 输出的文件）加上本包 `gwb.shared` 声明的子路径指到的文件，同样顺着相对 import 走；两边都走不到的文件不查。importmap 里的名字取本包与它依赖到的包（`dependencies`、`devDependencies`、`peerDependencies`）的 `gwb.shared` 键，依赖的清单当场从包目录的 `node_modules` 读，形状照内核计算 importmap 的那段代码：
+构建产物检查在 `src/artifact-check.ts`。哪些文件算 node 侧、哪些算浏览器侧，照模板生成的插件包的构建约定判断：node 侧是 `exports["."]` 的运行时入口（没有 `exports` 时是 `main`）加上顺着相对 import 走得到的文件，也就是内核的 loader 按包名 import 插件时加载的那些；浏览器侧是 `dist/client.js`（模板的 `build.ts` 用 esbuild 以 `platform: 'browser'` 输出的文件），同样顺着相对 import 走；内核包自己还把 `gwb.shared` 声明的子路径指到的文件算作浏览器侧入口；两边都走不到的文件不查。页面 importmap 里的名字只取内核包清单 `gwb.shared` 的键：清单当场从包目录的 `node_modules/@godcreator/gwb-kernel-desktop/package.json` 读（插件 peer 里写了内核包，pnpm 把它链接在那里），读不到就拒，别的依赖写的 `gwb.shared` 不算；`gwb.shared` 的形状照内核读它的那段代码。内核包以外的包在清单里写了 `gwb.shared`，不论插件还是库都拒：
 
 {/* ref file="../plugins/devkit/src/artifact-check.ts" lines="79-96" */}
 
 {/* ref file="../plugins/devkit/src/artifact-check.ts" lines="210-230" */}
 
-库（没有 `gwb-plugin` 的包）只查空 import、相对 import、类型检查与 `gwb.provides`，不查 peer 和包名 import 的两份名单：库由用它的插件打包进产物，它的 peer 与 import 不在 home 里按包名解析。规矩本身见[依赖怎么写](/docs/rules/deps)与[页面代码与 importmap](/docs/rules/importmap)；peer 里内核包范围的比对规则与插件管理那份相同，见[兼容哪个内核](/docs/rules/kernel-compat)；`gwb.requires` 什么时候写、插件管理怎么报，见[要求别的插件的最低版本](/docs/rules/requires)。
+{/* ref file="../plugins/devkit/src/artifact-check.ts" lines="232-247" */}
+
+库（没有 `gwb-plugin` 的包）只查空 import、相对 import、有没有写 `gwb.shared`、类型检查与 `gwb.provides`，不查 peer 和包名 import 的两份名单：库由用它的插件打包进产物，它的 peer 与 import 不在 home 里按包名解析。规矩本身见[依赖怎么写](/docs/rules/deps)与[页面代码与 importmap](/docs/rules/importmap)；peer 里内核包范围的比对规则与插件管理那份相同，见[兼容哪个内核](/docs/rules/kernel-compat)；`gwb.requires` 什么时候写、插件管理怎么报，见[要求别的插件的最低版本](/docs/rules/requires)。
 
 ### 依赖对账的判据
 
@@ -161,7 +164,7 @@ peer 里内核包的检查：
 
 ### 模板
 
-包根的 `template/` 是给别的仓用的骨架，只有 `devkit.scaffold` 与 `devkit.scaffold.plugin` 读它：`template/repo/` 生成仓根（`package.json`、`pnpm-workspace.yaml`、`README.md`、`.gitignore`），`template/pkg/` 生成插件包（源码、测试、tsconfig、vitest、oxlint、构建脚本），`template/site/plugin.mdx.tpl` 生成文档站现状区里的插件页（功能、命令与窗格、依赖的服务、不做的事）。生成的插件包清单 peer 里只有内核包；浏览器侧构建的外置名单与样式的令牌映射都从外壳 `@godcreator/gwb-shell` 取。文件一律带 `.tpl` 后缀，占位符只有 `{{name}}`、`{{title}}`、`{{pkg}}`、`{{pkgName}}`、`{{cssPrefix}}`、`{{kernelVersion}}`、`{{docsBlock}}` 七个，`{{kernelVersion}}` 填运行命令的那个 home 的内核版本号的 x.y.z 三段，生成 peer 里内核包的范围 `^x.y.z`。模板也是结构体检规则的正本，两者由往返测试保证一致（[结构体检](/docs/devkit/structure#规则与模板的一致模板是唯一正本)）。
+包根的 `template/` 是给别的仓用的骨架，只有 `devkit.scaffold` 与 `devkit.scaffold.plugin` 读它：`template/repo/` 生成仓根（`package.json`、`pnpm-workspace.yaml`、`README.md`、`.gitignore`），`template/pkg/` 生成插件包（源码、测试、tsconfig、vitest、oxlint、构建脚本），`template/site/plugin.mdx.tpl` 生成文档站现状区里的插件页（功能、命令与窗格、依赖的服务、不做的事）。生成的插件包清单 peer 里只有内核包，node 侧源码从它 `import type` 接口类型；浏览器侧构建的外置名单从内核包清单的 `gwb.shared` 读，样式的令牌映射从外壳 `@godcreator/gwb-shell` 取。文件一律带 `.tpl` 后缀，占位符只有 `{{name}}`、`{{title}}`、`{{pkg}}`、`{{pkgName}}`、`{{cssPrefix}}`、`{{kernelVersion}}`、`{{docsBlock}}` 七个，`{{kernelVersion}}` 填运行命令的那个 home 的内核版本号的 x.y.z 三段，生成 peer 里内核包的范围 `^x.y.z`。模板也是结构体检规则的正本，两者由往返测试保证一致（[结构体检](/docs/devkit/structure#规则与模板的一致模板是唯一正本)）。
 
 ## 依赖
 
@@ -181,7 +184,7 @@ peer 里内核包的检查：
 | git | `devkit.release` 查仓根工作区干不干净 | 查不出也拒发 |
 | 团队源（gitea 个人源），scope 路由写在用户级 `~/.npmrc` | 发开发版与正式版、查已发的版本、往新 home 里装内核包、cordis 与基础插件 | 发版与安装失败 |
 | cordis 的 fiber 与 registry 结构（`cordis` 4.0.0-rc.9） | `devkit.services` / `devkit.capabilities` 读服务表 | 回空表加 `note` 与 `saw` 说明看到了什么，不报错 |
-| 词汇表包 `@godcreator/gwb-plugin-api` | `GwbContext`、`GwbKernelApi` 的类型 | 只在编译时用 |
+| 内核包 `@godcreator/gwb-kernel-desktop` 包根导出的类型（peer 里写的就是它） | `GwbContext`、`GwbKernelApi` 的类型 | 只在编译时用 |
 
 {/* has file="../plugins/devkit/src/index.ts" text="export const inject = ['gwbCommands']" */}
 

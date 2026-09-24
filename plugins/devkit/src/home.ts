@@ -267,11 +267,6 @@ export const BASE_PLUGINS: ReadonlyArray<{ id: string; pkg: string }> = [
   { id: 'baseui', pkg: '@godcreator/gwb-baseui' },
 ] as const
 
-/** 不是插件（不进 cordis.yml），但必须是 home 的直接依赖 */
-export const BASE_SHARED: readonly string[] = [
-  '@godcreator/gwb-plugin-api',
-] as const
-
 /** 基础插件的 cordis.yml 内容 */
 export function baseYaml(): string {
   return BASE_PLUGINS.map((p) => `- id: ${p.id}\n  name: '${p.pkg}'`).join('\n') + '\n'
@@ -294,9 +289,9 @@ export function cordisInstallPlan(home: string, cordisVersion: string, pnpm: str
   return pnpmAddPlan(home, ['--save-exact', `cordis@${cordisVersion}`], pnpm)
 }
 
-/** 装基础插件与 BASE_SHARED：不写版本，取源上的 latest，清单里写 `^` 范围 */
+/** 装基础插件：不写版本，取源上的 latest，清单里写 `^` 范围。home 里除了内核包与 cordis 只装插件 */
 export function baseInstallPlan(home: string, pnpm: string): RunPlan {
-  return pnpmAddPlan(home, [...BASE_PLUGINS.map((p) => p.pkg), ...BASE_SHARED], pnpm)
+  return pnpmAddPlan(home, BASE_PLUGINS.map((p) => p.pkg), pnpm)
 }
 
 /** 装包（内核包、cordis、基础插件各一次）的超时 */

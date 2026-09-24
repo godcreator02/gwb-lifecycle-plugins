@@ -1,4 +1,4 @@
-import type { GwbResult } from '@godcreator/gwb-plugin-api'
+import type { GwbResult } from '@godcreator/gwb-kernel-desktop'
 import { readNpmrc, writeNpmrc } from './home.js'
 import { searchRegistry } from './registry.js'
 import { mergeScoped, type SearchRow } from './search.js'
