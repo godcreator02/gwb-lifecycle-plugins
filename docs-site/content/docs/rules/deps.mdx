@@ -86,9 +86,7 @@ export function apply(ctx: Context) {
 
 ## 这个仓里还没照做的
 
-devkit 插件自己的清单把词汇表包和 `gwb-shell` 写成了 peer：
-
-{/* ref file="../plugins/devkit/package.json" lines="35-38" */}
+devkit 与插件管理两个插件在 `skipLibCheck: false` 下类型检查不过：词汇表包 `@godcreator/gwb-plugin-api` 的 d.ts 引用了 `HTMLElement`，自己没有声明 DOM 类型库，报 TS2304。`devkit.release` 的发版前检查会因此拒发这两个插件，要等词汇表包补上声明、发了新版再发。
 
 ## 为什么
 
