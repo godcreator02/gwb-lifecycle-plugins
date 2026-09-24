@@ -139,16 +139,16 @@ function devDependencyIssue(range: string, registryInfo: RegistryInfo): { kind: 
     return { kind: 'loose-dev-pin', detail: `dev 版本既不是精确号也不是 ^ 范围：${range}` }
   }
   if (registryInfo.versions.length === 0) {
-    return { kind: 'dead-pin', detail: `钉 ${testedFloor}，源上没有这个包——装必炸` }
+    return { kind: 'dead-pin', detail: `写的是 ${testedFloor}，源上没有这个包——安装会失败` }
   }
   if (!registryInfo.versions.includes(testedFloor)) {
-    return { kind: 'dead-pin', detail: `钉 ${testedFloor}，源上只有 ${registryInfo.versions.join('、')}——装必炸` }
+    return { kind: 'dead-pin', detail: `写的是 ${testedFloor}，源上只有 ${registryInfo.versions.join('、')}——安装会失败` }
   }
   if (registryInfo.latest === undefined || compareVersions(testedFloor, registryInfo.latest) >= 0) return undefined
   if (inCaret(testedFloor, registryInfo.latest)) {
-    return { kind: 'behind', detail: `钉 ${testedFloor}，源上最新 ${registryInfo.latest}，还在 ^${testedFloor} 范围内——无需动作，对上游 semver 的信任就是范围声明的含义` }
+    return { kind: 'behind', detail: `写的是 ${testedFloor}，源上最新 ${registryInfo.latest}，还在 ^${testedFloor} 范围内——不用处理，范围声明的意思就是信任上游的 semver` }
   }
-  return { kind: 'out-of-range', detail: `钉 ${testedFloor}，源上最新 ${registryInfo.latest} 已出 ^${testedFloor} 范围——上游出了破坏版，必须追：先适配代码，再把 dev 升上去` }
+  return { kind: 'out-of-range', detail: `写的是 ${testedFloor}，源上最新 ${registryInfo.latest} 已出 ^${testedFloor} 范围——上游发了破坏性版本，必须追：先适配代码，再把 dev 升上去` }
 }
 
 function peerNotCordisDetail(pkg: string, range: string): string {
