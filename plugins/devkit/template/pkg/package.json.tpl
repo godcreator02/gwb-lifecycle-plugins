@@ -10,7 +10,8 @@
   },
   "files": ["dist", "src"],
   "gwb": {
-    "title": "{{title}}"
+    "title": "{{title}}",
+    "testedKernel": "{{testedKernel}}"
   },
   "keywords": ["gwb", "gwb-plugin"],
   "//repository": "发到 gitea 后补上这一条：{ type: git, url: https://git.tianshen02.online:28377/godcreator/<仓>.git }——gitea 发布时读它把包链到仓（2026-09-18 实测：整包上链、跨 owner 也解析）",

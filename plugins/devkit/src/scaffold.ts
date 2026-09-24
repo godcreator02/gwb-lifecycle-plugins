@@ -45,6 +45,8 @@ export interface ScaffoldInput {
   docs?: boolean
   /** 文档站端口。不给就由站件的 `docs-site.create` 自己挑（扫邻居已占的，从 4310 起找空位） */
   port?: number
+  /** 运行 `devkit.scaffold` 的那个内核的版本号，写进生成的 `gwb.testedKernel` */
+  testedKernel: string
 }
 
 export interface ScaffoldPlan {
@@ -66,6 +68,8 @@ export interface ScaffoldPlan {
   docs: boolean
   /** 站端口，没指定就是 undefined（由站件挑，本包不猜一个写进 README） */
   port: number | undefined
+  /** 写进生成的 `gwb.testedKernel` 的内核版本号 */
+  testedKernel: string
 }
 
 /** 往既有薄壳仓加一件的入参 */
@@ -73,6 +77,8 @@ export interface ScaffoldPluginInput {
   name: string
   repo: string
   title?: string
+  /** 运行 `devkit.scaffold.plugin` 的那个内核的版本号，写进生成的 `gwb.testedKernel` */
+  testedKernel: string
 }
 
 /** 加一件的计划。派生规则与 `ScaffoldPlan` 同一套，dir 直接指到件包落点 */
@@ -89,6 +95,8 @@ export interface ScaffoldPluginPlan {
   repoDir: string
   /** 件包落点：`<repo>/plugins/<短名>` */
   dir: string
+  /** 写进生成的 `gwb.testedKernel` 的内核版本号 */
+  testedKernel: string
 }
 
 /** 一份渲染好的文件：相对仓根的路径（已脱 .tpl、已按区落到该落的地方）+ 正文 */
@@ -139,6 +147,7 @@ export function planScaffold(input: ScaffoldInput): ScaffoldPlan {
     dir,
     docs: input.docs !== false,
     port,
+    testedKernel: input.testedKernel,
   }
 }
 
@@ -174,6 +183,7 @@ export function planScaffoldPlugin(input: ScaffoldPluginInput): ScaffoldPluginPl
     pluginName: `gwb-${name}`,
     repoDir,
     dir: path.join(repoDir, 'plugins', name),
+    testedKernel: input.testedKernel,
   }
 }
 
@@ -224,9 +234,10 @@ interface Placeholdable {
   title: string
   pkg: string
   pluginName: string
+  testedKernel: string
 }
 
-/** 前五个占位符的值。`{{docsBlock}}` 只有仓半的 README 用，加件那趟不建站、不掺和 */
+/** 除 `{{docsBlock}}` 以外六个占位符的值。`{{docsBlock}}` 只有仓根的 README 用；加插件不建站，用不到它 */
 function corePlaceholders(plan: Placeholdable): Record<string, string> {
   return {
     name: plan.name,
@@ -236,10 +247,11 @@ function corePlaceholders(plan: Placeholdable): Record<string, string> {
     // 样式类前缀：短名剔除非小写字母。Tailwind 4 的 prefix() 只收 a-z，短名里的连字符与数字
     // 都会被当场拒（build 阶段才炸，check 全绿——探针 2026-09-15 实测）；连字符版只做包名与命令名
     cssPrefix: plan.name.replace(/[^a-z]/g, ''),
+    testedKernel: plan.testedKernel,
   }
 }
 
-/** 占位符表（全套六个，建仓用）。模板里写 `{{name}}` 这种，替换是纯字符串替换，不做转义 */
+/** 占位符表（全套七个，建仓用）。模板里写 `{{name}}` 这种，替换是纯字符串替换，不做转义 */
 export function placeholders(plan: ScaffoldPlan): Record<string, string> {
   return { ...corePlaceholders(plan), docsBlock: docsBlock(plan) }
 }

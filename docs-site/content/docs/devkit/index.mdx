@@ -105,14 +105,14 @@ description: 开发套件是一个普通的 gwb 插件，把「在一个新文�
 
 ### 模板
 
-包根的 `template/` 是给别的仓用的骨架，只有 `devkit.scaffold` 与 `devkit.scaffold.plugin` 读它：`template/repo/` 生成仓根（`package.json`、`pnpm-workspace.yaml`、`README.md`、`.gitignore`），`template/pkg/` 生成插件包（源码、测试、tsconfig、vitest、oxlint、构建脚本）。文件一律带 `.tpl` 后缀，占位符只有 `{{name}}`、`{{title}}`、`{{pkg}}`、`{{pkgName}}`、`{{cssPrefix}}`、`{{docsBlock}}` 六个。模板也是结构体检规则的正本，两者由往返测试保证一致（[结构体检](/docs/devkit/structure#规则与模板的一致模板是唯一正本)）。生成的插件包里的两份测试守卫来自同仓的 [repo-kit](/docs/repo-kit)。
+包根的 `template/` 是给别的仓用的骨架，只有 `devkit.scaffold` 与 `devkit.scaffold.plugin` 读它：`template/repo/` 生成仓根（`package.json`、`pnpm-workspace.yaml`、`README.md`、`.gitignore`），`template/pkg/` 生成插件包（源码、测试、tsconfig、vitest、oxlint、构建脚本）。文件一律带 `.tpl` 后缀，占位符只有 `{{name}}`、`{{title}}`、`{{pkg}}`、`{{pkgName}}`、`{{cssPrefix}}`、`{{testedKernel}}`、`{{docsBlock}}` 七个，`{{testedKernel}}` 填运行命令的那个 home 的内核版本号。模板也是结构体检规则的正本，两者由往返测试保证一致（[结构体检](/docs/devkit/structure#规则与模板的一致模板是唯一正本)）。生成的插件包里的两份测试守卫来自同仓的 [repo-kit](/docs/repo-kit)。
 
 ## 依赖
 
 | 依赖 | 用来做什么 | 缺了会怎样 |
 | --- | --- | --- |
 | 命令插件的服务 `gwbCommands`（`@godcreator/gwb-commands`，写在 `export const inject`） | 登记 12 条命令；按名字查找并调用别的插件的命令 | 插件不加载：cordis 等到这个服务出现才调用 `apply`。这是唯一的必需依赖 |
-| 内核服务 `gwbKernel` 的 `dataDir` 与 `version` | `dataDir` 推出 home 根目录（上两级再接 `homes`）与本插件自己所在的 home；`version` 用于发版前的 `gwb.testedKernel` 检查 | 用到它的命令抛错「ctx.gwbKernel 不在」 |
+| 内核服务 `gwbKernel` 的 `dataDir` 与 `version` | `dataDir` 推出 home 根目录（上两级再接 `homes`）与本插件自己所在的 home；`version` 用于发版前的 `gwb.testedKernel` 检查，也是建仓与加插件时写进新包的 `gwb.testedKernel` | 用到它的命令抛错「ctx.gwbKernel 不在」 |
 | 外壳插件的服务 `gwbShell`（局部注入） | `describeSelf` 报显示名「开发套件」与图标 | 插件清单里没有显示名，别的不受影响 |
 | node 命令行插件的服务 `gwbNodeCli`（局部注入） | 把 `bin/cdp.mjs` 登记成 `devkit.cdp` | 没有 `devkit.cdp` 命令；`devkit.dev` 不受影响，它自己启动 `bin/cdp.mjs` 子进程 |
 | 说明书插件的服务 `gwbSkills`（局部注入） | 登记 `skills/` 下三份说明书 | agent 读不到这三份说明书，命令照常 |

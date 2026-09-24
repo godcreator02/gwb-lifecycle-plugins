@@ -37,7 +37,7 @@ description: 连接建仓模板 template/ 与 devkit.audit-structure 的规则�
 ## 不负责的事
 
 - 结构体检不管依赖版本与 peer（`devkit.audit-deps` 与 `devkit.release`），不管自述三格（[repo-kit](/docs/seams/repo-kit)），不管构建产物，也不查 `gwb.testedKernel`
-- 模板不保证生成的仓能直接 `devkit.release`：模板没写 `gwb.testedKernel`（见[测过哪个内核](/docs/seams/tested-kernel)）
+- 模板不保证生成的仓能直接 `devkit.release`：依赖版本过不过得了发版前检查，要看发版那时源上的 latest；`gwb.testedKernel` 模板写的是建仓时运行命令的内核版本（见[测过哪个内核](/docs/seams/tested-kernel)）
 - 往返测试不带文档站（`docs: false`），结构体检本来也不进 `docs-site/`
 
 ## 测试

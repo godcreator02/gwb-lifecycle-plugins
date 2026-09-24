@@ -53,13 +53,13 @@ repo-kit 指 `@godcreator/gwb-repo-kit`：插件守卫查插件名与包名对�
 | 谁提供接口谁定义类型；调用方不手写、不用 `as` 强转成提供方的类型 | [交互](/docs/rules/interaction) | 没有工具检查 | — |
 | 插件的数据目录只由它自己读写 | [交互](/docs/rules/interaction) | 没有工具检查 | — |
 | 自己启动或创建的一切，卸载时清理掉，并返回 promise | [卸载清理](/docs/rules/dispose) | 没有工具检查 | — |
-| 插件包写 `gwb.testedKernel`，和运行中的内核在同一条版本线上 | [测过的内核](/docs/rules/tested-kernel) | `devkit.release` 拒没写、写的不是版本号、不在同一条版本线；`plugin-manager.list` 按包报 `kernelUntested` | 模板生成的 `package.json` 里还没有这个字段 |
+| 插件包写 `gwb.testedKernel`，和运行中的内核在同一条版本线上 | [测过的内核](/docs/rules/tested-kernel) | `devkit.release` 拒没写、写的不是版本号、不在同一条版本线；`plugin-manager.list` 按包报 `kernelUntested` | — |
 | 0.x 里只在破坏契约时升 x，其余升 y；0.0.x 先升到 0.1.0；同一个号不重发 | 说明书 `gwb-release` | `devkit.release` 拒 0.0.x 与源上已有的号；升哪一位没有工具检查 | — |
 
 ## 这个仓自己还没照做的
 
 插件管理（`plugins/plugin-manager/`）按上面的规矩写：清单里没有 peer，服务只表示「插件管理装了」，上面没有方法。devkit 插件和它的模板还有几处是旧写法，各页「还没照做的」一节引了对应的代码：
 
-- 模板的 `package.json.tpl` 把词汇表包、`gwb-commands`、`gwb-shell` 和已经不再发新版的 `gwb-tokens`、`gwb-shared-react` 写成了 peer，也没有 `gwb.testedKernel`
+- 模板的 `package.json.tpl` 把词汇表包、`gwb-commands`、`gwb-shell` 和已经不再发新版的 `gwb-tokens`、`gwb-shared-react` 写成了 peer
 - 模板的 `build.ts.tpl` 手抄外置名单，`styles.css.tpl` 从 `gwb-tokens` 引 `theme.reference.css`，产物测试按旧规矩放行词汇表包
 - devkit 自己的清单把词汇表包和 `gwb-shell` 写成 peer，`dependencies` 里的 `yaml` 在源码里没有用到

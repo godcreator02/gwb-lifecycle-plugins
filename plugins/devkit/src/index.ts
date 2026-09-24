@@ -686,6 +686,7 @@ export function apply(ctx: GwbContext): void {
         // 改口，所以在渲染之前就把它定下来
         const wantDocs = args.docs !== false
         const canDocs = wantDocs && hasCommand(CREATE_SITE_COMMAND)
+        const testedKernel = requireKernel(ctx).version
         let plan
         try {
           plan = planScaffold({
@@ -694,6 +695,7 @@ export function apply(ctx: GwbContext): void {
             ...(typeof args.title === 'string' && args.title.trim() !== '' ? { title: args.title } : {}),
             docs: canDocs,
             ...(typeof args.port === 'number' ? { port: args.port } : {}),
+            testedKernel,
           })
         } catch (err) {
           return { ok: false, error: `${err instanceof Error ? err.message : String(err)}\n\n${SCAFFOLD_USAGE}` }
@@ -750,12 +752,14 @@ export function apply(ctx: GwbContext): void {
         if (templateRoot === null || !fs.existsSync(path.join(templateRoot, 'pkg'))) {
           return { ok: false, error: '包内 template/pkg/ 不在——这一版没把它带进包（files 白名单漏了），换一版' }
         }
+        const testedKernel = requireKernel(ctx).version
         let plan
         try {
           plan = planScaffoldPlugin({
             name: typeof args.name === 'string' ? args.name : '',
             repo: typeof args.repo === 'string' ? args.repo : '',
             ...(typeof args.title === 'string' && args.title.trim() !== '' ? { title: args.title } : {}),
+            testedKernel,
           })
         } catch (err) {
           return { ok: false, error: `${err instanceof Error ? err.message : String(err)}\n\n${SCAFFOLD_PLUGIN_USAGE}` }

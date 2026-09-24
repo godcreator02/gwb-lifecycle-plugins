@@ -44,9 +44,9 @@ devkit 保证：插件包的 `gwb.testedKernel` 没写、不合法、不在当�
 
 插件管理的 `loader.test.ts` 还把 loader、include、cordis 三个 `devDependencies` 的版本与 `gwb.testedKernel` 那个内核对齐，见[条目树 loader](/docs/seams/entry-tree)。
 
-建仓模板的 `template/pkg/package.json.tpl` 里没有 `gwb.testedKernel`，而模板生成的包 `keywords` 含 `gwb-plugin`：新仓第一次 `devkit.release` 会因为没写这个字段被拒；结构体检不查这个字段。
+建仓模板的 `template/pkg/package.json.tpl` 写 `gwb.testedKernel`，值是占位符 `{{testedKernel}}`：`devkit.scaffold` 与 `devkit.scaffold.plugin` 填入运行命令的那个 home 的 `gwbKernel.version`，所以新仓在同一个内核上 `devkit.release` 时过得了这一项检查；结构体检不查这个字段。
 
-{/* ref file="../plugins/devkit/template/pkg/package.json.tpl" lines="11-15" */}
+{/* ref file="../plugins/devkit/template/pkg/package.json.tpl" lines="12-15" */}
 
 ## 不负责的事
 

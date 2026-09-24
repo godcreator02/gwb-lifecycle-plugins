@@ -33,8 +33,8 @@ description: 写或改 gwb 插件时读——建仓、写插件的红线、改�
 `gwb-plugin` 这个关键词筛，**不按名字补**，没写这个关键词的包不进表。这个关键词只有 registry 的搜索结果
 （`/-/v1/search`）带着，packument 里连 keywords 一起裁掉了，所以判据只在 registry 搜索这一处读得到。
 包名与 scope 因此是自由的，第三方可以用自己的 scope 发插件。清单里另有两项：`repository` 填 gitea 上那个仓的
-地址（模板里留了注释），发布时 gitea 读它把包关联到仓；`gwb.testedKernel` 写这个插件验过的内核版本，模板还没带，
-验过之后自己补上（见红线 7）。
+地址（模板里留了注释），发布时 gitea 读它把包关联到仓；`gwb.testedKernel` 写这个插件验过的内核版本，模板写的是
+建仓时运行命令的那个内核的版本号，换到别的内核上验过之后再改（见红线 7）。
 
 1. **建仓**：`devkit.scaffold {"name":"<kebab 短名>","dir":"<还不存在的绝对路径>","title":"<显示名>"}`。
    默认连文档站一起建（`docs-site.create` 再 `docfirst.attach`，两条连着跑）。回执的

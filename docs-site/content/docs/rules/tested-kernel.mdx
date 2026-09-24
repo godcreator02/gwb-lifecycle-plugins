@@ -43,11 +43,11 @@ devkit 自己的清单：
 
 没验就改这个字段，等于撒谎：它是「在这个内核上验过」的声明，不是「兼容这个内核」的愿望。
 
-## 这个仓里还没照做的
+## 新插件的初始值
 
-`devkit.scaffold` 生成的 `package.json` 里还没有 `gwb.testedKernel`，新插件第一次发版会被拒，要先在验过之后补上：
+`devkit.scaffold` 与 `devkit.scaffold.plugin` 生成的 `package.json` 把 `gwb.testedKernel` 写成运行这条命令的那个 home 的内核版本号（模板占位符 `{{testedKernel}}`）：新插件在同一台机器的隔离 home 里验证，用的就是这个内核。换到别的内核上验过之后再改这个值：
 
-{/* ref file="../plugins/devkit/template/pkg/package.json.tpl" lines="12-14" */}
+{/* ref file="../plugins/devkit/template/pkg/package.json.tpl" lines="12-15" */}
 
 ## 为什么
 

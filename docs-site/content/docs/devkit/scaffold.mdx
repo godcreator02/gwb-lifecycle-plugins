@@ -27,9 +27,9 @@ workspace 仓：仓根是一个不发布的 private 包（`pnpm build` / `pnpm c
 
 五个类型，两条流程：建仓（参数 `ScaffoldInput` → 计划 `ScaffoldPlan` → 渲染好的 `RenderedFile[]`）、加插件（`ScaffoldPluginInput` → `ScaffoldPluginPlan` → 同样的 `RenderedFile[]`）。
 
-{/* ref file="../plugins/devkit/src/scaffold.ts" lines="40-98" */}
+{/* ref file="../plugins/devkit/src/scaffold.ts" lines="40-106" */}
 
-`ScaffoldPlan` 与 `ScaffoldPluginPlan` 算出来之后，后面每一步只看计划，不再回头看参数。
+`ScaffoldPlan` 与 `ScaffoldPluginPlan` 算出来之后，后面每一步只看计划，不再回头看参数。两种参数里的 `testedKernel` 不是命令参数：`src/index.ts` 从运行中的内核服务取 `gwbKernel.version` 传进来，渲染时填进生成的 `package.json` 的 `gwb.testedKernel`。
 
 ## 提供的接口
 
@@ -37,13 +37,13 @@ workspace 仓：仓根是一个不发布的 private 包（`pnpm build` / `pnpm c
 
 模块导出一串纯函数，`src/index.ts` 按顺序调用：
 
-{/* ref file="../plugins/devkit/src/scaffold.ts" lines="120-143" */}
+{/* ref file="../plugins/devkit/src/scaffold.ts" lines="128-152" */}
 
 校验、派生、转成绝对路径、填缺省值都在这一处做完，没有读写磁盘。抛出的每一句都写明该怎么改。
 
 加插件的计划**要读磁盘**（建仓的不读）：`repo` 必须已经是 workspace 仓才收。
 
-{/* ref file="../plugins/devkit/src/scaffold.ts" lines="150-178" */}
+{/* ref file="../plugins/devkit/src/scaffold.ts" lines="159-188" */}
 
 **整套模板先在内存里渲染完再写磁盘。** 占位符出错是这条流程上最可能的失败，而目标目录一旦开始写就没有干净的回滚点。
 
@@ -90,7 +90,7 @@ workspace 仓：仓根是一个不发布的 private 包（`pnpm build` / `pnpm c
 
 给一份参数，看抛什么、算出什么；给一个临时目录，看磁盘上写下了什么。整个过程不启动进程、不开窗口，`tests/scaffold.test.ts` 直接测这几件事：
 
-短名的正则会不会放过 `x--` 这种结尾；`planScaffold` 的派生与缺省值；`planScaffoldPlugin` 对不存在的 repo、`pnpm-workspace.yaml` 里没有 `plugins/` 那条（旧布局仓）的拒绝；`docsBlock` 在建站与不建站时写的是两段不同的话；`nextSteps` / `nextStepsPlugin` 各种情况写了什么、`packages` 参数有没有带上；认不出的占位符真的会抛错；`.tpl` 后缀与两部分的去向（`landRel`）对不对；包内 `template/` 里每个文件都声明了属于哪部分；在临时 workspace 仓里真的生成一个 `plugins/<短名>/`；`writeRepo` 对已存在的目录真的拒绝。
+短名的正则会不会放过 `x--` 这种结尾；`planScaffold` 的派生与缺省值；`planScaffoldPlugin` 对不存在的 repo、`pnpm-workspace.yaml` 里没有 `plugins/` 那条（旧布局仓）的拒绝；`docsBlock` 在建站与不建站时写的是两段不同的话；`nextSteps` / `nextStepsPlugin` 各种情况写了什么、`packages` 参数有没有带上；生成的 `package.json` 写了 `gwb.testedKernel` 且过得了发版前检查的比对；认不出的占位符真的会抛错；`.tpl` 后缀与两部分的去向（`landRel`）对不对；包内 `template/` 里每个文件都声明了属于哪部分；在临时 workspace 仓里真的生成一个 `plugins/<短名>/`；`writeRepo` 对已存在的目录真的拒绝。
 
 模板文件清单那一条最容易被忽略：`files` 白名单漏掉 `template`，包照样发得出去、也装得上，直到有人调 `devkit.scaffold` 才报「包内 template/ 不在」。
 

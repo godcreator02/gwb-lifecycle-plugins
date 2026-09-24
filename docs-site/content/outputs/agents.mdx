@@ -124,7 +124,7 @@ findings 里那条 info 按实际文件名列好了 git mv 清单；改已有的
 改模板里的版本号之前先用 `pnpm view <包> dist-tags.latest` 查。模板的起始版本号是 0.1.0（0.0.x 过不了发版前检查）。
 模板生成的两份测试调用 repo-kit，改 repo-kit 的导出或用例时模板里的登记代码与版本号一起改。
 
-**占位符就这六个**：`{{name}}`、`{{title}}`、`{{pkg}}`、`{{pkgName}}`、`{{cssPrefix}}`、`{{docsBlock}}`。
+**占位符就这七个**：`{{name}}`、`{{title}}`、`{{pkg}}`、`{{pkgName}}`、`{{cssPrefix}}`、`{{testedKernel}}`（运行建仓命令的内核版本号）、`{{docsBlock}}`。
 **认不出的占位符直接抛错**——给模板加了新占位符，`src/scaffold.ts` 的 `placeholders()`
 必须同时加一条，否则下一次建仓整个失败（而不是留一个 `{{typo}}` 写进别人的 package.json 里）。
 
