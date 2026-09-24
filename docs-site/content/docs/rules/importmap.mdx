@@ -1,6 +1,6 @@
 ---
 title: 页面代码与 importmap
-description: importmap 只放整个页面必须只有一份的运行时代码，提供方只能是插件；浏览器侧代码怎么外置、别的依赖怎么打包
+description: importmap 只放整个页面必须只有一份的运行时代码，react 由内核包提供，其余提供方只能是插件；浏览器侧代码怎么外置、别的依赖怎么打包
 ---
 
 # 页面代码与 importmap
@@ -9,7 +9,7 @@ description: importmap 只放整个页面必须只有一份的运行时代码，
 
 ## 规则
 
-**importmap 只放整个页面必须只有一份的运行时代码**，现在就是 react 的四个包名（`react`、`react/jsx-runtime`、`react-dom`、`react-dom/client`）；提供方只能是在 `cordis.yml` 里有条目的插件。
+**importmap 只放整个页面必须只有一份的运行时代码**，现在就是 react 的四个包名（`react`、`react/jsx-runtime`、`react-dom`、`react-dom/client`），由内核包 `@godcreator/gwb-kernel-desktop` 0.4.1 起提供；别的名字的提供方只能是在 `cordis.yml` 里有条目的插件。
 
 ## 怎么判
 
@@ -17,17 +17,18 @@ description: importmap 只放整个页面必须只有一份的运行时代码，
 
 进了 importmap 之后：
 
-- **提供方只能是有条目的插件**，在自己清单的 `gwb.shared` 里声明；库不声明 `gwb.shared`
+- **react 的四个包名由内核包提供**：内核包在自己清单的 `gwb.shared` 里声明它们，计算 importmap 时内核优先，插件声明这几个名字一律被忽略
+- **别的名字的提供方只能是有条目的插件**，在自己清单的 `gwb.shared` 里声明；库不声明 `gwb.shared`
 - **一个包名只有一个提供方**：两个插件声明同一个名字，内核计算 importmap 时全部拒绝
-- **外置名单只从提供方读**：外置名单是构建时不打包、留给 importmap 提供的包名清单。提供方在自己清单的 `gwb.shared` 里声明这些包名，各插件的构建脚本从装好的提供方包里读出来，不手抄
-- **共享的运行时升大版本，是提供方的破坏性版本**：react 升大版本就是 shell 升 x
+- **外置名单只从提供方读**：外置名单是构建时不打包、留给 importmap 提供的包名清单。提供方在自己清单的 `gwb.shared` 里声明这些包名，各插件的构建脚本从装好的提供方包里读出来，不手抄。react 的提供方是内核包：插件 peer 里写了它，pnpm 把它装进插件的 `node_modules`，构建脚本从那里读
+- **共享的运行时升大版本，是提供方的破坏性版本**：react 升大版本就是内核包升 x
 - **插件之间共享 React context**，只能通过 importmap 的提供方，或者通过 props 传；各插件自带的库里的 context 在插件之间不通
 
 用到 importmap 里名字的插件，把那几个包写进 dev（见[依赖怎么写](/docs/rules/deps)）：构建时外置，运行时由页面解析。浏览器侧代码里的其余依赖一律打包进构建产物，外置成包名而 importmap 里没有这个名字，运行时就是「Failed to resolve module specifier」。
 
 ## 例子：模板的浏览器侧构建
 
-外壳（`@godcreator/gwb-shell`）没有导出返回外置名单的函数，它在清单的 `gwb.shared` 里声明 importmap 的包名。模板的 `build.ts` 构建时从装好的外壳包里读出 `gwb.shared` 的键，当作外置名单；读不到就报错，不回退到手写的名单：
+内核包没有导出返回外置名单的函数，它在清单的 `gwb.shared` 里声明 react 的四个包名。模板的 `build.ts` 构建时从装好的内核包里读出 `gwb.shared` 的键，当作外置名单；读不到（装的内核包早于 0.4.1）就报错，不回退到手写的名单：
 
 {/* ref file="../plugins/devkit/template/pkg/build.ts.tpl" lines="12-31" */}
 
@@ -41,4 +42,4 @@ description: importmap 只放整个页面必须只有一份的运行时代码，
 
 ## 为什么
 
-importmap 是页面级的运行时服务，放什么由提供方声明、由内核在页面加载时计算。提供方限定为插件，提供方就一定是 home 里有条目的包、有人管它的升级；库没有条目，能进 importmap 只是因为它碰巧被装成了 home 的直接依赖。
+importmap 是页面级的运行时服务，放什么由提供方声明、由内核在页面加载时计算。react 是全生态每个带界面的插件都用的运行时，和 cordis 一样由宿主给：升 react 就是升内核，不用再约定「谁来提供 react」。别的名字的提供方限定为插件，提供方就一定是 home 里有条目的包、有人管它的升级；库没有条目，能进 importmap 只是因为它碰巧被装成了 home 的直接依赖。

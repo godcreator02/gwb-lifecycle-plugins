@@ -62,6 +62,6 @@ description: 写新插件、改插件、在隔离 home 里验证改动时读；�
 * **`gwb.provides` 的键**：服务按服务名，import 入口按 import 时写的说明符（主入口写包名，子路径写 `包名/子路径`）；键两种都不是、源码提供的服务没写、`summary` 或 `usage` 为空，`devkit.release` 都拒
 * **说明书跟它描述的代码同仓同提交**，随那个包发布；每个插件只登记自己的说明书
 * **文档站的 README**：第一次在站目录 `pnpm doc:render` 之前，把手写 README 里要留的内容搬进 `content/outputs/readme.mdx`，render 会整份覆盖 README
-* **验证的必须是这一版**：改了 importmap 的提供方（带 `gwb.shared` 的插件，如外壳），它也要经 `devkit.dev` 装进同一个隔离 home；改了内核同样用 `devkit.dev`：`dir` 给内核仓根、`packages` 给 `["apps/desktop"]`，它把内核开发版连同内核要的 `cordis` 装进隔离 home，再重启那个 home（主进程里的内核换不掉），回执 `kernel.version` 就是页面上运行的内核版本；没发过内核开发版的隔离 home 里运行的是 `devkit.home.new` 装进去的内核包
+* **验证的必须是这一版**：改了 importmap 的提供方（react 的提供方是内核包，别的名字是带 `gwb.shared` 的插件），它也要经 `devkit.dev` 装进同一个隔离 home；改了内核同样用 `devkit.dev`：`dir` 给内核仓根、`packages` 给 `["apps/desktop"]`，它把内核开发版连同内核要的 `cordis` 装进隔离 home，再重启那个 home（主进程里的内核换不掉），回执 `kernel.version` 就是页面上运行的内核版本；没发过内核开发版的隔离 home 里运行的是 `devkit.home.new` 装进去的内核包
 * **日志**：`%APPDATA%\gwb-kernel\homes\<home 名>\gwb.log`，内核、插件、页面三方的日志都在这一个文件里；哪些条目在运行看 `plugin-manager.list` 的 `active`
 * **home 里的包只通过安装来换**：`devkit.dev` 每次发新的开发版号再装。覆盖 `node_modules` 里的 `dist/` 会改到 pnpm 全局存储里的同一份文件，node 侧也换不掉

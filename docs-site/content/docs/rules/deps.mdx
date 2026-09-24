@@ -25,7 +25,7 @@ description: 按「运行时这份代码由谁提供」决定写 peer、dev、de
 | 宿主提供、插件按值 import（`extends Service` 这类） | peer `cordis`，dev 里也写一份给本地构建和类型检查 |
 | 内核（不 import，只声明兼容哪些内核） | peer `@godcreator/gwb-kernel-desktop`，范围 `^<验证时的内核版本号>` |
 | 运行环境自带（node 内置模块、`electron`） | 不声明 |
-| 页面通过 importmap 提供（react 的四个包名） | dev；浏览器侧代码构建时外置 |
+| 页面通过 importmap 提供（react 的四个包名，由内核包提供） | dev；浏览器侧代码构建时外置 |
 | 另一个插件 | dev，只取类型；运行时经 inject 和命令使用（见[插件之间怎么交互](/docs/rules/interaction)） |
 | 本插件运行时自己用的库、接口定义包 | dev；打包进构建产物，产物里不留它的包名 import |
 | 构建时才用到的输入（样式映射文件、tailwind 之类） | dev |
@@ -81,7 +81,7 @@ export function apply(ctx: Context) {
 
 {/* ref file="../plugins/devkit/template/pkg/package.json.tpl" lines="29-33" */}
 
-模板带的产物测试按上面两份名单查构建产物：node 侧放行 node 内置模块、`electron`、`cordis`；浏览器侧只放行外壳清单 `gwb.shared` 的键：
+模板带的产物测试按上面两份名单查构建产物：node 侧放行 node 内置模块、`electron`、`cordis`；浏览器侧只放行内核包清单 `gwb.shared` 的键：
 
 {/* ref file="../plugins/devkit/template/pkg/tests/artifact.test.ts.tpl" lines="20-35" */}
 

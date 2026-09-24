@@ -15,7 +15,7 @@
 - **浏览器侧**（`src/client/`）：窗格里显示「你好」和一个计数按钮。类名一律以 `{{cssPrefix}}:` 开头，样式只作用于本插件
   （cssPrefix 是短名去掉非小写字母，Tailwind 的 prefix 只收 a-z）；react 由页面的 importmap 提供（提供方是外壳），构建时不打包；
 - **自述**（`package.json` 的 description）：一句话说这个插件做什么；
-- **两份测试**：类名前缀、构建产物（node 侧的包名 import 只有 node 内置模块、`electron`、`cordis`，浏览器侧只有外壳 `gwb.shared` 里的名字）；
+- **两份测试**：类名前缀、构建产物（node 侧的包名 import 只有 node 内置模块、`electron`、`cordis`，浏览器侧只有内核包 `gwb.shared` 里的名字，也就是 react 的四个包名）；
 - tsconfig / vitest / oxlint 配置全在包内——这个包以后搬到别的仓，配置不用改。
 
 改成真插件：把窗格与 ping 换成你的东西，description 换成一句话说它做什么。

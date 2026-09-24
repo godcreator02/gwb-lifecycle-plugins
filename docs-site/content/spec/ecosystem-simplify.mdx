@@ -16,7 +16,7 @@ dev 依赖逐条对应、同一个事实在好几处重复抄写。人的原话�
 
 > 可以都改我觉得，就是保持简洁，除了必要的功能不增加多余的复杂度。我们现在就在重构，应该朝着最干净、最整洁的方向努力。
 
-随后逐条追问：「peer 和可选 peer 是不是完全可以退役」「不是 devdependencies 吗」，最后纠正到「件里的 cordis 打进包
+随后逐条追问：「peer 和可选 peer 是不是完全可以退役」「不是 devdependencies 吗」，最后纠正到「插件里的 cordis 打进包
 肯定不对啊，应该区分什么时候用peer什么时候不用啊」——由此定下本页第一节的依赖模型：**按「运行时这份代码由谁提供」
 决定写法**，其余各节都建立在它之上。
 
@@ -54,6 +54,11 @@ devkit 仓已经写下的几条判据（见文末「要改写的轨迹卡与红�
   全生态都用 React，react 由内核打包、importmap 由内核直接写这四个名字，机制整个删掉。页面上仍然要有 importmap，
   浏览器解析包名只能查它。代价：react 升级要重新打安装包；内核的准入判据要改写（今天写的是「内核不认识 react」）；
   第六节「外置名单只从 shell 的 `gwb.shared` 读」要换一个来源，内核不发 npm 包，插件构建时从哪里拿名单到第五期再定
+- **第五期提前做，做法有变**（同日，内核装进 home 之后）：内核重新发 npm 包、装在 home 里，react 升级就是升内核包，不用重打安装包。
+  内核包构建时把 react 打进 `dist/react/`，**在自己清单的 `gwb.shared` 里声明**四个包名，importmap 里内核优先、插件的同名声明忽略；
+  外置名单的来源就是这份清单（插件 peer 写了内核包，pnpm 装进插件的 `node_modules`），devkit 的发版检查与 `devkit.capabilities` 不用改。
+  `gwb.shared` 机制留给 block-note，等它按第三期撤掉声明后再删。人定内核与词汇表包升 0.4.1、外壳升 y（发的是 0.13.7）；
+  详见内核仓轨迹卡「react 收进内核」
 - **两份 cordis 改在内核仓讨论「内核装进 home」**：rc.9（内核）与 rc.10（home 里 pnpm 补装）并存，
   讨论过由内核在 Node 一侧做包名映射，最后改为讨论把内核作为 npm 包装进每个 home 的 `node_modules`、exe 只负责启动
   Electron——那样插件的 peer `cordis` 由 pnpm 解析到内核用的同一份，映射不必做，peer 也能检查内核版本。方案、代价与要推翻的
@@ -108,8 +113,8 @@ home**，再查看运行结果。registry 只放正式版。「写插件只有�
 ## 四、importmap 与页面边界
 
 **做法**。
-- importmap 放什么按[页面代码与 importmap](/docs/rules/importmap)：只放整页必须只有一份的运行时，今天是 shell 的 react 四个包名，
-  第五期改由内核提供。
+- importmap 放什么按[页面代码与 importmap](/docs/rules/importmap)：只放整页必须只有一份的运行时，今天是 react 的四个包名，
+  由内核包提供（第五期）。
   `@godcreator/block-note` 撤掉自己的 `gwb.shared`，块笔记系列插件把解析库各自打包进构建产物
 - importmap 只在页面发来 hello 消息时计算一次（页面本来就只注入一次），名字冲突就拒绝、只报一次
 - 只读状态页只在没有外壳时推送；日志的 warn / error 不再触发推送
@@ -139,14 +144,12 @@ home**，再查看运行结果。registry 只放正式版。「写插件只有�
 
 ## 六、共享的包名只有一个来源
 
-**做法**。页面一侧的构建产物外置哪些包名，只从提供方的 `gwb.shared` 读取：shell 导出一个构建期函数，各插件的 `build.ts`
-调用它，不再手抄 react 四个包名。
+**做法**。页面一侧的构建产物外置哪些包名，只从提供方的 `gwb.shared` 读取：react 的四个包名从装好的内核包清单读（第五期起内核包是
+react 的提供方），各插件的 `build.ts` 照模板读它，不再手抄。
 
-**归属**：shell（加一个子路径导出）；devkit 模板与各插件照此迁移。
+**归属**：devkit 模板（已改）；各插件照此迁移。
 
 **删掉**：十三份手抄的外置名单。
-
-第五期删掉 `gwb.shared` 之后这个来源不再存在，名单改从哪里取到第五期再定。
 
 ## 七、跨插件边界
 
@@ -246,7 +249,7 @@ promise，退出时可能丢数据。
 | bn-papers | 期望的契约版本 7 已落后于 8；运行时 import 论文插件的子路径；调用 bn-props 的命令；写盘队列不等待 | 交互、服务、卸载清理 |
 | 块笔记各插件 | 契约比对用等值判断且只警告；bn-single 自己拼路径读 bn-core 的数据目录 | 交互 |
 | block-note 库 | 自己声明 `gwb.shared` | importmap |
-| 各个带界面的插件 | 构建脚本手抄 react 四个包名（等 shell 提供构建期函数） | importmap |
+| 各个带界面的插件 | 构建脚本手抄 react 四个包名（改成照模板从内核包清单的 `gwb.shared` 读） | importmap |
 | plugin-manager、docs-site | 通过设置命令读其他插件的分区；docs-site 调用 `shell.panes` 命令，而服务上也有同名方法 | 服务 |
 | shell、unit-folder、node-cli | 服务上的读写方法与命令重复 | 服务 |
 | dsh | `dsh.power` 一条命令包含四种操作；`import { type X }` 留下空 import | 服务、依赖 |
@@ -262,10 +265,11 @@ promise，退出时可能丢数据。
 - [ ] `devkit.dev` / `home.new` 改为调用插件管理的统一入口；`INSTALL.md` 的首次安装插件集清单改为从 devkit 的正本来
 - [ ] default home 清单里的库与共享包清出去，只剩插件
 
-**第五期：react 改由内核提供，删掉 `gwb.shared`（第三期之后）**
+**第五期：react 改由内核提供（提前到第三期之前做，见「已决定」）；删掉 `gwb.shared` 留到第三期之后**
 
-- [ ] 定插件构建时外置名单的来源（替换第六节 shell 的构建期函数）
-- [ ] 内核打包 react 四个包，importmap 由内核直接写这四个名字；删掉扫描 `gwb.shared` 的代码与它的测试；内核准入判据改写，写轨迹卡；内核升 x
-- [ ] shell 不再带 react、不再声明 `gwb.shared`；`plugin-manager.shared` 命令随机制删掉
-- [ ] 带界面的插件按新来源外置 react，在装了新内核的隔离 home 里验证页面正常
-- [ ] 各仓现状页改写并引用代码；写轨迹卡；说明书（gwb-release、gwb-devkit、gwb-plugin-manager、gwb-shell）与 AGENTS 重新生成；删本页
+- [x] 定插件构建时外置名单的来源：内核包清单的 `gwb.shared`；devkit 模板的 `build.ts` 与产物测试改读它
+- [x] 内核打包 react 四个包，在自己清单的 `gwb.shared` 里声明、importmap 里内核优先；内核准入判据改写，写轨迹卡；内核升 0.4.1（人定）
+- [x] shell 不再带 react、不再声明 `gwb.shared`（0.13.7）
+- [ ] 带界面的插件按新来源外置 react：模板已改，外壳与基础界面在装了内核 0.4.1 的隔离 home 里验证过；其余插件随第三期迁移
+- [ ] block-note 撤掉声明之后删掉扫描 `gwb.shared` 的代码与它的测试、`plugin-manager.shared` 命令
+- [ ] 各仓现状页改写并引用代码（内核、界面插件、devkit 三仓已改）；说明书（gwb-release、gwb-devkit、gwb-plugin-manager、gwb-shell）与 AGENTS 重新生成；删本页

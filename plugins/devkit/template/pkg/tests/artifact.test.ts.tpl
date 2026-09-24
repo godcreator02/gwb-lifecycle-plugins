@@ -21,13 +21,13 @@ const CLIENT = 'client.js'
 /** node 侧产物里允许留下的包名 import：node 内置模块、electron、宿主提供的 cordis。别的插件与词汇表包只 import type，编译后整句消失 */
 const NODE_SIDE_ALLOWED = new Set(['electron', 'cordis'])
 const isNodeBuiltin = (spec: string): boolean => spec.startsWith('node:') || builtinModules.includes(spec)
-/** 浏览器侧产物里允许留下的包名 import：importmap 的提供方（外壳）在清单 gwb.shared 里声明的键 */
-function sharedNamesOfShell(): Set<string> {
-  const manifestPath = createRequire(import.meta.url).resolve('@godcreator/gwb-shell/package.json')
+/** 浏览器侧产物里允许留下的包名 import：react 的提供方（内核包）在清单 gwb.shared 里声明的键 */
+function sharedNamesOfKernel(): Set<string> {
+  const manifestPath = createRequire(import.meta.url).resolve('@godcreator/gwb-kernel-desktop/package.json')
   const manifest: unknown = JSON.parse(fs.readFileSync(manifestPath, 'utf8'))
   const gwb = isRecord(manifest) ? manifest['gwb'] : undefined
   const shared = isRecord(gwb) ? gwb['shared'] : undefined
-  if (!isRecord(shared)) throw new Error(`${manifestPath} 里没有 gwb.shared：装的外壳版本不提供 importmap`)
+  if (!isRecord(shared)) throw new Error(`${manifestPath} 里没有 gwb.shared：装的内核包版本不提供 react`)
   return new Set(Object.keys(shared))
 }
 function isRecord(value: unknown): value is Record<string, unknown> {
@@ -230,8 +230,8 @@ describe.skipIf(!built)('产物', () => {
     expect(bad).toEqual([])
   })
 
-  it('浏览器侧：包名 import 只有外壳 gwb.shared 里声明的名字——别的名字页面上解析不到', () => {
-    const shared = sharedNamesOfShell()
+  it('浏览器侧：包名 import 只有内核包 gwb.shared 里声明的名字——别的名字页面上解析不到', () => {
+    const shared = sharedNamesOfKernel()
     expect([...bareImportsOf([CLIENT])].filter((spec) => !shared.has(spec))).toEqual([])
   })
 
