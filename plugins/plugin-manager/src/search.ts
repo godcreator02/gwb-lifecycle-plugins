@@ -3,6 +3,8 @@
  * 带 name / version / description / keywords。keywords 只在检索响应里有，单包详情接口会去掉它
  */
 
+import { isRecord } from './vocab.js'
+
 /** 插件在包清单 `keywords` 里写的关键词。库、共享包没有它 */
 export const PLUGIN_KEYWORD = 'gwb-plugin'
 
@@ -43,10 +45,6 @@ export function mergeScoped(results: readonly ScopedSearch[]): {
 /** 是不是插件只看包自己写的 keywords，名字不参与判断 */
 export function isPluginRow(row: SearchRow): boolean {
   return row.keywords.includes(PLUGIN_KEYWORD)
-}
-
-function isRecord(value: unknown): value is Record<string, unknown> {
-  return typeof value === 'object' && value !== null && !Array.isArray(value)
 }
 
 function isNonEmptyString(value: unknown): value is string {

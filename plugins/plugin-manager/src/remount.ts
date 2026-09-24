@@ -1,6 +1,6 @@
+import { fiberStateOf, settleFiber } from './fiber.js'
 import { isRecord } from './vocab.js'
 import type { EntryTreeLike } from './tree.js'
-import { fiberStateOf, settleFiber } from './update-all.js'
 
 /** 停用/启用之后等 fiber 把手头的事做完，最多等这么久。超时就继续，读到什么状态报什么 */
 export const SETTLE_MS = 5_000

@@ -1,4 +1,4 @@
-import { KERNEL_PACKAGE, declaredKernelRange, kernelCompatStatusOf, kernelRangeCovers, type KernelCompatStatus } from './kernel-compat.js'
+import { KERNEL_PACKAGE, isExactVersion, kernelCompatStatusOf, type KernelCompatStatus } from './kernel-compat.js'
 import { PLUGIN_KEYWORD } from './search.js'
 import { isRecord } from './vocab.js'
 
@@ -8,8 +8,6 @@ export const CORDIS_PACKAGE = 'cordis'
 
 /** 版本由内核决定、一键热升级不动的包，经 `plugin-manager.update-kernel` 升：主进程里的内核热替换不了，home 根上的 cordis 必须等于内核包 peer 里写的版本 */
 export const KERNEL_MANAGED_PACKAGES: ReadonlySet<string> = new Set([KERNEL_PACKAGE, CORDIS_PACKAGE])
-
-const EXACT_VERSION = /^(0|[1-9]\d*)\.(0|[1-9]\d*)\.(0|[1-9]\d*)(?:-[0-9A-Za-z.-]+)?(?:\+[0-9A-Za-z.-]+)?$/
 
 /** 升级回执里一个包的新旧版本。装之前 home 里没有这个包时没有 `from` */
 export interface VersionChange {
@@ -27,12 +25,12 @@ export type KernelUpgradeTarget = { ok: true; kernelVersion: string; cordisVersi
 export function kernelUpgradeTargetOf(kernelManifest: unknown): KernelUpgradeTarget {
   if (!isRecord(kernelManifest)) return { ok: false, error: `home 的 node_modules 里读不到 ${KERNEL_PACKAGE} 的 package.json` }
   const kernelVersion = kernelManifest['version']
-  if (typeof kernelVersion !== 'string' || !EXACT_VERSION.test(kernelVersion)) {
+  if (typeof kernelVersion !== 'string' || !isExactVersion(kernelVersion)) {
     return { ok: false, error: `${KERNEL_PACKAGE} 的 version 不是合法的版本号：${JSON.stringify(kernelVersion)}` }
   }
   const peers = kernelManifest['peerDependencies']
   const cordisVersion = isRecord(peers) ? peers[CORDIS_PACKAGE] : undefined
-  if (typeof cordisVersion !== 'string' || !EXACT_VERSION.test(cordisVersion)) {
+  if (typeof cordisVersion !== 'string' || !isExactVersion(cordisVersion)) {
     return {
       ok: false,
       error: `${KERNEL_PACKAGE}@${kernelVersion} 的 peerDependencies.cordis 要写成精确版本号（如 4.0.0-rc.9），实际是 ${JSON.stringify(cordisVersion)}`,
@@ -70,14 +68,13 @@ export function kernelStatusInList(pkg: string, manifest: unknown, kernelVersion
 }
 
 /**
- * home 里的包清单（包名 → 清单，没装的是 undefined）→ peer 里内核包的范围不包含 `kernelVersion` 的插件，按包名排。
- * 没写范围的插件也算；是不是插件只看 keywords 里有没有 gwb-plugin；内核包与 cordis 自己不算
+ * home 里的包清单（包名 → 清单，没装的是 undefined）→ 拿 `kernelVersion` 算 `list` 回执时 `kernelUntested` 为真的包，按包名排：
+ * 与 `list` 用同一个判断，没写范围的插件也算
  */
 export function pluginsOutsideKernelRange(manifestsByPackage: ReadonlyMap<string, unknown>, kernelVersion: string): string[] {
   const outside: string[] = []
   for (const [pkg, manifest] of manifestsByPackage) {
-    if (KERNEL_MANAGED_PACKAGES.has(pkg) || !isPluginManifest(manifest)) continue
-    if (!kernelRangeCovers(declaredKernelRange(manifest), kernelVersion)) outside.push(pkg)
+    if (kernelStatusInList(pkg, manifest, kernelVersion).kernelUntested) outside.push(pkg)
   }
   return outside.sort((a, b) => a.localeCompare(b))
 }

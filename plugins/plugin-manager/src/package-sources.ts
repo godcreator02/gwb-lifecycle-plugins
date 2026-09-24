@@ -13,6 +13,7 @@ import {
   removeSource as removeSourceLines,
   upsertSource as upsertSourceLines,
 } from './sources.js'
+import { noteOf } from './vocab.js'
 
 /** 检索的回执 */
 export interface SearchReceipt {
@@ -273,8 +274,4 @@ async function tokenForScope(deps: PackageSourcesDeps, scope: string): Promise<s
     if (source !== undefined) return source.token
   }
   return undefined
-}
-
-function noteOf(notes: readonly string[]): { note?: string } {
-  return notes.length === 0 ? {} : { note: notes.join('；') }
 }

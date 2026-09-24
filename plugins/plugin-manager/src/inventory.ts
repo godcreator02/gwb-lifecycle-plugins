@@ -1,11 +1,11 @@
+import { FIBER_STATE } from './fiber.js'
 import type { KernelCompatStatus } from './kernel-compat.js'
 import type { PeerStatus } from './peers.js'
 import { isRecord } from './vocab.js'
 
 // 零 I/O 纯逻辑：这个文件里不 import node:fs
 
-/** cordis 的 `FiberState.ACTIVE`。那是 `const enum`，`isolatedModules` 下 import 不进来，照抄字面量 */
-const FIBER_ACTIVE = 2
+const FIBER_ACTIVE = FIBER_STATE.indexOf('ACTIVE')
 
 /** cordis.yml 里一条条目此刻的样子 */
 export interface EntrySnapshot {

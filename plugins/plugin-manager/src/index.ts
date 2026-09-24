@@ -1,6 +1,6 @@
 import os from 'node:os'
 import type { GwbContext, GwbResult } from '@godcreator/gwb-kernel-desktop'
-import { isRecord, requireKernel } from './vocab.js'
+import { isRecord, noteOf, requireKernel } from './vocab.js'
 // 这几条 type import 只为引入对方的 `declare module 'cordis'`（commands 另取一个类型）；这些插件写在 peer 里，数据、设置、说明书标 optional，都经嵌套注入使用
 import type { GwbCommands } from '@godcreator/gwb-commands'
 import type {} from '@godcreator/gwb-data'
@@ -14,7 +14,8 @@ import { parseOutdated, type UpdateInfo } from './outdated.js'
 import { entriesForPackage } from './uninstall.js'
 import { ownEntryId, treeOf, type EntryTreeLike } from './tree.js'
 import { BusyGate } from './busy.js'
-import { fiberStateOf, planUpdateAll, type KernelManagedPackage, type PlannedEntry, type UpdateAllPlan } from './update-all.js'
+import { fiberStateOf } from './fiber.js'
+import { planUpdateAll, type KernelManagedPackage, type PlannedEntry, type UpdateAllPlan } from './update-all.js'
 import { remountNow, remountOne, remountSelfLater, type RemountedEntry } from './remount.js'
 import { KERNEL_PACKAGE } from './kernel-compat.js'
 import { CORDIS_PACKAGE, installedVersionMismatch, kernelStatusInList, kernelUpgradeTargetOf, pluginsOutsideKernelRange, versionChangeOf, type VersionChange } from './kernel-upgrade.js'
@@ -855,10 +856,6 @@ async function runShellReload(commandBus: GwbCommands | undefined): Promise<{ re
 function kernelManagedNoteOf(kernelManaged: readonly KernelManagedPackage[]): string {
   const listed = kernelManaged.map((p) => `${p.pkg} ${p.from} → ${p.to}`).join('、')
   return `这几个由内核决定版本，没升：${listed}。内核包用 ${UPDATE_KERNEL_COMMAND} 升，cordis 随它对齐`
-}
-
-function noteOf(notes: readonly string[]): { note?: string } {
-  return notes.length === 0 ? {} : { note: notes.join('；') }
 }
 
 /** 失败时 pnpm 输出的最后几行既拼进 error（给人看），也原样留在 data 里（界面要单独排版时用） */

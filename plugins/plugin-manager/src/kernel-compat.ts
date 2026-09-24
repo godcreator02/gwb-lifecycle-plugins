@@ -26,6 +26,25 @@ export function isCaretRange(range: string): boolean {
   return CARET_RANGE.test(range)
 }
 
+/** 一个准确的版本号：x.y.z 三段，可带预发布段与构建段；不是范围 */
+export function isExactVersion(version: string): boolean {
+  return VERSION.test(version)
+}
+
+/**
+ * `^x.y.z` 包不包含这个版本：主版本号为 0 时次版本号相同，≥1 时主版本号相同，并且不低于 x.y.z。只比 x.y.z 三段，
+ * 预发布段不看（同一条线的开发版算在范围内）。范围不是 `^x.y.z`、版本号不合法都是 false
+ */
+export function caretRangeCovers(range: string, version: string): boolean {
+  const rangeMatch = CARET_RANGE.exec(range)
+  const versionMatch = VERSION.exec(version)
+  if (rangeMatch === null || versionMatch === null) return false
+  const actual = coreOf(versionMatch)
+  const floor = coreOf(rangeMatch)
+  const sameLine = floor[0] === 0 ? actual[0] === 0 && actual[1] === floor[1] : actual[0] === floor[0]
+  return sameLine && notLowerThan(actual, floor)
+}
+
 /** 包清单 peerDependencies 里内核包的范围；没写或不是字符串时是 undefined */
 export function declaredKernelRange(manifest: unknown): string | undefined {
   if (!isRecord(manifest)) return undefined
@@ -35,20 +54,10 @@ export function declaredKernelRange(manifest: unknown): string | undefined {
   return typeof range === 'string' ? range : undefined
 }
 
-/**
- * `^x.y.z` 包不包含这个内核版本：主版本号为 0 时次版本号相同，≥1 时主版本号相同，并且不低于 x.y.z。只比 x.y.z 三段，
- * 预发布段不看（同一条线的开发版算在范围内）。范围没写或不是 `^x.y.z` 一律 false；内核版本号不合法直接抛错（它来自内核自己的包清单）
- */
+/** 规则同 `caretRangeCovers`；范围没写是 false；内核版本号不合法直接抛错（它来自内核自己的包清单） */
 export function kernelRangeCovers(range: string | undefined, kernelVersion: string): boolean {
-  const kernelMatch = VERSION.exec(kernelVersion)
-  if (kernelMatch === null) throw new Error(`内核版本号不是合法的版本号：${JSON.stringify(kernelVersion)}`)
-  if (range === undefined) return false
-  const rangeMatch = CARET_RANGE.exec(range)
-  if (rangeMatch === null) return false
-  const kernel = coreOf(kernelMatch)
-  const floor = coreOf(rangeMatch)
-  const sameLine = floor[0] === 0 ? kernel[0] === 0 && kernel[1] === floor[1] : kernel[0] === floor[0]
-  return sameLine && notLowerThan(kernel, floor)
+  if (!isExactVersion(kernelVersion)) throw new Error(`内核版本号不是合法的版本号：${JSON.stringify(kernelVersion)}`)
+  return range !== undefined && caretRangeCovers(range, kernelVersion)
 }
 
 /** 一个包在 `list` 回执里和内核版本有关的两个字段 */

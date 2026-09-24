@@ -23,7 +23,7 @@ description: 插件在 peerDependencies 里给内核包 @godcreator/gwb-kernel-d
 
 **为什么**：除了预发布段，这就是 npm 对 `^` 的解释，也和全生态升版本号的规则（说明书 [gwb-release](/outputs/skills/gwb-release)）对得上：内核在 0.x 时次版本号变了就可能有破坏性变化，≥1 以后破坏性变化只在主版本号上。只许一种写法，报告与发版检查都不用处理各种范围语法。
 
-{/* ref file="../plugins/plugin-manager/src/kernel-compat.ts" lines="24-52" */}
+{/* ref file="../plugins/plugin-manager/src/kernel-compat.ts" lines="24-61" */}
 
 运行中的内核版本号来自内核服务 `gwbKernel` 的 `version`；它不是合法版本号，说明内核坏了，直接报错。
 

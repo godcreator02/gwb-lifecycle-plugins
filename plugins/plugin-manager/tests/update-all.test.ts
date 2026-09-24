@@ -1,5 +1,6 @@
 import { describe, expect, it } from 'vitest'
-import { fiberStateOf, planUpdateAll, settleFiber } from '../src/update-all.js'
+import { fiberStateOf, settleFiber } from '../src/fiber.js'
+import { planUpdateAll } from '../src/update-all.js'
 
 /**
  * 一键热升级的计划：pnpm 参数、重新加载哪些条目、按什么顺序。fixture 照 uninstall.test 的样式——store 是

@@ -28,9 +28,9 @@ description: 插件在 peerDependencies 里写它用到的别的插件的 ^x.y.z
 
 {/* ref file="../plugins/plugin-manager/src/peers.ts" lines="77-89" */}
 
-**怎么比**：与内核包范围同一条规则——主版本号为 0 时次版本号相同，≥1 时主版本号相同，并且不低于 x.y.z；只比 x.y.z 三段，预发布段不看，装的是同一条线上的开发版也算在范围里。
+**怎么比**：与内核包范围是同一个函数 `caretRangeCovers`，在 `src/kernel-compat.ts`——主版本号为 0 时次版本号相同，≥1 时主版本号相同，并且不低于 x.y.z；只比 x.y.z 三段，预发布段不看，装的是同一条线上的开发版也算在范围里。
 
-{/* ref file="../plugins/plugin-manager/src/peers.ts" lines="36-52" */}
+{/* ref file="../plugins/plugin-manager/src/kernel-compat.ts" lines="34-46" */}
 
 **「装着的版本」从哪读**：home 的 `node_modules/<包名>/package.json` 在，就算装了，版本取它的 `version`。`list` 本来就读 home 的 dependencies 与条目里每个包的清单；插件 peer 里点名了别的包时再补读一次。不合包名规则的键不拿去拼路径，按没装报。
 

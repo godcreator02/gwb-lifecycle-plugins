@@ -3,6 +3,8 @@
  * 每条 `{ current, latest, wanted, isDeprecated, dependencyType }`；全都最新时退出码 0，stdout 是 `{}` 或空
  */
 
+import { isRecord } from './vocab.js'
+
 export interface UpdateInfo {
   /** home 里装着的版本 */
   current: string
@@ -12,10 +14,6 @@ export interface UpdateInfo {
 
 /** 包名 → 版本差距。空对象是全都最新 */
 export type OutdatedMap = Record<string, UpdateInfo>
-
-function isRecord(value: unknown): value is Record<string, unknown> {
-  return typeof value === 'object' && value !== null && !Array.isArray(value)
-}
 
 function nonEmptyStringOrUndefined(value: unknown): string | undefined {
   return typeof value === 'string' && value !== '' ? value : undefined

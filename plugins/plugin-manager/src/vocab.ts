@@ -12,3 +12,8 @@ export function requireKernel(ctx: Pick<GwbContext, 'gwbKernel'>): GwbKernelApi 
 export function isRecord(value: unknown): value is Record<string, unknown> {
   return typeof value === 'object' && value !== null && !Array.isArray(value)
 }
+
+/** 几句提醒用「；」连成回执的 `note` 字段；一句都没有时不带这个字段 */
+export function noteOf(notes: readonly string[]): { note?: string } {
+  return notes.length === 0 ? {} : { note: notes.join('；') }
+}

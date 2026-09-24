@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest'
-import { KERNEL_PACKAGE } from '../src/kernel-compat'
-import { caretRangeCovers, declaredPluginPeers, peerStatusOf } from '../src/peers'
+import { KERNEL_PACKAGE, caretRangeCovers } from '../src/kernel-compat'
+import { declaredPluginPeers, peerStatusOf } from '../src/peers'
 
 const SHELL = '@x/gwb-shell'
 const COMMANDS = '@x/gwb-commands'

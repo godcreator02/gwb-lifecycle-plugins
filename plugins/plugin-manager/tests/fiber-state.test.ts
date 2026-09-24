@@ -2,7 +2,7 @@ import fs from 'node:fs'
 import { createRequire } from 'node:module'
 import path from 'node:path'
 import { describe, expect, it } from 'vitest'
-import { FIBER_STATE, fiberStateOf } from '../src/update-all'
+import { FIBER_STATE, fiberStateOf } from '../src/fiber'
 
 /**
  * cordis 的 `FiberState` 是 `const enum`，运行时没有这个对象，插件只能照抄一份名字表。

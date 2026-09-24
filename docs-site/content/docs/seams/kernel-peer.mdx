@@ -30,7 +30,7 @@ description: 连接插件包 package.json 的 peer（内核包的范围、用到
 
 **内核范围的比对规则**：范围要写成 `^x.y.z`；主版本号为 0 时次版本号相同，≥1 时主版本号相同，并且不低于下限；只比 x.y.z 三段，同一条线上的开发版内核算在范围内；没写、写的不是 `^x.y.z` 都算不包含；内核版本号不合法直接抛错。规则写在插件管理的 `src/kernel-compat.ts`，经主入口导出：
 
-{/* ref file="../plugins/plugin-manager/src/kernel-compat.ts" lines="24-52" */}
+{/* ref file="../plugins/plugin-manager/src/kernel-compat.ts" lines="24-61" */}
 
 {/* ref file="../plugins/plugin-manager/src/index.ts" lines="33-36" */}
 
@@ -44,13 +44,13 @@ description: 连接插件包 package.json 的 peer（内核包的范围、用到
 
 {/* ref file="../plugins/plugin-manager/src/kernel-compat.ts" lines="54-67" */}
 
-**peer 里的别的插件**：`"<插件包名>": "^x.y.z"`，可选使用的在 `peerDependenciesMeta` 标 `optional: true`（规矩见[用到的插件写 peer](/docs/rules/plugin-peers)）。两边问的不是同一件事：devkit 在发版时问「上游有没有出破坏性版本」，拿范围下限和源上 latest 比在不在同一条线；插件管理在 home 里问「装着的这一版在不在范围里」，拿范围和装着的版本比，规则与内核范围那条相同。
+**peer 里的别的插件**：`"<插件包名>": "^x.y.z"`，可选使用的在 `peerDependenciesMeta` 标 `optional: true`（规矩见[用到的插件写 peer](/docs/rules/plugin-peers)）。两边问的不是同一件事：devkit 在发版时问「上游有没有出破坏性版本」，拿范围下限和源上 latest 比在不在同一条线；插件管理在 home 里问「装着的这一版在不在范围里」，拿范围和装着的版本比，用的就是内核范围那条规则的同一个函数 `caretRangeCovers`（内核范围的 `kernelRangeCovers` 只在它外面多一层「内核版本号不合法就抛错」）。
 
 {/* ref file="../plugins/devkit/src/release.ts" lines="206-215" */}
 
 {/* ref file="../plugins/devkit/src/release.ts" lines="239-260" */}
 
-{/* ref file="../plugins/plugin-manager/src/peers.ts" lines="36-52" */}
+{/* ref file="../plugins/plugin-manager/src/kernel-compat.ts" lines="34-46" */}
 
 {/* ref file="../plugins/plugin-manager/src/peers.ts" lines="77-89" */}
 

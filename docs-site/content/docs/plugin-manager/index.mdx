@@ -62,7 +62,7 @@ description: 插件管理是唯一写 home 的插件——装卸包、增删条�
 
 {/* ref file="../plugins/plugin-manager/src/index.ts" lines="24-31" */}
 
-**给 devkit 复用的函数**：找 pnpm（`locatePnpm`、`REQUIRED_PNPM`）、内核范围比对（`KERNEL_PACKAGE`、`isCaretRange`、`kernelRangeCovers`、`declaredKernelRange`）、peer 范围比对（`caretRangeCovers`）、判断是不是插件（`isPluginManifest`）、取输出的最后几行（`tailLines`）从包主入口按值导出。devkit 在 peer 里写了插件管理，直接 import 这几个，不另存一份；devkit 构建时不打包依赖，运行时用的是 home 里装着的那一版插件管理。
+**给 devkit 复用的函数**：找 pnpm（`locatePnpm`）、内核范围比对（`KERNEL_PACKAGE`、`isCaretRange`、`kernelRangeCovers`、`declaredKernelRange`）、取输出的最后几行（`tailLines`）从包主入口按值导出。devkit 在 peer 里写了插件管理，直接 import 这几个，不另存一份；devkit 构建时不打包依赖，运行时用的是 home 里装着的那一版插件管理。
 
 {/* ref file="../plugins/plugin-manager/src/index.ts" lines="33-38" */}
 

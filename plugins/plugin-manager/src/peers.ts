@@ -1,10 +1,8 @@
+import { caretRangeCovers } from './kernel-compat.js'
 import { isPluginManifest, KERNEL_MANAGED_PACKAGES } from './kernel-upgrade.js'
 import { isRecord } from './vocab.js'
 
 // 零 I/O 纯逻辑：这个文件里不 import node:fs
-
-const CARET_RANGE = /^\^(0|[1-9]\d*)\.(0|[1-9]\d*)\.(0|[1-9]\d*)$/
-const VERSION = /^(0|[1-9]\d*)\.(0|[1-9]\d*)\.(0|[1-9]\d*)(?:-[0-9A-Za-z.-]+)?(?:\+[0-9A-Za-z.-]+)?$/
 
 /** 插件 peer 里写的一个别的包（内核包与 cordis 不算） */
 export interface DeclaredPeer {
@@ -31,24 +29,6 @@ export interface PeerStatus {
    * 或装着的版本不在范围里。每个包都有这个字段，不是插件的包、清单读不到的包、全都满足时是空数组
    */
   unmetPeers: UnmetPeer[]
-}
-
-/**
- * `^x.y.z` 包不包含这个版本：主版本号为 0 时次版本号相同，≥1 时主版本号相同，并且不低于 x.y.z。只比 x.y.z 三段，
- * 预发布段不看。规则与 `kernel-compat.ts` 的 `kernelRangeCovers` 相同；范围不是 `^x.y.z`、版本号不合法都是 false
- */
-export function caretRangeCovers(range: string, version: string): boolean {
-  const rangeMatch = CARET_RANGE.exec(range)
-  const versionMatch = VERSION.exec(version)
-  if (rangeMatch === null || versionMatch === null) return false
-  const floor = [Number(rangeMatch[1]), Number(rangeMatch[2]), Number(rangeMatch[3])] as const
-  const actual = [Number(versionMatch[1]), Number(versionMatch[2]), Number(versionMatch[3])] as const
-  const sameLine = floor[0] === 0 ? actual[0] === 0 && actual[1] === floor[1] : actual[0] === floor[0]
-  if (!sameLine) return false
-  for (let index = 0; index < 3; index++) {
-    if (actual[index] !== floor[index]) return actual[index]! > floor[index]!
-  }
-  return true
 }
 
 function isOptionalPeer(manifest: Record<string, unknown>, pkg: string): boolean {
