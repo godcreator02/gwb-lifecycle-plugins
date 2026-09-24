@@ -19,9 +19,9 @@ description: 连接 devkit 与插件管理：devkit.dev 经 CDP 在目标页面�
 
 回执 `action` 是 `remounted` 时，`state` 必须是 `ACTIVE`；是 `deferred`（被重新加载的是插件管理自己）时，每 500 毫秒轮询一次 `plugin-manager.list`，60 秒内等到那条条目 `active: true`。插件管理这边的命令与处理：
 
-{/* ref file="../plugins/plugin-manager/src/index.ts" lines="345-354" */}
+{/* ref file="../plugins/plugin-manager/src/index.ts" lines="320-329" */}
 
-{/* ref file="../plugins/plugin-manager/src/remount.ts" lines="98-115" */}
+{/* ref file="../plugins/plugin-manager/src/remount.ts" lines="81-95" */}
 
 `plugin-manager.list` 的回执由 devkit 自己解析：认 `{ packages: [...] }` 与裸数组两种，按 `pkg` 找包，读每条条目的 `entryId` 与 `active`，一个包的**全部**条目都要重新加载：
 
@@ -29,7 +29,7 @@ description: 连接 devkit 与插件管理：devkit.dev 经 CDP 在目标页面�
 
 插件管理的 `list` 每个包带 `pkg`、`entries`，每条条目带完整 `entryId` 与按 fiber 状态算的 `active`：
 
-{/* ref file="../plugins/plugin-manager/src/inventory.ts" lines="15-34" */}
+{/* ref file="../plugins/plugin-manager/src/inventory.ts" lines="10-24" */}
 
 **二、`devkit.home.new` 自己写 `cordis.yml`、自己装基础插件。** 新 home 在内核启动之前，由 devkit 写一份七条条目的 `cordis.yml`（文件已存在就不写），再用 PATH 上的 pnpm 运行 `pnpm add`，七个插件里包括插件管理：
 

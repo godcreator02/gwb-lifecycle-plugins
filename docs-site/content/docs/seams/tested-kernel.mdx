@@ -29,9 +29,9 @@ description: 连接插件包 package.json 里的 gwb.testedKernel、gwb.requires
 
 **比对规则**：两个版本号在同一条版本线上才算测过——主版本号为 0 比前两位，≥1 只比主版本号；没写、写的不是合法版本号都算没测过；运行中的内核版本号不合法直接抛错。devkit 与插件管理各有一份，函数名与正文相同：
 
-{/* ref file="../plugins/devkit/src/tested-kernel.ts" lines="9-31" */}
+{/* ref file="../plugins/devkit/src/tested-kernel.ts" lines="5-21" */}
 
-{/* ref file="../plugins/plugin-manager/src/tested-kernel.ts" lines="19-41" */}
+{/* ref file="../plugins/plugin-manager/src/tested-kernel.ts" lines="13-29" */}
 
 **devkit 这边**：`devkit.release` 只查 `keywords` 含 `gwb-plugin` 的包，拿的是 devkit 自己所在那个 home 的 `gwbKernel.version`：
 
@@ -41,13 +41,13 @@ description: 连接插件包 package.json 里的 gwb.testedKernel、gwb.requires
 
 **插件管理这边**：`list` 从 home 的 `node_modules` 读每个包的 `package.json`，拿插件管理所在那个 home 的 `gwbKernel.version` 比：
 
-{/* ref file="../plugins/plugin-manager/src/index.ts" lines="451-461" */}
+{/* ref file="../plugins/plugin-manager/src/index.ts" lines="413-423" */}
 
 **字段 `gwb.requires`**：`{ "<包名>": "<最低版本号 x.y.z>" }`，可选。devkit 发版前查写法（是对象、值是 x.y.z、包在 dev 里、要求不高于 dev 下限）；插件管理拿它和 home 里装的版本比，列出没满足的。规矩见[要求别的插件的最低版本](/docs/rules/requires)。
 
 {/* ref file="../plugins/devkit/src/release.ts" lines="176-210" */}
 
-{/* ref file="../plugins/plugin-manager/src/requires.ts" lines="88-103" */}
+{/* ref file="../plugins/plugin-manager/src/requires.ts" lines="79-91" */}
 
 **合法的最低版本号**：x.y.z，每段是不带前导零的数字，不带预发布段与构建段。两个包各有一份 `isMinimumVersion`：
 

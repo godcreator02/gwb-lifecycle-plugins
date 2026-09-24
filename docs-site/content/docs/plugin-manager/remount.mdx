@@ -20,7 +20,7 @@ description: 停用 → 等旧的卸载完 → 启用 → 等新的加载完，�
 
 **怎么做**：每一步用 cordis 的 `fiber.await()` 等它把手头的事做完，最多等 5 秒，超时就继续，读到什么状态报什么（`ACTIVE` 才算加载成功）。修改条目树时抛错，回执的 `action` 是 `failed`，`state` 里是那句错误。
 
-{/* ref file="../plugins/plugin-manager/src/remount.ts" lines="46-60" */}
+{/* ref file="../plugins/plugin-manager/src/remount.ts" lines="34-46" */}
 
 **守住它的测试**：假的条目树测顺序与回执，真实的 loader 测最后回到 `ACTIVE`，另测等待到了时限就继续、状态名和 cordis 一致。
 
@@ -58,7 +58,7 @@ description: 停用 → 等旧的卸载完 → 启用 → 等新的加载完，�
 
 **怎么做**：排到下一个宏任务的那段代码只持有条目树、id 与事先拿到的 logger——那时插件管理原来的实例已经卸载，ctx 上的东西都不能用。`devkit.dev` 重新加载插件管理时收到 `deferred`，就轮询 `plugin-manager.list` 等它回来，带超时。
 
-{/* ref file="../plugins/plugin-manager/src/remount.ts" lines="98-115" */}
+{/* ref file="../plugins/plugin-manager/src/remount.ts" lines="81-95" */}
 
 **守住它的测试**：
 

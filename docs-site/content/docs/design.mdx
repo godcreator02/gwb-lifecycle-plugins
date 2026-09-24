@@ -107,7 +107,7 @@ devkit 没有任何特权：装进 home 才有它的命令，加载不成功就�
 - `devkit.home.new` 把插件管理作为基础插件装进新 home，之后往这个 home 加插件用 `plugin-manager.install`
 - `gwb.testedKernel` 两边都用：插件管理在 `list` 里拿它和运行中的内核比对，`devkit.release` 发版前拒绝没写对的插件包。比对规则两边各存一份（两个包的 `src/tested-kernel.ts`），不跨包 import
 
-{/* has file="../plugins/devkit/src/tested-kernel.ts" text="比对规则与插件管理（@godcreator/gwb-plugin-manager 的 `src/tested-kernel.ts`）相同，两边各存一份" */}
+{/* has file="../plugins/devkit/src/tested-kernel.ts" text="比对规则与插件管理的 src/tested-kernel.ts 各存一份" */}
 
 放在一个仓里，这些地方一个提交就能改两边，改比对规则时两份一起改、一起跑测试。
 

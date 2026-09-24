@@ -16,19 +16,19 @@ description: 连接插件管理与 cordis 的 loader、include：插件管理从
 
 {/* ref file="../plugins/plugin-manager/src/tree.ts" lines="23-34" */}
 
-{/* ref file="../plugins/plugin-manager/src/tree.ts" lines="36-63" */}
+{/* ref file="../plugins/plugin-manager/src/tree.ts" lines="23-40" */}
 
 **用法**：`create(options, parent)` 加一条并写回 `cordis.yml`；`update(id, { disabled: true })` 停用、`update(id, { disabled: null })` 启用（`null` 表示删掉这个字段）；`remove(id)` 删一条；`resolve` 只认不带前缀的 id。写回磁盘推迟到下一个宏任务。重新加载就是停用、等旧 fiber 卸载完、启用、等新 fiber 启动完：
 
-{/* ref file="../plugins/plugin-manager/src/remount.ts" lines="52-60" */}
+{/* ref file="../plugins/plugin-manager/src/remount.ts" lines="38-46" */}
 
 **读条目**：`store` 是一张不分层的表，键是不带前缀的 id；每一项读 `id`（完整 entryId）、`options.name`（包名）、`options.group`、`disabled`、`fiber.state`：
 
-{/* ref file="../plugins/plugin-manager/src/inventory.ts" lines="87-105" */}
+{/* ref file="../plugins/plugin-manager/src/inventory.ts" lines="68-91" */}
 
 **状态值**：cordis 的 `FiberState` 是 `const enum`，运行时拿不到，插件管理照抄一份名字表：
 
-{/* ref file="../plugins/plugin-manager/src/update-all.ts" lines="102-117" */}
+{/* ref file="../plugins/plugin-manager/src/update-all.ts" lines="76-89" */}
 
 ## 约定
 

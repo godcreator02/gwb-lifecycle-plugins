@@ -15,7 +15,7 @@ description: outdated 查过期包；update-all 一次 pnpm add 精确版本，�
 
 **怎么做**：退出码 1 表示「有过期包」，是结果不是失败；找不到 pnpm、输出解析不了都转成 `ok: false` 的回执，界面上只显示一句提示。它只读不写，不经过 BUSY 检查，但 pnpm 照样排进串行队列（见[同一时刻只允许一个改动](/docs/plugin-manager/home#同一时刻只允许一个改动busy)）。
 
-{/* ref file="../plugins/plugin-manager/src/index.ts" lines="487-512" */}
+{/* ref file="../plugins/plugin-manager/src/index.ts" lines="482-501" */}
 
 **守住它的测试**：
 
@@ -42,7 +42,7 @@ description: outdated 查过期包；update-all 一次 pnpm add 精确版本，�
 
 **是什么**：升哪些包、重新加载哪些条目、按什么顺序，由一个纯函数算出，单独测。
 
-{/* ref file="../plugins/plugin-manager/src/update-all.ts" lines="44-57" */}
+{/* ref file="../plugins/plugin-manager/src/update-all.ts" lines="26-35" */}
 
 - **精确版本**：用 `outdated` 查到的版本号，不用 `@latest` 标签——两次查询之间又发了一版，也不会装成回执上没写的那个
 - **每条条目各自重新加载**：被别的插件 inject 的插件重新加载时，cordis 会把依赖它的插件停用再启动，但那是重跑内存里的旧代码，磁盘上的新版本没有加载，所以不能指望这种连带
@@ -73,7 +73,9 @@ description: outdated 查过期包；update-all 一次 pnpm add 精确版本，�
 
 **插件管理自己在回执之后**：升级清单里有插件管理自己时，它那条条目在回执发出之后才重新加载，回执里 `selfDeferred` 是 `true`，它的条目 `action` 是 `deferred`。理由与[重新加载插件管理自己](/docs/plugin-manager/remount#目标是插件管理自己先回执后重新加载)相同。
 
-{/* ref file="../plugins/plugin-manager/src/index.ts" lines="571-586" */}
+{/* ref file="../plugins/plugin-manager/src/index.ts" lines="545-555" */}
+
+{/* has file="../plugins/plugin-manager/tests/commands.test.ts" text="升级清单里有插件管理自己：自己那条先回 deferred，回执之后才重新加载，再整页重新加载" */}
 
 **整页重新加载**：经命令插件调用外壳的 `shell.reload`，按命令名查找，不 import 外壳。回执的 `reload`：`done` 已经重新加载；`deferred` 等插件管理自己重新加载完再执行；`unavailable` 命令表里没有它或它失败了，界面要手动刷新，原因在 `note` 里。
 

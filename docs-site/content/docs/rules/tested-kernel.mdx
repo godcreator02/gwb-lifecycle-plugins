@@ -19,7 +19,7 @@ devkit 自己的清单：
 
 主版本号为 0 时比前两位，主版本号 ≥1 时只比主版本号。`0.2.7` 和 `0.2.9` 在同一条线上，和 `0.3.0` 不在；`1.4.0` 和 `1.9.2` 在同一条线上。
 
-{/* ref file="../plugins/devkit/src/tested-kernel.ts" lines="11-31" */}
+{/* ref file="../plugins/devkit/src/tested-kernel.ts" lines="7-21" */}
 
 这和内核的版本号规矩对得上：内核改了接缝上已有的东西——包括升级 loader、include 的版本、改 home 的布局——就升 x，版本线跟着变，所有插件都要在新内核上重新验过。只加东西的内核版本升 y，版本线不变，插件的声明照样有效。
 

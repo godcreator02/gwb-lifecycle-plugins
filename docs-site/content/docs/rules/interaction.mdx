@@ -21,11 +21,11 @@ description: 只通过服务和命令，不 import 别的插件；共享代码�
 
 插件管理调外壳的整页重载，只写命令名：
 
-{/* ref file="../plugins/plugin-manager/src/index.ts" lines="51-52" */}
+{/* ref file="../plugins/plugin-manager/src/index.ts" lines="30-31" */}
 
 插件管理与 devkit 都要判断「插件在哪个内核上测过」，这段规则两边各存一份，不跨包 import：
 
-{/* ref file="../plugins/devkit/src/tested-kernel.ts" lines="3-7" */}
+{/* ref file="../plugins/devkit/src/tested-kernel.ts" lines="3-3" */}
 
 ## 契约版本按区间比对
 

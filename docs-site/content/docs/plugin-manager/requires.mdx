@@ -30,15 +30,15 @@ description: 插件在 package.json 的 gwb.requires 写它要求 home 里别的
 
 {/* ref file="../plugins/plugin-manager/src/requires.ts" lines="11-29" */}
 
-{/* ref file="../plugins/plugin-manager/src/requires.ts" lines="88-103" */}
+{/* ref file="../plugins/plugin-manager/src/requires.ts" lines="79-91" */}
 
 **怎么比**：最低版本号只收 x.y.z；装的版本号逐段按数字比，三段相同时带预发布段的算更低——装的是 `0.5.0-dev.1` 不满足要求 `0.5.0`，装的是 `0.5.1-dev.1` 满足。
 
-{/* ref file="../plugins/plugin-manager/src/requires.ts" lines="73-86" */}
+{/* ref file="../plugins/plugin-manager/src/requires.ts" lines="67-77" */}
 
 **「装了的版本」从哪读**：home 的 `node_modules/<包名>/package.json` 在，就算装了，版本取它的 `version`。`list` 本来就读 home 的 dependencies 与条目里每个包的清单；`gwb.requires` 点名了别的包时再补读一次。不合包名规则的键不拿去拼路径，按没装报。
 
-{/* ref file="../plugins/plugin-manager/src/index.ts" lines="451-488" */}
+{/* ref file="../plugins/plugin-manager/src/index.ts" lines="413-449" */}
 
 **守住它的测试**：
 

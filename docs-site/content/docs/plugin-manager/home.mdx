@@ -22,9 +22,13 @@ home 里的插件分两层：**包**是 pnpm 装进 `package.json` 与 `node_mod
 - 每条条目带 `active`：看的是 fiber 的状态是不是 `ACTIVE`，不是 fiber 在不在——依赖没满足的插件也有 fiber，只是永远到不了 `ACTIVE`
 </Diagram>
 
-{/* ref file="../plugins/plugin-manager/src/inventory.ts" lines="108-135" */}
+{/* ref file="../plugins/plugin-manager/src/inventory.ts" lines="93-120" */}
 
-{/* ref file="../plugins/plugin-manager/src/index.ts" lines="451-461" */}
+{/* ref file="../plugins/plugin-manager/src/index.ts" lines="413-423" */}
+
+home 的 `package.json` 读不到或不是 JSON 时当空表：它由 pnpm 写入，安装中途可能只写了一半，`list` 因此整体失败比少报几行更难排查；条目那一层照样报得出来。
+
+{/* ref file="../plugins/plugin-manager/src/home.ts" lines="25-28" */}
 
 **守住它的测试**：
 
@@ -35,6 +39,8 @@ home 里的插件分两层：**包**是 pnpm 装进 `package.json` 与 `node_mod
 {/* has file="../plugins/plugin-manager/tests/inventory.test.ts" text="是否加载成功看的是 fiber 的状态" */}
 
 {/* has file="../plugins/plugin-manager/tests/home.test.ts" text="清单不在、坏了都当空表" */}
+
+{/* has file="../plugins/plugin-manager/tests/commands.test.ts" text="包与条目两层对上，带内核测试状态与没满足的要求；条目指向没装的包报 installed: false" */}
 
 ## 只有插件管理写 home
 
@@ -48,7 +54,7 @@ home 里的插件分两层：**包**是 pnpm 装进 `package.json` 与 `node_mod
 
 **怎么做**：安装、卸载、升级都经 `applyToHome` 运行 pnpm，它把每一次运行排进同一个队列，前一个运行完下一个才开始；只读的 `pnpm outdated` 也排进去，省得另外处理两个 pnpm 同时运行。前一个失败不影响后面排队的。
 
-{/* ref file="../plugins/plugin-manager/src/index.ts" lines="815-829" */}
+{/* ref file="../plugins/plugin-manager/src/index.ts" lines="734-745" */}
 
 串行队列没有单元测试；它是否起作用，只能在隔离 home 里连着发几次安装、升级来看。
 
@@ -56,13 +62,13 @@ home 里的插件分两层：**包**是 pnpm 装进 `package.json` 与 `node_mod
 
 **怎么做**：条目的增删改只用条目树的 `create` / `update` / `remove`——它们把写回 `cordis.yml` 与当场加载、卸载一起做。启用传 `{ disabled: null }`（loader 把 null 当作删掉这个字段），停用传 `{ disabled: true }`；`remove-entry` 只删条目，包留在 home 里。
 
-{/* ref file="../plugins/plugin-manager/src/index.ts" lines="704-723" */}
+{/* ref file="../plugins/plugin-manager/src/index.ts" lines="654-672" */}
 
 条目树在构造时从插件管理自己那条条目的上一层取（`ctx.fiber.entry.parent.tree`），不用知道承载 `cordis.yml` 的那条条目叫什么。按 loader 自己的类型 `EntryTree` 取，再赋给收窄后的 `EntryTreeLike`：loader 改了这几个方法的签名，类型检查就在这里失败。
 
-{/* ref file="../plugins/plugin-manager/src/tree.ts" lines="19-34" */}
+{/* ref file="../plugins/plugin-manager/src/tree.ts" lines="6-21" */}
 
-{/* ref file="../plugins/plugin-manager/src/tree.ts" lines="49-63" */}
+{/* ref file="../plugins/plugin-manager/src/tree.ts" lines="35-40" */}
 
 **守住它的测试**：用 `devDependencies` 里固定版本的 loader 与 include 搭一个和内核相同的环境，把条目树的用法运行一遍。这几个版本要和 `gwb.testedKernel` 那个内核用的一致（见[在哪个内核上测过](/docs/plugin-manager/kernel-compat)）。
 
@@ -80,7 +86,7 @@ home 里的插件分两层：**包**是 pnpm 装进 `package.json` 与 `node_mod
 
 **怎么做**：`install`、`uninstall`、`update-all`、`remount` 四条命令在最外层先经过一道互斥检查。已经有一个在运行时，重入的直接返回 `{ ok: false, error: "BUSY…" }`，不排队——排队会让界面看起来点了没反应。一个内核进程只服务一个 home，所以进程内的一个标志就够了；运行中抛错也会释放。插件管理对外只有命令（见[对外只有命令](/docs/plugin-manager/commands)），没有绕开这道检查的调用方式。
 
-{/* ref file="../plugins/plugin-manager/src/busy.ts" lines="7-22" */}
+{/* ref file="../plugins/plugin-manager/src/busy.ts" lines="1-17" */}
 
 **守住它的测试**：
 

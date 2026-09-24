@@ -28,7 +28,7 @@ description: 插件管理只用自己依赖里固定版本的 @pnpm/exe.win32-x6
 - 插件管理升级时 pnpm 版本可能跟着变。pnpm 只把链接换到新版本目录，旧目录和正在运行的那个文件留在原处，不会因为文件被占用而失败
 </Diagram>
 
-{/* ref file="../plugins/plugin-manager/src/pnpm.ts" lines="44-68" */}
+{/* ref file="../plugins/plugin-manager/src/pnpm.ts" lines="44-67" */}
 
 {/* ref file="../plugins/plugin-manager/src/pnpm-path.ts" lines="9-12" */}
 
@@ -45,21 +45,23 @@ description: 插件管理只用自己依赖里固定版本的 @pnpm/exe.win32-x6
 
 **命令行参数与工作目录**：改 home 只有 `add <spec…>` 与 `remove <包名>` 两种，都经 `applyToHome` 排进同一个串行队列；只读的是 `outdated --json`。工作目录一律是 home。
 
-{/* ref file="../plugins/plugin-manager/src/index.ts" lines="784-787" */}
+{/* ref file="../plugins/plugin-manager/src/index.ts" lines="735-738" */}
 
 **环境**：原样传下去，用户的 `~/.npmrc`、pnpm 配置（`@godcreator` 的包源、包龄豁免）照常读到；只去掉 `ELECTRON_RUN_AS_NODE`——它只对 electron 有意义，留着会传给 pnpm 启动的依赖构建脚本。直接启动这个文件，不开 shell。
 
-{/* ref file="../plugins/plugin-manager/src/pnpm-path.ts" lines="23-31" */}
+{/* ref file="../plugins/plugin-manager/src/pnpm-path.ts" lines="14-19" */}
 
 **不设超时**：装一个大包本来就可能要几分钟，定一个时限只会在慢网络上错误地结束正常的安装；网络层的超时 pnpm 自己有。真卡住了，由人去结束进程。
 
 **读回什么**：`add` / `remove` 只看退出码，0 是成功；成功时不保留输出（几十行进度没人看），失败时回执带 stdout 与 stderr 合起来的最后 12 行，pnpm 把原因写在最后。`outdated` 要读 stdout 上的 JSON，另用 `runPnpmCapture` 完整保留 stdout；退出码 1 表示「有过期的包」，是结果不是失败。两种运行方式对输出的取舍相反，所以是两个函数，不合成一个。
 
-{/* ref file="../plugins/plugin-manager/src/pnpm.ts" lines="12-24" */}
+{/* ref file="../plugins/plugin-manager/src/pnpm.ts" lines="10-25" */}
 
 pnpm 升大版本时输出格式可能变，`outdated` 解析不了就回失败，原因里说明这一点。
 
-**守住它的测试**：启动参数与环境、输出只留最后几行有单元测试；真正启动进程、收集输出只能实机验证（`devkit.dev` 装进隔离 home 后调 `plugin-manager.install` / `outdated`）。
+**守住它的测试**：启动参数与环境、输出只留最后几行有单元测试；启动进程、收集输出、读退出码用 node 代替 pnpm 可执行文件来测；真的 pnpm 装包只能实机验证（`devkit.dev` 装进隔离 home 后调 `plugin-manager.install` / `outdated`）。
+
+{/* has file="../plugins/plugin-manager/tests/pnpm-run.test.ts" text="可执行文件不在：不抛，exitCode 为 null，原因在 tail 里" */}
 
 {/* has file="../plugins/plugin-manager/tests/pnpm-path.test.ts" text="只去掉 ELECTRON_RUN_AS_NODE" */}
 
@@ -73,4 +75,4 @@ pnpm 升大版本时输出格式可能变，`outdated` 解析不了就回失败�
 
 **例外**：插件启动的子进程，卸载时本该结束整个进程树、等它真正退出。这是允许的例外，理由写在 `runPnpm` 的注释里：
 
-{/* ref file="../plugins/plugin-manager/src/pnpm.ts" lines="76-87" */}
+{/* ref file="../plugins/plugin-manager/src/pnpm.ts" lines="74-78" */}

@@ -27,7 +27,7 @@ description: 插件用到别的插件在某个版本新加的东西（比如外�
 
 **`plugin-manager.list` 按包报**：`requires` 照抄声明；`unmetRequires` 列出没满足的要求——home 里装的版本低于要求、要求的不是合法的 x.y.z、或者没装（这时没有 `installed` 字段）；`gwb.requires` 不是「包名 → 字符串」的对象时，`requiresInvalid` 说明哪里不对。只报告，不拦加载、不拦安装（回执怎么读，见插件管理那组页面里的[要求的插件版本](/docs/plugin-manager/requires)）：
 
-{/* ref file="../plugins/plugin-manager/src/requires.ts" lines="88-103" */}
+{/* ref file="../plugins/plugin-manager/src/requires.ts" lines="79-91" */}
 
 两边判断「合法的最低版本号」的函数各存一份，不跨包 import；devkit 的 `tests/requires-parity.test.ts` 拿同一组输入跑两份，结果不同就失败。
 

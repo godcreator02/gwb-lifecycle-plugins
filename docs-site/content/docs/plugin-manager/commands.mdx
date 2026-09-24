@@ -32,7 +32,7 @@ description: 16 条命令是插件管理唯一的调用方式；服务 gwbPlugin
 - 参数写错（包名、版本范围、id、scope 不合规，条目不存在，改或删 `@godcreator`）直接报错；执行中的失败（找不到 pnpm、pnpm 失败）返回 `ok: false`，`error` 里是原因，pnpm 输出的最后几行既拼进 `error`，也原样放在 `data.tail`
 - 每条命令的 `description` 与 `usage` 写着参数形状，agent 经 MCP 入口的 `search` 读到的就是它们
 
-{/* ref file="../plugins/plugin-manager/src/index.ts" lines="303-308" */}
+{/* ref file="../plugins/plugin-manager/src/index.ts" lines="271-276" */}
 
 ## 服务只表示「装了」
 
@@ -46,7 +46,7 @@ description: 16 条命令是插件管理唯一的调用方式；服务 gwbPlugin
 
 {/* ref file="../plugins/plugin-manager/src/index.ts" lines="239-244" */}
 
-{/* ref file="../plugins/plugin-manager/src/index.ts" lines="284-300" */}
+{/* ref file="../plugins/plugin-manager/src/index.ts" lines="248-267" */}
 
 **守住它的测试**：插件管理只取 cordis、loader、词汇表包和四个可选插件的类型，构建产物里一个包名 import 都不该有；包的 `description` 要写全服务、说明书、命令三项，注入的服务名要在这个目录的页面里写到。
 
@@ -54,7 +54,11 @@ description: 16 条命令是插件管理唯一的调用方式；服务 gwbPlugin
 
 {/* has file="../plugins/plugin-manager/tests/self-report.test.ts" text="registerSelfReportGuard" */}
 
-命令实际登记上、调得通，只能实机验证：用 `devkit.home.new` 开一个隔离 home，`devkit.dev` 把这一版装进去，再用 `devkit.cdp` 调命令（见[测试 home](/docs/devkit/home)、[改一版看一版](/docs/devkit/dev)）。
+在假 ctx 上运行 `apply`、按命令名调处理函数的测试覆盖了各条命令的回执与参数校验（pnpm 换成假实现）：
+
+{/* has file="../plugins/plugin-manager/tests/commands.test.ts" text="参数不是对象、缺字段：直接抛错" */}
+
+在真的工作台里登记上、调得通，只能实机验证：用 `devkit.home.new` 开一个隔离 home，`devkit.dev` 把这一版装进去，再用 `devkit.cdp` 调命令（见[测试 home](/docs/devkit/home)、[改一版看一版](/docs/devkit/dev)）。
 
 <Diagram name="pm-commands" title="页面、agent、别的插件都经命令调用；别的插件只 inject 这个服务来跟着它加载、卸载">
 - 三类调用方——插件管理窗格、经 MCP 入口的 agent、主进程里的别的插件——都经命令插件按名字调用 `plugin-manager.*`
