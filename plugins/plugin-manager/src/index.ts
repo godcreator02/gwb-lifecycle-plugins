@@ -1,9 +1,7 @@
 import os from 'node:os'
 import type { GwbContext, GwbResult } from '@godcreator/gwb-plugin-api'
 import { isRecord, requireKernel } from './vocab.js'
-// 这几条 type import 只为引入对方的 `declare module 'cordis'`，让 ctx 上有那几个服务名
-// （commands 那条另带一个类型：一键热升级要持有命令插件的引用）。这些插件在这里**都是可选的**，
-// 所以都用嵌套注入、都写进 devDependencies
+// 这几条 type import 只为引入对方的 `declare module 'cordis'`（commands 另取一个类型）；这些插件都是可选的：嵌套注入、写进 devDependencies
 import type { GwbCommands } from '@godcreator/gwb-commands'
 import type {} from '@godcreator/gwb-data'
 import type {} from '@godcreator/gwb-settings'
@@ -16,7 +14,7 @@ import { parseOutdated, type UpdateInfo } from './outdated.js'
 import { entriesForPackage } from './uninstall.js'
 import { ownEntryId, treeOf, type EntryTreeLike } from './tree.js'
 import { BusyGate } from './busy.js'
-import { fiberStateOf, planUpdateAll, type PlannedEntry } from './update-all.js'
+import { fiberStateOf, planUpdateAll, type PlannedEntry, type UpdateAllPlan } from './update-all.js'
 import { remountNow, remountOne, remountSelfLater, type RemountedEntry } from './remount.js'
 import { kernelTestStatusOf } from './tested-kernel.js'
 import { declaredRequires, installedVersionOf, requiresStatusOf } from './requires.js'
@@ -29,37 +27,19 @@ export type { RequiresStatus, UnmetRequire } from './requires.js'
 export type { SearchReceipt, SourceAddResult, SourceListResult, SourceRemoveResult, SourceReport } from './package-sources.js'
 export type { SearchRow } from './search.js'
 
-/**
- * 管理 home 里的**包**和 `cordis.yml` 里的**条目**。包由 pnpm 装进 home，条目由 loader 写进 `cordis.yml`
- * ——只装包、不加条目，插件不会运行。
- *
- * **对外只有命令**（`plugin-manager.*`）。服务 `gwbPluginManager` 只表示「插件管理装了」，上面没有方法：
- * 同一件事只提供一种调用方式，所有改动都经过命令，也就都经过同一道 BUSY 检查。
- *
- * **安装 = 一次 `pnpm add` + 一条条目。** 不替插件装它的 peer，也不判断装的是不是库：插件的 peer 只该是宿主
- * 提供的 `cordis`，库该打包进用它的插件里，都不需要装进 home。装了一个没有 `apply` 的包，条目加载失败，
- * 在 `list` 里看得到。
- *
- * **卸载 = 删除条目并移除包**，设置与数据留在磁盘上。先删条目后卸包，pnpm 失败只报告、不回滚。
- *
- * **一键热升级（`update-all`）= 一次 pnpm 升级过期包，再逐条停用→启用重新加载，不重启。** 计划由
- * `update-all.ts` 里的纯函数算出。升级与重新加载必须在**同一条命令**里完成：pnpm 会删除旧版本目录，
- * 两者之间只要隔着一条命令，旧版插件读磁盘就读不到文件。本插件自己的条目排在最后、回执发出后才处理。
- *
- * **找插件与配包源（`search`、`source.*`）不改 home**：检索配好的 npm 源、增删机器级 `~/.npmrc` 的 scope 路由，
- * 不经 BUSY 检查，逻辑在 `package-sources.ts`。操作面板在 `@godcreator/gwb-baseui`。
- */
-
-/** 外壳的整页重载命令。**按命令名查找**，不 import 外壳的常量——那会让外壳成为运行时依赖 */
+/** 外壳的整页重载命令。按命令名查找，不 import 外壳的常量：那会让外壳成为运行时依赖 */
 const SHELL_RELOAD_COMMAND = 'shell.reload'
 
 const NAME = 'gwb-plugin-manager'
 
-/** 注册命令时填的所属插件：包名——agent 侧按包名识别命令属于哪个插件 */
+/** 登记命令时填的所属插件：包名 */
 const PKG = '@godcreator/gwb-plugin-manager'
 
 /** 显示名存在本插件自己的数据里：一份「不带前缀的 id → label」的文档 */
 const LABELS_DOC = 'labels'
+
+/** 经过 BUSY 检查的那几条命令的 usage 末尾都带这一句 */
+const BUSY_USAGE_NOTE = '同一时刻只允许一个变更，重入回 { ok:false, error:"BUSY…" }'
 
 export const LIST_COMMAND = 'plugin-manager.list'
 export const INSTALL_COMMAND = 'plugin-manager.install'
@@ -159,26 +139,20 @@ export interface UninstallResult {
   tail?: string
 }
 
-/**
- * 保存 label 的存储。只保留用得到的两个方法——`ctx.gwbData` 满足它。
- *
- * **显示名不存进 cordis.yml，也不存进设置，而是存在这个插件自己的数据目录里。** 理由：id 是身份标识、
- * 固定不可改，但人需要给条目起个看得懂的名字（尤其是中文名，而 id 只能是 ASCII
- * kebab-case）。存在自己的数据目录里，这个插件就不必为了显示名去依赖设置插件。
- */
+/** 显示名的存储，`ctx.gwbData` 满足它 */
 interface LabelStore {
   readDoc(doc: string): Promise<unknown>
   writeDoc(doc: string, value: unknown): Promise<void>
 }
 
-/**
- * 归属记录：数据插件与设置插件各有一份，记录每个 id 属于哪个包。只保留用得到的两个方法——
- * `ctx.gwbData` 与 `ctx.gwbSettings` 都满足它。分配 id 时用它避开别的包留在磁盘上的数据
- */
+/** 数据插件与设置插件各有一份的归属记录（id → 包），`ctx.gwbData` 与 `ctx.gwbSettings` 都满足它 */
 interface OwnerBook {
   owners(): Promise<Record<string, string>> | Record<string, string>
   transferOwner(id: string, pkg: string): Promise<void>
 }
+
+type CommandHandler = (args?: unknown) => unknown
+type RegisterCommand = (name: string, description: string, usage: string, handler: CommandHandler) => void
 
 export const name = NAME
 
@@ -191,47 +165,38 @@ export function apply(ctx: GwbContext): void {
 
 class PluginManager {
   private readonly ctx: GwbContext
-  /** 这个 home 的目录：pnpm 的 cwd，也是 home 的 package.json 所在的目录 */
-  private readonly home: string
+  /** pnpm 的工作目录，也是 home 的 package.json 所在的目录 */
+  private readonly homeDir: string
   /** 运行中的内核版本号，`list` 拿它和各包声明的 `gwb.testedKernel` 比对 */
   private readonly kernelVersion: string
-  /** 两份 npmrc：机器级是包源路由的正本（`source.add` / `source.remove` 改它），home 级只读 */
+  /** 机器级是包源路由的正本（`source.add` / `source.remove` 改它），home 级只读 */
   private readonly npmrc: { user: string; home: string }
-  /** cordis.yml 对应的条目树 */
   private readonly tree: EntryTreeLike
-  /**
-   * 事先拿到的 logger。一键热升级里最后重新加载本插件那一步运行时，本插件的 fiber 已经卸载——
-   * 那时 ctx 上什么都不能访问，只能用事先持有的这个 logger
-   */
+  /** 事先拿到的 logger：最后重新加载本插件那一步运行时，本插件的 fiber 已经卸载，ctx 上什么都不能访问 */
   private readonly log: { info(message: string): void; warn(message: string): void }
 
-  /** 装了数据插件才有。没装时只显示 id，`set-label` 返回「没装数据插件」 */
+  /** 装了数据插件才有 */
   private labelStore: LabelStore | undefined
-  /** 数据插件、设置插件各自的归属记录，装了才有 */
-  private dataBook: OwnerBook | undefined
-  private settingsBook: OwnerBook | undefined
-  /** 命令插件存在才有。一键热升级用它查找并执行 `shell.reload`——包括本插件自己重新加载之后那一次 */
-  private cli: GwbCommands | undefined
+  private dataOwnerBook: OwnerBook | undefined
+  private settingsOwnerBook: OwnerBook | undefined
+  /** 命令插件存在才有。一键热升级用它执行 `shell.reload`，包括本插件自己重新加载之后那一次 */
+  private commandBus: GwbCommands | undefined
 
-  /** 同一 home 同一时刻最多一个安装、卸载、升级或重新加载，重入时返回 BUSY */
-  private readonly gate = new BusyGate()
-  /** 不带前缀的 id → 显示名。以内存里这份为准，磁盘上那份是它的副本 */
+  private readonly busyGate = new BusyGate()
+  /** 不带前缀的 id → 显示名。以内存里这份为准 */
   private labels: Record<string, string> = {}
-  /** 第一次读取 labels 是否完成。改显示名要等它——不等的话第一次改名会被读磁盘的结果覆盖 */
+  /** 第一次读取 labels 完成。改显示名要等它，不然第一次改名会被读磁盘的结果覆盖 */
   private labelsReady: Promise<void> = Promise.resolve()
 
-  /**
-   * pnpm 排队执行，同一时刻只运行一个。两个 pnpm 同时运行的话，pnpm 读-改-写 home 的
-   * `package.json`，后写的会把前一个加进去的依赖覆盖掉——而且没有任何报错。
-   */
-  private chain: Promise<unknown> = Promise.resolve()
+  /** pnpm 串行队列的队尾：两个 pnpm 同时读改写 home 的 package.json，后写的会覆盖前一个加的依赖 */
+  private pnpmQueueTail: Promise<unknown> = Promise.resolve()
 
   constructor(ctx: GwbContext) {
     this.ctx = ctx
     const kernel = requireKernel(ctx)
-    this.home = kernel.dataDir
+    this.homeDir = kernel.dataDir
     this.kernelVersion = kernel.version
-    this.npmrc = npmrcFiles(os.homedir(), this.home)
+    this.npmrc = npmrcFiles(os.homedir(), this.homeDir)
     this.tree = treeOf(ctx)
     this.log = ctx.logger(NAME)
   }
@@ -243,22 +208,21 @@ class PluginManager {
     this.wireSkills()
   }
 
-  /** 说明书用局部注入：没有 skills 插件时本插件照常加载。skills/ 目录必须列进 package.json 的 files */
+  /** skills/ 目录要列进 package.json 的 files */
   private wireSkills(): void {
     this.ctx.inject(['gwbSkills'], (ctx) => {
       ctx.effect(() => ctx.gwbSkills.register(new URL('../skills/', import.meta.url)))
     })
   }
 
-  /** 数据插件是**可选**的：用嵌套注入，它存在时才连接，卸载时自动断开，之后才加载也能连接上 */
   private wireData(): void {
     this.ctx.inject(['gwbData'], (ctx) => {
       const store: LabelStore = ctx.gwbData
       this.labelStore = store
-      this.dataBook = ctx.gwbData
+      this.dataOwnerBook = ctx.gwbData
       this.labelsReady = store.readDoc(LABELS_DOC).then(
-        (raw) => {
-          this.labels = toLabels(raw)
+        (labelsDoc) => {
+          this.labels = toLabels(labelsDoc)
         },
         (err: unknown) => {
           this.log.warn(`显示名读不出来，先当没有：${String(err)}`)
@@ -266,17 +230,17 @@ class PluginManager {
       )
       ctx.effect(() => () => {
         this.labelStore = undefined
-        this.dataBook = undefined
+        this.dataOwnerBook = undefined
       })
     })
   }
 
-  /** 设置插件也是可选的。只用它的归属记录：分配 id 时避开别的包的设置分区，转移归属时一起改 */
+  /** 只用设置插件的归属记录：分配 id 时避开别的包的设置分区，转移归属时一起改 */
   private wireSettings(): void {
     this.ctx.inject(['gwbSettings'], (ctx) => {
-      this.settingsBook = ctx.gwbSettings
+      this.settingsOwnerBook = ctx.gwbSettings
       ctx.effect(() => () => {
-        this.settingsBook = undefined
+        this.settingsOwnerBook = undefined
       })
     })
   }
@@ -284,164 +248,162 @@ class PluginManager {
   /** 命令插件是可选的，但没有它插件管理就没有任何对外接口 */
   private wireCommands(): void {
     this.ctx.inject(['gwbCommands'], (ctx) => {
-      const cli = ctx.gwbCommands
+      const commandBus = ctx.gwbCommands
       // inject 保证了它在，这句只是把类型收窄
-      if (cli === undefined) return
-      this.cli = cli
+      if (commandBus === undefined) return
+      this.commandBus = commandBus
       ctx.effect(() => () => {
-        this.cli = undefined
+        this.commandBus = undefined
       })
-      const on = (name: string, description: string, usage: string, handler: (args?: unknown) => unknown): void => {
-        ctx.effect(() => cli.register({ name, description, usage, plugin: PKG }, handler))
+      const registerCommand: RegisterCommand = (name, description, usage, handler) => {
+        ctx.effect(() => commandBus.register({ name, description, usage, plugin: PKG }, handler))
       }
-      /** 安装、卸载、一键热升级、重新加载这四条命令经过互斥检查，重入时返回 BUSY */
-      const onGuarded = (name: string, description: string, usage: string, handler: (args?: unknown) => unknown): void => {
-        ctx.effect(() => cli.register({ name, description, usage, plugin: PKG }, (args) => this.gate.run(() => handler(args) as Promise<{ ok: boolean }> | { ok: boolean })))
+      const registerBusyGuardedCommand: RegisterCommand = (name, description, usage, handler) => {
+        ctx.effect(() => commandBus.register({ name, description, usage, plugin: PKG }, (args) => this.busyGate.run(() => handler(args) as Promise<{ ok: boolean }> | { ok: boolean })))
       }
-      const busy = '同一时刻只允许一个变更，重入回 { ok:false, error:"BUSY…" }'
+      this.registerHomeCommands(registerCommand, registerBusyGuardedCommand)
+      this.registerSourceCommands(registerCommand, commandBus)
+    })
+  }
 
-      on(
-        LIST_COMMAND,
-        'home 里装了哪些包、各有哪些条目、有没有没在当前内核上测过或要求的插件版本没满足的',
-        '回执按包列：包名、spec、条目（id、entryId、启停、是否 ACTIVE、显示名）、testedKernel（包的 package.json 里 gwb.testedKernel 声明的内核版本号，没声明时没有这个字段）、kernelUntested（声明的版本与运行中的内核不在同一条版本线上，或没声明、声明的不是合法版本号，就是 true；主版本号为 0 时比前两位，≥1 时只比主版本号）、requires（包的 package.json 里 gwb.requires 原样照抄：{ 包名: 最低版本号 x.y.z }，没写时没有这个字段）、unmetRequires（没满足的要求 [{ pkg, required, installed? }]：home 里装的版本低于 required、required 不是合法的 x.y.z、或没装（没有 installed 字段）；全都满足时是空数组）、requiresInvalid（gwb.requires 写了但不是「包名 → 字符串」的对象时说明哪里不对，这时不比对）。只报告，不拦加载。无参数',
-        () => this.list(),
-      )
+  /** 改 home 里的包与条目的命令；安装、卸载、一键热升级、重新加载经过 BUSY 检查 */
+  private registerHomeCommands(registerCommand: RegisterCommand, registerBusyGuardedCommand: RegisterCommand): void {
+    registerCommand(
+      LIST_COMMAND,
+      'home 里装了哪些包、各有哪些条目、有没有没在当前内核上测过或要求的插件版本没满足的',
+      '回执按包列：包名、spec、条目（id、entryId、启停、是否 ACTIVE、显示名）、testedKernel（包的 package.json 里 gwb.testedKernel 声明的内核版本号，没声明时没有这个字段）、kernelUntested（声明的版本与运行中的内核不在同一条版本线上，或没声明、声明的不是合法版本号，就是 true；主版本号为 0 时比前两位，≥1 时只比主版本号）、requires（包的 package.json 里 gwb.requires 原样照抄：{ 包名: 最低版本号 x.y.z }，没写时没有这个字段）、unmetRequires（没满足的要求 [{ pkg, required, installed? }]：home 里装的版本低于 required、required 不是合法的 x.y.z、或没装（没有 installed 字段）；全都满足时是空数组）、requiresInvalid（gwb.requires 写了但不是「包名 → 字符串」的对象时说明哪里不对，这时不比对）。只报告，不拦加载。无参数',
+      () => this.list(),
+    )
 
-      onGuarded(
-        INSTALL_COMMAND,
-        '往 home 装一个包并加一条条目',
-        `一次 pnpm add 把包装进 home，再加一条条目（默认启用）。不装它的 peer，也不判断是不是库：装了没有 apply 的包，条目加载失败，在 plugin-manager.list 里看得到。回执 { ok, pkg, entryId?, error?, tail? }。参数 { pkg, spec? }（spec 是版本或 tag）；${busy}`,
-        async (args) => {
-          const raw = asRecord(args)
-          const result = await this.install(text(raw, 'pkg'), optional(raw, 'spec'))
-          return withTail(result)
-        },
-      )
+    registerBusyGuardedCommand(
+      INSTALL_COMMAND,
+      '往 home 装一个包并加一条条目',
+      `一次 pnpm add 把包装进 home，再加一条条目（默认启用）。不装它的 peer，也不判断是不是库：装了没有 apply 的包，条目加载失败，在 plugin-manager.list 里看得到。回执 { ok, pkg, entryId?, error?, tail? }。参数 { pkg, spec? }（spec 是版本或 tag）；${BUSY_USAGE_NOTE}`,
+      async (args) => {
+        const argsObject = argsObjectOf(args)
+        const result = await this.install(requiredString(argsObject, 'pkg'), optionalString(argsObject, 'spec'))
+        return receiptWithPnpmTail(result)
+      },
+    )
 
-      on(ADD_ENTRY_COMMAND, '给已装的包再加一条条目', '参数 { pkg, id?, config? }。不给 id 就自动生成（磁盘上有本包留下的旧 id 时优先沿用）；给的 id 在条目树上已被占用、或磁盘上的数据与设置属于别的包，直接拒绝', async (args) => {
-        const raw = asRecord(args)
-        const entryId = await this.addEntry(text(raw, 'pkg'), optional(raw, 'id'), raw['config'])
-        return { ok: true, data: { entryId } }
-      })
+    registerCommand(ADD_ENTRY_COMMAND, '给已装的包再加一条条目', '参数 { pkg, id?, config? }。不给 id 就自动生成（磁盘上有本包留下的旧 id 时优先沿用）；给的 id 在条目树上已被占用、或磁盘上的数据与设置属于别的包，直接拒绝', async (args) => {
+      const argsObject = argsObjectOf(args)
+      const entryId = await this.addEntry(requiredString(argsObject, 'pkg'), optionalString(argsObject, 'id'), argsObject['config'])
+      return { ok: true, data: { entryId } }
+    })
 
-      on(
-        TRANSFER_OWNER_COMMAND,
-        '把一个 id 的数据与设置的归属转给另一个包',
-        '同一个插件改了包名、要继续用旧数据与设置时调用它；数据目录与设置分区的归属一起改。参数 { id, pkg }：id 是条目 id（不带前缀的 id 或完整 entryId，条目树上不必有这条），pkg 是新的所属包名。回执 { id, pkg, data, settings }，data / settings 是 false 说明对应的插件（gwb-data / gwb-settings）没装、那一半没改',
-        async (args) => {
-          const raw = asRecord(args)
-          return { ok: true, data: await this.transferOwner(text(raw, 'id'), text(raw, 'pkg')) }
-        },
-      )
+    registerCommand(
+      TRANSFER_OWNER_COMMAND,
+      '把一个 id 的数据与设置的归属转给另一个包',
+      '同一个插件改了包名、要继续用旧数据与设置时调用它；数据目录与设置分区的归属一起改。参数 { id, pkg }：id 是条目 id（不带前缀的 id 或完整 entryId，条目树上不必有这条），pkg 是新的所属包名。回执 { id, pkg, data, settings }，data / settings 是 false 说明对应的插件（gwb-data / gwb-settings）没装、那一半没改',
+      async (args) => {
+        const argsObject = argsObjectOf(args)
+        return { ok: true, data: await this.transferOwner(requiredString(argsObject, 'id'), requiredString(argsObject, 'pkg')) }
+      },
+    )
 
-      on(REMOVE_ENTRY_COMMAND, '删一条条目（不删包）', '参数 { entryId }', (args) => {
-        this.removeEntry(text(asRecord(args), 'entryId'))
-        return { ok: true }
-      })
+    registerCommand(REMOVE_ENTRY_COMMAND, '删一条条目（不删包）', '参数 { entryId }', (args) => {
+      this.removeEntry(requiredString(argsObjectOf(args), 'entryId'))
+      return { ok: true }
+    })
 
-      on(ENABLE_COMMAND, '启用一条条目', '参数 { entryId }', async (args) => {
-        await this.enable(text(asRecord(args), 'entryId'))
-        return { ok: true }
-      })
+    registerCommand(ENABLE_COMMAND, '启用一条条目', '参数 { entryId }', async (args) => {
+      await this.enable(requiredString(argsObjectOf(args), 'entryId'))
+      return { ok: true }
+    })
 
-      on(DISABLE_COMMAND, '停用一条条目', '参数 { entryId }', async (args) => {
-        await this.disable(text(asRecord(args), 'entryId'))
-        return { ok: true }
-      })
+    registerCommand(DISABLE_COMMAND, '停用一条条目', '参数 { entryId }', async (args) => {
+      await this.disable(requiredString(argsObjectOf(args), 'entryId'))
+      return { ok: true }
+    })
 
-      onGuarded(
-        REMOUNT_COMMAND,
-        '重新加载一条条目：停用→等卸载完→启用→等加载完，一条命令做完',
-        `参数 { entryId }（完整 entryId 或不带前缀的 id）。回执 { id, action, state }：action 是 remounted（在这条命令里做完，state 是重新加载后的 fiber 状态，ACTIVE 才算加载成功）或 deferred（目标是插件管理自己：先返回回执，下一个宏任务才重新加载，state 是动手前的状态，之后用 plugin-manager.list 核对 active）；操作条目树时抛错则回 ok: false，data 里 action 是 failed。原本停用的条目重新加载后是启用的；重新加载命令插件（gwb-commands）也在这条命令里做完；${busy}`,
-        async (args) => {
-          const result = await this.remount(text(asRecord(args), 'entryId'))
-          if (result.action === 'failed') return { ok: false, error: `条目 ${result.id} 重新加载失败：${result.state}`, data: result }
-          return { ok: true, data: result }
-        },
-      )
+    registerBusyGuardedCommand(
+      REMOUNT_COMMAND,
+      '重新加载一条条目：停用→等卸载完→启用→等加载完，一条命令做完',
+      `参数 { entryId }（完整 entryId 或不带前缀的 id）。回执 { id, action, state }：action 是 remounted（在这条命令里做完，state 是重新加载后的 fiber 状态，ACTIVE 才算加载成功）或 deferred（目标是插件管理自己：先返回回执，下一个宏任务才重新加载，state 是动手前的状态，之后用 plugin-manager.list 核对 active）；操作条目树时抛错则回 ok: false，data 里 action 是 failed。原本停用的条目重新加载后是启用的；重新加载命令插件（gwb-commands）也在这条命令里做完；${BUSY_USAGE_NOTE}`,
+      async (args) => {
+        const result = await this.remount(requiredString(argsObjectOf(args), 'entryId'))
+        if (result.action === 'failed') return { ok: false, error: `条目 ${result.id} 重新加载失败：${result.state}`, data: result }
+        return { ok: true, data: result }
+      },
+    )
 
-      on(SET_LABEL_COMMAND, '改一条条目的显示名', '参数 { entryId, label }（label 给空字符串就是清除）', async (args) => {
-        const raw = asRecord(args)
-        return this.setLabel(text(raw, 'entryId'), label(raw))
-      })
+    registerCommand(SET_LABEL_COMMAND, '改一条条目的显示名', '参数 { entryId, label }（label 给空字符串就是清除）', async (args) => {
+      const argsObject = argsObjectOf(args)
+      return this.setLabel(requiredString(argsObject, 'entryId'), labelArgOf(argsObject))
+    })
 
-      on(OUTDATED_COMMAND, '查已装的包哪些有新版本', 'pnpm outdated。回执 { ok, updates: { 包名: { current, latest } } }，空对象表示全都最新。无参数', async () => {
-        const result = await this.outdated()
-        if (result.ok) return { ok: true, data: result }
-        return { ok: false, error: result.error ?? '没有给出原因' }
-      })
+    registerCommand(OUTDATED_COMMAND, '查已装的包哪些有新版本', 'pnpm outdated。回执 { ok, updates: { 包名: { current, latest } } }，空对象表示全都最新。无参数', async () => {
+      const result = await this.outdated()
+      if (result.ok) return { ok: true, data: result }
+      return { ok: false, error: result.error ?? '没有给出原因' }
+    })
 
-      onGuarded(
-        UPDATE_ALL_COMMAND,
-        '一键热升级过期包，不重启',
-        `一次 pnpm add 把过期包升到 outdated 返回的精确版本，再逐条停用→启用，重新加载成新版本（原本停用的跳过；插件管理自己排最后、回执发出后才重新加载），最后 shell.reload 整页重新加载。回执 { updated: [{ pkg, from, to, entries: [{ id, action, state }] }], selfDeferred, reload, note? }。参数 { only?: string[] }（只升这几个包；不给就全升）；${busy}`,
-        async (args) => {
-          const result = await this.updateAll(onlyList(args))
-          return withTail(result)
-        },
-      )
+    registerBusyGuardedCommand(
+      UPDATE_ALL_COMMAND,
+      '一键热升级过期包，不重启',
+      `一次 pnpm add 把过期包升到 outdated 返回的精确版本，再逐条停用→启用，重新加载成新版本（原本停用的跳过；插件管理自己排最后、回执发出后才重新加载），最后 shell.reload 整页重新加载。回执 { updated: [{ pkg, from, to, entries: [{ id, action, state }] }], selfDeferred, reload, note? }。参数 { only?: string[] }（只升这几个包；不给就全升）；${BUSY_USAGE_NOTE}`,
+      async (args) => {
+        const result = await this.updateAll(onlyPackagesArgOf(args))
+        return receiptWithPnpmTail(result)
+      },
+    )
 
-      onGuarded(UNINSTALL_COMMAND, '卸载一个包：删除它的全部条目，再卸载包', `设置与数据留在磁盘上（只删一条条目调用 plugin-manager.remove-entry）。参数 { pkg }；${busy}`, async (args) => {
-        const result = await this.uninstall(text(asRecord(args), 'pkg'))
-        return withTail(result)
-      })
-
-      this.registerSourceCommands(on, cli)
+    registerBusyGuardedCommand(UNINSTALL_COMMAND, '卸载一个包：删除它的全部条目，再卸载包', `设置与数据留在磁盘上（只删一条条目调用 plugin-manager.remove-entry）。参数 { pkg }；${BUSY_USAGE_NOTE}`, async (args) => {
+      const result = await this.uninstall(requiredString(argsObjectOf(args), 'pkg'))
+      return receiptWithPnpmTail(result)
     })
   }
 
   /** 找插件与配包源的四条命令：不改 home，不经 BUSY 检查 */
-  private registerSourceCommands(
-    on: (name: string, description: string, usage: string, handler: (args?: unknown) => unknown) => void,
-    cli: GwbCommands,
-  ): void {
+  private registerSourceCommands(registerCommand: RegisterCommand, commandBus: GwbCommands): void {
     const deps: PackageSourcesDeps = {
       userNpmrc: this.npmrc.user,
       homeNpmrc: this.npmrc.home,
-      runCommand: (name, args) => cli.run(name, args),
+      runCommand: (name, args) => commandBus.run(name, args),
       log: this.log,
     }
 
-    on(
+    registerCommand(
       SEARCH_COMMAND,
       '列出 registry 上的插件（npm 标准检索）：默认查全部配好的源',
       `从哪条源装就在哪条源搜：逐条源并发查（查成的并进 packages，没查成的在 note 里点名，一条失败不影响别的；全都没查成才 ok:false）。回执 packages 每行带 pkg / version / description / keywords，「是不是插件」看包自己的 keywords 里有没有 gwb-plugin。参数 { scope? }——不给就查全部配好的源（${SOURCE_LIST_COMMAND} 列出的两层 npmrc，@godcreator 在前、其余按名字排），给了只查那一条（如 "@j"）`,
       async (args) => {
-        const result = await searchPlugins(deps, scopeArg(args))
+        const result = await searchPlugins(deps, scopeArgOf(args))
         if (result.ok) return { ok: true, data: result }
         return { ok: false, error: result.error ?? '没说原因' }
       },
     )
 
-    on(
+    registerCommand(
       SOURCE_ADD_COMMAND,
       '往机器级 npmrc 写一条包源（scope 路由），装第三方插件用',
       '已有同 scope 就原地替换。写的是 ~/.npmrc（机器级）：@godcreator 的路由本来就在那里，不许经这条命令改。参数 { scope, registry?, owner?, token? }：registry 直接给源地址；owner 走 gitea 的简便写法——拼成 <base>/api/packages/<owner>/npm/（base 取设置 gitea.base-url，没配就用 git.tianshen02.online:28377），token 没给就取设置 gitea 分区的 token，取不到则回执 ok:false。token 行按源地址配对，同一个 token 配多条源不会重复写。回执 { ok, scope, registry, tokenWritten, replaced, lines?（token 已遮掉）, note? }',
       async (args) => {
-        const raw = asRecord(args)
-        const result = await addSource(deps, text(raw, 'scope'), {
-          registry: optional(raw, 'registry'),
-          owner: optional(raw, 'owner'),
-          token: optional(raw, 'token'),
+        const argsObject = argsObjectOf(args)
+        const result = await addSource(deps, requiredString(argsObject, 'scope'), {
+          registry: optionalString(argsObject, 'registry'),
+          owner: optionalString(argsObject, 'owner'),
+          token: optionalString(argsObject, 'token'),
         })
         if (result.ok) return { ok: true, data: result }
         return { ok: false, error: result.error ?? '没说原因', data: result }
       },
     )
 
-    on(
+    registerCommand(
       SOURCE_LIST_COMMAND,
       '列出包源：机器级与 home 级两份 npmrc 合起来看',
       '无参数。回执 { user, home, sources: [{ scope, registry, file, token }] }——file 是出处（user = 机器级 ~/.npmrc，home = <home>/.npmrc），pnpm 把两层合起来读、home 级同名行优先；token 只报有没有，不报值',
       async () => ({ ok: true, data: await listSources(deps) }),
     )
 
-    on(
+    registerCommand(
       SOURCE_REMOVE_COMMAND,
       '从机器级 npmrc 删掉一条包源',
       '参数 { scope }。token 行没有别的 scope 再指向它时一起删，还有就留着。@godcreator 不许删；机器级没有这条时说明原因（包括「它在 home 级，要手工删」）。回执 { ok, scope, registry? }',
       async (args) => {
-        const result = await removeSource(deps, text(asRecord(args), 'scope'))
+        const result = await removeSource(deps, requiredString(argsObjectOf(args), 'scope'))
         if (result.ok) return { ok: true, data: result }
         return { ok: false, error: result.error ?? '没说原因', data: result }
       },
@@ -449,99 +411,91 @@ class PluginManager {
   }
 
   async list(): Promise<PluginPackageView[]> {
-    const deps = await readHomeDependencies(this.home)
-    const packages = reconcile(deps, readEntries(this.tree.store), this.labels)
-    const manifests = new Map<string, unknown>()
-    await this.readInstalledManifests(packages.map((view) => view.pkg), manifests)
-    const installedVersions = await this.installedVersions(manifests)
-    return packages.map((view) => {
-      const manifest = manifests.get(view.pkg)
+    const homeDependencies = await readHomeDependencies(this.homeDir)
+    const reconciledPackages = reconcile(homeDependencies, readEntries(this.tree.store), this.labels)
+    const manifestsByPackage = new Map<string, unknown>()
+    await this.readInstalledManifests(reconciledPackages.map((view) => view.pkg), manifestsByPackage)
+    const installedVersions = await this.installedVersionsFor(manifestsByPackage)
+    return reconciledPackages.map((view) => {
+      const manifest = manifestsByPackage.get(view.pkg)
       return { ...view, ...kernelTestStatusOf(manifest, this.kernelVersion), ...requiresStatusOf(manifest, installedVersions) }
     })
   }
 
-  /** 把这几个包装在 home 里的 `package.json` 读进 `into`（没装的读成 undefined） */
-  private async readInstalledManifests(pkgs: readonly string[], into: Map<string, unknown>): Promise<void> {
-    const read = await Promise.all(pkgs.map((pkg) => readInstalledPackageManifest(this.home, pkg)))
-    pkgs.forEach((pkg, index) => into.set(pkg, read[index]))
+  /** 没装的包读成 undefined */
+  private async readInstalledManifests(pkgs: readonly string[], manifestsByPackage: Map<string, unknown>): Promise<void> {
+    const manifests = await Promise.all(pkgs.map((pkg) => readInstalledPackageManifest(this.homeDir, pkg)))
+    pkgs.forEach((pkg, index) => manifestsByPackage.set(pkg, manifests[index]))
   }
 
   /**
-   * home 里装了的包 → 版本号，供 `gwb.requires` 比对。`gwb.requires` 点名、而 home 的 dependencies 与条目都没提到的包，
-   * 也去 `node_modules` 里读一次清单：装没装以 `node_modules/<包>/package.json` 在不在为准。
+   * 包 → 装着的版本号。`gwb.requires` 点名、而 dependencies 与条目都没提到的包也去 `node_modules` 读一次清单；
    * 不合包名规则的键不拿去拼路径（`..` 之类会读到 `node_modules` 外面），按没装报
    */
-  private async installedVersions(manifests: Map<string, unknown>): Promise<Map<string, string>> {
-    const unread = new Set<string>()
-    for (const manifest of manifests.values()) {
+  private async installedVersionsFor(manifestsByPackage: Map<string, unknown>): Promise<Map<string, string>> {
+    const requiredButUnreadPackages = new Set<string>()
+    for (const manifest of manifestsByPackage.values()) {
       const declared = declaredRequires(manifest)
       if (declared.kind !== 'declared') continue
-      for (const pkg of Object.keys(declared.requires)) if (!manifests.has(pkg) && isPkgName(pkg)) unread.add(pkg)
+      for (const pkg of Object.keys(declared.requires)) if (!manifestsByPackage.has(pkg) && isPkgName(pkg)) requiredButUnreadPackages.add(pkg)
     }
-    await this.readInstalledManifests([...unread], manifests)
-    const versions = new Map<string, string>()
-    for (const [pkg, manifest] of manifests) {
+    await this.readInstalledManifests([...requiredButUnreadPackages], manifestsByPackage)
+    const installedVersions = new Map<string, string>()
+    for (const [pkg, manifest] of manifestsByPackage) {
       const version = installedVersionOf(manifest)
-      if (version !== undefined) versions.set(pkg, version)
+      if (version !== undefined) installedVersions.set(pkg, version)
     }
-    return versions
+    return installedVersions
   }
 
   /** 调用方写错（包名、版本范围不合规）直接抛；下面每一种失败都是正常结果，转成回执 */
   async install(pkg: string, spec?: string): Promise<InstallResult> {
-    const target = installSpec(pkg, spec)
+    const packageSpec = installSpec(pkg, spec)
 
-    const found = locatePnpm()
-    if (!found.ok) {
-      this.log.warn(`装不了 ${target}：${found.error}`)
-      return { ok: false, pkg, error: found.error }
+    const pnpmLookup = locatePnpm()
+    if (!pnpmLookup.ok) {
+      this.log.warn(`装不了 ${packageSpec}：${pnpmLookup.error}`)
+      return { ok: false, pkg, error: pnpmLookup.error }
     }
 
-    this.log.info(`用 ${describePnpm(found)} 装 ${target}`)
-    const run = await this.applyToHome(found.file, { add: [target] })
-    if (!run.ok) {
-      const failure = describeAddFailure(`pnpm add ${target}`, run)
+    this.log.info(`用 ${describePnpm(pnpmLookup)} 装 ${packageSpec}`)
+    const pnpmRun = await this.applyToHome(pnpmLookup.file, { add: [packageSpec] })
+    if (!pnpmRun.ok) {
+      const failure = describeAddFailure(`pnpm add ${packageSpec}`, pnpmRun)
       this.log.warn(`${failure.error}\n${failure.tail ?? ''}`)
       return { ok: false, pkg, ...failure }
     }
 
     try {
       const entryId = await this.createEntry(pkg)
-      // 日志说「已加进」而不说「已加载」——这里不等待加载，是否加载成功看 list 的 active
-      this.log.info(`${target} 装上了，条目 ${entryId} 已加进 cordis.yml`)
+      // 不等加载，所以日志说「已加进」不说「已加载」
+      this.log.info(`${packageSpec} 装上了，条目 ${entryId} 已加进 cordis.yml`)
       return { ok: true, pkg, entryId }
     } catch (err: unknown) {
-      // **不回滚删包**：留下的包会出现在 list 的「没有条目」那一组里，用户看得到；
-      // 删包比留着危险，而且删除时未必只删掉这一个
-      const error = `${target} 装上了，但条目加不进 cordis.yml：${String(err)}。包留在 home 里，查看列表调用 ${LIST_COMMAND}`
+      // 不回滚删包：删包比留着危险，而且删除时未必只删掉这一个
+      const error = `${packageSpec} 装上了，但条目加不进 cordis.yml：${String(err)}。包留在 home 里，查看列表调用 ${LIST_COMMAND}`
       this.log.warn(error)
       return { ok: false, pkg, error }
     }
   }
 
-  /**
-   * 查 home 里已装的包哪些有新版本（`pnpm outdated --json`）。
-   *
-   * **退出码 1 表示「存在过期包」，是结果不是失败**；0 且 stdout 为空才是「全都最新」。
-   * 与安装共用同一个串行队列——它只读不写，排队等待无妨，省得另外处理并发。
-   */
+  /** `pnpm outdated --json` 的退出码 1 表示「存在过期包」，是结果不是失败 */
   async outdated(): Promise<OutdatedReceipt> {
-    const found = locatePnpm()
-    if (!found.ok) return { ok: false, error: found.error }
+    const pnpmLookup = locatePnpm()
+    if (!pnpmLookup.ok) return { ok: false, error: pnpmLookup.error }
 
-    const run = await this.queue(() =>
-      runPnpmCapture({ pnpm: found.file, cwd: this.home, args: ['outdated', '--json'] }),
+    const pnpmRun = await this.enqueuePnpm(() =>
+      runPnpmCapture({ pnpm: pnpmLookup.file, cwd: this.homeDir, args: ['outdated', '--json'] }),
     )
-    // pnpm 给人看的说明都在 stderr 上，两种失败情况都把它带上
-    const say = (message: string): string =>
-      run.stderrTail === '' ? message : `${message}\n${run.stderrTail}`
-    if (run.exitCode === null) return { ok: false, error: say(`pnpm 启动失败（退出码 ${String(run.exitCode)}）`) }
-    if (run.exitCode !== 0 && run.exitCode !== 1) {
-      return { ok: false, error: say(`pnpm outdated 失败（退出码 ${String(run.exitCode)}）`) }
+    const withStderr = (message: string): string =>
+      pnpmRun.stderrTail === '' ? message : `${message}\n${pnpmRun.stderrTail}`
+    if (pnpmRun.exitCode === null) return { ok: false, error: withStderr(`pnpm 启动失败（退出码 ${String(pnpmRun.exitCode)}）`) }
+    if (pnpmRun.exitCode !== 0 && pnpmRun.exitCode !== 1) {
+      return { ok: false, error: withStderr(`pnpm outdated 失败（退出码 ${String(pnpmRun.exitCode)}）`) }
     }
-    const updates = parseOutdated(run.stdout)
+    const updates = parseOutdated(pnpmRun.stdout)
     if (updates === undefined) {
-      return { ok: false, error: say('pnpm outdated 的输出解析不了（需要的是 JSON）——pnpm 升大版本时输出格式可能变了') }
+      return { ok: false, error: withStderr('pnpm outdated 的输出解析不了（需要的是 JSON）——pnpm 升大版本时输出格式可能变了') }
     }
     return { ok: true, updates }
   }
@@ -549,10 +503,9 @@ class PluginManager {
   /** `only` 里包名不合规直接抛；下面每一种失败都是正常结果，转成回执 */
   async updateAll(only?: readonly string[]): Promise<UpdateAllResult> {
     for (const pkg of only ?? []) assertPkgName(pkg)
-    const bare = (extra?: string): UpdateAllResult => ({ ok: false, updated: [], selfDeferred: false, ...(extra === undefined ? {} : { error: extra }) })
 
     const checked = await this.outdated()
-    if (!checked.ok || checked.updates === undefined) return bare(checked.error ?? '查不出过期清单')
+    if (!checked.ok || checked.updates === undefined) return failedUpdateAll(checked.error ?? '查不出过期清单')
 
     const plan = planUpdateAll(checked.updates, this.tree.store, ownEntryId(this.ctx), only)
     const notes: string[] = []
@@ -561,119 +514,116 @@ class PluginManager {
       return { ok: true, updated: [], selfDeferred: false, note: ['全都最新', ...notes].join('；') }
     }
 
-    const found = locatePnpm()
-    if (!found.ok) {
-      this.log.warn(`升不了：${found.error}`)
-      return bare(found.error)
+    const pnpmLookup = locatePnpm()
+    if (!pnpmLookup.ok) {
+      this.log.warn(`升不了：${pnpmLookup.error}`)
+      return failedUpdateAll(pnpmLookup.error)
     }
-    // 一次装完：pnpm 读-改-写 home 的 package.json，逐个包启动进程与并发安装一样会互相覆盖
+    // 一次装完：pnpm 读改写 home 的 package.json，逐个包启动进程与并发安装一样会互相覆盖
     const specs = plan.pnpmArgs.slice(1)
-    this.log.info(`用 ${describePnpm(found)} 一次安装 ${specs.join(' ')}`)
-    const run = await this.applyToHome(found.file, { add: specs })
-    if (!run.ok) {
-      const failure = describeAddFailure(`pnpm ${plan.pnpmArgs.join(' ')}`, run)
-      // 失败发生在重新加载之前：没有改动任何条目
+    this.log.info(`用 ${describePnpm(pnpmLookup)} 一次安装 ${specs.join(' ')}`)
+    const pnpmRun = await this.applyToHome(pnpmLookup.file, { add: specs })
+    if (!pnpmRun.ok) {
+      const failure = describeAddFailure(`pnpm ${plan.pnpmArgs.join(' ')}`, pnpmRun)
       const error = `${failure.error}。一条条目都没动`
       this.log.warn(`${error}\n${failure.tail ?? ''}`)
-      return { ...bare(error), ...(failure.tail === undefined ? {} : { tail: failure.tail }) }
+      return { ...failedUpdateAll(error), ...(failure.tail === undefined ? {} : { tail: failure.tail }) }
     }
 
-    // 从这里开始旧版本目录已经删除：升级了的每条条目都必须在**这条命令里**重新加载，中间不留间隔
-    const updated: UpdatedPackage[] = []
-    let deferred: PlannedEntry | undefined
-    for (const pkg of plan.packages) {
-      const entries: RemountedEntry[] = []
-      for (const entry of pkg.entries) {
-        if (entry.self && !entry.disabled) {
-          deferred = entry
-          entries.push({ id: entry.id, action: 'deferred', state: fiberStateOf(this.tree.store[entry.id]) })
-          continue
-        }
-        entries.push(await this.remountPlanned(entry))
-      }
-      updated.push({ pkg: pkg.pkg, from: pkg.from, to: pkg.to, entries })
-    }
+    // 旧版本目录已经删除：升级了的每条条目都必须在这条命令里重新加载，中间不留间隔
+    const { updated, ownEntry } = await this.remountUpgradedEntries(plan)
     const summary = updated.map((p) => `${p.pkg} ${p.from} → ${p.to}`).join('，')
-    const cli = this.cli
+    const commandBus = this.commandBus
 
-    if (deferred === undefined) {
-      const reload = await reloadVia(cli)
+    if (ownEntry === undefined) {
+      const reload = await runShellReload(commandBus)
       if (reload.note !== undefined) notes.push(reload.note)
       this.log.info(`一键热升级完成：${summary}${reload.reload === 'done' ? '；界面已整页重载' : ''}`)
       return { ok: true, updated, selfDeferred: false, reload: reload.reload, ...noteOf(notes) }
     }
 
-    /**
-     * **本插件自己最后处理，而且在回执之后。** 在命令处理函数里停用自己，await 链随 fiber 一起卸载，回执永远
-     * 到不了调用方。所以先返回回执，下一个宏任务再处理——那时命令的应答早已发出。
-     * 闭包**只持有 tree、id、命令插件的引用与 logger**：本插件的 fiber 卸载之后，ctx 上的
-     * 东西都不能访问（获取服务会报「inactive context」）；闭包里也不调用 `this` 上的其他方法
-     */
-    const id = deferred.id
+    // 本插件自己在回执之后重新加载：闭包只持有 tree、id、命令插件的引用与 logger，不调 this 上的其他方法
+    const id = ownEntry.id
     const log = this.log
     remountSelfLater(this.tree, id, log, async () => {
-      const reload = await reloadVia(cli)
+      const reload = await runShellReload(commandBus)
       if (reload.note !== undefined) log.warn(reload.note)
     })
-    const canReload = hasCommand(cli, SHELL_RELOAD_COMMAND)
+    const canReload = hasCommand(commandBus, SHELL_RELOAD_COMMAND)
     if (!canReload) notes.push(`命令表里没有 ${SHELL_RELOAD_COMMAND}，界面要手动刷新`)
     this.log.info(`一键热升级：${summary}；插件管理自己（${id}）在回执之后重新加载${canReload ? '，随后整页重载' : ''}`)
     return { ok: true, updated, selfDeferred: true, reload: canReload ? 'deferred' : 'unavailable', ...noteOf(notes) }
   }
 
-  /** 按计划重新加载一条：本来就停用的跳过（保持停用），修改条目树时抛出的错误转成 failed */
+  /** 按计划逐条重新加载；本插件自己那条（启用着的）只记 deferred，交给调用方在回执之后处理 */
+  private async remountUpgradedEntries(plan: UpdateAllPlan): Promise<{ updated: UpdatedPackage[]; ownEntry: PlannedEntry | undefined }> {
+    const updated: UpdatedPackage[] = []
+    let ownEntry: PlannedEntry | undefined
+    for (const plannedPackage of plan.packages) {
+      const entries: RemountedEntry[] = []
+      for (const entry of plannedPackage.entries) {
+        if (entry.self && !entry.disabled) {
+          ownEntry = entry
+          entries.push({ id: entry.id, action: 'deferred', state: fiberStateOf(this.tree.store[entry.id]) })
+          continue
+        }
+        entries.push(await this.remountPlanned(entry))
+      }
+      updated.push({ pkg: plannedPackage.pkg, from: plannedPackage.from, to: plannedPackage.to, entries })
+    }
+    return { updated, ownEntry }
+  }
+
+  /** 本来就停用的跳过（保持停用），修改条目树时抛出的错误转成 failed */
   private async remountPlanned(entry: PlannedEntry): Promise<RemountedEntry> {
     if (entry.disabled) return { id: entry.id, action: 'skipped', state: 'disabled' }
     return remountNow(this.tree, entry.id, this.log)
   }
 
   async remount(entryId: string): Promise<RemountedEntry> {
-    const id = this.locate(entryId)
+    const id = this.existingBareId(entryId)
     return remountOne(this.tree, id, bareId(ownEntryId(this.ctx)), this.log)
   }
 
   /** 包没装（调用方写错了）直接抛；删条目与 pnpm 两步的失败转成回执 */
   async uninstall(pkg: string): Promise<UninstallResult> {
     assertPkgName(pkg)
-    const deps = await readHomeDependencies(this.home)
-    if (deps[pkg] === undefined) {
+    const homeDependencies = await readHomeDependencies(this.homeDir)
+    if (homeDependencies[pkg] === undefined) {
       throw new Error(`home 里没装 ${pkg}，无法卸载。只删条目请调用 ${REMOVE_ENTRY_COMMAND}。`)
     }
 
-    // 第一步：删除条目。逐条 tree.remove——它一次做两件事（写回 yml、立即卸载 fiber），
-    // 依赖这个包的其他插件会随 fiber 一起被 cordis 卸载，停在「未加载」状态
-    const ids = entriesForPackage(this.tree.store, pkg)
-    for (const id of ids) this.tree.remove(id)
+    // 先删条目：tree.remove 写回 yml 并当场卸载 fiber，依赖这个包的插件随之被 cordis 卸载
+    const removedIds = entriesForPackage(this.tree.store, pkg)
+    for (const id of removedIds) this.tree.remove(id)
 
-    // 第二步：卸载包。排进现有的串行队列，与安装、升级共用
-    const found = locatePnpm()
-    if (!found.ok) {
-      this.log.warn(`卸不了 ${pkg}：条目已删除（${ids.length} 条），${found.error}`)
-      return { ok: false, pkg, removedEntries: ids, error: found.error }
+    const pnpmLookup = locatePnpm()
+    if (!pnpmLookup.ok) {
+      this.log.warn(`卸不了 ${pkg}：条目已删除（${removedIds.length} 条），${pnpmLookup.error}`)
+      return { ok: false, pkg, removedEntries: removedIds, error: pnpmLookup.error }
     }
-    const run = await this.applyToHome(found.file, { remove: [pkg] })
-    if (!run.ok) {
-      // 不回滚：条目已删是可以接受的结果，包会出现在「已装、没有条目」那一组里，重试加条目即可
-      const error = `pnpm remove ${pkg} 失败（退出码 ${String(run.exitCode)}）。条目已删除 ${ids.length} 条，包还在 home 里`
-      this.log.warn(`${error}\n${run.tail ?? ''}`)
-      return run.tail === undefined
-        ? { ok: false, pkg, removedEntries: ids, error }
-        : { ok: false, pkg, removedEntries: ids, error, tail: run.tail }
+    const pnpmRun = await this.applyToHome(pnpmLookup.file, { remove: [pkg] })
+    if (!pnpmRun.ok) {
+      // 不回滚：包会出现在「已装、没有条目」那一组里，重试加条目即可
+      const error = `pnpm remove ${pkg} 失败（退出码 ${String(pnpmRun.exitCode)}）。条目已删除 ${removedIds.length} 条，包还在 home 里`
+      this.log.warn(`${error}\n${pnpmRun.tail ?? ''}`)
+      return pnpmRun.tail === undefined
+        ? { ok: false, pkg, removedEntries: removedIds, error }
+        : { ok: false, pkg, removedEntries: removedIds, error, tail: pnpmRun.tail }
     }
 
-    this.log.info(`${pkg} 卸载了：删除 ${ids.length} 条条目，包已从 home 移除。设置与数据留在磁盘上`)
-    return { ok: true, pkg, removedEntries: ids }
+    this.log.info(`${pkg} 卸载了：删除 ${removedIds.length} 条条目，包已从 home 移除。设置与数据留在磁盘上`)
+    return { ok: true, pkg, removedEntries: removedIds }
   }
 
   /** 包没装、id 已被占用、id 的数据或设置属于别的包，都会抛 */
   async addEntry(pkg: string, id?: string, config?: unknown): Promise<string> {
     assertPkgName(pkg)
-    const deps = await readHomeDependencies(this.home)
-    if (deps[pkg] === undefined) {
+    const homeDependencies = await readHomeDependencies(this.homeDir)
+    if (homeDependencies[pkg] === undefined) {
       throw new Error(`home 里没装 ${pkg}，加不了条目。先调用 ${INSTALL_COMMAND}，或者自己去 home 里 pnpm add。`)
     }
     const entryId = await this.createEntry(pkg, id, config)
-    // 安装有自己的「装上了」日志，这条日志只针对单独加条目的情况
     this.log.info(`条目 ${entryId}（${pkg}）加进 cordis.yml 了`)
     return entryId
   }
@@ -681,50 +631,49 @@ class PluginManager {
   /** 数据插件、设置插件没装的那部分跳过；`id` 不要求条目树上有这条 */
   async transferOwner(id: string, pkg: string): Promise<TransferOwnerResult> {
     assertPkgName(pkg)
-    const bare = bareId(id)
-    assertId(bare)
-    const data = this.dataBook
-    const settings = this.settingsBook
-    if (data !== undefined) await data.transferOwner(bare, pkg)
-    if (settings !== undefined) await settings.transferOwner(bare, pkg)
-    this.log.info(`${bare} 的数据与设置的归属已转给 ${pkg}`)
-    return { id: bare, pkg, data: data !== undefined, settings: settings !== undefined }
+    const bareEntryId = bareId(id)
+    assertId(bareEntryId)
+    const dataOwnerBook = this.dataOwnerBook
+    const settingsOwnerBook = this.settingsOwnerBook
+    if (dataOwnerBook !== undefined) await dataOwnerBook.transferOwner(bareEntryId, pkg)
+    if (settingsOwnerBook !== undefined) await settingsOwnerBook.transferOwner(bareEntryId, pkg)
+    this.log.info(`${bareEntryId} 的数据与设置的归属已转给 ${pkg}`)
+    return { id: bareEntryId, pkg, data: dataOwnerBook !== undefined, settings: settingsOwnerBook !== undefined }
   }
 
-  /** 把两份归属记录合并成一张表：id → 登记为其归属的包（每份记录各一个，所以可能有两个） */
+  /** 两份归属记录合并：id → 登记为其归属的包（每份记录各一个，所以可能有两个） */
   private async idOwners(): Promise<IdOwners> {
-    const out: Record<string, string[]> = {}
-    for (const book of [this.dataBook, this.settingsBook]) {
-      if (book === undefined) continue
-      for (const [id, pkg] of Object.entries(await book.owners())) (out[id] ??= []).push(pkg)
+    const ownersById: Record<string, string[]> = {}
+    for (const ownerBook of [this.dataOwnerBook, this.settingsOwnerBook]) {
+      if (ownerBook === undefined) continue
+      for (const [id, pkg] of Object.entries(await ownerBook.owners())) (ownersById[id] ??= []).push(pkg)
     }
-    return out
+    return ownersById
   }
 
+  /** 显示名保留：同一个包重新装回来还是这个 id，旧名字接着能用（与设置和数据相同） */
   removeEntry(entryId: string): void {
-    const id = this.locate(entryId)
+    const id = this.existingBareId(entryId)
     this.tree.remove(id)
-    // 显示名保留不清除：id 是确定性的，同一个包重新安装后还是这个 id，那时旧名字能继续使用——
-    // 与设置和数据的规则相同（删条目不删它的设置与数据）
     this.log.info(`条目 ${id} 已删（只删这一条，包没动；要连包一起卸载，调用 ${UNINSTALL_COMMAND}）`)
   }
 
   async enable(entryId: string): Promise<void> {
-    // **null 表示「删掉这个字段」**，不是「设成 null」——loader 的 update 把 null 当作删除
-    const id = this.locate(entryId)
+    // null 表示删掉这个字段，loader 的 update 把 null 当作删除
+    const id = this.existingBareId(entryId)
     await this.tree.update(id, { disabled: null })
     this.log.info(`条目 ${id} 已启用`)
   }
 
   async disable(entryId: string): Promise<void> {
-    const id = this.locate(entryId)
+    const id = this.existingBareId(entryId)
     await this.tree.update(id, { disabled: true })
     this.log.info(`条目 ${id} 已停用`)
   }
 
   /** 给空串就是清除。没装数据插件时返回 `ok: false`，不抛异常 */
   async setLabel(entryId: string, label: string): Promise<GwbResult> {
-    const id = this.locate(entryId)
+    const id = this.existingBareId(entryId)
     const store = this.labelStore
     if (store === undefined) {
       return {
@@ -732,25 +681,19 @@ class PluginManager {
         error: '没装数据插件（@godcreator/gwb-data），显示名存不下来。装上它、在 cordis.yml 里加一条条目，再改一次。',
       }
     }
-    // 等第一次读取完成再改，不然这次写入会被读磁盘的结果覆盖
     await this.labelsReady
     const trimmed = label.trim()
-    const next = { ...this.labels }
-    if (trimmed === '') delete next[id]
-    else next[id] = trimmed
-    await store.writeDoc(LABELS_DOC, next)
-    this.labels = next
+    const nextLabels = { ...this.labels }
+    if (trimmed === '') delete nextLabels[id]
+    else nextLabels[id] = trimmed
+    await store.writeDoc(LABELS_DOC, nextLabels)
+    this.labels = nextLabels
     this.log.info(trimmed === '' ? `条目 ${id} 的显示名已清除` : `条目 ${id} 的显示名改成「${trimmed}」`)
     return { ok: true }
   }
 
-  /**
-   * 完整 entryId 与不带前缀的 id 都接受，返回不带前缀的 id。
-   *
-   * 插件从 ctx 上读到的是完整的 `home:commands`，而 `tree` 上的每个方法接受的是不带前缀的 id
-   * （见 `ids.ts` 的 `bareId`）。两边不转换的话，`resolve` 会直接报「cannot resolve entry」。
-   */
-  private locate(entryId: string): string {
+  /** 完整 entryId 与不带前缀的 id 都接受，返回不带前缀的 id；条目树上没有就抛错 */
+  private existingBareId(entryId: string): string {
     const id = bareId(entryId)
     if (this.tree.store[id] === undefined) {
       throw new Error(`cordis.yml 里没有 id 是 ${JSON.stringify(id)} 的条目。查看列表调用 ${LIST_COMMAND}。`)
@@ -758,109 +701,83 @@ class PluginManager {
     return id
   }
 
-  /**
-   * 往 `cordis.yml` 里加一条。`tree.create` 一次做两件事——写回 yml、立即加载，
-   * 所以这里不用再手动 `ctx.plugin`。
-   *
-   * **id 一定要显式给。** 不给的话 loader 生成一个 8 位随机 hex，而且每次启动都换一个：
-   * 那条条目的设置与数据（都按 id 的末段分区）从此每启动一次就新建一份。
-   */
+  /** id 一定显式给：不给的话 loader 每次启动生成一个新的随机 id，按 id 分区的设置与数据每启动一次就新建一份 */
   private async createEntry(pkg: string, id?: string, config?: unknown): Promise<string> {
-    // 先读取磁盘上的归属记录：数据与设置在条目删除后仍然保留，只按条目树判断重复会把别的包的数据分给这条条目
+    // 磁盘上的归属记录在条目删除后仍然保留，只按条目树判断重复会把别的包的数据分给这条条目
     const owners = await this.idOwners()
-    // 在**整个条目树**范围内判断 id 是否重复：id 在 cordis.yml 里全局唯一，loader 的 store 就是一张平表
-    const taken = new Set(Object.keys(this.tree.store))
-    let final: string
+    const idsInTree = new Set(Object.keys(this.tree.store))
+    let chosenId: string
     if (id === undefined) {
-      final = pickId(pkg, taken, owners)
+      chosenId = pickId(pkg, idsInTree, owners)
     } else {
-      assertIdUsable(id, pkg, taken, owners)
-      final = id
+      assertIdUsable(id, pkg, idsInTree, owners)
+      chosenId = id
     }
     // 每次传一个新对象：create 会把它原样放进 group.data，共用一个对象等于两条条目共享配置
-    const options: Record<string, unknown> = { id: final, name: pkg }
+    const options: Record<string, unknown> = { id: chosenId, name: pkg }
     if (config !== undefined) options['config'] = config
 
-    /**
-     * **只等它把条目写进去，不等它加载完成。**
-     *
-     * `tree.create` 一次做两件事，而它返回的 promise 里**包含加载过程**——加载可能永远不
-     * 完成：`inject` 永远满足不了的插件，它的 fiber 按设计会一直等待。真 await 的话，
-     * 安装一个依赖还没装的插件就会让这条命令**永远没有回执**（实机遇到过：加载同一服务的第二个提供方
-     * 的条目，cordis 抛 `service ... has been registered`，整个安装卡死）。
-     *
-     * 写入磁盘那部分是**同步**发生的：`create` 的函数体在第一个 await 之前就把 options
-     * 放进了 group、安排好了写回。所以不 await 也不影响条目写入磁盘。
-     *
-     * 是否加载成功是另一回事，看 `list` 的 `active`；加载失败的原因在日志里。
-     */
+    // 不 await：create 返回的 promise 包含加载，inject 满足不了的插件永远加载不完；写进 yml 在第一个 await 之前就同步安排好了
     void this.tree.create(options, null).catch((err: unknown) => {
-      this.log.warn(`条目 ${final}（${pkg}）加进 cordis.yml 了，但没加载起来：${String(err)}`)
+      this.log.warn(`条目 ${chosenId}（${pkg}）加进 cordis.yml 了，但没加载起来：${String(err)}`)
     })
-    return this.fullId(final)
+    return this.fullEntryIdOf(chosenId)
   }
 
-  /**
-   * 不带前缀的 id → 完整 entryId。
-   *
-   * `tree.create` 没有被 await，拿不到它返回的完整 id，所以在这里自己拼。前缀是**本插件条目的前缀**——
-   * 同一个条目树上的条目共用它。
-   */
-  private fullId(bare: string): string {
-    const own = ownEntryId(this.ctx)
-    const cut = own.lastIndexOf(':')
-    return cut === -1 ? bare : `${own.slice(0, cut + 1)}${bare}`
+  /** `tree.create` 没有被 await，拿不到它返回的完整 id，按本插件条目的前缀自己拼 */
+  private fullEntryIdOf(bareEntryId: string): string {
+    const ownFullId = ownEntryId(this.ctx)
+    const lastSeparator = ownFullId.lastIndexOf(':')
+    return lastSeparator === -1 ? bareEntryId : `${ownFullId.slice(0, lastSeparator + 1)}${bareEntryId}`
   }
 
-  /**
-   * 改 home 的唯一入口：安装、升级、卸载都经这里运行 pnpm，排进同一个串行队列。
-   * pnpm 每次都读-改-写 home 的 package.json，两次同时运行，后写的会覆盖前一次加进去的依赖
-   */
+  /** 改 home 的唯一入口：安装、升级、卸载都经这里运行 pnpm，排进同一个串行队列 */
   private applyToHome(pnpm: string, change: { add: readonly string[] } | { remove: readonly string[] }): Promise<PnpmResult> {
     const args = 'add' in change ? ['add', ...change.add] : ['remove', ...change.remove]
-    return this.queue(() => runPnpm({ pnpm, cwd: this.home, args }))
+    return this.enqueuePnpm(() => runPnpm({ pnpm, cwd: this.homeDir, args }))
   }
 
-  private queue<T>(task: () => Promise<T>): Promise<T> {
-    const next = this.chain.then(task, task)
+  private enqueuePnpm<T>(task: () => Promise<T>): Promise<T> {
+    const queued = this.pnpmQueueTail.then(task, task)
     // 前一个任务失败不应导致后面排队的任务也失败
-    this.chain = next.catch(() => undefined)
-    return next
+    this.pnpmQueueTail = queued.catch(() => undefined)
+    return queued
   }
 }
 
-function hasCommand(cli: GwbCommands | undefined, name: string): boolean {
-  return cli !== undefined && cli.list().some((command) => command.name === name)
+function failedUpdateAll(error?: string): UpdateAllResult {
+  return { ok: false, updated: [], selfDeferred: false, ...(error === undefined ? {} : { error }) }
 }
 
-/** 经命令插件执行 `shell.reload`。没有命令插件、命令表里没有这条、执行失败，都返回「界面要手动刷新」 */
-async function reloadVia(cli: GwbCommands | undefined): Promise<{ reload: 'done' | 'unavailable'; note?: string }> {
-  if (!hasCommand(cli, SHELL_RELOAD_COMMAND) || cli === undefined) {
+function hasCommand(commandBus: GwbCommands | undefined, name: string): boolean {
+  return commandBus !== undefined && commandBus.list().some((command) => command.name === name)
+}
+
+/** 没有命令插件、命令表里没有这条、执行失败，都返回「界面要手动刷新」 */
+async function runShellReload(commandBus: GwbCommands | undefined): Promise<{ reload: 'done' | 'unavailable'; note?: string }> {
+  if (!hasCommand(commandBus, SHELL_RELOAD_COMMAND) || commandBus === undefined) {
     return { reload: 'unavailable', note: `命令表里没有 ${SHELL_RELOAD_COMMAND}（外壳没装或版本太旧），界面要手动刷新` }
   }
-  const result = await cli.run(SHELL_RELOAD_COMMAND)
+  const result = await commandBus.run(SHELL_RELOAD_COMMAND)
   if (result.ok) return { reload: 'done' }
   return { reload: 'unavailable', note: `${SHELL_RELOAD_COMMAND} 失败（${result.error ?? '没有给出原因'}），界面要手动刷新` }
 }
 
-/** 回执里的 `note` 字段：没有要说明的就不带这个字段 */
 function noteOf(notes: readonly string[]): { note?: string } {
   return notes.length === 0 ? {} : { note: notes.join('；') }
 }
 
-/**
- * 回执 → 命令的返回值。失败时 pnpm 输出的最后几行既拼进 error（给人看），也原样留在 data 里（界面要单独排版时用）
- */
-function withTail(result: { ok: boolean; error?: string; tail?: string }): GwbResult {
+/** 失败时 pnpm 输出的最后几行既拼进 error（给人看），也原样留在 data 里（界面要单独排版时用） */
+function receiptWithPnpmTail(result: { ok: boolean; error?: string; tail?: string }): GwbResult {
   if (result.ok) return { ok: true, data: result }
   const tail = result.tail === undefined ? '' : `\n${result.tail}`
   return { ok: false, error: `${result.error ?? '没有给出原因'}${tail}`, data: result }
 }
 
-/** `plugin-manager.update-all` 的参数：不传、传空对象都表示「全部升级」；给了 only 就必须是非空字符串数组 */
-function onlyList(args: unknown): string[] | undefined {
+/** 不传、传空对象都表示「全部升级」；给了 only 就必须是非空字符串数组 */
+function onlyPackagesArgOf(args: unknown): string[] | undefined {
   if (args === undefined || args === null) return undefined
-  const only = asRecord(args)['only']
+  const only = argsObjectOf(args)['only']
   if (only === undefined || only === null) return undefined
   if (!Array.isArray(only) || only.some((item) => typeof item !== 'string' || item === '')) {
     throw new Error('only 给了就要是个非空字符串数组，比如 { "only": ["@godcreator/gwb-hello"] }')
@@ -868,37 +785,36 @@ function onlyList(args: unknown): string[] | undefined {
   return only as string[]
 }
 
-/** `plugin-manager.search` 的参数：不传、传空对象都是查全部源；给了 scope 就要是非空字符串 */
-function scopeArg(args: unknown): string | undefined {
+/** 不传、传空对象都是查全部源；给了 scope 就要是非空字符串 */
+function scopeArgOf(args: unknown): string | undefined {
   if (args === undefined || args === null) return undefined
-  const scope = asRecord(args)['scope']
+  const scope = argsObjectOf(args)['scope']
   if (scope === undefined || scope === null) return undefined
   if (typeof scope !== 'string' || scope === '') throw new Error('scope 给了就要是非空字符串，比如 "@j"')
   return scope
 }
 
-/** 命令按参数对象调用，不经过调用者身份——界面不是插件，没有身份可绑定 */
-function asRecord(args: unknown): Record<string, unknown> {
+function argsObjectOf(args: unknown): Record<string, unknown> {
   if (!isRecord(args)) throw new Error('参数要是一个对象，比如 { "entryId": "commands" }')
   return args
 }
 
-function text(raw: Record<string, unknown>, key: string): string {
-  const value = raw[key]
+function requiredString(argsObject: Record<string, unknown>, key: string): string {
+  const value = argsObject[key]
   if (typeof value !== 'string' || value === '') throw new Error(`${key} 要是个非空字符串`)
   return value
 }
 
-function optional(raw: Record<string, unknown>, key: string): string | undefined {
-  const value = raw[key]
+function optionalString(argsObject: Record<string, unknown>, key: string): string | undefined {
+  const value = argsObject[key]
   if (value === undefined || value === null) return undefined
   if (typeof value !== 'string' || value === '') throw new Error(`${key} 给了就要是个非空字符串`)
   return value
 }
 
-/** 显示名单独处理：**空串是合法的**，表示「清除这个名字」 */
-function label(raw: Record<string, unknown>): string {
-  const value = raw['label']
+/** 空串是合法的，表示清除这个名字 */
+function labelArgOf(argsObject: Record<string, unknown>): string {
+  const value = argsObject['label']
   if (typeof value !== 'string') throw new Error('label 要是个字符串（空字符串就是清除）')
   return value
 }
