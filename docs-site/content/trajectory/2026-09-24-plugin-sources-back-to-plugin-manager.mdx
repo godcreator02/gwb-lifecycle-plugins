@@ -1,0 +1,48 @@
+---
+title: 找插件与配包源并回插件管理，命令恢复拆分前的名字
+born-at: 2026-09-24T10:07
+type: choice
+parent: [2026-09-08-gwb-devkit]
+label: 包源并回
+domain: 插件管理
+---
+
+## 背景
+
+2026-09-23 找插件与配包源从插件管理拆出，成了基础插件仓的 `@godcreator/gwb-plugin-sources`（0.1.0），四条命令改名为 `plugin-sources.search`、`add`、`list`、`remove`（轨迹卡「找插件与配包源从 plugin-manager 拆出」在基础插件仓文档站，`2026-09-23-plugin-sources-split`）。拆出去是为了让准备放进内核仓的插件管理只管和内核相关的事：安装与条目管理碰 loader 的条目树和 home 的文件布局，搜索 registry、改 `~/.npmrc` 只和 npm 源打交道。
+
+之后插件管理没有进内核仓，回到 home 里的普通插件，放进了 devkit 仓（见[插件管理迁入 devkit 仓](2026-09-24-plugin-manager-joins-devkit.md)）。拆分的前提不在了。
+
+## 结论与边界
+
+人决定把 `gwb-plugin-sources` 并回插件管理。
+
+- 四条命令恢复拆分前的名字：`plugin-manager.search`、`plugin-manager.source.add`、`plugin-manager.source.list`、`plugin-manager.source.remove`，参数与回执和 `gwb-plugin-sources` 0.1.0 相同
+- 代码取自基础插件仓提交 `bf77502` 的 `plugins/plugin-sources`，按插件管理现有的分层放：npmrc 文本的解析与改写、检索响应的解析是纯逻辑，读写 npmrc 放进读磁盘的 `home.ts`，调 registry 的检索接口单独一个模块，命令逻辑单独一个模块，四条命令在入口文件登记
+- 读 gitea 分区的设置照旧按名字调 `settings.get`
+- 四条命令不改 home，不经 BUSY 检查、不排进 pnpm 的串行队列；写 `~/.npmrc` 仍是先写临时文件再改名
+- 读 npmrc 只把「文件不在」当空文本，文件在但读不了直接报错；拆分前与 `gwb-plugin-sources` 里是任何读取失败都当空文本
+- 说明书 `gwb-plugin-sources` 的内容并进 `gwb-plugin-manager` 的「找插件、配包源」一节，插件管理只带一份说明书
+- 加命令属于补丁级，版本号发版时再升；`gwb-plugin-sources` 不再发新版
+
+## 依据
+
+找插件、配包源、装插件是同一件事：先查源上有什么，第三方 scope 先配源，再装。界面上也是同一个窗格，插件管理窗格的「可装」列表就是一次不带参数的 `search`。分成两个插件，窗格要依赖两个插件，agent 要读两份说明书，而两个插件之间只靠「查到的包名交给 `plugin-manager.install`」这一个约定相连。
+
+命令名用拆分前的，是因为插件管理窗格、agent 的说明书在拆分前就是这样调的，恢复旧名字比再造一套新名字少一次迁移。
+
+## 否掉的候选
+
+- **保留 `gwb-plugin-sources`，只把它也搬进 devkit 仓**：仍是两个插件、两份说明书，窗格仍依赖两个插件；拆分的理由已经不在
+- **并回但沿用 `plugin-sources.*` 的名字**：命令名前缀和包名对不上，`search` 的插件分组里看不出这几条属于插件管理
+
+## 代价与遗留
+
+发版顺序：
+
+1. 先发带这四条命令的插件管理（`devkit.release` 的 `packages` 给 `plugins/plugin-manager`）
+2. 再发改过窗格的 `gwb-baseui`（界面插件仓，窗格已改成调 `plugin-manager.search`）；同时把内核仓 INSTALL 的首装清单去掉 `gwb-plugin-sources`，命令改成新名字
+3. `default` 里已装的 `gwb-plugin-sources` 在插件管理升级之后卸掉：两边的命令名不同，升级前后同时在也不冲突，卸早了窗格与 agent 会有一段时间找不到命令
+
+- 调过 `plugin-sources.*` 的 agent 与文档要改回 `plugin-manager.*`；已经发出的 `gwb-plugin-sources` 0.1.0 留在源上
+- 在隔离 home 里验 `source.add` / `source.remove` 也会改到本机共用的 `~/.npmrc`，隔离 home 管不到它

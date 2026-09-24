@@ -18,6 +18,7 @@ description: 这个仓里反复出现的词各指什么、在哪一页定义；�
 | 控制台 home | 运行 `devkit.dev` 的那个 home（通常是 `default`）。它操作别的 home，不操作自己 | [改一版看一版](/docs/devkit/dev) |
 | 基础插件 | `devkit.home.new` 在新 home 启动前装好的七个插件：命令、外壳、数据、设置、说明书、插件管理、基础界面 | [测试 home](/docs/devkit/home) |
 | 团队源 | gitea 个人源 `https://git.tianshen02.online:28377/api/packages/godcreator/npm/`，常驻，是 gwb 生态发版与安装唯一的 npm 源；scope 路由与发布 token 写在用户级 `~/.npmrc` | 说明书「gwb-release」 |
+| 包源 | npmrc 里的一条 scope 路由加上它的凭据行：某个 scope 的包从哪个 npm 源装。第三方的包源写在机器级 `~/.npmrc`，由插件管理的 `source.*` 增删；`@godcreator` 那条是团队源，不经它改 | [找插件与配包源](/docs/plugin-manager/sources) |
 | 开发版 | 版本号形如 `<patch+1>-dev.<时间戳>`、tag 为 `dev` 的一次性版本，只为把此刻的改动装进一个隔离 home，不影响 `latest` | [改一版看一版](/docs/devkit/dev) |
 | 重新加载（remount） | 把一条条目停用再启用，让它重新 import。换了版本号才真的换得了代码；由 `plugin-manager.remount` 一条命令做完 | [改一版看一版](/docs/devkit/dev) |
 | 取证 | 换完之后确认「它真的在运行」：装上的是这次的版本号、条目是 `ACTIVE`、日志新增部分里没有 error。加载了不算 | [改一版看一版](/docs/devkit/dev) |
@@ -71,3 +72,4 @@ description: 这个仓里反复出现的词各指什么、在哪一页定义；�
 | `kernel-dir` 设置与启动 home 时构建内核 | 0.12.0 | 启动 home 用宿主安装版；改内核源码的验证走内核仓自己的流程；`audit-deps` 的容器根问 `unit-folder.list` |
 | `devkit.cdp-eval` | 0.4.0 | `eval` 是 `devkit.cdp` 的一个动作 |
 | `devkit.livedoc` | 0.3.0 | 核对、确认、生成都在仓里运行：`cd <仓>\docs-site` 之后 `pnpm doc` / `pnpm doc:confirm` / `pnpm doc:render` |
+| `plugin-sources.search` / `add` / `list` / `remove`、说明书 `gwb-plugin-sources` | `gwb-plugin-sources` 0.1.0 之后不再发 | 并回插件管理：`plugin-manager.search`、`plugin-manager.source.add` / `list` / `remove`，参数与回执不变；说明书读 `gwb-plugin-manager`。见[轨迹卡](/trajectory/2026-09-24-plugin-sources-back-to-plugin-manager) |

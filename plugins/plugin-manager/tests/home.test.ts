@@ -2,7 +2,7 @@ import fs from 'node:fs'
 import os from 'node:os'
 import path from 'node:path'
 import { afterEach, beforeEach, describe, expect, it } from 'vitest'
-import { installedPackageManifestFile, readHomeDependencies, readInstalledPackageManifest } from '../src/home.js'
+import { installedPackageManifestFile, readHomeDependencies, readInstalledPackageManifest, readNpmrc, writeNpmrc } from '../src/home.js'
 
 /** 读 home 的 `package.json`。这条真的读磁盘，所以在临时目录里跑 */
 
@@ -45,5 +45,21 @@ describe('装在 home 里的包自己的 package.json', () => {
   it('清单不是合法 JSON 时抛错，报错里有文件路径', async () => {
     writeInstalledManifest('broken', '{ not json')
     await expect(readInstalledPackageManifest(home, 'broken')).rejects.toThrow(installedPackageManifestFile(home, 'broken'))
+  })
+})
+
+describe('npmrc 的读写', () => {
+  it('文件不在读成空文本；写完读回原样，目录里不留临时文件', async () => {
+    const file = path.join(home, '.npmrc')
+    expect(await readNpmrc(file)).toBe('')
+    await writeNpmrc(file, '@j:registry=https://j.example/npm/\n')
+    expect(await readNpmrc(file)).toBe('@j:registry=https://j.example/npm/\n')
+    expect(fs.readdirSync(home)).toEqual(['.npmrc'])
+  })
+
+  it('路径在但读不了（是个目录）时抛错，报错里有路径', async () => {
+    const dir = path.join(home, 'not-a-file')
+    fs.mkdirSync(dir)
+    await expect(readNpmrc(dir)).rejects.toThrow(dir)
   })
 })

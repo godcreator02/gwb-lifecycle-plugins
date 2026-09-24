@@ -1,3 +1,4 @@
+import os from 'node:os'
 import type { GwbContext, GwbResult } from '@godcreator/gwb-plugin-api'
 import { isRecord, requireKernel } from './vocab.js'
 // 这几条 type import 只为引入对方的 `declare module 'cordis'`，让 ctx 上有那几个服务名
@@ -7,7 +8,7 @@ import type { GwbCommands } from '@godcreator/gwb-commands'
 import type {} from '@godcreator/gwb-data'
 import type {} from '@godcreator/gwb-settings'
 import type {} from '@godcreator/gwb-skills'
-import { readHomeDependencies, readInstalledPackageManifest } from './home.js'
+import { npmrcFiles, readHomeDependencies, readInstalledPackageManifest } from './home.js'
 import { assertId, assertIdUsable, assertPkgName, bareId, installSpec, pickId, type IdOwners } from './ids.js'
 import { readEntries, reconcile, toLabels, type PluginPackageView } from './inventory.js'
 import { describeAddFailure, describePnpm, locatePnpm, runPnpm, runPnpmCapture, type PnpmResult } from './pnpm.js'
@@ -18,10 +19,13 @@ import { BusyGate } from './busy.js'
 import { fiberStateOf, planUpdateAll, type PlannedEntry } from './update-all.js'
 import { remountNow, remountOne, remountSelfLater, type RemountedEntry } from './remount.js'
 import { kernelTestStatusOf } from './tested-kernel.js'
+import { addSource, listSources, removeSource, searchPlugins, type PackageSourcesDeps } from './package-sources.js'
 
 export type { EntrySnapshot, PluginEntryView, PluginPackageView } from './inventory.js'
 export type { RemountedEntry } from './remount.js'
 export type { KernelTestStatus } from './tested-kernel.js'
+export type { SearchReceipt, SourceAddResult, SourceListResult, SourceRemoveResult, SourceReport } from './package-sources.js'
+export type { SearchRow } from './search.js'
 
 /**
  * 管理 home 里的**包**和 `cordis.yml` 里的**条目**。包由 pnpm 装进 home，条目由 loader 写进 `cordis.yml`
@@ -40,7 +44,8 @@ export type { KernelTestStatus } from './tested-kernel.js'
  * `update-all.ts` 里的纯函数算出。升级与重新加载必须在**同一条命令**里完成：pnpm 会删除旧版本目录，
  * 两者之间只要隔着一条命令，旧版插件读磁盘就读不到文件。本插件自己的条目排在最后、回执发出后才处理。
  *
- * 找插件、配置包源在 `@godcreator/gwb-plugin-sources`；操作面板在 `@godcreator/gwb-baseui`。
+ * **找插件与配包源（`search`、`source.*`）不改 home**：检索配好的 npm 源、增删机器级 `~/.npmrc` 的 scope 路由，
+ * 不经 BUSY 检查，逻辑在 `package-sources.ts`。操作面板在 `@godcreator/gwb-baseui`。
  */
 
 /** 外壳的整页重载命令。**按命令名查找**，不 import 外壳的常量——那会让外壳成为运行时依赖 */
@@ -66,6 +71,10 @@ export const OUTDATED_COMMAND = 'plugin-manager.outdated'
 export const UPDATE_ALL_COMMAND = 'plugin-manager.update-all'
 export const UNINSTALL_COMMAND = 'plugin-manager.uninstall'
 export const TRANSFER_OWNER_COMMAND = 'plugin-manager.transfer-owner'
+export const SEARCH_COMMAND = 'plugin-manager.search'
+export const SOURCE_ADD_COMMAND = 'plugin-manager.source.add'
+export const SOURCE_LIST_COMMAND = 'plugin-manager.source.list'
+export const SOURCE_REMOVE_COMMAND = 'plugin-manager.source.remove'
 
 /**
  * 服务 `gwbPluginManager` 的值：只表示插件管理装了（别的插件 inject 它，跟着它一起加载、卸载）。
@@ -184,6 +193,8 @@ class PluginManager {
   private readonly home: string
   /** 运行中的内核版本号，`list` 拿它和各包声明的 `gwb.testedKernel` 比对 */
   private readonly kernelVersion: string
+  /** 两份 npmrc：机器级是包源路由的正本（`source.add` / `source.remove` 改它），home 级只读 */
+  private readonly npmrc: { user: string; home: string }
   /** cordis.yml 对应的条目树 */
   private readonly tree: EntryTreeLike
   /**
@@ -218,6 +229,7 @@ class PluginManager {
     const kernel = requireKernel(ctx)
     this.home = kernel.dataDir
     this.kernelVersion = kernel.version
+    this.npmrc = npmrcFiles(os.homedir(), this.home)
     this.tree = treeOf(ctx)
     this.log = ctx.logger(NAME)
   }
@@ -366,7 +378,67 @@ class PluginManager {
         const result = await this.uninstall(text(asRecord(args), 'pkg'))
         return withTail(result)
       })
+
+      this.registerSourceCommands(on, cli)
     })
+  }
+
+  /** 找插件与配包源的四条命令：不改 home，不经 BUSY 检查 */
+  private registerSourceCommands(
+    on: (name: string, description: string, usage: string, handler: (args?: unknown) => unknown) => void,
+    cli: GwbCommands,
+  ): void {
+    const deps: PackageSourcesDeps = {
+      userNpmrc: this.npmrc.user,
+      homeNpmrc: this.npmrc.home,
+      runCommand: (name, args) => cli.run(name, args),
+      log: this.log,
+    }
+
+    on(
+      SEARCH_COMMAND,
+      '列出 registry 上的插件（npm 标准检索）：默认查全部配好的源',
+      `从哪条源装就在哪条源搜：逐条源并发查（查成的并进 packages，没查成的在 note 里点名，一条失败不影响别的；全都没查成才 ok:false）。回执 packages 每行带 pkg / version / description / keywords，「是不是插件」看包自己的 keywords 里有没有 gwb-plugin。参数 { scope? }——不给就查全部配好的源（${SOURCE_LIST_COMMAND} 列出的两层 npmrc，@godcreator 在前、其余按名字排），给了只查那一条（如 "@j"）`,
+      async (args) => {
+        const result = await searchPlugins(deps, scopeArg(args))
+        if (result.ok) return { ok: true, data: result }
+        return { ok: false, error: result.error ?? '没说原因' }
+      },
+    )
+
+    on(
+      SOURCE_ADD_COMMAND,
+      '往机器级 npmrc 写一条包源（scope 路由），装第三方插件用',
+      '已有同 scope 就原地替换。写的是 ~/.npmrc（机器级）：@godcreator 的路由本来就在那里，不许经这条命令改。参数 { scope, registry?, owner?, token? }：registry 直接给源地址；owner 走 gitea 的简便写法——拼成 <base>/api/packages/<owner>/npm/（base 取设置 gitea.base-url，没配就用 git.tianshen02.online:28377），token 没给就取设置 gitea 分区的 token，取不到则回执 ok:false。token 行按源地址配对，同一个 token 配多条源不会重复写。回执 { ok, scope, registry, tokenWritten, replaced, lines?（token 已遮掉）, note? }',
+      async (args) => {
+        const raw = asRecord(args)
+        const result = await addSource(deps, text(raw, 'scope'), {
+          registry: optional(raw, 'registry'),
+          owner: optional(raw, 'owner'),
+          token: optional(raw, 'token'),
+        })
+        if (result.ok) return { ok: true, data: result }
+        return { ok: false, error: result.error ?? '没说原因', data: result }
+      },
+    )
+
+    on(
+      SOURCE_LIST_COMMAND,
+      '列出包源：机器级与 home 级两份 npmrc 合起来看',
+      '无参数。回执 { user, home, sources: [{ scope, registry, file, token }] }——file 是出处（user = 机器级 ~/.npmrc，home = <home>/.npmrc），pnpm 把两层合起来读、home 级同名行优先；token 只报有没有，不报值',
+      async () => ({ ok: true, data: await listSources(deps) }),
+    )
+
+    on(
+      SOURCE_REMOVE_COMMAND,
+      '从机器级 npmrc 删掉一条包源',
+      '参数 { scope }。token 行没有别的 scope 再指向它时一起删，还有就留着。@godcreator 不许删；机器级没有这条时说明原因（包括「它在 home 级，要手工删」）。回执 { ok, scope, registry? }',
+      async (args) => {
+        const result = await removeSource(deps, text(asRecord(args), 'scope'))
+        if (result.ok) return { ok: true, data: result }
+        return { ok: false, error: result.error ?? '没说原因', data: result }
+      },
+    )
   }
 
   async list(): Promise<PluginPackageView[]> {
@@ -759,6 +831,15 @@ function onlyList(args: unknown): string[] | undefined {
     throw new Error('only 给了就要是个非空字符串数组，比如 { "only": ["@godcreator/gwb-hello"] }')
   }
   return only as string[]
+}
+
+/** `plugin-manager.search` 的参数：不传、传空对象都是查全部源；给了 scope 就要是非空字符串 */
+function scopeArg(args: unknown): string | undefined {
+  if (args === undefined || args === null) return undefined
+  const scope = asRecord(args)['scope']
+  if (scope === undefined || scope === null) return undefined
+  if (typeof scope !== 'string' || scope === '') throw new Error('scope 给了就要是非空字符串，比如 "@j"')
+  return scope
 }
 
 /** 命令按参数对象调用，不经过调用者身份——界面不是插件，没有身份可绑定 */

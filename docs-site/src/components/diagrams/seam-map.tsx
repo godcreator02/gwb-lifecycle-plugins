@@ -79,7 +79,7 @@ export function SeamMap() {
       <Box x={570} y={90} w={170} h={44} lines={['内核与 home', 'exe · runtime.json · gwb.log']} />
       <Box x={570} y={190} w={170} h={44} lines={['cordis loader', '条目树']} />
       <Box x={570} y={330} w={170} h={44} lines={['工作台页面', 'window.gwb']} />
-      <Box x={570} y={260} w={170} h={44} lines={['pnpm 与团队包源', '@pnpm/exe · gitea npm']} />
+      <Box x={570} y={260} w={170} h={44} lines={['pnpm 与包源', '@pnpm/exe · npmrc · registry']} />
 
       <Box x={40} y={510} w={200} h={44} lines={['包自述与服务表', 'package.json · cordis 内部']} />
       <Box x={260} y={510} w={280} h={44} lines={['被测插件仓', 'build 脚本 · files · keywords · 布局']} />

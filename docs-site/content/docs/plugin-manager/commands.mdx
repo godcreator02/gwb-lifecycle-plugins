@@ -1,13 +1,13 @@
 ---
 title: 对外只有命令
-description: 12 条命令是插件管理唯一的调用方式；服务 gwbPluginManager 只表示装了；命令的参数与回执类型由插件管理导出，改了形状就升 0.x 的 x
+description: 16 条命令是插件管理唯一的调用方式；服务 gwbPluginManager 只表示装了；命令的参数与回执类型由插件管理导出，改了形状就升 0.x 的 x
 ---
 
 # 对外只有命令
 
 **本页回答**：插件管理有哪些命令、各收什么参数、回什么；为什么对外只有命令，服务为什么只表示「装了」；回执的类型归谁定义；改了命令怎么升版本号。
 
-## 12 条命令
+## 16 条命令
 
 | 命令 | 参数 | 回执（`data`） | 细节 |
 | --- | --- | --- | --- |
@@ -22,27 +22,31 @@ description: 12 条命令是插件管理唯一的调用方式；服务 gwbPlugin
 | `update-all` | `{ only? }` | `{ updated, selfDeferred, reload, note? }` | [热升级](/docs/plugin-manager/upgrade) |
 | `transfer-owner` | `{ id, pkg }` | `{ id, pkg, data, settings }` | [转归属](/docs/plugin-manager/ids#转归属transfer-owner) |
 | `set-label` | `{ entryId, label }` | 无 | [显示名](/docs/plugin-manager/ids#显示名存在自己的数据里) |
+| `search` | `{ scope? }` | `{ ok, packages: [{ pkg, version, description, keywords }], note? }` | [找插件](/docs/plugin-manager/sources#从哪装就在哪搜) |
+| `source.add` | `{ scope, registry?, owner?, token? }`，`registry` 与 `owner` 恰好给一个 | `{ ok, scope, registry, tokenWritten, replaced, lines?, note? }` | [配包源](/docs/plugin-manager/sources#包源只写机器级-npmrc) |
+| `source.list` | 无 | `{ user, home, sources: [{ scope, registry, file, token }] }` | [配包源](/docs/plugin-manager/sources#包源只写机器级-npmrc) |
+| `source.remove` | `{ scope }` | `{ ok, scope, registry? }` | [配包源](/docs/plugin-manager/sources#包源只写机器级-npmrc) |
 
 - entryId 写完整的（`home:hello`）或只写 id（`hello`）都可以
 - 操作的是 `cordis.yml` 里的条目，包括插件管理自己和命令插件的条目：重新加载插件管理自己时先回执、后动手，见[重新加载一条条目](/docs/plugin-manager/remount#目标是插件管理自己先回执后重新加载)
-- 参数写错（包名、版本范围、id 不合规，条目不存在）直接报错；执行中的失败（找不到 pnpm、pnpm 失败）返回 `ok: false`，`error` 里是原因，pnpm 输出的最后几行既拼进 `error`，也原样放在 `data.tail`
+- 参数写错（包名、版本范围、id、scope 不合规，条目不存在，改或删 `@godcreator`）直接报错；执行中的失败（找不到 pnpm、pnpm 失败）返回 `ok: false`，`error` 里是原因，pnpm 输出的最后几行既拼进 `error`，也原样放在 `data.tail`
 - 每条命令的 `description` 与 `usage` 写着参数形状，agent 经 MCP 入口的 `search` 读到的就是它们
 
-{/* ref file="../plugins/plugin-manager/src/index.ts" lines="289-289" */}
+{/* ref file="../plugins/plugin-manager/src/index.ts" lines="301-301" */}
 
 ## 服务只表示「装了」
 
-**是什么**：插件管理对外只有这 12 条命令。它提供的服务 `gwbPluginManager` 是一个普通对象 `{ contract: 1 }`，上面没有方法；别的插件 inject 它，只为跟着插件管理一起加载、卸载（插件管理窗格就这样用它）。
+**是什么**：插件管理对外只有这 16 条命令。它提供的服务 `gwbPluginManager` 是一个普通对象 `{ contract: 1 }`，上面没有方法；别的插件 inject 它，只为跟着插件管理一起加载、卸载（插件管理窗格就这样用它）。
 
 **为什么**：同一件事如果既能调命令、又能调服务方法，两种调用方式会慢慢变得不一致，而 BUSY 这类检查只加在命令上，服务方法会绕过去。命令表是页面、agent、插件共用的同一份：页面经 `window.gwb.command`，agent 经 MCP 入口，插件经命令插件，调的都是同一条命令。服务只留给命令表达不了的东西——让别的插件往这里登记东西、需要跟着提供方一起重新加载的生命周期；插件管理没有这类扩展点，所以服务只剩「装了」这一个意思。
 
 **怎么做**：只表示存在的服务不需要认出调用方，用 `ctx.provide` 提供普通对象，不继承 cordis 的 `Service` 类——插件管理因此也不在运行时 import `cordis`。命令登记在命令插件（`gwbCommands`）上，插件管理用局部注入接上它，命令插件卸载时这些命令跟着注销、它再加载时重新登记。数据插件（`gwbData`）、设置插件（`gwbSettings`）、说明书插件（`gwbSkills`）也是可选的局部注入，缺了只少一部分功能。
 
-{/* ref file="../plugins/plugin-manager/src/index.ts" lines="174-179" */}
+{/* ref file="../plugins/plugin-manager/src/index.ts" lines="183-188" */}
 
-{/* ref file="../plugins/plugin-manager/src/index.ts" lines="225-230" */}
+{/* ref file="../plugins/plugin-manager/src/index.ts" lines="237-242" */}
 
-{/* ref file="../plugins/plugin-manager/src/index.ts" lines="270-286" */}
+{/* ref file="../plugins/plugin-manager/src/index.ts" lines="282-298" */}
 
 **守住它的测试**：插件管理只取 cordis、loader、词汇表包和四个可选插件的类型，构建产物里一个包名 import 都不该有；包的 `description` 要写全服务、说明书、命令三项，注入的服务名要在这个目录的页面里写到。
 
@@ -54,7 +58,7 @@ description: 12 条命令是插件管理唯一的调用方式；服务 gwbPlugin
 
 <Diagram name="pm-commands" title="页面、agent、别的插件都经命令调用；别的插件只 inject 这个服务来跟着它加载、卸载">
 - 三类调用方——插件管理窗格、经 MCP 入口的 agent、主进程里的别的插件——都经命令插件按名字调用 `plugin-manager.*`
-- 插件管理里是 12 条命令，改动命令都经过同一道 BUSY 检查
+- 插件管理里是 16 条命令，安装、卸载、热升级、重新加载经过同一道 BUSY 检查
 - 服务 `gwbPluginManager` 的值是 `{ contract: 1 }`，上面没有方法；别的插件 inject 它只为跟着插件管理一起加载、卸载
 </Diagram>
 

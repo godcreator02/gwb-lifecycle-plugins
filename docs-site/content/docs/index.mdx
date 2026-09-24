@@ -7,13 +7,13 @@ description: devkit 仓是什么；开发套件、插件管理、仓侧检查三
 
 ## 是什么
 
-god 工作台写插件用的一套东西：开发套件 `gwb-devkit`（建仓、结构体检、依赖对账、测试 home、改一版看一版、发正式版、CDP 驱动）、插件管理 `gwb-plugin-manager`（唯一给 home 装包、改条目的插件）、仓侧检查 `gwb-repo-kit`（各插件仓测试里用的检查函数）。前两个是 home 里的普通插件，第三个只进各仓的开发依赖。写插件要守的规矩在[写插件的规矩](/docs/rules)，为什么这么切见[关键设计](/docs/design)，怎么改、怎么发版见[开发](/docs/develop)。
+god 工作台写插件用的一套东西：开发套件 `gwb-devkit`（建仓、结构体检、依赖对账、测试 home、改一版看一版、发正式版、CDP 驱动）、插件管理 `gwb-plugin-manager`（唯一给 home 装包、改条目的插件）、仓侧检查 `gwb-repo-kit`（各插件仓测试里用的检查函数）。前两个是 home 里的普通插件，第三个只进各仓的开发依赖。写插件要守的规矩在[写插件的规矩](/docs/rules)，为什么这么切分见[关键设计](/docs/design)，怎么改、怎么发版见[开发](/docs/develop)。
 
 ## 接缝图
 
 <Diagram name="seam-map" title="虚线框是包，连线是接缝，编号对应下面的表">
 - 本仓三个包：开发套件（建仓、依赖对账、能用什么、结构体检、测试 home、改一版看一版、发正式版、CDP 驱动、建仓模板）、插件管理、仓侧检查 repo-kit
-- 仓外：工作台服务（`gwbCommands`、`gwbNodeCli`、`gwbSkills`）；别的插件的命令（`docs-site.create`、`docfirst.attach`、`unit-folder.list`）；内核与 home（exe、`runtime.json`、`gwb.log`）；cordis loader 的条目树；pnpm 与团队包源；工作台页面（`window.gwb`）；包自述与服务表（各包 `package.json`、cordis 内部结构）；被测插件仓
+- 仓外：工作台服务（`gwbCommands`、`gwbNodeCli`、`gwbSkills`）；别的插件的命令（`docs-site.create`、`docfirst.attach`、`unit-folder.list`）；内核与 home（exe、`runtime.json`、`gwb.log`）；cordis loader 的条目树；pnpm 与包源（npm 源、两份 npmrc、gitea 插件的设置）；工作台页面（`window.gwb`）；包自述与服务表（各包 `package.json`、cordis 内部结构）；被测插件仓
 - 实线接缝有代码接口；点线接缝（2、3、6、7、8、11、12）只靠约定：命令名、文件格式、字段名或「两处一起改」
 </Diagram>
 
@@ -22,7 +22,7 @@ god 工作台写插件用的一套东西：开发套件 `gwb-devkit`（建仓、
 | # | 接缝 | 连接的模块 | 接口 | 细节在 |
 | --- | --- | --- | --- | --- |
 | 1 | 工作台服务 | 开发套件、插件管理 ↔ 命令总线、命令行工具、说明书 | 登记命令、登记 `devkit.cdp`、登记说明书 | [工作台服务](/docs/seams/workbench) |
-| 2 | devkit 调插件管理（约定） | `devkit.dev`、`devkit.home.new` ↔ 插件管理 | 经 CDP 调 `plugin-manager.list` / `remount`；`home.new` 自己写条目、装底座 | [devkit 调插件管理](/docs/seams/plugin-manager-calls) |
+| 2 | devkit 调插件管理（约定） | `devkit.dev`、`devkit.home.new` ↔ 插件管理 | 经 CDP 调 `plugin-manager.list` / `remount`；`home.new` 自己写条目、装基础插件 | [devkit 调插件管理](/docs/seams/plugin-manager-calls) |
 | 3 | 测过哪个内核（约定） | 插件的 `gwb.testedKernel` ↔ `devkit.release`、`plugin-manager.list` | 版本线比对规则，两份 | [测过哪个内核](/docs/seams/tested-kernel) |
 | 4 | 仓侧检查 | repo-kit ↔ 开发套件、插件管理、模板生成的仓 | `registerSelfReportGuard`、`registerPluginGuard` | [仓侧检查](/docs/seams/repo-kit) |
 | 5 | 模板与结构体检 | 建仓模板 ↔ `devkit.audit-structure` | 模板生成的仓结构体检零发现 | [模板与结构体检](/docs/seams/template-audit) |
@@ -30,7 +30,7 @@ god 工作台写插件用的一套东西：开发套件 `gwb-devkit`（建仓、
 | 7 | CDP 驱动（约定） | 开发套件 ↔ `cdp.mjs` ↔ 工作台页面 | 命令行参数、输出的 JSON、`window.gwb.command` | [CDP 驱动](/docs/seams/cdp) |
 | 8 | 内核与 home（约定） | `devkit.home.*`、CDP 驱动 ↔ 内核 exe | `GWB_HOME`、调试端口、`runtime.json`、home 根目录、`gwb.log` 的行格式 | [内核与 home](/docs/seams/kernel-home) |
 | 9 | 条目树 | 插件管理 ↔ cordis loader | `EntryTreeLike` 的 store / create / update / remove / resolve | [条目树](/docs/seams/entry-tree) |
-| 10 | pnpm 与团队包源 | 插件管理、开发套件 ↔ pnpm、gitea 的 npm 源 | 插件管理自带的 `@pnpm/exe`、PATH 上的 pnpm、发开发版与正式版 | [pnpm 与团队包源](/docs/seams/pnpm-registry) |
+| 10 | pnpm 与包源 | 插件管理、开发套件 ↔ pnpm、npm 源、两份 npmrc、gitea 插件的设置 | 插件管理自带的 `@pnpm/exe`、PATH 上的 pnpm、发开发版与正式版；插件管理按 scope 找源、调 registry 的检索接口、读写 `~/.npmrc`、按名字调 `settings.get` 读 gitea 设置 | [pnpm 与包源](/docs/seams/pnpm-registry) |
 | 11 | 被测仓的形状（约定） | 改一版看一版、发正式版、结构体检、依赖对账 ↔ 被测插件仓 | 仓根 build 脚本、`files`、`keywords`、目录布局、git 工作区干净 | [被测仓的形状](/docs/seams/repo-shape) |
 | 12 | 服务表与包自述（约定） | `devkit.services`、`devkit.capabilities` ↔ cordis 内部结构、各包 `package.json` | `gwb.provides`、`gwb.shared`、`exports`、`keywords` | [服务表与包自述](/docs/seams/service-table) |
 

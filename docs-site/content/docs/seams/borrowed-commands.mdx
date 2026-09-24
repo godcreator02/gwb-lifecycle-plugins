@@ -3,7 +3,7 @@ title: 6 借用别的插件的命令
 description: 连接 devkit、插件管理与三个不在本仓的插件：建仓调 docs-site.create 与 docfirst.attach，结构体检与 audit-deps 调 unit-folder.list 并直接读 unit.json，插件管理调 shell.reload；都只按命令名在命令总线上查，查不到就跳过或报错，参数与回执靠约定
 ---
 
-**本页回答**：devkit 与插件管理调了哪几条别人的命令、传什么、读回执里的哪一格；命令不在时各自怎么办；这些约定写在哪。
+**本页回答**：devkit 与插件管理调了哪几条别人的命令、传什么、读回执里的哪个字段；命令不在时各自怎么办；这些约定写在哪。
 
 ## 连接的模块
 
@@ -17,7 +17,7 @@ description: 连接 devkit、插件管理与三个不在本仓的插件：建仓
 
 {/* ref file="../plugins/devkit/src/index.ts" lines="48-60" */}
 
-{/* ref file="../plugins/plugin-manager/src/index.ts" lines="46-47" */}
+{/* ref file="../plugins/plugin-manager/src/index.ts" lines="51-52" */}
 
 **建仓：`docs-site.create` 与 `docfirst.attach`**。插件那部分写到磁盘之后才调，两条都传站目录 `<仓>\docs-site`，不是仓根。`docs-site.create` 传 `{ dir, title, port? }`，回执里只读 `data.port`；`docfirst.attach` 传 `{ dir, title }`，只看 `ok` 与 `error`：
 
@@ -37,7 +37,9 @@ description: 连接 devkit、插件管理与三个不在本仓的插件：建仓
 
 **插件管理：`shell.reload`**。一键热升级最后调它整页重新加载，不传参数，只看 `ok` 与 `error`：
 
-{/* ref file="../plugins/plugin-manager/src/index.ts" lines="725-737" */}
+{/* ref file="../plugins/plugin-manager/src/index.ts" lines="797-809" */}
+
+插件管理的 `source.add` 另外按名字调设置插件的 `settings.get`，读 gitea 插件分区里的地址与 token；它只为配包源服务，写在[10 pnpm 与包源](/docs/seams/pnpm-registry)。
 
 ## 约定
 
@@ -48,7 +50,7 @@ devkit 保证：
 
 插件管理保证：`shell.reload` 不在或失败时，回执与日志说「界面要手动刷新」，升级照样算完成。
 
-被调的插件需要保证的——命令名、参数形状、`data.port` 与 `data.container` 这两格、`unit.json` 的 `status` / `kind` 取值——**都靠约定**。写在这几处：两个插件源码里的命令名常量与 `usage` 文字、`scaffold.ts` 的 `docsBlock` 与 `nextSteps`、本仓 AGENTS 的「建站是两步」、被调插件各自的说明书（`docs-site`、`unit-folder`）。被调插件改了名字或形状，devkit 这边没有任何类型或测试会报错，表现是「当作没装」而跳过，或读到空的 `port` / `container`。
+被调的插件需要保证的——命令名、参数形状、`data.port` 与 `data.container` 这两个字段、`unit.json` 的 `status` / `kind` 取值——**都靠约定**。写在这几处：两个插件源码里的命令名常量与 `usage` 文字、`scaffold.ts` 的 `docsBlock` 与 `nextSteps`、本仓 AGENTS 的「建站是两步」、被调插件各自的说明书（`docs-site`、`unit-folder`）。被调插件改了名字或形状，devkit 这边没有任何类型或测试会报错，表现是「当作没装」而跳过，或读到空的 `port` / `container`。
 
 ## 不负责的事
 

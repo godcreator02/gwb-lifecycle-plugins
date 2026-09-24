@@ -1,0 +1,94 @@
+---
+title: 找插件与配包源
+description: plugin-manager.search 在配好的 npm 源上检索插件，地址按 scope 从两份 npmrc 里找、和 pnpm 安装读同一批配置行，是不是插件只看包清单 keywords 里的 gwb-plugin；source.add / list / remove 只改机器级 ~/.npmrc，@godcreator 不改不删，token 按源地址配对、不进回执；这四条不改 home，不经 BUSY
+---
+
+# 找插件与配包源
+
+**本页回答**：`plugin-manager.search` 查哪些源、怎么判断一个包是插件；`source.add` / `list` / `remove` 改哪份文件、认哪几种行、token 怎么处理；`owner` 写法从哪读 gitea 的地址与 token；这四条命令为什么不经 BUSY。代码在 `src/package-sources.ts`（命令逻辑）、`src/sources.ts` 与 `src/search.ts`（纯逻辑）、`src/registry.ts`（网络）、`src/home.ts`（读写 npmrc）。
+
+## 从哪装就在哪搜
+
+**是什么**：`search` 不给 `scope` 时，查两份 npmrc 里出现过的每个 scope，`@godcreator` 永远排第一（npmrc 里没写它时它走全局源），其余按名字排；各条源并发查，查成的合并进 `packages`，没查成的在 `note` 里写明是哪条、为什么，全部没查成才回 `ok: false`。给了 `scope` 只查那一条。
+
+{/* ref file="../plugins/plugin-manager/src/package-sources.ts" lines="106-132" */}
+
+每条源的地址按 scope 从两份 npmrc 里找：先找 `@scope:registry=`，再找 `registry=`，每一种都是 home 级优先于机器级，都没写就是 npm 官方源。
+
+{/* ref file="../plugins/plugin-manager/src/sources.ts" lines="125-137" */}
+
+**为什么**：pnpm 安装时读的是同一批配置行，检索的源和安装的源因此是同一个，搜到的包名交给安装，pnpm 去的也是这条源。插件管理窗格的「可装」列表就是不带参数的一次 `search`。
+
+**怎么做**：每条源发 `GET <registry>/-/v1/search?text=<scope>&size=250`，这条源在 npmrc 里配了 token 就带 `Authorization: Bearer`，每条源最多等 10 秒。检索接口是 npmjs、Verdaccio、gitea 都实现的标准协议，这里不认识任何具体的源。
+
+{/* ref file="../plugins/plugin-manager/src/registry.ts" lines="5-34" */}
+
+**是不是插件只看包清单 `keywords` 里有没有 `gwb-plugin`**，包名前缀、scope 都不参与判断。这个字段只在检索响应里有（单包详情接口会去掉它），一次请求就能判断完。gitea 的检索响应把 scope 与名字分开放，解析时拼回完整包名。
+
+{/* ref file="../plugins/plugin-manager/src/search.ts" lines="21-22" */}
+
+{/* ref file="../plugins/plugin-manager/src/search.ts" lines="62-65" */}
+
+用环境变量或 pnpm 全局配置指定的源，这里看不到；本机的配置都写在 `~/.npmrc` 里。
+
+**守住它的测试**：
+
+{/* has file="../plugins/plugin-manager/tests/sources.test.ts" text="home 级同名 scope 优先于机器级" */}
+
+{/* has file="../plugins/plugin-manager/tests/search.test.ts" text="写了 gwb-plugin 就是插件（不管名字长什么样）" */}
+
+{/* has file="../plugins/plugin-manager/tests/package-sources.test.ts" text="一条失败只进 note" */}
+
+## 包源只写机器级 `~/.npmrc`
+
+**是什么**：`source.add` 与 `source.remove` 只改机器级 `~/.npmrc`；home 级 `<home>/.npmrc` 只读，`source.list` 把两份合起来列出，逐条标出处，token 只报有没有。
+
+{/* ref file="../plugins/plugin-manager/src/home.ts" lines="68-90" */}
+
+**为什么**：`@godcreator` 的路由本来就写在 `~/.npmrc`，本机每个 home 的安装、每个源码仓的安装与发版都读它，包源是整台机器共用的配置。home 级那份 pnpm 也读、而且同名行优先，只放手工加的行。
+
+**怎么做**：只认三种行——scope 路由、凭据、全局源，其余行原样保留。凭据行按源地址配对，不按 scope：换源、删源时，旧源的凭据行只在没有别的 scope 还指向它时才一起删。
+
+{/* ref file="../plugins/plugin-manager/src/sources.ts" lines="1-17" */}
+
+- 同一个 scope 已有就原地替换，回执 `replaced: true`
+- 写入是原子的：先写同目录的临时文件再改名；写完重读一遍，读不到写进去的行就回 `ok: false`
+- home 级有同名 scope 指向别的地址时，`note` 里写明 pnpm 用的是 home 级那条
+- 回执里的 `lines` 已把 token 换成 `***`，日志里也不写 token
+- `@godcreator` 不许改、不许删，两条命令都当场报错
+
+{/* ref file="../plugins/plugin-manager/src/package-sources.ts" lines="143-162" */}
+
+机器级没有这条 scope 时 `remove` 回 `ok: false`；它只写在 home 级时，`error` 里说明那一行要手工删。
+
+**守住它的测试**：
+
+{/* has file="../plugins/plugin-manager/tests/sources.test.ts" text="照机器级现在的样子：@j 与 @godcreator 共用一个 token，重写 @j 时 godcreator 那行必须还在" */}
+
+{/* has file="../plugins/plugin-manager/tests/package-sources.test.ts" text="owner 写法：地址按设置里的 base-url 拼，token 取设置，回执里 token 已遮掉" */}
+
+{/* has file="../plugins/plugin-manager/tests/home.test.ts" text="文件不在读成空文本；写完读回原样，目录里不留临时文件" */}
+
+## `owner` 写法读 gitea 插件的设置
+
+**是什么**：`source.add { scope, owner }` 把源地址拼成 `<gitea 地址>/api/packages/<owner>/npm/`。gitea 地址取设置 `gitea.base-url`，没配时用代码里写的默认实例，`note` 里写明；没显式给 token 时取设置 `gitea.token`，取不到就回 `ok: false`——私有源没有凭据装不了，与其等到安装时失败，不如现在说清楚。
+
+{/* ref file="../plugins/plugin-manager/src/package-sources.ts" lines="256-272" */}
+
+**为什么经命令读**：设置服务 `ctx.gwbSettings` 只读得到调用方自己的分区，`gitea` 分区属于 gitea 插件，读它只能按名字调 `settings.get` 命令。设置插件没装、设置里没配，都只是退回默认地址、没有 token。
+
+`settings.get` 只回存下的值、不回落到声明时的默认值，所以 gitea 插件的默认地址在这里另写一份（`DEFAULT_GITEA_BASE`）：
+
+{/* ref file="../plugins/plugin-manager/src/package-sources.ts" lines="96-97" */}
+
+## 不改 home，不经 BUSY
+
+**是什么**：四条命令用普通的 `on` 登记，不经 BUSY 检查，也不排进 pnpm 的串行队列。
+
+{/* ref file="../plugins/plugin-manager/src/index.ts" lines="386-397" */}
+
+**为什么**：BUSY 与串行队列防的是两次改动同时改 home 的 `package.json`；这四条要么只读网络与文件，要么改的是机器级 `~/.npmrc`，不碰 home。检索可能要等好几条源，排在安装后面只会让「可装」列表等到安装做完才出来。
+
+装包是 `plugin-manager.install`：`search` 查到包名，交给它装，见[安装与卸载](/docs/plugin-manager/install)。
+
+真实 registry 的检索、读 gitea 插件的设置、写机器级 `~/.npmrc` 只能实机验证：`devkit.home.new` 开一个隔离 home，在里面调这几条命令。隔离 home 隔离不了机器级 `~/.npmrc`：在隔离 home 里调 `source.add` / `source.remove`，改的也是本机所有 home 共用的那一份，验完要删掉加进去的行。
