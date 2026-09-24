@@ -2,22 +2,15 @@ import fs from 'node:fs'
 import path from 'node:path'
 import { unitRetired, unitTest, type ManifestDeps, type RegistryInfo } from './audit.js'
 
-/**
- * `audit.ts` 纯机的环境胶水：扫容器根找仓、读各仓的 package.json、向 registry 问现值。
- * 全是盘与网，不进单测；判定全在纯机里。
- */
+// 扫容器根找仓、读各仓的 package.json、向 registry 问现值，都是读磁盘与联网，没有单元测试；判定在 audit.ts
 
-/** 一个人工排除的包：样例探针（fresh-eyes / 验收用，钉的版本随模板走，不算生态账） */
+/** 人工排除的包：fresh-eyes 验收用的样例插件，版本跟着模板走，不算进对账 */
 const PKG_EXEMPT = new Set(['@godcreator/gwb-hello'])
 
 /** 单元的出生证 */
 const UNIT_JSON = 'unit.json'
 
-/**
- * 找一个容器根下面全部 git 仓：单元根或单元根下一层（unit.json + 一层仓目录的习俗）。
- * 出生证 `status` 是 `retired` 的单元整个跳过，名字收进 `retired`；`kind` 是「测试件」的
- * 同样跳（测试用途的示范件不算生态账），名字收进 `testUnits`。
- */
+/** 仓在单元根或单元根下一层。退役单元与测试用的单元整个跳过，名字分别收进 `retired` 与 `testUnits` */
 export function collectRepos(root: string): { repos: string[]; retired: string[]; testUnits: string[] } {
   const repos: string[] = []
   const retired: string[] = []
@@ -44,7 +37,7 @@ export function collectRepos(root: string): { repos: string[]; retired: string[]
   return { repos, retired, testUnits }
 }
 
-/** 一个仓里审得到的 manifest：仓根 + 各包目录 + docs-site，带 @godcreator 的 dev 依赖或任何 peer 的才收 */
+/** 仓根、各包目录与 docs-site 的 package.json，带 @godcreator 的 dev 依赖或任何 peer 的才收 */
 export function collectManifests(repoDir: string): { rel: string; deps: ManifestDeps }[] {
   const candidates = ['package.json']
   for (const group of ['plugins', 'packages', 'apps']) {
@@ -72,7 +65,7 @@ export function collectManifests(repoDir: string): { rel: string; deps: Manifest
   return out
 }
 
-/** 挑出 dev 里的 @godcreator 条目与全部 peer；两样都没有返回 undefined（这份 manifest 不入账） */
+/** 挑出 dev 里的 @godcreator 条目与全部 peer；两样都没有回 undefined（这份不查） */
 function extractDeps(pkg: Record<string, unknown>): ManifestDeps | undefined {
   const pick = (key: string, keep: (name: string) => boolean): Record<string, string> => {
     const src = pkg[key]
@@ -89,7 +82,7 @@ function extractDeps(pkg: Record<string, unknown>): ManifestDeps | undefined {
   return Object.keys(peers).length + Object.keys(devs).length > 0 ? { peers, devs, private: pkg.private === true, plugin } : undefined
 }
 
-/** 问源：packument 的 versions 键是全部版本号，dist-tags.latest 是正式最新。404＝源上没这个包 */
+/** packument 的 versions 键是全部版本号，dist-tags.latest 是最新正式版；404 是源上没这个包 */
 export async function fetchRegistry(
   pkgs: string[],
   registryBase: string,
