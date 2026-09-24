@@ -299,7 +299,7 @@ async function installBasePlugins(home: string, deps: HomeDeps): Promise<{ ok: f
   if (installed.ok) return undefined
   return {
     ok: false,
-    error: `底座装不上(pnpm add 失败;查 scope 路由与源的连通性)。输出尾巴:\n${installed.tail}`,
+    error: `基础插件装不上(pnpm add 失败;查 scope 路由与源连不连得上)。输出的最后几行:\n${installed.tail}`,
   }
 }
 
@@ -336,7 +336,7 @@ export async function launchHome(input: LaunchInput, deps: HomeDeps): Promise<La
   // 同一个 home 不许开两个实例：两个窗口写同一份日志，按记录停止只认得记录里那一个
   const existing = parseRecord(deps.fs.readText(recordFile(home)))
   if (existing !== undefined && recordedPidIsHomeProcess(await deps.processName(existing.pid), deps.execPath) === true) {
-    return { ok: false, error: `${input.name} 已经有一个实例在跑(pid ${existing.pid})——先 stop,或直接用那扇窗` }
+    return { ok: false, error: `${input.name} 已经有一个实例在运行(pid ${existing.pid})——先停掉它,或直接用那个窗口` }
   }
   // home 的 package.json、空 cordis.yml 与 runtime.json 都由内核启动后自己生成，这里只建目录
   deps.fs.ensureDir(home)
@@ -452,14 +452,14 @@ export async function resolveTarget(homesRoot: string, name: string, deps: HomeD
   if (record.cdp === undefined) {
     return {
       ok: false,
-      error: `${name} 在跑,但记录里没有 cdp 那格——起它的时候没带 --remote-debugging-port,够不着。停掉它，再用 devkit.home.open 重开一次(调试口自动挑)`,
+      error: `${name} 在跑,但记录里没有 cdp 那格——启动它的时候没带 --remote-debugging-port,连不上。停掉它,再用 devkit.home.open 重开一次(调试端口自动选)`,
     }
   }
   const owner = await deps.portOwner(record.cdp)
   if (owner !== undefined && owner !== record.pid) {
     return {
       ok: false,
-      error: `记录说 ${name} 的调试口是 ${record.cdp},可那个口上 listen 的是 pid ${owner},不是 ${record.pid}——记录陈旧了,没敢用`,
+      error: `记录说 ${name} 的调试端口是 ${record.cdp},可那个端口上监听的是 pid ${owner},不是 ${record.pid}——记录过时了,没敢用`,
     }
   }
   return { ok: true, name, home, record, cdp: record.cdp }
@@ -510,7 +510,7 @@ export async function bringDownHome(homeDir: string, deps: HomeDeps): Promise<St
       return {
         ok: false,
         killed: null,
-        note: `CDP ${record.cdp} 端口上 listen 的是 pid ${owner},记录里写的是 ${record.pid}——对不上,没敢杀(记录留着)`,
+        note: `CDP ${record.cdp} 端口上监听的是 pid ${owner},记录里写的是 ${record.pid}——对不上,没敢杀(记录留着)`,
       }
     }
   }
@@ -521,7 +521,7 @@ export async function bringDownHome(homeDir: string, deps: HomeDeps): Promise<St
     return { ok: false, killed: null, note: `停 pid ${record.pid} 没成:${String(err)}——进程还在` }
   }
   if (killed === 'gone') {
-    return { ok: true, killed: null, note: `pid ${record.pid} 已陈旧(下手时进程已经不在了)` }
+    return { ok: true, killed: null, note: `pid ${record.pid} 已过时(结束时进程已经不在了)` }
   }
   const exited = await waitExited(record.pid, deps)
   if (!exited.ok) {
@@ -563,7 +563,7 @@ async function stopBeforeRemoving(homeDir: string, daily: boolean, force: boolea
     return { ok: false, note: `还在跑(pid ${record.pid})——带 force: true 连停带删` }
   }
   if (isHome && daily) {
-    return { ok: false, note: `${DAILY_HOME} 正跑着(pid ${record.pid})——这是日常那份,我不替你关它。自己关掉那扇窗再来删` }
+    return { ok: false, note: `${DAILY_HOME} 正跑着(pid ${record.pid})——这是日常用的 home,不替你关它。自己关掉那个窗口再来删` }
   }
   if (!isHome) return { ok: true }
   const stopped = await bringDownHome(homeDir, deps)
