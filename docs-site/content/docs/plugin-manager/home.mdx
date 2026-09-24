@@ -24,7 +24,7 @@ home 里的插件分两层：**包**是 pnpm 装进 `package.json` 与 `node_mod
 
 {/* ref file="../plugins/plugin-manager/src/inventory.ts" lines="84-101" */}
 
-{/* ref file="../plugins/plugin-manager/src/index.ts" lines="434-444" */}
+{/* ref file="../plugins/plugin-manager/src/index.ts" lines="432-442" */}
 
 home 的 `package.json` 读不到或不是 JSON 时当空表：它由 pnpm 写入，安装中途可能只写了一半，`list` 因此整体失败比少报几行更难排查；条目那一层照样报得出来。
 
@@ -54,7 +54,7 @@ home 的 `package.json` 读不到或不是 JSON 时当空表：它由 pnpm 写�
 
 **怎么做**：安装、卸载、热升级、升内核都经 `applyToHome` 运行 pnpm，直接启动，不排队。会写 home 的 pnpm 只在这里运行，调用它的四条命令都经过 BUSY 检查（见下面「同一时刻只允许一个改动」），所以插件管理在同一个 home 里同一时刻最多只有一个写 home 的 pnpm。只读的 `pnpm outdated --json` 不经过 `applyToHome`，也不经过 BUSY。
 
-{/* ref file="../plugins/plugin-manager/src/index.ts" lines="820-827" */}
+{/* ref file="../plugins/plugin-manager/src/index.ts" lines="837-844" */}
 
 **实测**：在和真 home 布局相同的临时 home 里，`pnpm add x` 与 `pnpm add y` 同时运行 5 轮，每轮清单与锁文件都只剩一个包；`pnpm add` 与 `pnpm remove` 同时运行 5 轮，每轮添加的那个包都丢了。两个 pnpm 都退出码 0、没有警告，丢掉的包还留在 `node_modules` 里。`pnpm outdated --json` 不写文件，和 `pnpm add` 同时运行 5 轮，`add` 的结果都对。所以写 home 的 pnpm 必须互斥，`outdated` 不必（[两个 pnpm 同时改同一个 home](/trajectory/2026-09-25-concurrent-pnpm-loses-writes)）。
 
@@ -62,7 +62,7 @@ home 的 `package.json` 读不到或不是 JSON 时当空表：它由 pnpm 写�
 
 **怎么做**：条目的增删改只用条目树的 `create` / `update` / `remove`——它们把写回 `cordis.yml` 与当场加载、卸载一起做。启用传 `{ disabled: null }`（loader 把 null 当作删掉这个字段），停用传 `{ disabled: true }`；`remove-entry` 只删条目，包留在 home 里。
 
-{/* ref file="../plugins/plugin-manager/src/index.ts" lines="766-783" */}
+{/* ref file="../plugins/plugin-manager/src/index.ts" lines="783-800" */}
 
 条目树在构造时从插件管理自己那条条目的上一层取（`ctx.fiber.entry.parent.tree`），不用知道承载 `cordis.yml` 的那条条目叫什么。按 loader 自己的类型 `EntryTree` 取，再赋给收窄后的 `EntryTreeLike`：loader 改了这几个方法的签名，类型检查就在这里失败。
 

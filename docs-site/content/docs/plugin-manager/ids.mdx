@@ -64,7 +64,7 @@ description: 条目 id 是身份，一经确定不改；选 id 时看数据插�
 
 **怎么做**：数据目录、设置分区归数据插件、设置插件管，插件管理不自己拼路径去碰它们，只调这两个插件的服务 `owners` / `transferOwner`。这两个插件都是可选的，用局部注入接上；哪个没装，回执里对应的那一项是 `false`。
 
-{/* ref file="../plugins/plugin-manager/src/index.ts" lines="743-754" */}
+{/* ref file="../plugins/plugin-manager/src/index.ts" lines="760-771" */}
 
 <Note>
 **不是同一个插件，别转归属**：那等于把前一个包的数据与设置交给另一个插件。不是同一个插件就换一个 id：`remove-entry` 之后带 `id` 调 `add-entry`。

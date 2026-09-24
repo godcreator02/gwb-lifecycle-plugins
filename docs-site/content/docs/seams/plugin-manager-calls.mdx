@@ -19,7 +19,7 @@ description: 连接 devkit 与插件管理：devkit 从插件管理的主入口 
 
 回执 `action` 是 `remounted` 时，`state` 必须是 `ACTIVE`；是 `deferred`（被重新加载的是插件管理自己）时，每 500 毫秒轮询一次 `plugin-manager.list`，60 秒内等到那条条目 `active: true`。插件管理这边的命令与处理：
 
-{/* ref file="../plugins/plugin-manager/src/index.ts" lines="334-343" */}
+{/* ref file="../plugins/plugin-manager/src/index.ts" lines="332-341" */}
 
 {/* ref file="../plugins/plugin-manager/src/remount.ts" lines="81-95" */}
 

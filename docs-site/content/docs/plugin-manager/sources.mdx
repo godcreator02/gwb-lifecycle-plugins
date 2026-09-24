@@ -51,7 +51,7 @@ description: plugin-manager.search 在配好的 npm 源上检索插件，地址�
 
 **是什么**：`source.add` 与 `source.remove` 只改机器级 `~/.npmrc`；home 级 `<home>/.npmrc` 只读，`source.list` 把两份合起来列出，逐条标出处，token 只报有没有。
 
-{/* ref file="../plugins/plugin-manager/src/home.ts" lines="51-73" */}
+{/* ref file="../plugins/plugin-manager/src/home.ts" lines="65-87" */}
 
 **为什么**：`@godcreator` 的路由本来就写在 `~/.npmrc`，本机每个 home 的安装、每个源码仓的安装与发版都读它，包源是整台机器共用的配置。home 级那份 pnpm 也读、而且同名行优先，只放手工加的行。
 
@@ -93,7 +93,7 @@ description: plugin-manager.search 在配好的 npm 源上检索插件，地址�
 
 **是什么**：四条命令用不带 BUSY 检查的 `registerCommand` 登记，也不运行 pnpm。
 
-{/* ref file="../plugins/plugin-manager/src/index.ts" lines="379-386" */}
+{/* ref file="../plugins/plugin-manager/src/index.ts" lines="377-384" */}
 
 **为什么**：BUSY 防的是两次改动同时改 home 的 `package.json`；这四条要么只读网络与文件，要么改的是机器级 `~/.npmrc`，不碰 home。检索可能要等好几条源，排在安装后面只会让「可装」列表等到安装做完才出来。
 

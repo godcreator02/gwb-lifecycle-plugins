@@ -38,7 +38,7 @@ description: 插件管理不自带 pnpm，只认用户装在两个固定位置�
 
 **命令行参数与工作目录**：改 home 只有 `add <spec…>` 与 `remove <包名>` 两种，都经 `applyToHome` 运行；只读的是 `outdated --json`。工作目录一律是 home。
 
-{/* ref file="../plugins/plugin-manager/src/index.ts" lines="826-826" */}
+{/* ref file="../plugins/plugin-manager/src/index.ts" lines="843-843" */}
 
 **环境**：原样传下去，用户的 `~/.npmrc`、pnpm 配置（`@godcreator` 的包源、包龄豁免）照常读到；改两处。去掉 `ELECTRON_RUN_AS_NODE`：它只对 electron 有意义，留着会传给 pnpm 启动的依赖构建脚本。设 `pnpm_config_auto_install_peers=false`：插件的 peer 写了别的插件，home 里没装那个插件时 pnpm 默认把它自动装进 `node_modules/.pnpm`，不写进 home 的 `package.json`、没有条目，插件管理也不认它；命令行参数 `--config.auto-install-peers=false` 会被 pnpm 忽略，只有环境变量关得掉（见[peer 满没满足](/docs/plugin-manager/peers#缺的-peer-不会被自动装上)）。直接启动这个文件，不开 shell。
 
