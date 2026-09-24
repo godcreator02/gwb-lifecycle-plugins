@@ -31,9 +31,9 @@ description: 连接 devkit、插件管理与 pnpm 和团队包源：插件管理
 
 {/* ref file="../plugins/devkit/src/dev.ts" lines="317-322" */}
 
-{/* ref file="../plugins/devkit/src/node-dev-deps.ts" lines="226-231" */}
+{/* ref file="../plugins/devkit/src/node-dev-deps.ts" lines="239-244" */}
 
-{/* ref file="../plugins/devkit/src/node-dev-deps.ts" lines="327-336" */}
+{/* ref file="../plugins/devkit/src/node-dev-deps.ts" lines="340-349" */}
 
 **团队源地址**：写死在 `dev.ts`，`devkit.dev` 与 `devkit.release` 都只用它，不收参数；`devkit.audit-deps` 缺省也用它，可以给 `registry` 换：
 
@@ -43,7 +43,7 @@ description: 连接 devkit、插件管理与 pnpm 和团队包源：插件管理
 
 {/* ref file="../plugins/devkit/src/dev.ts" lines="69-77" */}
 
-{/* ref file="../plugins/devkit/src/node-dev-deps.ts" lines="245-249" */}
+{/* ref file="../plugins/devkit/src/node-dev-deps.ts" lines="258-262" */}
 
 **audit-deps 读 packument**：不经 pnpm，用 `fetch` 请求 `<源>/<包名 URL 编码>`，取 `versions` 的键与 `dist-tags.latest`；404 当作源上没有这个包；不带认证头：
 

@@ -29,7 +29,7 @@ description: 连接 devkit.home.* 与 cdp.mjs 和内核 exe：起 home 用 GWB_H
 
 `bin/cdp.mjs` 的 `portOf`：只取 `cdp`，要求是 1–65535 的整数，不看 `pid`：
 
-{/* ref file="../plugins/devkit/bin/cdp.mjs" lines="182-199" */}
+{/* ref file="../plugins/devkit/bin/cdp.mjs" lines="196-213" */}
 
 **home 根目录只有一种算法**：`<appData>/gwb-kernel/homes`，`<appData>` 按 Electron `app.getPath('appData')` 的规则取（Windows 是 `%APPDATA%`），与内核 `main.ts` 里 `GWB_HOME` 是名字时相同。算法写在零依赖的 `bin/cdp.mjs` 里，`src/index.ts` 从那里 import，两处用的是同一个函数；Windows 上没有 `APPDATA` 直接报错：
 

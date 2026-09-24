@@ -15,7 +15,7 @@ description: 连接 devkit（经 gwbNodeCli 登记、dev.ts 起子进程）、bi
 
 **命令行**：`<home 名> <动作> [参数…]`，开关 `--target` / `--mod` / `--pad` / `--size` / `--timeout` 可以写在任意位置，`--x=值` 与 `--x 值` 两种都认。第一个位置是纯数字就拒：
 
-{/* ref file="../plugins/devkit/bin/cdp.mjs" lines="81-89" */}
+{/* ref file="../plugins/devkit/bin/cdp.mjs" lines="82-90" */}
 
 devkit 这边：登记命令时 `entry` 指向这个文件（见[工作台服务](/docs/seams/workbench)），调用方传 `{"args":[…]}`；`devkit.dev` 自己起子进程，用宿主的 `process.execPath` 加 `ELECTRON_RUN_AS_NODE=1`，工作目录是系统临时目录：
 
@@ -23,9 +23,9 @@ devkit 这边：登记命令时 `entry` 指向这个文件（见[工作台服务
 
 **stdout**：成功时打一张缩进两格的 JSON，固定有 `page`、`在哪个home`、`did`，其余按动作不同。`devkit.dev` 读其中两种：`home` 动作的 `home` 与 `why`，`cmd` 动作的 `回执`（页面上那条命令的原始回执）：
 
-{/* ref file="../plugins/devkit/bin/cdp.mjs" lines="775-784" */}
+{/* ref file="../plugins/devkit/bin/cdp.mjs" lines="789-798" */}
 
-{/* ref file="../plugins/devkit/bin/cdp.mjs" lines="642-658" */}
+{/* ref file="../plugins/devkit/bin/cdp.mjs" lines="656-672" */}
 
 {/* ref file="../plugins/devkit/src/dev.ts" lines="413-425" */}
 
@@ -35,9 +35,9 @@ devkit 这边：登记命令时 `entry` 指向这个文件（见[工作台服务
 
 **页面**：`cmd` 在页面里调 `window.gwb.command(名字, 参数)`；页面上没有这个函数就回 `{ ok: false }`。连上之后先核对 home：收集页面上 `script[src]`、`link[href]` 与 importmap 里的 `file:///` 地址，截出 `/homes/<名>/` 那一段，要求只有一个 home、且名字等于第一个参数：
 
-{/* ref file="../plugins/devkit/bin/cdp.mjs" lines="483-505" */}
+{/* ref file="../plugins/devkit/bin/cdp.mjs" lines="497-519" */}
 
-{/* ref file="../plugins/devkit/bin/cdp.mjs" lines="747-755" */}
+{/* ref file="../plugins/devkit/bin/cdp.mjs" lines="761-769" */}
 
 调试端口从 home 的 `runtime.json` 里读，见[内核与 home](/docs/seams/kernel-home)。
 
