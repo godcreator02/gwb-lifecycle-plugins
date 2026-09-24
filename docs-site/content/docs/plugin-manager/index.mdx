@@ -51,17 +51,17 @@ description: 插件管理是唯一写 home 的插件——装卸包、增删条�
 - `plugin-manager.source.list`：列出机器级与 home 级两份 npmrc 里的包源
 - `plugin-manager.source.remove`：从机器级 `~/.npmrc` 删一条包源
 
-{/* ref file="../plugins/plugin-manager/src/index.ts" lines="64-79" */}
+{/* ref file="../plugins/plugin-manager/src/index.ts" lines="44-59" */}
 
 **服务 `gwbPluginManager`**：值是 `{ contract: 1 }`，上面没有方法，只表示插件管理装了；别的插件（例如插件管理窗格所在的插件）inject 它，只为跟着插件管理一起加载、卸载。命令的参数或回执有破坏性变化时 `contract` 加一。包的 `package.json` 里 `gwb.provides` 写着同样的说明：
 
-{/* ref file="../plugins/plugin-manager/src/index.ts" lines="81-89" */}
+{/* ref file="../plugins/plugin-manager/src/index.ts" lines="61-69" */}
 
 {/* ref file="../plugins/plugin-manager/package.json" lines="51-59" */}
 
 **导出的回执类型**：调用方 `import type` 引用，不手写回执的形状——`InstallResult`、`UninstallResult`、`OutdatedReceipt`、`UpdateAllResult`、`UpdatedPackage`、`TransferOwnerResult`、`PluginManagerPresence` 定义在入口文件里，另外转出这几个（找插件与配包源的回执 `SearchReceipt`、`SourceAddResult`、`SourceListResult`、`SourceRemoveResult` 定义在 `package-sources.ts`）：
 
-{/* ref file="../plugins/plugin-manager/src/index.ts" lines="25-30" */}
+{/* ref file="../plugins/plugin-manager/src/index.ts" lines="23-28" */}
 
 **说明书 `gwb-plugin-manager`**：给 agent 讲这些命令怎么调用，放在包根的 `skills/`，装了说明书插件就交给它登记，agent 经 MCP 入口的 `skill.read` 读。正本是 [gwb-plugin-manager](/outputs/skills/gwb-plugin-manager)，包里的 `SKILL.md` 是生成物：
 

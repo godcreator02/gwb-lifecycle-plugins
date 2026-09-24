@@ -19,7 +19,7 @@ description: 连接 devkit、插件管理与 pnpm、npm 源、两份 npmrc、git
 
 {/* ref file="../plugins/plugin-manager/package.json" lines="32-34" */}
 
-{/* ref file="../plugins/plugin-manager/src/pnpm-path.ts" lines="9-12" */}
+{/* ref file="../plugins/plugin-manager/src/pnpm-path.ts" lines="1-4" */}
 
 **devkit 的 pnpm**：PATH 上的 `pnpm`，Windows 上经 `cmd /c`。用在五处：
 
@@ -59,7 +59,7 @@ description: 连接 devkit、插件管理与 pnpm、npm 源、两份 npmrc、git
 
 {/* ref file="../plugins/plugin-manager/src/registry.ts" lines="11-32" */}
 
-{/* ref file="../plugins/plugin-manager/src/search.ts" lines="21-22" */}
+{/* ref file="../plugins/plugin-manager/src/search.ts" lines="6-7" */}
 
 这个关键词写在 `search.ts` 与每个插件包的 `package.json` 两处：插件包忘了写，就不会出现在「可装」列表里。
 
@@ -71,7 +71,7 @@ description: 连接 devkit、插件管理与 pnpm、npm 源、两份 npmrc、git
 
 `@godcreator` 是生态自己的 scope，`source.add` 与 `source.remove` 都拒绝改它：
 
-{/* ref file="../plugins/plugin-manager/src/sources.ts" lines="47-48" */}
+{/* ref file="../plugins/plugin-manager/src/sources.ts" lines="34-35" */}
 
 **按名字读 gitea 插件的设置**：`source.add` 用 `owner` 写法时，经命令总线调 `settings.get { section: 'gitea', key: 'base-url' }` 与 `{ section: 'gitea', key: 'token' }`：
 

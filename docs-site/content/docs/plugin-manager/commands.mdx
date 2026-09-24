@@ -42,9 +42,9 @@ description: 16 条命令是插件管理唯一的调用方式；服务 gwbPlugin
 
 **怎么做**：只表示存在的服务不需要认出调用方，用 `ctx.provide` 提供普通对象，不继承 cordis 的 `Service` 类——插件管理因此也不在运行时 import `cordis`。命令登记在命令插件（`gwbCommands`）上，插件管理用局部注入取得它，命令插件卸载时这些命令跟着注销、它再加载时重新登记。数据插件（`gwbData`）、设置插件（`gwbSettings`）、说明书插件（`gwbSkills`）也是可选的局部注入，缺了只少一部分功能。
 
-{/* ref file="../plugins/plugin-manager/src/index.ts" lines="185-190" */}
+{/* ref file="../plugins/plugin-manager/src/index.ts" lines="159-164" */}
 
-{/* ref file="../plugins/plugin-manager/src/index.ts" lines="239-244" */}
+{/* ref file="../plugins/plugin-manager/src/index.ts" lines="204-209" */}
 
 {/* ref file="../plugins/plugin-manager/src/index.ts" lines="248-267" */}
 

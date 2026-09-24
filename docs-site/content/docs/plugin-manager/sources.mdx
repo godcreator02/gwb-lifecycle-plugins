@@ -33,7 +33,7 @@ description: plugin-manager.search 在配好的 npm 源上检索插件，地址�
 
 **是不是插件只看包清单 `keywords` 里有没有 `gwb-plugin`**，包名前缀、scope 都不参与判断。这个字段只在检索响应里有（单包详情接口会去掉它），一次请求就能判断完。gitea 的检索响应把 scope 与名字分开放，解析时拼回完整包名。
 
-{/* ref file="../plugins/plugin-manager/src/search.ts" lines="21-22" */}
+{/* ref file="../plugins/plugin-manager/src/search.ts" lines="6-7" */}
 
 {/* ref file="../plugins/plugin-manager/src/search.ts" lines="43-46" */}
 
@@ -87,7 +87,7 @@ description: plugin-manager.search 在配好的 npm 源上检索插件，地址�
 
 `settings.get` 只回存下的值、不回落到声明时的默认值，所以 gitea 插件的默认地址在这里另写一份（`DEFAULT_GITEA_BASE`）：
 
-{/* ref file="../plugins/plugin-manager/src/package-sources.ts" lines="96-97" */}
+{/* ref file="../plugins/plugin-manager/src/package-sources.ts" lines="83-84" */}
 
 ## 不改 home，不经 BUSY
 

@@ -14,7 +14,7 @@ description: 连接插件管理与 cordis 的 loader、include：插件管理从
 
 **取树**：从插件管理自己那条条目的上一层取——`ctx.fiber.entry.parent.tree`，不用知道承载 `cordis.yml` 的那条条目叫什么。取到的赋给收窄后的 `EntryTreeLike`，loader 的签名变了，类型检查在这里失败；运行时再检查四个方法都在：
 
-{/* ref file="../plugins/plugin-manager/src/tree.ts" lines="23-34" */}
+{/* ref file="../plugins/plugin-manager/src/tree.ts" lines="10-21" */}
 
 {/* ref file="../plugins/plugin-manager/src/tree.ts" lines="23-40" */}
 

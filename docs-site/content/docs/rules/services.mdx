@@ -45,9 +45,9 @@ export default class GwbExample extends Service {
 
 **不需要认出调用方的服务（存在标记服务）用 `ctx.provide`。** 它只是一个普通对象，不用 import `cordis`，也就不写 peer。插件管理就是这样：对外只有命令，服务 `gwbPluginManager` 只表示「插件管理装了」：
 
-{/* ref file="../plugins/plugin-manager/src/index.ts" lines="81-89" */}
+{/* ref file="../plugins/plugin-manager/src/index.ts" lines="61-69" */}
 
-{/* ref file="../plugins/plugin-manager/src/index.ts" lines="185-190" */}
+{/* ref file="../plugins/plugin-manager/src/index.ts" lines="159-164" */}
 
 服务名用 `gwb` 开头的小驼峰，跟插件名对应。提供了服务的插件在清单的 `gwb.provides` 里按服务名写 `summary` 与 `usage`，键与源码提供的服务名一一对应——repo-kit 的自述守卫在各仓 `pnpm check` 里查这一条，`devkit.capabilities` 靠它把用法带进回执。
 
@@ -90,7 +90,7 @@ export default class GwbExample extends Service {
 - **每次重新加载都该清掉的状态放在 `apply` 里**：重新加载只重跑 `apply`，模块顶层的状态在同一版本重新加载时不会重置
 - **配置一律 `gwbSettings.define`**，条目上只写 `id`：写在 `cordis.yml` 条目上的配置界面看不见，agent 也不知道有它
 
-{/* ref file="../plugins/plugin-manager/src/vocab.ts" lines="8-15" */}
+{/* ref file="../plugins/plugin-manager/src/vocab.ts" lines="3-10" */}
 
 ## 为什么
 
