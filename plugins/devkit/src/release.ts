@@ -213,7 +213,7 @@ export function checkTicket(manifest: TicketManifest, latest: Record<string, str
       continue
     }
     if (latestOnRegistry === undefined) {
-      problems.push(`dev ${pkg} 是 "${range}":问不出源上的 dist-tags.latest(源不通,或它还没发过正式版),检不了票`)
+      problems.push(`dev ${pkg} 是 "${range}":问不出源上的 dist-tags.latest(源不通,或它还没发过正式版),查不了`)
       continue
     }
     if (compareVersions(testedFloor, latestOnRegistry) > 0) {
@@ -293,7 +293,7 @@ function typecheckProblem(tsconfig: string, tail: string): string {
   const shownLines = lines.slice(-TYPECHECK_TAIL_LINES).map((line) => `      ${line}`)
   return (
     `按 ${tsconfig} 做的类型检查没过(tsc --noEmit -p ${tsconfig} --skipLibCheck false):` +
-    `类型引用到的包(含上游 d.ts 引用到的)要在 dev 里列全,只引类型写 import type。输出尾巴:\n${shownLines.join('\n')}`
+    `类型引用到的包(含上游 d.ts 引用到的)要在 dev 里列全,只引类型写 import type。输出的最后几行:\n${shownLines.join('\n')}`
   )
 }
 
@@ -421,7 +421,7 @@ export async function runRelease(input: ReleaseInput, deps: ReleaseDeps): Promis
 
   // 在仓根构建，不在包目录：工作区里的插件常常用着同仓另一个包的产物
   const built = await deps.run(pnpmPlan(['build'], input.repoDir, deps.platform), BUILD_TIMEOUT_MS)
-  if (!built.ok) return { ok: false, error: `仓根 pnpm build 没成,一个都没发。输出尾巴:\n${built.tail}` }
+  if (!built.ok) return { ok: false, error: `仓根 pnpm build 没成,一个都没发。输出的最后几行:\n${built.tail}` }
 
   const plan = await planPackages(input, deps)
   if ('ok' in plan) return plan
@@ -447,7 +447,7 @@ export async function runRelease(input: ReleaseInput, deps: ReleaseDeps): Promis
       repoDir: input.repoDir,
       shipped,
       reminders,
-      note:`发好了 ${shippedList}(tag latest)。这条链只碰源、没碰任何 home:升 default 走 plugin-manager.update-all(那是插件件在调,活得过热重挂)。发版前该在隔离 home 里验过的,验完再升`,
+      note:`发好了 ${shippedList}(tag latest)。这条命令只发到源、没碰任何 home:升级 default 用 plugin-manager.update-all(由插件管理自己做,热重新加载时它不会被停掉)。发版前该在隔离 home 里验过的,验完再升级`,
     },
   }
 }
