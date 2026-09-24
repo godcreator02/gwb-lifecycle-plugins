@@ -69,7 +69,7 @@ export function apply(ctx: Context) {
 
 插件管理不按值 import `cordis`（它的服务用 `ctx.provide` 提供一个普通对象），所以 peer 里只有内核包。它运行的 pnpm 是用户装在机器上的外部程序，照上表最后一行不声明，用的时候在两个固定位置检测它在不在（见[插件管理的 pnpm](/docs/plugin-manager/pnpm)），所以没有 `dependencies`；别的插件、`cordis`、loader 全在 dev，内核的接口类型从 peer 里的内核包取：
 
-{/* ref file="../plugins/plugin-manager/package.json" lines="32-49" */}
+{/* ref file="../plugins/plugin-manager/package.json" lines="32-48" */}
 
 它对内核包和别的插件都只 import 类型，构建产物里这几句整句消失：
 

@@ -33,9 +33,9 @@ description: 连接 devkit 与插件管理：devkit.dev 经 CDP 在目标页面�
 
 **二、`devkit.home.new` 自己写 `cordis.yml`、自己装内核包、cordis 与基础插件。** 新 home 在内核启动之前，由 devkit 写一份七条条目的 `cordis.yml`（文件已存在就不写），再用命令开头找到的 pnpm（两个固定位置之一，见[pnpm 与包源](/docs/seams/pnpm-registry)）依次运行三次 `pnpm add`：内核包（运行中的内核版本，精确版本号）、`cordis`（装上的内核包 peer 里写的精确版本号）、七个基础插件（其中有插件管理）。内核包与 `cordis` 装完读 `node_modules` 里的清单核对版本，对不上不启动：
 
-{/* ref file="../plugins/devkit/src/home.ts" lines="257-300" */}
+{/* ref file="../plugins/devkit/src/home.ts" lines="257-295" */}
 
-{/* ref file="../plugins/devkit/src/home.ts" lines="373-400" */}
+{/* ref file="../plugins/devkit/src/home.ts" lines="368-395" */}
 
 **三、`devkit.dev` 自己改目标 home 的清单。** 把这次发的准确版本号写进目标 home 的 `package.json`，再在那个 home 里运行 `pnpm install`（和插件管理同一个 pnpm），装完读 `node_modules/<包>/package.json` 核对版本；失败时把清单改回原样。不用 `plugin-manager.install`，因为它对已装的包会再加一条条目：
 

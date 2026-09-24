@@ -30,7 +30,7 @@ description: 连接 devkit.services、devkit.capabilities 与两样东西：cord
 
 结构不对（字段不在、不是对象）时回空表，并在回执里带 `note` 与 `saw`（走了几层、看见几个插件、几个 fiber、几张服务表）：
 
-{/* ref file="../plugins/devkit/src/index.ts" lines="358-374" */}
+{/* ref file="../plugins/devkit/src/index.ts" lines="360-376" */}
 
 **package.json 这边**：
 
@@ -45,7 +45,7 @@ description: 连接 devkit.services、devkit.capabilities 与两样东西：cord
 
 {/* ref file="../plugins/devkit/src/services.ts" lines="135-158" */}
 
-{/* ref file="../plugins/devkit/src/capabilities.ts" lines="77-128" */}
+{/* ref file="../plugins/devkit/src/capabilities.ts" lines="78-129" */}
 
 ## 约定
 
@@ -63,7 +63,7 @@ cordis 需要保证的：`fiber.store`、`fiber.entry`、`fiber.parent`、`regis
 
 `gwb.shared` 只有内核包的算数：内核只读内核包自己清单里的这一项写页面 importmap，别的包写了内核不收，`devkit.capabilities` 也只给内核包报外置名。读法与内核一致：内核把它当作「外置名 → 子路径」的对象读（见内核仓文档站的「页面上的包名 gwb.shared」接缝页），子路径不是非空字符串的那一项不进 importmap；`devkit.capabilities` 按同一条规则取外置名，写成数组或字符串的声明两边都不认：
 
-{/* ref file="../plugins/devkit/src/capabilities.ts" lines="35-45" */}
+{/* ref file="../plugins/devkit/src/capabilities.ts" lines="36-46" */}
 
 同一个 `gwb.provides` 里两种键并存：`devkit.services` 只读服务名键，`devkit.capabilities` 只读说明符键；检查两种都认，一个键两种都不是才拒。
 

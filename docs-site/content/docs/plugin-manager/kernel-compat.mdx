@@ -11,7 +11,7 @@ description: 插件在 peerDependencies 里给内核包 @godcreator/gwb-kernel-d
 
 **是什么**：插件包在 `package.json` 的 `peerDependencies` 里写 `"@godcreator/gwb-kernel-desktop": "^x.y.z"`，x.y.z 是它验过的那个内核的版本号。内核包和 `cordis` 装在 home 根上，pnpm 安装插件时顺带核对这个范围。插件管理自己也写了：
 
-{/* ref file="../plugins/plugin-manager/package.json" lines="32-34" */}
+{/* ref file="../plugins/plugin-manager/package.json" lines="32-33" */}
 
 **为什么**：插件依赖内核提供的 cordis、loader 与 home 布局，这些随内核版本变化。内核是 home 里的一个 npm 包，用 npm 标准的 peer 写法声明兼容范围，pnpm 与插件管理读的是同一个字段。出了问题时，先看这个范围就知道该不该怀疑内核换了版本。
 

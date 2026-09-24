@@ -59,7 +59,7 @@ description: 插件管理是唯一写 home 的插件——装卸包、增删条�
 
 {/* ref file="../plugins/plugin-manager/src/index.ts" lines="65-73" */}
 
-{/* ref file="../plugins/plugin-manager/package.json" lines="54-61" */}
+{/* ref file="../plugins/plugin-manager/package.json" lines="49-56" */}
 
 **导出的回执类型**：调用方 `import type` 引用，不手写回执的形状——`InstallResult`、`UninstallResult`、`OutdatedReceipt`、`UpdateAllResult`、`UpdatedPackage`、`UpdateKernelResult`、`TransferOwnerResult`、`PluginManagerPresence` 定义在入口文件里，另外转出这几个（找插件与配包源的回执 `SearchReceipt`、`SourceAddResult`、`SourceListResult`、`SourceRemoveResult` 定义在 `package-sources.ts`）：
 
