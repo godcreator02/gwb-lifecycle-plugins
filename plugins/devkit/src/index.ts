@@ -546,9 +546,9 @@ export function apply(ctx: GwbContext): void {
       {
         name: 'devkit.audit-deps',
         plugin: '@godcreator/gwb-devkit',
-        description: '全生态依赖对账：各插件仓的 @godcreator 声明对 registry 现值，抓死钉与火车债',
+        description: '全生态依赖对账：各插件仓 @godcreator 的 dev 依赖对照团队源上的最新正式版，插件包的 peer 只许 cordis；只报告',
         usage:
-          '{root?（容器根绝对路径，缺省现问命令总线 unit-folder.list 回的 container）, registry?（缺省个人源）}。无参数直接调也行。回执 { ok, data: { root, registry, repos, manifests, packages, retired, testUnits, findings, byKind } }——findings 逐条 { kind, repo, manifest, pkg, detail }；kind：dead-pin（钉了源上没有的版本，装必炸）/ behind（dev 钉落后源上 dist-tags.latest 但还在 ^<dev 钉> 范围内，提示，等各自下次发版；dev 号不算最新）/ out-of-range（最新已出 ^ 范围，上游出了破坏版，必须追）/ peer-not-caret（peer 不是 ^x.y.z——还写 >= 或别的写法，迁移欠账，发版检票会拒）/ floor-unverifiable（peer 下限指向源上没有的版本）/ floor-mismatch（peer 下限 ≠ dev 钉）/ floor-no-mirror（peer 无 dev 镜像）/ loose-dev-pin（dev 钉不是精确号）。退役单元（unit.json 的 status 是 retired）与**测试件**（kind 是「测试件」的单元，测试用途的示范件）整个不扫，名字分别列在 retired 与 testUnits；private: true 的清单不发布，只查 dev 钉那三类、不查 peer 下限。只读不改：扫仓、读 package.json、问源',
+          '{root?（容器根绝对路径，缺省现问命令总线 unit-folder.list 回的 container）, registry?（缺省个人源）}。无参数直接调也行。回执 { ok, data: { root, registry, repos, manifests, packages, retired, testUnits, findings, byKind } }——findings 逐条 { kind, repo, manifest, pkg, detail }；kind：dead-pin（钉了源上没有的版本，装必炸）/ behind（dev 钉落后源上 dist-tags.latest 但还在 ^<dev 钉> 范围内，提示，等各自下次发版；dev 号不算最新）/ out-of-range（最新已出 ^ 范围，上游出了破坏版，必须跟进）/ loose-dev-pin（dev 写法既不是精确号也不是 ^ 范围）/ peer-not-cordis（keywords 含 gwb-plugin 的插件包 peer 里写了 cordis 以外的包，peer 只写宿主提供的 cordis，下次发版时 devkit.release 会拒）。退役单元（unit.json 的 status 是 retired）与**测试件**（kind 是「测试件」的单元，测试用途的示范件）整个不扫，名字分别列在 retired 与 testUnits；private: true 的清单不发布，只查 dev、不查 peer。只报告不拦。只读不改：扫仓、读 package.json、问源',
       },
       async (args) => {
         const askedRoot = isRecord(args) && typeof args.root === 'string' ? args.root.trim() : ''
@@ -572,13 +572,13 @@ export function apply(ctx: GwbContext): void {
           for (const one of collectManifests(dir)) manifests.push({ repo: repoRel(dir), manifest: one.rel, deps: one.deps })
         }
         if (manifests.length === 0) return { ok: false, error: `${root} 下面一份带 @godcreator 依赖的 package.json 都没扫到——root 是不是给错了` }
-        const pkgs = [...new Set(manifests.flatMap((m) => [...Object.keys(m.deps.peers), ...Object.keys(m.deps.devs)]))]
+        const pkgs = [...new Set(manifests.flatMap((m) => Object.keys(m.deps.devs)))]
         const registry = await fetchRegistry(pkgs, registryBase)
         const findings = manifests.flatMap((m) => auditManifest(m.repo, m.manifest, m.deps, registry))
         const byKind = countByKind(findings)
         log.info(
           `devkit.audit-deps：${String(repoDirs.length)} 仓 ${String(manifests.length)} 份 manifest 对 ${String(pkgs.length)} 个包（退役单元 ${String(retired.length)} 个、测试件 ${String(testUnits.length)} 个不扫）——` +
-            `死钉 ${String(byKind['dead-pin'])}、必须追 ${String(byKind['out-of-range'])}、范围内落后 ${String(byKind.behind)}、peer 未迁 ^ ${String(byKind['peer-not-caret'])}、下限水分 ${String(byKind['floor-unverifiable'] + byKind['floor-mismatch'])}`,
+            `源上没有的版本 ${String(byKind['dead-pin'])}、出范围 ${String(byKind['out-of-range'])}、范围内落后 ${String(byKind.behind)}、peer 写了 cordis 以外的包 ${String(byKind['peer-not-cordis'])}`,
         )
         return { ok: true, data: { root, registry: registryBase, repos: repoDirs.length, manifests: manifests.length, packages: pkgs.length, retired, testUnits, findings, byKind } }
       },

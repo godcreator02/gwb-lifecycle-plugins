@@ -7,8 +7,8 @@ const reg = (versions: string[], latest: string | undefined = versions.filter((v
   ...(latest === undefined ? {} : { latest }),
 })
 
-/** 一份发布的清单（不是 private） */
-const pub = (peers: Record<string, string>, devs: Record<string, string>): ManifestDeps => ({ peers, devs, private: false })
+/** 一份发布的插件清单（不是 private，keywords 含 gwb-plugin） */
+const pub = (peers: Record<string, string>, devs: Record<string, string>): ManifestDeps => ({ peers, devs, private: false, plugin: true })
 
 describe('compareVersions：逐段数字比', () => {
   it('0.10.0 大于 0.9.9——字符串比会翻车的那种', () => {
@@ -87,55 +87,20 @@ describe('auditManifest：dev 钉那一档', () => {
   })
 })
 
-describe('auditManifest：peer 下限那一档', () => {
-  it('下限指向源上没有的版本＝声明了无法验证的世界', () => {
-    const got = auditManifest('r', '.', pub({ '@godcreator/gwb-tokens': '^0.1.1' }, { '@godcreator/gwb-tokens': '0.1.2' }), {
-      '@godcreator/gwb-tokens': reg(['0.1.2']),
-    })
-    expect(got.map((f) => f.kind)).toEqual(['floor-unverifiable'])
+describe('auditManifest：插件包的 peer 只许 cordis', () => {
+  it('peer 只有 cordis：干净', () => {
+    expect(auditManifest('r', '.', pub({ cordis: '^4.0.0-rc.9' }, {}), {})).toEqual([])
   })
 
-  it('下限 ≠ dev 钉＝声明不等于验证过的世界（两边方向都记）', () => {
-    const registry = { '@godcreator/gwb-shell': reg(['0.7.0', '0.7.3']) }
-    const low = auditManifest('r', '.', pub({ '@godcreator/gwb-shell': '^0.7.0' }, { '@godcreator/gwb-shell': '0.7.3' }), registry)
-    const high = auditManifest('r', '.', pub({ '@godcreator/gwb-shell': '^0.7.3' }, { '@godcreator/gwb-shell': '0.7.0' }), registry)
-    expect(low.map((f) => f.kind)).toEqual(['floor-mismatch'])
-    expect(high.map((f) => f.kind).sort()).toEqual(['behind', 'floor-mismatch'])
+  it('cordis 以外的 peer 一条一笔 peer-not-cordis，不管写法、不问源', () => {
+    const got = auditManifest('r', '.', pub({ '@godcreator/gwb-shell': '^0.13.3', react: '>=19', cordis: '^4.0.0-rc.9' }, {}), {})
+    expect(got.map((f) => `${f.kind} ${f.pkg}`)).toEqual(['peer-not-cordis @godcreator/gwb-shell', 'peer-not-cordis react'])
+    expect(got[0]?.detail).toContain('按「运行时谁提供」改写')
   })
 
-  it('^<dev 钉> 且都在源上＝干净', () => {
-    const got = auditManifest('r', '.', pub({ '@godcreator/gwb-shell': '^0.7.0' }, { '@godcreator/gwb-shell': '0.7.0' }), {
-      '@godcreator/gwb-shell': reg(['0.7.0']),
-    })
-    expect(got).toEqual([])
-  })
-
-  it('peer 没有 dev 镜像＝这个面从没验证过；最新出了 peer 的 ^ 范围再记一笔必须追', () => {
-    const inRange = auditManifest('r', '.', pub({ '@godcreator/gwb-settings': '^0.2.0' }, {}), {
-      '@godcreator/gwb-settings': reg(['0.2.0', '0.2.4']),
-    })
-    expect(inRange.map((f) => f.kind)).toEqual(['floor-no-mirror'])
-    const out = auditManifest('r', '.', pub({ '@godcreator/gwb-settings': '^0.2.0' }, {}), {
-      '@godcreator/gwb-settings': reg(['0.2.0', '0.3.0']),
-    })
-    expect(out.map((f) => f.kind)).toEqual(['floor-no-mirror', 'out-of-range'])
-  })
-
-  it('peer 还写 >=：记迁移欠账，给出改成什么；下限照 >= 那个号往下审', () => {
-    const registry = { '@godcreator/gwb-shell': reg(['0.7.0', '0.8.0']) }
-    const same = auditManifest('r', '.', pub({ '@godcreator/gwb-shell': '>=0.8.0' }, { '@godcreator/gwb-shell': '0.8.0' }), registry)
-    expect(same.map((f) => f.kind)).toEqual(['peer-not-caret'])
-    expect(same[0]?.detail).toContain('"^0.8.0"')
-    const off = auditManifest('r', '.', pub({ '@godcreator/gwb-shell': '>=0.7.0' }, { '@godcreator/gwb-shell': '0.8.0' }), registry)
-    expect(off.map((f) => f.kind)).toEqual(['peer-not-caret', 'floor-mismatch'])
-  })
-
-  it('peer 写法认不出（精确号、~、workspace:）也是 peer-not-caret，不再往下审下限', () => {
-    const registry = { '@godcreator/gwb-shell': reg(['0.8.0']) }
-    for (const raw of ['0.8.0', '~0.8.0', 'workspace:*']) {
-      const got = auditManifest('r', '.', pub({ '@godcreator/gwb-shell': raw }, { '@godcreator/gwb-shell': '0.8.0' }), registry)
-      expect(got.map((f) => f.kind)).toEqual(['peer-not-caret'])
-    }
+  it('不是插件包（库）：peer 不查', () => {
+    const lib: ManifestDeps = { peers: { react: '^19.0.0' }, devs: {}, private: false, plugin: false }
+    expect(auditManifest('r', 'packages/lib', lib, {})).toEqual([])
   })
 })
 
@@ -165,12 +130,12 @@ describe('auditManifest：private 清单', () => {
     '@godcreator/docfirst-workflow': reg(['0.2.0', '0.2.1']),
   }
 
-  it('peer 下限一档整个不审：没人装它，下限写什么都进不了 home', () => {
+  it('peer 整个不查：没人装它，写什么都进不了 home', () => {
     const got = auditManifest(
       'r',
       'plugins/command-http',
-      { peers: { '@godcreator/gwb-shell': '>=0.1.0', '@godcreator/gwb-commands': '^0.4.0', '@godcreator/gwb-data': '>=9.9.9' }, devs: {}, private: true },
-      { ...registry, '@godcreator/gwb-data': reg(['0.1.1']) },
+      { peers: { '@godcreator/gwb-shell': '>=0.1.0', '@godcreator/gwb-commands': '^0.4.0' }, devs: {}, private: true, plugin: true },
+      registry,
     )
     expect(got).toEqual([])
   })
@@ -179,11 +144,11 @@ describe('auditManifest：private 清单', () => {
     const got = auditManifest(
       'r',
       'docs-site',
-      { peers: {}, devs: { '@godcreator/gwb-shell': '0.7.1', '@godcreator/gwb-commands': '0.4.1', '@godcreator/docfirst-workflow': '~0.2.0' }, private: true },
+      { peers: {}, devs: { '@godcreator/gwb-shell': '0.7.1', '@godcreator/gwb-commands': '0.4.1', '@godcreator/docfirst-workflow': '~0.2.0' }, private: true, plugin: false },
       registry,
     )
     expect(got.map((f) => `${f.kind} ${f.pkg}`)).toEqual(['dead-pin @godcreator/gwb-shell', 'loose-dev-pin @godcreator/docfirst-workflow'])
-    const behind = auditManifest('r', 'docs-site', { peers: {}, devs: { '@godcreator/gwb-shell': '0.7.0' }, private: true }, registry)
+    const behind = auditManifest('r', 'docs-site', { peers: {}, devs: { '@godcreator/gwb-shell': '0.7.0' }, private: true, plugin: false }, registry)
     expect(behind.map((f) => f.kind)).toEqual(['behind'])
   })
 })

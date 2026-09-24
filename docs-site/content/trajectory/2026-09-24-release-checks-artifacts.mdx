@@ -20,6 +20,7 @@ pivots-from:: [工具对齐 ^：发版检票强制迁，严格 peer 分两条路
 - **哪些文件算哪一侧，从入口顺着相对 import 走，不按文件名一刀切**：node 侧入口是 `exports["."]` 的运行时条件（没有 `exports` 时是 `main`），也就是 loader 按包名加载的那个文件；浏览器侧入口是模板 `build.ts` 输出的 `dist/client.js`，加上本包 `gwb.shared` 指到的文件。否掉的做法是模板产物测试的「`dist/` 下除 `client.js` 外都算 node 侧」：外壳把 react 的几个共享文件也放在 `dist/` 里，按文件名分会把浏览器侧文件当成 node 侧、误拒；而两侧都走不到的文件运行时不会被加载，不查
 - **importmap 的名字从本仓 `node_modules` 现读**：本包与它依赖到的包的 `gwb.shared` 键，形状照内核计算 importmap 那段代码；依赖的清单读不到就拒，不猜。只有浏览器侧有包名 import 时才读
 - **包名 import 只认三种写法**：行首的 `import … from` / `export … from` / `import '…'`，和非注释行里带字面量的 `import('…')`。devkit 自己的产物里注释写着 `import()`，不跳过注释行会误拒
+- **`devkit.audit-deps` 跟着改**：删掉 `peer-not-caret`、`floor-mismatch`、`floor-no-mirror`、`floor-unverifiable` 四类，加一类 `peer-not-cordis`——插件包的 peer 里每个 `cordis` 以外的包记一条，只报告不拦；`private` 清单与库不查 peer。peer 不再问源，只有 `@godcreator` 的 dev 依赖问源
 - **空 import 与关掉 skipLibCheck 的类型检查对所有包都查**；类型检查用被发仓自己的 tsc（在包目录里 `pnpm exec tsc --noEmit -p tsconfig.json --skipLibCheck false`），只查包目录的 `tsconfig.json`，浏览器侧另有的 tsconfig 不在这一步里
 
 代价：本仓的 devkit 与插件管理今天都过不了类型检查——词汇表包 `@godcreator/gwb-plugin-api` 0.2.7 的 d.ts 引用 `HTMLElement` 而没有声明 DOM 类型库，关掉 skipLibCheck 报 TS2304。这是全生态迁移里「词汇表包补 DOM 类型库声明」那一项，词汇表包发新版之前，所有依赖它的插件都发不出去。

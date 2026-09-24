@@ -44,7 +44,7 @@ export function collectRepos(root: string): { repos: string[]; retired: string[]
   return { repos, retired, testUnits }
 }
 
-/** 一个仓里审得到的 manifest：仓根 + 各包目录 + docs-site，凡带 @godcreator 依赖的才收 */
+/** 一个仓里审得到的 manifest：仓根 + 各包目录 + docs-site，带 @godcreator 的 dev 依赖或任何 peer 的才收 */
 export function collectManifests(repoDir: string): { rel: string; deps: ManifestDeps }[] {
   const candidates = ['package.json']
   for (const group of ['plugins', 'packages', 'apps']) {
@@ -72,22 +72,21 @@ export function collectManifests(repoDir: string): { rel: string; deps: Manifest
   return out
 }
 
-/** 挑出两档里的 @godcreator 条目；一条都没有返回 undefined（这份 manifest 不入账） */
+/** 挑出 dev 里的 @godcreator 条目与全部 peer；两样都没有返回 undefined（这份 manifest 不入账） */
 function extractDeps(pkg: Record<string, unknown>): ManifestDeps | undefined {
-  const pick = (key: string): Record<string, string> => {
+  const pick = (key: string, keep: (name: string) => boolean): Record<string, string> => {
     const src = pkg[key]
     if (typeof src !== 'object' || src === null) return {}
     const out: Record<string, string> = {}
     for (const [name, range] of Object.entries(src as Record<string, unknown>)) {
-      if (name.startsWith('@godcreator/') && !PKG_EXEMPT.has(name) && typeof range === 'string') {
-        out[name] = range
-      }
+      if (keep(name) && !PKG_EXEMPT.has(name) && typeof range === 'string') out[name] = range
     }
     return out
   }
-  const peers = pick('peerDependencies')
-  const devs = pick('devDependencies')
-  return Object.keys(peers).length + Object.keys(devs).length > 0 ? { peers, devs, private: pkg.private === true } : undefined
+  const peers = pick('peerDependencies', () => true)
+  const devs = pick('devDependencies', (name) => name.startsWith('@godcreator/'))
+  const plugin = Array.isArray(pkg.keywords) && pkg.keywords.includes('gwb-plugin')
+  return Object.keys(peers).length + Object.keys(devs).length > 0 ? { peers, devs, private: pkg.private === true, plugin } : undefined
 }
 
 /** 问源：packument 的 versions 键是全部版本号，dist-tags.latest 是正式最新。404＝源上没这个包 */

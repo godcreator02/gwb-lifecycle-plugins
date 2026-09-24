@@ -1,34 +1,28 @@
 /**
- * 依赖对账的纯机：一份 package.json 的 @godcreator 声明对 registry 现值，出判定。
- * 不碰盘、不碰网——扫仓与问源在 `node-audit-deps.ts`，这层可单测。
+ * 依赖对账，纯函数：一份 package.json 的依赖声明对照源上的现值，给出判定。
+ * 不读盘、不联网——扫仓与问源在 `node-audit-deps.ts`。
  *
- * 判据的立场先说死：这个生态承诺的兼容形态只有「全家一起最新」（peer 单份、update-all
- * 一律拉最新、gitea 只保证往后有历史），所以**不审「兼容多老」，只审三样账**：
+ * 只报两类：
  *
- * - 声明装得来（死钉：钉了源上没有的版本——迁移只搬了各包最新号，这类谎最容易犯）
- * - 火车债（dev 钉落后源上的正式最新）：还在 `^<dev 钉>` 范围内是 `behind`，等各自下次发版；
- *   最新已出范围是 `out-of-range`，上游出了破坏版，必须追
- * - 声明 ≠ 验证过的世界（peer 写 `^<dev 钉>`：写法不是 `^` 记 `peer-not-caret`，下限与 dev 钉
- *   不同步记 `floor-mismatch`）
+ * - `@godcreator` 的 dev 依赖：写了源上没有的版本（`dead-pin`）；落后源上的 `dist-tags.latest`，
+ *   还在 `^<dev 下限>` 范围内是 `behind`（提示），已出范围是 `out-of-range`（必须跟进）；
+ *   写法认不出下限（`loose-dev-pin`）
+ * - 插件包的 peer 里有 `cordis` 以外的包（`peer-not-cordis`）：peer 只写宿主提供的 `cordis`
  *
- * 三样账各有各的对象：
- *
- * - **「最新」是 `dist-tags.latest`**，不是版本表里号最大的那个——`devkit.dev` 发的开发版
- *   （`<patch+1>-dev.<戳>`，标 dev）号比正式版大，却不是谁该上的车
- * - **peer 下限只对发布的清单有意义**。下限是写给装这个包的人看的；`private: true` 的清单
- *   （仓根 workspace、文档站、不再发版的件）没人装，下限写什么都不进任何 home，
- *   判它是噪音。它的 dev 钉照审：dev 钉决定这个仓自己装不装得上、验的是不是最新
- * - **退役单元整个不扫**。它的仓只作参考、不再发版也不再装，钉版烂着是预期
+ * 「最新」是 `dist-tags.latest`，不是版本表里号最大的那个：`devkit.dev` 发的开发版号比正式版大。
+ * `private: true` 的清单（仓根 workspace、文档站）不发布，只查 dev；退役单元整个不扫。
  */
 
 /** 一份 package.json 里审得到的那部分 */
 export interface ManifestDeps {
-  /** peerDependencies 里的 @godcreator 条目 */
+  /** peerDependencies 的全部条目 */
   peers: Record<string, string>
   /** devDependencies 里的 @godcreator 条目 */
   devs: Record<string, string>
-  /** `private: true`：不发布，peer 下限那一档不审 */
+  /** `private: true`：不发布，不查 peer */
   private: boolean
+  /** `keywords` 含 `gwb-plugin`：只有插件包查 peer */
+  plugin: boolean
 }
 
 /** 一个包在 registry 上的现值 */
@@ -39,15 +33,7 @@ export interface RegistryInfo {
   latest?: string
 }
 
-export type FindingKind =
-  | 'dead-pin'
-  | 'behind'
-  | 'out-of-range'
-  | 'peer-not-caret'
-  | 'floor-unverifiable'
-  | 'floor-mismatch'
-  | 'floor-no-mirror'
-  | 'loose-dev-pin'
+export type FindingKind = 'dead-pin' | 'behind' | 'out-of-range' | 'loose-dev-pin' | 'peer-not-cordis'
 
 export interface Finding {
   kind: FindingKind
@@ -130,7 +116,6 @@ export function unitTest(text: string | undefined): boolean {
 
 const EXACT = /^\d+\.\d+\.\d+$/
 const CARET = /^\^(\d+\.\d+\.\d+)$/
-const GTE = /^>=(\d+\.\d+\.\d+)$/
 
 /** `^x.y.z` 的下限；别的写法回 undefined */
 export function caretFloor(range: string): string | undefined {
@@ -153,10 +138,7 @@ export function inCaret(floor: string, version: string): boolean {
 
 /**
  * 一份 manifest 的判定。versions 空表（源上没这个包）时，钉了什么都是死钉。
- *
- * 落后分两类，范围是 `^<dev 钉>`（规矩里 peer 就写它）：最新还在范围内是 `behind`（提示，
- * 等各自下次发版），出了范围是 `out-of-range`（待办，先适配再抬）。只有 peer、没有 dev 钉的，
- * 拿 peer 的 `^` 范围判出没出。
+ * 落后分两类，范围是 `^<dev 下限>`：最新还在范围内是 `behind`，出了范围是 `out-of-range`。
  */
 export function auditManifest(
   repo: string,
@@ -173,7 +155,7 @@ export function auditManifest(
     const info = registry[pkg]
     if (info === undefined) continue
     if (raw === 'workspace:*') continue // 同仓包走本地解析，源上本来就没有
-    /** dev 的「验过下限」：精确号取自身，^ 范围取其下限（实施 Spec §4：范围内落后不追） */
+    /** dev 的「验过下限」：精确号取自身，^ 范围取其下限 */
     const pin = EXACT.test(raw) ? raw : caretFloor(raw)
     if (pin === undefined) {
       push('loose-dev-pin', pkg, `dev 版本既不是精确号也不是 ^ 范围：${raw}`)
@@ -191,54 +173,35 @@ export function auditManifest(
       if (inCaret(pin, info.latest)) {
         push('behind', pkg, `钉 ${pin}，源上最新 ${info.latest}，还在 ^${pin} 范围内——无需动作，对上游 semver 的信任就是范围声明的含义`)
       } else {
-        push('out-of-range', pkg, `钉 ${pin}，源上最新 ${info.latest} 已出 ^${pin} 范围——上游出了破坏版，必须追：先适配代码，dev 与 peer 一起抬`)
+        push('out-of-range', pkg, `钉 ${pin}，源上最新 ${info.latest} 已出 ^${pin} 范围——上游出了破坏版，必须追：先适配代码，再把 dev 升上去`)
       }
     }
   }
 
-  if (deps.private) return out
+  if (deps.private || !deps.plugin) return out
 
   for (const [pkg, raw] of Object.entries(deps.peers)) {
-    const info = registry[pkg]
-    if (info === undefined) continue
-    const dev = deps.devs[pkg]
-    const devExact = dev !== undefined ? (EXACT.test(dev) ? dev : caretFloor(dev)) : undefined
-    const caret = caretFloor(raw)
-    const floor = caret ?? GTE.exec(raw.trim())?.[1]
-    if (caret === undefined) {
-      const want = devExact ?? floor
-      push('peer-not-caret', pkg, `peer 写的是 "${raw}"，规矩是 ^<dev 钉>${want === undefined ? '' : `：改成 "^${want}"`}（迁移欠账，下次发版时 devkit.release 检票会拒）`)
-    }
-    // 认不出下限的写法到此为止；`>=x.y.z` 的下限照样往下审
-    if (floor === undefined) continue
-    if (info.versions.length === 0 || !info.versions.includes(floor)) {
-      push('floor-unverifiable', pkg, `下限 ${floor}（${raw}），源上没有这个版本——声明了一个装不进来、无法验证的世界`)
-      continue
-    }
-    if (dev === undefined) {
-      push('floor-no-mirror', pkg, `peer 有声明、dev 没钉镜像——这个面从没在本仓验证过`)
-      if (caret !== undefined && info.latest !== undefined && !inCaret(caret, info.latest)) {
-        push('out-of-range', pkg, `peer ${raw}，源上最新 ${info.latest} 已出范围——上游出了破坏版，必须追`)
-      }
-    } else if (devExact !== undefined && devExact !== floor) {
-      push('floor-mismatch', pkg, `下限 ${floor}（${raw}）≠ dev 钉 ${devExact}（规矩：下限＝验证过的世界）`)
-    }
+    if (pkg === 'cordis') continue
+    push(
+      'peer-not-cordis',
+      pkg,
+      `peer 写了 ${pkg}（"${raw}"）：peer 只写宿主提供、node 侧产物里按值 import 的 cordis。按「运行时谁提供」改写——` +
+        `另一个插件、接口定义包、importmap 里的包、运行时自己用的库、构建时才用的包写 dev；打包不进产物的自用库写 dependencies 并写明原因。` +
+        `下次发版时 devkit.release 会拒`,
+    )
   }
   return out
 }
 
 /** kinds 的计数汇总，回执尾巴用 */
 export function countByKind(findings: Finding[]): Record<FindingKind, number> {
-  const counts = {
+  const counts: Record<FindingKind, number> = {
     'dead-pin': 0,
     behind: 0,
     'out-of-range': 0,
-    'peer-not-caret': 0,
-    'floor-unverifiable': 0,
-    'floor-mismatch': 0,
-    'floor-no-mirror': 0,
     'loose-dev-pin': 0,
-  } as Record<FindingKind, number>
+    'peer-not-cordis': 0,
+  }
   for (const f of findings) counts[f.kind] += 1
   return counts
 }
