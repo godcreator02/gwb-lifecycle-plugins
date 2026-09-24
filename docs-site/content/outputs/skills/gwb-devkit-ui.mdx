@@ -1,20 +1,16 @@
 ---
 title: UI 接入说明书入口
-description: references/ui.md 的兼容入口——UI 接入规则由 shell 随包发布
+description: references/ui.md 指向外壳随包发布的 UI 接入说明书 gwb-shell
 ---
 
-# UI 接入说明书入口
+# 插件界面：读 `gwb-shell`
 
-**本页回答**：从 devkit 的旧 UI 附件入口到哪里读取当前接入规则。
-
-开发或修改插件界面，读取 shell 自己携带的说明书：
+开发或修改插件界面，读外壳自己带的说明书：
 
 ```text
 skill.read {"name":"gwb-shell"}
 ```
 
-窗格、shadcn 官方组件配置、配套 tokens、样式前缀、多桌面浮层与 UI 验收，都由这一份维护。
-devkit 只负责脚手架、构建、测试 home 和发版，不复制或代挂 shell 的说明书。
+窗格、shadcn 官方组件配置、配套 tokens、样式前缀、多桌面浮层与界面验收都在那一份里。建仓、隔离 home 与发版读说明书 `gwb-devkit`。
 
-若找不到 `gwb-shell`，检查当前 home 是否启用了 shell 与 skills，以及 shell 是否已升级到携带该说明书的版本。
-这份旧附件保留作指路，不能替代当前 shell 的接入规则。
+`skill.read` 报找不到 `gwb-shell`：用 `plugin-manager.list` 看这个 home 的外壳与说明书插件是否 `active`，外壳是否已升级到带这份说明书的版本。

@@ -24,7 +24,7 @@ description: plugins/devkit/AGENTS.md 由这一页生成——每次会话都得
 | 接缝 | `seams/` | 每条接缝交换什么、两边各保证什么 |
 | 开发套件 | `devkit/` | 首页讲功能、13 条命令、说明书、模板、依赖、不做的事；分页讲建仓、结构体检、测试 home、改一版看一版、CDP 驱动 |
 | 插件管理 | `plugin-manager/` | 首页讲功能、接口、依赖、不做的事；分页讲各个机制 |
-| repo-kit | `repo-kit.mdx` | 两份测试守卫与假 ctx 挂载工具 `mountHarness` |
+| repo-kit | `repo-kit.mdx` | 两份测试守卫与在假 ctx 上调用 `apply` 的工具 `mountHarness` |
 | 写插件的规矩 | `rules/` | 规矩总表与每条规矩的做法、由哪道检查把关 |
 | 术语表 | `glossary.mdx` | 反复出现的词、退役的词与命令 |
 
@@ -48,13 +48,13 @@ description: plugins/devkit/AGENTS.md 由这一页生成——每次会话都得
 
 ## 文档站是正本，六区
 
-`AGENTS.md`、`CLAUDE.md`、`README.md` 与两个插件 `skills/` 下的 `SKILL.md`**全是生成文件，别手改**——
-正本在 `docs-site/content/outputs/`，对应关系在 `docs-site/docfirst.config.mjs` 的 `outputs`。
+`AGENTS.md`、`CLAUDE.md`、`README.md`、两个插件 `skills/` 下的 `SKILL.md` 与 `references/` 附件**全是生成文件，别手改**——
+正本在 `docs-site/content/outputs/`（附件 `references/rules.md` 的正本是现状区的规矩总表 `content/docs/rules/index.mdx`），对应关系在 `docs-site/docfirst.config.mjs` 的 `outputs`。
 改完在 `docs-site` 运行 `pnpm doc:render` 重新生成，mdx 正本、生成文件、`.ledger.json` 放进同一个提交。
 `skills/fresh-eyes/SKILL.md` 是手写的，不经生成。
 
 六区各是什么：`content/docs` 现状（**代码引用只写在这一区**与 outputs）、`trajectory` 轨迹卡（只增
-不改、**不引用会变的代码**）、`spec` 进行中的交接（有页就是有活还没做完，做完把内容并进现状区后删页）、`future`
+不改、**不引用会变的代码**）、`spec` 进行中的交接（有页就是有工作还没做完，做完把内容并进现状区后删页）、`future`
 未来、`outputs` 生成文件的正本、`feedback` 本仓反复做的操作的候选。怎么写见 skill「docfirst-docs」。
 
 ## 提交前的检查
@@ -88,8 +88,8 @@ pnpm build          # 只构建 plugins/* 与 packages/*，tsc 直接输出 dist
 **发版前先在隔离 home 装一遍验完**——`plugin-manager.update-all`（插件管理窗格的「全部更新」按钮）
 直接升级日常 home，跳过了隔离验证；人点那个按钮是最后一步，不是验证的一步。
 
-**发完就去升级 default，别拖着。** 说明书与命令都随包发布，不升级＝ agent 读到的还是上一版，
-而它照着过期的说明书干活**不报错**。新插件第一次装用 `plugin-manager.install`，装完下一次调 MCP 入口的
+**发完当场升级 default。** 说明书与命令都随包发布，不升级＝ agent 读到的还是上一版，
+而它照着过期的说明书做事**不报错**。新插件第一次装用 `plugin-manager.install`，装完下一次调 MCP 入口的
 `index` 就有它的命令。
 
 **开发套件的 `files` 白名单五项，一项都不能少**：`dist`、`src`、`template`、`skills`、`bin`。
@@ -139,7 +139,7 @@ findings 里那条 info 按实际文件名列好了 git mv 清单；改已有的
 
 ## 没有设置项
 
-启动 home 用的是宿主自己那个 exe，不认内核仓；`devkit.audit-deps` 的容器根缺省时现问命令总线上的
+启动 home 用的是宿主自己那个 exe，不认内核仓；`devkit.audit-deps` 的容器根缺省时当场调用命令总线上的
 `unit-folder.list`。所以开发套件一项设置都不 `define`，也不注入 `gwbSettings`。
 
 **将来真要加，配置一律用 `gwbSettings.define`，不读 `cordis.yml` 的 `config`。** 新加一项可改的东西就
@@ -184,7 +184,7 @@ config——写在 yml 里的那份界面看不见、agent 也不知道有它。
 **目标 home 的运行时记录（`<home>/runtime.json`）本包只读不写。** 写它的是内核（启动时整份重写 pid /
 startedAt / appDir / cdp）与 mcp 插件（绑定端口之后补上 `mcp` 那个字段）。所以本包里**不许出现写这份
 文件的代码**——已经有两个写入者，第三个只会让这份记录谁也说不清。读它的规矩有两条：
-**验活**（pid 还在、且那个 pid 真的占着记录里那个端口），以及**记录不删**（进程退出了也留着，
+**验活**（pid 还在、且那个 pid 真的在监听记录里那个端口），以及**记录不删**（进程退出了也留着，
 下一次启动内核会整份重写）。
 
 **定位一个 home 只有一条路：说出它的名字。** `devkit.dev` 与 `bin/cdp.mjs` 两处**都不收端口**，
@@ -192,7 +192,7 @@ startedAt / appDir / cdp）与 mcp 插件（绑定端口之后补上 `mcp` 那�
 页面自报的名字核对一次：
 记录回答「你要的是哪个」，页面回答「你连上的实际是哪个」。理由是端口没有含义，敲错一位就连到
 另一个 home，而那个 home 会照样收下这次改动。**所以本包里不许再出现「给个端口就连」的另一条路**，
-包括图省事的内部调用：流程里那七步也是按名字调用驱动的，为的就是每一步都顺带核对一次。
+包括为了省事的内部调用：流程里那七步也是按名字调用驱动的，为的就是每一步都顺带核对一次。
 
 **不许把产物覆盖进 home 的 `node_modules`**：home 里那些文件是硬链接到 pnpm 全局存储的，覆盖写会
 改坏存储里的原件；而且 ESM 模块图按 URL 缓存，不换版本号，主进程里的代码就换不掉。**装上的版本号变了路径才变**
@@ -218,14 +218,14 @@ startedAt / appDir / cdp）与 mcp 插件（绑定端口之后补上 `mcp` 那�
 
 | 说明书 | 正本 | 管什么 |
 | --- | --- | --- |
-| `gwb-devkit` | `docs-site/content/outputs/skills/gwb-devkit.mdx`，取证附件 `gwb-devkit-evidence.mdx`；`gwb-devkit-ui.mdx` 只保留 UI 旧入口的指路 | 写插件的整条路、改一版看一版、测试 home、在隔离 home 里验证、红线、能用什么 |
-| `gwb-release` | `docs-site/content/outputs/skills/gwb-release.mdx` | 全生态的发版规则：升哪一位、依赖怎么写、什么时候跟、发版流程 |
+| `gwb-devkit` | `docs-site/content/outputs/skills/gwb-devkit.mdx`；附件：取证 `gwb-devkit-evidence.mdx`，规矩总表 `content/docs/rules/index.mdx`，`gwb-devkit-ui.mdx` 指向外壳的 `gwb-shell` | 新写插件、改插件、改一版看一版、在页面里取证、写插件的规矩 |
+| `gwb-release` | `docs-site/content/outputs/skills/gwb-release.mdx` | 全生态的发版规则：升哪一位、改依赖版本号、发正式版、发破坏性版本多做的两步 |
 | `fresh-eyes` | 包内 `skills/fresh-eyes/SKILL.md`（手写） | 生态自举验收 |
 
 插件管理登记自己的说明书 `gwb-plugin-manager`，正本 `gwb-plugin-manager.mdx` 也在 `content/outputs/skills/`。
 
 主文件只放每次写插件都要的；只有部分场景用得上的放附件，经 `skill.read {name, file}` 读。
-UI 接入规则由 shell 的 `gwb-shell` 说明书维护，本包只引用；模板按该规则接线。
+UI 接入规则由 shell 的 `gwb-shell` 说明书维护，本包只引用；模板按该规则接入外壳。
 这份 AGENTS 不复述说明书，说明书也不往这里搬。
 
 **别替别的插件登记说明书。** 说明书是全局唯一的命名空间，重名的那份直接不登记、只留一行
@@ -239,4 +239,4 @@ UI 接入规则由 shell 的 `gwb-shell` 说明书维护，本包只引用；模
 
 被引用的源码改动过，要**先 commit 再 `pnpm doc:confirm <页的路径…>`**——git 比较器只对已提交、
 工作区干净的内容记录；只点名自己改过的页。轨迹区（`content/trajectory/`）**不引用会变的代码**：它记录历史，
-引用了就变成一份会变黄的现状文档。
+引用了就变成一份代码一改就要复核的现状文档。

@@ -27,10 +27,10 @@ plugin-manager.install {"pkg":"@godcreator/gwb-devkit"}
 这个仓是 pnpm workspace，开发套件在 `plugins/devkit/`，旁边还有两个包：
 
 * `plugins/plugin-manager/`：插件管理 `@godcreator/gwb-plugin-manager`，home 里的一个普通插件，单独发版。它和开发套件一起开发，因为两边互相依赖：`devkit.dev` 装完开发版调 `plugin-manager.remount` 重新加载、用 `plugin-manager.list` 核对结果，`devkit.home.new` 把它装进新 home；插件在 `package.json` 里写的 `gwb.testedKernel`，插件管理在 `list` 里拿它和运行中的内核比对，`devkit.release` 发版前用同一条规则检查。放在一个仓里，改这些地方一个提交就能改两边
-* `packages/repo-kit/`：各插件仓测试里用的守卫包 `@godcreator/gwb-repo-kit`，`devkit.scaffold` 生成的插件包用它查自述与挂载时的登记
+* `packages/repo-kit/`：各插件仓测试里用的守卫包 `@godcreator/gwb-repo-kit`，`devkit.scaffold` 生成的插件包用它查自述与 `apply` 时的登记
 
 ## 文档
 
 `docs-site/` 是六区文档站：在仓根 `pnpm install` 之后，`cd docs-site && pnpm build && pnpm start`，看 `http://localhost:4322`。现状页的说法引用这个仓的真实源码，`pnpm doc` 核对，失败就是文档和代码不一致了。
 
-从哪读起：入口页是接缝图；开发套件看「gwb-devkit · 开发套件」那组页面，插件管理看「gwb-plugin-manager · 插件管理」那组，守卫包看「gwb-repo-kit · 仓侧检查」；为什么这么切分看「关键设计」，改这个仓本身看「开发」；写插件的规矩在「写插件的规矩」那组页面；写插件的整条路与红线在随包发布的说明书 `gwb-devkit` 里。这份 README 是生成文件，正本是 `docs-site/content/outputs/readme.mdx`。
+从哪读起：入口页是接缝图；开发套件看「gwb-devkit · 开发套件」那组页面，插件管理看「gwb-plugin-manager · 插件管理」那组，守卫包看「gwb-repo-kit · 仓侧检查」；为什么这么切分看「关键设计」，改这个仓本身看「开发」；写插件的规矩在「写插件的规矩」那组页面；写插件、改插件、在隔离 home 里验证的步骤在随包发布的说明书 `gwb-devkit` 里。这份 README 是生成文件，正本是 `docs-site/content/outputs/readme.mdx`。

@@ -108,5 +108,5 @@ pnpm build                         # 构建文档站；端口见 package.json �
 ```
 
 - **先提交代码再 `doc:confirm`**：git 比较器只对已提交、工作区干净的内容记录。只点名自己改过的页，不带路径会把别人还没复核的页一起确认掉
-- **生成文件不手改**：`plugins/devkit/AGENTS.md`、`CLAUDE.md`、`README.md` 与两个插件 `skills/` 下的 `SKILL.md` 都由 `content/outputs/` 下的 mdx 生成，对应关系在 `docfirst.config.mjs` 的 `outputs`；改 mdx、运行 `pnpm doc:render`，mdx、生成文件、`.ledger.json` 放进同一个提交。`skills/fresh-eyes/SKILL.md` 是手写的，不经生成
+- **生成文件不手改**：`plugins/devkit/AGENTS.md`、`CLAUDE.md`、`README.md`、两个插件 `skills/` 下的 `SKILL.md` 与 `references/` 附件都由 `content/outputs/` 下的 mdx 生成（附件 `references/rules.md` 由现状区的 `rules/index.mdx` 生成），对应关系在 `docfirst.config.mjs` 的 `outputs`；改 mdx、运行 `pnpm doc:render`，mdx、生成文件、`.ledger.json` 放进同一个提交。`skills/fresh-eyes/SKILL.md` 是手写的，不经生成
 - **轨迹卡只增不改**，不引用会变的代码；某条路走不通、做了选型，当场写一张卡

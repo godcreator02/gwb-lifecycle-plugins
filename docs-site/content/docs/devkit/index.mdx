@@ -30,7 +30,7 @@ description: 开发套件是一个普通的 gwb 插件，把「在一个新文�
 | --- | --- | --- |
 | `devkit.scaffold` | 建仓：渲染 `template/repo/` 与 `template/pkg/` 写进新目录，再按名字调别的插件建文档站，站装好六区后写一页插件页草稿 | [5 模板与结构体检](/docs/seams/template-audit)、[6 借用别的插件的命令](/docs/seams/borrowed-commands) |
 | `devkit.scaffold.plugin` | 往已有 workspace 仓的 `plugins/` 加一个插件包，只渲染 `template/pkg/`；仓里有装好六区的文档站时再写一页插件页草稿 | [5 模板与结构体检](/docs/seams/template-audit)、[11 被测仓的形状](/docs/seams/repo-shape) |
-| `devkit.audit-structure` | 查一个仓或全生态的布局与静态红线，只读 | [5 模板与结构体检](/docs/seams/template-audit)、[11 被测仓的形状](/docs/seams/repo-shape) |
+| `devkit.audit-structure` | 查一个仓或全生态的布局与能从文件直接判断的几条规矩，只读 | [5 模板与结构体检](/docs/seams/template-audit)、[11 被测仓的形状](/docs/seams/repo-shape) |
 | `devkit.audit-deps` | 各仓 `@godcreator` 的 dev 依赖对照团队源、插件包的 peer 只许 `cordis`，只读 | [10 pnpm 与团队源](/docs/seams/pnpm-registry)、[11 被测仓的形状](/docs/seams/repo-shape) |
 | `devkit.home.new` | 开一个新的隔离 home：写 `cordis.yml`、装基础插件、启动宿主应用、选调试端口 | [8 内核与 home](/docs/seams/kernel-home)、[10 pnpm 与团队源](/docs/seams/pnpm-registry) |
 | `devkit.home.open` | 重开一个已有的 home | [8 内核与 home](/docs/seams/kernel-home) |
@@ -121,8 +121,8 @@ description: 开发套件是一个普通的 gwb 插件，把「在一个新文�
 
 | 说明书 | 管什么 | 正本 |
 | --- | --- | --- |
-| `gwb-devkit` | 写插件的整条路、改一版看一版、测试 home、在隔离 home 里验证、红线；附件 `references/evidence.md` 讲在页面里取证 | [gwb-devkit](/outputs/skills/gwb-devkit)、[附件 evidence](/outputs/skills/gwb-devkit-evidence)；`references/ui.md` 只指向外壳的 `gwb-shell` 说明书 |
-| `gwb-release` | 全生态的发版规则：升哪一位、依赖怎么写、什么时候跟进上游、发版流程 | [gwb-release](/outputs/skills/gwb-release) |
+| `gwb-devkit` | 新写插件、改插件、改一版看一版、在页面里取证、写插件的规矩；附件 `references/evidence.md` 讲在页面里取证，`references/rules.md` 是规矩总表 | [gwb-devkit](/outputs/skills/gwb-devkit)、[附件 evidence](/outputs/skills/gwb-devkit-evidence)、规矩总表就是[写插件的规矩](/docs/rules)这一页；`references/ui.md` 只指向外壳的 `gwb-shell` 说明书 |
+| `gwb-release` | 全生态的发版规则：升哪一位、改依赖版本号、发正式版、发破坏性版本多做的两步 | [gwb-release](/outputs/skills/gwb-release) |
 | `fresh-eyes` | 生态自举验收：派一个没有上下文的子代理，只给 MCP 入口地址，让它从 `index` 出发建一个插件走完全程 | 包里的 `skills/fresh-eyes/SKILL.md`，手写，不经生成 |
 
 {/* has file="../plugins/devkit/src/index.ts" text="scoped.gwbSkills.register(new URL('../skills/', import.meta.url))" */}
