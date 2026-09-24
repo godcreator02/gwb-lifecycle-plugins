@@ -25,11 +25,13 @@ description: importmap 只放整个页面必须只有一份的运行时代码，
 
 用到 importmap 里名字的插件，把那几个包写进 dev（见[依赖怎么写](/docs/rules/deps)）：构建时外置，运行时由页面解析。浏览器侧代码里的其余依赖一律打包进构建产物，外置成包名而 importmap 里没有这个名字，运行时就是「Failed to resolve module specifier」。
 
-## 这个仓里还没照做的
+## 例子：模板的浏览器侧构建
 
-模板的浏览器侧构建脚本手抄了那四个包名。shell 还没有导出外置名单时，照这四个名字写，并记作待改：
+外壳（`@godcreator/gwb-shell`）没有导出返回外置名单的函数，它在清单的 `gwb.shared` 里声明 importmap 的包名。模板的 `build.ts` 构建时从装好的外壳包里读出 `gwb.shared` 的键，当作外置名单；读不到就报错，不回退到手写的名单：
 
 {/* ref file="../plugins/devkit/template/pkg/build.ts.tpl" lines="11-17" */}
+
+## 这个仓里还没照做的
 
 模板的样式入口还从已经不再发新版的 `gwb-tokens` 引样式映射文件 `theme.reference.css`：
 

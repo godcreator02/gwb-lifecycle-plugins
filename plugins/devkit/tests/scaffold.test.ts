@@ -344,6 +344,18 @@ describe('包内 template/：两区', () => {
     expect(manifest.devDependencies[vocabulary]).toBe(devkitManifest.devDependencies[vocabulary])
   })
 
+  it('生成的 build.ts 不手抄外置名单：从外壳清单的 gwb.shared 读键', () => {
+    const files = renderTemplate(TEMPLATE_ROOT, planScaffold({ name: 'hello', dir: 'D:\\tmp\\x', testedKernel: KERNEL }))
+    const buildScript = files.find((f) => f.rel === 'plugins/hello/build.ts')?.text ?? ''
+    expect(buildScript).toContain("import.meta.resolve('@godcreator/gwb-shell/package.json')")
+    expect(buildScript).toContain("gwb['shared']")
+    expect(buildScript).toContain('external: sharedNamesOfShell()')
+    // 外壳现在 gwb.shared 里的四个名字，一个都不许以字面量出现在构建脚本里
+    for (const name of ['react', 'react/jsx-runtime', 'react-dom', 'react-dom/client']) {
+      expect(buildScript).not.toContain(`'${name}'`)
+    }
+  })
+
   it('生成的自述检查把 docsDir 指到仓根文档站的现状区，inject 那一条不会因为找不到站而跳过', () => {
     const repoDir = path.join(sandbox(), 'repo')
     const files = renderTemplate(TEMPLATE_ROOT, planScaffold({ name: 'hello', dir: repoDir, testedKernel: KERNEL }))
