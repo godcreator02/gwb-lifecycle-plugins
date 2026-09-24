@@ -51,7 +51,7 @@ export default class GwbExample extends Service {
 
 服务名用 `gwb` 开头的小驼峰，跟插件名对应。**要让别的插件知道这个服务，就在自己的类型声明里给 cordis 的 `Context` 补上这一项**，服务的类型也定义在自己的声明里，在类型上写文档注释说清怎么用。插件管理就是这样写的：
 
-{/* ref file="../plugins/plugin-manager/src/index.ts" lines="912-916" */}
+{/* ref file="../plugins/plugin-manager/src/index.ts" lines="903-907" */}
 
 构建时 tsc 把这段连同类型定义输出进 `.d.ts`，`devkit.services` 从 home 里各包的 `.d.ts` 现读，回执里带着类型定义的原文与文档注释（见[服务表与类型声明](/docs/seams/service-table)）。不用另在清单里写一份用法。
 
@@ -71,7 +71,7 @@ export default class GwbExample extends Service {
 
 插件管理对数据插件用第三种：数据插件没装时插件管理照常加载，装上之后才拿到它的归属记录：
 
-{/* ref file="../plugins/plugin-manager/src/index.ts" lines="245-253" */}
+{/* ref file="../plugins/plugin-manager/src/index.ts" lines="242-250" */}
 
 **往继承了 `Service` 的服务里注册，不用自己包 `ctx.effect`**；往 `ctx.provide` 提供的扩展点服务里注册，要自己包。外壳 `gwbShell` 与命令总线 `gwbCommands`（0.4.6 起）都继承了 `Service`。模板注册窗格直接调；注册命令还包着一层 `ctx.effect`，这是给 0.4.6 之前不会自动注销的命令总线准备的：
 
