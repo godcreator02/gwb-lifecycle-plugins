@@ -27,7 +27,7 @@ description: devkit.audit-structure 只读地回答一个仓（或全生态）�
 
 ## 数据结构
 
-{/* ref file="../plugins/devkit/src/structure.ts" lines="6-48" */}
+{/* ref file="../plugins/devkit/src/structure.ts" lines="7-51" */}
 
 `MemberScan` 是检查的最小单位：workspace 仓的 `plugins/*` 与 `packages/*`，旧布局仓是仓根自己（`dir` 记 `.`）。
 
@@ -35,13 +35,13 @@ description: devkit.audit-structure 只读地回答一个仓（或全生态）�
 
 扫描只看三层目录的名字与几个关键文件（package.json、`src/index.ts`、tsconfig），外加 `src/` 下 `.ts` / `.tsx` 连成的一份文本（只用来找源码提供了哪些服务），不进 node_modules、不进 docs-site：
 
-{/* ref file="../plugins/devkit/src/structure.ts" lines="115-145" */}
+{/* ref file="../plugins/devkit/src/structure.ts" lines="119-149" */}
 
 判断「是不是 workspace 仓」用的正则跟 `devkit.scaffold.plugin` 收不收这个仓用的相同（`structure.ts` 的 `yamlHasPluginsZone` 与 `scaffold.ts` 的 `planScaffoldPlugin` 各写了一遍同一个正则），不会出现「加插件收了、体检却说不是 workspace 仓」。
 
 规则是纯函数，输入扫描结果，输出报告：
 
-{/* ref file="../plugins/devkit/src/structure.ts" lines="361-398" */}
+{/* ref file="../plugins/devkit/src/structure.ts" lines="365-405" */}
 
 旧布局仓不算错：布局照报，迁移清单照给——`git mv` 的文件清单按这个仓的实际条目现拼，不是一段通用的话。名字派生链的第三环（插件名 = `gwb-<短名>`）只查 `export const name` 形式的插件；**Service 形式**（`export default class … extends Service`，基础插件仓的数据插件那批）没有也不需要这个导出，第三环查不了，只查入口文件在不在——拿写法当判据只会误报。
 
