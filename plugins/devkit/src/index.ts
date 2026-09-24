@@ -34,8 +34,11 @@ import {
   packageRoot,
   planScaffold,
   planScaffoldPlugin,
+  pluginPageTarget,
   renderPlugin,
+  renderPluginPage,
   renderTemplate,
+  writePluginPage,
   writeRepo,
 } from './scaffold.js'
 import { joinProvides, serviceSight } from './services.js'
@@ -98,7 +101,7 @@ const SCAFFOLD_USAGE = [
   `  name   必给，短名，kebab-case（${String(NAME_RE)}）。它派生出包名 @godcreator/gwb-<短名>、插件名 gwb-<短名>、命令名 <短名>.<动作> 的前半`,
   '  dir    必给，目标目录的绝对路径，必须还不存在（存在就拒，不覆盖任何东西）。落下去只有一个仓形：薄壳 workspace——根壳 + plugins/<短名>/ 件包',
   '  title  可选，显示名，缺省用 name',
-  `  docs   可选，缺省 true——件那半落盘之后顺带建站，两步：${CREATE_SITE_COMMAND} 铺 fumadocs 骨架、${ATTACH_SITE_COMMAND} 在骨架上装配六区。两条都经命令总线找，没装那个件就跳过那一步（回执里说怎么补），不算建仓失败。false 就只建件那半`,
+  `  docs   可选，缺省 true——插件文件写到磁盘之后顺带建站，两步：${CREATE_SITE_COMMAND} 生成 fumadocs 骨架、${ATTACH_SITE_COMMAND} 在骨架上装六区；六区装好之后再写插件页起稿 docs-site/content/docs/plugins/<短名>.mdx。两条都经命令总线找，没装那个插件就跳过那一步（回执里说怎么补），不算建仓失败。false 就只生成插件文件`,
   '  port   可选，文档站端口。不给由站件自己挑（扫邻居已占的，从 4310 起找空位）',
   '例：{"name":"hello","dir":"D:\\\\tmp\\\\hello","title":"打个招呼"}',
 ].join('\n')
@@ -109,7 +112,7 @@ const SCAFFOLD_PLUGIN_USAGE = [
   `  name   必给，短名，kebab-case（${String(NAME_RE)}）。派生规则同 devkit.scaffold`,
   '  repo   必给，薄壳仓根的绝对路径（pnpm-workspace.yaml 住的那层）。yaml 里得有 plugins/ 那条——老裸根单件仓（仓根即包根）先迁成薄壳再来，报错里带路',
   '  title  可选，显示名，缺省用 name',
-  '件包落在 <repo>/plugins/<短名>/，必须还不存在（存在就拒，不覆盖任何东西）。根壳、workspace、文档站一概不碰——一份站盖全仓，件清单的更新归 docfirst（回执 nextSteps 里提醒）',
+  '插件包写到 <repo>/plugins/<短名>/，必须还不存在（存在就拒，不覆盖任何东西）。仓根与 workspace 配置不碰；仓里有装好六区的文档站（docs-site/docfirst.config.mjs 在）时，再写插件页起稿 docs-site/content/docs/plugins/<短名>.mdx（已存在就拒）。README 的插件清单由人更新（回执 nextSteps 里提醒）',
   '例：{"repo":"D:\\\\tmp\\\\hello","name":"world","title":"第二件"}',
 ].join('\n')
 
@@ -667,7 +670,7 @@ export function apply(ctx: GwbContext): void {
         plugin: '@godcreator/gwb-devkit',
         description: '把一个新 gwb 件的骨架落进一个新文件夹（默认连文档站）',
         usage:
-          `{name（必给，kebab-case 短名）, dir（必给，绝对路径且必须还不存在）, title?, docs?（缺省 true）, port?}。件那半的模板在本包；站那半是两步，都经命令总线转出去——${CREATE_SITE_COMMAND}（站件）铺 fumadocs 骨架，${ATTACH_SITE_COMMAND}（docfirst 件）在骨架上装配六区。哪个件没装就跳过那一步、回执里说怎么补，件那半照样落盘。参数不对会把完整说明回给你`,
+          `{name（必给，kebab-case 短名）, dir（必给，绝对路径且必须还不存在）, title?, docs?（缺省 true）, port?}。插件的模板在本包；建站是两步，都经命令总线交出去——${CREATE_SITE_COMMAND}（站点插件）生成 fumadocs 骨架，${ATTACH_SITE_COMMAND}（docfirst 插件）在骨架上装六区；六区装好之后写插件页起稿（回执 pluginPage）。哪个插件没装就跳过那一步、回执里说怎么补，插件文件照样写到磁盘。参数不对会把完整说明回给你`,
       },
       async (args) => {
         if (!isRecord(args)) return { ok: false, error: `参数要是个对象。\n${SCAFFOLD_USAGE}` }
@@ -696,8 +699,10 @@ export function apply(ctx: GwbContext): void {
         }
         // 整套先在内存里渲染完才碰盘：目标目录一旦开始写就没有干净的回滚点
         let files
+        let page
         try {
           files = renderTemplate(templateRoot, plan)
+          page = renderPluginPage(templateRoot, plan)
           writeRepo(plan.dir, files)
         } catch (err) {
           return { ok: false, error: `建仓没成：${err instanceof Error ? err.message : String(err)}` }
@@ -707,6 +712,9 @@ export function apply(ctx: GwbContext): void {
         // ── 站那半：知识不在本包，两步都经总线转出去 ──────────────────────
         // **件那半已经在盘上了，站没建成不算建仓失败**——回执里说清楚，人补一条命令就是
         const docs = await buildDocsSite(plan)
+        // 插件页只能在六区装好之后写：attach 只在没加过页的骨架上装得了
+        const pluginPage = pluginPageTarget(plan.dir, plan.name)
+        if (pluginPage !== null) writePluginPage(pluginPage, page)
         return {
           ok: true,
           data: {
@@ -717,6 +725,7 @@ export function apply(ctx: GwbContext): void {
             title: plan.title,
             files: files.length,
             docs,
+            pluginPage,
             nextSteps: nextSteps(plan, {
               built: docs.built,
               attached: docs.attached,
@@ -735,7 +744,7 @@ export function apply(ctx: GwbContext): void {
       {
         name: 'devkit.scaffold.plugin',
         plugin: '@godcreator/gwb-devkit',
-        description: '往既有薄壳仓的 plugins/ 再铺一个件包（同一份件包模板，不碰根壳与站）',
+        description: '往已有的 workspace 仓的 plugins/ 再加一个插件包（同一份插件包模板；仓里有装好六区的文档站时顺带写插件页起稿）',
         usage:
           '{name 必给（kebab-case 短名，派生规则同 devkit.scaffold）, repo 必给（薄壳仓根绝对路径——pnpm-workspace.yaml 里得有 plugins/ 那条，老裸根单件仓报错里带迁移的路）, title?}。件包落在 <repo>/plugins/<短名>/，必须还不存在。与建仓落的是同一份件包模板（template/pkg/）——单多格式统一靠这个。参数不对会把完整说明回给你',
       },
@@ -758,11 +767,17 @@ export function apply(ctx: GwbContext): void {
         } catch (err) {
           return { ok: false, error: `${err instanceof Error ? err.message : String(err)}\n\n${SCAFFOLD_PLUGIN_USAGE}` }
         }
-        // 与建仓同一条纪律：先在内存里渲染完，目标子目录必须还不存在
+        // 与建仓同一条纪律：先在内存里渲染完，目标子目录必须还不存在；插件页也要还不存在，在写任何文件之前查
+        const pluginPage = pluginPageTarget(plan.repoDir, plan.name)
+        if (pluginPage !== null && fs.existsSync(pluginPage)) {
+          return { ok: false, error: `加件没成：插件页已经存在，不覆盖：${pluginPage}` }
+        }
         let files
         try {
           files = renderPlugin(templateRoot, plan)
+          const page = renderPluginPage(templateRoot, plan)
           writeRepo(plan.dir, files)
+          if (pluginPage !== null) writePluginPage(pluginPage, page)
         } catch (err) {
           return { ok: false, error: `加件没成：${err instanceof Error ? err.message : String(err)}` }
         }
@@ -776,7 +791,8 @@ export function apply(ctx: GwbContext): void {
             name: plan.name,
             title: plan.title,
             files: files.length,
-            nextSteps: nextStepsPlugin(plan),
+            pluginPage,
+            nextSteps: nextStepsPlugin(plan, pluginPage),
           },
         }
       },

@@ -2,40 +2,49 @@ import fs from 'node:fs'
 import path from 'node:path'
 
 /**
- * 建仓与加件的纯机：校验短名与目标，把包内 `template/` 两区渲染好、落下去。
+ * 建仓与加插件的纯逻辑：校验短名与目标目录，把包内 `template/` 渲染好、写到磁盘。
  *
- * **只有一种仓形：薄壳 workspace。** 根是 private 壳（`pnpm build` / `pnpm check` 递归到成员，
- * 自己没有代码），件住 `plugins/<短名>/`，非件包住 `packages/`（repo-kit 那类仓侧工具，按需）。
- * 「单件仓」不是另一种仓形，只是 plugins/ 下恰好一个目录；加第二个件永远是
- * `devkit.scaffold.plugin` 往 plugins/ 再铺一个——不存在「当初建小了、现在要迁移」的悬崖。
+ * **只有一种仓的布局：workspace。** 仓根是不发布的 private 包（`pnpm build` / `pnpm check` 递归到成员，
+ * 自己没有代码），插件放在 `plugins/<短名>/`，不是插件的包放在 `packages/`（repo-kit 那类仓里用的工具，按需）。
+ * 只有一个插件的仓不是另一种布局，只是 plugins/ 下恰好一个目录；加第二个插件永远是
+ * `devkit.scaffold.plugin` 往 plugins/ 再生成一个。
  *
- * 短名即名字：包名 `@godcreator/gwb-<短名>`、插件名（`export const name`）`gwb-<短名>`、
- * 命令名 `<短名>.<动作>` 的前半，全从它派生。
+ * 短名派生出全部名字：包名 `@godcreator/gwb-<短名>`、插件名（`export const name`）`gwb-<短名>`、
+ * 命令名 `<短名>.<动作>` 的前半。
  *
- * 模板文件一律带 `.tpl` 后缀，落盘时脱掉：`npm pack` 不打 `.gitignore`（硬行为），一条
- * 规则管所有文件。模板分两区：`repo/` 铺仓根（薄壳半），`pkg/` 铺 `plugins/<短名>/`
- * （件包半，**唯一正本**——建仓与加件落的是同一份件包形状，格式统一靠这个，不靠纪律）。
- * 落盘之前整套先在内存里渲染完——目标目录一旦开始写就没有干净的回滚点，而占位符出错
+ * 模板文件一律带 `.tpl` 后缀，写到磁盘时去掉：`npm pack` 不打包 `.gitignore`（固定行为），一条
+ * 规则管所有文件。模板分三部分：`repo/` 生成仓根，`pkg/` 生成 `plugins/<短名>/`（插件包，**唯一正本**——
+ * 建仓与加插件生成的是同一份），`site/plugin.mdx.tpl` 生成文档站现状区里的插件页。
+ * 写磁盘之前整套先在内存里渲染完——目标目录一旦开始写就没有干净的回滚点，而占位符出错
  * 是最可能的失败。
  *
- * 建仓的站那半是件落盘之后的事，两步（`index.ts` 经命令总线转给站件与 docfirst 件）；
- * 加件不碰站——一份站盖全仓，件清单的更新归 docfirst（`nextStepsPlugin` 提醒）。
+ * 建仓时文档站在插件文件写到磁盘之后才建，两步（`index.ts` 经命令总线交给站点插件与 docfirst 插件）；
+ * 站装好六区之后再写插件页。加插件不建站，仓里已有装好六区的站时写插件页。
  */
 
-/** 短名：kebab-case。段之间只许一个连字符、结尾不留——松写法会放过 `x--`，生成的包名带着那条尾巴过一辈子 */
+/** 短名：kebab-case。段之间只许一个连字符、结尾不许有连字符——宽松的写法会放过 `x--`，生成的包名就一直带着它 */
 export const NAME_RE = /^[a-z][a-z0-9]*(?:-[a-z0-9]+)*$/
 
-/** 件的包名 scope。命名规矩全仓统一，不做成参数 */
+/** 插件包名的 scope。全生态统一，不做成参数 */
 export const SCOPE = '@godcreator'
 
-/** 模板文件的后缀，落盘时脱掉 */
+/** 模板文件的后缀，写到磁盘时去掉 */
 export const TEMPLATE_SUFFIX = '.tpl'
 
-/** 模板的仓半：铺仓根（薄壳壳子）。建仓时用，加件不碰 */
+/** 模板的仓根部分：生成仓根。建仓时用，加插件不碰 */
 export const REPO_ZONE = 'repo'
 
-/** 模板的件包半：铺 `plugins/<短名>/`。建仓与加件落的是同一份——格式统一的物理保证 */
+/** 模板的插件包部分：生成 `plugins/<短名>/`。建仓与加插件生成的是同一份，两种仓的插件包格式一致靠这个 */
 export const PKG_ZONE = 'pkg'
+
+/**
+ * 模板的插件页部分：只有 `plugin.mdx.tpl` 一个文件，写到仓根文档站现状区的 `plugins/<短名>.mdx`。
+ * 文档站由别的插件生成，这一页要等站生成完、六区装好之后才写，所以不随另外两部分一起写
+ */
+export const SITE_ZONE = 'site'
+
+/** 插件页模板在 `template/` 下的相对路径 */
+const PLUGIN_PAGE_TEMPLATE = `${SITE_ZONE}/plugin.mdx.tpl`
 
 export interface ScaffoldInput {
   name: string
@@ -43,7 +52,7 @@ export interface ScaffoldInput {
   title?: string
   /** 连文档站一起建吗。**缺省建**——人记得事后补第二条命令的概率，跟容器里那一堆仓至今没有站是同一个概率 */
   docs?: boolean
-  /** 文档站端口。不给就由站件的 `docs-site.create` 自己挑（扫邻居已占的，从 4310 起找空位） */
+  /** 文档站端口。不给就由站点插件的 `docs-site.create` 自己选（跳过别的站已占用的，从 4310 起找空位） */
   port?: number
   /** 运行 `devkit.scaffold` 的那个内核的版本号，写进生成的 `gwb.testedKernel` */
   testedKernel: string
@@ -58,21 +67,21 @@ export interface ScaffoldPlan {
   pkg: string
   /** 插件名 `gwb-<短名>`——`export const name` 的值 */
   pluginName: string
-  /** 绝对化之后的目标目录 */
+  /** 转成绝对路径之后的目标目录 */
   dir: string
   /**
-   * 这一趟建不建站。**站那半的知识不在本包**：件落盘之后经命令总线转出去，两步
-   * （站件 `docs-site.create` 铺骨架 → docfirst 件 `docfirst.attach` 装六区）。
-   * 依赖方向上本包**谁都不依赖**——只按名字在总线上找那两条命令
+   * 这次建不建站。**建站的知识不在本包**：插件文件写到磁盘之后经命令总线交出去，两步
+   * （站点插件 `docs-site.create` 生成骨架 → docfirst 插件 `docfirst.attach` 装六区）。
+   * 本包不依赖那两个插件的任何包，只按名字在命令总线上找那两条命令
    */
   docs: boolean
-  /** 站端口，没指定就是 undefined（由站件挑，本包不猜一个写进 README） */
+  /** 站端口，没指定就是 undefined（由站点插件选，本包不猜一个写进 README） */
   port: number | undefined
   /** 写进生成的 `gwb.testedKernel` 的内核版本号 */
   testedKernel: string
 }
 
-/** 往既有薄壳仓加一件的入参 */
+/** 往已有的 workspace 仓加一个插件的参数 */
 export interface ScaffoldPluginInput {
   name: string
   repo: string
@@ -81,7 +90,7 @@ export interface ScaffoldPluginInput {
   testedKernel: string
 }
 
-/** 加一件的计划。派生规则与 `ScaffoldPlan` 同一套，dir 直接指到件包落点 */
+/** 加一个插件的计划。派生规则与 `ScaffoldPlan` 相同，dir 直接指到插件包目录 */
 export interface ScaffoldPluginPlan {
   /** 短名 */
   name: string
@@ -91,15 +100,15 @@ export interface ScaffoldPluginPlan {
   pkg: string
   /** 插件名 `gwb-<短名>` */
   pluginName: string
-  /** 薄壳仓根（绝对化之后） */
+  /** workspace 仓根（转成绝对路径之后） */
   repoDir: string
-  /** 件包落点：`<repo>/plugins/<短名>` */
+  /** 插件包目录：`<repo>/plugins/<短名>` */
   dir: string
   /** 写进生成的 `gwb.testedKernel` 的内核版本号 */
   testedKernel: string
 }
 
-/** 一份渲染好的文件：相对仓根的路径（已脱 .tpl、已按区落到该落的地方）+ 正文 */
+/** 一份渲染好的文件：相对路径（已去掉 .tpl、已按所属部分算好位置）+ 正文 */
 export interface RenderedFile {
   rel: string
   text: string
@@ -108,8 +117,8 @@ export interface RenderedFile {
 /**
  * 本包的根（那个有 package.json 的目录）。
  *
- * **向上找而不是写死相对层数**：源码态这个模块在 `src/`，构建产物是 `dist/index.js`
- * ——两态到包根的层数不一样，找 package.json 两态都对。
+ * **向上找而不是写死相对层数**：跑源码时这个模块在 `src/`，跑构建产物时是 `dist/index.js`
+ * ——两种情况到包根的层数不一样，找 package.json 两种都对。
  */
 export function packageRoot(from: string = import.meta.dirname): string | null {
   let dir = from
@@ -132,7 +141,7 @@ export function planScaffold(input: ScaffoldInput): ScaffoldPlan {
   }
   const rawDir = input.dir.trim()
   if (rawDir === '') throw new Error('dir 是必给的：目标目录的绝对路径，且必须还不存在')
-  // 绝对化只在这一处做：调用方给相对路径时，「相对谁」得有个不含糊的答案
+  // 只在这一处转成绝对路径：调用方给相对路径时，「相对谁」得有个明确的答案
   const dir = path.resolve(rawDir)
   const title = input.title !== undefined && input.title.trim() !== '' ? input.title.trim() : name
   const port = input.port
@@ -152,9 +161,9 @@ export function planScaffold(input: ScaffoldInput): ScaffoldPlan {
 }
 
 /**
- * 校验加件的入参并派生计划。**这一步真读盘**（`planScaffold` 不读）：repo 必须已经是个
- * 薄壳 workspace 才收——`pnpm-workspace.yaml` 在、packages 里有 `plugins/` 那条。老裸根
- * 单件仓（仓根即包根）过不了这条，报错里把迁移的路说清，而不是把件铺进一个长不成的形状。
+ * 校验加插件的参数并派生计划。**这一步要读磁盘**（`planScaffold` 不读）：repo 必须已经是
+ * workspace 仓才收——`pnpm-workspace.yaml` 在、packages 里有 `plugins/` 那条。旧布局的仓
+ * （仓根就是插件包）过不了这条，报错里写清怎么迁，而不是把插件放进一个用不了的布局。
  */
 export function planScaffoldPlugin(input: ScaffoldPluginInput): ScaffoldPluginPlan {
   const name = input.name.trim()
@@ -188,30 +197,30 @@ export function planScaffoldPlugin(input: ScaffoldPluginInput): ScaffoldPluginPl
 }
 
 /**
- * README 里讲文档站的那段。**别写一个不存在的站**——建了讲怎么跑，没建讲怎么补一个。
+ * README 里讲文档站的那段。**别写一个不存在的站**——建了讲怎么运行，没建讲怎么补一个。
  *
- * 端口只在人指定过的时候才敢写死：不指定时是站件现挑的，本包猜一个写进 README，
- * 读者照着敲的那条 `pnpm dev` 就是错的。
+ * 端口只在人指定过的时候才写死：不指定时由站点插件选，本包猜一个写进 README，
+ * 读者照着输入的那条 `pnpm dev` 就是错的。
  */
 export function docsBlock(plan: ScaffoldPlan): string {
   const siteDir = path.join(plan.dir, 'docs-site')
   if (!plan.docs) {
     return `## 文档站
 
-还没有。补一个是**两步**（都经命令总线，工作台跑着就走它）：
+还没有。补一个是**两步**（都经命令总线，工作台运行时调用）：
 
 \`\`\`
-docs-site.create {"dir":"${siteDir}","title":"${plan.title}"}   # 站件：铺 fumadocs 骨架
-docfirst.attach  {"dir":"${siteDir}"}                            # docfirst 件：在骨架上装六区
+docs-site.create {"dir":"${siteDir}","title":"${plan.title}"}   # 站点插件：生成 fumadocs 骨架
+docfirst.attach  {"dir":"${siteDir}"}                            # docfirst 插件：在骨架上装六区
 \`\`\`
 
-**两步要连着跑**：\`docfirst.attach\` 只在还没写过内容的骨架上装得了，往里写过东西
-就得人工接线。命令不在就是那个件没装：\`plugin-manager.install\`
+**两步要连着运行**：\`docfirst.attach\` 只在还没加过页的骨架上装得了，加过页
+就得手工配置。命令不在就是那个插件没装：\`plugin-manager.install\`
 \`@godcreator/gwb-docs-site\` / \`@godcreator/gwb-docfirst-workflow\`。`
   }
   const dev =
     plan.port === undefined
-      ? 'pnpm dev            # 端口写在 docs-site/package.json 的 dev 脚本里（站件从 4310 起挑的空位）'
+      ? 'pnpm dev            # 端口写在 docs-site/package.json 的 dev 脚本里（站点插件从 4310 起选的空闲端口）'
       : `pnpm dev            # http://localhost:${String(plan.port)}`
   return `## 文档站
 
@@ -220,15 +229,15 @@ docfirst.attach  {"dir":"${siteDir}"}                            # docfirst 件�
 \`\`\`powershell
 cd docs-site
 pnpm install
-pnpm doc            # docfirst check：论断跟源码脱节了会报黄
+pnpm doc            # docfirst check：文档里引用的源码改了会报黄
 ${dev}
 \`\`\`
 
-改了被钉住的源码，先 \`git commit\` 再 \`pnpm doc:confirm\`——git 比较器只对已提交、
-工作区干净的内容钉。文档写什么见 skill「docfirst-docs」（随 \`@godcreator/gwb-docfirst-workflow\` 发）。`
+改了文档引用的源码，先 \`git commit\` 再 \`pnpm doc:confirm\`——git 比较器只对已提交、
+工作区干净的内容记录。文档写什么见 skill「docfirst-docs」（随 \`@godcreator/gwb-docfirst-workflow\` 发）。`
 }
 
-/** 占位符表需要的最小形状——建仓计划与加件计划都给得出 */
+/** 占位符表需要的最小形状——建仓计划与加插件计划都满足 */
 interface Placeholdable {
   name: string
   title: string
@@ -244,8 +253,8 @@ function corePlaceholders(plan: Placeholdable): Record<string, string> {
     title: plan.title,
     pkg: plan.pkg,
     pkgName: plan.pluginName,
-    // 样式类前缀：短名剔除非小写字母。Tailwind 4 的 prefix() 只收 a-z，短名里的连字符与数字
-    // 都会被当场拒（build 阶段才炸，check 全绿——探针 2026-09-15 实测）；连字符版只做包名与命令名
+    // 样式类前缀：短名去掉非小写字母。Tailwind 4 的 prefix() 只收 a-z，短名里有连字符或数字
+    // 就报错（build 时才报，check 照样全绿——实验 2026-09-15 实测）；带连字符的短名只用于包名与命令名
     cssPrefix: plan.name.replace(/[^a-z]/g, ''),
     testedKernel: plan.testedKernel,
   }
@@ -257,8 +266,8 @@ export function placeholders(plan: ScaffoldPlan): Record<string, string> {
 }
 
 /**
- * 一份模板正文 → 落盘正文。**认不出的占位符当场抛**：留一个 `{{typo}}` 在生成的仓里，
- * 它会一路活到别人的 package.json 里去，那时已经没人知道它本来该是什么。
+ * 一份模板正文 → 写到磁盘的正文。**认不出的占位符直接抛错**：留一个 `{{typo}}` 在生成的仓里，
+ * 它会一直留在别人的 package.json 里，那时已经没人知道它本来该是什么。
  */
 export function render(text: string, values: Record<string, string>): string {
   return text.replace(/\{\{(\w+)\}\}/g, (_whole, key: string) => {
@@ -268,15 +277,15 @@ export function render(text: string, values: Record<string, string>): string {
   })
 }
 
-/** 模板文件的相对路径 → 落盘的相对路径（脱掉 .tpl）。不带后缀的原样留着 */
+/** 模板文件的相对路径 → 写到磁盘的相对路径（去掉 .tpl）。不带后缀的原样保留 */
 export function targetRel(rel: string): string {
   return rel.endsWith(TEMPLATE_SUFFIX) ? rel.slice(0, -TEMPLATE_SUFFIX.length) : rel
 }
 
 /**
- * 模板相对路径 → 落盘相对路径。两区各有一条落点规则：`repo/` 铺仓根、`pkg/` 铺
- * `plugins/<短名>/`。**区外的文件当场抛**——模板里每个文件都得声明自己落哪，
- * 没声明的落下去就是一棵没人认领的树。
+ * 模板相对路径 → 写到磁盘的相对路径（相对仓根）。`repo/` 写到仓根、`pkg/` 写到 `plugins/<短名>/`、
+ * `site/plugin.mdx.tpl` 写到文档站现状区的 `plugins/<短名>.mdx`。**不属于这三处的文件直接抛错**——
+ * 模板里每个文件都得声明写到哪，没声明的写下去就是一堆没人认领的文件。
  */
 export function landRel(rel: string, pluginName: string): string {
   if (rel.startsWith(`${PKG_ZONE}/`)) {
@@ -285,7 +294,10 @@ export function landRel(rel: string, pluginName: string): string {
   if (rel.startsWith(`${REPO_ZONE}/`)) {
     return targetRel(rel.slice(REPO_ZONE.length + 1))
   }
-  throw new Error(`模板文件 ${rel} 不在两区里（${REPO_ZONE}/ 或 ${PKG_ZONE}/）——每个文件都得声明落点`)
+  if (rel === PLUGIN_PAGE_TEMPLATE) return pluginPageRel(pluginName)
+  throw new Error(
+    `模板文件 ${rel} 不属于任何部分（${REPO_ZONE}/、${PKG_ZONE}/，或 ${PLUGIN_PAGE_TEMPLATE} 这一个文件）——每个文件都得声明写到哪`,
+  )
 }
 
 /** 递归列出模板目录下的所有文件，回相对 root 的路径（正斜杠） */
@@ -302,19 +314,23 @@ export function listTemplateFiles(root: string): string[] {
   return out
 }
 
-/** 整套模板（两区一起）渲染成内存里的文件表。任何一处占位符出错，这一步整个抛，盘还没碰过 */
+/**
+ * 仓根与插件包两部分一起渲染成内存里的文件表，插件页不在内（`renderPluginPage`）。任何一处占位符出错，
+ * 这一步整个抛错，磁盘还没动过
+ */
 export function renderTemplate(templateRoot: string, plan: ScaffoldPlan): RenderedFile[] {
   const values = placeholders(plan)
-  return listTemplateFiles(templateRoot).map((rel) => ({
+  const repoAndPackageFiles = listTemplateFiles(templateRoot).filter((rel) => !rel.startsWith(`${SITE_ZONE}/`))
+  return repoAndPackageFiles.map((rel) => ({
     rel: landRel(rel, plan.name),
     text: render(fs.readFileSync(path.join(templateRoot, rel), 'utf8'), values),
   }))
 }
 
 /**
- * 只渲染件包那半（`pkg/`），rel 相对件包根——往既有薄壳仓加件用。
- * 仓半（`repo/`）是建仓时的事，加件不碰：根壳、workspace、站全都已经在盘上，
- * 这一趟只许长出 `plugins/<短名>/` 一个新目录（`writeRepo` 对它守着「必须还不存在」）。
+ * 只渲染插件包部分（`pkg/`），rel 相对插件包根——往已有的 workspace 仓加插件用。
+ * 仓根部分（`repo/`）是建仓时的事，加插件不碰：仓根、workspace 配置、文档站都已经在磁盘上，
+ * 这次只新建 `plugins/<短名>/` 一个目录（`writeRepo` 检查它必须还不存在）。插件页另由 `renderPluginPage` 渲染。
  */
 export function renderPlugin(templateRoot: string, plan: Placeholdable): RenderedFile[] {
   const values = corePlaceholders(plan)
@@ -324,7 +340,7 @@ export function renderPlugin(templateRoot: string, plan: Placeholdable): Rendere
   }))
 }
 
-/** 落盘。目标目录必须还不存在——建仓与加件都是一次性动作，往已有目录里铺文件没有干净的回滚点 */
+/** 写到磁盘。目标目录必须还不存在——建仓与加插件都是一次性动作，往已有目录里写文件没有干净的回滚点 */
 export function writeRepo(dir: string, files: RenderedFile[]): void {
   if (fs.existsSync(dir)) throw new Error(`目标目录已经存在，不覆盖任何东西：${dir}`)
   fs.mkdirSync(dir, { recursive: true })
@@ -335,13 +351,46 @@ export function writeRepo(dir: string, files: RenderedFile[]): void {
   }
 }
 
+/** 插件页相对仓根的路径：文档站现状区的 `plugins/<短名>.mdx` */
+export function pluginPageRel(name: string): string {
+  return `docs-site/content/docs/plugins/${name}.mdx`
+}
+
+/**
+ * 渲染插件页的起稿，rel 相对仓根。页里写出插件名、包名、命令、窗格与 `inject` 的服务名：
+ * 自述检查要求 `inject` 的服务名出现在文档站现状区里，没有这一页，建好站的新仓第一次 `pnpm check` 就不过。
+ */
+export function renderPluginPage(templateRoot: string, plan: Placeholdable): RenderedFile {
+  return {
+    rel: landRel(PLUGIN_PAGE_TEMPLATE, plan.name),
+    text: render(fs.readFileSync(path.join(templateRoot, PLUGIN_PAGE_TEMPLATE), 'utf8'), corePlaceholders(plan)),
+  }
+}
+
+/**
+ * 插件页写到哪（绝对路径）。仓根的文档站装好了六区（`docs-site/docfirst.config.mjs` 在）才写，否则回 null：
+ * 没有站就没有现状区，自述检查的 inject 那一项本来就跳过；只有骨架的站不能写，`docfirst.attach`
+ * 只在没加过页的骨架上装得了，多一页它就拒绝。
+ */
+export function pluginPageTarget(repoDir: string, name: string): string | null {
+  if (!fs.existsSync(path.join(repoDir, 'docs-site', 'docfirst.config.mjs'))) return null
+  return path.join(repoDir, pluginPageRel(name))
+}
+
+/** 写插件页。文件已经存在就拒，不覆盖别人写过的页 */
+export function writePluginPage(target: string, page: RenderedFile): void {
+  if (fs.existsSync(target)) throw new Error(`插件页已经存在，不覆盖：${target}`)
+  fs.mkdirSync(path.dirname(target), { recursive: true })
+  fs.writeFileSync(target, page.text, 'utf8')
+}
+
 /**
  * 生成的仓建好之后，下一步做什么。回执里带着它，调用方不用再问一遍。
  *
- * `site` 说的是**站真的建起来了没有**，不是计划里想不想建：站件没装、`docs-site.create`
- * 自己失败，两种都落到「没铺」那一支——回执里给一条不存在的 `cd docs-site` 比不给还坏。
- * 骨架铺了而六区没装（docfirst 件没装、attach 失败）是第三种，单独一支：那时站在盘上，
- * 但 `pnpm doc` 那几条还不存在。
+ * `site` 说的是**站真的建起来了没有**，不是计划里想不想建：站点插件没装、`docs-site.create`
+ * 自己失败，两种都算「骨架没生成」——回执里给一条不存在的 `cd docs-site` 比不给还坏。
+ * 骨架生成了而六区没装（docfirst 插件没装、attach 失败）是第三种情况：那时站在磁盘上，
+ * 但 `pnpm doc` 那几条脚本还不存在，插件页也没写。
  */
 export function nextSteps(
   plan: ScaffoldPlan,
@@ -352,52 +401,60 @@ export function nextSteps(
   const attached = site === undefined ? plan.docs : (site.attached ?? false)
   const port = site?.port ?? plan.port
   const siteDir = path.join(plan.dir, 'docs-site')
+  const pageRel = pluginPageRel(plan.name)
+  const writePageYourself = `在 ${pageRel} 写插件页，至少写出 src/index.ts 里 inject 的服务名（模板是 gwbCommands、gwbShell）——自述检查查这一条，站在而页没写，pnpm check 不过`
   const steps = [
     `cd ${plan.dir}`,
     'pnpm install',
-    'pnpm build          # 根壳递归（tsc + esbuild + tailwindcss 三步）——先 build：check 里的产物守卫吃 dist/',
-    'pnpm check          # 根壳递归：typecheck（node 半 + 浏览器半）+ oxlint + vitest，模板自带四份测试',
+    'pnpm build          # 仓根递归构建各插件（tsc + esbuild + tailwindcss 三步）——先构建：check 里的产物测试读 dist/',
+    'pnpm check          # 仓根递归：typecheck（node 侧与浏览器侧）+ oxlint + vitest，模板自带四份测试',
   ]
   if (built && attached) {
     steps.push(
-      `文档站那半（自己一套依赖，跟件分开装）：cd ${siteDir} && pnpm install && pnpm doc${
-        port === undefined ? '' : `，pnpm dev 起在 http://localhost:${String(port)}`
+      `插件页起稿已写到 ${pageRel}（插件名、包名、命令、窗格、inject 的服务名）：按插件的实际功能改写；以后 inject 加了服务，也在这页写上它的名字——pnpm check 的自述检查查这一条`,
+      `文档站那部分（自己一套依赖，跟插件分开装）：cd ${siteDir} && pnpm install && pnpm doc${
+        port === undefined ? '' : `，pnpm dev 运行在 http://localhost:${String(port)}`
       }`,
-      '先 git init 落第一个提交，再在 docs-site 里 pnpm doc:confirm——git 比较器只对已提交、工作区干净的内容钉',
+      '先 git init 做第一个提交，再在 docs-site 里 pnpm doc:confirm——git 比较器只对已提交、工作区干净的内容记录',
     )
   } else if (built) {
     steps.push(
-      `站只有骨架、六区还没装：docfirst.attach {"dir":"${siteDir}"}——**立刻补**，它只在还没写过内容的骨架上装得了`,
+      `站只有骨架、六区还没装：docfirst.attach {"dir":"${siteDir}"}——**立刻补**，它只在还没加过页的骨架上装得了；装完之后${writePageYourself}`,
     )
   } else {
     steps.push(
-      `没有文档站。补一个是两步：docs-site.create {"dir":"${siteDir}","title":"${plan.title}"}（站件铺骨架），紧接着 docfirst.attach {"dir":"${siteDir}"}（docfirst 件装六区）`,
+      `没有文档站。补一个是两步：docs-site.create {"dir":"${siteDir}","title":"${plan.title}"}（站点插件生成骨架），紧接着 docfirst.attach {"dir":"${siteDir}"}（docfirst 插件装六区）；装完之后${writePageYourself}`,
     )
   }
   steps.push(
-    `进隔离 home：devkit.home.new 开一个，devkit.dev {"home":"<名>","dir":"${plan.dir}","packages":["plugins/${plan.name}"]} 发出开发版并装进去（回执说没有条目可挂）`,
-    `建条目：plugin-manager.install {"pkg":"${plan.pkg}","spec":"<回执里那个 dev 号>"}；之后每改一版走 devkit.dev（packages 同上）`,
-    `验收：${plan.name}.ping 回 {ok:true,…}；plugins/${plan.name} 那格窗格「你好」+计数按钮点得动`,
-    `发正式版照 skill「gwb-release」：抬号、提交、devkit.release {"dir":"${plan.dir}","packages":["plugins/${plan.name}"]}，发完当场升 default`,
-    `加第二个件：devkit.scaffold.plugin {"repo":"${plan.dir}","name":"<短名>"}；写插件读 skill「gwb-devkit」；文档写什么读 skill「docfirst-docs」`,
+    `进隔离 home：devkit.home.new 开一个，devkit.dev {"home":"<名>","dir":"${plan.dir}","packages":["plugins/${plan.name}"]} 发出开发版并装进去（回执说没有条目可重新加载）`,
+    `建条目：plugin-manager.install {"pkg":"${plan.pkg}","spec":"<回执里那个开发版号>"}；之后每改一版用 devkit.dev（packages 同上）`,
+    `验收：${plan.name}.ping 回 {ok:true,…}；plugins/${plan.name} 的窗格显示「你好」，计数按钮点得动`,
+    `发正式版照 skill「gwb-release」：升版本号、提交、devkit.release {"dir":"${plan.dir}","packages":["plugins/${plan.name}"]}，发完马上升级 default`,
+    `加第二个插件：devkit.scaffold.plugin {"repo":"${plan.dir}","name":"<短名>"}；写插件读 skill「gwb-devkit」；文档写什么读 skill「docfirst-docs」`,
   )
   return steps
 }
 
 /**
- * 加完一件之后，下一步做什么。与 `nextSteps` 的站那半无关——一份站盖全仓，件清单的
- * 更新归 docfirst，所以最后一步是提醒把新件写进 README 与站现状区的正本。
+ * 加完一个插件之后，下一步做什么。`pageTarget` 是这次写下的插件页（绝对路径），仓里没有装好六区的
+ * 文档站、没写时是 null。README 里的插件清单由写文档的人更新，最后一步提醒。
  */
-export function nextStepsPlugin(plan: ScaffoldPluginPlan): string[] {
+export function nextStepsPlugin(plan: ScaffoldPluginPlan, pageTarget: string | null): string[] {
+  const pageStep =
+    pageTarget === null
+      ? `仓里没有装好六区的文档站，插件页没写。以后建了站，在 ${pluginPageRel(plan.name)} 写插件页，至少写出 src/index.ts 里 inject 的服务名——自述检查查这一条`
+      : `插件页起稿已写到 ${pageTarget}（插件名、包名、命令、窗格、inject 的服务名）：按插件的实际功能改写；以后 inject 加了服务，也在这页写上它的名字——pnpm check 的自述检查查这一条`
   return [
     `cd ${plan.repoDir}`,
     'pnpm install',
-    'pnpm build          # 根壳递归，新件一起构建',
-    'pnpm check          # 模板插件自带四份测试，红了先看三格自述改没改',
-    `进隔离 home：devkit.home.new 开一个，devkit.dev {"home":"<名>","dir":"${plan.repoDir}","packages":["plugins/${plan.name}"]} 发出开发版并装进去（回执说没有条目可挂）`,
-    `建条目：plugin-manager.install {"pkg":"${plan.pkg}","spec":"<回执里那个 dev 号>"}；之后每改一版走 devkit.dev（packages 同上）`,
-    `验收：${plan.name}.ping 回 {ok:true,…}；plugins/${plan.name} 那格窗格「你好」+计数按钮点得动`,
-    `发正式版照 skill「gwb-release」：抬号、提交、devkit.release {"dir":"${plan.repoDir}","packages":["plugins/${plan.name}"]}（同趟还要发别的件就按依赖序排进数组），发完当场升 default`,
-    '把新件写进 README 的件清单与站现状区（正本在 docs-site/content/outputs/，改完 doc:render）；写插件读 skill「gwb-devkit」',
+    'pnpm build          # 仓根递归构建，新插件一起构建',
+    'pnpm check          # 模板插件自带四份测试，没过先看 description 的三项自述改没改',
+    pageStep,
+    `进隔离 home：devkit.home.new 开一个，devkit.dev {"home":"<名>","dir":"${plan.repoDir}","packages":["plugins/${plan.name}"]} 发出开发版并装进去（回执说没有条目可重新加载）`,
+    `建条目：plugin-manager.install {"pkg":"${plan.pkg}","spec":"<回执里那个开发版号>"}；之后每改一版用 devkit.dev（packages 同上）`,
+    `验收：${plan.name}.ping 回 {ok:true,…}；plugins/${plan.name} 的窗格显示「你好」，计数按钮点得动`,
+    `发正式版照 skill「gwb-release」：升版本号、提交、devkit.release {"dir":"${plan.repoDir}","packages":["plugins/${plan.name}"]}（同一次还要发别的包就按依赖顺序排进数组），发完马上升级 default`,
+    '把新插件写进 README 的插件清单（正本在 docs-site/content/outputs/，改完 doc:render）；写插件读 skill「gwb-devkit」',
   ]
 }

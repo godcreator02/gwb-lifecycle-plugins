@@ -1,6 +1,6 @@
 ---
 title: 4 仓侧检查 repo-kit
-description: 连接 @godcreator/gwb-repo-kit 与三类使用方：devkit、插件管理、模板生成的仓；接口是 registerSelfReportGuard（五项检查）、registerPluginGuard、GuardVt 与 docsDir；模板里写死的 repo-kit 版本靠手工对齐；模板的自述测试把 docsDir 指到仓根的文档站
+description: 连接 @godcreator/gwb-repo-kit 与三类使用方：devkit、插件管理、模板生成的仓；接口是 registerSelfReportGuard（五项检查）、registerPluginGuard、GuardVt 与 docsDir；模板里 repo-kit 的版本下限靠手工对齐；模板的自述测试把 docsDir 指到仓根的文档站，建仓时写的插件页让第五项在新仓里通过
 ---
 
 **本页回答**：repo-kit 给使用方的测试提供了哪几样；使用方怎么接；模板生成的仓用的是哪一版 repo-kit、它的自述检查读哪里的文档。
@@ -9,7 +9,7 @@ description: 连接 @godcreator/gwb-repo-kit 与三类使用方：devkit、插�
 
 - repo-kit（`packages/repo-kit`，包 `@godcreator/gwb-repo-kit`，不是插件，`keywords` 只有 `gwb`）
 - devkit 与插件管理：`devDependencies` 写 `workspace:*`，各自的 `tests/self-report.test.ts` 登记自述守卫
-- 模板生成的仓：`template/pkg/` 里的 `tests/self-report.test.ts` 与 `tests/plugin.test.ts` 两份测试，`devDependencies` 写一个固定版本
+- 模板生成的仓：`template/pkg/` 里的 `tests/self-report.test.ts` 与 `tests/plugin.test.ts` 两份测试，`devDependencies` 写 `^` 范围
 
 ## 接口
 
@@ -44,11 +44,11 @@ repo-kit 保证：只导出上面几样；不是插件的包一条用例都不�
 
 {/* ref file="../plugins/devkit/tests/self-report.test.ts" lines="13-17" */}
 
-- 模板里的测试也显式传 `docsDir`：生成的仓里文档站在仓根，插件包在 `plugins/<短名>/`，所以指到仓根的 `docs-site/content/docs`。建了文档站的新仓，现状区里还没写出模板插件注入的 `gwbCommands`、`gwbShell` 时，第五项失败；没建站时目录不存在，第五项直接通过
+- 模板里的测试也显式传 `docsDir`：生成的仓里文档站在仓根，插件包在 `plugins/<短名>/`，所以指到仓根的 `docs-site/content/docs`。现状区要写出模板插件注入的 `gwbCommands`、`gwbShell`，第五项才通过：`devkit.scaffold` 在站装好六区之后、`devkit.scaffold.plugin` 在仓里有装好六区的站时，各写一页插件页 `plugins/<短名>.mdx`，写的就是这两个服务名（见[建仓与加插件](/docs/devkit/scaffold)）。没建站时目录不存在，第五项直接通过
 
 {/* ref file="../plugins/devkit/template/pkg/tests/self-report.test.ts.tpl" lines="16-20" */}
 
-**模板里的 repo-kit 版本靠手工对齐**：模板写死一个版本，repo-kit 的 `package.json` 里是当前版本，两处目前都是 0.3.0；没有检查比对两处。规矩写在本仓 AGENTS 的「模板」一节：模板里 `@godcreator` 包的版本跟着源上的 `dist-tags.latest` 走，改之前先 `pnpm view` 查。
+**模板里 repo-kit 的版本下限靠手工对齐**：模板写 `^0.3.0`，repo-kit 的 `package.json` 里是当前版本 0.3.0；没有检查比对两处。规矩写在本仓 AGENTS 的「模板」一节：模板里 `@godcreator` 包的 `^` 范围要包含源上的 `dist-tags.latest`，改之前先 `pnpm view` 查。
 
 {/* ref file="../plugins/devkit/template/pkg/package.json.tpl" lines="38-40" */}
 
@@ -73,3 +73,7 @@ repo-kit 自己的测试用临时包把五项与插件守卫各跑一遍：
 devkit 的建仓测试检查模板生成的 `docsDir` 从 `plugins/<短名>/tests/` 解析出来正好是仓根的现状区：
 
 {/* has file="../plugins/devkit/tests/scaffold.test.ts" text="生成的自述检查把 docsDir 指到仓根文档站的现状区，inject 那一条不会因为找不到站而跳过" */}
+
+建仓、站装好六区、写插件页之后，生成的插件包跑自述检查五项全过；不写插件页则第五项不过：
+
+{/* has file="../plugins/devkit/tests/scaffold.test.ts" text="端到端：建仓、站装好六区、写插件页，生成的插件包跑自述检查五项全过；不写插件页则 inject 那一项不过" */}

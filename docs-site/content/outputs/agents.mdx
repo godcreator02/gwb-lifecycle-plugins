@@ -107,9 +107,11 @@ pnpm build          # 只构建 plugins/* 与 packages/*，tsc 直接输出 dist
 ## 模板
 
 **只有一种仓的布局**：workspace——仓根是一个不发布的 private 包，插件放在 `plugins/<短名>/`，别的包放在
-`packages/`（按需）。「只有一个插件的仓」只是 `plugins/` 下恰好一个目录。模板分两部分：`template/repo/`
+`packages/`（按需）。「只有一个插件的仓」只是 `plugins/` 下恰好一个目录。模板分三部分：`template/repo/`
 生成仓根，`template/pkg/` 生成插件包（**唯一正本**——建仓 `devkit.scaffold` 与加插件
-`devkit.scaffold.plugin` 生成的是同一份，一个插件与多个插件的仓格式一致靠这个，不靠纪律）。插件包自带全部配置：tsconfig /
+`devkit.scaffold.plugin` 生成的是同一份，一个插件与多个插件的仓格式一致靠这个，不靠纪律），
+`template/site/plugin.mdx.tpl` 生成文档站现状区里的插件页（**站装好六区之后才写**：`docfirst.attach`
+只在没加过页的骨架上装得了；没有这一页，模板插件的自述检查在建好站的新仓里第一次就不过）。插件包自带全部配置：tsconfig /
 vitest / oxlint 配置全在包内，搬到哪个仓都不用改（oxlint 按工作目录找配置，所以 `.oxlintrc.json`
 放在插件包里、不放仓根）。还在用的旧布局仓（仓根就是插件）改到哪个就顺手迁哪个，不专门迁——**迁之前运行 `devkit.audit-structure {"dir":"<仓根>"}`**：
 findings 里那条 info 按实际文件名列好了 git mv 清单；改已有的仓前后各运行一次，error 级必须清零再动。
@@ -119,8 +121,10 @@ findings 里那条 info 按实际文件名列好了 git mv 清单；改已有的
 一条规则管所有文件）；**每个文件都得声明属于哪一部分**——`landRel` 对不属于任何部分的文件直接抛错，
 没声明的写下去就是一堆没人认领的文件。
 
-**模板里 `@godcreator` 包的版本号跟着源走**：devDependencies 写源上的 `dist-tags.latest`，peer 写 `^<devDependencies 的版本>`。
-写旧了，新仓一建好依赖就落后、第一次发版就被发版前检查拦下；写了源上没有的版本，新仓 `pnpm install` 直接失败——
+**模板里 `@godcreator` 包的版本号跟着源走**：只写 devDependencies，写 `^<版本>`，范围要包含源上的 `dist-tags.latest`；
+词汇表包 `@godcreator/gwb-plugin-api` 的写法与 devkit 自己的 dev 一致（`tests/scaffold.test.ts` 查这一条）。
+模板插件在 node 侧只 `import type`，清单里没有 peer（规矩见文档站「依赖怎么写」）。
+范围不含 latest，新仓第一次发版就被发版前检查拦下；写了源上没有的版本，新仓 `pnpm install` 直接失败——
 改模板里的版本号之前先用 `pnpm view <包> dist-tags.latest` 查。模板的起始版本号是 0.1.0（0.0.x 过不了发版前检查）。
 模板生成的两份测试调用 repo-kit，改 repo-kit 的导出或用例时模板里的登记代码与版本号一起改。
 

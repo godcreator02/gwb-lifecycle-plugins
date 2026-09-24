@@ -3,11 +3,13 @@ import os from 'node:os'
 import path from 'node:path'
 import { fileURLToPath } from 'node:url'
 import { afterEach, describe, expect, it } from 'vitest'
+import { injectServicesOf, registerSelfReportGuard } from '@godcreator/gwb-repo-kit'
 import {
   NAME_RE,
   PKG_ZONE,
   REPO_ZONE,
   SCOPE,
+  SITE_ZONE,
   landRel,
   listTemplateFiles,
   nextSteps,
@@ -16,10 +18,14 @@ import {
   placeholders,
   planScaffold,
   planScaffoldPlugin,
+  pluginPageRel,
+  pluginPageTarget,
   render,
   renderPlugin,
+  renderPluginPage,
   renderTemplate,
   targetRel,
+  writePluginPage,
   writeRepo,
 } from '../src/scaffold.js'
 import { declaredTestedKernel, testedOnSameKernelLine } from '../src/tested-kernel.js'
@@ -190,12 +196,28 @@ describe('nextSteps：按站真建到哪一步分三支', () => {
     expect(steps).not.toContain('--registry')
   })
 
-  it('nextStepsPlugin：没有站那半，尾巴是把新件写进 README 与站的正本', () => {
+  it('nextStepsPlugin：不建站；写了插件页就报出路径，没写就说以后建站要补哪一页；尾巴是 README 的插件清单', () => {
     const repo = fakeWorkspace()
-    const steps = nextStepsPlugin(planScaffoldPlugin({ name: 'w', repo, testedKernel: KERNEL })).join('\n')
-    expect(steps).toContain('"packages":["plugins/w"]')
-    expect(steps).toContain('doc:render')
-    expect(steps).not.toContain('docs-site.create')
+    const plan = planScaffoldPlugin({ name: 'w', repo, testedKernel: KERNEL })
+    const written = nextStepsPlugin(plan, 'D:\\repo\\docs-site\\content\\docs\\plugins\\w.mdx').join('\n')
+    expect(written).toContain('"packages":["plugins/w"]')
+    expect(written).toContain('doc:render')
+    expect(written).not.toContain('docs-site.create')
+    expect(written).toContain('D:\\repo\\docs-site\\content\\docs\\plugins\\w.mdx')
+    const notWritten = nextStepsPlugin(plan, null).join('\n')
+    expect(notWritten).toContain(pluginPageRel('w'))
+    expect(notWritten).toContain('inject')
+  })
+
+  it('nextSteps：站装好六区时报插件页已写；没装好时每一支都说装完之后写哪一页、写出 inject 的哪些服务名', () => {
+    const injected = [...injectServicesOf(renderTemplate(TEMPLATE_ROOT, plan).find((f) => f.rel === 'plugins/x/src/index.ts')?.text ?? '')]
+    expect(injected.length).toBeGreaterThan(0)
+    expect(nextSteps(plan, { built: true, attached: true }).join('\n')).toContain(`插件页起稿已写到 ${pluginPageRel('x')}`)
+    for (const site of [{ built: true, attached: false }, { built: false, attached: false }]) {
+      const steps = nextSteps(plan, site).join('\n')
+      expect(steps).toContain(pluginPageRel('x'))
+      for (const service of injected) expect(steps).toContain(service)
+    }
   })
 })
 
@@ -224,7 +246,9 @@ describe('targetRel 与 landRel：后缀与两区落点', () => {
     expect(landRel('repo/.gitignore.tpl', 'hello')).toBe('.gitignore')
     expect(landRel('pkg/src/index.ts.tpl', 'hello')).toBe('plugins/hello/src/index.ts')
     expect(landRel('pkg/.oxlintrc.json.tpl', 'hello')).toBe('plugins/hello/.oxlintrc.json')
-    expect(() => landRel('src/index.ts.tpl', 'hello')).toThrow(/两区/)
+    expect(landRel('site/plugin.mdx.tpl', 'hello')).toBe('docs-site/content/docs/plugins/hello.mdx')
+    expect(() => landRel('src/index.ts.tpl', 'hello')).toThrow(/不属于任何部分/)
+    expect(() => landRel('site/other.mdx.tpl', 'hello')).toThrow(/不属于任何部分/)
   })
 })
 
@@ -232,7 +256,7 @@ describe('包内 template/：两区', () => {
   it('每个文件都带 .tpl 后缀，且都声明了自己住哪一区', () => {
     const files = listTemplateFiles(TEMPLATE_ROOT)
     expect(files.filter((f) => !f.endsWith('.tpl'))).toEqual([])
-    for (const zone of [REPO_ZONE, PKG_ZONE]) {
+    for (const zone of [REPO_ZONE, PKG_ZONE, SITE_ZONE]) {
       expect(files.some((f) => f.startsWith(`${zone}/`)), `${zone}/ 区是空的`).toBe(true)
     }
     // 没声明落点的文件过不了 landRel——模板里长出一棵没人认领的树，建仓当场炸
@@ -417,6 +441,109 @@ describe('writeRepo：真写临时目录', () => {
     expect(fs.readFileSync(path.join(repo, 'plugins', 'world', 'package.json'), 'utf8')).toContain('@godcreator/gwb-world')
     // 仓根原样：只有搭仓时写的那份 yaml，件那半没往根上放任何东西
     expect(fs.readdirSync(repo).sort()).toEqual(['plugins', 'pnpm-workspace.yaml'])
+  })
+})
+
+/** 在临时目录里模拟 `docs-site.create` + `docfirst.attach` 之后的站：六区的配置文件与现状区首页 */
+function fakeAttachedSite(repoDir: string): void {
+  fs.mkdirSync(path.join(repoDir, 'docs-site', 'content', 'docs'), { recursive: true })
+  fs.writeFileSync(path.join(repoDir, 'docs-site', 'docfirst.config.mjs'), 'export default {}\n', 'utf8')
+  fs.writeFileSync(path.join(repoDir, 'docs-site', 'content', 'docs', 'index.mdx'), '---\ntitle: 首页\n---\n\n# 首页\n', 'utf8')
+}
+
+/** 用假的 describe / it 运行 repo-kit 的自述检查，回每一项的名字与抛出的错误（没抛是 null） */
+async function runSelfReportGuard(root: string, docsDir: string): Promise<{ name: string; error: string | null }[]> {
+  const cases: { name: string; fn: () => void | Promise<void> }[] = []
+  registerSelfReportGuard(
+    { describe: (_name, fn) => fn(), it: (name, fn) => cases.push({ name, fn }), expect: (actual, message) => expect(actual, message) },
+    { root, docsDir },
+  )
+  const results: { name: string; error: string | null }[] = []
+  for (const one of cases) {
+    try {
+      await one.fn()
+      results.push({ name: one.name, error: null })
+    } catch (err) {
+      results.push({ name: one.name, error: err instanceof Error ? err.message : String(err) })
+    }
+  }
+  return results
+}
+
+describe('插件页：让建好站的新仓第一次 pnpm check 就过自述检查', () => {
+  it('插件页写出了模板插件 inject 的每个服务名，占位符一个不剩', () => {
+    const plan = planScaffold({ name: 'hello', dir: 'D:\\tmp\\x', title: '打招呼', testedKernel: KERNEL })
+    const entry = renderTemplate(TEMPLATE_ROOT, plan).find((f) => f.rel === 'plugins/hello/src/index.ts')?.text ?? ''
+    const page = renderPluginPage(TEMPLATE_ROOT, plan)
+    expect(page.rel).toBe('docs-site/content/docs/plugins/hello.mdx')
+    const injected = [...injectServicesOf(entry)]
+    expect(injected.length).toBeGreaterThan(0)
+    for (const service of injected) expect(page.text).toContain(service)
+    for (const identity of ['gwb-hello', '@godcreator/gwb-hello', 'hello.ping', '打招呼']) expect(page.text).toContain(identity)
+    expect(page.text).not.toContain('{{')
+  })
+
+  it('建仓与加插件都不把插件页混进写仓根或插件包的那批文件', () => {
+    const fromScaffold = renderTemplate(TEMPLATE_ROOT, planScaffold({ name: 'hello', dir: 'D:\\tmp\\x', testedKernel: KERNEL }))
+    const fromPlugin = renderPlugin(TEMPLATE_ROOT, planScaffoldPlugin({ name: 'world', repo: fakeWorkspace(), testedKernel: KERNEL }))
+    for (const file of [...fromScaffold, ...fromPlugin]) expect(file.rel).not.toContain('docs-site')
+  })
+
+  it('pluginPageTarget：站装好六区（docfirst.config.mjs 在）才给路径；没有站、只有骨架都回 null', () => {
+    const repo = fakeWorkspace()
+    expect(pluginPageTarget(repo, 'w')).toBeNull()
+    fs.mkdirSync(path.join(repo, 'docs-site', 'content', 'docs'), { recursive: true })
+    fs.writeFileSync(path.join(repo, 'docs-site', 'content', 'docs', 'index.mdx'), '# 骨架\n', 'utf8')
+    expect(pluginPageTarget(repo, 'w')).toBeNull()
+    fs.writeFileSync(path.join(repo, 'docs-site', 'docfirst.config.mjs'), 'export default {}\n', 'utf8')
+    expect(pluginPageTarget(repo, 'w')).toBe(path.join(repo, 'docs-site', 'content', 'docs', 'plugins', 'w.mdx'))
+  })
+
+  it('writePluginPage：插件页已经存在就拒，原文不动', () => {
+    const repo = fakeWorkspace()
+    fakeAttachedSite(repo)
+    const target = pluginPageTarget(repo, 'w') ?? ''
+    fs.mkdirSync(path.dirname(target), { recursive: true })
+    fs.writeFileSync(target, '原有', 'utf8')
+    const page = renderPluginPage(TEMPLATE_ROOT, planScaffoldPlugin({ name: 'w', repo, testedKernel: KERNEL }))
+    expect(() => writePluginPage(target, page)).toThrow(/已经存在/)
+    expect(fs.readFileSync(target, 'utf8')).toBe('原有')
+  })
+
+  it('端到端：建仓、站装好六区、写插件页，生成的插件包跑自述检查五项全过；不写插件页则 inject 那一项不过', async () => {
+    const repoDir = path.join(sandbox(), 'repo')
+    const plan = planScaffold({ name: 'hello', dir: repoDir, testedKernel: KERNEL })
+    writeRepo(repoDir, renderTemplate(TEMPLATE_ROOT, plan))
+    fakeAttachedSite(repoDir)
+    const root = path.join(repoDir, 'plugins', 'hello')
+    const docsDir = path.join(repoDir, 'docs-site', 'content', 'docs')
+
+    const withoutPage = await runSelfReportGuard(root, docsDir)
+    expect(withoutPage.filter((one) => one.error !== null).map((one) => one.name)).toEqual(['源码 inject 的服务名，站现状区里都写了'])
+
+    writePluginPage(pluginPageTarget(repoDir, plan.name) ?? '', renderPluginPage(TEMPLATE_ROOT, plan))
+    const withPage = await runSelfReportGuard(root, docsDir)
+    expect(withPage).toHaveLength(5)
+    expect(withPage.filter((one) => one.error !== null)).toEqual([])
+  })
+
+  it('端到端：往装好六区的仓里加第二个插件，两个插件的自述检查都过', async () => {
+    const repoDir = path.join(sandbox(), 'repo')
+    const plan = planScaffold({ name: 'hello', dir: repoDir, testedKernel: KERNEL })
+    writeRepo(repoDir, renderTemplate(TEMPLATE_ROOT, plan))
+    fakeAttachedSite(repoDir)
+    writePluginPage(pluginPageTarget(repoDir, plan.name) ?? '', renderPluginPage(TEMPLATE_ROOT, plan))
+
+    const second = planScaffoldPlugin({ name: 'world', repo: repoDir, testedKernel: KERNEL })
+    writeRepo(second.dir, renderPlugin(TEMPLATE_ROOT, second))
+    writePluginPage(pluginPageTarget(repoDir, second.name) ?? '', renderPluginPage(TEMPLATE_ROOT, second))
+
+    const docsDir = path.join(repoDir, 'docs-site', 'content', 'docs')
+    for (const short of ['hello', 'world']) {
+      const results = await runSelfReportGuard(path.join(repoDir, 'plugins', short), docsDir)
+      expect(results.filter((one) => one.error !== null), short).toEqual([])
+    }
+    expect(fs.readdirSync(path.join(docsDir, 'plugins')).sort()).toEqual(['hello.mdx', 'world.mdx'])
   })
 })
 

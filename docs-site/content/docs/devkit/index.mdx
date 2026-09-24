@@ -28,8 +28,8 @@ description: 开发套件是一个普通的 gwb 插件，把「在一个新文�
 
 | 命令 | 做什么 | 接缝 |
 | --- | --- | --- |
-| `devkit.scaffold` | 建仓：渲染 `template/repo/` 与 `template/pkg/` 写进新目录，再按名字调别的插件建文档站 | [5 模板与结构体检](/docs/seams/template-audit)、[6 借用别的插件的命令](/docs/seams/borrowed-commands) |
-| `devkit.scaffold.plugin` | 往已有 workspace 仓的 `plugins/` 加一个插件包，只渲染 `template/pkg/` | [5 模板与结构体检](/docs/seams/template-audit)、[11 被测仓的形状](/docs/seams/repo-shape) |
+| `devkit.scaffold` | 建仓：渲染 `template/repo/` 与 `template/pkg/` 写进新目录，再按名字调别的插件建文档站，站装好六区后写插件页起稿 | [5 模板与结构体检](/docs/seams/template-audit)、[6 借用别的插件的命令](/docs/seams/borrowed-commands) |
+| `devkit.scaffold.plugin` | 往已有 workspace 仓的 `plugins/` 加一个插件包，只渲染 `template/pkg/`；仓里有装好六区的文档站时再写插件页起稿 | [5 模板与结构体检](/docs/seams/template-audit)、[11 被测仓的形状](/docs/seams/repo-shape) |
 | `devkit.audit-structure` | 查一个仓或全生态的布局与静态红线，只读 | [5 模板与结构体检](/docs/seams/template-audit)、[11 被测仓的形状](/docs/seams/repo-shape) |
 | `devkit.audit-deps` | 各仓 `@godcreator` 的 dev 依赖对照团队源、插件包的 peer 只许 `cordis`，只读 | [10 pnpm 与团队源](/docs/seams/pnpm-registry)、[11 被测仓的形状](/docs/seams/repo-shape) |
 | `devkit.home.new` | 开一个新的隔离 home：写 `cordis.yml`、装基础插件、启动宿主应用、选调试端口 | [8 内核与 home](/docs/seams/kernel-home)、[10 pnpm 与团队源](/docs/seams/pnpm-registry) |
@@ -125,7 +125,7 @@ description: 开发套件是一个普通的 gwb 插件，把「在一个新文�
 
 ### 模板
 
-包根的 `template/` 是给别的仓用的骨架，只有 `devkit.scaffold` 与 `devkit.scaffold.plugin` 读它：`template/repo/` 生成仓根（`package.json`、`pnpm-workspace.yaml`、`README.md`、`.gitignore`），`template/pkg/` 生成插件包（源码、测试、tsconfig、vitest、oxlint、构建脚本）。文件一律带 `.tpl` 后缀，占位符只有 `{{name}}`、`{{title}}`、`{{pkg}}`、`{{pkgName}}`、`{{cssPrefix}}`、`{{testedKernel}}`、`{{docsBlock}}` 七个，`{{testedKernel}}` 填运行命令的那个 home 的内核版本号。模板也是结构体检规则的正本，两者由往返测试保证一致（[结构体检](/docs/devkit/structure#规则与模板的一致模板是唯一正本)）。生成的插件包里的两份测试守卫来自同仓的 [repo-kit](/docs/repo-kit)。
+包根的 `template/` 是给别的仓用的骨架，只有 `devkit.scaffold` 与 `devkit.scaffold.plugin` 读它：`template/repo/` 生成仓根（`package.json`、`pnpm-workspace.yaml`、`README.md`、`.gitignore`），`template/pkg/` 生成插件包（源码、测试、tsconfig、vitest、oxlint、构建脚本），`template/site/plugin.mdx.tpl` 生成文档站现状区里的插件页（写出插件注入的服务名，自述检查要求它们出现在现状区里）。生成的插件包清单里没有 peer；浏览器侧构建的外置名单与样式的令牌映射都从外壳 `@godcreator/gwb-shell` 取。文件一律带 `.tpl` 后缀，占位符只有 `{{name}}`、`{{title}}`、`{{pkg}}`、`{{pkgName}}`、`{{cssPrefix}}`、`{{testedKernel}}`、`{{docsBlock}}` 七个，`{{testedKernel}}` 填运行命令的那个 home 的内核版本号。模板也是结构体检规则的正本，两者由往返测试保证一致（[结构体检](/docs/devkit/structure#规则与模板的一致模板是唯一正本)）。生成的插件包里的两份测试守卫来自同仓的 [repo-kit](/docs/repo-kit)。
 
 ## 依赖
 
@@ -160,7 +160,7 @@ description: 开发套件是一个普通的 gwb 插件，把「在一个新文�
 ## 不做的事
 
 - **不画界面**：没有窗格、没有浏览器端代码，只向外壳报一个显示名；使用者是 agent，读回执
-- **不管文档站的内容**：生成骨架归站点插件 `@godcreator/gwb-docs-site`，装六区与核对文档归 docfirst 插件 `@godcreator/gwb-docfirst-workflow`；本包不依赖它们的任何包，只按命令名调用
+- **不管文档站的内容**：生成骨架归站点插件 `@godcreator/gwb-docs-site`，装六区与核对文档归 docfirst 插件 `@godcreator/gwb-docfirst-workflow`；本包不依赖它们的任何包，只按命令名调用。本包只在建仓与加插件时往现状区写一页插件页起稿
 - **不增删 home 里的条目**：条目归插件管理 `@godcreator/gwb-plugin-manager`。`devkit.dev` 在目标 home 里没有条目时装完就停、回执里说用 `plugin-manager.install` 补；唯一的例外是 `devkit.home.new` 在新 home 启动之前写好基础插件的 `cordis.yml`
 - **不写 `runtime.json`**：它由内核与 MCP 入口插件写，本包只读
 - **不升级日常用的 `default`**：`devkit.dev` 拒绝以 `default` 为目标，`devkit.release` 只发到源；升级 `default` 走 `plugin-manager.update-all`
