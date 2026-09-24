@@ -1,0 +1,79 @@
+
+### cwd=registry-s2-edit
+> pnpm install
+Progress: resolved 0, reused 0, downloaded 1, added 0
+Packages are hard linked from the content-addressable store to the virtual store.
+  Content-addressable store is at: D:\unitfolders\s28bv-gwbbase\gwb-devkit\probes\2609242300_peer-between-plugins\work\store\v11
+  Virtual store is at:             node_modules/.pnpm
+Packages: +3
++++
+Progress: resolved 3, reused 0, downloaded 3, added 3, done
+
+dependencies:
++ probe-a 1.0.0
++ probe-b 1.0.0
++ probe-c 1.0.0
+
+Done in 105ms using pnpm v12.4.2
+exit=0
+
+--- inspect: 场景一：B 1.0.0 + A + C 装完
+package.json dependencies: {"probe-a":"1.0.0","probe-b":"1.0.0","probe-c":"1.0.0"}
+node_modules/probe-a -> node_modules/.pnpm/probe-a@1.0.0_probe-b@1.0.0/node_modules/probe-a  (version 1.0.0)
+node_modules/probe-b -> node_modules/.pnpm/probe-b@1.0.0/node_modules/probe-b  (version 1.0.0)
+node_modules/probe-c -> node_modules/.pnpm/probe-c@1.0.0/node_modules/probe-c  (version 1.0.0)
+node_modules/.pnpm 目录：
+  probe-a@1.0.0_probe-b@1.0.0
+  probe-b@1.0.0
+  probe-c@1.0.0
+node_modules/.pnpm/node_modules（隐藏提升）：（空）
+probe-a 同级（node_modules/.pnpm/probe-a@1.0.0_probe-b@1.0.0/node_modules）：
+  probe-b -> node_modules/.pnpm/probe-b@1.0.0/node_modules/probe-b
+从 probe-a 解析 probe-b：node_modules/.pnpm/probe-b@1.0.0/node_modules/probe-b/package.json -> 真实路径 node_modules/.pnpm/probe-b@1.0.0/node_modules/probe-b/package.json  (version 1.0.0)
+
+### cwd=registry-s2-edit
+> pnpm peers check
+No peer dependency issues found
+exit=0
+
+改 package.json：probe-b -> 1.1.0
+
+### cwd=registry-s2-edit
+> pnpm install
+✓ Lockfile passes supply-chain policies (verified 596ms ago)
+Packages: +2 -2
+++--
+Progress: resolved 2, reused 1, downloaded 1, added 2, done
+
+dependencies:
+- probe-b 1.0.0
++ probe-b 1.1.0
+
+Done in 84ms using pnpm v12.4.2
+exit=0
+
+--- inspect: 场景二：B 升到 1.1.0 之后
+package.json dependencies: {"probe-a":"1.0.0","probe-b":"1.1.0","probe-c":"1.0.0"}
+node_modules/probe-a -> node_modules/.pnpm/probe-a@1.0.0_probe-b@1.1.0/node_modules/probe-a  (version 1.0.0)
+node_modules/probe-b -> node_modules/.pnpm/probe-b@1.1.0/node_modules/probe-b  (version 1.1.0)
+node_modules/probe-c -> node_modules/.pnpm/probe-c@1.0.0/node_modules/probe-c  (version 1.0.0)
+node_modules/.pnpm 目录：
+  probe-a@1.0.0_probe-b@1.0.0
+  probe-a@1.0.0_probe-b@1.1.0
+  probe-b@1.0.0
+  probe-b@1.1.0
+  probe-c@1.0.0
+node_modules/.pnpm/node_modules（隐藏提升）：（空）
+probe-a 同级（node_modules/.pnpm/probe-a@1.0.0_probe-b@1.1.0/node_modules）：
+  probe-b -> node_modules/.pnpm/probe-b@1.1.0/node_modules/probe-b
+从 probe-a 解析 probe-b：node_modules/.pnpm/probe-b@1.1.0/node_modules/probe-b/package.json -> 真实路径 node_modules/.pnpm/probe-b@1.1.0/node_modules/probe-b/package.json  (version 1.1.0)
+
+A 真实路径 前：probe-a@1.0.0_probe-b@1.0.0
+A 真实路径 后：probe-a@1.0.0_probe-b@1.1.0
+A 路径变了：True；旧目录还在磁盘上：True
+B 真实路径 前：probe-b@1.0.0
+B 真实路径 后：probe-b@1.1.0
+B 路径变了：True；旧目录还在磁盘上：True
+C 真实路径 前：probe-c@1.0.0
+C 真实路径 后：probe-c@1.0.0
+C 路径变了：False；旧目录还在磁盘上：True

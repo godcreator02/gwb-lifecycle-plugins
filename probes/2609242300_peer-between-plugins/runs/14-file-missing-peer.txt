@@ -1,0 +1,192 @@
+
+===== 3a 默认设置
+
+### cwd=file-s3-default
+> pnpm install
+Error: ERR_PNPM_FETCH_404
+
+  × installing dependencies
+  ╰─▶ Failed to resolve dependency tree: GET https://registry.npmjs.org/probe-
+      b: Not Found - 404
+  help: probe-b is not in the npm registry, or you have no permission to fetch
+        it.
+        
+        No authorization header was set for the request.
+exit=1
+
+--- inspect: 3a 默认设置 装完
+package.json dependencies: {"probe-a":"file:../../../vendor/probe-a-1.0.0.tgz"}
+node_modules/probe-a: 不存在
+node_modules/probe-b: 不存在
+node_modules/probe-c: 不存在
+node_modules/.pnpm：不存在
+装完的 package.json：{ "name": "home-s3-default", "private": true, "dependencies": { "probe-a": "file:../../../vendor/probe-a-1.0.0.tgz" } }
+
+### cwd=file-s3-default
+> pnpm peers check
+No peer dependency issues found
+exit=0
+
+===== 3b home 的 pnpm-workspace.yaml 写 autoInstallPeers: false
+
+### cwd=file-s3-yaml-off
+> pnpm install
+Progress: resolved 1, reused 0, downloaded 0, added 0
+Packages are hard linked from the content-addressable store to the virtual store.
+  Content-addressable store is at: D:\unitfolders\s28bv-gwbbase\gwb-devkit\probes\2609242300_peer-between-plugins\work\store\v11
+  Virtual store is at:             node_modules/.pnpm
+Packages: +1
++
+Progress: resolved 1, reused 1, downloaded 0, added 1, done
+[WARN] Issues with peer dependencies found. Run "pnpm peers check" to list them.
+
+dependencies:
++ probe-a 1.0.0
+
+Done in 68ms using pnpm v12.4.2
+exit=0
+
+--- inspect: 3b home 的 pnpm-workspace.yaml 写 autoInstallPeers: false 装完
+package.json dependencies: {"probe-a":"file:../../../vendor/probe-a-1.0.0.tgz"}
+node_modules/probe-a -> node_modules/.pnpm/probe-a@file+..+..+..+vendor+probe-a-1.0.0.tgz/node_modules/probe-a  (version 1.0.0)
+node_modules/probe-b: 不存在
+node_modules/probe-c: 不存在
+node_modules/.pnpm 目录：
+  probe-a@file+..+..+..+vendor+probe-a-1.0.0.tgz
+node_modules/.pnpm/node_modules（隐藏提升）：（空）
+probe-a 同级（node_modules/.pnpm/probe-a@file+..+..+..+vendor+probe-a-1.0.0.tgz/node_modules）：
+从 probe-a 解析 probe-b：失败 MODULE_NOT_FOUND
+装完的 package.json：{ "name": "home-s3-yaml-off", "private": true, "dependencies": { "probe-a": "file:../../../vendor/probe-a-1.0.0.tgz" } }
+
+### cwd=file-s3-yaml-off
+> pnpm peers check
+Issues with peer dependencies found
+
+✕ missing peer probe-b
+  Wanted:
+    ^1.0.0:
+      probe-a@1.0.0
+exit=1
+
+===== 3c 命令行 --config.auto-install-peers=false
+
+### cwd=file-s3-cli-config-off
+> pnpm install --config.auto-install-peers=false
+Error: ERR_PNPM_FETCH_404
+
+  × installing dependencies
+  ╰─▶ Failed to resolve dependency tree: GET https://registry.npmjs.org/probe-
+      b: Not Found - 404
+  help: probe-b is not in the npm registry, or you have no permission to fetch
+        it.
+        
+        No authorization header was set for the request.
+exit=1
+
+--- inspect: 3c 命令行 --config.auto-install-peers=false 装完
+package.json dependencies: {"probe-a":"file:../../../vendor/probe-a-1.0.0.tgz"}
+node_modules/probe-a: 不存在
+node_modules/probe-b: 不存在
+node_modules/probe-c: 不存在
+node_modules/.pnpm：不存在
+装完的 package.json：{ "name": "home-s3-cli-config-off", "private": true, "dependencies": { "probe-a": "file:../../../vendor/probe-a-1.0.0.tgz" } }
+
+### cwd=file-s3-cli-config-off
+> pnpm peers check
+No peer dependency issues found
+exit=0
+
+===== 3d 命令行 --auto-install-peers=false
+
+### cwd=file-s3-cli-off
+> pnpm install --auto-install-peers=false
+error: unexpected argument '--auto-install-peers' found
+
+  tip: a similar argument exists: '--os'
+
+Usage: pnpm install --os <OS>...
+
+For more information, try '--help'.
+exit=2
+
+--- inspect: 3d 命令行 --auto-install-peers=false 装完
+package.json dependencies: {"probe-a":"file:../../../vendor/probe-a-1.0.0.tgz"}
+node_modules/probe-a: 不存在
+node_modules/probe-b: 不存在
+node_modules/probe-c: 不存在
+node_modules/.pnpm：不存在
+装完的 package.json：{ "name": "home-s3-cli-off", "private": true, "dependencies": { "probe-a": "file:../../../vendor/probe-a-1.0.0.tgz" } }
+
+### cwd=file-s3-cli-off
+> pnpm peers check
+No peer dependency issues found
+exit=0
+
+===== 3e 环境变量 pnpm_config_auto_install_peers=false
+
+### cwd=file-s3-env-off
+> pnpm install
+Progress: resolved 1, reused 0, downloaded 0, added 0
+Packages are hard linked from the content-addressable store to the virtual store.
+  Content-addressable store is at: D:\unitfolders\s28bv-gwbbase\gwb-devkit\probes\2609242300_peer-between-plugins\work\store\v11
+  Virtual store is at:             node_modules/.pnpm
+Packages: +1
++
+Progress: resolved 1, reused 1, downloaded 0, added 1, done
+[WARN] Issues with peer dependencies found. Run "pnpm peers check" to list them.
+
+dependencies:
++ probe-a 1.0.0
+
+Done in 72ms using pnpm v12.4.2
+exit=0
+
+--- inspect: 3e 环境变量 pnpm_config_auto_install_peers=false 装完
+package.json dependencies: {"probe-a":"file:../../../vendor/probe-a-1.0.0.tgz"}
+node_modules/probe-a -> node_modules/.pnpm/probe-a@file+..+..+..+vendor+probe-a-1.0.0.tgz/node_modules/probe-a  (version 1.0.0)
+node_modules/probe-b: 不存在
+node_modules/probe-c: 不存在
+node_modules/.pnpm 目录：
+  probe-a@file+..+..+..+vendor+probe-a-1.0.0.tgz
+node_modules/.pnpm/node_modules（隐藏提升）：（空）
+probe-a 同级（node_modules/.pnpm/probe-a@file+..+..+..+vendor+probe-a-1.0.0.tgz/node_modules）：
+从 probe-a 解析 probe-b：失败 MODULE_NOT_FOUND
+装完的 package.json：{ "name": "home-s3-env-off", "private": true, "dependencies": { "probe-a": "file:../../../vendor/probe-a-1.0.0.tgz" } }
+
+### cwd=file-s3-env-off
+> pnpm peers check
+Issues with peer dependencies found
+
+✕ missing peer probe-b
+  Wanted:
+    ^1.0.0:
+      probe-a@1.0.0
+exit=1
+
+===== 3f 命令行 --config.autoInstallPeers=false
+
+### cwd=file-s3-cli-camel-off
+> pnpm install --config.autoInstallPeers=false
+Error: ERR_PNPM_FETCH_404
+
+  × installing dependencies
+  ╰─▶ Failed to resolve dependency tree: GET https://registry.npmjs.org/probe-
+      b: Not Found - 404
+  help: probe-b is not in the npm registry, or you have no permission to fetch
+        it.
+        
+        No authorization header was set for the request.
+exit=1
+
+--- inspect: 3f 命令行 --config.autoInstallPeers=false 装完
+package.json dependencies: {"probe-a":"file:../../../vendor/probe-a-1.0.0.tgz"}
+node_modules/probe-a: 不存在
+node_modules/probe-b: 不存在
+node_modules/probe-c: 不存在
+node_modules/.pnpm：不存在
+装完的 package.json：{ "name": "home-s3-cli-camel-off", "private": true, "dependencies": { "probe-a": "file:../../../vendor/probe-a-1.0.0.tgz" } }
+
+### cwd=file-s3-cli-camel-off
+> pnpm peers check
+No peer dependency issues found
+exit=0

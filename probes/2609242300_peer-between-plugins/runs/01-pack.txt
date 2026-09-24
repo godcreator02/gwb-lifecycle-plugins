@@ -1,0 +1,54 @@
+
+> pnpm pack --pack-destination vendor   (cwd=src/probe-b-1.0.0)
+package: probe-b@1.0.0
+Tarball Contents
+index.js
+package.json
+Tarball Details
+D:\unitfolders\s28bv-gwbbase\gwb-devkit\probes\2609242300_peer-between-plugins\vendor\probe-b-1.0.0.tgz
+exit=0
+
+> pnpm pack --pack-destination vendor   (cwd=src/probe-b-1.1.0)
+package: probe-b@1.1.0
+Tarball Contents
+index.js
+package.json
+Tarball Details
+D:\unitfolders\s28bv-gwbbase\gwb-devkit\probes\2609242300_peer-between-plugins\vendor\probe-b-1.1.0.tgz
+exit=0
+
+> pnpm pack --pack-destination vendor   (cwd=src/probe-b-2.0.0)
+package: probe-b@2.0.0
+Tarball Contents
+index.js
+package.json
+Tarball Details
+D:\unitfolders\s28bv-gwbbase\gwb-devkit\probes\2609242300_peer-between-plugins\vendor\probe-b-2.0.0.tgz
+exit=0
+
+> pnpm pack --pack-destination vendor   (cwd=src/probe-a-1.0.0)
+package: probe-a@1.0.0
+Tarball Contents
+index.js
+package.json
+Tarball Details
+D:\unitfolders\s28bv-gwbbase\gwb-devkit\probes\2609242300_peer-between-plugins\vendor\probe-a-1.0.0.tgz
+exit=0
+
+> pnpm pack --pack-destination vendor   (cwd=src/probe-c-1.0.0)
+package: probe-c@1.0.0
+Tarball Contents
+index.js
+package.json
+Tarball Details
+D:\unitfolders\s28bv-gwbbase\gwb-devkit\probes\2609242300_peer-between-plugins\vendor\probe-c-1.0.0.tgz
+exit=0
+
+vendor/：
+probe-a-1.0.0.tgz
+probe-b-1.0.0.tgz
+probe-b-1.1.0.tgz
+probe-b-2.0.0.tgz
+probe-c-1.0.0.tgz
+
+本机只读源：http://127.0.0.1:52698（registry 系列的 home 在 .npmrc 里写 registry=http://127.0.0.1:52698/）

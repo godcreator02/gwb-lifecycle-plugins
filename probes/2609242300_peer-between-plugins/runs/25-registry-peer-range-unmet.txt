@@ -1,0 +1,135 @@
+
+===== 4a 默认设置：B 2.0.0 + A（peer ^1.0.0）
+
+### cwd=registry-s4-default
+> pnpm install
+Progress: resolved 0, reused 1, downloaded 0, added 0
+Packages are hard linked from the content-addressable store to the virtual store.
+  Content-addressable store is at: D:\unitfolders\s28bv-gwbbase\gwb-devkit\probes\2609242300_peer-between-plugins\work\store\v11
+  Virtual store is at:             node_modules/.pnpm
+Packages: +2
+++
+Progress: resolved 2, reused 1, downloaded 1, added 2, done
+[WARN] Issues with peer dependencies found. Run "pnpm peers check" to list them.
+
+dependencies:
++ probe-a 1.0.0
++ probe-b 2.0.0
+
+Done in 110ms using pnpm v12.4.2
+exit=0
+
+--- inspect: 4a 默认设置 装完
+package.json dependencies: {"probe-a":"1.0.0","probe-b":"2.0.0"}
+node_modules/probe-a -> node_modules/.pnpm/probe-a@1.0.0_probe-b@2.0.0/node_modules/probe-a  (version 1.0.0)
+node_modules/probe-b -> node_modules/.pnpm/probe-b@2.0.0/node_modules/probe-b  (version 2.0.0)
+node_modules/probe-c: 不存在
+node_modules/.pnpm 目录：
+  probe-a@1.0.0_probe-b@2.0.0
+  probe-b@2.0.0
+node_modules/.pnpm/node_modules（隐藏提升）：（空）
+probe-a 同级（node_modules/.pnpm/probe-a@1.0.0_probe-b@2.0.0/node_modules）：
+  probe-b -> node_modules/.pnpm/probe-b@2.0.0/node_modules/probe-b
+从 probe-a 解析 probe-b：node_modules/.pnpm/probe-b@2.0.0/node_modules/probe-b/package.json -> 真实路径 node_modules/.pnpm/probe-b@2.0.0/node_modules/probe-b/package.json  (version 2.0.0)
+
+### cwd=registry-s4-default
+> pnpm peers check
+Issues with peer dependencies found
+
+✕ unmet peer probe-b
+  Installed: 2.0.0
+  Wanted:
+    ^1.0.0:
+      probe-a@1.0.0
+exit=1
+
+===== 4b autoInstallPeers: false：B 2.0.0 + A（peer ^1.0.0）
+
+### cwd=registry-s4-auto-off
+> pnpm install
+Progress: resolved 0, reused 1, downloaded 0, added 0
+Packages are hard linked from the content-addressable store to the virtual store.
+  Content-addressable store is at: D:\unitfolders\s28bv-gwbbase\gwb-devkit\probes\2609242300_peer-between-plugins\work\store\v11
+  Virtual store is at:             node_modules/.pnpm
+Packages: +2
+++
+Progress: resolved 2, reused 2, downloaded 0, added 2, done
+[WARN] Issues with peer dependencies found. Run "pnpm peers check" to list them.
+
+dependencies:
++ probe-a 1.0.0
++ probe-b 2.0.0
+
+Done in 109ms using pnpm v12.4.2
+exit=0
+
+--- inspect: 4b autoInstallPeers: false 装完
+package.json dependencies: {"probe-a":"1.0.0","probe-b":"2.0.0"}
+node_modules/probe-a -> node_modules/.pnpm/probe-a@1.0.0_probe-b@2.0.0/node_modules/probe-a  (version 1.0.0)
+node_modules/probe-b -> node_modules/.pnpm/probe-b@2.0.0/node_modules/probe-b  (version 2.0.0)
+node_modules/probe-c: 不存在
+node_modules/.pnpm 目录：
+  probe-a@1.0.0_probe-b@2.0.0
+  probe-b@2.0.0
+node_modules/.pnpm/node_modules（隐藏提升）：（空）
+probe-a 同级（node_modules/.pnpm/probe-a@1.0.0_probe-b@2.0.0/node_modules）：
+  probe-b -> node_modules/.pnpm/probe-b@2.0.0/node_modules/probe-b
+从 probe-a 解析 probe-b：node_modules/.pnpm/probe-b@2.0.0/node_modules/probe-b/package.json -> 真实路径 node_modules/.pnpm/probe-b@2.0.0/node_modules/probe-b/package.json  (version 2.0.0)
+
+### cwd=registry-s4-auto-off
+> pnpm peers check
+Issues with peer dependencies found
+
+✕ unmet peer probe-b
+  Installed: 2.0.0
+  Wanted:
+    ^1.0.0:
+      probe-a@1.0.0
+exit=1
+
+===== 4c strictPeerDependencies: true：B 2.0.0 + A（peer ^1.0.0）
+
+### cwd=registry-s4-strict
+> pnpm install
+Progress: resolved 0, reused 1, downloaded 0, added 0
+Packages are hard linked from the content-addressable store to the virtual store.
+  Content-addressable store is at: D:\unitfolders\s28bv-gwbbase\gwb-devkit\probes\2609242300_peer-between-plugins\work\store\v11
+  Virtual store is at:             node_modules/.pnpm
+Packages: +2
+++
+Progress: resolved 2, reused 2, downloaded 0, added 2, done
+[ERR_PNPM_PEER_DEP_ISSUES] Unmet peer dependencies
+
+✕ unmet peer probe-b
+  Installed: 2.0.0
+  Wanted:
+    ^1.0.0:
+      probe-a@1.0.0
+hint: To disable failing on peer dependency issues, add the following to pnpm-workspace.yaml in your project root:
+
+  strictPeerDependencies: false
+exit=1
+
+--- inspect: 4c strictPeerDependencies: true 装完
+package.json dependencies: {"probe-a":"1.0.0","probe-b":"2.0.0"}
+node_modules/probe-a -> node_modules/.pnpm/probe-a@1.0.0_probe-b@2.0.0/node_modules/probe-a  (version 1.0.0)
+node_modules/probe-b -> node_modules/.pnpm/probe-b@2.0.0/node_modules/probe-b  (version 2.0.0)
+node_modules/probe-c: 不存在
+node_modules/.pnpm 目录：
+  probe-a@1.0.0_probe-b@2.0.0
+  probe-b@2.0.0
+node_modules/.pnpm/node_modules（隐藏提升）：（空）
+probe-a 同级（node_modules/.pnpm/probe-a@1.0.0_probe-b@2.0.0/node_modules）：
+  probe-b -> node_modules/.pnpm/probe-b@2.0.0/node_modules/probe-b
+从 probe-a 解析 probe-b：node_modules/.pnpm/probe-b@2.0.0/node_modules/probe-b/package.json -> 真实路径 node_modules/.pnpm/probe-b@2.0.0/node_modules/probe-b/package.json  (version 2.0.0)
+
+### cwd=registry-s4-strict
+> pnpm peers check
+Issues with peer dependencies found
+
+✕ unmet peer probe-b
+  Installed: 2.0.0
+  Wanted:
+    ^1.0.0:
+      probe-a@1.0.0
+exit=1

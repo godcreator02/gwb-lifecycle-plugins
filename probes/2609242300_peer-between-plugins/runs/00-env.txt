@@ -1,0 +1,27 @@
+date=2026-09-24 22:26  pnpm=12.4.2  node=v24.14.1  os=Microsoft Windows NT 10.0.26200.0
+gwb-devkit commit: 54c59ec 全生态精简计划第四期记两条：default 里还剩词汇表包与块笔记的库两个非插件包；devkit.home.new 的 BASE_SHARED 把词汇表包装进新 home，和 INSTALL.md「只装插件」矛盾，要删
+
+仓根 pnpm-workspace.yaml：
+packages:
+  # 两个插件：开发套件 devkit 与插件管理 plugin-manager
+  - plugins/*
+  # 文档站：自己的依赖树，不进根 check
+  - docs-site
+
+allowBuilds:
+  # 文档站的依赖间接带进来的两个包：@parcel/watcher 不运行安装脚本，esbuild 要运行（它下载自己的二进制）
+  '@parcel/watcher': false
+  esbuild: true
+
+仓根 workspace 的成员（不含 probes/ 才对）：
+
+### cwd=gwb-devkit
+> pnpm ls -r --depth -1
+gwb-devkit-workspace D:\unitfolders\s28bv-gwbbase\gwb-devkit (PRIVATE)
+
+gwb-devkit-docs-site@0.1.0 D:\unitfolders\s28bv-gwbbase\gwb-devkit\docs-site (PRIVATE)
+
+@godcreator/gwb-devkit@0.18.13 D:\unitfolders\s28bv-gwbbase\gwb-devkit\plugins\devkit
+
+@godcreator/gwb-plugin-manager@0.8.3 D:\unitfolders\s28bv-gwbbase\gwb-devkit\plugins\plugin-manager
+exit=0
