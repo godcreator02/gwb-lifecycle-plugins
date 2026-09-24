@@ -21,7 +21,7 @@ description: install 在一条命令里装包并加一条条目，只等写入�
 3. **选 id，加一条条目**：id 的规则见[id 与归属](/docs/plugin-manager/ids)，经条目树 `create` 写进 `cordis.yml`，回执带 `entryId`。写不进 `cordis.yml` 时回执 `ok: false`，包留在 home 里、不回滚——删包比留着危险
 </Diagram>
 
-{/* ref file="../plugins/plugin-manager/src/index.ts" lines="468-497" */}
+{/* ref file="../plugins/plugin-manager/src/index.ts" lines="464-493" */}
 
 - 同一个包 install 两次会得到两条条目（第二条的 id 带数字后缀）：一个包对应几条条目本来就合法，不替调用方猜「是不是装过了」
 - 只给已装的包再加一条条目，用 `add-entry`
@@ -45,7 +45,7 @@ description: install 在一条命令里装包并加一条条目，只等写入�
 
 **怎么做**：写回 `cordis.yml` 在 `create` 的第一个 `await` 之前就同步安排好了，所以不 `await` 也不影响写入；加载失败只记一条 warn。
 
-{/* ref file="../plugins/plugin-manager/src/index.ts" lines="827-830" */}
+{/* ref file="../plugins/plugin-manager/src/index.ts" lines="823-827" */}
 
 这一条没有单元测试：要验证，就在隔离 home 里装一个依赖还没装齐的插件，看命令是否照常返回回执、`list` 里是否显示未加载。
 
@@ -82,7 +82,7 @@ description: install 在一条命令里装包并加一条条目，只等写入�
 - 反过来先卸包：条目会指向一个不在 home 里的包
 </Diagram>
 
-{/* ref file="../plugins/plugin-manager/src/index.ts" lines="717-746" */}
+{/* ref file="../plugins/plugin-manager/src/index.ts" lines="713-742" */}
 
 只删一条条目、保留包，用 `remove-entry`。
 
