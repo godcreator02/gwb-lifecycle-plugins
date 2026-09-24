@@ -1,0 +1,6 @@
+date=2026-09-25 01:13  pnpm=12.4.2（C:\Users\godamericatb14\AppData\Roaming\npm\node_modules\pnpm\pnpm.exe）  node=v24.14.1  os=Microsoft Windows NT 10.0.26200.0
+gwb-devkit commit: fe4f69e docfirst：确认 homePnpmPlan 拆分涉及的四页代码引用
+work=C:\Users\GODAME~1\AppData\Local\Temp\gwb-probe-2609250110  源延迟=1000ms  每个同时运行的场景 5 轮
+环境变量：pnpm_config_auto_install_peers=false  pnpm_config_cache_dir=C:\Users\GODAME~1\AppData\Local\Temp\gwb-probe-2609250110\cache  pnpm_config_store_dir=C:\Users\GODAME~1\AppData\Local\Temp\gwb-probe-2609250110\store
+本机只读源：http://127.0.0.1:51431
+存储确实在 work 下：True

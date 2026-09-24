@@ -1,0 +1,12 @@
+> pnpm outdated --json
+{
+  "probe-base": {
+    "current": "1.0.0",
+    "latest": "1.1.0",
+    "wanted": "1.0.0",
+    "isDeprecated": false,
+    "dependencyType": "dependencies"
+  }
+}
+exit=1
+home 里 8 个文件；outdated 之后新增或改动：0 个，删掉：0 个

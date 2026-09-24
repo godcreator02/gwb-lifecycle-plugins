@@ -1,0 +1,144 @@
+
+===== 第 1 轮（home=add-add-1）
+之前：{"manifest":["probe-base"],"lock":["probe-base"],"nodeModules":{"probe-base":"1.0.0","probe-x":null,"probe-y":null},"consistent":true}
+A> pnpm add probe-x   时间段 19–152 ms   exit=0
+✓ Lockfile passes supply-chain policies (verified 185ms ago)
+Packages: +1
++
+Progress: resolved 1, reused 1, downloaded 0, added 1, done
+dependencies:
++ probe-x 1.0.0
+Done in 86ms using pnpm v12.4.2
+B> pnpm add probe-y   时间段 55–196 ms   exit=0
+✓ Lockfile passes supply-chain policies (verified 228ms ago)
+Packages: +1
++
+Progress: resolved 1, reused 1, downloaded 0, added 1, done
+dependencies:
++ probe-y 1.0.0
+Done in 89ms using pnpm v12.4.2
+两者运行时间重叠：True
+之后：{"manifest":["probe-base","probe-y"],"lock":["probe-base","probe-y"],"nodeModules":{"probe-base":"1.0.0","probe-x":"1.0.0","probe-y":"1.0.0"},"consistent":false}
+> pnpm install --frozen-lockfile
+✓ Lockfile passes supply-chain policies (verified 231ms ago)
+Lockfile is up to date, resolution step is skipped
+Done in 17ms using pnpm v12.4.2
+exit=0
+frozen 之后：{"manifest":["probe-base","probe-y"],"lock":["probe-base","probe-y"],"nodeModules":{"probe-base":"1.0.0","probe-x":"1.0.0","probe-y":"1.0.0"},"consistent":false}
+
+===== 第 2 轮（home=add-add-2）
+之前：{"manifest":["probe-base"],"lock":["probe-base"],"nodeModules":{"probe-base":"1.0.0","probe-x":null,"probe-y":null},"consistent":true}
+A> pnpm add probe-x   时间段 17–182 ms   exit=0
+✓ Lockfile passes supply-chain policies (verified 189ms ago)
+Packages: +1
++
+Progress: resolved 1, reused 1, downloaded 0, added 1, done
+dependencies:
++ probe-x 1.0.0
+Done in 114ms using pnpm v12.4.2
+B> pnpm add probe-y   时间段 51–234 ms   exit=0
+✓ Lockfile passes supply-chain policies (verified 239ms ago)
+Packages: +1
++
+Progress: resolved 1, reused 1, downloaded 0, added 1, done
+dependencies:
++ probe-y 1.0.0
+Done in 129ms using pnpm v12.4.2
+两者运行时间重叠：True
+之后：{"manifest":["probe-base","probe-y"],"lock":["probe-base","probe-y"],"nodeModules":{"probe-base":"1.0.0","probe-x":"1.0.0","probe-y":"1.0.0"},"consistent":false}
+> pnpm install --frozen-lockfile
+✓ Lockfile passes supply-chain policies (verified 377ms ago)
+Lockfile is up to date, resolution step is skipped
+Done in 16ms using pnpm v12.4.2
+exit=0
+frozen 之后：{"manifest":["probe-base","probe-y"],"lock":["probe-base","probe-y"],"nodeModules":{"probe-base":"1.0.0","probe-x":"1.0.0","probe-y":"1.0.0"},"consistent":false}
+
+===== 第 3 轮（home=add-add-3）
+之前：{"manifest":["probe-base"],"lock":["probe-base"],"nodeModules":{"probe-base":"1.0.0","probe-x":null,"probe-y":null},"consistent":true}
+A> pnpm add probe-x   时间段 20–425 ms   exit=0
+✓ Lockfile passes supply-chain policies (verified 214ms ago)
+Packages: +1
++
+Progress: resolved 1, reused 1, downloaded 0, added 1, done
+dependencies:
++ probe-x 1.0.0
+Done in 354ms using pnpm v12.4.2
+B> pnpm add probe-y   时间段 51–422 ms   exit=0
+✓ Lockfile passes supply-chain policies (verified 242ms ago)
+Packages: +1
++
+Progress: resolved 1, reused 1, downloaded 0, added 1, done
+dependencies:
++ probe-y 1.0.0
+Done in 323ms using pnpm v12.4.2
+两者运行时间重叠：True
+之后：{"manifest":["probe-base","probe-x"],"lock":["probe-base","probe-y"],"nodeModules":{"probe-base":"1.0.0","probe-x":"1.0.0","probe-y":"1.0.0"},"consistent":false}
+> pnpm install --frozen-lockfile
+Error: ERR_PNPM_OUTDATED_LOCKFILE
+  × installing dependencies
+  ╰─▶ Cannot install with "frozen-lockfile" because pnpm-lock.yaml is not up
+      to date with package.json.
+        Failure reason:
+        specifiers in the lockfile don't match specifiers in package.json:
+      * in importers["."]:
+      * 1 dependency was added: probe-x@^1.0.0
+      * 1 dependency was removed: probe-y@^1.0.0
+  help: Regenerate the lockfile with `pnpm install --lockfile-only` so that
+        pnpm-lock.yaml reflects the current package.json, then re-run `pnpm
+        install --frozen-lockfile`.
+exit=1
+frozen 之后：{"manifest":["probe-base","probe-x"],"lock":["probe-base","probe-y"],"nodeModules":{"probe-base":"1.0.0","probe-x":"1.0.0","probe-y":"1.0.0"},"consistent":false}
+
+===== 第 4 轮（home=add-add-4）
+之前：{"manifest":["probe-base"],"lock":["probe-base"],"nodeModules":{"probe-base":"1.0.0","probe-x":null,"probe-y":null},"consistent":true}
+A> pnpm add probe-x   时间段 22–176 ms   exit=0
+✓ Lockfile passes supply-chain policies (verified 217ms ago)
+Packages: +1
++
+Progress: resolved 1, reused 1, downloaded 0, added 1, done
+dependencies:
++ probe-x 1.0.0
+Done in 99ms using pnpm v12.4.2
+B> pnpm add probe-y   时间段 60–212 ms   exit=0
+✓ Lockfile passes supply-chain policies (verified 254ms ago)
+Packages: +1
++
+Progress: resolved 1, reused 1, downloaded 0, added 1, done
+dependencies:
++ probe-y 1.0.0
+Done in 95ms using pnpm v12.4.2
+两者运行时间重叠：True
+之后：{"manifest":["probe-base","probe-y"],"lock":["probe-base","probe-y"],"nodeModules":{"probe-base":"1.0.0","probe-x":"1.0.0","probe-y":"1.0.0"},"consistent":false}
+> pnpm install --frozen-lockfile
+✓ Lockfile passes supply-chain policies (verified 221ms ago)
+Lockfile is up to date, resolution step is skipped
+Done in 15ms using pnpm v12.4.2
+exit=0
+frozen 之后：{"manifest":["probe-base","probe-y"],"lock":["probe-base","probe-y"],"nodeModules":{"probe-base":"1.0.0","probe-x":"1.0.0","probe-y":"1.0.0"},"consistent":false}
+
+===== 第 5 轮（home=add-add-5）
+之前：{"manifest":["probe-base"],"lock":["probe-base"],"nodeModules":{"probe-base":"1.0.0","probe-x":null,"probe-y":null},"consistent":true}
+A> pnpm add probe-x   时间段 15–151 ms   exit=0
+✓ Lockfile passes supply-chain policies (verified 188ms ago)
+Packages: +1
++
+Progress: resolved 1, reused 1, downloaded 0, added 1, done
+dependencies:
++ probe-x 1.0.0
+Done in 92ms using pnpm v12.4.2
+B> pnpm add probe-y   时间段 43–183 ms   exit=0
+✓ Lockfile passes supply-chain policies (verified 222ms ago)
+Packages: +1
++
+Progress: resolved 1, reused 1, downloaded 0, added 1, done
+dependencies:
++ probe-y 1.0.0
+Done in 92ms using pnpm v12.4.2
+两者运行时间重叠：True
+之后：{"manifest":["probe-base","probe-y"],"lock":["probe-base","probe-y"],"nodeModules":{"probe-base":"1.0.0","probe-x":"1.0.0","probe-y":"1.0.0"},"consistent":false}
+> pnpm install --frozen-lockfile
+✓ Lockfile passes supply-chain policies (verified 232ms ago)
+Lockfile is up to date, resolution step is skipped
+Done in 12ms using pnpm v12.4.2
+exit=0
+frozen 之后：{"manifest":["probe-base","probe-y"],"lock":["probe-base","probe-y"],"nodeModules":{"probe-base":"1.0.0","probe-x":"1.0.0","probe-y":"1.0.0"},"consistent":false}

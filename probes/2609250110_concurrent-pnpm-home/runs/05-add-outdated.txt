@@ -1,0 +1,140 @@
+
+===== 第 1 轮（home=add-outdated-1）
+之前：{"manifest":["probe-base"],"lock":["probe-base"],"nodeModules":{"probe-base":"1.0.0","probe-x":null,"probe-y":null},"consistent":true}
+A> pnpm add probe-x   时间段 17–159 ms   exit=0
+✓ Lockfile passes supply-chain policies (verified 189ms ago)
+Packages: +1
++
+Progress: resolved 1, reused 1, downloaded 0, added 1, done
+dependencies:
++ probe-x 1.0.0
+Done in 95ms using pnpm v12.4.2
+B> pnpm outdated --json   时间段 51–102 ms   exit=1
+  "probe-base": {
+    "current": "1.0.0",
+    "latest": "1.1.0",
+    "wanted": "1.0.0",
+    "isDeprecated": false,
+    "dependencyType": "dependencies"
+  }
+}
+两者运行时间重叠：True
+之后：{"manifest":["probe-base","probe-x"],"lock":["probe-base","probe-x"],"nodeModules":{"probe-base":"1.0.0","probe-x":"1.0.0","probe-y":null},"consistent":true}
+> pnpm install --frozen-lockfile
+✓ Lockfile passes supply-chain policies (verified 231ms ago)
+Lockfile is up to date, resolution step is skipped
+Done in 13ms using pnpm v12.4.2
+exit=0
+frozen 之后：{"manifest":["probe-base","probe-x"],"lock":["probe-base","probe-x"],"nodeModules":{"probe-base":"1.0.0","probe-x":"1.0.0","probe-y":null},"consistent":true}
+
+===== 第 2 轮（home=add-outdated-2）
+之前：{"manifest":["probe-base"],"lock":["probe-base"],"nodeModules":{"probe-base":"1.0.0","probe-x":null,"probe-y":null},"consistent":true}
+A> pnpm add probe-x   时间段 20–152 ms   exit=0
+✓ Lockfile passes supply-chain policies (verified 184ms ago)
+Packages: +1
++
+Progress: resolved 1, reused 1, downloaded 0, added 1, done
+dependencies:
++ probe-x 1.0.0
+Done in 86ms using pnpm v12.4.2
+B> pnpm outdated --json   时间段 50–102 ms   exit=1
+  "probe-base": {
+    "current": "1.0.0",
+    "latest": "1.1.0",
+    "wanted": "1.0.0",
+    "isDeprecated": false,
+    "dependencyType": "dependencies"
+  }
+}
+两者运行时间重叠：True
+之后：{"manifest":["probe-base","probe-x"],"lock":["probe-base","probe-x"],"nodeModules":{"probe-base":"1.0.0","probe-x":"1.0.0","probe-y":null},"consistent":true}
+> pnpm install --frozen-lockfile
+✓ Lockfile passes supply-chain policies (verified 227ms ago)
+Lockfile is up to date, resolution step is skipped
+Done in 12ms using pnpm v12.4.2
+exit=0
+frozen 之后：{"manifest":["probe-base","probe-x"],"lock":["probe-base","probe-x"],"nodeModules":{"probe-base":"1.0.0","probe-x":"1.0.0","probe-y":null},"consistent":true}
+
+===== 第 3 轮（home=add-outdated-3）
+之前：{"manifest":["probe-base"],"lock":["probe-base"],"nodeModules":{"probe-base":"1.0.0","probe-x":null,"probe-y":null},"consistent":true}
+A> pnpm add probe-x   时间段 18–152 ms   exit=0
+✓ Lockfile passes supply-chain policies (verified 191ms ago)
+Packages: +1
++
+Progress: resolved 1, reused 1, downloaded 0, added 1, done
+dependencies:
++ probe-x 1.0.0
+Done in 87ms using pnpm v12.4.2
+B> pnpm outdated --json   时间段 50–99 ms   exit=1
+  "probe-base": {
+    "current": "1.0.0",
+    "latest": "1.1.0",
+    "wanted": "1.0.0",
+    "isDeprecated": false,
+    "dependencyType": "dependencies"
+  }
+}
+两者运行时间重叠：True
+之后：{"manifest":["probe-base","probe-x"],"lock":["probe-base","probe-x"],"nodeModules":{"probe-base":"1.0.0","probe-x":"1.0.0","probe-y":null},"consistent":true}
+> pnpm install --frozen-lockfile
+✓ Lockfile passes supply-chain policies (verified 237ms ago)
+Lockfile is up to date, resolution step is skipped
+Done in 12ms using pnpm v12.4.2
+exit=0
+frozen 之后：{"manifest":["probe-base","probe-x"],"lock":["probe-base","probe-x"],"nodeModules":{"probe-base":"1.0.0","probe-x":"1.0.0","probe-y":null},"consistent":true}
+
+===== 第 4 轮（home=add-outdated-4）
+之前：{"manifest":["probe-base"],"lock":["probe-base"],"nodeModules":{"probe-base":"1.0.0","probe-x":null,"probe-y":null},"consistent":true}
+A> pnpm add probe-x   时间段 17–157 ms   exit=0
+✓ Lockfile passes supply-chain policies (verified 201ms ago)
+Packages: +1
++
+Progress: resolved 1, reused 1, downloaded 0, added 1, done
+dependencies:
++ probe-x 1.0.0
+Done in 94ms using pnpm v12.4.2
+B> pnpm outdated --json   时间段 48–104 ms   exit=1
+  "probe-base": {
+    "current": "1.0.0",
+    "latest": "1.1.0",
+    "wanted": "1.0.0",
+    "isDeprecated": false,
+    "dependencyType": "dependencies"
+  }
+}
+两者运行时间重叠：True
+之后：{"manifest":["probe-base","probe-x"],"lock":["probe-base","probe-x"],"nodeModules":{"probe-base":"1.0.0","probe-x":"1.0.0","probe-y":null},"consistent":true}
+> pnpm install --frozen-lockfile
+✓ Lockfile passes supply-chain policies (verified 258ms ago)
+Lockfile is up to date, resolution step is skipped
+Done in 13ms using pnpm v12.4.2
+exit=0
+frozen 之后：{"manifest":["probe-base","probe-x"],"lock":["probe-base","probe-x"],"nodeModules":{"probe-base":"1.0.0","probe-x":"1.0.0","probe-y":null},"consistent":true}
+
+===== 第 5 轮（home=add-outdated-5）
+之前：{"manifest":["probe-base"],"lock":["probe-base"],"nodeModules":{"probe-base":"1.0.0","probe-x":null,"probe-y":null},"consistent":true}
+A> pnpm add probe-x   时间段 21–178 ms   exit=0
+✓ Lockfile passes supply-chain policies (verified 222ms ago)
+Packages: +1
++
+Progress: resolved 1, reused 1, downloaded 0, added 1, done
+dependencies:
++ probe-x 1.0.0
+Done in 103ms using pnpm v12.4.2
+B> pnpm outdated --json   时间段 63–125 ms   exit=1
+  "probe-base": {
+    "current": "1.0.0",
+    "latest": "1.1.0",
+    "wanted": "1.0.0",
+    "isDeprecated": false,
+    "dependencyType": "dependencies"
+  }
+}
+两者运行时间重叠：True
+之后：{"manifest":["probe-base","probe-x"],"lock":["probe-base","probe-x"],"nodeModules":{"probe-base":"1.0.0","probe-x":"1.0.0","probe-y":null},"consistent":true}
+> pnpm install --frozen-lockfile
+✓ Lockfile passes supply-chain policies (verified 377ms ago)
+Lockfile is up to date, resolution step is skipped
+Done in 15ms using pnpm v12.4.2
+exit=0
+frozen 之后：{"manifest":["probe-base","probe-x"],"lock":["probe-base","probe-x"],"nodeModules":{"probe-base":"1.0.0","probe-x":"1.0.0","probe-y":null},"consistent":true}

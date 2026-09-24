@@ -1,0 +1,124 @@
+
+===== 第 1 轮（home=add-remove-1）
+之前：{"manifest":["probe-base"],"lock":["probe-base"],"nodeModules":{"probe-base":"1.0.0","probe-x":null,"probe-y":null},"consistent":true}
+A> pnpm add probe-x   时间段 18–388 ms   exit=0
+✓ Lockfile passes supply-chain policies (verified 187ms ago)
+Packages: +1
++
+Progress: resolved 1, reused 1, downloaded 0, added 1, done
+dependencies:
++ probe-x 1.0.0
+Done in 327ms using pnpm v12.4.2
+B> pnpm remove probe-base   时间段 50–396 ms   exit=0
+Packages: -1
+-
+dependencies:
+- probe-base 1.0.0
+Done in 296ms using pnpm v12.4.2
+两者运行时间重叠：True
+之后：{"manifest":[],"lock":[],"nodeModules":{"probe-base":null,"probe-x":"1.0.0","probe-y":null},"consistent":false}
+> pnpm install --frozen-lockfile
+Packages: -2
+--
+dependencies:
+- probe-base 1.0.0
+- probe-x 1.0.0
+Done in 63ms using pnpm v12.4.2
+exit=0
+frozen 之后：{"manifest":[],"lock":[],"nodeModules":{"probe-base":null,"probe-x":null,"probe-y":null},"consistent":true}
+
+===== 第 2 轮（home=add-remove-2）
+之前：{"manifest":["probe-base"],"lock":["probe-base"],"nodeModules":{"probe-base":"1.0.0","probe-x":null,"probe-y":null},"consistent":true}
+A> pnpm add probe-x   时间段 19–157 ms   exit=0
+✓ Lockfile passes supply-chain policies (verified 185ms ago)
+Packages: +1
++
+Progress: resolved 1, reused 1, downloaded 0, added 1, done
+dependencies:
++ probe-x 1.0.0
+Done in 94ms using pnpm v12.4.2
+B> pnpm remove probe-base   时间段 52–189 ms   exit=0
+Packages: -1
+-
+dependencies:
+- probe-base 1.0.0
+Done in 85ms using pnpm v12.4.2
+两者运行时间重叠：True
+之后：{"manifest":[],"lock":[],"nodeModules":{"probe-base":null,"probe-x":"1.0.0","probe-y":null},"consistent":false}
+> pnpm install --frozen-lockfile
+Already up to date
+Done in 64ms using pnpm v12.4.2
+exit=0
+frozen 之后：{"manifest":[],"lock":[],"nodeModules":{"probe-base":null,"probe-x":"1.0.0","probe-y":null},"consistent":false}
+
+===== 第 3 轮（home=add-remove-3）
+之前：{"manifest":["probe-base"],"lock":["probe-base"],"nodeModules":{"probe-base":"1.0.0","probe-x":null,"probe-y":null},"consistent":true}
+A> pnpm add probe-x   时间段 16–165 ms   exit=0
+✓ Lockfile passes supply-chain policies (verified 195ms ago)
+Packages: +1
++
+Progress: resolved 1, reused 1, downloaded 0, added 1, done
+dependencies:
++ probe-x 1.0.0
+Done in 96ms using pnpm v12.4.2
+B> pnpm remove probe-base   时间段 51–198 ms   exit=0
+Packages: -1
+-
+dependencies:
+- probe-base 1.0.0
+Done in 94ms using pnpm v12.4.2
+两者运行时间重叠：True
+之后：{"manifest":[],"lock":[],"nodeModules":{"probe-base":null,"probe-x":"1.0.0","probe-y":null},"consistent":false}
+> pnpm install --frozen-lockfile
+Already up to date
+Done in 79ms using pnpm v12.4.2
+exit=0
+frozen 之后：{"manifest":[],"lock":[],"nodeModules":{"probe-base":null,"probe-x":"1.0.0","probe-y":null},"consistent":false}
+
+===== 第 4 轮（home=add-remove-4）
+之前：{"manifest":["probe-base"],"lock":["probe-base"],"nodeModules":{"probe-base":"1.0.0","probe-x":null,"probe-y":null},"consistent":true}
+A> pnpm add probe-x   时间段 17–152 ms   exit=0
+✓ Lockfile passes supply-chain policies (verified 410ms ago)
+Packages: +1
++
+Progress: resolved 1, reused 1, downloaded 0, added 1, done
+dependencies:
++ probe-x 1.0.0
+Done in 87ms using pnpm v12.4.2
+B> pnpm remove probe-base   时间段 49–187 ms   exit=0
+Packages: -1
+-
+dependencies:
+- probe-base 1.0.0
+Done in 85ms using pnpm v12.4.2
+两者运行时间重叠：True
+之后：{"manifest":[],"lock":[],"nodeModules":{"probe-base":null,"probe-x":"1.0.0","probe-y":null},"consistent":false}
+> pnpm install --frozen-lockfile
+Already up to date
+Done in 65ms using pnpm v12.4.2
+exit=0
+frozen 之后：{"manifest":[],"lock":[],"nodeModules":{"probe-base":null,"probe-x":"1.0.0","probe-y":null},"consistent":false}
+
+===== 第 5 轮（home=add-remove-5）
+之前：{"manifest":["probe-base"],"lock":["probe-base"],"nodeModules":{"probe-base":"1.0.0","probe-x":null,"probe-y":null},"consistent":true}
+A> pnpm add probe-x   时间段 16–157 ms   exit=0
+✓ Lockfile passes supply-chain policies (verified 182ms ago)
+Packages: +1
++
+Progress: resolved 1, reused 1, downloaded 0, added 1, done
+dependencies:
++ probe-x 1.0.0
+Done in 99ms using pnpm v12.4.2
+B> pnpm remove probe-base   时间段 47–189 ms   exit=0
+Packages: -1
+-
+dependencies:
+- probe-base 1.0.0
+Done in 90ms using pnpm v12.4.2
+两者运行时间重叠：True
+之后：{"manifest":[],"lock":[],"nodeModules":{"probe-base":null,"probe-x":"1.0.0","probe-y":null},"consistent":false}
+> pnpm install --frozen-lockfile
+Already up to date
+Done in 81ms using pnpm v12.4.2
+exit=0
+frozen 之后：{"manifest":[],"lock":[],"nodeModules":{"probe-base":null,"probe-x":"1.0.0","probe-y":null},"consistent":false}
