@@ -3,6 +3,9 @@ import { isRecord } from './vocab.js'
 /**
  * 插件在哪个内核版本上测过：包自己的 package.json 里写 `gwb.testedKernel`，和运行中的内核版本比对。
  * 零 I/O 纯逻辑，读包清单的部分在 `home.ts`。
+ *
+ * 比对规则与 devkit（@godcreator/gwb-devkit 的 `src/tested-kernel.ts`）相同，两边各存一份、不跨包 import；
+ * 改规则时和 devkit 那份一起改。devkit 的 `tests/tested-kernel-parity.test.ts` 拿同一组输入跑两份，结果不同就失败。
  */
 
 /** 一个包在 `list` 回执里和内核版本有关的两个字段 */

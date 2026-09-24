@@ -1,6 +1,6 @@
 ---
 title: 3 测过哪个内核 testedKernel
-description: 连接插件包 package.json 里的 gwb.testedKernel 与三个读它的地方：devkit.release 发版前检查、plugin-manager.list 的 kernelUntested、运行中的 gwbKernel.version；比对规则在两个包里各写一份，没有测试比对两份，靠约定
+description: 连接插件包 package.json 里的 gwb.testedKernel 与三个读它的地方：devkit.release 发版前检查、plugin-manager.list 的 kernelUntested、运行中的 gwbKernel.version；比对规则在两个包里各写一份，由 devkit 的一组对照测试拿同一组输入比对两份的结果
 ---
 
 **本页回答**：`gwb.testedKernel` 写在哪、谁读、拿什么比；比对规则为什么有两份、两份靠什么保持一样。
@@ -22,7 +22,7 @@ description: 连接插件包 package.json 里的 gwb.testedKernel 与三个读�
 
 {/* ref file="../plugins/devkit/src/tested-kernel.ts" lines="9-31" */}
 
-{/* ref file="../plugins/plugin-manager/src/tested-kernel.ts" lines="16-38" */}
+{/* ref file="../plugins/plugin-manager/src/tested-kernel.ts" lines="19-41" */}
 
 **devkit 这边**：`devkit.release` 只查 `keywords` 含 `gwb-plugin` 的包，拿的是 devkit 自己所在那个 home 的 `gwbKernel.version`：
 
@@ -40,7 +40,7 @@ devkit 保证：插件包的 `gwb.testedKernel` 没写、不合法、不在当�
 
 插件管理保证：`kernelUntested` 只报告，不拦加载、不拦安装。
 
-**两份规则保持一样靠约定**：写在三处——devkit 那份 `tested-kernel.ts` 的文件头（「两边各存一份……改规则时两份一起改」）、本仓 AGENTS 的「本仓还有插件管理」、本站[在哪个内核上测过](/docs/plugin-manager/kernel-compat)。插件管理那份的文件头没有提到另一份。没有测试拿同一组输入跑两份比较结果。
+**两份规则保持一样靠同一个提交一起改，加一组对照测试把关**：「改规则时两份一起改」写在两份 `tested-kernel.ts` 的文件头、本仓 AGENTS 的「本仓还有插件管理」与本站[在哪个内核上测过](/docs/plugin-manager/kernel-compat)；devkit 的 `tests/tested-kernel-parity.test.ts` 把两份都 import 进来，拿同一组版本号与包清单跑三个函数，返回值或抛出的错误不同就失败。
 
 插件管理的 `loader.test.ts` 还把 loader、include、cordis 三个 `devDependencies` 的版本与 `gwb.testedKernel` 那个内核对齐，见[条目树 loader](/docs/seams/entry-tree)。
 
@@ -56,10 +56,12 @@ devkit 保证：插件包的 `gwb.testedKernel` 没写、不合法、不在当�
 
 ## 测试
 
-两份规则各有一份内容相同的单元测试，发版前检查另有一条：
+两份规则各有一份内容相同的单元测试，另有一组对照测试比对两份的行为，发版前检查另有一条：
 
 {/* has file="../plugins/devkit/tests/tested-kernel.test.ts" text="0.x 同一个次版本号算测过，次版本号不同不算" */}
 
 {/* has file="../plugins/plugin-manager/tests/tested-kernel.test.ts" text="0.x 同一个次版本号算测过，次版本号不同不算" */}
+
+{/* has file="../plugins/devkit/tests/tested-kernel-parity.test.ts" text="testedOnSameKernelLine：声明版本 × 运行中的内核版本，结果与抛错都相同" */}
 
 {/* has file="../plugins/devkit/tests/release.test.ts" text="插件包的 gwb.testedKernel 不对：构建之后、发之前拒，一个都不发，每个包的问题一次列全" */}

@@ -3,7 +3,7 @@ import { isRecord } from './vocab.js'
 /**
  * 插件在哪个内核版本上测过：包自己的 package.json 里写 `gwb.testedKernel`，和运行中的内核版本比对。
  * 比对规则与插件管理（@godcreator/gwb-plugin-manager 的 `src/tested-kernel.ts`）相同，两边各存一份、
- * 不跨包 import；改规则时两份一起改。
+ * 不跨包 import；改规则时两份一起改。`tests/tested-kernel-parity.test.ts` 拿同一组输入跑两份，结果不同就失败。
  */
 
 const SEMVER = /^(0|[1-9]\d*)\.(0|[1-9]\d*)\.(0|[1-9]\d*)(?:-[0-9A-Za-z.-]+)?(?:\+[0-9A-Za-z.-]+)?$/
