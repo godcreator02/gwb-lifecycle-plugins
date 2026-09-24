@@ -530,7 +530,7 @@ export async function runDev(input: DevInput, deps: DevDeps): Promise<DevOutcome
   for (const one of shipped) {
     const entries = entriesOf(listed.data, one.pkg)
     if (entries.length === 0) {
-      one.note = `装上了,但 ${guard.name} 里没有它的条目,没重挂——第一次建条目走 plugin-manager.install {"pkg":"${one.pkg}","spec":"${one.version}"}(钉这一趟的号,不给 spec 会装成 latest),之后每趟 devkit.dev`
+      one.note = `装上了,但 ${guard.name} 里没有它的条目,没有重新加载——第一次建条目在 ${guard.name} 里经 devkit.cdp 的 cmd 调 plugin-manager.install {"pkg":"${one.pkg}","spec":"${one.version}"}(经 MCP 调会装进 default;spec 写这次的版本号,不给会装成 latest),之后每改一版用 devkit.dev`
       continue
     }
     for (const entry of entries) {

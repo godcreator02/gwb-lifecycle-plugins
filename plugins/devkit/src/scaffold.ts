@@ -428,7 +428,7 @@ export function nextSteps(
   }
   steps.push(
     `进隔离 home：devkit.home.new 开一个，devkit.dev {"home":"<名>","dir":"${plan.dir}","packages":["plugins/${plan.name}"]} 发出开发版并装进去（回执说没有条目可重新加载）`,
-    `建条目：plugin-manager.install {"pkg":"${plan.pkg}","spec":"<回执里那个开发版号>"}；之后每改一版用 devkit.dev（packages 同上）`,
+    `建条目：在这个隔离 home 里经 devkit.cdp 的 cmd 调 plugin-manager.install {"pkg":"${plan.pkg}","spec":"<回执里那个开发版号>"}（经 MCP 调会装进 default）；之后每改一版用 devkit.dev（packages 同上）`,
     `验收：${plan.name}.ping 回 {ok:true,…}；plugins/${plan.name} 的窗格显示「你好」，计数按钮点得动`,
     `发正式版照 skill「gwb-release」：升版本号、提交、devkit.release {"dir":"${plan.dir}","packages":["plugins/${plan.name}"]}，发完马上升级 default`,
     `加第二个插件：devkit.scaffold.plugin {"repo":"${plan.dir}","name":"<短名>"}；写插件读 skill「gwb-devkit」；文档写什么读 skill「docfirst-docs」`,
@@ -452,7 +452,7 @@ export function nextStepsPlugin(plan: ScaffoldPluginPlan, pageTarget: string | n
     'pnpm check          # 模板插件自带四份测试，没过先看 description 的三项自述改没改',
     pageStep,
     `进隔离 home：devkit.home.new 开一个，devkit.dev {"home":"<名>","dir":"${plan.repoDir}","packages":["plugins/${plan.name}"]} 发出开发版并装进去（回执说没有条目可重新加载）`,
-    `建条目：plugin-manager.install {"pkg":"${plan.pkg}","spec":"<回执里那个开发版号>"}；之后每改一版用 devkit.dev（packages 同上）`,
+    `建条目：在这个隔离 home 里经 devkit.cdp 的 cmd 调 plugin-manager.install {"pkg":"${plan.pkg}","spec":"<回执里那个开发版号>"}（经 MCP 调会装进 default）；之后每改一版用 devkit.dev（packages 同上）`,
     `验收：${plan.name}.ping 回 {ok:true,…}；plugins/${plan.name} 的窗格显示「你好」，计数按钮点得动`,
     `发正式版照 skill「gwb-release」：升版本号、提交、devkit.release {"dir":"${plan.repoDir}","packages":["plugins/${plan.name}"]}（同一次还要发别的包就按依赖顺序排进数组），发完马上升级 default`,
     '把新插件写进 README 的插件清单（正本在 docs-site/content/outputs/，改完 doc:render）；写插件读 skill「gwb-devkit」',
