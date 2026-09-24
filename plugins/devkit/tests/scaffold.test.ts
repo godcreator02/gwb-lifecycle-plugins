@@ -1,9 +1,9 @@
 import fs from 'node:fs'
 import os from 'node:os'
 import path from 'node:path'
-import { fileURLToPath } from 'node:url'
+import { fileURLToPath, pathToFileURL } from 'node:url'
 import { afterEach, describe, expect, it } from 'vitest'
-import { injectServicesOf, registerSelfReportGuard } from '@godcreator/gwb-repo-kit'
+import { injectServicesOf, mountHarness, registerPluginGuard, registerSelfReportGuard } from '@godcreator/gwb-repo-kit'
 import {
   NAME_RE,
   PKG_ZONE,
@@ -544,6 +544,30 @@ describe('插件页：让建好站的新仓第一次 pnpm check 就过自述检�
       expect(results.filter((one) => one.error !== null), short).toEqual([])
     }
     expect(fs.readdirSync(path.join(docsDir, 'plugins')).sort()).toEqual(['hello.mdx', 'world.mdx'])
+  })
+})
+
+describe('模板插件过 repo-kit 的插件守卫', () => {
+  it('端到端：建仓后 import 生成的 src/index.ts，插件守卫四项全过；ping 命令的参数形状写在 usage 里', async () => {
+    const repoDir = path.join(sandbox(), 'repo')
+    const plan = planScaffold({ name: 'hello', dir: repoDir, testedKernel: KERNEL })
+    writeRepo(repoDir, renderTemplate(TEMPLATE_ROOT, plan))
+    const entry = (await import(pathToFileURL(path.join(repoDir, 'plugins', 'hello', 'src', 'index.ts')).href)) as {
+      apply: (ctx: never) => void
+      name: string
+    }
+
+    const cases: { name: string; fn: () => void | Promise<void> }[] = []
+    registerPluginGuard(
+      { describe: (_name, fn) => fn(), it: (name, fn) => cases.push({ name, fn }), expect: (actual, message) => expect(actual, message) },
+      { apply: entry.apply, name: entry.name, pkg: plan.pkg, pkgName: plan.pluginName, short: plan.name },
+    )
+    expect(cases).toHaveLength(4)
+    for (const one of cases) await one.fn()
+
+    const ping = mountHarness(entry.apply).commands.find((one) => one.name === 'hello.ping')
+    expect(ping?.usage).toBe('无参数')
+    expect(ping?.description).not.toContain('无参数')
   })
 })
 

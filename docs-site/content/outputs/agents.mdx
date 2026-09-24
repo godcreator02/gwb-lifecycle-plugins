@@ -146,16 +146,13 @@ findings 里那条 info 按实际文件名列好了 git mv 清单；改已有的
 `define` 一项（类型 `string` / `number` / `boolean` / `secret`），别在条目上加
 config——写在 yml 里的那份界面看不见、agent 也不知道有它。
 
-## 命令的 description 必须带参数形状
+## 命令的参数形状写进 usage
 
-命令总线不带参数 schema，调用方（多数是 agent）看得见的只有 description 那一句：它得**只看
-它就知道参数怎么给**。所以每条 `register` 的 description 里写出形状（`{ lines?: number }`、
-`{ name, force? }`），**无参数的明写「无参数」**。参数复杂的，回执里再带完整说明
-（`devkit.scaffold` / home 那几条就是这样做的），但 description 里那句形状仍然要有。
-
-**命令不会单独出现在 MCP 的工具列表里**：MCP 入口只有 `index` / `search` / `run` 三个工具，agent
-经 `index` 看到一句话 description、经 `search` 看到 usage、经 `run` 按名字调用。所以 description
-写一句话、参数形状写进 `usage`，两样都是 agent 唯一的说明。
+命令总线不带参数 schema，命令也不单独出现在 MCP 的工具列表里：MCP 入口只有 `index` / `search` / `run`
+三个工具，agent 经 `index` 看到 `description`、经 `search` 看到 `usage`、经 `run` 按名字调用。所以每条
+`register` 的 `description` 写一句话说命令做什么，参数形状写进 `usage`（`{ lines?: number }`、
+`{ name, force? }`），**无参数的写「无参数」**。参数复杂的，回执里再带完整说明
+（`devkit.scaffold` / home 那几条就是这样做的），但 `usage` 里那句形状仍然要有。
 
 ## 建站是两步，两条都不是本包的命令
 

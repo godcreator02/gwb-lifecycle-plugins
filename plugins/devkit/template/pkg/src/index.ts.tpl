@@ -35,7 +35,9 @@ export function apply(ctx: GwbContext): void {
     commands.register(
       {
         name: '{{name}}.ping',
-        description: '模板自带的命令：返回插件名与当前时间，用来确认插件已加载。无参数',
+        // description 一句话说命令做什么（MCP 入口的 index 列它），参数形状写进 usage（search 列它），无参数写「无参数」
+        description: '模板自带的命令：返回插件名与当前时间，用来确认插件已加载',
+        usage: '无参数',
         plugin: '{{pkg}}',
       },
       async () => ({ ok: true, data: { plugin: name, time: new Date().toISOString() } }),

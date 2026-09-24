@@ -7,8 +7,8 @@ import { mountHarness, registerPluginGuard } from '../src/plugin-guard.js'
 import type { GuardVt } from '../src/vitest-context.js'
 
 /**
- * 守卫的守卫：假一套 vitest 三件套把用例录音，再在真 it 里逐条回放——
- * 正本守卫挑错的行为本身得先被钉住，不然薄壳挂了个寂寞。
+ * 测守卫本身：用假的 describe / it / expect 把守卫注册的用例记下来，再在真的 it 里逐条运行——
+ * 守卫能不能挑出错得先有测试保证，否则各仓 tests 里调用它的那几行什么也没查。
  */
 
 interface Case {
@@ -52,7 +52,7 @@ function recorder(): { vt: GuardVt; cases: Case[] } {
   return { vt, cases }
 }
 
-/** 每条录音用例都在真 it 里跑一遍，断言它按预期过/炸 */
+/** 记下的每条用例都在真的 it 里运行一遍，断言它按预期通过或抛错 */
 function replay(cases: Case[]): { pass: (namePart: string) => void; failsWith: (namePart: string, part: string) => void } {
   return {
     pass: (namePart) => {
@@ -73,7 +73,7 @@ afterAll(() => {
   for (const dir of tmps) fs.rmSync(dir, { recursive: true, force: true })
 })
 
-/** 造一个迷你包：package.json + src/index.ts（+ 可选 skills/ 与站现状区） */
+/** 在临时目录里建一个最小的包：package.json + src/index.ts（可选 skills/ 与文档站现状区） */
 function fixtureRepo(description: string, src: string, extra: { skills?: number; docs?: string; provides?: Record<string, unknown> } = {}): string {
   const root = fs.mkdtempSync(path.join(os.tmpdir(), 'repo-kit-'))
   tmps.push(root)
@@ -198,48 +198,108 @@ describe('registerSelfReportGuard', () => {
 })
 
 describe('registerPluginGuard + mountHarness', () => {
-  const goodApply = (ctx: unknown): void => {
-    const c = ctx as {
-      effect(f: () => unknown): () => void
-      gwbShell: { registerPane(d: unknown): void }
-      gwbCommands: { register(d: unknown, h: unknown): () => void }
-    }
-    c.effect(() => {
-      c.gwbShell.registerPane({ id: 'main', client: 'file:///x/dist/client.js', style: 'file:///x/dist/style.css' })
-      c.gwbCommands.register({ name: 'demo.ping', description: '回个话：无参数', plugin: '@godcreator/gwb-demo' }, () => {})
-    })
+  interface FakeCtx {
+    effect(f: () => unknown): () => void
+    inject(services: string[], callback: (scoped: FakeCtx) => void): () => void
+    gwbShell: { registerPane(d: unknown): () => void }
+    gwbCommands: { register(d: unknown, h: unknown): () => void }
   }
+  const PKG = '@godcreator/gwb-demo'
+  const pane = { id: 'main', title: '演示', client: 'file:///x/dist/client.js', style: 'file:///x/dist/style.css' }
+  const ping = { name: 'demo.ping', description: '回个话', usage: '无参数', plugin: PKG }
 
-  it('登记齐全：三条用例都过', () => {
-    const { vt, cases } = recorder()
-    registerPluginGuard(vt, { apply: goodApply, name: 'gwb-demo', pkg: '@godcreator/gwb-demo', pkgName: 'gwb-demo', short: 'demo' })
-    expect(cases).toHaveLength(3)
-    const r = replay(cases)
-    r.pass('同一个短名')
-    r.pass('一格窗格')
-    r.pass('ping 命令')
-  })
-  it('名字与包名不同源：第一条炸', () => {
-    const { vt, cases } = recorder()
-    registerPluginGuard(vt, { apply: goodApply, name: 'gwb-other', pkg: '@godcreator/gwb-demo', pkgName: 'gwb-demo', short: 'demo' })
-    replay(cases).failsWith('同一个短名', '≠')
-  })
-  it('描述没写参数形状：第三条炸在「无参数」', () => {
-    const badApply = (ctx: unknown): void => {
-      const c = ctx as ReturnType<typeof goodApply> extends never ? never : {
-        effect(f: () => unknown): () => void
-        gwbCommands: { register(d: unknown, h: unknown): () => void }
-      }
-      c.effect(() => {
-        c.gwbCommands.register({ name: 'demo.ping', description: '回个话', plugin: '@godcreator/gwb-demo' }, () => {})
-      })
+  /** 按给定的窗格与命令注册的 apply，形状任意：几个窗格、几条命令、命令叫什么都行 */
+  function applyRegistering(panes: unknown[], commands: unknown[]): (ctx: never) => void {
+    return (ctx: never) => {
+      const c = ctx as FakeCtx
+      for (const one of panes) c.gwbShell.registerPane(one)
+      for (const one of commands) c.gwbCommands.register(one, () => {})
     }
+  }
+  const options = (apply: (ctx: never) => void, over: Partial<{ name: string; pkg: string; pkgName: string; short: string }> = {}) => ({
+    apply,
+    name: 'gwb-demo',
+    pkg: PKG,
+    pkgName: 'gwb-demo',
+    short: 'demo',
+    ...over,
+  })
+
+  it('模板形状（一个窗格、一条 ping）：四条用例都过', () => {
     const { vt, cases } = recorder()
-    registerPluginGuard(vt, { apply: badApply, name: 'gwb-demo', pkg: '@godcreator/gwb-demo', pkgName: 'gwb-demo', short: 'demo' })
-    replay(cases).failsWith('ping 命令', '无参数')
+    registerPluginGuard(vt, options(applyRegistering([pane], [ping])))
+    expect(cases).toHaveLength(4)
+    const r = replay(cases)
+    r.pass('三者对得上')
+    r.pass('不抛错')
+    r.pass('每条命令')
+    r.pass('每个窗格')
+  })
+  it('不是模板形状也过：没有窗格、多个窗格、多条命令、命令名不以短名开头', () => {
+    for (const apply of [
+      applyRegistering([], [ping]),
+      applyRegistering([pane, { id: 'side', title: '侧栏' }], []),
+      applyRegistering([], [ping, { name: 'skill.read', description: '读一份说明书', usage: '参数 { name }', plugin: PKG }]),
+      applyRegistering([], []),
+    ]) {
+      const { vt, cases } = recorder()
+      registerPluginGuard(vt, options(apply))
+      const r = replay(cases)
+      for (const name of ['三者对得上', '不抛错', '每条命令', '每个窗格']) r.pass(name)
+    }
+  })
+  it('在 ctx.inject 里注册的也算：点名的服务都在替身上就回调', () => {
+    const apply = (ctx: never): void => {
+      const c = ctx as FakeCtx
+      c.inject(['gwbShell'], (scoped) => scoped.gwbShell.registerPane({ ...pane, id: 'late' }))
+      c.inject(['gwbNotHere'], (scoped) => scoped.gwbShell.registerPane({ ...pane, id: 'never' }))
+    }
+    expect(mountHarness(apply).panes.map((one) => one.id)).toEqual(['late'])
+  })
+  it('名字与包名不同源、pkgName 与短名对不上、包名不以 /<pkgName> 结尾：第一条炸', () => {
+    for (const [over, part] of [
+      [{ name: 'gwb-other' }, '导出的 name'],
+      [{ short: 'other' }, 'gwb-<短名>'],
+      [{ pkg: '@godcreator/gwb-other' }, '要以 /gwb-demo 结尾'],
+    ] as const) {
+      const { vt, cases } = recorder()
+      registerPluginGuard(vt, options(applyRegistering([pane], [ping]), over))
+      replay(cases).failsWith('三者对得上', part)
+    }
+  })
+  it('apply 在替身上抛错：第二条炸', () => {
+    const { vt, cases } = recorder()
+    registerPluginGuard(vt, options(() => {
+      throw new Error('要 gwbSettings')
+    }))
+    replay(cases).failsWith('不抛错', 'gwbSettings')
+  })
+  it('命令没写 usage、description 为空、plugin 写短名：第三条炸，报出是哪条命令', () => {
+    for (const [bad, part] of [
+      [{ ...ping, usage: undefined }, 'usage'],
+      [{ ...ping, usage: '' }, 'usage'],
+      [{ ...ping, description: '' }, 'description'],
+      [{ ...ping, plugin: 'demo' }, 'plugin'],
+    ] as const) {
+      const { vt, cases } = recorder()
+      registerPluginGuard(vt, options(applyRegistering([], [bad])))
+      replay(cases).failsWith('每条命令', part)
+    }
+  })
+  it('窗格 id 为空、client 不是 file: 地址、style 不以 .css 结尾：第四条炸', () => {
+    for (const [bad, part] of [
+      [{ ...pane, id: '' }, 'id'],
+      [{ ...pane, client: 'http://x/client.js' }, 'client'],
+      [{ ...pane, client: 'not a url' }, 'client'],
+      [{ ...pane, style: 'file:///x/dist/style.js' }, 'style'],
+    ] as const) {
+      const { vt, cases } = recorder()
+      registerPluginGuard(vt, options(applyRegistering([bad], [])))
+      replay(cases).failsWith('每个窗格', part)
+    }
   })
   it('mountHarness 独立可用：注册即发生', () => {
-    const h = mountHarness(goodApply)
+    const h = mountHarness(applyRegistering([pane], [ping]))
     expect(h.panes).toHaveLength(1)
     expect(h.commands[0]?.name).toBe('demo.ping')
   })

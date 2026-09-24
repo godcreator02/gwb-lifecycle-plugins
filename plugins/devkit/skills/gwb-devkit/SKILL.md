@@ -11,8 +11,8 @@ description: 写新插件、改插件、在隔离 home 里验证改动时读；�
 2. 带界面的插件，先读外壳的说明书 `skill.read {"name":"gwb-shell"}`
 3. 建仓：`devkit.scaffold {"name":"<kebab 短名>","dir":"<还不存在的绝对路径>","title":"<显示名>"}`；往已有的 workspace 仓再加一个插件用 `devkit.scaffold.plugin {"repo":"<仓根>","name":"<短名>"}`。照回执里的 `nextSteps` 做完（`docs.built` / `docs.attached` 是文档站实际建成没有）
 4. 把模板改成真插件，每一处都守「写插件的规矩」：
-   * `src/index.ts`：模板的 `<短名>.ping` 与窗格 `main` 换成真正的命令与窗格。命令照模板那条的写法登记：`plugin` 写包名，参数形状写进 `usage`，无参数写「无参数」
-   * `tests/`：不启动进程、不开窗就能测的逻辑抽成纯函数来测；真要启动子进程的用例打 `slow` 标签。模板的 `tests/plugin.test.ts` 按真插件的窗格与命令改写，自己的断言用 repo-kit 的 `mountHarness` 写
+   * `src/index.ts`：模板的 `<短名>.ping` 与窗格 `main` 换成真正的命令与窗格。命令照模板那条的写法登记：`plugin` 写包名，`description` 一句话说做什么，参数形状写进 `usage`，无参数写「无参数」
+   * `tests/`：不启动进程、不开窗就能测的逻辑抽成纯函数来测；真要启动子进程的用例打 `slow` 标签。模板的 `tests/plugin.test.ts` 不用改：repo-kit 的插件守卫只查插件名与包名对得上、`apply` 在替身上能运行、每条命令的 `plugin` 与 `description`、`usage`、每个窗格的 `id` 与地址，不管有几个窗格、几条命令。`apply` 用到替身没有的成员（替身只有 logger、effect、inject、`gwbShell.registerPane`、`gwbCommands.register`）时守卫会失败，这时把 `tests/plugin.test.ts` 改成自己造替身写断言；本仓特有的断言用 repo-kit 的 `mountHarness` 写
    * `package.json`：`description` 里「服务 / skill / 命令」三项跟着实际数目改；提供服务就在 `gwb.provides` 里按服务名写一条；有了 `skills/` 目录就把 `skills` 加进 `files`
    * 文档站的插件页 `docs-site/content/docs/plugins/<短名>.mdx`：写出 `src/index.ts` 里 `inject` 的每个服务名
 5. 仓根 `pnpm build`，再 `pnpm check`

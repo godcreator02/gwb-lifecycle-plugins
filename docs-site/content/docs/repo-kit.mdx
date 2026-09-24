@@ -1,6 +1,6 @@
 ---
 title: gwb-repo-kit · 仓侧检查
-description: "@godcreator/gwb-repo-kit 是各插件仓装在 devDependencies 里的测试守卫包：自述守卫查 description、gwb.provides、说明书份数与文档里的服务名，插件守卫查插件名与挂载时的登记；本页讲它的功能、导出、依赖与不做的事"
+description: "@godcreator/gwb-repo-kit 是各插件仓装在 devDependencies 里的测试守卫包：自述守卫查 description、gwb.provides、说明书份数与文档里的服务名，插件守卫查插件名与包名、apply 在替身上能运行、登记的每条命令与每个窗格的结构；本页讲它的功能、导出、依赖与不做的事"
 ---
 
 **本页回答**：repo-kit 有哪些功能；它导出什么、各仓怎么用、属于哪条接缝；它依赖什么；哪些检查不归它。包名 `@godcreator/gwb-repo-kit`，源码目录 `packages/repo-kit/src`，入口文件 `src/index.ts`。
@@ -10,12 +10,14 @@ repo-kit 是一个库，不是插件（`keywords` 只写 `gwb`），不装进 ho
 ## 功能
 
 - **自述守卫**：一个插件包的 `description` 必须写齐「服务 / skill / 命令」三项；源码提供的服务名都写进 `description`；`gwb.provides` 的键与源码提供的服务一一对应、`summary` 与 `usage` 不空；`skills/` 下带 `SKILL.md` 的目录数等于 `description` 里写的份数；源码注入的服务名在文档站现状区里都出现过
-- **插件守卫**：插件名等于 `gwb-<短名>`；`apply` 时登记了一个 id 为 `main` 的窗格，客户端脚本与样式表都是 `file://` 地址；登记了一条 `<短名>.ping` 命令，`plugin` 写包名、描述里写着「无参数」。它按模板生成的插件写，查的是模板里那个窗格与那条命令
-- **用假 ctx 挂载插件**：`mountHarness` 给一个最小的假 `ctx`（logger、effect、`gwbShell.registerPane`、`gwbCommands.register`），调用插件的 `apply`，回登记下来的窗格与命令，各仓写自己的挂载断言时直接用
+- **插件守卫**：只查对任何插件都成立的结构。插件名等于 `gwb-<短名>`、包名以 `/gwb-<短名>` 结尾；`apply` 在替身上运行不抛错；登记的每条命令 `plugin` 是包名，`name`、`description`、`usage` 非空；注册的每个窗格 `id` 非空，给了 `client` 就是以 `.js` 结尾的 `file:` 地址，给了 `style` 就是以 `.css` 结尾的 `file:` 地址。不查有几个窗格、几条命令、叫什么，模板改成真插件之后照样适用
+- **在替身上运行 `apply`**：`mountHarness` 给一个最小的替身 `ctx`（logger、effect、inject、`gwbShell.registerPane`、`gwbCommands.register`；inject 在点名的服务都在替身上时立刻回调），调用插件的 `apply`，回登记下来的窗格与命令，各仓写自己的注册断言时直接用
 - **只查插件**：`keywords` 里没有 `gwb-plugin` 的包（库、工具包）自述守卫直接跳过，一条用例都不登记
 - **不绑定 vitest 版本**：守卫收调用方传进来的 `describe` / `it` / `expect`，只要求结构对得上，所以各仓用哪一版 vitest 都行，也不会解析出第二份 vitest
 
 命令条数不查：源码里命令名有字面量、常量、模板字符串、条件登记几种写法，扫出来的数和运行时对不上，所以只查「命令 N 条」或「命令无」这个写法本身。
+
+插件守卫不查的两条：命令名以 `<短名>.` 开头——说明书插件 `@godcreator/gwb-skills` 登记的是 `skill.list` / `skill.read`，这条不对所有插件成立；`client` 指向的文件在构建产物里——测试里 `apply` 从 `src/` 加载，按 `import.meta.url` 算出的地址落在 `src/` 下，而 `pnpm check` 不构建。
 
 ## 接口
 
@@ -33,9 +35,9 @@ repo-kit 是一个库，不是插件（`keywords` 只写 `gwb`），不装进 ho
 | `SelfReportGuardOptions` | 上面第二个参数的类型 | `self-report-guard.ts` |
 | `injectServicesOf(源码文本)` | 扫出注入的服务名：`export const inject`、`static inject`、局部 `ctx.inject([...])` 三种写法 | `self-report-guard.ts` |
 | `providedServicesOf(源码文本)` | 扫出提供的服务名：`super(ctx, '<名>')`、`ctx.provide('<名>', …)`、`new XxxService(ctx, '<名>')` 三种写法 | `self-report-guard.ts` |
-| `registerPluginGuard(vt, { apply, name, pkg, pkgName, short })` | 登记插件守卫的三条用例 | `plugin-guard.ts` |
+| `registerPluginGuard(vt, { apply, name, pkg, pkgName, short })` | 登记插件守卫的四条用例 | `plugin-guard.ts` |
 | `PluginGuardOptions` | 上面第二个参数的类型；`apply` 收 `never`，各仓把参数收窄成 `GwbContext` 的 `apply` 都传得进来 | `plugin-guard.ts` |
-| `mountHarness(apply)` | 用假 `ctx` 调用 `apply`，回 `{ panes, commands }` | `plugin-guard.ts` |
+| `mountHarness(apply)` | 用替身 `ctx` 调用 `apply`，回 `{ panes, commands }` | `plugin-guard.ts` |
 | `GuardVt`、`GuardExpect` | 调用方传进来的 `describe` / `it` / `expect` 需要满足的结构 | `vitest-context.ts` |
 
 扫服务名是按文本匹配，不解析语法：
@@ -48,9 +50,9 @@ repo-kit 是一个库，不是插件（`keywords` 只写 `gwb`），不装进 ho
 
 插件守卫的参数与 `mountHarness`：
 
-{/* ref file="../packages/repo-kit/src/plugin-guard.ts" lines="12-27" */}
+{/* ref file="../packages/repo-kit/src/plugin-guard.ts" lines="24-39" */}
 
-{/* ref file="../packages/repo-kit/src/plugin-guard.ts" lines="47-66" */}
+{/* ref file="../packages/repo-kit/src/plugin-guard.ts" lines="55-88" */}
 
 **使用方**：
 
@@ -66,7 +68,7 @@ repo-kit 是一个库，不是插件（`keywords` 只写 `gwb`），不装进 ho
 
 **改它的规则**：守卫加一条用例、收紧一条判断，所有装了新版的仓下一次 `pnpm check` 都会按新规则查，原本通过的仓也可能变红；升哪一位照说明书 `gwb-release` 判断。模板里 repo-kit 的版本号要跟着改（`template/pkg/package.json.tpl`），改之前先用 `pnpm view @godcreator/gwb-repo-kit dist-tags.latest` 查源上的版本。repo-kit 和 devkit 一起改时同一次发版，`packages` 里把 `packages/repo-kit` 排在前面（见[开发](/docs/develop#发版)）。
 
-**怎么测**：`packages/repo-kit/tests/self-report.test.ts` 在临时目录里写一个假插件包，传一份假的 `vt` 收集用例：自述齐全时五条都过；`gwb.provides` 漏写、多写、`usage` 为空、`description` 没写服务名、说明书份数不对、服务名没进文档、三项少一项，各自让对应那一条失败；库直接跳过；插件守卫的三条与 `mountHarness` 单独可用。
+**怎么测**：`packages/repo-kit/tests/self-report.test.ts` 在临时目录里写一个假插件包，传一份假的 `vt` 收集用例：自述齐全时五条都过；`gwb.provides` 漏写、多写、`usage` 为空、`description` 没写服务名、说明书份数不对、服务名没进文档、三项少一项，各自让对应那一条失败；库直接跳过；插件守卫四条：模板形状与非模板形状（没有窗格、多个窗格、多条命令、命令名不以短名开头）都过，名字对不上、`apply` 抛错、命令缺 `usage` 或 `description` 或 `plugin` 写短名、窗格 `id` 为空或地址不是 `file:`，各自让对应那一条失败；在 `ctx.inject` 里注册的也记下；`mountHarness` 单独可用。devkit 的 `tests/scaffold.test.ts` 另把模板生成的 `src/index.ts` import 进来跑一遍插件守卫，四条全过。
 
 ## 依赖
 
@@ -74,10 +76,10 @@ repo-kit 是一个库，不是插件（`keywords` 只写 `gwb`），不装进 ho
 | --- | --- | --- |
 | `node:fs`、`node:path` | 读包的 `package.json`、`src/`、`skills/` 与文档站的 `.mdx` | Node 内置，不会缺 |
 | 调用方传进来的 vitest 的 `describe` / `it` / `expect` | 登记与断言 | 不传就没有用例；repo-kit 自己不依赖 vitest，`devDependencies` 里的 vitest 只给本包的测试用 |
-| 调用方传进来的插件 `apply` | 插件守卫挂载它看登记了什么 | 插件的 `apply` 用了假 `ctx` 里没有的成员时，挂载那一步抛错，插件守卫的用例失败 |
+| 调用方传进来的插件 `apply` | 插件守卫在替身上运行它看注册了什么 | 插件的 `apply` 用了替身 `ctx` 里没有的成员（`requireKernel`、`gwbSettings` 等）时抛错，插件守卫的用例失败；这样的插件自己造替身写断言 |
 | TypeScript 编译器（开发依赖） | `build` 生成 `dist/` | 构建不出来，就发不了包 |
 
-没有运行时依赖：`dependencies` 是空的，也不 import 词汇表包——假 `ctx` 的形状用本地的结构类型写，使用方自己已经有那份类型。
+没有运行时依赖：`dependencies` 是空的，也不 import 词汇表包——替身 `ctx` 的形状用本地的结构类型写，使用方自己已经有那份类型。
 
 ## 不做的事
 

@@ -71,15 +71,16 @@ export default class GwbExample extends Service {
 
 **往继承了 `Service` 的服务里注册，不用自己包 `ctx.effect`**；往 `ctx.provide` 提供的扩展点服务里注册，要自己包。外壳 `gwbShell` 与命令总线 `gwbCommands`（0.4.6 起）都继承了 `Service`。模板注册窗格直接调；注册命令还包了一层 `ctx.effect`，因为模板的 dev 依赖范围还包含 0.4.6 之前、不会自动注销的命令总线：
 
-{/* ref file="../plugins/devkit/template/pkg/src/index.ts.tpl" lines="28-43" */}
+{/* ref file="../plugins/devkit/template/pkg/src/index.ts.tpl" lines="28-45" */}
 
 模板的命令总线下限升到 0.4.6 之后，那一层包装可以删；不删也没有坏处，注销函数执行第二次什么也不做。
 
 ## 登记命令
 
 - `plugin` 字段写包名
-- 描述里写出参数形状（`{ entryId, enabled? }`），无参数就写「无参数」。命令总线不带参数 schema，agent 能看见的只有描述和 `usage`
-- repo-kit 的插件守卫只查模板那条 `<短名>.ping`：`plugin` 是包名、描述里有「无参数」
+- `description` 一句话说命令做什么，MCP 入口的 `index` 列出它
+- 参数形状写进 `usage`（`{ entryId, enabled? }`），无参数就写「无参数」。`search` 命中的那一行带 `usage`；命令总线不带参数 schema，agent 知道参数怎么给只能看它
+- repo-kit 的插件守卫查 `apply` 登记的每条命令：`plugin` 是包名，`name`、`description`、`usage` 非空。不查命令名的前缀，也不查有几条命令
 
 ## 几个坑
 

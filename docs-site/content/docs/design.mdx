@@ -115,7 +115,7 @@ devkit 没有任何特权：装进 home 才有它的命令，加载不成功就�
 
 ## repo-kit 和模板放在同一个仓
 
-`devkit.scaffold` 生成的每个插件包都带两份测试登记代码，调用的是 repo-kit 的 `registerSelfReportGuard` 与 `registerPluginGuard`，模板里还写着 repo-kit 的版本号。改守卫的参数或用例，模板里的登记代码要跟着改；改模板生成的插件的形状（比如窗格或示例命令），插件守卫要跟着改。两份正本放在一个仓里，一个提交改两边、一次发版发两个包。
+`devkit.scaffold` 生成的每个插件包都带两份测试登记代码，调用的是 repo-kit 的 `registerSelfReportGuard` 与 `registerPluginGuard`，模板里还写着 repo-kit 的版本号。改守卫的参数或用例，模板里的登记代码要跟着改。插件守卫只查对任何插件都成立的结构（名字对得上、`apply` 能运行、每条命令与每个窗格的字段），改模板插件有几个窗格、哪条示例命令不用改守卫；devkit 的建仓测试把模板生成的 `src/index.ts` 跑一遍插件守卫，两边不一致当场失败。两份正本放在一个仓里，一个提交改两边、一次发版发两个包。
 
 {/* has file="../plugins/devkit/template/pkg/tests/self-report.test.ts.tpl" text="import { registerSelfReportGuard } from '@godcreator/gwb-repo-kit'" */}
 
