@@ -160,13 +160,13 @@ describe('件包层', () => {
   })
 
   it('Service 形（default export）不是断链——第三环无从核，放过；双引号也认', () => {
-    // 基础插件仓的数据插件那批是 Service 形式的插件，拿引号风格或写法当判据只会误报
+    // 基础插件仓的数据插件都是 Service 形式的插件，拿引号风格或写法当判据只会误报
     expect(audit(build(workspaceFiles('x', { 'src/index.ts': 'export default class X extends Service {}\n' }))).findings).toEqual([])
     expect(audit(build(workspaceFiles('x', { 'src/index.ts': 'export const name = "gwb-x"\n' }))).findings).toEqual([])
   })
 
   it('plugins/ 目录用全名（gwb- 前缀）→ warn，block-note 式历史形状', () => {
-    // 短名取 'gwb-foo'：包名跟着目录派生（@godcreator/gwb-gwb-foo），派生链是对的，
+    // 短名取 'gwb-foo'：包名跟着目录派生（@godcreator/gwb-gwb-foo），包名与目录名对得上，
     // 只剩「目录名带前缀」这一条 warn
     expect(audit(build(workspaceFiles('gwb-foo'))).kinds).toEqual(['plugin-dir-full-name'])
   })
@@ -191,7 +191,7 @@ describe('件包层', () => {
   it('files 白名单缺 dist → error（插件挂不上）；目录在（skills）而白名单没带也是 error', () => {
     const noDist = audit(build(workspaceFiles('x', {}, { files: ['src'] })))
     expect(noDist.kinds).toEqual(['files-whitelist'])
-    expect(noDist.findings[0]?.detail).toContain('挂不上')
+    expect(noDist.findings[0]?.detail).toContain('加载失败')
     expect(audit(build(workspaceFiles('x', { 'skills/a/SKILL.md': '# a\n' }))).kinds).toEqual(['files-whitelist'])
   })
 
