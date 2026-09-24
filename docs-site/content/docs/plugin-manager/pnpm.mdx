@@ -5,7 +5,7 @@ description: 插件管理不自带 pnpm，只认用户装在两个固定位置�
 
 # pnpm
 
-**本页回答**：插件管理用的是哪个 pnpm、怎么找到它；怎么启动它、带什么参数与环境、读回什么；卸载时正在运行的 pnpm 为什么不结束。pnpm 什么时候运行、为什么排队，见[只有插件管理写 home](/docs/plugin-manager/home#包只经-applytohome排进一个串行队列)。
+**本页回答**：插件管理用的是哪个 pnpm、怎么找到它；怎么启动它、带什么参数与环境、读回什么；卸载时正在运行的 pnpm 为什么不结束。pnpm 什么时候运行、为什么同一时刻最多一个写 home 的 pnpm，见[只有插件管理写 home](/docs/plugin-manager/home#包只经-applytohome)。
 
 ## 只认两个固定位置的 pnpm
 
@@ -36,7 +36,7 @@ description: 插件管理不自带 pnpm，只认用户装在两个固定位置�
 
 ## 参数、环境与读回什么
 
-**命令行参数与工作目录**：改 home 只有 `add <spec…>` 与 `remove <包名>` 两种，都经 `applyToHome` 排进同一个串行队列；只读的是 `outdated --json`。工作目录一律是 home。
+**命令行参数与工作目录**：改 home 只有 `add <spec…>` 与 `remove <包名>` 两种，都经 `applyToHome` 运行；只读的是 `outdated --json`。工作目录一律是 home。
 
 {/* ref file="../plugins/plugin-manager/src/index.ts" lines="828-832" */}
 

@@ -37,7 +37,7 @@ const STEPS: Step[] = [
   },
   {
     title: '第 2 步：一次 pnpm add',
-    detail: '先找 pnpm，再经 applyToHome 排进串行队列运行。包写进 home 的 package.json 与 node_modules。',
+    detail: '先找 pnpm，再经 applyToHome 运行。包写进 home 的 package.json 与 node_modules。',
     lit: ['add', 'package'],
     failure: '找不到 pnpm、pnpm 失败 → ok: false，带 pnpm 输出的最后几行',
     receipt: ['{ pkg: "@x/gwb-foo", ok: true'],
@@ -60,7 +60,7 @@ export function PmInstall() {
     <>
       <svg viewBox="0 0 760 390" role="img" aria-label="安装一个包的三步">
         <Box x={20} y={30} w={250} h={46} lines={['1 校验参数', '包名、版本范围']} tone={lit('check')} />
-        <Box x={20} y={102} w={250} h={46} lines={['2 一次 pnpm add', '经 applyToHome 串行运行']} tone={lit('add')} />
+        <Box x={20} y={102} w={250} h={46} lines={['2 一次 pnpm add', '经 applyToHome 运行']} tone={lit('add')} />
         <Box x={20} y={174} w={250} h={46} lines={['3 选 id，加一条条目', '条目树 create']} tone={lit('entry')} />
         <Arrow from={[145, 76]} to={[145, 102]} />
         <Arrow from={[145, 148]} to={[145, 174]} />

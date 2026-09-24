@@ -8,7 +8,7 @@ export function PmUninstall() {
   return (
     <svg viewBox="0 0 760 230" role="img" aria-label="卸载先删条目、后卸包">
       <Box x={14} y={30} w={220} h={60} lines={['1 删这个包的全部条目', 'tree.remove：写回 yml、当场卸载']} tone="a" />
-      <Box x={270} y={30} w={220} h={60} lines={['2 pnpm remove', '经 applyToHome 串行']} tone="a" />
+      <Box x={270} y={30} w={220} h={60} lines={['2 pnpm remove', '经 applyToHome 运行']} tone="a" />
       <Box x={526} y={30} w={220} h={60} lines={['完成', '设置与数据留在磁盘上']} />
       <Arrow from={[234, 60]} to={[270, 60]} />
       <Arrow from={[490, 60]} to={[526, 60]} label="成功" />

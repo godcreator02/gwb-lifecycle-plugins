@@ -101,7 +101,7 @@ home 里有两层：
 ## 参考
 
 * **重新加载一条条目只用 `remount`**：它一条命令做完停用与启用。目标是插件管理自己或命令总线（`gwb-commands`）时，分两条调的话 `disable` 一返回命令表就没了，`enable` 调不进去，条目停在停用状态
-* **同一时刻只允许一个改动**：`install`、`uninstall`、`update-all`、`update-kernel`、`remount` 正在运行时再调回 `{ ok: false, error: "BUSY…" }`，等前一个返回回执后再调。`search`、`source.*` 不改 home，不受这条限制
+* **同一时刻只允许一个改动**：`install`、`uninstall`、`update-all`、`update-kernel`、`remount` 正在运行时再调回 `{ ok: false, error: "BUSY…" }`，等前一个返回回执后再调。`outdated`、`search`、`source.*` 不写 home，不受这条限制。`add-entry`、`remove-entry`、`enable`、`disable`、`transfer-owner` 也不经过这道检查：`update-all` 运行时别动它要重新加载的条目。插件管理之外在同一个 home 里运行的 pnpm（`devkit.dev`、手工运行）不受它管，和插件管理的改动同时写 home 会丢改动、而且都退出码 0
 * **失败回执**：参数写错（包名、版本范围、id、scope 不合规，条目不存在，改或删 `@godcreator`）直接报错；执行中失败回 `ok: false`，`error` 是原因，pnpm 输出的最后几行在 `data.tail`。`update-all` 的 pnpm 失败时一条条目都没动
 * **install 只装点名的包**：不装它 peer 里的插件，也不判断它是不是库。插件管理启动 pnpm 时带环境变量 `pnpm_config_auto_install_peers=false`，pnpm 也不会自动补装缺的 peer；缺的看 `list` 的 `unmetPeers`，要用就另外 `install`。人在 home 里手工运行 pnpm 时自己设这个环境变量，命令行参数 `--config.auto-install-peers=false` 会被 pnpm 忽略。装了一个没有 `apply` 的包，条目照样加上、加载失败，用 `uninstall` 删掉
 * **是不是插件只看包清单 `keywords` 里有没有 `gwb-plugin`**，名字不参与。`search` 回的是这条规则筛出的全部结果，不维护的旧包也在里面

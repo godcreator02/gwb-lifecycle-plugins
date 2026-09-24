@@ -24,7 +24,7 @@ description: 插件管理是唯一写 home 的插件——装卸包、增删条�
 - **升内核**：先装新的内核包，再把 home 根上的 `cordis` 对齐到内核包 peer 里写的版本；不重新加载任何条目，重启工作台后生效，见[升内核](/docs/plugin-manager/upgrade#升内核)
 - **选条目 id**：沿用本包留在磁盘上的旧 id，避开别的包的数据与设置，见[id 与归属](/docs/plugin-manager/ids)
 - **转归属**：插件改了包名时把一个 id 的数据与设置转给新包，见[id 与归属](/docs/plugin-manager/ids#转归属transfer-owner)
-- **同一时刻只允许一个改动**：安装、卸载、热升级、升内核、重新加载重入时回 BUSY，所有 pnpm 排进同一个串行队列，见[home 的两层与唯一写入者](/docs/plugin-manager/home#同一时刻只允许一个改动busy)
+- **同一时刻只允许一个改动**：安装、卸载、热升级、升内核、重新加载重入时回 BUSY，所以同一个 home 里同一时刻最多一个写 home 的 pnpm，见[home 的两层与唯一写入者](/docs/plugin-manager/home#同一时刻只允许一个改动busy)
 - **只用两个固定位置的 pnpm 12**：官方安装脚本的默认位置、npm 全局装的 pnpm 包，第一个存在的作数，核对版本；直接启动、不设超时，见 [pnpm](/docs/plugin-manager/pnpm)
 - **找可装的插件**：在配好的每条 npm 源上检索，地址按 scope 从两份 npmrc 里找、和 pnpm 安装读同一批配置行；是不是插件只看包清单 `keywords` 里的 `gwb-plugin`，见[找插件与配包源](/docs/plugin-manager/sources)
 - **配第三方包源**：往机器级 `~/.npmrc` 增删 scope 路由与凭据，`@godcreator` 不改不删，token 不进回执；这几条不改 home、不经 BUSY，见[找插件与配包源](/docs/plugin-manager/sources#包源只写机器级-npmrc)

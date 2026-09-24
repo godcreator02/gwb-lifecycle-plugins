@@ -1,0 +1,31 @@
+---
+title: 插件管理删掉 pnpm 串行队列，只留 BUSY
+born-at: 2026-09-25T02:20
+type: choice
+parent: [2026-09-08-gwb-devkit]
+label: 删 pnpm 队列
+domain: 插件管理
+---
+
+## 背景
+
+插件管理有两道检查：改动命令（`install`、`uninstall`、`update-all`、`update-kernel`、`remount`）经过 BUSY 检查，重入直接回 BUSY；另外每一次 pnpm 都排进一个进程内的串行队列，包括只读的 `pnpm outdated`。队列的理由是「两个 pnpm 同时运行，后写的覆盖前一次加的依赖」，一直没有实验。
+
+实测（[两个 pnpm 同时改同一个 home](2026-09-25-concurrent-pnpm-loses-writes.md)）给了两条事实：两个会写 home 的 pnpm 同时运行确实丢改动；`pnpm outdated --json` 不写文件，和 `pnpm add` 同时运行不影响结果。插件管理里会写 home 的 pnpm 只在 `applyToHome` 里运行，调用它的四条命令都经过 BUSY，所以 BUSY 已经保证同一时刻最多一个写 home 的 pnpm；队列多挡的只有 `outdated`，而那一条不需要挡。
+
+pivots-from:: [两个 pnpm 同时改同一个 home](2026-09-25-concurrent-pnpm-loses-writes.md)
+
+## 结论与边界
+
+删掉串行队列，`applyToHome` 与 `outdated` 直接启动 pnpm；BUSY 不动。插件管理 0.10.0 这一版做完（写卡时还没发）。
+
+BUSY 管不到的三处，人定为只写进文档、不补代码：`add-entry`、`remove-entry`、`enable`、`disable`、`transfer-owner` 五条命令不经过 BUSY，`update-all` 正在重新加载某条条目时，别人可以同时停用或删掉它；`update-all` 或 `remount` 重新加载插件管理自己时，先发回执、释放 BUSY，下一个宏任务才重新加载，新实例的 BUSY 是新的；进程外的 pnpm（`devkit.home.new`、`devkit.dev`、人手工运行）管不到。
+
+## 否掉的候选
+
+- **保留队列**：它唯一多做的事是让 `outdated` 等正在运行的安装做完，实测这件事没有必要，反而让「可装」「可升」的查询被一次慢安装拖住
+- **队列留着、BUSY 删掉**：队列只保证 pnpm 不同时运行，挡不住一次安装、一次热升级里改条目树、重新加载插件那几步被另一个改动插进来；重入时排队还会让界面看起来点了没反应
+
+## 代价与遗留
+
+写 home 的互斥只剩 BUSY 一道，以后谁加一条运行 pnpm 写 home 的命令而忘了经过 BUSY，就没有第二道检查拦住；`applyToHome` 的注释与插件管理 home 页写明了这条前提。

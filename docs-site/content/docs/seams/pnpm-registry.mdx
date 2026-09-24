@@ -88,7 +88,7 @@ description: 连接 devkit、插件管理与 pnpm、npm 源、两份 npmrc、git
 两个插件都保证：在 home 里启动 pnpm 时带 `pnpm_config_auto_install_peers=false`，不让 pnpm 把插件 peer 里缺的插件自动装进 home；devkit 在插件仓里启动 pnpm 时不带。人在 home 里手工运行 pnpm 时要自己设这个环境变量。
 
 插件管理保证：
-- 改 home 的 pnpm 都排进同一个串行队列
+- 会写 home 的 pnpm 只在经过 BUSY 检查的命令里运行，同一时刻最多一个；只读的 `pnpm outdated` 不经过 BUSY
 - `source.add` / `source.remove` 只改机器级 `~/.npmrc`，home 级只读；`@godcreator` 的路由与凭据不改不删
 - `source.add` 同一个 scope 已有就原地替换；换源、删源时，旧源的凭据行只在没有别的 scope 还指向它时才删；写完重读一遍，读不到写进去的行就回 `ok: false`
 - 回执与日志里不带 token：写进去的行里 token 换成 `***`，`source.list` 只报有没有 token
@@ -106,7 +106,7 @@ devkit 保证：
 
 gitea 插件需要保证的（gitea 插件仓的约定）：条目 id 是 `gitea`，设置名是 `base-url` 与 `token`。
 
-**改 home 的是同一个 pnpm，但不在同一个队列里**：插件管理、`devkit.home.new`、`devkit.dev` 找到的是同一个文件；插件管理的改动排进它自己的串行队列，devkit 的两条命令不经过这个队列。
+**改 home 的是同一个 pnpm，但互斥只在插件管理里**：插件管理、`devkit.home.new`、`devkit.dev` 找到的是同一个文件；插件管理的改动经过它自己的 BUSY 检查，devkit 的两条命令不经过插件管理，两边同时写同一个 home 会丢改动（[两个 pnpm 同时改同一个 home](/trajectory/2026-09-25-concurrent-pnpm-loses-writes)）。
 
 本仓 AGENTS 写「手工发版别手写 `--registry`，scope 对应的源写在 `~/.npmrc`」；`devkit.dev` 与 `devkit.release` 的 `publish` 与 `view` 显式带 `--registry`。
 

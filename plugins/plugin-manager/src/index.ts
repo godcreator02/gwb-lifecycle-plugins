@@ -213,9 +213,6 @@ class PluginManager {
 
   private readonly busyGate = new BusyGate()
 
-  /** pnpm 串行队列的队尾：两个 pnpm 同时读改写 home 的 package.json，后写的会覆盖前一个加的依赖 */
-  private pnpmQueueTail: Promise<unknown> = Promise.resolve()
-
   constructor(ctx: GwbContext) {
     this.ctx = ctx
     const kernel = requireKernel(ctx)
@@ -497,14 +494,12 @@ class PluginManager {
     }
   }
 
-  /** `pnpm outdated --json` 的退出码 1 表示「存在过期包」，是结果不是失败 */
+  /** `pnpm outdated --json` 的退出码 1 表示「存在过期包」，是结果不是失败。它不写文件，和写 home 的 pnpm 同时运行没有影响，所以不经 BUSY */
   async outdated(): Promise<OutdatedReceipt> {
     const pnpmLookup = await locatePnpm()
     if (!pnpmLookup.ok) return { ok: false, error: pnpmLookup.error }
 
-    const pnpmRun = await this.enqueuePnpm(() =>
-      runPnpmCapture({ pnpm: pnpmLookup.file, cwd: this.homeDir, args: ['outdated', '--json'] }),
-    )
+    const pnpmRun = await runPnpmCapture({ pnpm: pnpmLookup.file, cwd: this.homeDir, args: ['outdated', '--json'] })
     const withStderr = (message: string): string =>
       pnpmRun.stderrTail === '' ? message : `${message}\n${pnpmRun.stderrTail}`
     if (pnpmRun.exitCode === null) return { ok: false, error: withStderr(`pnpm 启动失败（退出码 ${String(pnpmRun.exitCode)}）`) }
@@ -821,17 +816,13 @@ class PluginManager {
     return lastSeparator === -1 ? bareEntryId : `${ownFullId.slice(0, lastSeparator + 1)}${bareEntryId}`
   }
 
-  /** 改 home 的唯一入口：安装、升级、卸载都经这里运行 pnpm，排进同一个串行队列。`saveExact` 让 home 的清单写精确版本号，不写 `^` */
+  /**
+   * 改 home 的唯一入口：安装、升级、卸载都经这里运行 pnpm。调用它的命令都经过 BUSY 检查——两个写 home 的 pnpm 同时运行会丢改动，
+   * 而且都退出码 0。`saveExact` 让 home 的清单写精确版本号，不写 `^`
+   */
   private applyToHome(pnpm: string, change: { add: readonly string[]; saveExact?: true } | { remove: readonly string[] }): Promise<PnpmResult> {
     const args = 'add' in change ? ['add', ...change.add, ...(change.saveExact ? ['--save-exact'] : [])] : ['remove', ...change.remove]
-    return this.enqueuePnpm(() => runPnpm({ pnpm, cwd: this.homeDir, args }))
-  }
-
-  private enqueuePnpm<T>(task: () => Promise<T>): Promise<T> {
-    const queued = this.pnpmQueueTail.then(task, task)
-    // 前一个任务失败不应导致后面排队的任务也失败
-    this.pnpmQueueTail = queued.catch(() => undefined)
-    return queued
+    return runPnpm({ pnpm, cwd: this.homeDir, args })
   }
 }
 

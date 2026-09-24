@@ -63,7 +63,7 @@ devkit 保证：
 
 **前三处都靠约定**：devkit 不 import 插件管理的回执类型，也拿不到插件管理的服务（它经 CDP 调用），回执形状在 `dev.ts` 里手写。第四处有类型检查：插件管理改了导出函数的名字或签名，devkit 的 `pnpm check` 当场报错。约定写在三处：插件管理 `remount` 与 `list` 两条命令的 `usage`、`dev.ts` 的 `entriesOf` 与 `remount`、本仓 AGENTS。目标 home 的插件管理早于 0.4.0 时没有 `remount`，devkit 的报错里写着这个版本要求。
 
-内核仓文档站的「home 布局与条目树」一页写的是：插件管理是唯一写 home 的插件，`cordis.yml` 只经条目树改，`package.json` 与 `node_modules/` 只经插件管理运行的 pnpm 改。`devkit.home.new` 在内核启动前直接写 `cordis.yml`、运行三次 `pnpm add`；`devkit.dev` 直接写目标 home 的 `package.json`、运行 `pnpm install`。两处用的 pnpm 和插件管理是同一个，只是不经插件管理的串行队列。本站[插件管理的 home 页](/docs/plugin-manager/home)把 `devkit.dev` 列为例外，没有提 `devkit.home.new`。
+内核仓文档站的「home 布局与条目树」一页写的是：插件管理是唯一写 home 的插件，`cordis.yml` 只经条目树改，`package.json` 与 `node_modules/` 只经插件管理运行的 pnpm 改。`devkit.home.new` 在内核启动前直接写 `cordis.yml`、运行三次 `pnpm add`；`devkit.dev` 直接写目标 home 的 `package.json`、运行 `pnpm install`。两处用的 pnpm 和插件管理是同一个，只是不经插件管理的 BUSY 检查。本站[插件管理的 home 页](/docs/plugin-manager/home)把 `devkit.dev` 列为例外，没有提 `devkit.home.new`。
 
 ## 不负责的事
 

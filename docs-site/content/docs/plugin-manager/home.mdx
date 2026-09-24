@@ -1,6 +1,6 @@
 ---
 title: home 的两层与唯一写入者
-description: home 里有包与条目两层，list 把两层对上；只有插件管理写 home——包只经 applyToHome 的串行队列，条目只经 loader 的条目树，改动命令另有 BUSY 互斥
+description: home 里有包与条目两层，list 把两层对上；只有插件管理写 home——包只经 applyToHome，条目只经 loader 的条目树，改动命令经 BUSY 互斥，同一时刻最多一个写 home 的 pnpm
 ---
 
 # home 的两层与唯一写入者
@@ -46,17 +46,17 @@ home 的 `package.json` 读不到或不是 JSON 时当空表：它由 pnpm 写�
 
 改这两层的只有插件管理，而且各只有一条路：**包只经 `applyToHome` 运行 pnpm，条目只经 loader 的条目树**。
 
-**为什么**：两层都不是「写一下文件」那么简单。pnpm 每次都读、改、写 `package.json`，两次同时运行，后写的会把前一次加进去的依赖覆盖掉，而且不报错；`cordis.yml` 的内容在 loader 的内存里也有一份，直接写文件，内存里的条目不知道，下一次写回就把磁盘上的改动覆盖掉。只有一个写入者、一条路，这两类覆盖才都不会发生。
+**为什么**：两层都不是「写一下文件」那么简单。pnpm 每次都读、改、写 `package.json` 与锁文件，两个同时运行会丢改动，而且都退出码 0（实测见下一节）；`cordis.yml` 的内容在 loader 的内存里也有一份，直接写文件，内存里的条目不知道，下一次写回就把磁盘上的改动覆盖掉。只有一个写入者、一条路，这两类覆盖才都不会发生。
 
 `devkit.dev` 是一个例外：它往隔离 home 装开发版时，自己把准确版本号写进那个 home 的 `package.json` 再运行 `pnpm install`，不经插件管理（`install` 对已经装过的包会再加一条条目，`pnpm add` 会把版本号写成范围）；装完重新加载仍然调 `plugin-manager.remount`，见[改一版看一版](/docs/devkit/dev)。这时不要同时在那个 home 里调插件管理的改动命令。
 
-### 包：只经 applyToHome，排进一个串行队列
+### 包：只经 applyToHome
 
-**怎么做**：安装、卸载、热升级、升内核都经 `applyToHome` 运行 pnpm，它把每一次运行排进同一个队列，前一个运行完下一个才开始；只读的 `pnpm outdated` 也排进去，省得另外处理两个 pnpm 同时运行。前一个失败不影响后面排队的。
+**怎么做**：安装、卸载、热升级、升内核都经 `applyToHome` 运行 pnpm，直接启动，不排队。会写 home 的 pnpm 只在这里运行，调用它的四条命令都经过 BUSY 检查（见下面「同一时刻只允许一个改动」），所以插件管理在同一个 home 里同一时刻最多只有一个写 home 的 pnpm。只读的 `pnpm outdated --json` 不经过 `applyToHome`，也不经过 BUSY。
 
-{/* ref file="../plugins/plugin-manager/src/index.ts" lines="828-839" */}
+{/* ref file="../plugins/plugin-manager/src/index.ts" lines="819-826" */}
 
-串行队列没有单元测试；它是否起作用，只能在隔离 home 里连着发几次安装、升级来看。
+**实测**：在和真 home 布局相同的临时 home 里，`pnpm add x` 与 `pnpm add y` 同时运行 5 轮，每轮清单与锁文件都只剩一个包；`pnpm add` 与 `pnpm remove` 同时运行 5 轮，每轮添加的那个包都丢了。两个 pnpm 都退出码 0、没有警告，丢掉的包还留在 `node_modules` 里。`pnpm outdated --json` 不写文件，和 `pnpm add` 同时运行 5 轮，`add` 的结果都对。所以写 home 的 pnpm 必须互斥，`outdated` 不必（[两个 pnpm 同时改同一个 home](/trajectory/2026-09-25-concurrent-pnpm-loses-writes)）。
 
 ### 条目：只经 loader 的条目树
 
@@ -82,7 +82,7 @@ home 的 `package.json` 读不到或不是 JSON 时当空表：它由 pnpm 写�
 
 ### 同一时刻只允许一个改动：BUSY
 
-**为什么**：串行队列只保证 pnpm 不同时运行，但一次安装、一次热升级不止一次 pnpm，还要改条目树、重新加载插件，中间插进另一个改动，状态就乱了。
+**为什么**：两个写 home 的 pnpm 同时运行会丢改动（见上面「包：只经 applyToHome」）；而且一次安装、一次热升级不止一次 pnpm，还要改条目树、重新加载插件，中间插进另一个改动，状态就乱了。
 
 **怎么做**：`install`、`uninstall`、`update-all`、`update-kernel`、`remount` 五条命令在最外层先经过一道互斥检查。已经有一个在运行时，重入的直接返回 `{ ok: false, error: "BUSY…" }`，不排队——排队会让界面看起来点了没反应。一个内核进程只服务一个 home，所以进程内的一个标志就够了；运行中抛错也会释放。插件管理对外只有命令（见[对外只有命令](/docs/plugin-manager/commands)），没有绕开这道检查的调用方式。
 
@@ -94,9 +94,15 @@ home 的 `package.json` 读不到或不是 JSON 时当空表：它由 pnpm 写�
 
 {/* has file="../plugins/plugin-manager/tests/busy.test.ts" text="执行中抛错也释放标志，下一次能执行" */}
 
-<Diagram name="pm-busy" title="两道检查：改动命令经过 BUSY 检查，所有 pnpm 排进串行队列">
-- 命令 A（`install`）通过 BUSY 检查、设上标志，它的 `pnpm add` 进队列开始运行
+<Diagram name="pm-busy" title="改动命令经过 BUSY 检查，同一时刻最多一个写 home 的 pnpm；只读的 outdated 不经过 BUSY">
+- 命令 A（`install`）通过 BUSY 检查、设上标志，它的 `pnpm add` 开始运行、写 home
 - 命令 B（`uninstall`）进来时标志还设着，不排队，马上得到 `{ ok: false, error: "BUSY…" }`
-- 命令 C（`outdated`）只读，不经过 BUSY，但它的 `pnpm outdated` 排在 A 后面等
-- A 返回回执时释放标志（抛错也会释放），队列里 C 的 pnpm 开始运行
+- 命令 C（`outdated`）只读，不经过 BUSY，它的 `pnpm outdated` 和 A 的 `pnpm add` 同时运行，不写文件，不影响 A
+- A 返回回执时释放标志（抛错也会释放），再来的改动命令又能通过
 </Diagram>
+
+**已知边界**：BUSY 管不到下面三处，为什么不另外加检查见[删掉 pnpm 串行队列、只留 BUSY](/trajectory/2026-09-25-drop-pnpm-queue-keep-busy)。
+
+- `add-entry`、`remove-entry`、`enable`、`disable`、`transfer-owner` 五条命令不经过 BUSY：`update-all` 正在重新加载某条条目时，别人可以同时停用或删掉它
+- `update-all` 或 `remount` 重新加载插件管理自己时，先发回执、释放 BUSY，下一个宏任务才重新加载：这中间进来的改动命令能通过检查，可能运行到一半插件管理就被停用；重新加载出来的新实例 BUSY 标志是新的，不知道旧实例里还有没有命令在运行
+- 管不到插件管理进程外的 pnpm：`devkit.home.new`、`devkit.dev`、人在终端里手工运行的 pnpm，和插件管理的改动同时写同一个 home 时照样会丢改动

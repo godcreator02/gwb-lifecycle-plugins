@@ -13,7 +13,7 @@ description: outdated 查过期包；update-all 一次 pnpm add 精确版本，�
 
 **是什么**：`outdated` 运行一次 `pnpm outdated --json`，返回「包名 → `{ current, latest }`」，空对象表示全都最新。
 
-**怎么做**：退出码 1 表示「有过期包」，是结果不是失败；找不到 pnpm、输出解析不了都转成 `ok: false` 的回执，界面上只显示一句提示。它只读不写，不经过 BUSY 检查，但 pnpm 照样排进串行队列（见[同一时刻只允许一个改动](/docs/plugin-manager/home#同一时刻只允许一个改动busy)）。
+**怎么做**：退出码 1 表示「有过期包」，是结果不是失败；找不到 pnpm、输出解析不了都转成 `ok: false` 的回执，界面上只显示一句提示。它不写文件，不经过 BUSY 检查，和正在运行的安装、升级同时运行也不影响它们（见[包：只经 applyToHome](/docs/plugin-manager/home#包只经-applytohome)）。
 
 {/* ref file="../plugins/plugin-manager/src/index.ts" lines="504-523" */}
 

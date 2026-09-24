@@ -46,7 +46,7 @@ loader 与 include 需要保证的：`entry.parent.tree` 这条取法、四个�
 ## 不负责的事
 
 - 插件管理不决定 home 的布局、条目树的结构、包名怎么解析，这些归内核
-- 条目树不知道插件管理的 BUSY 互斥与串行队列；互斥只挡插件管理自己的命令
+- 条目树不知道插件管理的 BUSY 互斥；互斥只挡插件管理自己经过 BUSY 的那五条命令
 - devkit 不碰条目树；它改条目的唯一方式是经 CDP 调 `plugin-manager.remount`（见 [devkit 调插件管理](/docs/seams/plugin-manager-calls)）
 
 ## 测试
