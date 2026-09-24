@@ -411,6 +411,7 @@ describe('plugin-manager.update-all', () => {
   it('升一个包：一次 pnpm add 精确版本，它的条目在这条命令里重新加载，停用的跳过，最后整页重新加载', async () => {
     fakePnpm.captureExitCode = 1
     fakePnpm.captureStdout = JSON.stringify({ '@x/gwb-foo': { current: '1.0.0', latest: '1.1.0' } })
+    writeHomeDependencies({ '@x/gwb-foo': '^1.0.0', '@x/gwb-other': '^1.0.0' })
     const pm = mount({ entries: { foo: '@x/gwb-foo', 'foo-2': '@x/gwb-foo' }, shellReload: true })
     pm.tree.store['foo-2']!.disabled = true
     expect(await pm.run('plugin-manager.update-all', { only: ['@x/gwb-foo', '@x/gwb-other'] })).toEqual({
@@ -431,11 +432,18 @@ describe('plugin-manager.update-all', () => {
         dependents: [],
         selfDeferred: false,
         reload: 'done',
-        note: 'only 里这几个不在过期清单里，没动：@x/gwb-other',
+        note: 'only 里这几个已是最新，没动：@x/gwb-other',
       },
     })
     expect(fakePnpm.calls.map((call) => call.args)).toEqual([['outdated', '--json'], ['add', '@x/gwb-foo@1.1.0']])
     expect(pm.shellReloads).toBe(1)
+  })
+
+  it('only 里的包名不在 home 的 dependencies 里（多半拼错）：直接抛错、说出是哪个名字，一次 pnpm 都不运行', async () => {
+    writeHomeDependencies({ '@x/gwb-foo': '^1.0.0' })
+    const pm = mount({ entries: { foo: '@x/gwb-foo' } })
+    await expect(pm.run('plugin-manager.update-all', { only: ['@x/gwb-foo', '@x/gwb-fooo'] })).rejects.toThrow('@x/gwb-fooo')
+    expect(fakePnpm.calls).toEqual([])
   })
 
   it('命令表里没有 shell.reload：reload 是 unavailable，note 说要手动刷新', async () => {

@@ -10,7 +10,7 @@ export interface PlannedEntry {
   id: string
   /** 本来就停用的：保持停用，不动它（记 skipped） */
   disabled: boolean
-  /** 这条就是本插件自己的条目 */
+  /** 这条就是本插件自己的条目：执行时只记 deferred，回执发出之后才重新加载 */
   self: boolean
 }
 
@@ -19,10 +19,8 @@ export interface PlannedPackage {
   pkg: string
   from: string
   to: string
-  /** 它在条目树上的全部条目（分组条目不算），按树里的先后；本插件自己那条挪到最后 */
+  /** 它在条目树上的全部条目（分组条目不算），按树里的先后 */
   entries: PlannedEntry[]
-  /** 本插件自己在这个包里 */
-  self: boolean
 }
 
 /**
@@ -33,10 +31,8 @@ export interface PlannedDependent {
   pkg: string
   /** 它 peer 里写了的、这次换了目录的包（升级了的，或同样跟着重新加载的），按包名排 */
   because: string[]
-  /** 它在条目树上的全部条目（分组条目不算），按树里的先后；本插件自己那条挪到最后 */
+  /** 它在条目树上的全部条目（分组条目不算），按树里的先后 */
   entries: PlannedEntry[]
-  /** 本插件自己在这个包里 */
-  self: boolean
 }
 
 /** 过期了、但版本由内核决定而没升的一个包 */
@@ -49,27 +45,31 @@ export interface KernelManagedPackage {
 export interface UpdateAllPlan {
   /** 一次 `pnpm add` 的参数：`['add', 'a@1.2.3', …]`，精确版本（outdated 查到的 latest，不是 `@latest` 标签）；清单为空时是空数组 */
   pnpmArgs: string[]
-  /** 要升级的包，按包名排，**本插件自己所在的包排最后** */
+  /** 要升级的包，按包名排 */
   packages: PlannedPackage[]
   /**
    * 跟着重新加载的包，在 `packages` 之后处理。先是 peer 直接写了被升级包的，再是 peer 写了这些包的，一层层往外；
-   * 同一层按包名排；**本插件自己所在的包挪到整个列表最后**
+   * 同一层按包名排
    */
   dependents: PlannedDependent[]
-  /** 本插件自己在不在这次升级或跟着重新加载的包里 */
-  selfIncluded: boolean
-  /** `only` 里点了名、却不在过期清单里的包——回执里说明，免得人以为它升级了 */
-  ignored: string[]
+  /** `only` 里点了名、在 home 里但不在过期清单里的包（已是最新）——回执里说明，免得人以为它升级了 */
+  alreadyLatest: string[]
   /** 过期清单里的内核包与 cordis（`only` 给了就只算点了名的），按包名排：一键热升级不升它们，回执里说明 */
   kernelManaged: KernelManagedPackage[]
 }
 
-/** 这个包的条目，本插件自己那条挪到最后：同包的其它实例在处理器里重新加载，自己那条留到回执之后 */
-function plannedEntriesWithOwnLast(pkg: string, entries: readonly EntrySnapshot[], ownBareId: string): PlannedEntry[] {
-  const plannedEntries = entries
+function plannedEntriesOf(pkg: string, entries: readonly EntrySnapshot[], ownBareId: string): PlannedEntry[] {
+  return entries
     .filter((entry) => entry.pkg === pkg)
     .map<PlannedEntry>((entry) => ({ id: entry.id, disabled: entry.disabled, self: entry.id === ownBareId }))
-  return [...plannedEntries.filter((entry) => !entry.self), ...plannedEntries.filter((entry) => entry.self)]
+}
+
+/** `only` 里不在 home 的 dependencies 里的包名多半是拼错了：直接抛错，说出是哪几个；不给 `only` 不查 */
+export function assertOnlyPackagesInHome(only: readonly string[] | undefined, homeDependencies: Readonly<Record<string, string>>): void {
+  const notInHome = (only ?? []).filter((pkg) => homeDependencies[pkg] === undefined)
+  if (notInHome.length > 0) {
+    throw new Error(`only 里的 ${notInHome.join('、')} 不在 home 的 package.json 的 dependencies 里（拼错了？）。装了哪些包调用 plugin-manager.list 看`)
+  }
 }
 
 /**
@@ -98,14 +98,13 @@ function plannedDependents(
       if (movedPackages.has(pkg)) continue
       const because = peers.filter((peer) => movedPackages.has(peer)).sort((a, b) => a.localeCompare(b))
       if (because.length === 0) continue
-      const entries = plannedEntriesWithOwnLast(pkg, pluginEntries, ownBareId)
-      layer.push({ pkg, because, entries, self: entries.some((entry) => entry.self) })
+      layer.push({ pkg, because, entries: plannedEntriesOf(pkg, pluginEntries, ownBareId) })
     }
     if (layer.length === 0) break
     for (const dependent of layer) movedPackages.add(dependent.pkg)
     dependents.push(...layer)
   }
-  return dependents.sort((a, b) => Number(a.self) - Number(b.self))
+  return dependents
 }
 
 /**
@@ -121,7 +120,7 @@ export function planUpdateAll(
 ): UpdateAllPlan {
   const ownBareId = bareId(ownEntryId)
   const onlyThesePackages = only === undefined ? undefined : new Set(only)
-  const ignored = only === undefined ? [] : only.filter((pkg) => outdated[pkg] === undefined)
+  const alreadyLatest = only === undefined ? [] : only.filter((pkg) => outdated[pkg] === undefined)
 
   const pluginEntries = readEntries(store).filter((entry) => !entry.group)
   const packages: PlannedPackage[] = []
@@ -134,19 +133,15 @@ export function planUpdateAll(
       kernelManaged.push({ pkg, from: versionGap.current, to: versionGap.latest })
       continue
     }
-    const plannedEntries = plannedEntriesWithOwnLast(pkg, pluginEntries, ownBareId)
-    packages.push({ pkg, from: versionGap.current, to: versionGap.latest, entries: plannedEntries, self: plannedEntries.some((entry) => entry.self) })
+    packages.push({ pkg, from: versionGap.current, to: versionGap.latest, entries: plannedEntriesOf(pkg, pluginEntries, ownBareId) })
   }
-  // 自己所在的包排最后：它前面的每一条都在处理器里做完，回执才完整
-  packages.sort((a, b) => Number(a.self) - Number(b.self))
   const dependents = plannedDependents(packages.map((p) => p.pkg), homeManifests, pluginEntries, ownBareId)
 
   return {
     pnpmArgs: packages.length === 0 ? [] : ['add', ...packages.map((p) => installSpec(p.pkg, p.to))],
     packages,
     dependents,
-    selfIncluded: packages.some((p) => p.self) || dependents.some((d) => d.self),
-    ignored,
+    alreadyLatest,
     kernelManaged,
   }
 }

@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest'
 import { fiberStateOf, settleFiber } from '../src/fiber.js'
-import { planUpdateAll } from '../src/update-all.js'
+import { assertOnlyPackagesInHome, planUpdateAll } from '../src/update-all.js'
 
 /**
  * 一键热升级的计划：pnpm 参数、重新加载哪些条目、按什么顺序。fixture 照 uninstall.test 的样式——store 是
@@ -60,7 +60,7 @@ describe('planUpdateAll：一次 pnpm add，精确版本', () => {
 
   it('空清单：pnpmArgs 空、packages 空、自己不在里面', () => {
     const plan = planUpdateAll({}, store, 'home:plugin-manager', NO_MANIFESTS)
-    expect(plan).toEqual({ pnpmArgs: [], packages: [], dependents: [], selfIncluded: false, ignored: [], kernelManaged: [] })
+    expect(plan).toEqual({ pnpmArgs: [], packages: [], dependents: [], alreadyLatest: [], kernelManaged: [] })
   })
 })
 
@@ -83,11 +83,11 @@ describe('planUpdateAll：内核包与 cordis 不升', () => {
     ])
   })
 
-  it('only 点了它们的名也不升，照样列进 kernelManaged、不进 ignored', () => {
+  it('only 点了它们的名也不升，照样列进 kernelManaged、不进 alreadyLatest', () => {
     const plan = planUpdateAll(withKernelManaged, store, 'home:plugin-manager', NO_MANIFESTS, [KERNEL, HELLO])
     expect(plan.pnpmArgs).toEqual(['add', `${HELLO}@0.2.1`])
     expect(plan.kernelManaged).toEqual([{ pkg: KERNEL, from: '0.3.0', to: '0.3.1' }])
-    expect(plan.ignored).toEqual([])
+    expect(plan.alreadyLatest).toEqual([])
   })
 
   it('only 没点它们：kernelManaged 是空的', () => {
@@ -103,26 +103,27 @@ describe('planUpdateAll：内核包与 cordis 不升', () => {
   })
 })
 
-describe('planUpdateAll：重新加载的顺序，插件管理自己最后', () => {
-  it('包按名排、自己所在的包挪到最后；包内自己那条条目也在最后', () => {
-    const plan = planUpdateAll(outdated, store, 'home:plugin-manager', NO_MANIFESTS)
-    expect(plan.packages.map((p) => p.pkg)).toEqual([COMMANDS, HELLO, MANAGER])
-    expect(plan.selfIncluded).toBe(true)
-    const self = plan.packages[2]!
-    expect(self.self).toBe(true)
-    // plugin-manager-2 在树里排在 plugin-manager 后面，但自己那条得让到最后
-    expect(self.entries.map((e) => e.id)).toEqual(['plugin-manager-2', 'plugin-manager'])
-    expect(self.entries.map((e) => e.self)).toEqual([false, true])
+describe('planUpdateAll：条目的先后与自己那条的标记', () => {
+  const ZETA = '@x/gwb-zeta'
+
+  it('包只按名排、包内条目照树里的先后，自己所在的包与自己那条都不挪；自己那条标 self', () => {
+    const withZeta = fakeStore([entry({ id: 'zeta', pkg: ZETA, state: 2 }), ...Object.entries(store).map(([key, value]) => ({ key, value }))])
+    const plan = planUpdateAll({ ...outdated, [ZETA]: { current: '1.0.0', latest: '1.0.1' } }, withZeta, 'home:plugin-manager', NO_MANIFESTS)
+    expect(plan.packages.map((p) => p.pkg)).toEqual([COMMANDS, HELLO, MANAGER, ZETA])
+    const manager = plan.packages[2]!
+    expect(manager.entries.map((e) => e.id)).toEqual(['plugin-manager', 'plugin-manager-2'])
+    expect(manager.entries.map((e) => e.self)).toEqual([true, false])
   })
 
   it('裸 id 与完整 entryId 都认得出自己', () => {
-    expect(planUpdateAll(outdated, store, 'plugin-manager', NO_MANIFESTS).selfIncluded).toBe(true)
-    expect(planUpdateAll(outdated, store, 'home:plugin-manager', NO_MANIFESTS).selfIncluded).toBe(true)
+    for (const ownEntryId of ['plugin-manager', 'home:plugin-manager']) {
+      const plan = planUpdateAll(outdated, store, ownEntryId, NO_MANIFESTS)
+      expect(plan.packages.flatMap((p) => p.entries).filter((e) => e.self).map((e) => e.id)).toEqual(['plugin-manager'])
+    }
   })
 
-  it('自己不在清单里：selfIncluded 假、没有哪条标 self', () => {
+  it('自己不在清单里：没有哪条标 self', () => {
     const plan = planUpdateAll({ [HELLO]: outdated[HELLO] }, store, 'home:plugin-manager', NO_MANIFESTS)
-    expect(plan.selfIncluded).toBe(false)
     expect(plan.packages.flatMap((p) => p.entries).every((e) => !e.self)).toBe(true)
   })
 })
@@ -135,7 +136,7 @@ describe('planUpdateAll：每条条目怎么处理', () => {
       { id: 'hello', disabled: false, self: false },
       { id: 'hello-2', disabled: true, self: false },
     ])
-    expect(hello).toMatchObject({ from: '0.2.0', to: '0.2.1', self: false })
+    expect(hello).toMatchObject({ from: '0.2.0', to: '0.2.1' })
   })
 
   it('装了包、一条条目都没有的照样升，entries 为空；分组条目不归任何包', () => {
@@ -145,25 +146,37 @@ describe('planUpdateAll：每条条目怎么处理', () => {
       from: '0.0.5',
       to: '0.0.6',
       entries: [],
-      self: false,
     })
     expect(plan.packages.flatMap((p) => p.entries.map((e) => e.id))).not.toContain('grp')
   })
 })
 
 describe('planUpdateAll：only 限定', () => {
-  it('只升点了名的；点了名却不在过期清单里的进 ignored，不进 pnpm 参数', () => {
+  it('只升点了名的；点了名、不在过期清单里的（已是最新）进 alreadyLatest，不进 pnpm 参数', () => {
     const plan = planUpdateAll(outdated, store, 'home:plugin-manager', NO_MANIFESTS, [HELLO, '@x/gwb-not-outdated'])
     expect(plan.pnpmArgs).toEqual(['add', `${HELLO}@0.2.1`])
     expect(plan.packages.map((p) => p.pkg)).toEqual([HELLO])
-    expect(plan.ignored).toEqual(['@x/gwb-not-outdated'])
-    expect(plan.selfIncluded).toBe(false)
+    expect(plan.alreadyLatest).toEqual(['@x/gwb-not-outdated'])
   })
 
   it('only 是空数组：什么都不升，也不是「全升」', () => {
     const plan = planUpdateAll(outdated, store, 'home:plugin-manager', NO_MANIFESTS, [])
     expect(plan.pnpmArgs).toEqual([])
     expect(plan.packages).toEqual([])
+  })
+})
+
+describe('assertOnlyPackagesInHome：only 里的包名必须在 home 的 dependencies 里', () => {
+  const homeDependencies = { [HELLO]: '^0.2.0', [COMMANDS]: '^0.2.0' }
+
+  it('有不在 home 里的（多半拼错）：直接抛错，说出是哪几个', () => {
+    expect(() => assertOnlyPackagesInHome([HELLO, '@x/gwb-helo', '@x/gwb-nope'], homeDependencies)).toThrow('@x/gwb-helo、@x/gwb-nope')
+  })
+
+  it('都在 home 里、给了空数组、没给 only：不抛', () => {
+    expect(() => assertOnlyPackagesInHome([HELLO, COMMANDS], homeDependencies)).not.toThrow()
+    expect(() => assertOnlyPackagesInHome([], homeDependencies)).not.toThrow()
+    expect(() => assertOnlyPackagesInHome(undefined, homeDependencies)).not.toThrow()
   })
 })
 
@@ -200,7 +213,6 @@ describe('planUpdateAll：peer 里写了被升级的包的插件一起重新加�
           { id: 'notes', disabled: false, self: false },
           { id: 'notes-off', disabled: true, self: false },
         ],
-        self: false,
       },
     ])
   })
@@ -235,16 +247,17 @@ describe('planUpdateAll：peer 里写了被升级的包的插件一起重新加�
     expect(plan.dependents.map((d) => d.pkg)).toEqual([NOTES])
   })
 
-  it('插件管理自己的 peer 写了被升级的包：它排在 dependents 最后，标 self，selfIncluded 真', () => {
+  it('插件管理自己的 peer 写了被升级的包：它照包名排进 dependents，不挪到最后，自己那条条目标 self', () => {
+    const ZETA = '@x/gwb-zeta'
     const manifests = new Map<string, unknown>([
       [MANAGER, plugin({ [COMMANDS]: '^0.2.0' })],
       [NOTES, plugin({ [COMMANDS]: '^0.2.0' })],
       [BOARD, plugin({ [COMMANDS]: '^0.2.0' })],
+      [ZETA, plugin({ [COMMANDS]: '^0.2.0' })],
     ])
     const plan = planUpdateAll(outdated, dependentsStore, 'home:plugin-manager', manifests, [COMMANDS])
-    expect(plan.dependents.map((d) => d.pkg)).toEqual([BOARD, NOTES, MANAGER])
-    expect(plan.dependents[2]).toEqual({ pkg: MANAGER, because: [COMMANDS], entries: [{ id: 'plugin-manager', disabled: false, self: true }], self: true })
-    expect(plan.selfIncluded).toBe(true)
+    expect(plan.dependents.map((d) => d.pkg)).toEqual([BOARD, NOTES, MANAGER, ZETA])
+    expect(plan.dependents[2]).toEqual({ pkg: MANAGER, because: [COMMANDS], entries: [{ id: 'plugin-manager', disabled: false, self: true }] })
   })
 
   it('什么都不升：dependents 是空的', () => {

@@ -2,7 +2,7 @@
 
 /**
  * 一键热升级的时间线：横轴是时间，每条横道是一个参与方（B 的 peer 写了被升级的 A，跟着重新加载）。每一步在它那条横道上点亮一个方框；
- * 已经发生的保持显示，还没发生的调淡。竖虚线是回执发出的时刻：插件管理自己排在它之后。
+ * 已经发生的保持显示，还没发生的调淡。竖虚线是回执发出的时刻：插件管理自己那条在它之后才重新加载。
  */
 
 import { Box, BORDER, FG, MUTED, Note, StepCaption } from './parts'
@@ -18,7 +18,7 @@ interface Event {
 const STEPS: { title: string; detail: string; events: Event[] }[] = [
   {
     title: '调用 update-all，定计划',
-    detail: '先查过期包，再由纯函数算出计划：升哪些包、每个包的每条条目都要重新加载、peer 写了被升级包的插件 B 跟着重新加载、插件管理自己排最后。',
+    detail: '先查过期包，再由纯函数算出计划：升哪些包、每个包的每条条目都要重新加载、peer 写了被升级包的插件 B 跟着重新加载、插件管理自己那条标出来留到回执之后。',
     events: [
       { lane: 0, lines: ['update-all'] },
       { lane: 1, lines: ['查过期包', '定计划'] },
@@ -26,7 +26,7 @@ const STEPS: { title: string; detail: string; events: Event[] }[] = [
   },
   {
     title: '一次 pnpm add 精确版本',
-    detail: '一次装完全部过期包，用查到的版本号而不是 @latest。pnpm 装上 A@1.1；B 的目录名带着 A 的版本，也换进新目录。旧目录随时可能被清掉；这一步失败就一条条目都不动。',
+    detail: '一次装完全部过期包，用查到的版本号而不是 @latest。pnpm 装上 A@1.1；B 的目录名带着 A 的版本，也换进新目录。这一步失败就一条条目都不动。',
     events: [
       { lane: 1, lines: ['一次', 'pnpm add'] },
       { lane: 2, lines: ['A@1.1 装上', 'B 换新目录'] },

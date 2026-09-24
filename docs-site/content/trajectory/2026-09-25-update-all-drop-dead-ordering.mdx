@@ -1,0 +1,32 @@
+---
+title: update-all 删掉不起作用的排序与字段，only 拼错改成直接报错，合并成一条命令的理由改成符合实际的
+born-at: 2026-09-25T03:00
+type: choice
+parent: [2026-09-08-gwb-devkit]
+label: 删 update-all 死机制
+domain: 插件管理
+---
+
+## 背景
+
+审查插件管理 `update-all` 还有哪些不起作用的机制，翻出四处：
+
+- 升级计划里的 `selfIncluded`：生产代码不读，`index.ts` 判断要不要把自己留到回执之后，用的是执行时 `remountUpgradedEntries` 返回的 `ownEntry`
+- 「插件管理自己排最后」的三处排序（升级的包、跟着重新加载的包、包内条目）与包级的 `self` 标记：注释写「它前面的每一条都在处理器里做完，回执才完整」，但执行时碰到自己那条只记 `deferred` 就跳过，回执发出后才重新加载，自己排在哪，别的条目都在回执之前做完。排序只影响回执列表的顺序
+- 升级与重新加载必须在同一条命令里，理由写的是「home 设了 `modulesCacheMaxAge: 0` 时同一次安装就删旧目录」。default home 没有 `pnpm-workspace.yaml`（写卡时看过 `%APPDATA%\gwb-kernel\homes\default\`），用 pnpm 默认值，旧目录保留约 7 天；`modulesCacheMaxAge: 0` 只在探针 `probes/2609242300_peer-between-plugins/` 里设过
+- `only` 里的包名不在 home 的 dependencies 里（多半拼错）时回 `ok: true`，名字写进 `note` 的「不在过期清单里」，和「已是最新」混在一起，拼错的人以为升了
+
+## 结论与边界
+
+- 删 `selfIncluded` 与对应断言
+- 删三处排序与 `PlannedPackage.self`、`PlannedDependent.self`；`PlannedEntry.self` 保留，执行时靠它判断哪条留到回执之后。包按包名、条目按树里的先后
+- 升级与重新加载仍在同一条命令里，理由改成「升完不重新加载，运行的还是旧版，等于没升；旧目录约 7 天后被清掉，那之后旧版读不到自己的文件」。不拆命令
+- `only` 里有不在 home 的 dependencies 里的名字，先于任何 pnpm 直接报错、说出是哪个；在 home 里但已是最新的照旧写进 `note`，计划里的字段 `ignored` 改名 `alreadyLatest`
+
+插件管理 0.10.0 这一版做完（写卡时还没发）。回执形状没变，`only` 拼错从 `ok: true` 变成报错，是调用方依赖的语义变了；这一版本来就升 x。
+
+## 否掉的候选
+
+- **排序留着、只改注释**：排序本身不起作用，留着就还得有人读懂它为什么在那儿
+- **拆成「只升包」与「重新加载」两条命令**：理由改了，结论没变——升完不重新加载等于没升，拆开只多出一段运行旧版的空档
+- **`only` 拼错时照旧回 `ok: true`，`note` 里分开写「不在 home 里」与「已是最新」**：拼错是调用方写错，照规矩直接报错；`note` 分开写仍会被只看 `ok` 的调用方漏掉

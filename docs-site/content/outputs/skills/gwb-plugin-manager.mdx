@@ -39,7 +39,7 @@ home 里有两层：
 ## 升级插件
 
 1. `plugin-manager.outdated` 看谁有新版本，回 `包名 → { current, latest }`
-2. `plugin-manager.update-all`（只升几个给 `{"only":["<包名>"]}`）。一条命令做完：一次 `pnpm add` 升到精确版本 → 升了的包的每条条目重新加载（本来停用的保持停用）→ peer 写了被升级包的插件（一层层往外）的条目也跟着重新加载 → 整页重新加载，不重启
+2. `plugin-manager.update-all`（只升几个给 `{"only":["<包名>"]}`；名字不在 home 的 dependencies 里直接报错，已是最新的写进 `note`）。一条命令做完：一次 `pnpm add` 升到精确版本 → 升了的包的每条条目重新加载（本来停用的保持停用）→ peer 写了被升级包的插件（一层层往外）的条目也跟着重新加载 → 整页重新加载，不重启
 3. 读回执 `updated[].entries[]` 与 `dependents[].entries[]`：`state` 为 `ACTIVE` 才算加载成功；`dependents[].because` 是它 peer 里写了的、这次换了目录的包。`selfDeferred: true` 表示插件管理自己在回执发出后才重新加载，过一会儿用 `list` 核对；升到 gwb-mcp 自己时进行中的 MCP 请求会断，重连一次。回执带 `kernelManaged` 表示内核包或 `cordis` 有新版本、这条命令没升它们，按下一节升内核
 4. `plugin-manager.list` 核对版本与 `active`，再调一次 `index`
 

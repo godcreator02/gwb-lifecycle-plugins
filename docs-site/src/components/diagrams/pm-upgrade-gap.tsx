@@ -1,7 +1,7 @@
 /**
  * 升级与重新加载为什么要在同一条命令里：左右两栏各是一条时间轴。上面一行是动作，中间一行是旧版插件
- * 在运行的时段，下面一行是磁盘上的版本目录。旧目录随时可能被 pnpm 清掉（默认保留一段时间，modulesCacheMaxAge: 0 时同一次安装就删），
- * 图里画的是被清掉的情况：左栏分两条命令，旧版在目录清掉之后还运行一段；右栏没有这一段。
+ * 在运行的时段，下面一行是磁盘上的版本目录。左栏分两条命令：升完到重新加载之间运行的仍是旧版，旧目录约 7 天后被 pnpm 清掉，
+ * 那之后旧版再读自己的文件就读不到；右栏没有这一段。
  */
 
 import { BORDER, FG, MUTED, Note } from './parts'
@@ -43,13 +43,13 @@ function Panel({ x, title, split }: { x: number; title: string; split: boolean }
         旧版 A 在运行
       </Note>
       <Bar x={x + 16} y={116} w={100} label="正常运行" />
-      {split ? <Bar x={addEnd} y={116} w={remountStart - addEnd} label="目录清掉后读不到文件" tone="b" /> : null}
+      {split ? <Bar x={addEnd} y={116} w={remountStart - addEnd} label="仍是旧版代码" tone="b" /> : null}
 
       <Note x={x} y={164} size={11} color={MUTED}>
         磁盘上的目录
       </Note>
       <Bar x={x + 16} y={172} w={100} label="A@1.0" />
-      <Bar x={addEnd} y={172} w={end - addEnd} label="A@1.1（A@1.0 随时可能被清掉）" tone="a" />
+      <Bar x={addEnd} y={172} w={end - addEnd} label="A@1.1（A@1.0 约 7 天后清掉）" tone="a" />
       <line x1={x + 16} y1={210} x2={end} y2={210} stroke={BORDER} />
       <Note x={end} y={224} anchor="end" size={10.5} color={MUTED}>
         时间 →
@@ -61,7 +61,7 @@ function Panel({ x, title, split }: { x: number; title: string; split: boolean }
 export function PmUpgradeGap() {
   return (
     <svg viewBox="0 0 760 240" role="img" aria-label="升级与重新加载分两条命令时的空档">
-      <Panel x={14} title="分两条命令：中间有一段空档" split />
+      <Panel x={14} title="分两条命令：中间运行的仍是旧版" split />
       <Panel x={400} title="同一条命令：没有空档" split={false} />
     </svg>
   )

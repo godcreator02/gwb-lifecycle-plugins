@@ -1,6 +1,6 @@
 ---
 title: 热升级
-description: outdated 查过期包；update-all 一次 pnpm add 精确版本，同一条命令里逐条停用再启用，peer 写了被升级包的插件一起重新加载，再整页重新加载，不重启；插件管理自己排最后、回执发出后才重新加载；内核包与 cordis 不热升级，由 update-kernel 装好、重启后生效
+description: outdated 查过期包；update-all 一次 pnpm add 精确版本，同一条命令里逐条停用再启用，peer 写了被升级包的插件一起重新加载，再整页重新加载，不重启；插件管理自己那条在回执发出后才重新加载；内核包与 cordis 不热升级，由 update-kernel 装好、重启后生效
 ---
 
 # 热升级
@@ -27,16 +27,16 @@ description: outdated 查过期包；update-all 一次 pnpm add 精确版本，�
 
 **是什么**：`update-all` 一条命令做完：一次 `pnpm add` 把过期包升到精确版本 → 逐条重新加载（peer 写了被升级包的插件也在其中）→ 整页重新加载。只升某几个包也用它，给 `only`；没有「只升包、不重新加载」的命令。
 
-**为什么**：pnpm 装上新版本之后，旧版本目录随时可能被清掉——默认保留一段时间（pnpm 文档写的是 7 天），home 设了 `modulesCacheMaxAge: 0` 时同一次安装就删。升级之后、重新加载之前只要隔着一条命令，旧版插件就可能在自己的目录已经删掉之后还运行一段，读自己的文件就读不到：
+**为什么**：升完不重新加载，运行着的还是旧版本的代码，等于没升。旧版本目录也不会一直留着：home 里没有 `pnpm-workspace.yaml`（default 就没有）时用 pnpm 的默认值，旧目录保留约 7 天（pnpm 文档写 `modulesCacheMaxAge` 默认 10080 分钟）后清掉。升级与重新加载分成两条命令，中间运行的一直是旧版，隔得久了目录被清掉，旧版再读自己的文件就读不到：
 
-<Diagram name="pm-upgrade-gap" title="分两条命令时，旧版插件在目录删掉之后还要运行一段">
-- 分两条命令：`pnpm add` 装上 A@1.1，A@1.0 的目录随时可能被清掉；到另一条命令停用再启用之前，旧版 A 还在运行，目录清掉之后读自己的文件就读不到
-- 同一条命令：`pnpm add` 一结束马上停用再启用，旧版 A 不再依赖旧目录
+<Diagram name="pm-upgrade-gap" title="分两条命令时，升完到重新加载之间运行的仍是旧版">
+- 分两条命令：`pnpm add` 装上 A@1.1，到另一条命令停用再启用之前，运行的仍是旧版 A；A@1.0 的目录约 7 天后被清掉，那之后旧版 A 读自己的文件就读不到
+- 同一条命令：`pnpm add` 一结束马上停用再启用，运行的就是新版，也不再依赖旧目录
 </Diagram>
 
-**例外**：命令本该保持原子、一条只做一件事，多步流程写进说明书由调用方一步步调。`update-all` 是允许的例外：升级与重新加载都依赖「这次升级之前磁盘上是哪个版本」，拆开就有上图那段空档。`pnpm add` 失败时一条条目都不动。
+**例外**：命令本该保持原子、一条只做一件事，多步流程写进说明书由调用方一步步调。`update-all` 是允许的例外：升完不重新加载就等于没升，拆开只多出上图那段运行旧版的空档。`pnpm add` 失败时一条条目都不动。
 
-这一条只能实机验证：在隔离 home 里先装某个包的旧版本，再调 `plugin-manager.update-all`，看条目回到 `ACTIVE`、日志里没有读不到文件的报错。
+这一条只能实机验证：在隔离 home 里先装某个包的旧版本，再调 `plugin-manager.update-all`，看条目回到 `ACTIVE`、`list` 里是新版本。
 
 ## 升级计划
 
@@ -48,29 +48,33 @@ description: outdated 查过期包；update-all 一次 pnpm add 精确版本，�
 - **每条条目各自重新加载**：被别的插件 inject 的插件重新加载时，cordis 会把依赖它的插件停用再启动，但那是重新运行内存里的旧代码，磁盘上的新版本没有加载，所以不能指望这种连带
 - 包按包名排，包内的条目按条目树里的先后；本来就停用的条目保持停用，记为 `skipped`
 - **跟着重新加载的包排在升级的包之后**：peer 写了被升级包的插件，理由与找法见下一节
-- **插件管理自己排最后**：它所在的包排在所有包之后（在升级的包里是这样，在跟着重新加载的包里也是这样），包内它那条条目也排最后
-- 给了 `only` 就只升点名的几个；点了名却不在过期清单里的，回执的 `note` 里列出来
+- **插件管理自己那条标 `self`**：它照包名、照树里的先后排，不挪位置；执行到它时只记 `deferred`、跳过，回执发出之后才重新加载（见下面「插件管理自己在回执之后」），排在哪都一样
+- 给了 `only` 就只升点名的几个；名字不在 home 的 `package.json` 的 dependencies 里（多半拼错）直接报错、说出是哪个，一次 pnpm 都不运行；在 home 里但已是最新的，回执的 `note` 里列出来
 - **内核包与 `cordis` 不升**：过期清单里有它们（`only` 点了名也一样）就列进 `kernelManaged`，回执带上这个字段，`note` 指向 `update-kernel`；过期清单里没有它们时回执里没有这个字段。理由见下面[升内核](#升内核)
 
 {/* ref file="../plugins/plugin-manager/src/kernel-upgrade.ts" lines="9-10" */}
 
 **守住它的测试**：计划是纯函数，每一条都有测试。
 
-{/* has file="../plugins/plugin-manager/tests/update-all.test.ts" text="包按名排、自己所在的包挪到最后" */}
+{/* has file="../plugins/plugin-manager/tests/update-all.test.ts" text="包只按名排、包内条目照树里的先后，自己所在的包与自己那条都不挪" */}
 
 {/* has file="../plugins/plugin-manager/tests/update-all.test.ts" text="每个包用 outdated 查到的版本号" */}
 
 {/* has file="../plugins/plugin-manager/tests/update-all.test.ts" text="执行时保持停用，不重新加载" */}
 
-{/* has file="../plugins/plugin-manager/tests/update-all.test.ts" text="点了名却不在过期清单里的进 ignored" */}
+{/* has file="../plugins/plugin-manager/tests/update-all.test.ts" text="点了名、不在过期清单里的（已是最新）进 alreadyLatest" */}
+
+{/* has file="../plugins/plugin-manager/tests/update-all.test.ts" text="有不在 home 里的（多半拼错）：直接抛错，说出是哪几个" */}
+
+{/* has file="../plugins/plugin-manager/tests/commands.test.ts" text="only 里的包名不在 home 的 dependencies 里（多半拼错）：直接抛错、说出是哪个名字，一次 pnpm 都不运行" */}
 
 {/* has file="../plugins/plugin-manager/tests/update-all.test.ts" text="过期清单里有它们：不进 pnpm 参数与 packages，列进 kernelManaged" */}
 
-{/* has file="../plugins/plugin-manager/tests/update-all.test.ts" text="only 点了它们的名也不升，照样列进 kernelManaged、不进 ignored" */}
+{/* has file="../plugins/plugin-manager/tests/update-all.test.ts" text="only 点了它们的名也不升，照样列进 kernelManaged、不进 alreadyLatest" */}
 
 ## peer 写了被升级包的插件一起重新加载
 
-**是什么**：升级了某个包，home 里 peer 写了它的插件（可选的 peer 也算）不升级，但它的条目在同一条命令里跟着重新加载；peer 写了这些插件的插件同样处理，一层层往外找，直到没有新的。回执的 `dependents` 按处理顺序列出这些包，每个带 `because`（它 peer 里写了的、这次换了目录的包）与各条条目的结果；原本停用的条目照样 `skipped`，插件管理自己在里面时照旧排最后、记 `deferred`，回执 `selfDeferred` 是 `true`。只看 home 的 dependencies 里的插件（`keywords` 含 `gwb-plugin`），内核包与 `cordis` 不算。
+**是什么**：升级了某个包，home 里 peer 写了它的插件（可选的 peer 也算）不升级，但它的条目在同一条命令里跟着重新加载；peer 写了这些插件的插件同样处理，一层层往外找，直到没有新的。回执的 `dependents` 按处理顺序列出这些包，每个带 `because`（它 peer 里写了的、这次换了目录的包）与各条条目的结果；原本停用的条目照样 `skipped`，插件管理自己在里面时照旧记 `deferred`、回执之后才重新加载，回执 `selfDeferred` 是 `true`。只看 home 的 dependencies 里的插件（`keywords` 含 `gwb-plugin`），内核包与 `cordis` 不算。
 
 **为什么**：pnpm 的虚拟存储目录名带着 peer 的版本，A 的 peer 写了 B，B 一升级，A 就被装进新目录（`A@1.0.0_B@1.0.0` 变成 `A@1.0.0_B@1.1.0`），而 pnpm 的输出里只写 B 变了。只重新加载 B 的话，正在运行的 A 还是从旧目录加载的、拿到的还是旧的 B；旧目录被清掉之后 A 再加载自己的文件就会失败（实验见 devkit 仓 `probes/2609242300_peer-between-plugins/`）。一层层往外找是按同一条目录名规则推出来的：C 的 peer 写了 A，A 换了目录，C 的目录名里带着 A，也跟着换——这一层还没在隔离 home 里实测。
 
@@ -90,7 +94,7 @@ description: outdated 查过期包；update-all 一次 pnpm add 精确版本，�
 
 {/* has file="../plugins/plugin-manager/tests/update-all.test.ts" text="本身就在升级的包、内核包与 cordis、不是插件的包、peer 没写被升级包的插件：都不算" */}
 
-{/* has file="../plugins/plugin-manager/tests/update-all.test.ts" text="插件管理自己的 peer 写了被升级的包：它排在 dependents 最后，标 self，selfIncluded 真" */}
+{/* has file="../plugins/plugin-manager/tests/update-all.test.ts" text="插件管理自己的 peer 写了被升级的包：它照包名排进 dependents，不挪到最后，自己那条条目标 self" */}
 
 {/* has file="../plugins/plugin-manager/tests/commands.test.ts" text="peer 写了被升级包的插件：它的条目在同一条命令里跟着重新加载（停用的跳过），回执 dependents 列出来" */}
 

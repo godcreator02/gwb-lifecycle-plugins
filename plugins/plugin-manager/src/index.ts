@@ -15,7 +15,7 @@ import { entriesForPackage } from './uninstall.js'
 import { ownEntryId, treeOf, type EntryTreeLike } from './tree.js'
 import { BusyGate } from './busy.js'
 import { fiberStateOf } from './fiber.js'
-import { planUpdateAll, type KernelManagedPackage, type PlannedEntry, type UpdateAllPlan } from './update-all.js'
+import { assertOnlyPackagesInHome, planUpdateAll, type KernelManagedPackage, type PlannedEntry, type UpdateAllPlan } from './update-all.js'
 import { remountNow, remountOne, remountSelfLater, type RemountedEntry } from './remount.js'
 import { KERNEL_PACKAGE } from './kernel-compat.js'
 import { CORDIS_PACKAGE, installedVersionMismatch, kernelStatusInList, kernelUpgradeTargetOf, pluginsOutsideKernelRange, versionChangeOf, type VersionChange } from './kernel-upgrade.js'
@@ -349,7 +349,7 @@ class PluginManager {
     registerBusyGuardedCommand(
       UPDATE_ALL_COMMAND,
       '一键热升级过期包，不重启',
-      `一次 pnpm add 把过期包升到 outdated 返回的精确版本，再逐条停用→启用，重新加载成新版本（原本停用的跳过；插件管理自己排最后、回执发出后才重新加载），最后 shell.reload 整页重新加载。peer 里写了被升级包的插件被 pnpm 装进了新目录，它们的条目在同一条命令里跟着重新加载（peer 写了这些插件的，一层层往外同样处理）。内核包 ${KERNEL_PACKAGE} 与 ${CORDIS_PACKAGE} 不升（only 点了名也不升），用 ${UPDATE_KERNEL_COMMAND} 升。回执 { updated: [{ pkg, from, to, entries: [{ id, action, state }] }], dependents: [{ pkg, because: [它 peer 里写了的、换了目录的包], entries: [{ id, action, state }] }], selfDeferred, reload, kernelManaged?: [{ pkg, from, to }]（过期了但没升的内核包与 cordis，过期清单里没有它们时没有这个字段）, note? }。参数 { only?: string[] }（只升这几个包；不给就全升）；${BUSY_USAGE_NOTE}`,
+      `一次 pnpm add 把过期包升到 outdated 返回的精确版本，再逐条停用→启用，重新加载成新版本（原本停用的跳过；插件管理自己那条在回执发出后才重新加载），最后 shell.reload 整页重新加载。peer 里写了被升级包的插件被 pnpm 装进了新目录，它们的条目在同一条命令里跟着重新加载（peer 写了这些插件的，一层层往外同样处理）。内核包 ${KERNEL_PACKAGE} 与 ${CORDIS_PACKAGE} 不升（only 点了名也不升），用 ${UPDATE_KERNEL_COMMAND} 升。回执 { updated: [{ pkg, from, to, entries: [{ id, action, state }] }], dependents: [{ pkg, because: [它 peer 里写了的、换了目录的包], entries: [{ id, action, state }] }], selfDeferred, reload, kernelManaged?: [{ pkg, from, to }]（过期了但没升的内核包与 cordis，过期清单里没有它们时没有这个字段）, note? }。参数 { only?: string[] }（只升这几个包，不在 home 的 dependencies 里的名字直接报错，已是最新的写进 note；不给就全升）；${BUSY_USAGE_NOTE}`,
       async (args) => {
         const result = await this.updateAll(onlyPackagesArgOf(args))
         return receiptWithPnpmTail(result)
@@ -513,9 +513,10 @@ class PluginManager {
     return { ok: true, updates }
   }
 
-  /** `only` 里包名不合规直接抛；下面每一种失败都是正常结果，转成回执 */
+  /** `only` 里包名不合规、或不在 home 的 dependencies 里直接抛；下面每一种失败都是正常结果，转成回执 */
   async updateAll(only?: readonly string[]): Promise<UpdateAllResult> {
     for (const pkg of only ?? []) assertPkgName(pkg)
+    assertOnlyPackagesInHome(only, await readHomeDependencies(this.homeDir))
 
     const checked = await this.outdated()
     if (!checked.ok || checked.updates === undefined) return failedUpdateAll(checked.error ?? '查不出过期清单')
@@ -523,7 +524,7 @@ class PluginManager {
     // 升级前读清单就够了：跟着重新加载的包本身不升级，它的 peer 在这次安装前后不变
     const plan = planUpdateAll(checked.updates, this.tree.store, ownEntryId(this.ctx), await this.readHomePackageManifests(), only)
     const notes: string[] = []
-    if (plan.ignored.length > 0) notes.push(`only 里这几个不在过期清单里，没动：${plan.ignored.join('、')}`)
+    if (plan.alreadyLatest.length > 0) notes.push(`only 里这几个已是最新，没动：${plan.alreadyLatest.join('、')}`)
     if (plan.kernelManaged.length > 0) notes.push(kernelManagedNoteOf(plan.kernelManaged))
     const kernelManagedField = plan.kernelManaged.length === 0 ? {} : { kernelManaged: plan.kernelManaged }
     if (plan.packages.length === 0) {
@@ -547,7 +548,7 @@ class PluginManager {
       return { ...failedUpdateAll(error), ...(failure.tail === undefined ? {} : { tail: failure.tail }) }
     }
 
-    // 旧版本目录随时可能被 pnpm 清掉（home 设了 modulesCacheMaxAge: 0 时同一次安装就删）：换了目录的每条条目都在这条命令里重新加载，中间不留间隔
+    // 升完不重新加载，运行着的还是旧版本，等于没升；旧版本目录也不会一直留着（pnpm 默认约 7 天后清掉）。所以换了目录的每条条目都在这条命令里重新加载
     const { updated, dependents, ownEntry } = await this.remountUpgradedEntries(plan)
     const summary =
       updated.map((p) => `${p.pkg} ${p.from} → ${p.to}`).join('，') +
