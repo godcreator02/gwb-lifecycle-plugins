@@ -112,7 +112,7 @@ description: 开发套件是一个普通的 gwb 插件，把「在一个新文�
 
 peer 里内核包的检查：
 
-{/* ref file="../plugins/devkit/src/release.ts" lines="181-201" */}
+{/* ref file="../plugins/devkit/src/release.ts" lines="149-169" */}
 
 peer 里的插件和源上 latest 在不在同一条线：
 
@@ -122,7 +122,7 @@ peer 里的插件和源上 latest 在不在同一条线：
 
 类型检查按哪几份 tsconfig 查：
 
-{/* ref file="../plugins/devkit/src/release.ts" lines="278-286" */}
+{/* ref file="../plugins/devkit/src/release.ts" lines="281-289" */}
 
 构建产物检查在 `src/artifact-check.ts`。哪些文件算 node 侧、哪些算浏览器侧，照模板生成的插件包的构建约定判断：node 侧是 `exports["."]` 的运行时入口（没有 `exports` 时是 `main`）加上顺着相对 import 走得到的文件，也就是内核的 loader 按包名 import 插件时加载的那些；浏览器侧是 `dist/client.js`（模板的 `build.ts` 用 esbuild 以 `platform: 'browser'` 输出的文件），同样顺着相对 import 走；内核包自己还把 `gwb.shared` 声明的子路径指到的文件算作浏览器侧入口；两边都走不到的文件不查。页面 importmap 里的名字只取内核包清单 `gwb.shared` 的键：清单当场从包目录的 `node_modules/@godcreator/gwb-kernel-desktop/package.json` 读（插件 peer 里写了内核包，pnpm 把它链接在那里），读不到就拒，别的依赖写的 `gwb.shared` 不算；`gwb.shared` 的形状照内核读它的那段代码。内核包以外的包在清单里写了 `gwb.shared`，不论插件还是库都拒：
 

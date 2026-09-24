@@ -15,7 +15,7 @@ description: outdated 查过期包；update-all 一次 pnpm add 精确版本，�
 
 **怎么做**：退出码 1 表示「有过期包」，是结果不是失败；找不到 pnpm、输出解析不了都转成 `ok: false` 的回执，界面上只显示一句提示。它只读不写，不经过 BUSY 检查，但 pnpm 照样排进串行队列（见[同一时刻只允许一个改动](/docs/plugin-manager/home#同一时刻只允许一个改动busy)）。
 
-{/* ref file="../plugins/plugin-manager/src/index.ts" lines="516-535" */}
+{/* ref file="../plugins/plugin-manager/src/index.ts" lines="525-544" */}
 
 **守住它的测试**：
 
@@ -133,7 +133,7 @@ description: outdated 查过期包；update-all 一次 pnpm add 精确版本，�
 
 **失败时**：内核包装不上，什么都没改；内核包装上了、而 peer 里的 `cordis` 不是精确版本号或装 `cordis` 失败，回执 `ok: false`，`error` 说明内核包已经是哪个版本、`cordis` 没对齐、先别重启——这时重启，新内核会运行在没对齐的 `cordis` 上。装 `cordis` 失败时回执带 `kernel` 与 pnpm 输出的最后几行。
 
-{/* ref file="../plugins/plugin-manager/src/index.ts" lines="595-640" */}
+{/* ref file="../plugins/plugin-manager/src/index.ts" lines="607-652" */}
 
 **范围不包含新内核的插件**：回执的 `pluginsOutsideRange` 列出 home 里 `keywords` 含 `gwb-plugin`、peer 里内核包的范围不包含新内核（或没写范围）的插件，按包名排。比对规则与 `list` 的 `kernelUntested` 是同一条（见[内核兼容性](/docs/plugin-manager/kernel-compat)），同样只报告：重启后它们照常加载，要不要先升它们由人决定。
 

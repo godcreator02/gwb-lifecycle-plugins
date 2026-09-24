@@ -15,11 +15,11 @@ description: 连接 devkit 与插件管理：devkit.dev 经 CDP 在目标页面�
 
 **一、`devkit.dev` 经 CDP 调两条命令。** devkit 运行在另一个 home 里，调用经 `bin/cdp.mjs` 的 `cmd` 动作发到目标页面的 `window.gwb.command`（通道见 [CDP 驱动 cdp.mjs](/docs/seams/cdp)）。重新加载一条条目只发一条 `plugin-manager.remount {"entryId": …}`：
 
-{/* ref file="../plugins/devkit/src/dev.ts" lines="584-615" */}
+{/* ref file="../plugins/devkit/src/dev.ts" lines="592-623" */}
 
 回执 `action` 是 `remounted` 时，`state` 必须是 `ACTIVE`；是 `deferred`（被重新加载的是插件管理自己）时，每 500 毫秒轮询一次 `plugin-manager.list`，60 秒内等到那条条目 `active: true`。插件管理这边的命令与处理：
 
-{/* ref file="../plugins/plugin-manager/src/index.ts" lines="344-353" */}
+{/* ref file="../plugins/plugin-manager/src/index.ts" lines="355-364" */}
 
 {/* ref file="../plugins/plugin-manager/src/remount.ts" lines="81-95" */}
 
@@ -33,13 +33,13 @@ description: 连接 devkit 与插件管理：devkit.dev 经 CDP 在目标页面�
 
 **二、`devkit.home.new` 自己写 `cordis.yml`、自己装内核包、cordis 与基础插件。** 新 home 在内核启动之前，由 devkit 写一份七条条目的 `cordis.yml`（文件已存在就不写），再用命令开头找到的 pnpm（两个固定位置之一，见[pnpm 与包源](/docs/seams/pnpm-registry)）依次运行三次 `pnpm add`：内核包（运行中的内核版本，精确版本号）、`cordis`（装上的内核包 peer 里写的精确版本号）、七个基础插件（其中有插件管理）。三次都带环境变量 `pnpm_config_auto_install_peers=false`，基础插件 peer 里写的插件不会被 pnpm 自动补装。内核包与 `cordis` 装完读 `node_modules` 里的清单核对版本，对不上不启动：
 
-{/* ref file="../plugins/devkit/src/home.ts" lines="257-295" */}
+{/* ref file="../plugins/devkit/src/home.ts" lines="258-294" */}
 
-{/* ref file="../plugins/devkit/src/home.ts" lines="368-395" */}
+{/* ref file="../plugins/devkit/src/home.ts" lines="367-394" */}
 
 **三、`devkit.dev` 自己改目标 home 的清单。** 把这次发的准确版本号写进目标 home 的 `package.json`，再在那个 home 里运行 `pnpm install`（和插件管理同一个 pnpm），装完读 `node_modules/<包>/package.json` 核对版本；失败时把清单改回原样。不用 `plugin-manager.install`，因为它对已装的包会再加一条条目：
 
-{/* ref file="../plugins/devkit/src/dev.ts" lines="435-474" */}
+{/* ref file="../plugins/devkit/src/dev.ts" lines="443-482" */}
 
 ## 约定
 

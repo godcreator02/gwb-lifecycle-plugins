@@ -48,7 +48,7 @@ description: 插件在 peerDependencies 里给内核包 @godcreator/gwb-kernel-d
 内核包与 `cordis`、清单读不到的包都不该声明兼容哪个内核，一律 `kernelUntested: false`、不带 `kernelRange`——不然窗格里这些包都显示「内核未测过」，
 真正没迁的插件反而看不出来。是不是插件的判法与 `update-kernel` 回执里的 `pluginsOutsideRange` 相同：
 
-{/* ref file="../plugins/plugin-manager/src/kernel-upgrade.ts" lines="62-69" */}
+{/* ref file="../plugins/plugin-manager/src/kernel-upgrade.ts" lines="63-70" */}
 
 {/* ref file="../plugins/plugin-manager/src/kernel-compat.ts" lines="54-67" */}
 

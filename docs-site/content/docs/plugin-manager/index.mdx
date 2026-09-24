@@ -59,7 +59,7 @@ description: 插件管理是唯一写 home 的插件——装卸包、增删条�
 
 {/* ref file="../plugins/plugin-manager/src/index.ts" lines="65-73" */}
 
-{/* ref file="../plugins/plugin-manager/package.json" lines="49-56" */}
+{/* ref file="../plugins/plugin-manager/package.json" lines="57-64" */}
 
 **导出的回执类型**：调用方 `import type` 引用，不手写回执的形状——`InstallResult`、`UninstallResult`、`OutdatedReceipt`、`UpdateAllResult`、`UpdatedPackage`、`DependentPackage`、`UpdateKernelResult`、`TransferOwnerResult`、`PluginManagerPresence` 定义在入口文件里，另外转出这几个（找插件与配包源的回执 `SearchReceipt`、`SourceAddResult`、`SourceListResult`、`SourceRemoveResult` 定义在 `package-sources.ts`）：
 
@@ -67,7 +67,7 @@ description: 插件管理是唯一写 home 的插件——装卸包、增删条�
 
 **说明书 `gwb-plugin-manager`**：给 agent 讲这些命令怎么调用，放在包根的 `skills/`，装了说明书插件就交给它登记，agent 经 MCP 入口的 `skill.read` 读。正本是 [gwb-plugin-manager](/outputs/skills/gwb-plugin-manager)，包里的 `SKILL.md` 是生成物：
 
-{/* ref file="../plugins/plugin-manager/src/index.ts" lines="235-240" */}
+{/* ref file="../plugins/plugin-manager/src/index.ts" lines="246-251" */}
 
 ## 依赖
 

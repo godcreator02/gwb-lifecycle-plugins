@@ -57,7 +57,7 @@ description: 连接 devkit、插件管理与 pnpm、npm 源、两份 npmrc、git
 
 **audit-deps 读 packument**：不经 pnpm，用 `fetch` 请求 `<源>/<包名 URL 编码>`，取 `versions` 的键与 `dist-tags.latest`；404 当作源上没有这个包；不带认证头：
 
-{/* ref file="../plugins/devkit/src/node-audit-deps.ts" lines="85-108" */}
+{/* ref file="../plugins/devkit/src/node-audit-deps.ts" lines="98-121" */}
 
 **插件管理找插件：按 scope 找源、调检索接口**。`plugin-manager.search` 每条源的地址照 pnpm 读两份 npmrc 的优先级找：先找 `@scope:registry=`，再找 `registry=`，每一种都是 home 级优先于机器级，都没有就是 npm 官方源：
 

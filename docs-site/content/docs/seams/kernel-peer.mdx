@@ -36,7 +36,7 @@ description: 连接插件包 package.json 的 peer（内核包的范围、用到
 
 **devkit 这边**：`devkit.release` 只查 `keywords` 含 `gwb-plugin` 的包，拿的是 devkit 自己所在那个 home 的 `gwbKernel.version`：
 
-{/* ref file="../plugins/devkit/src/release.ts" lines="185-201" */}
+{/* ref file="../plugins/devkit/src/release.ts" lines="153-169" */}
 
 **插件管理这边**：`list` 从 home 的 `node_modules` 读每个包的 `package.json`，拿插件管理所在那个 home 的 `gwbKernel.version` 比：
 

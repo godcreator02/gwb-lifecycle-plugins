@@ -47,7 +47,7 @@ export default class GwbExample extends Service {
 
 {/* ref file="../plugins/plugin-manager/src/index.ts" lines="65-73" */}
 
-{/* ref file="../plugins/plugin-manager/src/index.ts" lines="183-188" */}
+{/* ref file="../plugins/plugin-manager/src/index.ts" lines="194-199" */}
 
 服务名用 `gwb` 开头的小驼峰，跟插件名对应。提供了服务的插件在清单的 `gwb.provides` 里按服务名写 `summary` 与 `usage`，`devkit.services` 与 `devkit.capabilities` 靠它把用法带进回执；库按 import 说明符写（主入口写包名，子路径写 `包名/子路径`）。源码提供的每个服务都要有一条、每个键要么是源码提供的服务名要么是本包 `exports` 里的入口、`summary` 与 `usage` 不空——`devkit.release` 发版前拒没做到的包，`devkit.audit-structure` 报成 error（规则见[服务表与包自述](/docs/seams/service-table)）。
 
@@ -67,7 +67,7 @@ export default class GwbExample extends Service {
 
 插件管理对数据插件用第三种：数据插件没装时插件管理照常加载，装上之后才连接：
 
-{/* ref file="../plugins/plugin-manager/src/index.ts" lines="242-260" */}
+{/* ref file="../plugins/plugin-manager/src/index.ts" lines="253-271" */}
 
 **往继承了 `Service` 的服务里注册，不用自己包 `ctx.effect`**；往 `ctx.provide` 提供的扩展点服务里注册，要自己包。外壳 `gwbShell` 与命令总线 `gwbCommands`（0.4.6 起）都继承了 `Service`。模板注册窗格直接调；注册命令还包着一层 `ctx.effect`，这是给 0.4.6 之前不会自动注销的命令总线准备的：
 

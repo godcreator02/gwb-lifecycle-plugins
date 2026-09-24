@@ -33,7 +33,7 @@ description: 17 条命令是插件管理唯一的调用方式；服务 gwbPlugin
 - 参数写错（包名、版本范围、id、scope 不合规，条目不存在，改或删 `@godcreator`）直接报错；执行中的失败（找不到 pnpm、pnpm 失败）返回 `ok: false`，`error` 里是原因，pnpm 输出的最后几行既拼进 `error`，也原样放在 `data.tail`
 - 每条命令的 `description` 与 `usage` 写着参数形状，agent 经 MCP 入口的 `search` 读到的就是它们
 
-{/* ref file="../plugins/plugin-manager/src/index.ts" lines="295-300" */}
+{/* ref file="../plugins/plugin-manager/src/index.ts" lines="306-311" */}
 
 ## 服务只表示「装了」
 
@@ -43,11 +43,11 @@ description: 17 条命令是插件管理唯一的调用方式；服务 gwbPlugin
 
 **怎么做**：只表示存在的服务不需要认出调用方，用 `ctx.provide` 提供普通对象，不继承 cordis 的 `Service` 类——插件管理因此也不在运行时 import `cordis`。命令登记在命令插件（`gwbCommands`）上，插件管理用局部注入取得它，命令插件卸载时这些命令跟着注销、它再加载时重新登记。数据插件（`gwbData`）、设置插件（`gwbSettings`）、说明书插件（`gwbSkills`）也是可选的局部注入，缺了只少一部分功能。
 
-{/* ref file="../plugins/plugin-manager/src/index.ts" lines="183-188" */}
+{/* ref file="../plugins/plugin-manager/src/index.ts" lines="194-199" */}
 
-{/* ref file="../plugins/plugin-manager/src/index.ts" lines="228-233" */}
+{/* ref file="../plugins/plugin-manager/src/index.ts" lines="239-244" */}
 
-{/* ref file="../plugins/plugin-manager/src/index.ts" lines="272-291" */}
+{/* ref file="../plugins/plugin-manager/src/index.ts" lines="283-302" */}
 
 **守住它的测试**：插件管理只取 cordis、loader、内核包和四个可选插件的类型，构建产物里一个包名 import 都不该有；包清单 `gwb.provides` 里的 `gwbPluginManager` 一条要与源码提供的服务对得上，这条由 devkit 的发版前检查与 `devkit.audit-structure` 查，devkit 的测试也拿本仓的插件管理运行一遍。
 
