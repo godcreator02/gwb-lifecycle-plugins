@@ -63,12 +63,12 @@ export function samePath(a: string, b: string, platform: NodeJS.Platform): boole
  */
 export function guardHome(probe: HomeProbe, ownHome: string, platform: NodeJS.Platform, expect?: string): HomeGuard {
   if (probe.home === null || probe.home === '') {
-    return { ok: false, error: `问不出这张页是哪个 home:${probe.why ?? '没说原因'}——它可能不是工作台的外壳页,或者这个调试口连到了别的应用` }
+    return { ok: false, error: `问不出这张页是哪个 home:${probe.why ?? '没说原因'}——它可能不是工作台的外壳页,或者这个调试端口连到了别的应用` }
   }
   const name = path.basename(probe.home.replace(/[\\/]+$/, ''))
   // 记录回答「你要的是哪个」，页面回答「你连上的实际是哪个」：记录会过时、端口会被复用
   if (expect !== undefined && expect !== name) {
-    return { ok: false, error: `你点名要 ${expect},可这个调试口上的页面自报是 ${name}——记录陈旧了,或者口给错了。没动它` }
+    return { ok: false, error: `你点名要 ${expect},可这个调试端口上的页面自报是 ${name}——记录过时了,或者端口给错了。没动它` }
   }
   if (name === DAILY_HOME) {
     return { ok: false, error: `目标是 ${DAILY_HOME},这是日常那份 home,开发版不进它——换个隔离 home(devkit.home.new)再来` }
@@ -76,7 +76,7 @@ export function guardHome(probe: HomeProbe, ownHome: string, platform: NodeJS.Pl
   if (samePath(probe.home, ownHome, platform)) {
     return {
       ok: false,
-      error: `目标就是本件自己住的这个 home(${probe.home})——停用条目那一下会把正在跑的这条命令自己停掉。换 devkit 自己走另一条:发正式版,再 plugin-manager.update-all`,
+      error: `目标就是本插件自己所在的这个 home(${probe.home})——停用条目会把正在运行的这条命令自己停掉。换 devkit 自己用另一条路:发正式版,再 plugin-manager.update-all`,
     }
   }
   return { ok: true, home: probe.home, name }
@@ -209,10 +209,10 @@ export function checkInstalled(
 export function installedNote(homeName: string, wrong: readonly InstalledRow[]): string {
   const lines = wrong.map((row) =>
     row.actual === null
-      ? `${row.pkg}:这一趟发的是 ${row.expected},${homeName} 的 node_modules 里读不到它的 package.json`
-      : `${row.pkg}:这一趟发的是 ${row.expected},${homeName} 里实际装上的是 ${row.actual}`,
+      ? `${row.pkg}:这次发的是 ${row.expected},${homeName} 的 node_modules 里读不到它的 package.json`
+      : `${row.pkg}:这次发的是 ${row.expected},${homeName} 里实际装上的是 ${row.actual}`,
   )
-  return `新代码没进 ${homeName}——${lines.join(';')}。重挂拿到的会是装上的那一版,别当它验过了`
+  return `新代码没进 ${homeName}——${lines.join(';')}。重新加载拿到的会是装上的那一版,别当它验过了`
 }
 
 // ── 日志 ──────────────────────────────────────────────────────────────────────
@@ -372,7 +372,7 @@ async function planDevVersions(input: DevInput, deps: DevDeps): Promise<Failure 
     }
     const version = devVersion(manifest.version, deps.now())
     if (await deps.published(`${manifest.name}@${version}`, DEFAULT_REGISTRY)) {
-      return { ok: false, error: `${manifest.name}@${version} 已经在源上了,同一个号永不重发——同一分钟里发了两趟的话,等一分钟再来` }
+      return { ok: false, error: `${manifest.name}@${version} 已经在源上了,同一个号永不重发——同一分钟里发了两次的话,等一分钟再来` }
     }
     planned.push({ pkgDir, manifest, version })
     siblings[manifest.name] = version
@@ -398,7 +398,7 @@ async function publishDevVersions(planned: PlannedDevPackage[], siblings: Record
 async function installIntoHome(target: { home: string; name: string }, shipped: ShippedPackage[], deps: DevDeps): Promise<Failure | undefined> {
   const manifestFile = path.join(target.home, HOME_MANIFEST)
   const original = deps.readText(manifestFile)
-  if (original === undefined) return { ok: false, error: `读不到 ${target.name} 的清单(${manifestFile})——这不像一个装过件的 home`, data: { shipped } }
+  if (original === undefined) return { ok: false, error: `读不到 ${target.name} 的清单(${manifestFile})——这不像一个装过插件的 home`, data: { shipped } }
   let pinnedText = original
   for (const one of shipped) {
     const pinned = pinExact(pinnedText, one.pkg, one.version)
@@ -453,7 +453,7 @@ export async function runDev(input: DevInput, deps: DevDeps): Promise<DevOutcome
 
   // 在仓根构建，不在包目录：工作区里的插件常常用着同仓另一个包的产物
   const built = await deps.run(pnpmPlan(['build'], input.repoDir, deps.platform), BUILD_TIMEOUT_MS)
-  if (!built.ok) return { ok: false, error: `仓根 pnpm build 没成,一步都没往下走。输出尾巴:\n${built.tail}` }
+  if (!built.ok) return { ok: false, error: `仓根 pnpm build 没成,一步都没往下走。输出的最后几行:\n${built.tail}` }
 
   const plan = await planDevVersions(input, deps)
   if ('ok' in plan) return plan
@@ -492,15 +492,15 @@ export const DEFERRED_TIMEOUT_MS = 60_000
 export async function remount(home: string, pkg: string, entryId: string, deps: DevDeps): Promise<{ ok: true } | { ok: false; error: string }> {
   const reply = receiptOf((await deps.cdp(home, ['cmd', REMOUNT_COMMAND, JSON.stringify({ entryId })], CDP_TIMEOUT_MS)).data)
   if (!reply.ok) {
-    return { ok: false, error: `重挂 ${entryId} 没成(${REMOUNT_COMMAND}):${reply.error ?? '没说原因'}——目标 home 的 plugin-manager 要 0.4.0 起才有这条命令` }
+    return { ok: false, error: `重新加载 ${entryId} 没成(${REMOUNT_COMMAND}):${reply.error ?? '没说原因'}——目标 home 的 plugin-manager 要 0.4.0 起才有这条命令` }
   }
   const action = isRecord(reply.data) ? reply.data.action : undefined
   const state = isRecord(reply.data) && typeof reply.data.state === 'string' ? reply.data.state : '没报状态'
   if (action === 'remounted') {
-    return state === ACTIVE ? { ok: true } : { ok: false, error: `重挂了 ${entryId},但它停在 ${state},没到 ${ACTIVE}——日志里有原因` }
+    return state === ACTIVE ? { ok: true } : { ok: false, error: `重新加载了 ${entryId},但它停在 ${state},没到 ${ACTIVE}——日志里有原因` }
   }
   if (action !== 'deferred') {
-    return { ok: false, error: `重挂 ${entryId} 的回执认不出(action=${String(action)}):${JSON.stringify(reply.data)}` }
+    return { ok: false, error: `重新加载 ${entryId} 的回执认不出(action=${String(action)}):${JSON.stringify(reply.data)}` }
   }
   const maxPolls = Math.ceil(DEFERRED_TIMEOUT_MS / DEFERRED_POLL_MS)
   let lastObservation = '一次都没问到'
@@ -517,7 +517,7 @@ export async function remount(home: string, pkg: string, entryId: string, deps: 
   }
   return {
     ok: false,
-    error: `${entryId} 在回执之后才重挂,等了 ${String(DEFERRED_TIMEOUT_MS / 1000)} 秒没等到它回来。卡在:${lastObservation}`,
+    error: `${entryId} 在回执之后才重新加载,等了 ${String(DEFERRED_TIMEOUT_MS / 1000)} 秒没等到它回来。卡在:${lastObservation}`,
   }
 }
 
@@ -533,8 +533,8 @@ function evidenceNote(
   if (landed.wrong.length > 0) return installedNote(path.basename(homeDir), landed.wrong)
   if (!listed.ok) return `取不到证:plugin-manager.list 没回(${listed.error ?? '没说原因'})`
   if (dead.length > 0) return `这几条没挂上(fiber 没到 ACTIVE):${dead.join('、')}——日志里有原因`
-  if (errors.length > 0) return `重挂之后日志里冒出 ${String(errors.length)} 条 error,别当它验过了:\n${errors.join('\n')}`
-  return `装上的是这一趟的号(${landed.rows.map((row) => `${row.pkg}@${row.expected}`).join('、')}),${String(entryCount)} 条条目全活着,日志增量里没有 error${warns.length > 0 ? `(有 ${String(warns.length)} 条 warn,另看)` : ''}`
+  if (errors.length > 0) return `重新加载之后日志里新增 ${String(errors.length)} 条 error,别当它验过了:\n${errors.join('\n')}`
+  return `装上的是这次的版本号(${landed.rows.map((row) => `${row.pkg}@${row.expected}`).join('、')}),${String(entryCount)} 条条目都在运行,日志新增部分里没有 error${warns.length > 0 ? `(有 ${String(warns.length)} 条 warn,另看)` : ''}`
 }
 
 /** 三样：装上的就是这次发的版本号；条目的 fiber 真的是 ACTIVE；日志从基线往后没有 error。只在 runDev 里调用：判断要基线 */
