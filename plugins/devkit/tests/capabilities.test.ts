@@ -50,13 +50,23 @@ describe('importFacesOf：import 面聚合', () => {
       '@godcreator/gwb-shared-react': {
         keywords: ['gwb'],
         exports: '.',
-        gwb: { shared: ['react', 'react-dom'] },
+        gwb: { shared: { react: './react', 'react-dom': './react-dom' } },
       },
     }
     const out = await importFacesOf(['@godcreator/gwb-shared-react'], manifestsOf(table))
     expect(out[0]?.kind).toBe('库')
     expect(out[0]?.shared).toEqual(['react', 'react-dom'])
     expect(out[0]?.entries).toEqual([{ specifier: '@godcreator/gwb-shared-react' }])
+  })
+
+  it('gwb.shared 按内核的读法：只认「外置名 → 子路径」对象，子路径不是非空字符串的那项不报，数组写法不报', async () => {
+    const table = {
+      'with-bad-entries': { keywords: ['gwb'], gwb: { shared: { react: './react', 'react-dom': '', empty: 3 } } },
+      'array-form': { keywords: ['gwb'], gwb: { shared: ['react'] } },
+    }
+    const out = await importFacesOf(['with-bad-entries', 'array-form'], manifestsOf(table))
+    expect(out.find((f) => f.pkg === 'with-bad-entries')?.shared).toEqual(['react'])
+    expect(out.find((f) => f.pkg === 'array-form')?.shared).toBeUndefined()
   })
 
   it('第三方（无 gwb keyword）与老式包（main/types 无 exports）', async () => {

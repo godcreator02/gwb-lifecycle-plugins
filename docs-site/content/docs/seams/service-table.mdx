@@ -29,14 +29,14 @@ description: 连接 devkit.services、devkit.capabilities 与两样东西：cord
 | --- | --- | --- |
 | `gwb.provides` | `devkit.services` | 键是**服务名**，值 `{ summary, usage }` 贴到那条服务上 |
 | `gwb.provides` | `devkit.capabilities` | 键是**模块说明符**（包名，或 `包名/子路径`），值贴到那个入口上 |
-| `gwb.shared` | `devkit.capabilities` | 当作字符串或字符串数组读，报成 `shared` |
+| `gwb.shared` | `devkit.capabilities` | 与内核相同，按「外置名 → 本包 exports 子路径」的对象读；子路径是非空字符串的那些外置名报成 `shared` |
 | `exports`（没有就退回 `main` / `types`） | `devkit.capabilities` | 列出入口与 d.ts 路径，跳过 `./package.json` |
 | `keywords` | `devkit.capabilities` | 含 `gwb-plugin` 是插件，只含 `gwb` 是库，都没有是第三方 |
 | `dependencies`（home 的） | `devkit.capabilities` | 决定列哪些包 |
 
 {/* ref file="../plugins/devkit/src/services.ts" lines="155-182" */}
 
-{/* ref file="../plugins/devkit/src/capabilities.ts" lines="67-124" */}
+{/* ref file="../plugins/devkit/src/capabilities.ts" lines="80-137" */}
 
 ## 约定
 
@@ -48,11 +48,11 @@ devkit 保证：这两条命令只读不写；读不到、形状不对的一格�
 
 cordis 需要保证的：`fiber.store`、`fiber.entry`、`fiber.parent`、`registry.entries()`、`runtime.fibers`、`runtime.name` 这几个字段。它们不是 cordis 的文档化接口，**靠约定**：写在 `services.ts` 的文件头注释（按 4.0.0-rc.9 的字段写），没有测试拿真实的 cordis 核对，结构变了的表现是回执变成空表加 `note`。
 
-两处读法与别处对不上，照实记：
-- 同一个 `gwb.provides`，`devkit.services` 按服务名作键，`devkit.capabilities` 按模块说明符作键；repo-kit 的守卫要求插件包的键全是服务名，所以按说明符作键的声明只在库上写得进去
-- 内核把 `gwb.shared` 当作「包名 → 子路径」的对象读（见内核仓文档站的「页面上的包名 gwb.shared」接缝页），`devkit.capabilities` 只认字符串或字符串数组，读到对象时不报 `shared`；它的测试用的是数组
+`gwb.shared` 的读法与内核一致：内核把它当作「外置名 → 子路径」的对象读（见内核仓文档站的「页面上的包名 gwb.shared」接缝页），子路径不是非空字符串的那一项不进 importmap；`devkit.capabilities` 按同一条规则取外置名，写成数组或字符串的声明两边都不认：
 
-{/* ref file="../plugins/devkit/src/capabilities.ts" lines="113-113" */}
+{/* ref file="../plugins/devkit/src/capabilities.ts" lines="52-63" */}
+
+一处读法与别处对不上，照实记：同一个 `gwb.provides`，`devkit.services` 按服务名作键，`devkit.capabilities` 按模块说明符作键；repo-kit 的守卫要求插件包的键全是服务名，所以按说明符作键的声明只在库上写得进去。
 
 ## 不负责的事
 
@@ -69,3 +69,5 @@ cordis 需要保证的：`fiber.store`、`fiber.entry`、`fiber.parent`、`regis
 {/* has file="../plugins/devkit/tests/services.test.ts" text="拿不到那些表时回空表——换了形状、或宿主不是 cordis，都不抛" */}
 
 {/* has file="../plugins/devkit/tests/capabilities.test.ts" text="库：只带 gwb 的 keywords、gwb.shared 报出来、没声明的入口照样列" */}
+
+{/* has file="../plugins/devkit/tests/capabilities.test.ts" text="gwb.shared 按内核的读法：只认「外置名 → 子路径」对象，子路径不是非空字符串的那项不报，数组写法不报" */}

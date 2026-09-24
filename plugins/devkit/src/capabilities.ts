@@ -7,7 +7,7 @@ import type { ServiceProvides } from './services.js'
  * 事实与意图分工（判据见文档站）：
  *
  * - **事实现算**：入口清单来自 `exports`（回退 `main`），身份来自 `keywords`，importmap
- *   外置名来自 `gwb.shared`，d.ts 路径来自入口的 `types`——一律从那份 `package.json`
+ *   外置名来自 `gwb.shared` 的键，d.ts 路径来自入口的 `types`——一律从那份 `package.json`
  *   现读，不抄进任何声明。抄了就是第二正本，必漂。
  * - **意图声明**：`gwb.provides` 按「你在代码里写下的那个模块说明符」做键——主入口的键
  *   是包名、子路径的键是 `包名/子路径`——值是 `{ summary, usage }`。没声明的入口照样列，
@@ -32,7 +32,7 @@ export interface ImportFace {
   version?: string
   /** 身份：件（keywords 带 gwb-plugin）/ 库（只带 gwb）/ 第三方（都不是） */
   kind: '件' | '库' | '第三方'
-  /** importmap 外置名（`gwb.shared`）——react 系经页面 importmap 解析的那种 */
+  /** importmap 外置名：`gwb.shared` 的键——react 系经页面 importmap 解析的那种 */
   shared?: string[]
   entries: ImportEntry[]
 }
@@ -47,6 +47,19 @@ function asStrings(value: unknown): string[] | undefined {
   if (typeof value === 'string') return [value]
   if (Array.isArray(value) && value.every((v) => typeof v === 'string')) return value as string[]
   return undefined
+}
+
+/**
+ * `gwb.shared` 声明的 importmap 外置名。内核按「外置名 → 本包 exports 子路径」的对象读，子路径不是
+ * 非空字符串的那一项不进 importmap（见内核仓 `apps/desktop/src/imports.ts`），这里按同一条规则取键。
+ * 不是对象（没写、写成数组或字符串）时是 undefined。
+ */
+function sharedNamesOf(declared: unknown): string[] | undefined {
+  const record = asRecord(declared)
+  if (record === undefined) return undefined
+  return Object.entries(record)
+    .filter(([name, subpath]) => name !== '' && typeof subpath === 'string' && subpath !== '')
+    .map(([name]) => name)
 }
 
 /** 入口说明（exports 的值）里挑出 types 与 default 的目标 */
@@ -110,7 +123,7 @@ export async function importFacesOf(
       if (targets.types !== undefined || targets.default !== undefined) pushEntry('.', targets)
     }
 
-    const shared = asStrings(asRecord(manifest['gwb'])?.['shared'])
+    const shared = sharedNamesOf(asRecord(manifest['gwb'])?.['shared'])
     out.push({
       pkg,
       ...(version === undefined ? {} : { version }),
