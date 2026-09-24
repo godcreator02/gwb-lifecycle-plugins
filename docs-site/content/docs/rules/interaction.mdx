@@ -21,7 +21,7 @@ description: 只通过服务和命令，不 import 别的插件；共享代码�
 
 插件管理调外壳的整页重载，只写命令名：
 
-{/* ref file="../plugins/plugin-manager/src/index.ts" lines="30-31" */}
+{/* ref file="../plugins/plugin-manager/src/index.ts" lines="33-34" */}
 
 插件管理与 devkit 都要判断「插件 peer 里内核包的范围包不包含某个内核」，这段规则两边各存一份，不跨包 import：
 
@@ -59,7 +59,7 @@ export function apply(ctx: GwbContext): void {
 
 插件管理导出每条命令的回执类型，调用方 `import type` 取：
 
-{/* ref file="../plugins/plugin-manager/src/index.ts" lines="79-89" */}
+{/* ref file="../plugins/plugin-manager/src/index.ts" lines="83-93" */}
 
 ## 为什么
 

@@ -21,17 +21,17 @@ description: 连接 devkit、插件管理与三个不在本仓的插件：建仓
 
 **建仓：`docs-site.create` 与 `docfirst.attach`**。插件那部分写到磁盘之后才调，两条都传站目录 `<仓>\docs-site`，不是仓根。`docs-site.create` 传 `{ dir, title, port? }`，回执里只读 `data.port`；`docfirst.attach` 传 `{ dir, title }`，只看 `ok` 与 `error`：
 
-{/* ref file="../plugins/devkit/src/index.ts" lines="799-825" */}
+{/* ref file="../plugins/devkit/src/index.ts" lines="802-828" */}
 
-{/* ref file="../plugins/devkit/src/index.ts" lines="829-838" */}
+{/* ref file="../plugins/devkit/src/index.ts" lines="832-841" */}
 
 **结构体检与 audit-deps：`unit-folder.list`**。没给 `root` 时调它，传 `{}`，只读 `data.container` 当容器根：
 
-{/* ref file="../plugins/devkit/src/index.ts" lines="509-516" */}
+{/* ref file="../plugins/devkit/src/index.ts" lines="512-519" */}
 
 拿到容器根之后不再经命令，devkit 自己扫目录、直接读每个单元的 `unit.json`：`status` 是 `retired` 的单元、`kind` 是 `测试件` 的单元整个跳过：
 
-{/* ref file="../plugins/devkit/src/audit.ts" lines="102-110" */}
+{/* ref file="../plugins/devkit/src/audit.ts" lines="105-113" */}
 
 {/* ref file="../plugins/devkit/src/node-audit-deps.ts" lines="21-45" */}
 

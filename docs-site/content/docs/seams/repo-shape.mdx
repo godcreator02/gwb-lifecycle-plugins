@@ -32,7 +32,7 @@ description: 连接 devkit.dev、devkit.release、结构体检、audit-deps 与�
 
 {/* ref file="../plugins/devkit/src/node-dev-deps.ts" lines="171-181" */}
 
-**`keywords` 含 `gwb-plugin` 表示插件**：`devkit.release` 只对它查 peer、构建产物里包名 import 的两份名单与 `gwb.testedKernel`；结构体检只对它查包名派生链、`files` 白名单与 `prepublishOnly`：
+**`keywords` 含 `gwb-plugin` 表示插件**：`devkit.release` 只对它查 peer（含 peer 里内核包的范围）与构建产物里包名 import 的两份名单；结构体检只对它查包名派生链、`files` 白名单与 `prepublishOnly`：
 
 {/* ref file="../plugins/devkit/src/release.ts" lines="153-153" */}
 
@@ -46,9 +46,9 @@ description: 连接 devkit.dev、devkit.release、结构体检、audit-deps 与�
 
 {/* ref file="../plugins/devkit/src/artifact-check.ts" lines="244-244" */}
 
-{/* ref file="../plugins/devkit/src/release.ts" lines="270-286" */}
+{/* ref file="../plugins/devkit/src/release.ts" lines="274-290" */}
 
-{/* ref file="../plugins/devkit/src/release.ts" lines="377-386" */}
+{/* ref file="../plugins/devkit/src/release.ts" lines="381-390" */}
 
 **成员放在哪**：结构体检只扫 `plugins/*` 与 `packages/*`；`audit-deps` 读仓根、`plugins/*`、`packages/*`、`apps/*` 与 `docs-site` 的 `package.json`；组装发布内容时找 `workspace:` 依赖的版本，从仓根往下扫两层，不认目录名：
 
@@ -62,7 +62,7 @@ description: 连接 devkit.dev、devkit.release、结构体检、audit-deps 与�
 
 **git 工作区干净**：`devkit.release` 在构建之前运行 `git status --porcelain=v1`，有一条改动就一个都不发；不是 git 仓也拒。`devkit.dev` 不查：
 
-{/* ref file="../plugins/devkit/src/release.ts" lines="306-315" */}
+{/* ref file="../plugins/devkit/src/release.ts" lines="310-319" */}
 
 **在单元里**：`audit-deps` 与全生态的结构体检从容器根往下找仓：单元目录本身有 `.git`，或单元下一层的目录有 `.git`；先读单元的 `unit.json` 决定跳不跳过（见[借用别的插件的命令](/docs/seams/borrowed-commands)）：
 
@@ -80,7 +80,7 @@ devkit 保证：
 
 - devkit 不决定一个仓该有几个包、怎么分组，只按上面的目录名去找
 - `devkit.dev` 不看 git 状态，未提交的改动照样发成开发版
-- 结构体检不看依赖版本、`gwb.testedKernel` 与 git 状态
+- 结构体检不看依赖版本、peer 里内核包的范围与 git 状态
 
 ## 测试
 

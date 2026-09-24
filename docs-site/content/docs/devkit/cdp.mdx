@@ -16,7 +16,7 @@ description: bin/cdp.mjs（登记成 devkit.cdp）在一个工作台页面里操
 
 **点不到的时候会报出原因**，这是它比「在页面里自己构造事件」强的地方：构造出来的事件不做命中测试，目标被浮层挡住照样点得到，而遮挡正是界面最容易出的错；构造出来的事件 `isTrusted` 是 false，按可信输入做判断的地方行为不同。这里发的是浏览器层的事件，命中测试由浏览器自己做，点不到时把挡住它的那条祖先链和目标的 `pointer-events` 一起报出来。
 
-{/* ref file="../plugins/devkit/bin/cdp.mjs" lines="388-401" */}
+{/* ref file="../plugins/devkit/bin/cdp.mjs" lines="309-322" */}
 
 **问一个页面属于哪个 home**，靠的是页面上那些 `file://` 地址里带着的 home 路径（外壳插入的样式表与 importmap 都是）。不用配置、不用猜；出现不止一个 home 就直接说不猜，不挑一个。
 
