@@ -27,25 +27,25 @@ home 在 `%APPDATA%\gwb-kernel\homes\<名>\`。打开哪一个由环境变量 `G
 
 运行时记录，一个 home 一份，home 删了它也就没了：
 
-{/* ref file="../plugins/devkit/src/home.ts" lines="55-73" */}
+{/* ref file="../plugins/devkit/src/home.ts" lines="29-47" */}
 
 **写它的是内核与 MCP 入口插件，不是本包。** 内核每次启动整份重写 `pid`、`startedAt`、`appDir`、`cdp`，`gwb-mcp` 绑定端口之后读出、补上 `mcp` 字段再写回（更早的 `command-http` 插件写的 `command-http` 字段在旧 home 的记录里还在，照读、只作参考）。谁写哪个字段按「谁知道这个值」分：调试端口是 Chromium 的命令行开关，只有启动进程的一方知道，而内核是唯一一定在场的进程；MCP 端口绑定成功之后才确定，只有那个插件知道。
 
 **少一个字段不算坏记录。** `cdp` 只有启动时带了那个开关才有，`mcp` 只有装了 MCP 入口插件且绑定成功才有。缺哪个字段就是那件事没发生。
 
-{/* ref file="../plugins/devkit/src/home.ts" lines="84-91" */}
+{/* ref file="../plugins/devkit/src/home.ts" lines="66-78" */}
 
 **进程退出了记录不删**，读的人负责确认进程还在。崩溃与被结束进程很常见，「退出时删」在这两种情况下根本不会执行；留着的那份是「它上一次用的哪个端口」的唯一线索，而下一次启动时内核会整份重写。
 
 `devkit.home.list` 列出来的是另一个类型，`running` 由记录里的 pid 当场查出来：
 
-{/* ref file="../plugins/devkit/src/home.ts" lines="437-448" */}
+{/* ref file="../plugins/devkit/src/home.ts" lines="366-377" */}
 
 两个端口按记录如实报，**不因为「进程看起来不在了」就去掉**：一个过时的端口正是人要看到的线索。
 
 名字的形状不是本包定的：
 
-{/* ref file="../plugins/devkit/src/home.ts" lines="16-17" */}
+{/* ref file="../plugins/devkit/src/home.ts" lines="5-6" */}
 
 比内核那条规则更严没有意义，名字最终由内核决定收不收。
 
@@ -65,17 +65,17 @@ home 在 `%APPDATA%\gwb-kernel\homes\<名>\`。打开哪一个由环境变量 `G
 
 **名字是 `<短名>-<yyMMddHHmm>`**，重名了改用秒，再重名就直接拒：
 
-{/* ref file="../plugins/devkit/src/home.ts" lines="145-157" */}
+{/* ref file="../plugins/devkit/src/home.ts" lines="114-123" */}
 
 不悄悄加序号，因为名字里每一段都得能读出时间。同一个插件的 home 因此在目录里挨在一起、按时间排，正好是清理时要的顺序。
 
 **`devkit.home.new` 在启动之前装好基础插件。** 写 `cordis.yml`（文件已存在就不写），再在 home 目录里 `pnpm add` 这七个插件与词汇表包；装不上就不启动，回执里带 pnpm 输出的最后几十行。这张清单写死、不做参数，要加别的插件，装完再用 `plugin-manager.install`：
 
-{/* ref file="../plugins/devkit/src/home.ts" lines="310-329" */}
+{/* ref file="../plugins/devkit/src/home.ts" lines="256-270" */}
 
 **`new` 与 `open` 都不构建内核、不认内核仓，启动的是宿主自己那个应用**：
 
-{/* ref file="../plugins/devkit/src/home.ts" lines="352-367" */}
+{/* ref file="../plugins/devkit/src/home.ts" lines="127-135" */}
 
 home 里运行的永远是宿主当前运行着的那个应用，日常就是安装版，内核版本跟着安装包走；改了内核源码要验证，走内核仓自己的流程，这里不代劳。`open` 与 `new` 的区别在另一件事上：**机器重启之后回到原来那个 home 只有 `open`**，`new` 永远建新目录，插件得全部重装一遍。
 
@@ -85,51 +85,51 @@ home 里运行的永远是宿主当前运行着的那个应用，日常就是安
 
 启动之后观察五秒：
 
-{/* ref file="../plugins/devkit/src/home.ts" lines="405-415" */}
+{/* ref file="../plugins/devkit/src/home.ts" lines="306-319" */}
 
 「启动成功没有」没有接口可问，进程还活着是此刻唯一拿得到的信号。这五秒只为抓住「刚启动就退出」这一种最常见的失败（产物不在、端口被占），真正成功没有，由那个窗口和人来判断。
 
 **观察完再读一次记录**：
 
-{/* ref file="../plugins/devkit/src/home.ts" lines="416-424" */}
+{/* ref file="../plugins/devkit/src/home.ts" lines="352-361" */}
 
 记录是内核启动时才写的，而它是之后「按名字找到这个 home」的全部依据，所以回执里要说清它出现没有。**读不到不算启动失败**：窗口已经开了，只是这个内核版本还不写、或者写得晚。那时按名字定位与按记录停止都用不了，而且没有别的办法——之后的命令只认名字，只能停掉、换一个会写这份记录的内核再开。
 
 调试端口**放在命令行上，不放在环境变量里**：
 
-{/* ref file="../plugins/devkit/src/home.ts" lines="175-202" */}
+{/* ref file="../plugins/devkit/src/home.ts" lines="137-156" */}
 
 内核不认任何调试相关的环境变量，`--remote-debugging-port` 是 Chromium 自己的开关，写在命令行上就生效。开了调试端口就同时带 `--disable-backgrounding-occluded-windows`：窗口被完全挡住时 Chromium 停止渲染新帧，取证时发的输入事件会卡住、截图拿到的是旧画面。`new` 与 `open` 用同一个启动计划，两条都带。
 
 **这次用哪个端口，启动之前自己定，定不出来就不启动。**
 
-{/* ref file="../plugins/devkit/src/index.ts" lines="211-235" */}
+{/* ref file="../plugins/devkit/src/index.ts" lines="187-205" */}
 
 **先沿用这个 home 上次那个端口**，它空着就用它。一个 home 的端口固定下来有好处：人记得住、日志里对得上、开着的检查器不用换地址；每次换一个，除了每次都得重新查一遍之外什么都换不来。
 
 被别人占了才另选，另选过两道筛。第一道：**别的** home 记录里写着的端口一律跳过，**过时的记录也算占着**——那份记录还指着这个端口，再分给第二个 home 的话，两份记录会同时声称自己是这个端口，而按名字定位全靠端口唯一。**自己那份记录不算**，不然重开一次时，自己上一次的记录会让这个端口被跳过、换成别的。
 
-{/* ref file="../plugins/devkit/src/home.ts" lines="476-491" */}
+{/* ref file="../plugins/devkit/src/home.ts" lines="405-414" */}
 
 第二道：此刻真有进程在监听的跳过，从 9400 起逐个问，问到空的就用。换了端口会在回执的 `cdpNote` 里说一句——不说的话，人会以为还是上次那个。
 
-{/* ref file="../plugins/devkit/src/home.ts" lines="493-518" */}
+{/* ref file="../plugins/devkit/src/home.ts" lines="416-430" */}
 
 **选好端口到 electron 真正绑定之间有一段时间**。这段时间里别人占了这个端口，记录里就会写着一个不属于它的端口。这段时间里被别人占了，这里既防不住、事后也改不了记录；这种情况由后面「监听端口的进程必须是记录里的 pid」那道检查抓住。一个空端口都找不到时直接拒、不启动——说明这台机器上有很多没停的 home，该清理了。
 
 给子进程的环境变量要**去掉 `ELECTRON_RUN_AS_NODE`**：
 
-{/* ref file="../plugins/devkit/src/home.ts" lines="204-219" */}
+{/* ref file="../plugins/devkit/src/home.ts" lines="158-171" */}
 
 插件运行在 Electron 主进程里，会启动 node 子进程的插件会带上这个变量。它漏进这里，启动的就不是一个窗口，而是一个看不见的 node 进程。
 
 **按名字定位：`resolveTarget`。** 它不是一条命令，是「我要操作哪个 home」这句话的实现——`devkit.dev` 的 `home` 参数经它变成调试端口。**这是唯一的一条路**：那条命令不收端口，给了当场拒，所以这个函数失败了就是真的连不上，没有别的办法绕过去。
 
-{/* ref file="../plugins/devkit/src/home.ts" lines="522-536" */}
+{/* ref file="../plugins/devkit/src/home.ts" lines="434-439" */}
 
 **三道检查都要过**，少一道就可能把这次改动推给另一个进程：
 
-{/* ref file="../plugins/devkit/src/home.ts" lines="537-563" */}
+{/* ref file="../plugins/devkit/src/home.ts" lines="440-466" */}
 
 记录读得出；pid 还活着，且认得出是一个 home 进程；那个 pid 确实在监听记录里的端口。端口会被下一个进程占用，pid 会被复用，所以「记录里写着 9401」本身不能当依据。「查不出」与「确定不在」分开报：前者不导出任何动作，后者是明确的「它没在运行」。
 
@@ -137,31 +137,33 @@ home 里运行的永远是宿主当前运行着的那个应用，日常就是安
 
 **`devkit.home.rm` 是删除，也是唯一会停止一个 home 的地方。** 停一个测试 home 唯一的用途就是接着删它，所以没有单独的停止命令：
 
-{/* ref file="../plugins/devkit/src/home.ts" lines="663-674" */}
+{/* ref file="../plugins/devkit/src/home.ts" lines="584-592" */}
 
 `force` 是同一个意思用在两处，都是**越过检查**：一处是「它还在运行，停了再删」，另一处是「`default` 是日常用的 home，确实要删」。**但两处不叠加**——`default` 正在运行时带了 `force` 也不停它。开发工具不该去关人正在用的窗口，那不是删一个测试 home，是打断人正在做的事；照实说，让人自己关。
 
-{/* ref file="../plugins/devkit/src/home.ts" lines="675-701" */}
+{/* ref file="../plugins/devkit/src/home.ts" lines="551-572" */}
 
 记录里的进程「查不出还在不在」时不删：不知道它还在不在用这个目录，删了可能删到正在使用的文件。停不掉也不删——删掉一半的目录加上大量 EBUSY 报错，比一句「没删成」难收拾得多。确实停了的话，停的是哪个 pid 写进回执：人得知道自己刚才顺带结束了一个进程。
 
 **「停了」指进程真的退出了，不是信号发出去了。** 发完信号按 pid 轮询，查到「不在」才算停；到时间还在、或者一直查不出，就回停不掉：
 
-{/* ref file="../plugins/devkit/src/home.ts" lines="577-592" */}
+{/* ref file="../plugins/devkit/src/home.ts" lines="476-491" */}
 
 **「已删」只认磁盘。** 删除调用返回成功不算数，每删一次核对一次目录还在不在；还在就等一会儿再删（刚停的 home 的子进程要几秒才释放文件句柄），试满次数还在就回没删掉，并列出还剩什么：
 
-{/* ref file="../plugins/devkit/src/home.ts" lines="702-718" */}
+{/* ref file="../plugins/devkit/src/home.ts" lines="574-582" */}
+
+{/* ref file="../plugins/devkit/src/home.ts" lines="596-605" */}
 
 停止之前**核对两次再结束进程**：映像名认得出是 home 进程，记录里有调试端口的，再核对监听那个端口的进程就是记录里的 pid：
 
-{/* ref file="../plugins/devkit/src/home.ts" lines="594-628" */}
+{/* ref file="../plugins/devkit/src/home.ts" lines="493-538" */}
 
 **手动启动的 home 也能这样停**：记录由内核写，所以不只 devkit 启动的 home 才有「它是谁」的依据。没有记录就照实说没有可停的，不猜、不按名字搜进程。
 
 ## 依赖的接口
 
-{/* ref file="../plugins/devkit/src/home.ts" lines="247-270" */}
+{/* ref file="../plugins/devkit/src/home.ts" lines="198-221" */}
 
 | 接口 | 用来做什么 | 运行时的实现 | 测试时的实现 |
 | --- | --- | --- | --- |
@@ -188,7 +190,7 @@ home 里运行的永远是宿主当前运行着的那个应用，日常就是安
 
 ## 代码地图
 
-**在哪**：纯逻辑在 `src/home.ts`，真机器操作在 `src/node-home-deps.ts`（判断进程与端口的那几个在 `src/node-probe-deps.ts`），四条命令与 `home` 参数的处理在 `src/index.ts`。
+**在哪**：纯逻辑在 `src/home.ts`，真实的机器操作在 `src/node-home-deps.ts`（判断进程与端口的那几个在 `src/node-probe-deps.ts`），四条命令与 `home` 参数的处理在 `src/index.ts`。
 
 **先读**：`launchHome`，开一个 home 的完整顺序都在里面；接着读 `resolveTarget`，按名字定位的三道检查都在里面。
 

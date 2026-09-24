@@ -35,7 +35,7 @@ description: 连接插件包 package.json 里的 gwb.testedKernel、gwb.requires
 
 **devkit 这边**：`devkit.release` 只查 `keywords` 含 `gwb-plugin` 的包，拿的是 devkit 自己所在那个 home 的 `gwbKernel.version`：
 
-{/* ref file="../plugins/devkit/src/release.ts" lines="212-229" */}
+{/* ref file="../plugins/devkit/src/release.ts" lines="180-194" */}
 
 {/* ref file="../plugins/devkit/src/index.ts" lines="532-532" */}
 
@@ -45,13 +45,13 @@ description: 连接插件包 package.json 里的 gwb.testedKernel、gwb.requires
 
 **字段 `gwb.requires`**：`{ "<包名>": "<最低版本号 x.y.z>" }`，可选。devkit 发版前查写法（是对象、值是 x.y.z、包在 dev 里、要求不高于 dev 下限）；插件管理拿它和 home 里装的版本比，列出没满足的。规矩见[要求别的插件的最低版本](/docs/rules/requires)。
 
-{/* ref file="../plugins/devkit/src/release.ts" lines="176-210" */}
+{/* ref file="../plugins/devkit/src/release.ts" lines="146-178" */}
 
 {/* ref file="../plugins/plugin-manager/src/requires.ts" lines="79-91" */}
 
 **合法的最低版本号**：x.y.z，每段是不带前导零的数字，不带预发布段与构建段。两个包各有一份 `isMinimumVersion`：
 
-{/* ref file="../plugins/devkit/src/release.ts" lines="165-174" */}
+{/* ref file="../plugins/devkit/src/release.ts" lines="136-144" */}
 
 {/* ref file="../plugins/plugin-manager/src/requires.ts" lines="31-37" */}
 

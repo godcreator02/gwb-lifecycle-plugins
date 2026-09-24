@@ -23,13 +23,13 @@ description: 连接 devkit.services、devkit.capabilities 与两样东西：cord
 
 **cordis 这边**：从自己的 `ctx.fiber` 沿 `parent.fiber` 往上走（最多 32 层），再遍历 `ctx.registry.entries()` 里每个插件的 `runtime.fibers`；每个 fiber 读 `store` 里的每一项，只收 `impl.fiber` 就是这个 fiber 的；提供者取 `fiber.entry.id` 与 `entry.options.name`，没有条目时退回 `runtime.name`：
 
-{/* ref file="../plugins/devkit/src/services.ts" lines="57-79" */}
+{/* ref file="../plugins/devkit/src/services.ts" lines="35-61" */}
 
-{/* ref file="../plugins/devkit/src/services.ts" lines="97-134" */}
+{/* ref file="../plugins/devkit/src/services.ts" lines="63-120" */}
 
 结构不对（字段不在、不是对象）时回空表，并在回执里带 `note` 与 `saw`（走了几层、看见几个插件、几个 fiber、几张服务表）：
 
-{/* ref file="../plugins/devkit/src/index.ts" lines="347-369" */}
+{/* ref file="../plugins/devkit/src/index.ts" lines="349-365" */}
 
 **package.json 这边**：
 
@@ -42,13 +42,13 @@ description: 连接 devkit.services、devkit.capabilities 与两样东西：cord
 | `keywords` | `devkit.capabilities` | 含 `gwb-plugin` 是插件，只含 `gwb` 是库，都没有是第三方 |
 | `dependencies`（home 的） | `devkit.capabilities` | 决定列哪些包 |
 
-{/* ref file="../plugins/devkit/src/services.ts" lines="155-182" */}
+{/* ref file="../plugins/devkit/src/services.ts" lines="135-158" */}
 
-{/* ref file="../plugins/devkit/src/capabilities.ts" lines="80-137" */}
+{/* ref file="../plugins/devkit/src/capabilities.ts" lines="77-123" */}
 
 ## 约定
 
-devkit 保证：这两条命令只读不写；读不到、形状不对的字段当没写，不让整条命令失败；cordis 结构认不出时回空表加说明，不抛错。
+devkit 保证：这两条命令只读不写；读不到、形状不对的字段当没写，不让整条命令失败；cordis 结构认不出时回空表加说明，不抛错。入口、d.ts 路径、外置名、身份这些事实每次都从各包的 `package.json` 现读，不抄进任何一份声明：抄一份就多了第二个来源，迟早和 `package.json` 对不上。
 
 各包需要保证的：`gwb.provides` 里的 `summary` 与 `usage` 是非空字符串，写的就是真的。插件包这一条由 repo-kit 的自述守卫检查：`gwb.provides` 的键必须与源码提供的服务名互为充要（见[仓侧检查 repo-kit](/docs/seams/repo-kit)）：
 
@@ -58,14 +58,14 @@ cordis 需要保证的：`fiber.store`、`fiber.entry`、`fiber.parent`、`regis
 
 `gwb.shared` 的读法与内核一致：内核把它当作「外置名 → 子路径」的对象读（见内核仓文档站的「页面上的包名 gwb.shared」接缝页），子路径不是非空字符串的那一项不进 importmap；`devkit.capabilities` 按同一条规则取外置名，写成数组或字符串的声明两边都不认：
 
-{/* ref file="../plugins/devkit/src/capabilities.ts" lines="52-63" */}
+{/* ref file="../plugins/devkit/src/capabilities.ts" lines="35-45" */}
 
-一处读法与别处对不上，照实记：同一个 `gwb.provides`，`devkit.services` 按服务名作键，`devkit.capabilities` 按模块说明符作键；repo-kit 的守卫要求插件包的键全是服务名，所以按说明符作键的声明只在库上写得进去。
+有一处读法与别处对不上，写在这里：同一个 `gwb.provides`，`devkit.services` 按服务名作键，`devkit.capabilities` 按模块说明符作键；repo-kit 的守卫要求插件包的键全是服务名，所以按说明符作键的声明只在库上写得进去。
 
 ## 不负责的事
 
 - 这两条命令只报这个 home 此刻加载了什么、装了什么，不判断对错
-- 不聚合入口里导出了哪些符号，只给 d.ts 路径
+- 不聚合入口里导出了哪些符号，只给 d.ts 路径，让 agent 去读原文：摘录会被截断，也会过时
 - 不列命令：命令按插件查用 MCP 入口的 `search`
 
 ## 测试

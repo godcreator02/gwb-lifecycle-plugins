@@ -23,7 +23,7 @@ description: 插件用到别的插件在某个版本新加的东西（比如外�
 
 **`devkit.release` 发版前检查**：插件包（`keywords` 含 `gwb-plugin`）写了 `gwb.requires` 才查，下面四种都拒，一个包都不发：不是对象；某个值不是合法的 x.y.z；某个包没写在 `devDependencies` 里；要求的版本高于 dev 范围的下限。dev 写 `workspace:` 的包不比下限：同仓的包本地用的就是工作区里的当前版本。
 
-{/* ref file="../plugins/devkit/src/release.ts" lines="176-210" */}
+{/* ref file="../plugins/devkit/src/release.ts" lines="146-178" */}
 
 **`plugin-manager.list` 按包报**：`requires` 照抄声明；`unmetRequires` 列出没满足的要求——home 里装的版本低于要求、要求的不是合法的 x.y.z、或者没装（这时没有 `installed` 字段）；`gwb.requires` 不是「包名 → 字符串」的对象时，`requiresInvalid` 说明哪里不对。只报告，不拦加载、不拦安装（回执怎么读，见插件管理那组页面里的[要求的插件版本](/docs/plugin-manager/requires)）：
 

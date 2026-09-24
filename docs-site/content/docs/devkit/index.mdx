@@ -74,6 +74,15 @@ description: 开发套件是一个普通的 gwb 插件，把「在一个新文�
 
 `devkit.release` 依次做：仓根 git 工作区不干净就拒；仓根 `pnpm build`；按 `files` 白名单检查产物；同一个版本号已在源上就拒；发版前检查；在临时目录组装发布内容、发到 latest（`workspace:` 依赖写成 `^`：同一次发的写 `^新版本号`，其余写 `^<工作区里的版本号>`）。任何一个包没过检查，一个都不发，回执按包一次列全。它只碰团队源、不碰任何 home，所以从哪个 home 调用都可以。
 
+这几步的顺序与取舍各有原因：
+
+- **在仓根构建，不在包目录**：工作区里的插件常常用着同仓另一个包的产物。
+- **全部检查在发第一个包之前做完**：发到一半停下，源上各包的 latest 就是新旧两版混在一起。
+- **问题一次列全**：只报第一处的话，每改一处都要再完整构建一次才看得到下一处。
+- **产物清单就是 `files` 白名单，不另列一份**：两份清单迟早对不上，现象是新写的代码发出去不生效。
+- **发出去的依赖写 `^` 范围，开发版写准确版本号**：semver 不拿预发布号满足范围，开发版只能靠准确版本号互相引用。
+- **git 工作区必须干净**：把没提交的改动发成 latest，是事后最难发现的错误。
+
 <Diagram name="dk-release" title="devkit.release 发正式版：六步依次做，任何一处没过，一个包都不发">
 - 第 1 步仓根 git 工作区干净（`git status`），不干净连构建都不跑；第 2 步仓根 `pnpm build`
 - 第 3 步按 `files` 白名单查产物都在；第 4 步查这个版本号在源上没发过
@@ -97,31 +106,31 @@ description: 开发套件是一个普通的 gwb 插件，把「在一个新文�
 
 版本号与 dev 范围、peer 两类检查：
 
-{/* ref file="../plugins/devkit/src/release.ts" lines="231-292" */}
+{/* ref file="../plugins/devkit/src/release.ts" lines="196-250" */}
 
 `gwb.testedKernel` 的检查：
 
-{/* ref file="../plugins/devkit/src/release.ts" lines="212-229" */}
+{/* ref file="../plugins/devkit/src/release.ts" lines="180-194" */}
 
 `gwb.requires` 的检查：
 
-{/* ref file="../plugins/devkit/src/release.ts" lines="176-210" */}
+{/* ref file="../plugins/devkit/src/release.ts" lines="146-178" */}
 
 类型检查按哪几份 tsconfig 查：
 
-{/* ref file="../plugins/devkit/src/release.ts" lines="312-321" */}
+{/* ref file="../plugins/devkit/src/release.ts" lines="270-278" */}
 
 构建产物检查在 `src/artifact-check.ts`。哪些文件算 node 侧、哪些算浏览器侧，照模板生成的插件包的构建约定判断：node 侧是 `exports["."]` 的运行时入口（没有 `exports` 时是 `main`）加上顺着相对 import 走得到的文件，也就是内核的 loader 按包名 import 插件时加载的那些；浏览器侧是 `dist/client.js`（模板的 `build.ts` 用 esbuild 以 `platform: 'browser'` 输出的文件）加上本包 `gwb.shared` 声明的子路径指到的文件，同样顺着相对 import 走；两边都走不到的文件不查。importmap 里的名字取本包与它依赖到的包（`dependencies`、`devDependencies`、`peerDependencies`）的 `gwb.shared` 键，依赖的清单当场从包目录的 `node_modules` 读，形状照内核计算 importmap 的那段代码：
 
-{/* ref file="../plugins/devkit/src/artifact-check.ts" lines="5-24" */}
+{/* ref file="../plugins/devkit/src/artifact-check.ts" lines="79-96" */}
 
-{/* ref file="../plugins/devkit/src/artifact-check.ts" lines="165-224" */}
+{/* ref file="../plugins/devkit/src/artifact-check.ts" lines="210-230" */}
 
 库（没有 `gwb-plugin` 的包）只查空 import、相对 import 与类型检查，不查 peer 和包名 import 的两份名单：库由用它的插件打包进产物，它的 peer 与 import 不在 home 里按包名解析。规矩本身见[依赖怎么写](/docs/rules/deps)与[页面代码与 importmap](/docs/rules/importmap)；`gwb.testedKernel` 的比对规则与插件管理那份相同，见[在哪个内核上测过](/docs/rules/tested-kernel)；`gwb.requires` 什么时候写、插件管理怎么报，见[要求别的插件的最低版本](/docs/rules/requires)。
 
 ### 依赖对账的判据
 
-`devkit.audit-deps` 扫容器根（缺省调 `unit-folder.list` 取）下各仓的 `package.json`，退役单元与测试插件不扫，`private` 清单只查 dev 依赖。「最新」认源上的 `dist-tags.latest`。只报告，不拦；要拦的由 `devkit.release` 的发版前检查在发版时拦。findings 的种类：
+`devkit.audit-deps` 扫容器根（缺省调 `unit-folder.list` 取）下各仓的 `package.json`，退役单元与测试插件不扫，`private` 清单只查 dev 依赖。「最新」认源上的 `dist-tags.latest`，不取版本列表里最大的那个号：开发版的号（`<patch+1>-dev.<时间戳>`）排在当前正式版之后，取最大号就会把一个没发正式版的开发版当成最新。只报告，不拦；要拦的由 `devkit.release` 的发版前检查在发版时拦。findings 的种类：
 
 - `@godcreator` 的 dev 依赖：`dead-pin`（写的版本源上没有）、`behind`（落后 latest 但还在 `^` 范围内——提示，不用处理）、`out-of-range`（latest 超出范围，必须跟进）、`loose-dev-pin`（写法既不是准确版本号也不是 `^`）
 - 插件包（`keywords` 含 `gwb-plugin`）的 peer：`peer-not-cordis`（写了 `cordis` 以外的包，一条 peer 一条；不看写法、不问源）。库不查 peer
@@ -135,7 +144,7 @@ description: 开发套件是一个普通的 gwb 插件，把「在一个新文�
 - 除了 `behind`，四种都要处理（图里画成橙色框）；这条命令只报告，拦下发版是 `devkit.release` 的事
 </Diagram>
 
-{/* ref file="../plugins/devkit/src/audit.ts" lines="139-194" */}
+{/* ref file="../plugins/devkit/src/audit.ts" lines="134-189" */}
 
 ### 说明书
 

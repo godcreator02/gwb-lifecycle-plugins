@@ -19,19 +19,19 @@ description: 连接 devkit、插件管理与工作台的四个服务：命令总
 
 devkit 对命令总线用了三个方法：`register(定义, 处理函数)` 登记命令，定义带 `name`、`plugin`（包名）、`description`、`usage`，返回的撤销函数交给 `ctx.effect`；`list()` 查某个命令名在不在；`run(名字, 参数)` 调别的插件的命令（见[借用别的插件的命令](/docs/seams/borrowed-commands)）。
 
-{/* ref file="../plugins/devkit/src/index.ts" lines="326-334" */}
+{/* ref file="../plugins/devkit/src/index.ts" lines="294-302" */}
 
-{/* ref file="../plugins/devkit/src/index.ts" lines="188-194" */}
+{/* ref file="../plugins/devkit/src/index.ts" lines="150-154" */}
 
 `gwbNodeCli` 只用来登记一条命令行工具 `devkit.cdp`，`entry` 是包里 `bin/cdp.mjs` 的绝对路径；这条登记由 `gwbNodeCli` 自己放进调用方的 effect，devkit 卸载时自动撤销，devkit 不再包一层 `ctx.effect`：
 
-{/* ref file="../plugins/devkit/src/index.ts" lines="422-436" */}
+{/* ref file="../plugins/devkit/src/index.ts" lines="390-405" */}
 
 `gwbSkills` 登记包内 `skills/` 目录，`gwbShell` 只调一次 `describeSelf` 报一个显示名，devkit 没有窗格：
 
-{/* ref file="../plugins/devkit/src/index.ts" lines="897-903" */}
+{/* ref file="../plugins/devkit/src/index.ts" lines="863-871" */}
 
-{/* ref file="../plugins/devkit/src/index.ts" lines="415-420" */}
+{/* ref file="../plugins/devkit/src/index.ts" lines="383-388" */}
 
 devkit 源码里没有注入 `gwbSettings`，它没有设置项。
 
@@ -61,7 +61,7 @@ devkit 保证：
 
 devkit 的就绪日志从 `list()` 里筛出 `plugin` 等于包名 `@godcreator/gwb-devkit` 的命令，与登记命令时写的 `plugin` 相同：
 
-{/* ref file="../plugins/devkit/src/index.ts" lines="905-914" */}
+{/* ref file="../plugins/devkit/src/index.ts" lines="873-882" */}
 
 ## 不负责的事
 

@@ -1,9 +1,9 @@
 ---
 title: 8 内核与 home runtime.json
-description: 连接 devkit.home.* 与 cdp.mjs 和内核 exe：起 home 用 GWB_HOME 与两个 Chromium 开关，找 home 读内核写的 runtime.json（两处各自解析），home 根目录由 cdp.mjs 的 homesRootOf 一处算出、src/index.ts 也 import 它，日志按 gwb.log 的行格式切级别，home 名的正则注释说抄自内核
+description: 连接 devkit.home.* 与 cdp.mjs 和内核 exe：启动 home 用 GWB_HOME 与两个 Chromium 开关，找 home 读内核写的 runtime.json（两处各自解析），home 根目录由 cdp.mjs 的 homesRootOf 一处算出、src/index.ts 也 import 它，日志按 gwb.log 的行格式切级别，home 名的正则，注释说它就是内核的校验规则
 ---
 
-**本页回答**：devkit 怎么起一个 home、怎么找到一个正在运行的 home；它依赖内核的哪几样东西；这些东西在 devkit 里写了几份。
+**本页回答**：devkit 怎么启动一个 home、怎么找到一个正在运行的 home；它依赖内核的哪几样东西；这些东西在 devkit 里写了几份。
 
 ## 连接的模块
 
@@ -13,37 +13,37 @@ description: 连接 devkit.home.* 与 cdp.mjs 和内核 exe：起 home 用 GWB_H
 
 ## 接口
 
-**起 home**：拉起宿主自己那个 exe，环境里给 `GWB_HOME=<名>`（顺带去掉 `ELECTRON_RUN_AS_NODE` 与 `npm_config_*`），命令行带 `--remote-debugging-port=<端口>` 与 `--disable-backgrounding-occluded-windows`。端口从 9400 起往上找 50 个，先沿用这个 home 上次记录里的端口：
+**启动 home**：启动宿主自己那个 exe，环境里给 `GWB_HOME=<名>`（顺带去掉 `ELECTRON_RUN_AS_NODE` 与 `npm_config_*`），命令行带 `--remote-debugging-port=<端口>` 与 `--disable-backgrounding-occluded-windows`。端口从 9400 起往上找 50 个，先沿用这个 home 上次记录里的端口：
 
-{/* ref file="../plugins/devkit/src/home.ts" lines="187-219" */}
+{/* ref file="../plugins/devkit/src/home.ts" lines="137-171" */}
 
-{/* ref file="../plugins/devkit/src/home.ts" lines="48-51" */}
+{/* ref file="../plugins/devkit/src/home.ts" lines="21-25" */}
 
 **runtime.json**：内核每次启动整份重写，退出不删。devkit 读 `pid`、`startedAt`、`appDir`、`cdp`，以及插件补写的 `mcp` 与旧的 `command-http`；内核还写了 `version`，devkit 不读。devkit 里有两份各自的解析：
 
 `src/home.ts` 的 `parseRecord`：`pid` 必须是正整数、`startedAt` 必须是有限数，否则整份当没有；缺 `cdp` 不算坏。`devkit.dev` 与 `home.*` 用它，定位时还核对 pid 还活着、且那个 pid 占着记录里的端口：
 
-{/* ref file="../plugins/devkit/src/home.ts" lines="91-121" */}
+{/* ref file="../plugins/devkit/src/home.ts" lines="66-90" */}
 
-{/* ref file="../plugins/devkit/src/home.ts" lines="536-563" */}
+{/* ref file="../plugins/devkit/src/home.ts" lines="438-466" */}
 
 `bin/cdp.mjs` 的 `portOf`：只取 `cdp`，要求是 1–65535 的整数，不看 `pid`：
 
-{/* ref file="../plugins/devkit/bin/cdp.mjs" lines="196-213" */}
+{/* ref file="../plugins/devkit/bin/cdp.mjs" lines="145-163" */}
 
 **home 根目录只有一种算法**：`<appData>/gwb-kernel/homes`，`<appData>` 按 Electron `app.getPath('appData')` 的规则取（Windows 是 `%APPDATA%`），与内核 `main.ts` 里 `GWB_HOME` 是名字时相同。算法写在零依赖的 `bin/cdp.mjs` 里，`src/index.ts` 从那里 import，两处用的是同一个函数；Windows 上没有 `APPDATA` 直接报错：
 
-{/* ref file="../plugins/devkit/bin/cdp.mjs" lines="99-116" */}
+{/* ref file="../plugins/devkit/bin/cdp.mjs" lines="69-84" */}
 
 {/* has file="../plugins/devkit/src/index.ts" text="import { homesRootOf } from '../bin/cdp.mjs'" */}
 
 **gwb.log**：`devkit.dev` 在装包之前记下日志文件的长度，最后只读新增的部分，按每行空白分隔的第二段判断级别，`error` 算失败、`warn` 另报。行格式 `<ISO 时间> <级别> <名字> <正文>` 由内核定：
 
-{/* ref file="../plugins/devkit/src/dev.ts" lines="292-307" */}
+{/* ref file="../plugins/devkit/src/dev.ts" lines="220-233" */}
 
 **home 名**：devkit 只收 kebab-case 的 home 名，注释说这条正则就是内核对 `GWB_HOME` 的检查：
 
-{/* ref file="../plugins/devkit/src/home.ts" lines="16-17" */}
+{/* ref file="../plugins/devkit/src/home.ts" lines="5-6" */}
 
 ## 约定
 
@@ -56,7 +56,7 @@ devkit 保证：
 
 **这些都靠约定**：devkit 与内核之间没有代码接口。`runtime.json` 的字段名写在内核的 `main.ts`、devkit 的 `parseRecord` 与 `cdp.mjs` 的 `portOf` 三处；home 根目录写在内核的 `main.ts` 与 `cdp.mjs` 的 `homesRootOf` 两处（devkit 的 `src/index.ts` import 后者）；日志行格式写在内核的 `main.ts` 与 `dev.ts` 的 `errorLines` 两处。
 
-一处与内核现状对不上的地方照实记：内核仓 `main.ts` 里没有检查 `GWB_HOME` 的正则：值里带路径分隔符就当目录用，否则拼到 `homes` 下。「抄自内核」只在 devkit 的注释里。
+有一处与内核现状对不上：内核仓 `main.ts` 里没有检查 `GWB_HOME` 的正则：值里带路径分隔符就当目录用，否则拼到 `homes` 下。「就是内核的校验正则」只是 devkit 注释里的说法。
 
 devkit 所在的 home 用带路径的 `GWB_HOME` 启动时，它自己不在 home 根下，但 home 根照样按 `<appData>` 算，`devkit.home.*` 与 `devkit.dev` 找的仍是 `<appData>/gwb-kernel/homes` 下的 home。
 

@@ -1,13 +1,13 @@
 ---
 title: 7 CDP 驱动 cdp.mjs
-description: 连接 devkit（经 gwbNodeCli 登记、dev.ts 起子进程）、bin/cdp.mjs 与工作台页面；接口是命令行参数的形状、stdout 上一张 JSON 的键、退出码、页面上的 window.gwb.command，以及按页面 file:// 地址反推 home——全部靠约定
+description: 连接 devkit（经 gwbNodeCli 登记、dev.ts 启动子进程）、bin/cdp.mjs 与工作台页面；接口是命令行参数的形状、stdout 上一张 JSON 的键、退出码、页面上的 window.gwb.command，以及按页面 file:// 地址反推 home——全部靠约定
 ---
 
 **本页回答**：`bin/cdp.mjs` 收什么参数、打出什么、退出码什么意思；devkit 从它的输出里读哪几格；它对工作台页面假设了什么。
 
 ## 连接的模块
 
-- devkit 的两处调用：经 `gwbNodeCli` 登记成命令 `devkit.cdp`（`src/index.ts`）；`devkit.dev` 每一步起一个子进程运行它（`src/node-dev-deps.ts`、`src/dev.ts`）
+- devkit 的两处调用：经 `gwbNodeCli` 登记成命令 `devkit.cdp`（`src/index.ts`）；`devkit.dev` 每一步启动一个子进程运行它（`src/node-dev-deps.ts`、`src/dev.ts`）
 - `bin/cdp.mjs`：零依赖单文件 JS，不进类型检查，工作台没启动时也能直接 `node` 运行
 - 工作台页面：内核与外壳生成的那张页，经 Chromium 调试端口连上
 
@@ -17,9 +17,9 @@ description: 连接 devkit（经 gwbNodeCli 登记、dev.ts 起子进程）、bi
 
 {/* ref file="../plugins/devkit/bin/cdp.mjs" lines="82-90" */}
 
-devkit 这边：登记命令时 `entry` 指向这个文件（见[工作台服务](/docs/seams/workbench)），调用方传 `{"args":[…]}`；`devkit.dev` 自己起子进程，用宿主的 `process.execPath` 加 `ELECTRON_RUN_AS_NODE=1`，工作目录是系统临时目录：
+devkit 这边：登记命令时 `entry` 指向这个文件（见[工作台服务](/docs/seams/workbench)），调用方传 `{"args":[…]}`；`devkit.dev` 自己启动子进程，用宿主的 `process.execPath` 加 `ELECTRON_RUN_AS_NODE=1`，工作目录是系统临时目录：
 
-{/* ref file="../plugins/devkit/src/node-dev-deps.ts" lines="33-47" */}
+{/* ref file="../plugins/devkit/src/node-dev-deps.ts" lines="20-34" */}
 
 **stdout**：成功时打一张缩进两格的 JSON，固定有 `page`、`在哪个home`、`did`，其余按动作不同。`devkit.dev` 读其中两种：`home` 动作的 `home` 与 `why`，`cmd` 动作的 `回执`（页面上那条命令的原始回执）：
 
@@ -27,7 +27,7 @@ devkit 这边：登记命令时 `entry` 指向这个文件（见[工作台服务
 
 {/* ref file="../plugins/devkit/bin/cdp.mjs" lines="656-672" */}
 
-{/* ref file="../plugins/devkit/src/dev.ts" lines="413-425" */}
+{/* ref file="../plugins/devkit/src/dev.ts" lines="322-334" */}
 
 **退出码**：0 是成功。1 有三种：`cmd` 的回执不是 `ok: true`、`reload` 等超时、点不中目标（这三种 stdout 上照样有 JSON）；此外参数错、连不上、home 对不上都是直接抛错，Node 以 1 退出，stdout 上没有 JSON，原因在 stderr。devkit 两样都看：退出码决定 `ok`，JSON 解析不了就是 `undefined`：
 
@@ -35,9 +35,9 @@ devkit 这边：登记命令时 `entry` 指向这个文件（见[工作台服务
 
 **页面**：`cmd` 在页面里调 `window.gwb.command(名字, 参数)`；页面上没有这个函数就回 `{ ok: false }`。连上之后先核对 home：收集页面上 `script[src]`、`link[href]` 与 importmap 里的 `file:///` 地址，截出 `/homes/<名>/` 那一段，要求只有一个 home、且名字等于第一个参数：
 
-{/* ref file="../plugins/devkit/bin/cdp.mjs" lines="497-519" */}
+{/* ref file="../plugins/devkit/bin/cdp.mjs" lines="398-421" */}
 
-{/* ref file="../plugins/devkit/bin/cdp.mjs" lines="761-769" */}
+{/* ref file="../plugins/devkit/bin/cdp.mjs" lines="616-624" */}
 
 调试端口从 home 的 `runtime.json` 里读，见[内核与 home](/docs/seams/kernel-home)。
 
