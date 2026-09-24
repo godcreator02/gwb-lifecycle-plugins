@@ -48,24 +48,22 @@ export function SeamMap() {
       <PackageLabel x={52} y={138} name="开发套件" path="plugins/devkit" />
 
       <SeamLine d="M300,120 V60" />
-      <SeamLine d="M326,214 H360" byConvention />
+      <SeamLine d="M326,214 H360" />
       <SeamLine d="M326,260 H440 V240" byConvention />
-      <SeamLine d="M117,324 V380" />
+      <SeamLine d="M189,380 V260 H196" byConvention />
       <SeamLine d="M117,150 V60" byConvention />
       <SeamLine d="M326,306 H550 V352 H570" byConvention />
       <SeamLine d="M326,160 H345 V112 H570" byConvention />
       <SeamLine d="M520,212 H570" />
       <SeamLine d="M520,232 H560 V282 H570" />
       <SeamLine d="M300,430 V510" byConvention />
-      <SeamLine d="M52,260 H30 V532 H40" byConvention />
+      <SeamLine d="M52,214 H30 V532 H40" byConvention />
 
-      <Box x={20} y={20} w={170} h={40} lines={['别的插件的命令', 'docs-site · docfirst · unit-folder']} />
+      <Box x={20} y={20} w={170} h={40} lines={['别的插件的命令', 'docs-site · docfirst']} />
       <Box x={230} y={20} w={200} h={40} lines={['工作台服务', 'gwbCommands · gwbNodeCli · gwbSkills']} />
 
       <Box x={52} y={150} w={130} h={36} lines={['建仓', 'scaffold']} tone="a" mono />
-      <Box x={52} y={196} w={130} h={36} lines={['依赖对账', 'audit-deps']} tone="a" mono />
-      <Box x={52} y={242} w={130} h={36} lines={['能用什么', 'services']} tone="a" mono />
-      <Box x={52} y={288} w={130} h={36} lines={['结构体检', 'audit-structure']} tone="a" mono />
+      <Box x={52} y={196} w={130} h={36} lines={['服务总览', 'services']} tone="a" mono />
       <Box x={196} y={150} w={130} h={36} lines={['测试 home', 'home.*']} tone="a" mono />
       <Box x={196} y={196} w={130} h={36} lines={['改一版看一版', 'dev']} tone="a" mono />
       <Box x={196} y={242} w={130} h={36} lines={['发正式版', 'release']} tone="a" mono />
@@ -79,13 +77,13 @@ export function SeamMap() {
       <Box x={570} y={330} w={170} h={44} lines={['工作台页面', 'window.gwb']} />
       <Box x={570} y={260} w={170} h={44} lines={['pnpm 与包源', '@pnpm/exe · npmrc · registry']} />
 
-      <Box x={40} y={510} w={200} h={44} lines={['包自述与服务表', 'package.json · cordis 内部']} />
+      <Box x={40} y={510} w={200} h={44} lines={['服务的类型声明', 'home 里各包的 .d.ts']} />
       <Box x={260} y={510} w={280} h={44} lines={['被测插件仓', 'build 脚本 · files · keywords · 布局']} />
 
       <Badge x={300} y={95} n={1} />
-      <Badge x={343} y={214} n={2} byConvention />
+      <Badge x={343} y={214} n={2} />
       <Badge x={400} y={260} n={3} byConvention />
-      <Badge x={117} y={352} n={4} />
+      <Badge x={189} y={352} n={4} byConvention />
       <Badge x={117} y={95} n={5} byConvention />
       <Badge x={440} y={306} n={6} byConvention />
       <Badge x={455} y={112} n={7} byConvention />

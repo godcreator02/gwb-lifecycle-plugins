@@ -15,7 +15,7 @@
   "keywords": ["gwb", "gwb-plugin"],
   "//repository": "发到 gitea 后补上这一条：{ type: git, url: https://git.tianshen02.online:28377/godcreator/<仓>.git }——gitea 发布时读它把包关联到仓（2026-09-18 实测：整个包关联到仓，仓与包不在同一个 owner 下也关联得上）",
   "scripts": {
-    "//build": "三步：node 侧 tsc、浏览器侧 esbuild（内核包 gwb.shared 里的包名不打包，由页面的 importmap 提供）、样式 tailwindcss 按类名前缀输出",
+    "//build": "三步：node 侧 tsc、浏览器侧 esbuild（内核包页面 importmap 里的包名不打包，由页面提供）、样式 tailwindcss 按类名前缀输出",
     "build": "tsc -p tsconfig.build.json && node build.ts && tailwindcss -i src/client/styles.css -o dist/style.css",
     "typecheck": "tsc --noEmit -p tsconfig.json && tsc --noEmit -p src/client/tsconfig.json",
     "lint": "oxlint . --deny-warnings",

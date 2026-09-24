@@ -1,6 +1,6 @@
 import { isRecord } from './vocab.js'
 
-// 零 I/O 纯逻辑。比对规则与 devkit 的 src/kernel-compat.ts 各存一份、不跨包 import，两份一起改；devkit 的 tests/kernel-compat-parity.test.ts 对照两份
+// 零 I/O 纯逻辑。devkit 从本包主入口 import 这里的比对规则做发版检查，改了它发版检查跟着变
 
 /** 内核包的包名。插件在 peerDependencies 里写它的版本范围，声明兼容哪些内核 */
 export const KERNEL_PACKAGE = '@godcreator/gwb-kernel-desktop'

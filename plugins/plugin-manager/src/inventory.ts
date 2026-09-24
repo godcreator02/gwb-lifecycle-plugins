@@ -23,12 +23,6 @@ export interface EntrySnapshot {
   group: boolean
 }
 
-/** 一条条目在 `list` 里的样子：快照加上显示名 */
-export interface PluginEntryView extends EntrySnapshot {
-  /** 人给它起的名字。没设过就没有这个字段，界面改为显示 id */
-  label?: string
-}
-
 /** home 的 dependencies 与条目树对照出的一个包 */
 export interface ReconciledPackage {
   pkg: string
@@ -37,7 +31,7 @@ export interface ReconciledPackage {
   /** home 的 dependencies 里有它 */
   installed: boolean
   /** 它在 cordis.yml 里的条目，按树里的先后。空数组只表示「一条条目都没有」，不推断原因 */
-  entries: PluginEntryView[]
+  entries: EntrySnapshot[]
 }
 
 /** 一个包在 `list` 里的样子：对照结果加上它 peer 里内核包的范围包不包含运行中的内核、peer 里别的包满没满足 */
@@ -60,16 +54,6 @@ export function toDependencies(raw: unknown): Record<string, string> {
     if (typeof spec === 'string') versionRangesByPackage[pkg] = spec
   }
   return versionRangesByPackage
-}
-
-/** 本插件自己的 labels 文档 → 不带前缀的 id → 显示名。格式不对的项丢掉，不作废整份 */
-export function toLabels(raw: unknown): Record<string, string> {
-  if (!isRecord(raw)) return {}
-  const labelsById: Record<string, string> = {}
-  for (const [id, label] of Object.entries(raw)) {
-    if (typeof label === 'string' && label !== '') labelsById[id] = label
-  }
-  return labelsById
 }
 
 function entrySnapshotOf(id: string, storedEntry: Record<string, unknown>): EntrySnapshot {
@@ -97,31 +81,21 @@ export function readEntries(store: unknown): EntrySnapshot[] {
   return snapshots
 }
 
-function entryViewOf(entry: EntrySnapshot, labels: Readonly<Record<string, string>>): PluginEntryView {
-  const label = labels[entry.id]
-  return label === undefined ? { ...entry } : { ...entry, label }
-}
-
 /** dependencies 里有、条目树上没有的报成 `entries: []`；条目指向不在 dependencies 里的包报成 `installed: false` */
-export function reconcile(
-  deps: Readonly<Record<string, string>>,
-  entries: readonly EntrySnapshot[],
-  labels: Readonly<Record<string, string>>,
-): ReconciledPackage[] {
-  const entryViewsByPackage = new Map<string, PluginEntryView[]>()
-  for (const pkg of Object.keys(deps)) entryViewsByPackage.set(pkg, [])
+export function reconcile(deps: Readonly<Record<string, string>>, entries: readonly EntrySnapshot[]): ReconciledPackage[] {
+  const entriesByPackage = new Map<string, EntrySnapshot[]>()
+  for (const pkg of Object.keys(deps)) entriesByPackage.set(pkg, [])
   for (const entry of entries) {
-    const view = entryViewOf(entry, labels)
-    const entryViewsOfPackage = entryViewsByPackage.get(entry.pkg)
-    if (entryViewsOfPackage === undefined) entryViewsByPackage.set(entry.pkg, [view])
-    else entryViewsOfPackage.push(view)
+    const entriesOfPackage = entriesByPackage.get(entry.pkg)
+    if (entriesOfPackage === undefined) entriesByPackage.set(entry.pkg, [{ ...entry }])
+    else entriesOfPackage.push({ ...entry })
   }
-  return [...entryViewsByPackage.entries()]
-    .map(([pkg, entryViews]) => {
+  return [...entriesByPackage.entries()]
+    .map(([pkg, entriesOfPackage]) => {
       const spec = deps[pkg]
       return spec === undefined
-        ? { pkg, installed: false, entries: entryViews }
-        : { pkg, spec, installed: true, entries: entryViews }
+        ? { pkg, installed: false, entries: entriesOfPackage }
+        : { pkg, spec, installed: true, entries: entriesOfPackage }
     })
     .sort((a, b) => a.pkg.localeCompare(b.pkg))
 }

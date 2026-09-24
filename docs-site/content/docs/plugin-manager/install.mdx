@@ -21,13 +21,13 @@ description: install 在一条命令里装包并加一条条目，只等写入�
 3. **选 id，加一条条目**：id 的规则见[id 与归属](/docs/plugin-manager/ids)，经条目树 `create` 写进 `cordis.yml`，回执带 `entryId`。写不进 `cordis.yml` 时回执 `ok: false`，包留在 home 里、不回滚——删包比留着危险
 </Diagram>
 
-{/* ref file="../plugins/plugin-manager/src/index.ts" lines="494-523" */}
+{/* ref file="../plugins/plugin-manager/src/index.ts" lines="472-501" */}
 
 - 同一个包 install 两次会得到两条条目（第二条的 id 带数字后缀）：一个包对应几条条目本来就合法，不替调用方猜「是不是装过了」
 - 只给已装的包再加一条条目，用 `add-entry`
 - 装完之后，agent 要再调一次 MCP 入口的 `index`，新插件的命令才出现
 
-**守住它的测试**：参数校验与失败回执有单元测试；整条命令在假条目树、假 pnpm 上有测试；真的 pnpm 与 loader 下的安装只能实机验证（隔离 home 里调 `plugin-manager.install`）。
+**覆盖它的测试**：参数校验与失败回执有单元测试；整条命令在假条目树、假 pnpm 上有测试；真的 pnpm 与 loader 下的安装只能实机验证（隔离 home 里调 `plugin-manager.install`）。
 
 {/* has file="../plugins/plugin-manager/tests/commands.test.ts" text="install：在 home 里 pnpm add 包名@spec，再加一条条目" */}
 
@@ -45,7 +45,7 @@ description: install 在一条命令里装包并加一条条目，只等写入�
 
 **怎么做**：写回 `cordis.yml` 在 `create` 的第一个 `await` 之前就同步安排好了，所以不 `await` 也不影响写入；加载失败只记一条 warn。
 
-{/* ref file="../plugins/plugin-manager/src/index.ts" lines="833-835" */}
+{/* ref file="../plugins/plugin-manager/src/index.ts" lines="813-816" */}
 
 这一条没有单元测试：要验证，就在隔离 home 里装一个依赖还没装齐的插件，看命令是否照常返回回执、`list` 里是否显示未加载。
 
@@ -58,7 +58,7 @@ description: install 在一条命令里装包并加一条条目，只等写入�
 <Diagram name="pm-home-contents" title="home 的 node_modules 里只有插件、内核包与 cordis；插件运行时用到的东西各由谁提供">
 - 内核包 `@godcreator/gwb-kernel-desktop` 与 `cordis` 装在 home 根上，由创建 home 的一方装、由 `update-kernel` 升；`cordis` 的版本等于内核包 peer 里写的那个，内核与插件 import 的是同一份
 - 插件用到的别的插件写在它的 peer 里，是 home 里另一个有条目的插件，装不装由人决定；没装或版本不在范围里，`list` 的 `unmetPeers` 报出来
-- 页面上必须只有一份的运行时代码经页面的 importmap 提供：importmap 里只有内核包声明的 react 四个包名，别的包写了 `gwb.shared` 内核不收
+- 页面上必须只有一份的运行时代码经页面的 importmap 提供：importmap 写死在内核包的页面入口 `dist/index.html` 里，只有 react 的四个包名，别的包加不进名字
 - 插件自己用的库、接口定义包打包进它自己的构建产物
 - 只取类型的 import（内核包导出的接口类型、别的插件的类型）编译后就消失了
 </Diagram>
@@ -82,11 +82,11 @@ description: install 在一条命令里装包并加一条条目，只等写入�
 - 反过来先卸包：条目会指向一个不在 home 里的包
 </Diagram>
 
-{/* ref file="../plugins/plugin-manager/src/index.ts" lines="725-754" */}
+{/* ref file="../plugins/plugin-manager/src/index.ts" lines="703-732" */}
 
 只删一条条目、保留包，用 `remove-entry`。
 
-**守住它的测试**：删哪些条目有单元测试；整条命令（先删条目、再 `pnpm remove`，pnpm 失败时的回执）在假条目树、假 pnpm 上有测试；真的 pnpm 下的卸载只能实机验证。
+**覆盖它的测试**：删哪些条目有单元测试；整条命令（先删条目、再 `pnpm remove`，pnpm 失败时的回执）在假条目树、假 pnpm 上有测试；真的 pnpm 下的卸载只能实机验证。
 
 {/* has file="../plugins/plugin-manager/tests/commands.test.ts" text="uninstall：没装的包抛错；装了的先删它的全部条目，再 pnpm remove" */}
 

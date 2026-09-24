@@ -24,7 +24,7 @@ description: 连接插件管理与 cordis 的 loader、include：插件管理从
 
 **读条目**：`store` 是一张不分层的表，键是不带前缀的 id；每一项读 `id`（完整 entryId）、`options.name`（包名）、`options.group`、`disabled`、`fiber.state`：
 
-{/* ref file="../plugins/plugin-manager/src/inventory.ts" lines="75-98" */}
+{/* ref file="../plugins/plugin-manager/src/inventory.ts" lines="59-82" */}
 
 **状态值**：cordis 的 `FiberState` 是 `const enum`，运行时拿不到，插件管理照抄一份名字表：
 

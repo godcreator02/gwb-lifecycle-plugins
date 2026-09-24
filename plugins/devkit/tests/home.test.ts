@@ -41,7 +41,7 @@ import {
   type HomeFs,
   type HomeRecord,
 } from '../src/home.js'
-import { KERNEL_PACKAGE } from '../src/kernel-compat.js'
+import { KERNEL_PACKAGE } from '@godcreator/gwb-plugin-manager'
 
 /**
  * 启动、停止、删除 home 最不该靠手工点几遍来确认：名字重不重复、装不上时启不启动、查得出的 pid

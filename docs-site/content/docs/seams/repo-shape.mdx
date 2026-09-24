@@ -1,23 +1,22 @@
 ---
 title: 10 被测仓的形状
-description: 连接 devkit.dev、devkit.release、结构体检、audit-deps 与被它们处理的插件仓：仓根有 build 脚本、files 白名单里的产物构建后都在、插件包 keywords 含 gwb-plugin、产物的两侧入口是 exports["."] 与 dist/client.js、依赖装在包目录的 node_modules、包目录有 tsconfig.build.json 或 tsconfig.json、成员放在 plugins / packages / apps、发正式版时 git 工作区干净、仓在带 unit.json 的单元里——都靠约定
+description: 连接 devkit.dev、devkit.release、devkit.scaffold.plugin 与被它们处理的插件仓：仓根有 build 脚本、files 白名单里的产物构建后都在、插件包 keywords 含 gwb-plugin、产物的两侧入口是 exports["."] 与 dist/client.js、peer 里的包装在包目录的 node_modules、pnpm-workspace.yaml 有 plugins/ 那一行、发正式版时 git 工作区干净——都靠约定
 ---
 
 **本页回答**：devkit 的几条命令对传给它的仓做了哪些假设；每条假设在哪几处代码里用到；不满足时各自怎样。
 
 ## 连接的模块
 
-- devkit 的 `devkit.dev`（`src/dev.ts`）、`devkit.release`（`src/release.ts`、`src/artifact-check.ts`）、发布内容的组装（`src/node-dev-deps.ts`）、`devkit.audit-structure`（`src/structure.ts`）、`devkit.audit-deps`（`src/audit.ts`、`src/node-audit-deps.ts`）
+- devkit 的 `devkit.dev`（`src/dev.ts`）、`devkit.release`（`src/release.ts`、`src/artifact-check.ts`）、发布内容的组装（`src/node-dev-deps.ts`）、`devkit.scaffold.plugin`（`src/scaffold.ts`）
 - 被处理的插件仓：别人的仓，也包括本仓
 
 <Diagram name="seam-repo-shape" title="被处理的仓要满足的约定，按目录树排；右边是依赖这条约定的命令">
-- `<单元>/unit.json`：`devkit.audit-deps` 与全生态的结构体检先读它决定跳不跳过这个单元
 - `<仓根>/.git`：`devkit.release` 要求工作区干净，不是 git 仓也拒
 - `<仓根>/package.json`：`devkit.dev` 与 `devkit.release` 在仓根运行 `pnpm build`
-- `<仓根>/pnpm-workspace.yaml`：组装发布内容时从包目录往上找到的第一个有它的目录是仓根
-- `plugins/*`、`packages/*`：结构体检只扫这两处，`devkit.audit-deps` 另读 `apps/*` 与 `docs-site`
+- `<仓根>/pnpm-workspace.yaml`：组装发布内容时从包目录往上找到的第一个有它的目录是仓根；`devkit.scaffold.plugin` 要求它有 `plugins/` 那一行
+- `plugins/<短名>/`：`devkit.scaffold.plugin` 把插件包写到这里，目录必须还不存在
 - `<包>/package.json`：`files` 是产物清单，`keywords` 含 `gwb-plugin` 表示插件，node 侧入口是 `exports["."]`
-- `<包>/dist/client.js` 是浏览器侧产物入口，`<包>/node_modules/` 里内核包的清单给出页面 importmap 的名字，`<包>/tsconfig.build.json`（没有就用 `tsconfig.json`）是类型检查的依据，这三条只有 `devkit.release` 用
+- `<包>/dist/client.js` 是浏览器侧产物入口，`<包>/node_modules/` 里装着 peer 里的包、内核包的页面入口 `dist/index.html` 给出页面 importmap 的名字，这两条只有 `devkit.release` 用
 </Diagram>
 
 ## 接口
@@ -30,57 +29,49 @@ description: 连接 devkit.dev、devkit.release、结构体检、audit-deps 与�
 
 {/* ref file="../plugins/devkit/src/dev.ts" lines="110-112" */}
 
-{/* ref file="../plugins/devkit/src/node-dev-deps.ts" lines="173-183" */}
+{/* ref file="../plugins/devkit/src/node-dev-deps.ts" lines="172-182" */}
 
-**`keywords` 含 `gwb-plugin` 表示插件**：`devkit.release` 只对它查 peer（含 peer 里内核包的范围）与构建产物里包名 import 的两份名单；结构体检只对它查包名派生链、`files` 白名单与 `prepublishOnly`：
+**`keywords` 含 `gwb-plugin` 表示插件**：`devkit.release` 只对它查 peer（含 peer 里内核包的范围）与构建产物里包名 import 的两份名单：
 
-{/* ref file="../plugins/devkit/src/release.ts" lines="131-131" */}
+{/* ref file="../plugins/devkit/src/release.ts" lines="195-195" */}
 
-{/* ref file="../plugins/devkit/src/structure.ts" lines="181-183" */}
+**产物分两侧，按模板的构建约定认**：`devkit.release` 的构建产物检查把 `exports["."]` 的运行时入口（没有 `exports` 时是 `main`）当作 node 侧入口，把包目录下的 `dist/client.js` 当作浏览器侧入口，各自顺着相对 import 走；入口找不到、相对 import 指向的文件不在，都拒。产物不在这几个位置的仓，那部分文件不被查到：
 
-**产物分两侧，按模板的构建约定认**：`devkit.release` 的构建产物检查把 `exports["."]` 的运行时入口（没有 `exports` 时是 `main`）当作 node 侧入口，把包目录下的 `dist/client.js` 当作浏览器侧入口（内核包再加上它 `gwb.shared` 经 `exports` 指到的文件），各自顺着相对 import 走；入口找不到、相对 import 指向的文件不在，都拒。内核包以外的包在清单里写了 `gwb.shared` 也拒。产物不在这几个位置的仓，那部分文件不被查到：
+{/* ref file="../plugins/devkit/src/artifact-check.ts" lines="186-205" */}
 
-{/* ref file="../plugins/devkit/src/artifact-check.ts" lines="208-222" */}
+**peer 里的包装在包目录的 `node_modules` 里**：发版前检查读 `<包目录>/node_modules/<包>/package.json` 判断 peer 里的包是不是插件，读不到就拒并提示先 `pnpm install`；浏览器侧产物有包名 import 时，页面 importmap 里的名字从 `<包目录>/node_modules/@godcreator/gwb-kernel-desktop/dist/index.html` 里那段 importmap 现读（插件 peer 里写了内核包，pnpm 把它链接在那里），读不到同样拒，提示 peer 写上内核包 `^0.6.0` 起：
 
-**依赖装在包目录的 `node_modules` 里、包目录下有 `tsconfig.build.json` 或 `tsconfig.json`**：浏览器侧产物有包名 import 时，页面 importmap 里的名字从 `<包目录>/node_modules/@godcreator/gwb-kernel-desktop/package.json` 的 `gwb.shared` 现读（插件 peer 里写了内核包，pnpm 把它链接在那里），读不到就拒并提示 peer 写上内核包、再 `pnpm install`。类型检查在包目录里运行 `pnpm exec tsc --noEmit -p <tsconfig> --skipLibCheck false`，只查构建产物的类型，测试与构建脚本不查：node 侧有 `tsconfig.build.json`（模板里它只包含 `src/index.ts`）就按它查，没有才按 `tsconfig.json` 查，两份都没有就拒；包目录下有 `src/client/tsconfig.json`（模板的浏览器侧类型配置）就再查一次。没有 `tsconfig.build.json`、而 `tsconfig.json` 又包含测试的仓，测试引用到的上游包类型有错也会被拦下：
+{/* ref file="../plugins/devkit/src/artifact-check.ts" lines="207-224" */}
 
-{/* ref file="../plugins/devkit/src/artifact-check.ts" lines="237-240" */}
+**成员放在哪**：组装发布内容时找 `workspace:` 依赖的版本，从仓根往下扫两层，不认目录名：
 
-{/* ref file="../plugins/devkit/src/release.ts" lines="278-294" */}
-
-{/* ref file="../plugins/devkit/src/release.ts" lines="385-394" */}
-
-**成员放在哪**：结构体检只扫 `plugins/*` 与 `packages/*`；`audit-deps` 读仓根、`plugins/*`、`packages/*`、`apps/*` 与 `docs-site` 的 `package.json`；组装发布内容时找 `workspace:` 依赖的版本，从仓根往下扫两层，不认目录名：
-
-{/* ref file="../plugins/devkit/src/node-audit-deps.ts" lines="40-50" */}
-
-{/* ref file="../plugins/devkit/src/node-dev-deps.ts" lines="79-110" */}
+{/* ref file="../plugins/devkit/src/node-dev-deps.ts" lines="78-109" */}
 
 这里的「仓根」是从包目录往上找到的第一个有 `pnpm-workspace.yaml` 的目录；一路找到盘根都没有就报错，这个包不发：
 
-{/* ref file="../plugins/devkit/src/node-dev-deps.ts" lines="112-121" */}
+{/* ref file="../plugins/devkit/src/node-dev-deps.ts" lines="111-120" */}
+
+**`pnpm-workspace.yaml` 有 `plugins/` 那一行**：`devkit.scaffold.plugin` 只往这样的仓里加插件，仓根就是插件包的旧布局仓直接拒，报错里写着怎么迁：
+
+{/* ref file="../plugins/devkit/src/scaffold.ts" lines="146-153" */}
 
 **git 工作区干净**：`devkit.release` 在构建之前运行 `git status --porcelain=v1`，有一条改动就一个都不发；不是 git 仓也拒。`devkit.dev` 不查：
 
-{/* ref file="../plugins/devkit/src/release.ts" lines="314-323" */}
-
-**在单元里**：`audit-deps` 与全生态的结构体检从容器根往下找仓：单元目录本身有 `.git`，或单元下一层的目录有 `.git`；先读单元的 `unit.json` 决定跳不跳过（见[借用别的插件的命令](/docs/seams/borrowed-commands)）：
-
-{/* ref file="../plugins/devkit/src/node-audit-deps.ts" lines="14-38" */}
+{/* ref file="../plugins/devkit/src/release.ts" lines="329-338" */}
 
 ## 约定
 
 devkit 保证：
-- 除了 `pnpm build` 生成的构建产物，这些命令不改仓里的文件；发布内容在系统临时目录里组装
+- 除了 `pnpm build` 生成的构建产物与 `devkit.scaffold.plugin` 新写的插件包，这些命令不改仓里的文件；发布内容在系统临时目录里组装
 - 假设不满足时报错并说明缺了什么，不替调用方补（不补构建、不猜包目录、不改 `files`）
 
-被处理的仓需要满足上面这几条，**全部靠约定**：没有一份检查把它们合在一起查。散在这几处：建仓模板生成的仓天然满足；结构体检查其中一部分（仓根 `build` 含 `pnpm -r`、`files` 白名单、`prepublishOnly`、`plugins/` 布局）；其余只写在各命令的 `usage` 与说明书「gwb-devkit」「gwb-release」里。
+被处理的仓需要满足上面这几条，**全部靠约定**：没有一份检查把它们合在一起查。建仓模板生成的仓天然满足；其余只写在各命令的 `usage` 与说明书「gwb-devkit」「gwb-release」里。
 
 ## 不负责的事
 
-- devkit 不决定一个仓该有几个包、怎么分组，只按上面的目录名去找
+- devkit 不决定一个仓该有几个包、怎么分组，只按上面的约定去找
 - `devkit.dev` 不看 git 状态，未提交的改动照样发成开发版
-- 结构体检不看依赖版本、peer 里内核包的范围与 git 状态
+- 不查旧布局仓离 workspace 布局有多远：改到哪个仓就照模板迁哪个
 
 ## 测试
 
@@ -90,15 +81,11 @@ devkit 保证：
 
 {/* has file="../plugins/devkit/tests/dev.test.ts" text="files 里的否定式与通配不算产物" */}
 
-{/* has file="../plugins/devkit/tests/artifact-check.test.ts" text="浏览器侧 dist/client.js：名字只取内核包清单的 gwb.shared（从本包 node_modules 现读），别的依赖写了也不算" */}
+{/* has file="../plugins/devkit/tests/artifact-check.test.ts" text="浏览器侧 dist/client.js：名字只取内核包页面入口里的 importmap（从本包 node_modules 现读），别的依赖写了也不算" */}
 
-{/* has file="../plugins/devkit/tests/artifact-check.test.ts" text="浏览器侧：内核包的清单读不到就报，不猜" */}
+{/* has file="../plugins/devkit/tests/artifact-check.test.ts" text="浏览器侧：内核包的页面入口读不到就报，不猜" */}
 
-{/* has file="../plugins/devkit/tests/artifact-check.test.ts" text="内核包以外的包写了 gwb.shared：拒，插件与库都一样" */}
-
-{/* has file="../plugins/devkit/tests/release.test.ts" text="有 tsconfig.build.json：node 侧只按它查，不查带着测试与构建脚本的 tsconfig.json" */}
-
-{/* has file="../plugins/devkit/tests/release.test.ts" text="包目录下 tsconfig.build.json 与 tsconfig.json 都没有：拒，不跑类型检查" */}
+{/* has file="../plugins/devkit/tests/scaffold.test.ts" text="repo 不在、yaml 不在（老裸根单件仓）、yaml 没有 plugins/ 那条，三种都拒，话里带路" */}
 
 {/* has file="../plugins/devkit/tests/node-dev-deps.test.ts" text="不是兄弟的 workspace: 换成 ^<工作区里那个号>；工作区里没有就 ^0.0.0" */}
 

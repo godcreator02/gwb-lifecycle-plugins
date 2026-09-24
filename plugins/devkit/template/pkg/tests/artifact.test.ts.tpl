@@ -18,17 +18,22 @@ const built = fs.existsSync(distDir)
 if (!built) console.warn('[{{pkgName}}] dist/ 还没生成，产物检查整组跳过（pnpm build 之后再运行）')
 
 const CLIENT = 'client.js'
-/** node 侧产物里允许留下的包名 import：node 内置模块、electron、宿主提供的 cordis。别的插件与内核包的接口类型只 import type，编译后整句消失 */
-const NODE_SIDE_ALLOWED = new Set(['electron', 'cordis'])
+/** node 侧产物里允许留下的包名 import：node 内置模块、electron、本包 peer 里写了的包（cordis、内核包、用到的插件），都是 home 里装着的。只要类型的写 import type，编译后整句消失 */
+const ownManifest: unknown = JSON.parse(fs.readFileSync(path.resolve(here, '../package.json'), 'utf8'))
+const ownPeers = new Set(isRecord(ownManifest) && isRecord(ownManifest['peerDependencies']) ? Object.keys(ownManifest['peerDependencies']) : [])
+/** `@scope/name/sub` → `@scope/name`；`name/sub` → `name` */
+const packageNameOf = (spec: string): string => spec.split('/').slice(0, spec.startsWith('@') ? 2 : 1).join('/')
 const isNodeBuiltin = (spec: string): boolean => spec.startsWith('node:') || builtinModules.includes(spec)
-/** 浏览器侧产物里允许留下的包名 import：react 的提供方（内核包）在清单 gwb.shared 里声明的键 */
-function sharedNamesOfKernel(): Set<string> {
+/** 浏览器侧产物里允许留下的包名 import：内核包页面入口 dist/index.html 里写死的 importmap 的键（react 的四个包名） */
+function importmapNamesOfKernel(): Set<string> {
   const manifestPath = createRequire(import.meta.url).resolve('@godcreator/gwb-kernel-desktop/package.json')
-  const manifest: unknown = JSON.parse(fs.readFileSync(manifestPath, 'utf8'))
-  const gwb = isRecord(manifest) ? manifest['gwb'] : undefined
-  const shared = isRecord(gwb) ? gwb['shared'] : undefined
-  if (!isRecord(shared)) throw new Error(`${manifestPath} 里没有 gwb.shared：装的内核包版本不提供 react`)
-  return new Set(Object.keys(shared))
+  const pageEntry = path.join(path.dirname(manifestPath), 'dist', 'index.html')
+  const importmapScript = /<script type="importmap">([\s\S]*?)<\/script>/.exec(fs.readFileSync(pageEntry, 'utf8'))
+  if (importmapScript === null) throw new Error(`${pageEntry} 里没有 importmap：装的内核包早于 0.6`)
+  const importmap: unknown = JSON.parse(importmapScript[1]!)
+  const imports = isRecord(importmap) ? importmap['imports'] : undefined
+  if (!isRecord(imports)) throw new Error(`${pageEntry} 的 importmap 里没有 imports`)
+  return new Set(Object.keys(imports))
 }
 function isRecord(value: unknown): value is Record<string, unknown> {
   return typeof value === 'object' && value !== null && !Array.isArray(value)
@@ -225,14 +230,14 @@ describe.skipIf(!built)('产物', () => {
     expect(bad).toEqual([])
   })
 
-  it('node 侧：包名 import 只有 node 内置模块、electron、cordis', () => {
-    const bad = [...bareImportsOf(nodeSide)].filter((spec) => !isNodeBuiltin(spec) && !NODE_SIDE_ALLOWED.has(spec))
+  it('node 侧：包名 import 只有 node 内置模块、electron 与 peer 里写了的包', () => {
+    const bad = [...bareImportsOf(nodeSide)].filter((spec) => !isNodeBuiltin(spec) && spec !== 'electron' && !ownPeers.has(packageNameOf(spec)))
     expect(bad).toEqual([])
   })
 
-  it('浏览器侧：包名 import 只有内核包 gwb.shared 里声明的名字——别的名字页面上解析不到', () => {
-    const shared = sharedNamesOfKernel()
-    expect([...bareImportsOf([CLIENT])].filter((spec) => !shared.has(spec))).toEqual([])
+  it('浏览器侧：包名 import 只有内核包页面 importmap 里的名字——别的名字页面上解析不到', () => {
+    const importmapNames = importmapNamesOfKernel()
+    expect([...bareImportsOf([CLIENT])].filter((spec) => !importmapNames.has(spec))).toEqual([])
   })
 
   it('style.css 里的类选择器一律 .{{cssPrefix}}\\: 开头——样式只作用于本插件靠的就是前缀', () => {

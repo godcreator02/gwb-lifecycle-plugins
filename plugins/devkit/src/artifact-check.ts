@@ -1,6 +1,6 @@
 import { builtinModules } from 'node:module'
 import path from 'node:path'
-import { KERNEL_PACKAGE } from './kernel-compat.js'
+import { KERNEL_PACKAGE } from '@godcreator/gwb-plugin-manager'
 import { isRecord } from './vocab.js'
 
 // 纯函数：读文件只经调用方给的 readText，测试里给一张假文件表
@@ -54,13 +54,15 @@ export function packageNameOf(spec: string): string {
   return spec.startsWith('@') ? parts.slice(0, 2).join('/') : parts[0]!
 }
 
-const NODE_SIDE_PACKAGES = new Set(['electron', 'cordis'])
-
-/** node 侧允许的包名 import：node 内置模块、`electron`、`cordis`（含它们的子路径） */
-export function allowedOnNodeSide(spec: string): boolean {
+/**
+ * node 侧允许的包名 import（含子路径）：node 内置模块、`electron`、本包 peer 里写了的包。
+ * peer 由发版检查限定为 cordis、内核包与插件，都是 home 里装着的，按包名解析得到
+ */
+export function allowedOnNodeSide(spec: string, peers: ReadonlySet<string>): boolean {
   if (spec.startsWith('node:')) return true
   if (builtinModules.includes(spec)) return true
-  return NODE_SIDE_PACKAGES.has(packageNameOf(spec))
+  const pkg = packageNameOf(spec)
+  return pkg === 'electron' || peers.has(pkg)
 }
 
 const RUNTIME_CONDITIONS = new Set(['node', 'import', 'module-sync', 'default'])
@@ -86,14 +88,14 @@ export function exportTarget(manifest: Record<string, unknown>, subpath: string)
   return runtimeTarget((exported as Record<string, unknown>)[subpath])
 }
 
-/** 清单里 `gwb.shared` 声明的名字。形状照内核计算 importmap 的那段：键是包名，值是非空的 `exports` 子路径 */
-export function sharedDeclarations(manifest: unknown): Record<string, string> {
-  if (!isRecord(manifest) || !isRecord(manifest.gwb) || !isRecord(manifest.gwb.shared)) return {}
-  const subpathsByName: Record<string, string> = {}
-  for (const [name, subpath] of Object.entries(manifest.gwb.shared)) {
-    if (name !== '' && typeof subpath === 'string' && subpath !== '') subpathsByName[name] = subpath
-  }
-  return subpathsByName
+const IMPORTMAP_SCRIPT = /<script type="importmap">([\s\S]*?)<\/script>/
+
+/** 页面入口 html 里那段 importmap 的名字；没有这段 importmap 回 undefined，JSON 不合法当场抛错 */
+export function importmapNamesOf(html: string): string[] | undefined {
+  const script = IMPORTMAP_SCRIPT.exec(html)
+  if (script === null) return undefined
+  const importmap: unknown = JSON.parse(script[1]!)
+  return isRecord(importmap) && isRecord(importmap.imports) ? Object.keys(importmap.imports) : []
 }
 
 export interface ArtifactIo {
@@ -141,27 +143,7 @@ function relativeToPackage(pkgDir: string, file: string): string {
 /** 浏览器侧入口：模板 `build.ts` 用 esbuild 输出的 `dist/client.js` */
 export const BROWSER_ENTRY = 'dist/client.js'
 
-export interface ArtifactFindings {
-  problems: string[]
-  /** node 侧产物里有没有 import `cordis`（按值 import 才会留在产物里） */
-  nodeImportsCordis: boolean
-}
 
-/** `dist/client.js`（在的话）加上本包 `gwb.shared` 的子路径经 `exports` 指到的文件；子路径在 exports 里没有就记一条问题 */
-function browserEntriesOf(pkgDir: string, manifest: Record<string, unknown>, ownShared: Record<string, string>, io: ArtifactIo, problems: string[]): string[] {
-  const browserEntries: string[] = []
-  const clientFile = path.resolve(pkgDir, BROWSER_ENTRY)
-  if (io.readText(clientFile) !== undefined) browserEntries.push(clientFile)
-  for (const [name, subpath] of Object.entries(ownShared)) {
-    const target = exportTarget(manifest, subpath)
-    if (target === undefined) {
-      problems.push(`gwb.shared 的 ${name} 指向 ${subpath}，exports 里没有这个子路径`)
-      continue
-    }
-    browserEntries.push(path.resolve(pkgDir, target))
-  }
-  return browserEntries
-}
 
 function emptyImportProblems(pkgDir: string, modules: [string, ModuleImports][]): string[] {
   return modules.flatMap(([file, imports]) =>
@@ -169,17 +151,17 @@ function emptyImportProblems(pkgDir: string, modules: [string, ModuleImports][])
   )
 }
 
-function anyModuleImportsCordis(modules: Map<string, ModuleImports>): boolean {
-  return [...modules.values()].some((imports) => imports.bare.some((spec) => packageNameOf(spec) === 'cordis'))
+function peersOf(manifest: Record<string, unknown>): Set<string> {
+  return new Set(isRecord(manifest.peerDependencies) ? Object.keys(manifest.peerDependencies) : [])
 }
 
-function nodeSideBareImportProblems(pkgDir: string, nodeModules: Map<string, ModuleImports>): string[] {
+function nodeSideBareImportProblems(pkgDir: string, nodeModules: Map<string, ModuleImports>, peers: ReadonlySet<string>): string[] {
   const problems: string[] = []
   for (const [file, imports] of nodeModules) {
-    for (const spec of imports.bare.filter((one) => !allowedOnNodeSide(one))) {
+    for (const spec of imports.bare.filter((one) => !allowedOnNodeSide(one, peers))) {
       problems.push(
-        `node 侧产物 ${relativeToPackage(pkgDir, file)} import 了 '${spec}'：node 侧只能 import node 内置模块、electron、cordis。` +
-          `另一个插件改成只 import 类型、运行时经 inject 与命令使用；自用的库打包进产物`,
+        `node 侧产物 ${relativeToPackage(pkgDir, file)} import 了 '${spec}'：node 侧只能 import node 内置模块、electron 与 peer 里写了的包（cordis、内核包、用到的插件）。` +
+          `用到的插件写进 peer；自用的库打包进产物`,
       )
     }
   }
@@ -195,7 +177,7 @@ function browserSideBareImportProblems(pkgDir: string, browserModules: Map<strin
     if (importmap.names.has(spec)) continue
     problems.push(
       `浏览器侧产物 ${relativeToPackage(pkgDir, file)} import 了 '${spec}'：页面 importmap 里没有这个名字` +
-        `（只有内核包声明的 ${importmap.names.size === 0 ? '无' : [...importmap.names].join('、')}）。打包进产物，外置名单从内核包清单的 gwb.shared 读`,
+        `（只有 ${importmap.names.size === 0 ? '无' : [...importmap.names].join('、')}）。打包进产物，外置名单从内核包的页面入口 dist/index.html 里那段 importmap 读`,
     )
   }
   return problems
@@ -205,43 +187,38 @@ function browserSideBareImportProblems(pkgDir: string, browserModules: Map<strin
  * `plugin` 为 false（库、工具包）时只查空 import 与相对 import 指向的文件在不在；
  * 包名 import 的两份名单只管插件：库的 import 由用它的插件打包时解析，不在 home 里按包名解析
  */
-export function artifactFindings(pkgDir: string, manifest: Record<string, unknown>, plugin: boolean, io: ArtifactIo): ArtifactFindings {
+export function artifactProblems(pkgDir: string, manifest: Record<string, unknown>, plugin: boolean, io: ArtifactIo): string[] {
   const problems: string[] = []
   const nodeEntry = exportTarget(manifest, '.')
   if (nodeEntry === undefined) problems.push('清单里没有 exports["."]（或 main），找不到 node 侧入口')
   const node = walkModules(pkgDir, nodeEntry === undefined ? [] : [path.resolve(pkgDir, nodeEntry)], io)
-  const ownShared = sharedDeclarations(manifest)
-  if (Object.keys(ownShared).length > 0 && manifest.name !== KERNEL_PACKAGE) {
-    problems.push(
-      `清单里写了 gwb.shared（${Object.keys(ownShared).join('、')}）：页面 importmap 只收内核包 ${KERNEL_PACKAGE} 声明的名字，别的包写了内核不收。` +
-        `删掉 gwb.shared，这份代码由用它的插件各自打包`,
-    )
-  }
-  const browser = walkModules(pkgDir, browserEntriesOf(pkgDir, manifest, ownShared, io, problems), io)
+  const clientFile = path.resolve(pkgDir, BROWSER_ENTRY)
+  const browser = walkModules(pkgDir, io.readText(clientFile) === undefined ? [] : [clientFile], io)
 
   problems.push(...node.broken, ...browser.broken)
   problems.push(...emptyImportProblems(pkgDir, [...node.modules, ...browser.modules]))
-  const nodeImportsCordis = anyModuleImportsCordis(node.modules)
-  if (!plugin) return { problems, nodeImportsCordis }
+  if (!plugin) return problems
 
-  problems.push(...nodeSideBareImportProblems(pkgDir, node.modules))
+  problems.push(...nodeSideBareImportProblems(pkgDir, node.modules, peersOf(manifest)))
   problems.push(...browserSideBareImportProblems(pkgDir, browser.modules, io))
-  return { problems, nodeImportsCordis }
+  return problems
 }
 
 /**
- * 页面 importmap 里的名字：内核包清单 `gwb.shared` 的键。清单从本包的 `node_modules` 读（插件 peer 写了内核包，
- * pnpm 把它链接在那里），读不到就报出来，不猜
+ * 页面 importmap 里的名字：内核包页面入口 `dist/index.html` 里写死的那段 importmap 的键。从本包的 `node_modules` 读
+ * （插件 peer 写了内核包，pnpm 把它链接在那里），读不到就报出来，不猜
  */
 function kernelImportmapNamesOf(pkgDir: string, io: ArtifactIo): { names: Set<string>; problems: string[] } {
-  const file = path.join(pkgDir, 'node_modules', ...KERNEL_PACKAGE.split('/'), 'package.json')
-  const text = io.readText(file)
-  if (text === undefined) {
-    return { names: new Set(), problems: [`内核包的清单读不到（${file}），算不出页面 importmap 里的名字：peer 写上内核包，再在仓根 pnpm install`] }
+  const file = path.join(pkgDir, 'node_modules', ...KERNEL_PACKAGE.split('/'), 'dist', 'index.html')
+  const html = io.readText(file)
+  if (html === undefined) {
+    return { names: new Set(), problems: [`内核包的页面入口读不到（${file}），算不出页面 importmap 里的名字：peer 写上内核包 ^0.6.0 起，再在仓根 pnpm install`] }
   }
   try {
-    return { names: new Set(Object.keys(sharedDeclarations(JSON.parse(text)))), problems: [] }
+    const names = importmapNamesOf(html)
+    if (names === undefined) return { names: new Set(), problems: [`内核包的页面入口里没有 <script type="importmap">（${file}）`] }
+    return { names: new Set(names), problems: [] }
   } catch (err) {
-    return { names: new Set(), problems: [`内核包的清单不是合法 JSON（${file}）：${String(err)}`] }
+    return { names: new Set(), problems: [`内核包页面入口里的 importmap 不是合法 JSON（${file}）：${String(err)}`] }
   }
 }

@@ -3,10 +3,9 @@ import fs from 'node:fs'
 import os from 'node:os'
 import path from 'node:path'
 import { fileURLToPath } from 'node:url'
-import { tailLines } from './probes.js'
+import { tailLines } from '@godcreator/gwb-plugin-manager'
 import { PUBLISH_TIMEOUT_MS, pnpmPlan, type DevDeps, type RunPlan } from './dev.js'
 import type { ReleaseDeps } from './release.js'
-import { sourceTextUnder } from './provides-declaration.js'
 import { removeTree, runCaptured } from './node-home-deps.js'
 
 // DevDeps 与 ReleaseDeps 在这台机器上的实现：读写磁盘、启动进程、经 bin/cdp.mjs 连 CDP。
@@ -323,6 +322,5 @@ export const releaseDepsWith = (pnpm: string): ReleaseDeps => ({
   exists(target) {
     return fs.existsSync(target)
   },
-  sourceTextOf: sourceTextUnder,
   pnpm,
 })

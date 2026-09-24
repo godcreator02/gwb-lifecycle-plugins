@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { installedVersionOf, readEntries, reconcile, toDependencies, toLabels, type EntrySnapshot } from '../src/inventory.js'
+import { installedVersionOf, readEntries, reconcile, toDependencies, type EntrySnapshot } from '../src/inventory.js'
 
 interface FakeEntry {
   key: string
@@ -34,17 +34,6 @@ describe('home 的 package.json 收窄', () => {
     for (const bad of [{}, { dependencies: [] }, null, 'nope', undefined]) {
       expect(toDependencies(bad)).toEqual({})
     }
-  })
-})
-
-describe('显示名文档收窄', () => {
-  it('格式不对的项丢掉，不作废整份', () => {
-    expect(toLabels({ a: '命令总线', b: 3, c: '' })).toEqual({ a: '命令总线' })
-  })
-
-  it('整份坏了当没有', () => {
-    expect(toLabels(['a'])).toEqual({})
-    expect(toLabels(null)).toEqual({})
   })
 })
 
@@ -99,39 +88,33 @@ describe('包与条目对照', () => {
   })
 
   it('装了包也有条目：条目归到那个包底下', () => {
-    const rows = reconcile({ '@x/gwb-commands': '0.0.3' }, [snapshot('commands', '@x/gwb-commands')], {})
+    const rows = reconcile({ '@x/gwb-commands': '0.0.3' }, [snapshot('commands', '@x/gwb-commands')])
     expect(rows).toHaveLength(1)
     expect(rows[0]).toMatchObject({ pkg: '@x/gwb-commands', spec: '0.0.3', installed: true })
     expect(rows[0]?.entries).toHaveLength(1)
   })
 
   it('装了包但一条条目都没有：如实报 0 条，不推断原因', () => {
-    const rows = reconcile({ '@x/gwb-shared-react': '1.0.0' }, [], {})
+    const rows = reconcile({ '@x/gwb-shared-react': '1.0.0' }, [])
     expect(rows[0]).toMatchObject({ pkg: '@x/gwb-shared-react', installed: true })
     expect(rows[0]?.entries).toEqual([])
   })
 
   it('条目指向一个没装的包：报 installed false，不丢掉', () => {
-    const rows = reconcile({}, [snapshot('ghost', '@x/gone')], {})
+    const rows = reconcile({}, [snapshot('ghost', '@x/gone')])
     expect(rows[0]).toMatchObject({ pkg: '@x/gone', installed: false })
     expect(rows[0]).not.toHaveProperty('spec')
     expect(rows[0]?.entries).toHaveLength(1)
   })
 
   it('同一个包的多条条目并在一起', () => {
-    const rows = reconcile({ '@x/gwb-py-cli': '1' }, [snapshot('py-311', '@x/gwb-py-cli'), snapshot('py-312', '@x/gwb-py-cli')], {})
+    const rows = reconcile({ '@x/gwb-py-cli': '1' }, [snapshot('py-311', '@x/gwb-py-cli'), snapshot('py-312', '@x/gwb-py-cli')])
     expect(rows).toHaveLength(1)
     expect(rows[0]?.entries.map((e) => e.id)).toEqual(['py-311', 'py-312'])
   })
 
-  it('显示名按不带前缀的 id 对上，没设过就没有这个字段', () => {
-    const rows = reconcile({ p: '1' }, [snapshot('a', 'p'), snapshot('b', 'p')], { a: '甲' })
-    expect(rows[0]?.entries[0]).toMatchObject({ id: 'a', label: '甲' })
-    expect(rows[0]?.entries[1]).not.toHaveProperty('label')
-  })
-
   it('按包名排序,界面上位置稳定', () => {
-    const rows = reconcile({ zeta: '1', alpha: '1' }, [], {})
+    const rows = reconcile({ zeta: '1', alpha: '1' }, [])
     expect(rows.map((r) => r.pkg)).toEqual(['alpha', 'zeta'])
   })
 })

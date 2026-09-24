@@ -98,25 +98,16 @@ function fakeTree(entries: Record<string, string>): FakeTree {
 }
 
 interface FakeDataPlugin {
-  docs: Record<string, unknown>
   ownerRecords: Record<string, string>
   transfers: [string, string][]
-  readDoc(doc: string): Promise<unknown>
-  writeDoc(doc: string, value: unknown): Promise<void>
   owners(): Record<string, string>
   transferOwner(id: string, pkg: string): Promise<void>
 }
 
 function fakeDataPlugin(ownerRecords: Record<string, string> = {}): FakeDataPlugin {
   const plugin: FakeDataPlugin = {
-    docs: {},
     ownerRecords,
     transfers: [],
-    readDoc: (doc) => Promise.resolve(plugin.docs[doc]),
-    writeDoc: (doc, value) => {
-      plugin.docs[doc] = value
-      return Promise.resolve()
-    },
     owners: () => plugin.ownerRecords,
     transferOwner: (id, pkg) => {
       plugin.transfers.push([id, pkg])
@@ -296,27 +287,6 @@ describe('条目命令', () => {
     await expect(pm.run('plugin-manager.enable', {})).rejects.toThrow('entryId 要是个非空字符串')
     await expect(pm.run('plugin-manager.search', { scope: '' })).rejects.toThrow('scope 给了就要是非空字符串')
     await expect(pm.run('plugin-manager.update-all', { only: [''] })).rejects.toThrow('only 给了就要是个非空字符串数组')
-  })
-})
-
-describe('plugin-manager.set-label', () => {
-  it('没装数据插件：ok false，说明要装数据插件', async () => {
-    const pm = mount({ entries: { foo: '@x/gwb-foo' } })
-    const result = (await pm.run('plugin-manager.set-label', { entryId: 'foo', label: '名字' })) as GwbResult
-    expect(result.ok).toBe(false)
-    expect(result.error).toContain('没装数据插件')
-  })
-
-  it('装了数据插件：写进 labels 文档、list 带出来；空串清除', async () => {
-    writeHomeDependencies({ '@x/gwb-foo': '^1.0.0' })
-    const data = fakeDataPlugin()
-    const pm = mount({ entries: { foo: '@x/gwb-foo' }, data })
-    expect(await pm.run('plugin-manager.set-label', { entryId: 'foo', label: '  名字  ' })).toEqual({ ok: true })
-    expect(data.docs['labels']).toEqual({ foo: '名字' })
-    const listed = (await pm.run('plugin-manager.list')) as { pkg: string; entries: { label?: string }[] }[]
-    expect(listed.find((view) => view.pkg === '@x/gwb-foo')?.entries[0]?.label).toBe('名字')
-    await pm.run('plugin-manager.set-label', { entryId: 'foo', label: '' })
-    expect(data.docs['labels']).toEqual({})
   })
 })
 

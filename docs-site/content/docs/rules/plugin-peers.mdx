@@ -15,7 +15,7 @@ peer 的意思是「运行时从 home 里得到这个包」。插件的 peer 因
 
 ## 怎么判
 
-- **该写，必需**：`export const inject` 里写了它的服务（缺了插件就不加载），或者经命令总线登记命令、用外壳注册窗格与样式令牌这类少了就没法工作的
+- **该写，必需**：`export const inject` 里写了它的服务（缺了插件就不加载），或者经命令总线登记命令、用外壳注册窗格与样式令牌这类少了就没法工作的；按值 import 它主入口导出的函数也是（发版前检查只放行 node 侧对 peer 里写了的包的 import，这种用法本身是例外，见[插件之间怎么交互](/docs/rules/interaction)）
 - **该写，可选**：用 `ctx.inject([...], fn)` 局部注入它的服务，缺了只少那一部分功能——标 `optional: true`，没装不算没满足
 - **不用写**：只按命令名调它的命令（经命令总线查找，命令不在就回执说明），不用它的服务也不 import 它的类型
 - **下限写开发、验证时用的那一版**：用到了那个插件某个版本新加的东西（比如外壳新加的主题令牌），下限就写到那一版
@@ -25,13 +25,11 @@ peer 的意思是「运行时从 home 里得到这个包」。插件的 peer 因
 
 **`devkit.release` 发版前检查**（只查插件包，`keywords` 含 `gwb-plugin`）：peer 里 `cordis` 与内核包以外的每个包，读包目录 `node_modules` 里它的清单，`keywords` 含 `gwb-plugin` 或同时含 `cordis` 与 `plugin`（cordis 官方插件）才算插件，不是插件、清单读不到都拒；peer 里的每个 `@godcreator` 插件（内核包与 `workspace:` 除外）范围要是 `^x.y.z`，并且和源上 `dist-tags.latest` 在同一条线——主版本号为 0 时只比次版本号，≥1 时只比主版本号。不在同一条线说明上游出了破坏性版本，拒绝理由里写着适配、验过之后改成的 `^<latest>`：
 
-{/* ref file="../plugins/devkit/src/release.ts" lines="131-147" */}
+{/* ref file="../plugins/devkit/src/release.ts" lines="206-215" */}
 
-{/* ref file="../plugins/devkit/src/release.ts" lines="171-192" */}
+{/* ref file="../plugins/devkit/src/release.ts" lines="239-260" */}
 
 {/* has file="../plugins/devkit/tests/release.test.ts" text="插件包 peer 里的插件和源上 latest 不在同一条线：构建之后、发之前拒，一个都不发" */}
-
-**`devkit.audit-deps`**：插件包 peer 里的插件照 dev 一样对照源上的 latest，报 `dead-pin`、`behind`（范围内落后，只提醒）、`out-of-range`（出范围，必须跟）；peer 不是 `^x.y.z` 记 `loose-dev-pin`；`cordis`、内核包、插件以外的包（没装、读不到清单的也算）记 `peer-not-cordis`。只报告，不拦。
 
 **`plugin-manager.list` 按包报 `unmetPeers`**：只看插件 peer 里内核包与 `cordis` 以外的包，每条没满足的是 `{ pkg, range, installed? }`——没装（没有 `installed`；optional 的没装不算）、装着的版本不在范围里、或范围不是 `^x.y.z`。只报告，不拦加载、不拦安装（回执怎么读见插件管理那组页面里的[peer 满没满足](/docs/plugin-manager/peers)）。
 
@@ -47,9 +45,9 @@ pnpm 默认把 home 里没装的 peer 自动装进 `node_modules/.pnpm`：它不
 
 ## 例子
 
-devkit 用命令总线登记命令（写在 `export const inject` 里，必需），外壳、说明书、node 命令行三个插件经局部注入可选使用：
+devkit 用命令总线登记命令（写在 `export const inject` 里，必需），从插件管理的主入口 import 几个函数（必需，见[插件之间怎么交互](/docs/rules/interaction)），外壳、说明书、node 命令行三个插件经局部注入可选使用：
 
-{/* ref file="../plugins/devkit/package.json" lines="34-46" */}
+{/* ref file="../plugins/devkit/package.json" lines="34-47" */}
 
 装进一个外壳还是 0.12.4 的 home，`plugin-manager.list` 里 devkit 这个包带着：
 

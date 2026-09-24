@@ -7,7 +7,6 @@
  * 这套组件复制自内核仓文档站，两个站各有一份。
  */
 import type { ReactNode } from 'react'
-import { DkAuditDeps } from './diagrams/dk-audit-deps'
 import { DkCdp } from './diagrams/dk-cdp'
 import { DkDevLoop } from './diagrams/dk-dev-loop'
 import { DkHomeNew } from './diagrams/dk-home-new'
@@ -48,7 +47,6 @@ const drawings: Record<string, () => ReactNode> = {
   'dk-dev-loop': () => <DkDevLoop />,
   'dk-home-new': () => <DkHomeNew />,
   'dk-release': () => <DkRelease />,
-  'dk-audit-deps': () => <DkAuditDeps />,
   'dk-cdp': () => <DkCdp />,
   'seam-version-fields': () => <SeamVersionFields />,
   'seam-repo-shape': () => <SeamRepoShape />,

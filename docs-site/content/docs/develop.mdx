@@ -33,7 +33,7 @@ plugin-manager.install {"pkg":"@godcreator/gwb-devkit"}
 pnpm install
 ```
 
-仓根的 workspace 包含两个插件包与 `docs-site`，一次装齐。文档站目录里另有自己的 `pnpm-workspace.yaml` 与锁文件；`devkit.audit-structure` 查本仓会对「文档站在 workspace 里」报一条 warn（`docs-site-in-workspace`），这是本仓的旧形状，模板生成的新仓不这样。
+仓根的 workspace 包含两个插件包与 `docs-site`，一次装齐；devkit 的 peer 里写着插件管理（`workspace:^`），装好后 devkit 从工作区里的插件管理取它导出的函数与类型。文档站目录里另有自己的 `pnpm-workspace.yaml` 与锁文件，这是本仓的旧形状，模板生成的新仓不这样。
 
 实验材料放 `probes/<时间戳>_<目的>/`：一次实验一个目录、自包含、进 git、不在 workspace 里。
 
@@ -48,7 +48,9 @@ pnpm build          # 只构建 plugins/*，tsc 直接输出 dist/，没有打�
 
 **`pnpm check` 不构建。** 它检查的是源码，全绿只说明源码没问题，跟「装出来能不能运行」是两件事。
 
-开发套件的 `tests/provides-declaration.test.ts` 拿两个插件自己的 `package.json` 与源码跑一遍 `gwb.provides` 的检查：加减了服务就要同步改 `gwb.provides`，不然测试红，发版也会被拒。
+**开发套件的类型检查与测试用的是插件管理的 `dist/`**：插件管理的清单把主入口指到 `dist/index.js` 与 `dist/index.d.ts`，开发套件从那里 import。刚拉下来的仓、或者改了插件管理导出的函数，先 `pnpm build` 再 `pnpm check`，不然开发套件那一半报找不到模块，或者用的还是旧函数。
+
+{/* has file="../plugins/plugin-manager/package.json" text="./dist/index.d.ts" */}
 
 文档站的检查不在 `pnpm check` 里（要运行文档站的解析，太慢），见下面[文档站](#文档站)。
 
@@ -74,7 +76,7 @@ pnpm build          # 只构建 plugins/*，tsc 直接输出 dist/，没有打�
 3. **插件包 peer 里内核包的范围** `^x.y.z` 要包含验证时所用的内核。`devkit.release` 拿它和运行这条命令的 home 的内核比，不包含就拒（[兼容哪个内核](/docs/rules/kernel-compat)）
 4. **调 `devkit.release`**，`packages` 按依赖顺序排：
    - 只发开发套件：`devkit.release {"dir":"<本仓根>","packages":["plugins/devkit"]}`
-   - 发插件管理：`["plugins/plugin-manager"]`
+   - 发插件管理：`["plugins/plugin-manager"]`；两个一起发时插件管理排在前面：`["plugins/plugin-manager","plugins/devkit"]`，devkit 的 peer 里插件管理那一项写成这次发的 `^<版本号>`
 
    它检查 git 工作区、构建、按 `files` 白名单检查产物、做发版前检查（[开发套件](/docs/devkit#发正式版的检查)），在临时目录组装发布内容发到 latest，不改仓里任何文件
 5. **发完就升级 `default`**：人在插件管理窗格点「全部更新」，或调 `plugin-manager.update-all`。说明书与命令都随包发布，不升级等于 agent 读到的还是上一版，而它照着过期的说明书做事不报错。升级到开发套件或插件管理自己时，回执可能收不到，重连后用 `plugin-manager.list` 核对

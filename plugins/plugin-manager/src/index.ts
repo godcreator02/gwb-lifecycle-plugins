@@ -1,14 +1,14 @@
 import os from 'node:os'
 import type { GwbContext, GwbResult } from '@godcreator/gwb-kernel-desktop'
 import { isRecord, requireKernel } from './vocab.js'
-// 这几条 type import 只为引入对方的 `declare module 'cordis'`（commands 另取一个类型）；这些插件都是可选的：嵌套注入、写进 devDependencies
+// 这几条 type import 只为引入对方的 `declare module 'cordis'`（commands 另取一个类型）；这些插件写在 peer 里，数据、设置、说明书标 optional，都经嵌套注入使用
 import type { GwbCommands } from '@godcreator/gwb-commands'
 import type {} from '@godcreator/gwb-data'
 import type {} from '@godcreator/gwb-settings'
 import type {} from '@godcreator/gwb-skills'
 import { npmrcFiles, readHomeDependencies, readInstalledPackageManifest } from './home.js'
 import { assertId, assertIdUsable, assertPkgName, bareId, installSpec, isPkgName, pickId, type IdOwners } from './ids.js'
-import { installedVersionOf, readEntries, reconcile, toLabels, type PluginPackageView } from './inventory.js'
+import { installedVersionOf, readEntries, reconcile, type PluginPackageView } from './inventory.js'
 import { describeAddFailure, describePnpm, locatePnpm, runPnpm, runPnpmCapture, type PnpmResult } from './pnpm.js'
 import { parseOutdated, type UpdateInfo } from './outdated.js'
 import { entriesForPackage } from './uninstall.js'
@@ -21,7 +21,7 @@ import { CORDIS_PACKAGE, installedVersionMismatch, kernelStatusInList, kernelUpg
 import { declaredPluginPeers, peerStatusOf } from './peers.js'
 import { addSource, listSources, removeSource, searchPlugins, type PackageSourcesDeps } from './package-sources.js'
 
-export type { EntrySnapshot, PluginEntryView, PluginPackageView } from './inventory.js'
+export type { EntrySnapshot, PluginPackageView } from './inventory.js'
 export type { RemountedEntry } from './remount.js'
 export type { KernelCompatStatus } from './kernel-compat.js'
 export type { VersionChange } from './kernel-upgrade.js'
@@ -30,6 +30,11 @@ export type { PeerStatus, UnmetPeer } from './peers.js'
 export type { SearchReceipt, SourceAddResult, SourceListResult, SourceRemoveResult, SourceReport } from './package-sources.js'
 export type { SearchRow } from './search.js'
 
+// 开发套件复用的规则：它 import 这几个，不另存一份
+export { locatePnpm } from './pnpm-location.js'
+export { declaredKernelRange, isCaretRange, KERNEL_PACKAGE, kernelRangeCovers } from './kernel-compat.js'
+export { tailLines } from './pnpm.js'
+
 /** 外壳的整页重载命令。按命令名查找，不 import 外壳的常量：那会让外壳成为运行时依赖 */
 const SHELL_RELOAD_COMMAND = 'shell.reload'
 
@@ -37,9 +42,6 @@ const NAME = 'gwb-plugin-manager'
 
 /** 登记命令时填的所属插件：包名 */
 const PKG = '@godcreator/gwb-plugin-manager'
-
-/** 显示名存在本插件自己的数据里：一份「不带前缀的 id → label」的文档 */
-const LABELS_DOC = 'labels'
 
 /** 经过 BUSY 检查的那几条命令的 usage 末尾都带这一句 */
 const BUSY_USAGE_NOTE = '同一时刻只允许一个变更，重入回 { ok:false, error:"BUSY…" }'
@@ -51,7 +53,6 @@ export const REMOVE_ENTRY_COMMAND = 'plugin-manager.remove-entry'
 export const ENABLE_COMMAND = 'plugin-manager.enable'
 export const DISABLE_COMMAND = 'plugin-manager.disable'
 export const REMOUNT_COMMAND = 'plugin-manager.remount'
-export const SET_LABEL_COMMAND = 'plugin-manager.set-label'
 export const OUTDATED_COMMAND = 'plugin-manager.outdated'
 export const UPDATE_ALL_COMMAND = 'plugin-manager.update-all'
 export const UPDATE_KERNEL_COMMAND = 'plugin-manager.update-kernel'
@@ -63,14 +64,12 @@ export const SOURCE_LIST_COMMAND = 'plugin-manager.source.list'
 export const SOURCE_REMOVE_COMMAND = 'plugin-manager.source.remove'
 
 /**
- * 服务 `gwbPluginManager` 的值：只表示插件管理装了（别的插件 inject 它，跟着它一起加载、卸载）。
- * 命令的参数或回执有破坏性变化时 `contract` 加一
+ * 服务 `gwbPluginManager` 的值：只表示插件管理装了（别的插件 inject 它，跟着它一起加载、卸载），上面没有字段。
+ * 命令有没有破坏性变化看插件管理的版本号
  */
-export interface PluginManagerPresence {
-  contract: number
-}
+export type PluginManagerPresence = Record<string, never>
 
-const PRESENCE: PluginManagerPresence = { contract: 3 }
+const PRESENCE: PluginManagerPresence = {}
 
 /** 转移归属的回执。`data` / `settings` 是 false 说明对应的插件没装、那部分没有处理 */
 export interface TransferOwnerResult {
@@ -174,12 +173,6 @@ export interface UninstallResult {
   tail?: string
 }
 
-/** 显示名的存储，`ctx.gwbData` 满足它 */
-interface LabelStore {
-  readDoc(doc: string): Promise<unknown>
-  writeDoc(doc: string, value: unknown): Promise<void>
-}
-
 /** 数据插件与设置插件各有一份的归属记录（id → 包），`ctx.gwbData` 与 `ctx.gwbSettings` 都满足它 */
 interface OwnerBook {
   owners(): Promise<Record<string, string>> | Record<string, string>
@@ -211,17 +204,13 @@ class PluginManager {
   private readonly log: { info(message: string): void; warn(message: string): void }
 
   /** 装了数据插件才有 */
-  private labelStore: LabelStore | undefined
   private dataOwnerBook: OwnerBook | undefined
+  /** 装了设置插件才有 */
   private settingsOwnerBook: OwnerBook | undefined
   /** 命令插件存在才有。一键热升级用它执行 `shell.reload`，包括本插件自己重新加载之后那一次 */
   private commandBus: GwbCommands | undefined
 
   private readonly busyGate = new BusyGate()
-  /** 不带前缀的 id → 显示名。以内存里这份为准 */
-  private labels: Record<string, string> = {}
-  /** 第一次读取 labels 完成。改显示名要等它，不然第一次改名会被读磁盘的结果覆盖 */
-  private labelsReady: Promise<void> = Promise.resolve()
 
   /** pnpm 串行队列的队尾：两个 pnpm 同时读改写 home 的 package.json，后写的会覆盖前一个加的依赖 */
   private pnpmQueueTail: Promise<unknown> = Promise.resolve()
@@ -250,21 +239,11 @@ class PluginManager {
     })
   }
 
+  /** 只用数据插件的归属记录：分配 id 时避开别的包的数据目录，转移归属时一起改 */
   private wireData(): void {
     this.ctx.inject(['gwbData'], (ctx) => {
-      const store: LabelStore = ctx.gwbData
-      this.labelStore = store
       this.dataOwnerBook = ctx.gwbData
-      this.labelsReady = store.readDoc(LABELS_DOC).then(
-        (labelsDoc) => {
-          this.labels = toLabels(labelsDoc)
-        },
-        (err: unknown) => {
-          this.log.warn(`显示名读不出来，先当没有：${String(err)}`)
-        },
-      )
       ctx.effect(() => () => {
-        this.labelStore = undefined
         this.dataOwnerBook = undefined
       })
     })
@@ -306,7 +285,7 @@ class PluginManager {
     registerCommand(
       LIST_COMMAND,
       'home 里装了哪些包、各有哪些条目、有没有 peer 范围不包含当前内核或 peer 里写的别的包没满足的',
-      `回执按包列：包名、spec、条目（id、entryId、启停、是否 ACTIVE、显示名）、kernelRange（包的 package.json 里 peerDependencies["${KERNEL_PACKAGE}"] 写的范围，没写时没有这个字段）、kernelUntested（只标插件——keywords 含 gwb-plugin、不是内核包与 cordis 的包：范围不包含运行中的内核就是 true，没写、写的不是 ^x.y.z 也算；别的包与清单读不到的包一律 false；^x.y.z 在主版本号为 0 时要求次版本号相同，≥1 时要求主版本号相同，并且不低于 x.y.z）、unmetPeers（只看插件 peer 里除了内核包与 ${CORDIS_PACKAGE} 之外的包，home 里没满足的列成 [{ pkg, range, installed? }]：没装（没有 installed 字段；peerDependenciesMeta 里 optional: true 的没装不算）、装着的版本不在范围里、或范围不是 ^x.y.z，range 原样照抄，范围规则同上；每个包都有这个字段，不是插件、清单读不到、全都满足时是空数组）。只报告，不拦加载。无参数`,
+      `回执按包列：包名、spec、条目（id、entryId、启停、是否 ACTIVE）、kernelRange（包的 package.json 里 peerDependencies["${KERNEL_PACKAGE}"] 写的范围，没写时没有这个字段）、kernelUntested（只标插件——keywords 含 gwb-plugin、不是内核包与 cordis 的包：范围不包含运行中的内核就是 true，没写、写的不是 ^x.y.z 也算；别的包与清单读不到的包一律 false；^x.y.z 在主版本号为 0 时要求次版本号相同，≥1 时要求主版本号相同，并且不低于 x.y.z）、unmetPeers（只看插件 peer 里除了内核包与 ${CORDIS_PACKAGE} 之外的包，home 里没满足的列成 [{ pkg, range, installed? }]：没装（没有 installed 字段；peerDependenciesMeta 里 optional: true 的没装不算）、装着的版本不在范围里、或范围不是 ^x.y.z，range 原样照抄，范围规则同上；每个包都有这个字段，不是插件、清单读不到、全都满足时是空数组）。只报告，不拦加载。无参数`,
       () => this.list(),
     )
 
@@ -362,11 +341,6 @@ class PluginManager {
         return { ok: true, data: result }
       },
     )
-
-    registerCommand(SET_LABEL_COMMAND, '改一条条目的显示名', '参数 { entryId, label }（label 给空字符串就是清除）', async (args) => {
-      const argsObject = argsObjectOf(args)
-      return this.setLabel(requiredString(argsObject, 'entryId'), labelArgOf(argsObject))
-    })
 
     registerCommand(OUTDATED_COMMAND, '查已装的包哪些有新版本', 'pnpm outdated。回执 { ok, updates: { 包名: { current, latest } } }，空对象表示全都最新。无参数', async () => {
       const result = await this.outdated()
@@ -457,7 +431,7 @@ class PluginManager {
 
   async list(): Promise<PluginPackageView[]> {
     const homeDependencies = await readHomeDependencies(this.homeDir)
-    const reconciledPackages = reconcile(homeDependencies, readEntries(this.tree.store), this.labels)
+    const reconciledPackages = reconcile(homeDependencies, readEntries(this.tree.store))
     const manifestsByPackage = new Map<string, unknown>()
     await this.readInstalledManifests(reconciledPackages.map((view) => view.pkg), manifestsByPackage)
     const installedVersions = await this.installedVersionsFor(manifestsByPackage)
@@ -788,7 +762,6 @@ class PluginManager {
     return ownersById
   }
 
-  /** 显示名保留：同一个包重新装回来还是这个 id，旧名字接着能用（与设置和数据相同） */
   removeEntry(entryId: string): void {
     const id = this.existingBareId(entryId)
     this.tree.remove(id)
@@ -806,27 +779,6 @@ class PluginManager {
     const id = this.existingBareId(entryId)
     await this.tree.update(id, { disabled: true })
     this.log.info(`条目 ${id} 已停用`)
-  }
-
-  /** 给空串就是清除。没装数据插件时返回 `ok: false`，不抛异常 */
-  async setLabel(entryId: string, label: string): Promise<GwbResult> {
-    const id = this.existingBareId(entryId)
-    const store = this.labelStore
-    if (store === undefined) {
-      return {
-        ok: false,
-        error: '没装数据插件（@godcreator/gwb-data），显示名存不下来。装上它、在 cordis.yml 里加一条条目，再改一次。',
-      }
-    }
-    await this.labelsReady
-    const trimmed = label.trim()
-    const nextLabels = { ...this.labels }
-    if (trimmed === '') delete nextLabels[id]
-    else nextLabels[id] = trimmed
-    await store.writeDoc(LABELS_DOC, nextLabels)
-    this.labels = nextLabels
-    this.log.info(trimmed === '' ? `条目 ${id} 的显示名已清除` : `条目 ${id} 的显示名改成「${trimmed}」`)
-    return { ok: true }
   }
 
   /** 完整 entryId 与不带前缀的 id 都接受，返回不带前缀的 id；条目树上没有就抛错 */
@@ -957,13 +909,6 @@ function optionalString(argsObject: Record<string, unknown>, key: string): strin
   const value = argsObject[key]
   if (value === undefined || value === null) return undefined
   if (typeof value !== 'string' || value === '') throw new Error(`${key} 给了就要是个非空字符串`)
-  return value
-}
-
-/** 空串是合法的，表示清除这个名字 */
-function labelArgOf(argsObject: Record<string, unknown>): string {
-  const value = argsObject['label']
-  if (typeof value !== 'string') throw new Error('label 要是个字符串（空字符串就是清除）')
   return value
 }
 

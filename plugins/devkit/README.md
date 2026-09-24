@@ -6,7 +6,7 @@
 
 god 工作台的开发套件，本身就是**一个普通的插件**：装进 home 才有它的命令，加载不了就什么都没有。它走它教别人走的那条路：发到团队源、装进 home。
 
-它把「在一个新文件夹里开发一个新插件」这条路上的每一步都做成一个能被 agent 调用的命令：建仓、往仓里加插件、结构体检、依赖对账、测试 home 的开与删、改一版看一版、发正式版、查这个 home 能用什么，外加随包发布的写插件说明书与发版规则。**仓的布局只有一种**：pnpm workspace，插件放在 `plugins/<短名>/`，一个插件与多个插件的仓格式相同。
+它把「在一个新文件夹里开发一个新插件」这条路上的每一步都做成一个能被 agent 调用的命令：建仓、往仓里加插件、测试 home 的开与删、改一版看一版、发正式版、列出这个 home 里可以 inject 的服务，外加随包发布的写插件说明书与发版规则。**仓的布局只有一种**：pnpm workspace，插件放在 `plugins/<短名>/`，一个插件与多个插件的仓格式相同。
 
 **使用者是 agent，所以它没有界面**：全部结果都在回执里。工作台没启动的时候，还有一个包内命令行脚本可用——`bin/cdp.mjs` 在一个页面里操作。
 
@@ -26,7 +26,7 @@ plugin-manager.install {"pkg":"@godcreator/gwb-devkit"}
 
 这个仓是 pnpm workspace，开发套件在 `plugins/devkit/`，旁边还有一个包：
 
-* `plugins/plugin-manager/`：插件管理 `@godcreator/gwb-plugin-manager`，home 里的一个普通插件，单独发版。它和开发套件一起开发，因为两边互相依赖：`devkit.dev` 装完开发版调 `plugin-manager.remount` 重新加载、用 `plugin-manager.list` 核对结果，`devkit.home.new` 把它装进新 home；插件在 `package.json` 的 peer 里写的内核包 `@godcreator/gwb-kernel-desktop` 的范围，插件管理在 `list` 里拿它和 home 里装的内核比对，`devkit.release` 发版前用同一条规则检查。放在一个仓里，改这些地方一个提交就能改两边
+* `plugins/plugin-manager/`：插件管理 `@godcreator/gwb-plugin-manager`，home 里的一个普通插件，单独发版。它和开发套件一起开发，因为两边互相依赖：`devkit.dev` 装完开发版调 `plugin-manager.remount` 重新加载、用 `plugin-manager.list` 核对结果，`devkit.home.new` 把它装进新 home；插件在 `package.json` 的 peer 里写的内核包 `@godcreator/gwb-kernel-desktop` 的范围，插件管理在 `list` 里拿它和 home 里装的内核比对，`devkit.release` 发版前用同一条规则检查——开发套件的 peer 里写着插件管理，从它的主入口 import 这条规则与找 pnpm 的函数。放在一个仓里，改这些地方一个提交就能改两边
 
 ## 文档
 

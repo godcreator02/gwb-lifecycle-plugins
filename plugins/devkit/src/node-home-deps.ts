@@ -3,7 +3,7 @@ import { chmodSync, lstatSync, mkdirSync, readdirSync, rmdirSync, unlinkSync } f
 import path from 'node:path'
 import type { HomeDeps, HomeFs } from './home.js'
 import { hostAppFacts, hostAppSpawnPlan, RUN_TAIL_LINES } from './home.js'
-import { tailLines } from './probes.js'
+import { tailLines } from '@godcreator/gwb-plugin-manager'
 import { kill, nodeFs, portOwner, processName } from './node-probe-deps.js'
 
 // HomeDeps 在这台机器上的实现：读写磁盘、启动进程，没有单元测试；判断在 home.ts 里。查进程、结束进程用 node-probe-deps 的

@@ -9,16 +9,21 @@ import { build } from 'esbuild'
  */
 const here = path.dirname(fileURLToPath(import.meta.url))
 
-/** 外置名单只从提供方读：react 的四个包名由内核包提供，名单是它清单里 gwb.shared 的键，构建时从装好的内核包里读（peer 写了它，pnpm 装在本包的 node_modules 里） */
-function sharedNamesOfKernel(): string[] {
+/**
+ * 外置名单只从提供方读：react 的四个包名由内核包提供，写死在它页面入口 dist/index.html 的 importmap 里，
+ * 构建时从装好的内核包里读（peer 写了它，pnpm 装在本包的 node_modules 里）
+ */
+function importmapNamesOfKernel(): string[] {
   const manifestPath = fileURLToPath(import.meta.resolve('@godcreator/gwb-kernel-desktop/package.json'))
-  const manifest: unknown = JSON.parse(fs.readFileSync(manifestPath, 'utf8'))
-  const gwb = isRecord(manifest) ? manifest['gwb'] : undefined
-  const shared = isRecord(gwb) ? gwb['shared'] : undefined
-  if (!isRecord(shared)) {
-    throw new Error(`${manifestPath} 里没有 gwb.shared：装的内核包版本不提供 react，把 peer 里的 @godcreator/gwb-kernel-desktop 抬到 ^0.4.1 起`)
+  const pageEntry = path.join(path.dirname(manifestPath), 'dist', 'index.html')
+  const importmapScript = /<script type="importmap">([\s\S]*?)<\/script>/.exec(fs.readFileSync(pageEntry, 'utf8'))
+  if (importmapScript === null) {
+    throw new Error(`${pageEntry} 里没有 importmap：装的内核包早于 0.6，把 peer 里的 @godcreator/gwb-kernel-desktop 抬到 ^0.6.0 起`)
   }
-  return Object.keys(shared)
+  const importmap: unknown = JSON.parse(importmapScript[1]!)
+  const imports = isRecord(importmap) ? importmap['imports'] : undefined
+  if (!isRecord(imports)) throw new Error(`${pageEntry} 的 importmap 里没有 imports`)
+  return Object.keys(imports)
 }
 
 function isRecord(value: unknown): value is Record<string, unknown> {
@@ -28,7 +33,7 @@ function isRecord(value: unknown): value is Record<string, unknown> {
 await build({
   entryPoints: ['src/client/index.tsx'],
   outfile: 'dist/client.js',
-  external: sharedNamesOfKernel(),
+  external: importmapNamesOfKernel(),
   format: 'esm',
   platform: 'browser',
   target: 'es2022',

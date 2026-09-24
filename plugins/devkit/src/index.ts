@@ -23,11 +23,10 @@ import {
 import { kill, portOwner, processName } from './node-probe-deps.js'
 import { DEFAULT_REGISTRY, type DevDeps, type DevInput, runDev } from './dev.js'
 import { runRelease } from './release.js'
-import { auditManifest, countByKind, type ManifestDeps } from './audit.js'
-import { collectManifests, collectRepos, fetchRegistry } from './node-audit-deps.js'
-import { auditStructure, scanRepo, tallyKinds, type StructureFinding } from './structure.js'
+import { servicesOf } from './services.js'
+import { readHomeTypeDeclarations } from './node-services-deps.js'
 import { CDP_ENTRY, devDepsWith, releaseDepsWith } from './node-dev-deps.js'
-import { locatePnpm } from './pnpm-location.js'
+import { locatePnpm } from '@godcreator/gwb-plugin-manager'
 import { homeFs, makeAppSpawnPlan, makeGuiSpawn, runCaptured } from './node-home-deps.js'
 import {
   NAME_RE,
@@ -43,8 +42,6 @@ import {
   writePluginPage,
   writeRepo,
 } from './scaffold.js'
-import { joinProvides, serviceSight } from './services.js'
-import { importFacesOf } from './capabilities.js'
 import { homesRootOf } from '../bin/cdp.mjs'
 
 export const name = 'gwb-devkit'
@@ -76,21 +73,6 @@ const SCAFFOLD_PLUGIN_USAGE = [
   '  title  可选，显示名，缺省用 name',
   '插件包写到 <repo>/plugins/<短名>/，必须还不存在（存在就拒，不覆盖任何东西）。仓根与 workspace 配置不碰；仓里有装好六区的文档站（docs-site/docfirst.config.mjs 在）时，再写插件页起稿 docs-site/content/docs/plugins/<短名>.mdx（已存在就拒）。README 的插件清单由人更新（回执 nextSteps 里提醒）',
   '例：{"repo":"D:\\\\tmp\\\\hello","name":"world","title":"第二件"}',
-].join('\n')
-
-const STRUCTURE_USAGE = [
-  'devkit.audit-structure 的参数：',
-  '  dir   可选，单仓的绝对路径——只体检这一个仓',
-  '  root  可选，容器根的绝对路径——扫全生态（unit-folder.list 现问缺省）。',
-  '        dir 与 root 都不给就是全生态',
-  '只读。管形状与静态红线（仓形 / 件包自足 / 短名派生链 / files 白名单 / prepublishOnly /',
-  'cordis 位置 / tsconfig paths / link:·file: 依赖 / gwb.provides 与源码对应），不管版本（那是 audit-deps 与发版检票）、',
-  '不管产物（各仓 artifact 测试）。',
-  'gwb.provides（keywords 含 gwb 或 gwb-plugin 的包）：源码提供的每个服务都要有一条；每个键是源码提供的服务名，',
-  '或本包 exports 里的 import 说明符（主入口写包名，子路径写 包名/子路径）；每条的 summary、usage 是非空字符串。',
-  '没过记一条 error 级的 provides-declaration，devkit.release 的发版前检查同样查这一条。',
-  'findings 分级：error 长不成或装不上、warn 偏离当前形、info 提示（裸根单件仓给迁移清单）。',
-  '例：{"dir":"D:\\\\unitfolders\\\\evew5-gwbapps\\\\gwb-block-note"}',
 ].join('\n')
 
 const HOME_USAGE = [
@@ -127,8 +109,8 @@ const RELEASE_USAGE = [
   '  packages  可选，要发的包目录，相对仓根，**按依赖顺序**（被依赖的排前面）。不给就是仓根自己',
   '**号在仓里抬**：发的是 package.json 里声明的那个号，同号在源上就拒——要发新的一版，先抬号、提交，再来',
   '**仓根 git 树不干净就拒**：正式版只从提交过的状态发',
-  '**发版前检查没过就拒**（构建之后，所有包一次列全）：自己不在 0.0.x；@godcreator 的 dev 范围包含源上 dist-tags.latest；产物里没有空 import（import { type X } 留下的）；包目录里 pnpm exec tsc --noEmit -p <tsconfig> --skipLibCheck false 通过（node 侧有 tsconfig.build.json 就查它、没有查 tsconfig.json、两份都没有就拒，有 src/client/tsconfig.json 再查一次；测试与构建脚本不查）；keywords 含 gwb 或 gwb-plugin 的包，gwb.provides 与源码对应（源码提供的每个服务都有一条；每个键是源码提供的服务名或本包 exports 里的 import 说明符；每条的 summary、usage 是非空字符串）',
-  '**插件包另加**（keywords 含 gwb-plugin）：peer 里只许 cordis、内核包 @godcreator/gwb-kernel-desktop 与别的插件（包目录 node_modules 里它的清单 keywords 含 gwb-plugin，或是 cordis 官方插件），peer 里每个 @godcreator 插件和源上 dist-tags.latest 在同一条线（0.x 只看 x，≥1 只看主版本号），node 侧产物按值 import 了 cordis 就必须写 peer cordis；node 侧产物（exports["."] 入口顺着相对 import 走到的文件）的包名 import 只有 node 内置模块、electron、cordis；浏览器侧产物（dist/client.js）只 import 页面 importmap 里的名字——内核包清单 gwb.shared 的键（react 的四个），从包目录 node_modules 里装好的内核包读；内核包以外的包写了 gwb.shared 就拒；peer 里写了内核包、写法是 ^x.y.z、范围包含运行中的内核（主版本号为 0 时次版本号相同，≥1 时主版本号相同，并且不低于下限）',
+  '**发版前检查没过就拒**（构建之后，所有包一次列全）：@godcreator 的 dev 范围包含源上 dist-tags.latest；产物里没有空 import（import { type X } 留下的）',
+  '**插件包另加**（keywords 含 gwb-plugin）：peer 里只许 cordis、内核包 @godcreator/gwb-kernel-desktop 与别的插件（包目录 node_modules 里它的清单 keywords 含 gwb-plugin，或是 cordis 官方插件），peer 里每个 @godcreator 插件和源上 dist-tags.latest 在同一条线（0.x 只看 x，≥1 只看主版本号）；node 侧产物（exports["."] 入口顺着相对 import 走到的文件）的包名 import 只有 node 内置模块、electron 与 peer 里写了的包；浏览器侧产物（dist/client.js）只 import 页面 importmap 里的名字——内核包清单 gwb.shared 的键（react 的四个），从包目录 node_modules 里装好的内核包读；peer 里写了内核包、写法是 ^x.y.z、范围包含运行中的内核（主版本号为 0 时次版本号相同，≥1 时主版本号相同，并且不低于下限）',
   '**这条链只碰源、不碰任何 home**，从哪个 home 调都行；升 default 是下一步的事，走 plugin-manager.update-all',
   '例：{"dir":"D:\\\\unitfolders\\\\evew5-gwbapps\\\\gwb-block-note","packages":["packages/model","packages/engine","packages/client","plugins/gwb-bn-core","plugins/gwb-bn-comment"]}',
 ].join('\n')
@@ -175,13 +157,11 @@ export function apply(ctx: GwbContext): void {
   }
 
   registerHomeCommands(wiring)
-  registerServiceCommands(wiring)
   describeSelfToShell(ctx)
   registerCdpCli(ctx)
   registerDevCommand(wiring)
   registerReleaseCommand(wiring)
-  registerAuditDepsCommand(wiring)
-  registerAuditStructureCommand(wiring)
+  registerServicesCommand(wiring)
   registerScaffoldCommand(wiring)
   registerScaffoldPluginCommand(wiring)
   registerOwnSkills(ctx)
@@ -313,84 +293,6 @@ function registerHomeCommands({ ctx, log, commands, homeDeps }: Wiring): void {
   )
 }
 
-// ── 能用什么 ──────────────────────────────────────────────────────────────────
-
-async function readHomePackageManifest(homeDir: string, pkg: string): Promise<unknown> {
-  try {
-    return JSON.parse(await fs.promises.readFile(path.join(homeDir, 'node_modules', pkg, 'package.json'), 'utf8')) as unknown
-  } catch {
-    return undefined
-  }
-}
-
-async function homeDependencyNames(homeDir: string): Promise<string[]> {
-  try {
-    const homeManifest: unknown = JSON.parse(await fs.promises.readFile(path.join(homeDir, 'package.json'), 'utf8'))
-    const dependencies = isRecord(homeManifest) ? homeManifest['dependencies'] : undefined
-    return isRecord(dependencies) ? Object.keys(dependencies) : []
-  } catch {
-    // home 清单读不到：import 段是空表，inject 段照常
-    return []
-  }
-}
-
-/** inject 段是运行时现问的服务表，import 段是 home 已装包的入口；用法都取自各包自己的 gwb.provides */
-async function capabilitiesOf(ctx: GwbContext): Promise<unknown> {
-  const homeDir = requireKernel(ctx).dataDir
-  const readManifest = (pkg: string): Promise<unknown> => readHomePackageManifest(homeDir, pkg)
-  const injectable = await joinProvides(serviceSight(ctx).owners, readManifest)
-  const faces = await importFacesOf(await homeDependencyNames(homeDir), (pkg) => readManifest(pkg))
-  return {
-    inject: injectable,
-    import: faces,
-    commands: '件暴露的命令面不在这儿重复——search {"plugin":"<包名>"} 按件查，那是命令的家',
-  }
-}
-
-function registerServiceCommands({ ctx, commands }: Wiring): void {
-  ctx.effect(() =>
-    commands.register(
-      {
-        name: 'devkit.services',
-        plugin: '@godcreator/gwb-devkit',
-        description: '这台 home 里有哪些 cordis 服务、各是谁提供的、怎么用——运行时现问，用法从各包 gwb.provides 声明 join',
-        usage:
-          '无参数。回 { services: [{ service, entryId?, pkg?, provides? }] }——entryId 是 cordis.yml 里的条目名，pkg 是包名；两个都没有的是内核自己挂的服务。provides 是那个包在自家 package.json 的 gwb.provides 里声明的 { summary, usage }，写插件要接一面时照它用——没声明的服务照样列，只是不带用法。拿不到运行时的服务表时回空表加 note 与 saw（看见了几层 fiber 链、几个件、几张服务表）——用来分辨「这个宿主不是 cordis」和「cordis 换了形状」',
-      },
-      async () => {
-        const sight = serviceSight(ctx)
-        const homeDir = requireKernel(ctx).dataDir
-        const services = await joinProvides(sight.owners, (pkg) => readHomePackageManifest(homeDir, pkg))
-        return {
-          ok: true,
-          data: {
-            services,
-            ...(sight.owners.length === 0
-              ? {
-                  note: `运行时没给出服务表——看见的东西：自己的 fiber 链 ${String(sight.saw.chainDepth)} 层、件 ${String(sight.saw.runtimes)} 个、fiber ${String(sight.saw.fibers)} 条、服务表 ${String(sight.saw.stores)} 张。全是 0 说明这个 ctx 上没有 cordis 的 fiber/registry；有 fiber 而表是 0 张，多半是 cordis 换了形状`,
-                  saw: sight.saw,
-                }
-              : {}),
-          },
-        }
-      },
-    ),
-  )
-
-  ctx.effect(() =>
-    commands.register(
-      {
-        name: 'devkit.capabilities',
-        plugin: '@godcreator/gwb-devkit',
-        description: '开发一个新插件能基于什么：可 inject 的服务、可 import 的包与入口、类型正本在哪——一站看全，别孤零零从零做',
-        usage:
-          '无参数。回 { inject, import, commands } 三段。inject：这台 home 现挂的 cordis 服务，带各包 gwb.provides 自述（要接一面照 usage 写）。import：home 已装包逐个列——身份（件/库/第三方）、import 时写的入口说明符、d.ts 路径（符号级看原文，命令不摘抄）、importmap 外置名（shared，只有内核包那一项有：react 的四个包名）与意图自述。commands：指 search。事实现算不抄；没声明的入口照样列、只是少一句人话',
-      },
-      async () => ({ ok: true, data: await capabilitiesOf(ctx) }),
-    ),
-  )
-}
-
 /** 本插件没有页面：使用者是 agent，读的是回执。只报一个给人看的名字，外壳不在就不报 */
 function describeSelfToShell(ctx: GwbContext): void {
   ctx.inject(['gwbShell'], (scoped) => {
@@ -507,7 +409,7 @@ function registerReleaseCommand({ ctx, log, commands }: Wiring): void {
         plugin: '@godcreator/gwb-devkit',
         description: '发正式版到团队源（git 工作区干净→构建→验产物→发版前检查→在临时目录里组装并发布）',
         usage:
-          '{dir 必给（仓根绝对路径）, packages?（包目录，相对仓根，按依赖顺序；不给就是仓根自己）}。一条走完：仓根 git 工作区干净（有未提交改动就拒，一个都不发）→ 仓根 pnpm build → 照 files 白名单验产物 → 同号已在源上就拒 → 发版前检查（每个要发的包：自己不在 0.0.x；@godcreator 的 dev 范围包含源上 dist-tags.latest，workspace: 跳过，范围内落后放行；产物里没有空 import、相对 import 指向的文件都在；包目录里 pnpm exec tsc --noEmit -p <tsconfig> --skipLibCheck false 通过——node 侧有 tsconfig.build.json 就查它、没有查 tsconfig.json、两份都没有就拒，有 src/client/tsconfig.json 再查一次，测试与构建脚本不查；keywords 含 gwb 或 gwb-plugin 的包，gwb.provides 与源码对应——源码（src/ 下 super(ctx, 名)、ctx.provide(名)、new X(ctx, 名) 三种写法）提供的每个服务都有一条，每个键是源码提供的服务名或本包 exports 里的 import 说明符（主入口写包名，子路径写 包名/子路径），每条的 summary、usage 是非空字符串。keywords 含 gwb-plugin 的插件包另加：peer 里只许 cordis、内核包 @godcreator/gwb-kernel-desktop 与别的插件（包目录 node_modules 里它的清单 keywords 含 gwb-plugin，或是 cordis 官方插件），peer 里每个 @godcreator 插件和源上 dist-tags.latest 在同一条线（0.x 只看 x，≥1 只看主版本号）；node 侧产物按值 import 了 cordis 就必须写 peer cordis；node 侧产物——exports["."] 的运行时入口（没有 exports 时是 main）顺着相对 import 走到的文件——的包名 import 只有 node 内置模块、electron、cordis；浏览器侧产物——dist/client.js，同样顺着相对 import 走——只 import 页面 importmap 里的名字，也就是内核包清单 gwb.shared 的键，从包目录 node_modules 里装好的内核包现读；内核包以外的包写了 gwb.shared 就拒；peer 里写了内核包、写法是 ^x.y.z、范围包含运行中的内核 gwbKernel.version——主版本号为 0 时次版本号相同，≥1 时主版本号相同，并且不低于下限，预发布段不看。没过就一个都不发，回执按包一次列全；写了 peer cordis 而 node 侧产物没 import 它只提醒，带在回执 reminders 里）→ 在临时目录里组装发布内容并发布（不改仓里任何文件；tag latest；workspace: 依赖写成 ^<工作区里那个号>，这一次同发的写成 ^新号）→ 按给定顺序发完。**号在仓里升**（改 package.json 提交），同号永不重发。只碰源不碰任何 home；升 default 走 plugin-manager.update-all',
+          '{dir 必给（仓根绝对路径）, packages?（包目录，相对仓根，按依赖顺序；不给就是仓根自己）}。一条走完：仓根 git 工作区干净（有未提交改动就拒，一个都不发）→ 仓根 pnpm build → 照 files 白名单验产物 → 同号已在源上就拒 → 发版前检查（每个要发的包：@godcreator 的 dev 范围包含源上 dist-tags.latest，workspace: 跳过，范围内落后放行；产物里没有空 import、相对 import 指向的文件都在。keywords 含 gwb-plugin 的插件包另加：peer 里只许 cordis、内核包 @godcreator/gwb-kernel-desktop 与别的插件（包目录 node_modules 里它的清单 keywords 含 gwb-plugin，或是 cordis 官方插件），peer 里每个 @godcreator 插件和源上 dist-tags.latest 在同一条线（0.x 只看 x，≥1 只看主版本号）；node 侧产物——exports["."] 的运行时入口（没有 exports 时是 main）顺着相对 import 走到的文件——的包名 import 只有 node 内置模块、electron 与 peer 里写了的包；浏览器侧产物——dist/client.js，同样顺着相对 import 走——只 import 页面 importmap 里的名字，也就是内核包清单 gwb.shared 的键，从包目录 node_modules 里装好的内核包现读；peer 里写了内核包、写法是 ^x.y.z、范围包含运行中的内核 gwbKernel.version——主版本号为 0 时次版本号相同，≥1 时主版本号相同，并且不低于下限，预发布段不看。没过就一个都不发，回执按包一次列全）→ 在临时目录里组装发布内容并发布（不改仓里任何文件；tag latest；workspace: 依赖写成 ^<工作区里那个号>，这一次同发的写成 ^新号）→ 按给定顺序发完。**号在仓里升**（改 package.json 提交），同号永不重发。只碰源不碰任何 home；升 default 走 plugin-manager.update-all',
       },
       async (args) => {
         if (!isRecord(args)) return { ok: false, error: `参数要是个对象。\n${RELEASE_USAGE}` }
@@ -532,124 +434,20 @@ function registerReleaseCommand({ ctx, log, commands }: Wiring): void {
   )
 }
 
-// ── 依赖对账与结构体检 ────────────────────────────────────────────────────────
-
-/** 给了就用给的；没给就在命令总线上按名字调 unit-folder.list 要容器根（容器根归单元文件夹插件管） */
-async function containerRootOf({ commands, hasCommand }: Wiring, askedRoot: string): Promise<string | undefined> {
-  if (askedRoot !== '') return path.resolve(askedRoot)
-  if (!hasCommand('unit-folder.list')) return undefined
-  const listed = await commands.run('unit-folder.list', {})
-  const container = listed.ok && isRecord(listed.data) && typeof listed.data.container === 'string' ? listed.data.container : ''
-  return container !== '' ? path.resolve(container) : undefined
-}
-
-function registerAuditDepsCommand(wiring: Wiring): void {
-  const { ctx, log, commands } = wiring
+/** 读的是这个 home 的磁盘：装着的包就算，不管条目启没启用 */
+function registerServicesCommand({ ctx, commands }: Wiring): void {
   ctx.effect(() =>
     commands.register(
       {
-        name: 'devkit.audit-deps',
+        name: 'devkit.services',
         plugin: '@godcreator/gwb-devkit',
-        description: '全生态依赖对账：各插件仓 @godcreator 的 dev 依赖与插件包 peer 里的插件对照团队源上的最新正式版，插件包的 peer 只许 cordis、内核包与插件；只报告',
+        description: '这个 home 里有哪些可以 inject 的服务：谁提供、类型定义原文（方法签名与注释），从各包的 .d.ts 里现读',
         usage:
-          '{root?（容器根绝对路径，缺省现问命令总线 unit-folder.list 回的 container）, registry?（缺省个人源）}。无参数直接调也行。回执 { ok, data: { root, registry, repos, manifests, packages, retired, testUnits, findings, byKind } }——findings 逐条 { kind, repo, manifest, pkg, detail }；kind：dead-pin（写了源上没有的版本，安装会失败）/ behind（dev 或插件 peer 的下限落后源上 dist-tags.latest 但还在 ^<下限> 范围内，只提示，等各自下次发版；开发版号不算最新）/ out-of-range（最新已出 ^ 范围，上游发了破坏性版本，必须跟）/ loose-dev-pin（dev 写法既不是精确号也不是 ^ 范围，或插件 peer 不是 ^x.y.z）/ peer-not-cordis（keywords 含 gwb-plugin 的插件包 peer 里写了 cordis、内核包 @godcreator/gwb-kernel-desktop、插件以外的包——是不是插件看包目录 node_modules 里装着的清单，没装的也记这一条；下次发版时 devkit.release 会拒；peer 里内核包写没写对由发版前检查查，这里不查）。退役单元（unit.json 的 status 是 retired）与**测试件**（kind 是「测试件」的单元，测试用途的示范件）整个不扫，名字分别列在 retired 与 testUnits；private: true 的清单不发布，只查 dev、不查 peer。只报告不拦。只读不改：扫仓、读 package.json、问源',
+          '无参数。扫这个 home 顶层 node_modules 里每个包的全部 .d.ts，找 declare module \'cordis\' { interface Context { 服务名: 类型 } }。类型定义在自己声明里的包是提供方，类型从别处 import 来的只是在用。回执 { ok, data: { home, services: [{ service, providers: [<包名>@<版本>], type, optional, definition?, declaredAlsoBy: [<包名>@<版本>] }] } }，按服务名排序；definition 是第一个提供方里那个类型的定义原文连同文档注释，没有提供方时不带。providers 正常只有一个，多于一个说明有包带着重复或过期的声明。要用某个服务：在 peer 里写上提供方，import type 它的类型，ctx.inject 取用',
       },
-      async (args) => {
-        const askedRoot = isRecord(args) && typeof args.root === 'string' ? args.root.trim() : ''
-        const root = await containerRootOf(wiring, askedRoot)
-        if (root === undefined) {
-          return { ok: false, error: '扫哪没说清：给 root（容器根的绝对路径），或在这个 home 装 @godcreator/gwb-unit-folder——它现扫回的 container 就是容器根' }
-        }
-        if (!fs.existsSync(root)) return { ok: false, error: `${root} 不在——root 给的是容器根（unit.json 们住的那层）` }
-        const registryBase = isRecord(args) && typeof args.registry === 'string' && args.registry.trim() !== '' ? args.registry.trim() : DEFAULT_REGISTRY
-
-        const { repos: repoDirs, retired, testUnits } = collectRepos(root)
-        const repoRel = (dir: string): string => path.relative(root, dir).replaceAll('\\', '/')
-        const manifests: { repo: string; manifest: string; deps: ManifestDeps }[] = []
-        for (const dir of repoDirs) {
-          for (const one of collectManifests(dir)) manifests.push({ repo: repoRel(dir), manifest: one.rel, deps: one.deps })
-        }
-        if (manifests.length === 0) return { ok: false, error: `${root} 下面一份带 @godcreator 依赖的 package.json 都没扫到——root 是不是给错了` }
-        const pkgs = [...new Set(manifests.flatMap((m) => [...Object.keys(m.deps.devs), ...m.deps.peerPlugins.filter((pkg) => pkg.startsWith('@godcreator/'))]))]
-        const registry = await fetchRegistry(pkgs, registryBase)
-        const findings = manifests.flatMap((m) => auditManifest(m.repo, m.manifest, m.deps, registry))
-        const byKind = countByKind(findings)
-        log.info(
-          `devkit.audit-deps：${String(repoDirs.length)} 仓 ${String(manifests.length)} 份 manifest 对 ${String(pkgs.length)} 个包（退役单元 ${String(retired.length)} 个、测试件 ${String(testUnits.length)} 个不扫）——` +
-            `源上没有的版本 ${String(byKind['dead-pin'])}、出范围 ${String(byKind['out-of-range'])}、范围内落后 ${String(byKind.behind)}、peer 写了 cordis、内核包、插件以外的包 ${String(byKind['peer-not-cordis'])}`,
-        )
-        return { ok: true, data: { root, registry: registryBase, repos: repoDirs.length, manifests: manifests.length, packages: pkgs.length, retired, testUnits, findings, byKind } }
-      },
-    ),
-  )
-}
-
-function auditOneRepo(log: Logger, dir: string): { ok: true; data: unknown } {
-  const report = auditStructure(scanRepo(dir))
-  log.info(
-    `devkit.audit-structure：${dir}（${report.shape}，${String(report.findings.length)} 条：` +
-      Object.entries(tallyKinds(report.findings)).map(([kind, n]) => `${kind} ${String(n)}`).join('、') + '）',
-  )
-  return {
-    ok: true,
-    data: { repoDir: dir, shape: report.shape, findings: report.findings, byKind: tallyKinds(report.findings) },
-  }
-}
-
-function auditReposUnder(log: Logger, root: string): { ok: true; data: unknown } {
-  const { repos: repoDirs, retired, testUnits } = collectRepos(root)
-  const repos: { repo: string; shape: string; findings: StructureFinding[] }[] = []
-  for (const one of repoDirs) {
-    const report = auditStructure(scanRepo(one))
-    repos.push({ repo: path.basename(one), shape: report.shape, findings: report.findings })
-  }
-  const findings = repos.flatMap((one) => one.findings.map((finding) => ({ repo: one.repo, ...finding })))
-  const shapeTally = repos.reduce<Record<string, number>>((acc, one) => {
-    acc[one.shape] = (acc[one.shape] ?? 0) + 1
-    return acc
-  }, {})
-  log.info(
-    `devkit.audit-structure：${String(repos.length)} 仓（${Object.entries(shapeTally).map(([s, n]) => `${s} ${String(n)}`).join('、')}；退役 ${String(retired.length)}、测试件 ${String(testUnits.length)} 个不扫）——findings ${String(findings.length)} 条`,
-  )
-  return {
-    ok: true,
-    data: {
-      root,
-      repos: repos.length,
-      shape: shapeTally,
-      retired,
-      testUnits,
-      findings,
-      byKind: tallyKinds(findings),
-    },
-  }
-}
-
-/** 与 devkit.audit-deps 同一个入口形状：给了 dir 查一个仓，给了或缺省 root 扫全生态 */
-function registerAuditStructureCommand(wiring: Wiring): void {
-  const { ctx, log, commands } = wiring
-  ctx.effect(() =>
-    commands.register(
-      {
-        name: 'devkit.audit-structure',
-        plugin: '@godcreator/gwb-devkit',
-        description: '结构体检（只读）：仓形、件包自足、短名派生链、files 白名单、静态红线（cordis 位置 / tsconfig paths / link: 依赖）、gwb.provides 与源码对应',
-        usage:
-          '{dir?（单仓绝对路径）, root?（容器根，缺省现问 unit-folder.list）}。dir 与 root 都不给就是全生态。只读，回 { shape, findings:[{kind,level,path,detail}], byKind }——level：error（长不成/装不上/必炸/发版会拒）、warn（偏离当前形）、info（提示；裸根单件仓给按实际文件拼好的迁移清单）。kind 为 provides-declaration 的 error：keywords 含 gwb 或 gwb-plugin 的包，源码（src/ 下 super(ctx, 名)、ctx.provide(名)、new X(ctx, 名) 三种写法）提供的服务在 gwb.provides 里没有、gwb.provides 的键既不是源码提供的服务名也不是本包 exports 里的 import 说明符（主入口写包名，子路径写 包名/子路径）、或某条的 summary / usage 不是非空字符串——devkit.release 的发版前检查同样查这一条。**不管的**：依赖钉版与 peer（audit-deps 与发版检票）、产物形状（各仓 artifact 测试）。不挂发版检票——那是门禁，这是日常体检。参数不对会把完整说明回给你',
-      },
-      async (args) => {
-        if (!isRecord(args)) return { ok: false, error: `参数要是个对象。\n${STRUCTURE_USAGE}` }
-        const dir = typeof args.dir === 'string' && args.dir.trim() !== '' ? path.resolve(args.dir.trim()) : ''
-        if (dir !== '') {
-          if (!fs.existsSync(dir)) return { ok: false, error: `${dir} 不在——dir 给的是仓根的绝对路径` }
-          return auditOneRepo(log, dir)
-        }
-        const root = await containerRootOf(wiring, typeof args.root === 'string' ? args.root.trim() : '')
-        if (root === undefined) {
-          return { ok: false, error: '扫哪没说清：给 dir（单仓）或 root（容器根），或在这个 home 装 @godcreator/gwb-unit-folder——它现扫回的 container 就是容器根' }
-        }
-        if (!fs.existsSync(root)) return { ok: false, error: `${root} 不在——root 给的是容器根（unit.json 们住的那层）` }
-        return auditReposUnder(log, root)
+      () => {
+        const home = requireKernel(ctx).dataDir
+        return { ok: true, data: { home, services: servicesOf(readHomeTypeDeclarations(home)) } }
       },
     ),
   )

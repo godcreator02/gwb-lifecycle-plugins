@@ -1,0 +1,52 @@
+---
+title: 两个插件删掉用不上的机制：服务总览改读 .d.ts，共用函数改从插件管理 import
+born-at: 2026-09-25T01:19
+type: choice
+parent: [2026-09-08-gwb-devkit]
+label: 删多余机制
+domain: 开发循环
+---
+
+## 背景
+
+devkit 与插件管理这几周接连加了一批「以防万一」的机制：能力地图 `devkit.capabilities`、结构体检 `devkit.audit-structure`、依赖对账 `devkit.audit-deps`、清单字段 `gwb.provides` 与它的检查、发版前检查里的类型检查与几条提醒、两个包各存一份的 pnpm 定位与内核范围判定（加对照测试保持一致）、插件管理的条目显示名。人翻了一遍这些机制实际有没有人用，判定删掉过度设计的那部分。
+
+翻出来的情况（本卡数字为写卡时转述，无原始输出可核对）：五天的工作台日志里，`devkit.services`、`devkit.capabilities`、`devkit.audit-structure`、`devkit.scaffold` 等命令调用次数都是 0。`gwb.provides` 要插件作者手写每个服务的 `summary` 与 `usage`，发版前逐个与源码核对，这条检查真正拦下的只有三个包（见 [repo-kit 退役](2026-09-24-repo-kit-retires.md)的依据段），拦下之后作者要做的只是补写一段和类型声明重复的文字。
+
+## 结论与边界
+
+人判定删；删的与留的如下，devkit 0.19.0、插件管理 0.10.0 这一版做完（写卡时都还没发）。
+
+删掉的：
+
+- **三条命令**：`devkit.capabilities`、`devkit.audit-structure`、`devkit.audit-deps`。依赖写法与产物只在各仓发版时由 `devkit.release` 查；旧布局仓照模板、改到哪个迁哪个
+- **`gwb.provides` 整套**：清单字段、发版前检查、规矩页。插件作者不再多写一份；想让别人知道服务，就在类型声明里给 cordis 的 `Context` 补项、在类型上写文档注释
+- **发版前检查的四条**：包目录里关掉 `skipLibCheck` 的 tsc 类型检查、拒 0.0.x、拒内核包以外写 `gwb.shared`、写了 peer `cordis` 而产物没 import 时的提醒（回执的 `reminders` 字段一起删）。「node 侧产物 import 了 `cordis` 就必须写 peer `cordis`」这条单独的检查也删了，改成 node 侧包名 import 的白名单直接放行本包 peer 里写了的包——peer 已被限定为 `cordis`、内核包与插件，import 了没写进 peer 的 `cordis` 照样被白名单拒
+- **两份副本与对照测试**：devkit 不再自带 `pnpm-location.ts`、`kernel-compat.ts` 与两个对照测试，peer 里写上插件管理，从它的主入口 import `locatePnpm`、`KERNEL_PACKAGE`、`isCaretRange`、`kernelRangeCovers`、`declaredKernelRange`、`tailLines`
+- **进程探测只留 Windows**：删掉 `ss`、`lsof`、`ps` 三个分支
+- **插件管理的 `set-label` 与条目显示名**：界面用插件自报的名字
+
+改掉的：`devkit.services` 不再读 cordis 的 fiber 与 registry 内部字段，也不再贴 `gwb.provides` 的文字，改成无参数、扫调用它的那个 home 顶层 `node_modules` 里每个包的全部 `.d.ts`，找 `declare module 'cordis' { interface Context { 服务名: 类型 } }`；类型定义在自己声明里的包是提供方，类型从别处 import 的记进 `declaredAlsoBy`。服务的说明就是类型定义原文与文档注释，作者不用多写。
+
+留下的：插件管理的条目 id 归属（分配 id 时避开别的包的数据目录与设置分区）与包源管理（`source.*`）。已经有第三方插件（`@j`、`@god-private` 两个 scope）装进 home，id 不能重名，第三方源要能配。
+
+边界：只看了五天日志，调用次数是 0 的命令里 `devkit.scaffold` 仍然保留（建仓是写新插件的第一步，日志窗口里恰好没人建仓）。白名单放行 peer 以后，发版前检查不再拦「按值 import 别的插件」，这条规矩只剩人守。
+
+supersedes:: [结构体检来了](2026-09-19-structure-audit-comes.md)
+supersedes:: [依赖对账只记该记的账](2026-09-17-audit-deps-counts-what-matters.md)
+pivots-from:: [能力地图挪到运行时](2026-09-18-capability-map-moves-to-runtime.md)
+pivots-from:: [repo-kit 退役](2026-09-24-repo-kit-retires.md)
+pivots-from:: [插件管理不再自带 pnpm](2026-09-24-pnpm-two-fixed-locations.md)
+pivots-from:: [发版前检查改查构建产物](2026-09-24-release-checks-artifacts.md)
+
+## 否掉的候选
+
+- **保留 `gwb.provides`，只删它的检查**：字段没人强制就会和源码漂开，`devkit.services` 读到的是过期的文字；`.d.ts` 由构建生成，跟源码不会漂
+- **两份副本继续靠对照测试保持一致**：两个包同仓、一起开发，改一处要改两处再加一组测试证明两处一样；直接 import 只有一份。代价是 devkit 离了插件管理加载不了，而 devkit 本来就要调插件管理的命令
+- **`isPluginManifest` 也只留一份**：两边规则不同。插件管理只认 `keywords` 含 `gwb-plugin`，用来决定要不要看这个包的内核范围（cordis 官方插件没有内核范围）；devkit 发版前检查还认 cordis 官方插件，因为 peer 里写它是合法的。两份各留
+
+## 代价与遗留
+
+`devkit.services` 读的是磁盘上的 `.d.ts`，不是运行时状态：包里带着过期的构建产物时，同一个服务会多出一个提供方。写卡时在 default 上实测列出 15 个服务，`gwbPluginManager` 有两个提供方——内核包 0.4.1 与 0.5.0 里的 `dist/builtin/plugin-manager` 是内核构建前没清 `dist/` 留下的旧产物（无物证，写卡时转述）。命令照实列出、不过滤；要不要清内核包里的旧目录归内核仓，这一版没动。
+
+发版前检查不再做类型检查，类型链缺包导致的 any 只能靠作者自己在包目录跑一次 `tsc --skipLibCheck false` 发现。

@@ -10,7 +10,7 @@ export function PmList() {
     <svg viewBox="0 0 760 230" role="img" aria-label="list 怎么把包与条目对上">
       <Box x={14} y={30} w={200} h={120} lines={['package.json 的依赖', '@x/gwb-a', '@x/gwb-b', '（没有 @x/gwb-c）']} />
       <Box x={250} y={30} w={200} h={120} lines={['cordis.yml 的条目', 'a → @x/gwb-a', 'a-2 → @x/gwb-a', 'c → @x/gwb-c']} />
-      <Box x={490} y={20} w={256} h={140} lines={['list 的结果（按包名排）', '@x/gwb-a：条目 a、a-2', '@x/gwb-b：entries: []', '@x/gwb-c：installed: false', '每条带 active、disabled、显示名']} tone="a" />
+      <Box x={490} y={20} w={256} h={140} lines={['list 的结果（按包名排）', '@x/gwb-a：条目 a、a-2', '@x/gwb-b：entries: []', '@x/gwb-c：installed: false', '每条带 active、disabled']} tone="a" />
       <Arrow from={[214, 90]} to={[250, 90]} />
       <Arrow from={[450, 90]} to={[490, 90]} />
       <Note x={380} y={190} anchor="middle" size={11.5} color={MUTED}>

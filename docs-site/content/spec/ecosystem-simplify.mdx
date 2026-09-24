@@ -222,7 +222,7 @@ promise，退出时可能丢数据。
   模板在 peer 里写内核包 `^<建仓时的内核版本>`；`update-all` 跳过内核包与 `cordis`，另有 `plugin-manager.update-kernel`；`devkit.home.new` 按精确版本装内核包与 `cordis`
   （内核仓交接页「内核装进 home」第二步，2026-09-24；取代同日早些时候的 `gwb.testedKernel`）
 - [ ] `devkit.dev`：pack + `file:`，只构建被测包及其依赖；安装与重新加载先临时用现有插件管理命令，第四期换成统一入口
-- [ ] audit-deps / audit-structure 减少无用输出、支持无参数调用
+- [x] audit-deps / audit-structure 减少无用输出、支持无参数调用：两条命令都删了，见轨迹卡[两个插件删掉用不上的机制](/trajectory/2026-09-25-drop-unused-machinery)
 - [x] 写插件的规矩写进本站[写插件的规矩](/docs/rules)；说明书 `gwb-devkit` 的红线按新规矩改写，`gwb-release` 写明 peer 内核包范围的检查与内核升 x 的范围
 - [x] 说明书 `gwb-release` 的依赖表（`@godcreator` peer 的写法）随发版前检查一起改成新规矩
 
@@ -279,4 +279,5 @@ promise，退出时可能丢数据。
 
 新的在上。
 
+- 2026-09-25｜人判定删掉 devkit 与插件管理里用不上的机制：`devkit.capabilities`、`devkit.audit-structure`、`devkit.audit-deps`、清单字段 `gwb.provides` 与它的检查、发版前检查里关掉 `skipLibCheck` 的类型检查、拒 0.0.x、拒内核包以外写 `gwb.shared`、`reminders`；`devkit.services` 改从 home 里各包的 `.d.ts` 现读；node 侧产物的包名 import 改成放行 peer 里写了的包；devkit 从插件管理的主入口 import pnpm 定位与内核范围判定，删掉两份副本与对照测试；插件管理删 `set-label` 与显示名（devkit 0.19.0、插件管理 0.10.0，未发）。第九节里「类型检查在 `skipLibCheck: false` 下通过」「audit-deps / audit-structure」两条不再做｜devkit 仓会话
 - 2026-09-24｜内核 0.5.0 退役词汇表包、只收内核包的 `gwb.shared`；devkit 跟上：发版前检查浏览器侧只认内核包清单的名字、拒内核包以外写了 `gwb.shared` 的包，`devkit.capabilities` 只给内核包报外置名，`devkit.home.new` 不再装词汇表包，模板与两个插件从内核包取接口类型、peer 写 `^0.5.0`（devkit 0.18.14、插件管理 0.8.4，未发）。人定不等块笔记，勾掉第三期块笔记撤声明、第四期 `home.new` 与第五期删扫描三项｜devkit 仓会话

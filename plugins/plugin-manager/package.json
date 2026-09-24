@@ -1,6 +1,6 @@
 {
   "name": "@godcreator/gwb-plugin-manager",
-  "version": "0.9.0",
+  "version": "0.10.0",
   "author": {
     "name": "godcreator"
   },
@@ -31,7 +31,7 @@
   },
   "//peerDependencies": "运行时从 home 里得到的东西：内核包、命令总线（命令都登记在它上面）；数据、设置、说明书三个插件经 ctx.inject 可选使用，写成 optional，没装不报",
   "peerDependencies": {
-    "@godcreator/gwb-kernel-desktop": "^0.5.0",
+    "@godcreator/gwb-kernel-desktop": "^0.6.0",
     "@godcreator/gwb-commands": "^0.5.0",
     "@godcreator/gwb-data": "^0.1.7",
     "@godcreator/gwb-settings": "^0.3.3",
@@ -53,14 +53,6 @@
     "oxlint-tsgolint": "7.0.2001",
     "typescript": "^7.0.2",
     "vitest": "^4.1.10"
-  },
-  "gwb": {
-    "provides": {
-      "gwbPluginManager": {
-        "summary": "只表示插件管理装了，值是 { contract }，上面没有方法",
-        "usage": "要跟着插件管理一起加载、卸载时 inject 它；装包、改条目一律调用 plugin-manager.* 命令"
-      }
-    }
   },
   "repository": {
     "type": "git",

@@ -1,7 +1,7 @@
 import path from 'node:path'
 import { describe, expect, it } from 'vitest'
-import { allowedOnNodeSide, artifactFindings, exportTarget, importsOf, packageNameOf, sharedDeclarations } from '../src/artifact-check.js'
-import { KERNEL_PACKAGE } from '../src/kernel-compat.js'
+import { allowedOnNodeSide, artifactProblems, exportTarget, importmapNamesOf, importsOf, packageNameOf } from '../src/artifact-check.js'
+import { KERNEL_PACKAGE } from '@godcreator/gwb-plugin-manager'
 
 const PKG = path.resolve('/fake-pkg')
 
@@ -51,9 +51,13 @@ describe('名单判定', () => {
     expect(packageNameOf('react/jsx-runtime')).toBe('react')
   })
 
-  it('node 侧：内置模块（带不带 node: 都算）、electron、cordis 放行，别的拒', () => {
-    for (const spec of ['node:fs', 'fs', 'fs/promises', 'electron', 'cordis']) expect(allowedOnNodeSide(spec)).toBe(true)
-    for (const spec of ['@godcreator/gwb-plugin-api', 'yaml', 'react']) expect(allowedOnNodeSide(spec)).toBe(false)
+  it('node 侧：内置模块（带不带 node: 都算）、electron、peer 里写了的包（含子路径）放行，别的拒', () => {
+    const peers = new Set(['cordis', '@godcreator/gwb-plugin-manager'])
+    for (const spec of ['node:fs', 'fs', 'fs/promises', 'electron', 'cordis', '@godcreator/gwb-plugin-manager', '@godcreator/gwb-plugin-manager/sub']) {
+      expect(allowedOnNodeSide(spec, peers)).toBe(true)
+    }
+    for (const spec of ['@godcreator/gwb-shell', 'yaml', 'react']) expect(allowedOnNodeSide(spec, peers)).toBe(false)
+    expect(allowedOnNodeSide('cordis', new Set())).toBe(false)
   })
 })
 
@@ -70,18 +74,40 @@ describe('exportTarget：入口按 node 的解析规则取', () => {
   })
 })
 
-describe('sharedDeclarations：形状照内核计算 importmap 那段', () => {
-  it('键是名字、值是非空子路径；空键、非字符串值不算', () => {
-    expect(sharedDeclarations({ gwb: { shared: { react: './react', '': './x', bad: 1, empty: '' } } })).toEqual({ react: './react' })
-    expect(sharedDeclarations({ gwb: {} })).toEqual({})
+/** 内核包页面入口里那段写死的 importmap，形状照内核 0.6 的 index.html */
+const KERNEL_INDEX_HTML = [
+  '<!doctype html>',
+  '<html>',
+  '  <head>',
+  '    <script type="importmap">',
+  '      {',
+  '        "imports": {',
+  '          "react": "./react/react.js",',
+  '          "react/jsx-runtime": "./react/react-jsx-runtime.js",',
+  '          "react-dom/client": "./react/react-dom-client.js"',
+  '        }',
+  '      }',
+  '    </script>',
+  '    <script type="module" src="./page.js"></script>',
+  '  </head>',
+  '</html>',
+].join('\n')
+
+describe('importmapNamesOf：页面入口 html 里那段 importmap 的名字', () => {
+  it('取 imports 的键', () => {
+    expect(importmapNamesOf(KERNEL_INDEX_HTML)).toEqual(['react', 'react/jsx-runtime', 'react-dom/client'])
+  })
+  it('没有 importmap 回 undefined；JSON 不合法抛错', () => {
+    expect(importmapNamesOf('<html></html>')).toBeUndefined()
+    expect(() => importmapNamesOf('<script type="importmap">{ nope</script>')).toThrow()
   })
 })
 
-describe('artifactFindings', () => {
-  it('node 侧顺着相对 import 走：import cordis 放行并记下，别的包名拒；走不到的文件不查', () => {
-    const got = artifactFindings(
+describe('artifactProblems', () => {
+  it('node 侧顺着相对 import 走：peer 里写了的 cordis 放行，别的包名拒；走不到的文件不查', () => {
+    const got = artifactProblems(
       PKG,
-      plugin(),
+      plugin({ peerDependencies: { cordis: '4.0.0-rc.10' } }),
       true,
       io({
         'dist/index.js': "import { Service } from 'cordis';\nimport { helper } from './helper.js';\n",
@@ -89,36 +115,40 @@ describe('artifactFindings', () => {
         'dist/orphan.js': "import nope from 'nope';\n",
       }),
     )
-    expect(got.nodeImportsCordis).toBe(true)
-    expect(got.problems).toEqual([expect.stringContaining("node 侧产物 dist/helper.js import 了 'yaml'")])
+    expect(got).toEqual([expect.stringContaining("node 侧产物 dist/helper.js import 了 'yaml'")])
+  })
+
+  it('node 侧 import 了 cordis 而 peer 里没写：拒', () => {
+    const got = artifactProblems(PKG, plugin(), true, io({ 'dist/index.js': "import { Service } from 'cordis';\n" }))
+    expect(got).toEqual([expect.stringContaining("import 了 'cordis'")])
   })
 
   it('相对 import 指向的文件不在：拒', () => {
-    const got = artifactFindings(PKG, plugin(), true, io({ 'dist/index.js': "import './store';\n" }))
-    expect(got.problems).toEqual([expect.stringContaining("import 的 './store' 不在")])
+    const got = artifactProblems(PKG, plugin(), true, io({ 'dist/index.js': "import './store';\n" }))
+    expect(got).toEqual([expect.stringContaining("import 的 './store' 不在")])
   })
 
   it('空 import：插件与库都拒（插件里它同时是一条不在名单上的包名 import）', () => {
     const files = io({ 'dist/index.js': "import {} from '@godcreator/gwb-shell';\n" })
-    expect(artifactFindings(PKG, plugin(), true, files).problems).toEqual([
+    expect(artifactProblems(PKG, plugin(), true, files)).toEqual([
       expect.stringContaining("import {} from '@godcreator/gwb-shell'"),
       expect.stringContaining("node 侧产物 dist/index.js import 了 '@godcreator/gwb-shell'"),
     ])
-    expect(artifactFindings(PKG, { ...plugin(), keywords: ['gwb'] }, false, files).problems).toEqual([expect.stringContaining('空 import')])
+    expect(artifactProblems(PKG, { ...plugin(), keywords: ['gwb'] }, false, files)).toEqual([expect.stringContaining('空 import')])
   })
 
   it('库不查包名 import 的名单', () => {
-    const got = artifactFindings(PKG, { name: '@godcreator/lib', exports: EXPORTS }, false, io({ 'dist/index.js': "import YAML from 'yaml';\n" }))
-    expect(got.problems).toEqual([])
+    const got = artifactProblems(PKG, { name: '@godcreator/lib', exports: EXPORTS }, false, io({ 'dist/index.js': "import YAML from 'yaml';\n" }))
+    expect(got).toEqual([])
   })
 
   it('找不到 node 侧入口：拒', () => {
-    const got = artifactFindings(PKG, { name: 'x', keywords: ['gwb-plugin'] }, true, io({}))
-    expect(got.problems).toEqual([expect.stringContaining('找不到 node 侧入口')])
+    const got = artifactProblems(PKG, { name: 'x', keywords: ['gwb-plugin'] }, true, io({}))
+    expect(got).toEqual([expect.stringContaining('找不到 node 侧入口')])
   })
 
-  it('浏览器侧 dist/client.js：名字只取内核包清单的 gwb.shared（从本包 node_modules 现读），别的依赖写了也不算', () => {
-    const got = artifactFindings(
+  it('浏览器侧 dist/client.js：名字只取内核包页面入口里的 importmap（从本包 node_modules 现读），别的依赖写了也不算', () => {
+    const got = artifactProblems(
       PKG,
       plugin({ devDependencies: { '@godcreator/gwb-shell': '0.14.0', esbuild: '^0.27.0' } }),
       true,
@@ -126,53 +156,24 @@ describe('artifactFindings', () => {
         'dist/index.js': "import path from 'node:path';\n",
         'dist/client.js':
           "import { jsx } from 'react/jsx-runtime';\nimport { createRoot } from 'react-dom/client';\nimport dayjs from 'dayjs';\nimport x from 'shell-shared';\n",
-        [`node_modules/${KERNEL_PACKAGE}/package.json`]: JSON.stringify({
-          name: KERNEL_PACKAGE,
-          gwb: { shared: { react: './react', 'react/jsx-runtime': './react-jsx-runtime', 'react-dom/client': './react-dom-client' } },
-        }),
+        [`node_modules/${KERNEL_PACKAGE}/dist/index.html`]: KERNEL_INDEX_HTML,
         'node_modules/@godcreator/gwb-shell/package.json': JSON.stringify({ name: '@godcreator/gwb-shell', gwb: { shared: { 'shell-shared': './x' } } }),
       }),
     )
-    expect(got.problems).toEqual([
+    expect(got).toEqual([
       expect.stringContaining("浏览器侧产物 dist/client.js import 了 'dayjs'"),
       expect.stringContaining("浏览器侧产物 dist/client.js import 了 'shell-shared'"),
     ])
-    expect(got.problems[0]).toContain('react、react/jsx-runtime、react-dom/client')
+    expect(got[0]).toContain('react、react/jsx-runtime、react-dom/client')
   })
 
-  it('浏览器侧：内核包的清单读不到就报，不猜', () => {
-    const got = artifactFindings(PKG, plugin(), true, io({ 'dist/index.js': '', 'dist/client.js': "import React from 'react';\n" }))
-    expect(got.problems).toEqual([expect.stringContaining('内核包的清单读不到'), expect.stringContaining("import 了 'react'")])
+  it('浏览器侧：内核包的页面入口读不到就报，不猜', () => {
+    const got = artifactProblems(PKG, plugin(), true, io({ 'dist/index.js': '', 'dist/client.js': "import React from 'react';\n" }))
+    expect(got).toEqual([expect.stringContaining('内核包的页面入口读不到'), expect.stringContaining("import 了 'react'")])
   })
 
-  it('内核包以外的包写了 gwb.shared：拒，插件与库都一样', () => {
-    const shared = { gwb: { shared: { '@godcreator/some-lib': './shared' } } }
-    const files = io({ 'dist/index.js': '' })
-    const rejected = [expect.stringContaining('清单里写了 gwb.shared（@godcreator/some-lib）'), expect.stringContaining('gwb.shared 的 @godcreator/some-lib 指向 ./shared')]
-    expect(artifactFindings(PKG, plugin(shared), true, files).problems).toEqual(rejected)
-    expect(artifactFindings(PKG, { name: '@godcreator/some-lib', exports: EXPORTS, ...shared }, false, files).problems).toEqual(rejected)
-  })
-
-  it('内核包自己的 gwb.shared：放行，指到的文件算浏览器侧、查相对 import', () => {
-    const got = artifactFindings(
-      PKG,
-      {
-        name: KERNEL_PACKAGE,
-        exports: { ...EXPORTS, './react': './dist/react.js', './react-dom': './dist/react-dom.js' },
-        gwb: { shared: { react: './react', 'react-dom': './react-dom', missing: './missing' } },
-      },
-      false,
-      io({
-        'dist/index.js': '',
-        'dist/react.js': 'export default {};\n',
-        'dist/react-dom.js': "import * as r from 'react';\nimport './gone.js';\n",
-      }),
-    )
-    expect(got.problems).toEqual([expect.stringContaining('gwb.shared 的 missing'), expect.stringContaining("import 的 './gone.js' 不在")])
-  })
-
-  it('没有浏览器侧（没有 dist/client.js、没有 gwb.shared）：不读依赖的清单', () => {
-    const got = artifactFindings(PKG, plugin({ devDependencies: { absent: '1.0.0' } }), true, io({ 'dist/index.js': "import os from 'node:os';\n" }))
-    expect(got).toEqual({ problems: [], nodeImportsCordis: false })
+  it('没有浏览器侧（没有 dist/client.js）：不读内核包', () => {
+    const got = artifactProblems(PKG, plugin({ devDependencies: { absent: '1.0.0' } }), true, io({ 'dist/index.js': "import os from 'node:os';\n" }))
+    expect(got).toEqual([])
   })
 })

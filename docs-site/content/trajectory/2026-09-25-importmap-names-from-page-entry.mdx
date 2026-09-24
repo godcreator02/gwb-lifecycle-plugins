@@ -1,0 +1,41 @@
+---
+title: devkit 跟上内核 0.6：页面 importmap 的名单改读内核包页面入口 dist/index.html，peer 抬到 ^0.6.0
+born-at: 2026-09-25T01:44
+type: choice
+parent: [2026-09-08-gwb-devkit]
+label: 读页面入口
+domain: 发版
+---
+
+## 背景
+
+内核 0.6.0（内核仓提交 9061518，内核仓轨迹卡 `2026-09-25-static-importmap`）把页面 importmap 写死在内核包的页面入口 `dist/index.html` 里，只有 `react`、`react/jsx-runtime`、`react-dom`、`react-dom/client` 四个包名，地址指向内核包自己的 `dist/react/`；内核包清单的 `gwb.shared` 字段和 `./react*` 四个出口都删了。
+
+devkit 这边有三处还在读内核包清单的 `gwb.shared`：发版前检查拿它当浏览器侧产物能 import 的名字，模板的 `build.ts` 拿它当外置名单，模板带的产物测试拿它当浏览器侧的放行名单。发版前检查还会把 `gwb.shared` 子路径指到的文件算作浏览器侧入口。装上内核 0.6 之后三处都失败：发版前检查读不到就拒，构建脚本与产物测试直接抛错，每个带界面的插件都发不出去、构建不出来。
+
+内核仓投到本仓收件页的建议是：外置名单与发版前检查直接写死这四个名字，不再从内核包读。
+
+## 结论与边界
+
+- **名单改读内核包的页面入口**：发版前检查从被发包目录的 `node_modules/@godcreator/gwb-kernel-desktop/dist/index.html` 读 `<script type="importmap">` 那一段，取 `imports` 的键；文件读不到、里面没有这段 importmap、JSON 不合法都拒，提示 peer 写上内核包 `^0.6.0` 起、再 `pnpm install`
+- **模板的构建脚本与产物测试读同一个文件**：经内核包的 `./package.json` 出口找到包目录，再拼出 `dist/index.html`；读不到这段 importmap 就报错，不回退到手写的名单。建仓测试断言构建脚本里不出现四个 react 包名的字面量
+- **浏览器侧入口只剩 `dist/client.js`**：删掉「按包的 `gwb.shared` 子路径找浏览器侧入口」，清单里已经没有这个字段
+- **devkit 与插件管理 peer 里的内核包改成 `^0.6.0`**（devkit 0.19.0、插件管理 0.10.0，写卡时未发）
+
+没有采用收件页的建议，名单仍然只从内核包读，只是换了读的文件。
+
+## 否掉的候选
+
+- **写死四个名字**（收件页的建议，也是内核仓那张卡对下游的写法）：名单会存在两处以上——内核的页面入口一份，devkit 的发版前检查一份，每个插件仓的 `build.ts` 各一份。内核往 importmap 里加一个名字或去掉一个，要改的是全部插件仓；读页面入口的话只改内核一处
+- **让内核另外导出一个名单常量**（`./page-imports` 这类出口，插件构建与 devkit 都 import 它）：内核要为名单多开一个接口，内核仓那张卡已经否掉了这条；而页面入口本来就在内核包里，就是那份名单实际生效的地方，读它不用内核加任何东西
+
+## 代价
+
+- 读的是内核包构建产物里的一个文件，靠固定路径与 `<script type="importmap">` 这段写法找到，不经 `exports`。这是一条没写进内核接口的约定：内核改了页面入口的位置或 importmap 的写法，devkit 的检查、模板和已经照模板生成的插件仓一起失败，而模板里的报错说的是「装的内核包早于 0.6」，会把人引到版本号上去
+- 各插件仓的 `build.ts` 要从读 `gwb.shared` 改成读 `dist/index.html`，照模板改一次；这些插件 peer 里的内核包还停在 `^0.4.x` / `^0.5.x`，本来就要适配 0.6
+
+## 依据
+
+内核仓提交 9061518 与它的轨迹卡 `2026-09-25-static-importmap`；装好的内核包 0.6.0 的 `dist/index.html` 里只有一段 importmap、四个键。devkit 的改动写卡时还在工作区、未提交，仓根 `pnpm check` 全绿；没有在隔离 home 里实际构建、发布一个带界面的插件。未另存探针。
+
+supersedes:: [importmap 只收内核包的名字](2026-09-24-importmap-kernel-only-check.md)

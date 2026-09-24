@@ -87,7 +87,6 @@ home 里有两层：
    | 删包连同它的全部条目  | `uninstall {"pkg":"<包名>"}`，设置与数据留在磁盘上，重装回来还是那份；依赖它的插件停在未加载            |
    | 启用、停用       | `enable` / `disable {"entryId":"…"}`，立即生效                             |
    | 重新加载一条      | `remount {"entryId":"…"}`，停用、等卸载完、启用、等加载完都在这一条里                       |
-   | 改显示名        | `set-label {"entryId":"…","label":"中文名也行"}`，空字符串是清除                   |
 
 3. `remount` 的回执：`remounted` 表示做完了，`state` 为 `ACTIVE` 才算成功；`deferred` 表示目标是插件管理自己，回执先发、下一个宏任务才重新加载，过一会儿用 `list` 核对 `active`
 

@@ -1,6 +1,6 @@
 /**
  * 接缝 10：被处理的仓按目录树从上往下排，每一行是 devkit 的某几条命令依赖的一处约定；右边的标签是依赖它的命令
- * （dev = devkit.dev，release = devkit.release，体检 = devkit.audit-structure，对账 = devkit.audit-deps）。
+ * （dev = devkit.dev，release = devkit.release，加插件 = devkit.scaffold.plugin）。
  * 这些约定没有一份检查合在一起查。
  */
 
@@ -14,15 +14,13 @@ interface Row {
 }
 
 const ROWS: Row[] = [
-  { path: '<单元>/unit.json', depth: 0, note: '先读它决定这个单元跳不跳过', users: '对账 体检' },
-  { path: '<仓根>/.git', depth: 1, note: 'git 工作区干净才发；不是 git 仓也拒', users: 'release' },
-  { path: '<仓根>/package.json', depth: 1, note: '仓根能 pnpm build，不在包目录构建', users: 'dev release' },
-  { path: '<仓根>/pnpm-workspace.yaml', depth: 1, note: '组装发布内容时，从包目录往上找仓根', users: 'dev release' },
-  { path: 'plugins/*  packages/*', depth: 1, note: '成员放在这两处；对账另读 apps/*、docs-site', users: '体检 对账' },
-  { path: '<包>/package.json', depth: 2, note: 'files 是产物清单，keywords 含 gwb-plugin 是插件', users: '全部' },
-  { path: '<包>/dist/client.js', depth: 2, note: '浏览器侧产物入口；node 侧是 exports["."]', users: 'release' },
-  { path: '<包>/node_modules/', depth: 2, note: '页面 importmap 的名字从内核包清单现读', users: 'release' },
-  { path: '<包>/tsconfig.build.json', depth: 2, note: '类型检查按它，没有就用 tsconfig.json', users: 'release' },
+  { path: '<仓根>/.git', depth: 0, note: 'git 工作区干净才发；不是 git 仓也拒', users: 'release' },
+  { path: '<仓根>/package.json', depth: 0, note: '仓根能 pnpm build，不在包目录构建', users: 'dev release' },
+  { path: '<仓根>/pnpm-workspace.yaml', depth: 0, note: '发布时从包目录往上找仓根；加插件要有 plugins/', users: 'dev release 加插件' },
+  { path: 'plugins/<短名>/', depth: 1, note: '加插件写到这里，必须还不存在', users: '加插件' },
+  { path: '<包>/package.json', depth: 1, note: 'files 是产物清单，keywords 含 gwb-plugin 是插件', users: 'dev release' },
+  { path: '<包>/dist/client.js', depth: 1, note: '浏览器侧产物入口；node 侧是 exports["."]', users: 'release' },
+  { path: '<包>/node_modules/', depth: 1, note: 'peer 里的包装在这里，importmap 名字从内核包读', users: 'release' },
 ]
 
 const ROW_H = 48
@@ -30,7 +28,7 @@ const TOP = 12
 
 export function SeamRepoShape() {
   return (
-    <svg viewBox="0 0 400 488" className={NARROW} role="img" aria-label="devkit 的几条命令对被处理的仓做的约定，按目录树排">
+    <svg viewBox="0 0 400 390" className={NARROW} role="img" aria-label="devkit 的几条命令对被处理的仓做的约定，按目录树排">
       {ROWS.map((row, index) => {
         const y = TOP + index * ROW_H
         const x = 10 + row.depth * 16
@@ -54,7 +52,7 @@ export function SeamRepoShape() {
         dev = devkit.dev，release = devkit.release
       </text>
       <text x={10} y={TOP + ROWS.length * ROW_H + 34} fontSize={12} fill={MUTED}>
-        体检 = devkit.audit-structure，对账 = devkit.audit-deps
+        加插件 = devkit.scaffold.plugin
       </text>
     </svg>
   )

@@ -8,10 +8,8 @@ import {
   pnpmPlan,
   type RunPlan,
 } from './dev.js'
-import { caretFloor, compareVersions, inCaret } from './audit.js'
-import { artifactFindings } from './artifact-check.js'
-import { providesDeclarationProblems } from './provides-declaration.js'
-import { KERNEL_PACKAGE, isCaretRange, kernelRangeCovers } from './kernel-compat.js'
+import { KERNEL_PACKAGE, isCaretRange, kernelRangeCovers } from '@godcreator/gwb-plugin-manager'
+import { artifactProblems } from './artifact-check.js'
 import { isRecord, versionCore } from './vocab.js'
 
 /** git 工作区的状态。`dirty` 里是 porcelain 条目原文（两列状态加路径） */
@@ -33,8 +31,6 @@ export interface ReleaseDeps {
   gitStatus(repoDir: string): Promise<GitStatus>
   readText(file: string): string | undefined
   exists(target: string): boolean
-  /** 包目录 `src/` 下全部 `.ts` / `.tsx` 连成的一份文本，按它找源码提供的服务 */
-  sourceTextOf(pkgDir: string): string
   /** pnpm 的可执行文件：命令开头 `locatePnpm` 找到并核对过版本的那个 */
   pnpm: string
 }
@@ -57,8 +53,6 @@ export interface ReleasedPackage {
 export interface ReleaseReport {
   repoDir: string
   shipped: ReleasedPackage[]
-  /** 发版前检查过了但值得说一声的（写了 peer `cordis` 而 node 侧产物没有 import 它）。没有就是空表 */
-  reminders: string[]
   /** 发完之后的下一步。说清「升级 default」为什么不在这条命令里 */
   note: string
 }
@@ -78,6 +72,81 @@ export function dirtyLines(tail: string): string[] {
 
 const SCOPE = '@godcreator/'
 const EXACT = /^\d+\.\d+\.\d+$/
+const CARET = /^\^(\d+\.\d+\.\d+)$/
+const VERSION_WITH_PRERELEASE = /^(\d+)\.(\d+)\.(\d+)(?:-([0-9A-Za-z.-]+))?/
+
+interface ParsedVersion {
+  core: number[]
+  prerelease: string[]
+}
+
+/** 认不出的号三段按点拆、各取整数，取不到当 0 */
+function parseVersion(version: string): ParsedVersion {
+  const match = VERSION_WITH_PRERELEASE.exec(version)
+  if (match === null) {
+    const parts = version.split('.')
+    return {
+      core: [0, 1, 2].map((i) => {
+        const n = Number.parseInt(parts[i] ?? '0', 10)
+        return Number.isNaN(n) ? 0 : n
+      }),
+      prerelease: [],
+    }
+  }
+  return { core: [Number(match[1]), Number(match[2]), Number(match[3])], prerelease: match[4] === undefined ? [] : match[4].split('.') }
+}
+
+/** 两个都带预发布段时按点分段比，数字段按数字比、数字段小于非数字段 */
+function comparePrereleaseSegments(left: readonly string[], right: readonly string[]): number {
+  for (let i = 0; i < Math.max(left.length, right.length); i++) {
+    const x = left[i]
+    const y = right[i]
+    if (x === undefined) return -1
+    if (y === undefined) return 1
+    if (x === y) continue
+    const nx = /^\d+$/.test(x) ? Number(x) : undefined
+    const ny = /^\d+$/.test(y) ? Number(y) : undefined
+    if (nx !== undefined && ny !== undefined) return nx < ny ? -1 : 1
+    if (nx !== undefined) return -1
+    if (ny !== undefined) return 1
+    return x < y ? -1 : 1
+  }
+  return 0
+}
+
+/** 三段逐段按数字比（0.10.0 大于 0.9.9，按字符串比会错）；三段相同时带预发布段的小于不带的 */
+export function compareVersions(a: string, b: string): number {
+  const left = parseVersion(a)
+  const right = parseVersion(b)
+  for (let i = 0; i < 3; i++) {
+    const x = left.core[i] ?? 0
+    const y = right.core[i] ?? 0
+    if (x !== y) return x < y ? -1 : 1
+  }
+  if (left.prerelease.length === 0 || right.prerelease.length === 0) {
+    return left.prerelease.length === right.prerelease.length ? 0 : left.prerelease.length === 0 ? 1 : -1
+  }
+  return comparePrereleaseSegments(left.prerelease, right.prerelease)
+}
+
+/** `^x.y.z` 的下限；别的写法回 undefined */
+export function caretFloor(range: string): string | undefined {
+  return CARET.exec(range.trim())?.[1]
+}
+
+/** `^<floor>` 的上限（不含）：第一个非零段进一，其后归零。0.0.z 锁补丁号、0.y.z 锁次版本号 */
+export function caretCeiling(floor: string): string {
+  const [major = 0, minor = 0, patch = 0] = floor.split('.').map((one) => Number.parseInt(one, 10) || 0)
+  if (major > 0) return `${String(major + 1)}.0.0`
+  if (minor > 0) return `0.${String(minor + 1)}.0`
+  return `0.0.${String(patch + 1)}`
+}
+
+/** 正式号 `version` 落不落在 `^<floor>` 里。带预发布段的号一概不算（semver 不拿预发布号满足不带预发布的范围） */
+export function inCaret(floor: string, version: string): boolean {
+  if (version.includes('-')) return false
+  return compareVersions(version, floor) >= 0 && compareVersions(version, caretCeiling(floor)) < 0
+}
 
 /** 发版前检查要看的那部分清单：包自己的版本号，全部 peer（含内核包），`@godcreator/*` 的 dev，是不是插件 */
 export interface TicketManifest {
@@ -91,11 +160,10 @@ export interface TicketManifest {
   plugin: boolean
 }
 
-/** 一个包的检查结论。`problems` 非空就拒；`reminders` 只提醒不拒 */
+/** 一个包的检查结论。`problems` 非空就拒 */
 export interface Ticket {
   pkg: string
   problems: string[]
-  reminders: string[]
 }
 
 function trimmedStringEntriesOf(table: unknown, keep: (key: string) => boolean): Record<string, string> {
@@ -192,16 +260,12 @@ function peerLineProblems(manifest: TicketManifest, latest: Record<string, strin
 }
 
 /**
- * `latest` 是各 `@godcreator` 包在源上的 `dist-tags.latest`（问不出的缺席）。拒三类：自己在 0.0.x；
+ * `latest` 是各 `@godcreator` 包在源上的 `dist-tags.latest`（问不出的缺席）。拒两类：
  * dev 写法认不出下限、下限比源上 latest 还新、或 latest 已出 dev 范围（范围内落后、含相等放行）；
  * peer 里的 `@godcreator` 插件和源上 latest 不在同一条线。`workspace:` 的不查
  */
 export function checkTicket(manifest: TicketManifest, latest: Record<string, string | undefined>): Ticket {
   const problems: string[] = []
-
-  if (/^0\.0\.\d+/.test(manifest.version)) {
-    problems.push(`自己的号是 ${manifest.version}:0.0.x 上 ^ 锁死补丁号,先把 version 抬到 0.1.0`)
-  }
 
   for (const [pkg, range] of Object.entries(manifest.devs)) {
     if (range.startsWith('workspace:')) continue
@@ -223,21 +287,16 @@ export function checkTicket(manifest: TicketManifest, latest: Record<string, str
   }
   problems.push(...peerLineProblems(manifest, latest))
 
-  return { pkg: `${manifest.name}@${manifest.version}`, problems, reminders: [] }
+  return { pkg: `${manifest.name}@${manifest.version}`, problems }
 }
 
 /**
  * 不是插件包的不查：库由用它的插件打包进产物，它的 peer 不进 home。peer 只许三类：`cordis`、内核包（写没写对由
  * `kernelPeerProblems` 查）、别的插件（`peerManifestOf` 读包目录 node_modules 里它的清单，`isPluginManifest` 判）；
- * 别的一律拒。产物 import 了 `cordis` 而 peer 里没有，拒；写了 peer `cordis` 而产物没有 import 它，只提醒
- * （多一条 peer 不会让插件装不上）
+ * 别的一律拒。node 侧产物只能 import peer 里的包，由产物检查查
  */
-export function peerProblems(
-  manifest: TicketManifest,
-  nodeImportsCordis: boolean,
-  peerManifestOf: (pkg: string) => unknown,
-): Pick<Ticket, 'problems' | 'reminders'> {
-  if (!manifest.plugin) return { problems: [], reminders: [] }
+export function peerProblems(manifest: TicketManifest, peerManifestOf: (pkg: string) => unknown): string[] {
+  if (!manifest.plugin) return []
   const problems: string[] = []
   for (const pkg of Object.keys(manifest.peers).filter((one) => one !== 'cordis' && one !== KERNEL_PACKAGE)) {
     const peerManifest = peerManifestOf(pkg)
@@ -251,13 +310,7 @@ export function peerProblems(
       )
     }
   }
-  const peersCordis = 'cordis' in manifest.peers
-  if (nodeImportsCordis && !peersCordis) {
-    problems.push('node 侧产物按值 import 了 cordis,peer 里却没有:写 peer cordis(dev 里也留一份给本地构建和类型检查)')
-  }
-  const reminders =
-    peersCordis && !nodeImportsCordis ? ['写了 peer cordis,但 node 侧产物里没有 import cordis:只 import 类型时不写 peer,这条可以删'] : []
-  return { problems, reminders }
+  return problems
 }
 
 /** 发版前检查没过时那句回执：按包分组，一次列全 */
@@ -270,47 +323,6 @@ export function ticketRefusal(tickets: Ticket[]): string {
     blocks.join('\n')
   )
 }
-
-/** node 侧构建产物用的 tsconfig，相对包目录 */
-export const NODE_BUILD_TSCONFIG = 'tsconfig.build.json'
-/** 包目录的通用 tsconfig，没有 `tsconfig.build.json` 时 node 侧查它 */
-export const NODE_TSCONFIG = 'tsconfig.json'
-/** 浏览器侧的 tsconfig，相对包目录 */
-export const CLIENT_TSCONFIG = 'src/client/tsconfig.json'
-
-/**
- * 只查构建产物的类型链，测试与构建脚本不查：node 侧有 `tsconfig.build.json` 就查它，没有才查 `tsconfig.json`；
- * 浏览器侧有 `src/client/tsconfig.json` 就再查一次。node 侧两份都没有回 undefined，调用方拒
- */
-export function typecheckTsconfigs(pkgDir: string, exists: (target: string) => boolean): string[] | undefined {
-  const nodeSide = [NODE_BUILD_TSCONFIG, NODE_TSCONFIG].find((one) => exists(path.join(pkgDir, one)))
-  if (nodeSide === undefined) return undefined
-  return exists(path.join(pkgDir, CLIENT_TSCONFIG)) ? [nodeSide, CLIENT_TSCONFIG] : [nodeSide]
-}
-
-/**
- * 在包目录里经 pnpm exec 运行被发仓自己装的 tsc。命令行的 `--noEmit` 盖过 `tsconfig.build.json` 里的
- * `noEmit: false`，与 `declaration`、`outDir` 同在也不报错、不写 dist（typescript 7.0.2 实测）
- */
-export function typecheckArgs(tsconfig: string): string[] {
-  return ['exec', 'tsc', '--noEmit', '-p', tsconfig, '--skipLibCheck', 'false']
-}
-
-/** 类型检查的输出只留最后这么多行：报错在最后 */
-const TYPECHECK_TAIL_LINES = 20
-
-function typecheckProblem(tsconfig: string, tail: string): string {
-  const lines = tail.split(/\r?\n/).filter((line) => line.trim() !== '')
-  const shownLines = lines.slice(-TYPECHECK_TAIL_LINES).map((line) => `      ${line}`)
-  return (
-    `按 ${tsconfig} 做的类型检查没过(tsc --noEmit -p ${tsconfig} --skipLibCheck false):` +
-    `类型引用到的包(含上游 d.ts 引用到的)要在 dev 里列全,只引类型写 import type。输出的最后几行:\n${shownLines.join('\n')}`
-  )
-}
-
-const NO_TSCONFIG_PROBLEM =
-  `包目录下 ${NODE_BUILD_TSCONFIG} 与 ${NODE_TSCONFIG} 都没有:发版前检查要按其中一份` +
-  `(有 ${NODE_BUILD_TSCONFIG} 就用它)在 skipLibCheck: false 下跑一次类型检查`
 
 type Refusal = { ok: false; error: string }
 
@@ -388,22 +400,10 @@ async function latestOfUpstreams(checked: CheckedPackage[], deps: ReleaseDeps): 
   return latest
 }
 
-async function typecheckProblems(pkgDir: string, deps: ReleaseDeps): Promise<string[]> {
-  const tsconfigs = typecheckTsconfigs(pkgDir, deps.exists)
-  if (tsconfigs === undefined) return [NO_TSCONFIG_PROBLEM]
-  const problems: string[] = []
-  for (const tsconfig of tsconfigs) {
-    const typecheck = await deps.run(pnpmPlan(typecheckArgs(tsconfig), pkgDir, deps.pnpm), BUILD_TIMEOUT_MS)
-    if (!typecheck.ok) problems.push(typecheckProblem(tsconfig, typecheck.tail))
-  }
-  return problems
-}
-
-async function ticketFor(checkedPackage: CheckedPackage, latest: Record<string, string | undefined>, runningKernel: string, deps: ReleaseDeps): Promise<Ticket> {
+function ticketFor(checkedPackage: CheckedPackage, latest: Record<string, string | undefined>, runningKernel: string, deps: ReleaseDeps): Ticket {
   const { pkgDir, text, ticket } = checkedPackage
   const parsed: unknown = JSON.parse(text)
   const doc = isRecord(parsed) ? parsed : {}
-  const artifacts = artifactFindings(pkgDir, doc, ticket.plugin, deps)
   const peerManifestOf = (pkg: string): unknown => {
     const text = deps.readText(path.join(pkgDir, 'node_modules', ...pkg.split('/'), 'package.json'))
     if (text === undefined) return undefined
@@ -413,16 +413,13 @@ async function ticketFor(checkedPackage: CheckedPackage, latest: Record<string, 
       return undefined
     }
   }
-  const peers = peerProblems(ticket, artifacts.nodeImportsCordis, peerManifestOf)
   const problems = [
     ...checkTicket(ticket, latest).problems,
-    ...peers.problems,
+    ...peerProblems(ticket, peerManifestOf),
     ...kernelPeerProblems(ticket, runningKernel),
-    ...providesDeclarationProblems(doc, deps.sourceTextOf(pkgDir)),
-    ...artifacts.problems,
-    ...(await typecheckProblems(pkgDir, deps)),
+    ...artifactProblems(pkgDir, doc, ticket.plugin, deps),
   ]
-  return { pkg: `${ticket.name}@${ticket.version}`, problems, reminders: peers.reminders }
+  return { pkg: `${ticket.name}@${ticket.version}`, problems }
 }
 
 /** 按给的顺序发：被依赖的先发，不然装的时候源上还没有它 */
@@ -453,13 +450,8 @@ export async function runRelease(input: ReleaseInput, deps: ReleaseDeps): Promis
   const checked = readTicketManifests(plan.planned, deps)
   if ('ok' in checked) return checked
   const latest = await latestOfUpstreams(checked, deps)
-  const tickets: Ticket[] = []
-  for (const checkedPackage of checked) tickets.push(await ticketFor(checkedPackage, latest, input.runningKernel, deps))
-  const reminders = tickets.flatMap((ticket) => ticket.reminders.map((line) => `${ticket.pkg}:${line}`))
-  if (tickets.some((ticket) => ticket.problems.length > 0)) {
-    const remindersNote = reminders.length > 0 ? `\n另有提醒(不拒):\n${reminders.map((line) => `  - ${line}`).join('\n')}` : ''
-    return { ok: false, error: ticketRefusal(tickets) + remindersNote }
-  }
+  const tickets = checked.map((checkedPackage) => ticketFor(checkedPackage, latest, input.runningKernel, deps))
+  if (tickets.some((ticket) => ticket.problems.length > 0)) return { ok: false, error: ticketRefusal(tickets) }
 
   const shipped = await publishInOrder(plan.planned, plan.ranges, deps)
   if (!Array.isArray(shipped)) return shipped
@@ -470,7 +462,6 @@ export async function runRelease(input: ReleaseInput, deps: ReleaseDeps): Promis
     data: {
       repoDir: input.repoDir,
       shipped,
-      reminders,
       note:`发好了 ${shippedList}(tag latest)。这条命令只发到源、没碰任何 home:升级 default 用 plugin-manager.update-all(由插件管理自己做,热重新加载时它不会被停掉)。发版前该在隔离 home 里验过的,验完再升级`,
     },
   }

@@ -395,13 +395,10 @@ function callExpressionOf(target, rawArgs) {
   return `(${fs.readFileSync(target, 'utf8')})(${JSON.stringify(args)})`
 }
 
-/** 页面上的 `file://` 地址（外壳插入的样式表、importmap）里带着 home 的绝对路径，问一次正在运行的页面就知道 */
+/** 页面上的 `file://` 地址（外壳插入的脚本与样式表）里带着 home 的绝对路径，问一次正在运行的页面就知道 */
 const HOME_EXPR = `(() => {
   const urls = [];
   for (const el of document.querySelectorAll('script[src], link[href]')) urls.push(el.src || el.href);
-  for (const el of document.querySelectorAll('script[type="importmap"]')) {
-    for (const m of (el.textContent || '').matchAll(/file:\\/\\/\\/[^"]+/g)) urls.push(m[0]);
-  }
   return urls.filter((u) => typeof u === 'string' && u.startsWith('file:///'));
 })()`
 

@@ -3,7 +3,7 @@ title: 6 CDP 驱动 cdp.mjs
 description: 连接 devkit（经 gwbNodeCli 登记、dev.ts 启动子进程）、bin/cdp.mjs 与工作台页面；接口是命令行参数的形状、stdout 上一张 JSON 的键、退出码、页面上的 window.gwb.command，以及按页面 file:// 地址反推 home——全部靠约定
 ---
 
-**本页回答**：`bin/cdp.mjs` 收什么参数、打出什么、退出码什么意思；devkit 从它的输出里读哪几格；它对工作台页面假设了什么。
+**本页回答**：`bin/cdp.mjs` 收什么参数、输出什么、退出码什么意思；devkit 从它的输出里读哪几个字段；它对工作台页面假设了什么。
 
 ## 连接的模块
 
@@ -19,9 +19,9 @@ description: 连接 devkit（经 gwbNodeCli 登记、dev.ts 启动子进程）�
 
 devkit 这边：登记命令时 `entry` 指向这个文件（见[工作台服务](/docs/seams/workbench)），调用方传 `{"args":[…]}`；`devkit.dev` 自己启动子进程，用宿主的 `process.execPath` 加 `ELECTRON_RUN_AS_NODE=1`，工作目录是系统临时目录：
 
-{/* ref file="../plugins/devkit/src/node-dev-deps.ts" lines="20-34" */}
+{/* ref file="../plugins/devkit/src/node-dev-deps.ts" lines="19-33" */}
 
-**stdout**：成功时打一张缩进两格的 JSON，固定有 `page`、`在哪个home`、`did`，其余按动作不同。`devkit.dev` 读其中两种：`home` 动作的 `home` 与 `why`，`cmd` 动作的 `回执`（页面上那条命令的原始回执）：
+**stdout**：成功时输出一张缩进两格的 JSON，固定有 `page`、`在哪个home`、`did`，其余按动作不同。`devkit.dev` 读其中两种：`home` 动作的 `home` 与 `why`，`cmd` 动作的 `回执`（页面上那条命令的原始回执）：
 
 {/* ref file="../plugins/devkit/bin/cdp.mjs" lines="643-652" */}
 
@@ -31,9 +31,9 @@ devkit 这边：登记命令时 `entry` 指向这个文件（见[工作台服务
 
 **退出码**：0 是成功。1 有三种：`cmd` 的回执不是 `ok: true`、`reload` 等超时、点不中目标（这三种 stdout 上照样有 JSON）；此外参数错、连不上、home 对不上都是直接抛错，Node 以 1 退出，stdout 上没有 JSON，原因在 stderr。devkit 两样都看：退出码决定 `ok`，JSON 解析不了就是 `undefined`：
 
-{/* ref file="../plugins/devkit/src/node-dev-deps.ts" lines="53-62" */}
+{/* ref file="../plugins/devkit/src/node-dev-deps.ts" lines="52-61" */}
 
-**页面**：`cmd` 在页面里调 `window.gwb.command(名字, 参数)`；页面上没有这个函数就回 `{ ok: false }`。连上之后先核对 home：收集页面上 `script[src]`、`link[href]` 与 importmap 里的 `file:///` 地址，截出 `/homes/<名>/` 那一段，要求只有一个 home、且名字等于第一个参数：
+**页面**：`cmd` 在页面里调 `window.gwb.command(名字, 参数)`；页面上没有这个函数就回 `{ ok: false }`。连上之后先核对 home：收集页面上 `script[src]`、`link[href]` 与 importmap 里的 `file:///` 地址（内核包页面入口里的 importmap 写的是相对地址，这一项收集不到东西，home 路径来自外壳插入的样式表），截出 `/homes/<名>/` 那一段，要求只有一个 home、且名字等于第一个参数：
 
 {/* ref file="../plugins/devkit/bin/cdp.mjs" lines="398-421" */}
 
@@ -50,7 +50,7 @@ devkit 这边：登记命令时 `entry` 指向这个文件（见[工作台服务
 
 devkit 保证：`devkit.dev` 每一步都按 home 名调它，不传端口；把退出码与 JSON 一起交给 `dev.ts` 判断。
 
-工作台页面需要保证的：外壳在页面上开出 `window.gwb.command`、页面上的脚本与样式表地址是带 home 绝对路径的 `file:///` 地址、home 目录在一个叫 `homes` 的目录下。
+工作台页面需要保证的：外壳在页面上提供 `window.gwb.command`、页面上的脚本与样式表地址是带 home 绝对路径的 `file:///` 地址、home 目录在一个叫 `homes` 的目录下。
 
 **这些全部靠约定**：devkit 插件只从 `cdp.mjs` import 算 home 根目录的 `homesRootOf`（类型写在手写的 `bin/cdp.d.mts` 里，见[内核与 home](/docs/seams/kernel-home)），命令行与输出这一面两边没有共享的类型；参数形状写在 `cdp.mjs` 文件头、`devkit.cdp` 的 `usage` 与 `dev.ts` 的各次调用三处，JSON 的键写在 `cdp.mjs` 的 `run` 与 `dev.ts` 的 `receiptOf` / `runDev` 两处；页面这一侧的前提只写在 `cdp.mjs` 的注释里，外壳与内核仓都没有写成对外的承诺。
 
@@ -62,7 +62,7 @@ devkit 保证：`devkit.dev` 每一步都按 home 名调它，不传端口；把
 
 ## 测试
 
-`tests/cdp.test.ts` import 那几个纯函数测路径与写磁盘守卫，不连真页面；连页面的部分没有自动测试。
+`tests/cdp.test.ts` import 那几个纯函数测路径与写磁盘前的检查，不连真页面；连页面的部分没有自动测试。
 
 {/* has file="../plugins/devkit/tests/cdp.test.ts" text="整个文件不读工作目录" */}
 

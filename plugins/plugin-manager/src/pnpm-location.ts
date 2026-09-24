@@ -2,7 +2,7 @@ import { execFile } from 'node:child_process'
 import fs from 'node:fs'
 import path from 'node:path'
 
-// 插件管理与 devkit 各存一份、逐字相同，不跨包 import；devkit 的 tests/pnpm-location-parity.test.ts 对照两份，改一份同一个提交改另一份
+// devkit 从本包主入口 import 这里的规则，改了它 devkit 找 pnpm 的方式跟着变
 
 /** 要求的 pnpm 版本：主版本号相同，并且不低于这个版本 */
 export const REQUIRED_PNPM = '12.4.2'

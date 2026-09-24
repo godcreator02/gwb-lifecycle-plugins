@@ -1,14 +1,14 @@
 ---
 title: 2 devkit 调插件管理
-description: 连接 devkit 与插件管理：devkit.dev 经 CDP 在目标页面调 plugin-manager.list 与 plugin-manager.remount，回执形状在 devkit 里手写；devkit.home.new 自己往 cordis.yml 写条目、用 pnpm 装内核包、cordis 与基础插件；devkit.dev 直接改目标 home 的 package.json 再 pnpm install——都靠约定
+description: 连接 devkit 与插件管理：devkit 从插件管理的主入口 import pnpm 定位、版本范围判定这几个函数；devkit.dev 经 CDP 在目标页面调 plugin-manager.list 与 plugin-manager.remount，回执形状在 devkit 里手写；devkit.home.new 自己往 cordis.yml 写条目、用 pnpm 装内核包、cordis 与基础插件；devkit.dev 直接改目标 home 的 package.json 再 pnpm install——除了 import 的函数，都靠约定
 ---
 
-**本页回答**：devkit 在哪几处用到插件管理，每一处靠什么对上；插件管理改了命令名或回执，devkit 哪里先出问题；devkit 在哪几处绕过插件管理直接改 home。
+**本页回答**：devkit 在哪几处用到插件管理，每一处靠什么对上；插件管理改了命令名、回执或导出的函数，devkit 哪里先出问题；devkit 在哪几处绕过插件管理直接改 home。
 
 ## 连接的模块
 
-- devkit 的 `devkit.dev`（`src/dev.ts`）与 `devkit.home.new`（`src/home.ts`）
-- 插件管理的 `plugin-manager.list` 与 `plugin-manager.remount`（`plugins/plugin-manager/src/index.ts`、`src/remount.ts`）
+- devkit 的 `devkit.dev`（`src/dev.ts`）、`devkit.home.new`（`src/home.ts`），以及 import 插件管理导出函数的几个模块（`src/index.ts`、`src/release.ts`、`src/artifact-check.ts`、`src/node-dev-deps.ts`、`src/node-home-deps.ts`）
+- 插件管理的 `plugin-manager.list` 与 `plugin-manager.remount`（`plugins/plugin-manager/src/index.ts`、`src/remount.ts`），主入口导出的函数（`src/pnpm-location.ts`、`src/kernel-compat.ts`、`src/pnpm.ts`）
 - 被操作的那个 home 里的 `cordis.yml` 与 `package.json`
 
 ## 接口
@@ -19,7 +19,7 @@ description: 连接 devkit 与插件管理：devkit.dev 经 CDP 在目标页面�
 
 回执 `action` 是 `remounted` 时，`state` 必须是 `ACTIVE`；是 `deferred`（被重新加载的是插件管理自己）时，每 500 毫秒轮询一次 `plugin-manager.list`，60 秒内等到那条条目 `active: true`。插件管理这边的命令与处理：
 
-{/* ref file="../plugins/plugin-manager/src/index.ts" lines="355-364" */}
+{/* ref file="../plugins/plugin-manager/src/index.ts" lines="336-345" */}
 
 {/* ref file="../plugins/plugin-manager/src/remount.ts" lines="81-95" */}
 
@@ -41,12 +41,19 @@ description: 连接 devkit 与插件管理：devkit.dev 经 CDP 在目标页面�
 
 {/* ref file="../plugins/devkit/src/dev.ts" lines="449-488" */}
 
+**四、devkit 从插件管理的主入口 import 几个函数。** 找 pnpm 的 `locatePnpm`、内核包名 `KERNEL_PACKAGE`、peer 范围的判定 `isCaretRange` / `kernelRangeCovers` / `declaredKernelRange`、取输出最后几行的 `tailLines`，规则只有插件管理里这一份。devkit 的 peer 里写着插件管理（仓里写 `workspace:^`，`devkit.release` 发版时写成 `^<插件管理的版本号>`），home 里 pnpm 把它解析到装着的那一份：
+
+{/* ref file="../plugins/plugin-manager/src/index.ts" lines="33-36" */}
+
+{/* ref file="../plugins/devkit/package.json" lines="35-42" */}
+
 ## 约定
 
 插件管理保证：
 - `plugin-manager.list` 按包列出，每条条目有完整 `entryId` 与 `active`
 - `plugin-manager.remount` 收 `{ entryId }`（完整 id 或不带前缀的 id），回 `{ id, action, state }`；目标是插件管理自己时回 `deferred`，回执发出之后才重新加载
-- 改这两条命令的名字、参数或回执形状算破坏性变更：升版本号的 x、`gwbPluginManager` 的 `contract` 加一、先通知下游（写在本仓 AGENTS 的「本仓还有插件管理」）
+- 改这两条命令的名字、参数或回执形状算破坏性变更：升版本号的 x、先通知下游（写在本仓 AGENTS 的「本仓还有插件管理」）
+- 主入口导出的那几个函数是纯函数（`locatePnpm` 只读磁盘、运行一次 `pnpm --version`），删改它们的名字或签名同样是破坏性变更
 
 devkit 保证：
 - 一条条目只发一条 `remount`，不拆成 `disable` 加 `enable`
@@ -54,7 +61,7 @@ devkit 保证：
 - 装上的版本号对不上就停，不重新加载
 - 目标 home 里没有这个包的条目时不建条目，回执里给出 `plugin-manager.install {"pkg": …, "spec": "<这次的版本号>"}`
 
-**这几处都靠约定**：devkit 不 import 插件管理的类型，也不读 `gwbPluginManager` 的 `contract`（它经 CDP 调用，拿不到那个服务），回执形状在 `dev.ts` 里手写。约定写在三处：插件管理 `remount` 与 `list` 两条命令的 `usage`、`dev.ts` 的 `entriesOf` 与 `remount`、本仓 AGENTS。目标 home 的插件管理早于 0.4.0 时没有 `remount`，devkit 的报错里写着这个版本要求。
+**前三处都靠约定**：devkit 不 import 插件管理的回执类型，也拿不到插件管理的服务（它经 CDP 调用），回执形状在 `dev.ts` 里手写。第四处有类型检查：插件管理改了导出函数的名字或签名，devkit 的 `pnpm check` 当场报错。约定写在三处：插件管理 `remount` 与 `list` 两条命令的 `usage`、`dev.ts` 的 `entriesOf` 与 `remount`、本仓 AGENTS。目标 home 的插件管理早于 0.4.0 时没有 `remount`，devkit 的报错里写着这个版本要求。
 
 内核仓文档站的「home 布局与条目树」一页写的是：插件管理是唯一写 home 的插件，`cordis.yml` 只经条目树改，`package.json` 与 `node_modules/` 只经插件管理运行的 pnpm 改。`devkit.home.new` 在内核启动前直接写 `cordis.yml`、运行三次 `pnpm add`；`devkit.dev` 直接写目标 home 的 `package.json`、运行 `pnpm install`。两处用的 pnpm 和插件管理是同一个，只是不经插件管理的串行队列。本站[插件管理的 home 页](/docs/plugin-manager/home)把 `devkit.dev` 列为例外，没有提 `devkit.home.new`。
 

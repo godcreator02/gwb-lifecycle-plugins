@@ -6,7 +6,7 @@ import { apply } from '../src/index.js'
 
 /**
  * 命令这一层：在假 ctx 上运行 `apply`，按命令名调登记下来的处理函数。只测不碰真机器的路径——
- * 参数校验、按容器根扫仓、服务表、import 面、建仓与加插件（写到临时目录）；启动 home、发版、CDP 不在这里测
+ * 参数校验、建仓与加插件（写到临时目录）；启动 home、发版、CDP 不在这里测
  */
 
 type Handler = (args?: unknown) => unknown
@@ -37,7 +37,7 @@ interface Mounted {
   busCalls: { name: string; args: unknown }[]
 }
 
-function mountDevkit(opts: { homeDir: string; busCommands?: Record<string, (args: unknown) => Receipt>; fiber?: unknown }): Mounted {
+function mountDevkit(opts: { homeDir: string; busCommands?: Record<string, (args: unknown) => Receipt> }): Mounted {
   const handlers = new Map<string, Handler>()
   const busCalls: { name: string; args: unknown }[] = []
   const busCommands = opts.busCommands ?? {}
@@ -61,7 +61,6 @@ function mountDevkit(opts: { homeDir: string; busCommands?: Record<string, (args
         return Promise.resolve(command === undefined ? { ok: false, error: `没有这条命令：${name}` } : command(args))
       },
     },
-    ...(opts.fiber === undefined ? {} : { fiber: opts.fiber }),
   }
   apply(ctx as never)
   return {
@@ -83,7 +82,6 @@ describe('参数不对：回 ok false，带上那条命令的用法', () => {
       ['devkit.home.rm', 'home 命令的参数'],
       ['devkit.dev', 'devkit.dev 的参数'],
       ['devkit.release', 'devkit.release 的参数'],
-      ['devkit.audit-structure', 'devkit.audit-structure 的参数'],
       ['devkit.scaffold', 'devkit.scaffold 的参数'],
       ['devkit.scaffold.plugin', 'devkit.scaffold.plugin 的参数'],
     ]
@@ -121,90 +119,6 @@ function writeWorkspaceRepo(repoDir: string): void {
   fs.writeFileSync(path.join(repoDir, 'pnpm-workspace.yaml'), 'packages:\n  - plugins/*\n')
   writeJson(path.join(repoDir, 'package.json'), { name: 'x-workspace', private: true, scripts: { build: 'pnpm -r build' } })
 }
-
-describe('devkit.audit-structure', () => {
-  it('给 dir：体检这一个仓', async () => {
-    const repoDir = path.join(tempDir('dk-repo-'), 'repo')
-    writeWorkspaceRepo(repoDir)
-    const devkit = mountDevkit({ homeDir: tempDir('dk-home-') })
-    const receipt = await devkit.run('devkit.audit-structure', { dir: repoDir })
-    expect(receipt).toEqual({ ok: true, data: { repoDir, shape: 'workspace', findings: [], byKind: {} } })
-    expect((await devkit.run('devkit.audit-structure', { dir: path.join(repoDir, 'nope') })).error).toContain('不在——dir 给的是仓根的绝对路径')
-  })
-
-  it('不给 dir 与 root：问 unit-folder.list 要容器根，扫下面的仓', async () => {
-    const container = tempDir('dk-container-')
-    const repoDir = path.join(container, 'abcde-x', 'repo')
-    writeWorkspaceRepo(repoDir)
-    fs.mkdirSync(path.join(repoDir, '.git'))
-    const devkit = mountDevkit({ homeDir: tempDir('dk-home-'), busCommands: { 'unit-folder.list': () => ({ ok: true, data: { container } }) } })
-    const receipt = await devkit.run('devkit.audit-structure', {})
-    expect(receipt.ok).toBe(true)
-    expect(receipt.data).toMatchObject({ root: container, repos: 1, shape: { workspace: 1 }, findings: [], retired: [], testUnits: [] })
-    expect(devkit.busCalls).toEqual([{ name: 'unit-folder.list', args: {} }])
-  })
-
-  it('没有 unit-folder.list 也没给 root：说清扫哪', async () => {
-    const devkit = mountDevkit({ homeDir: tempDir('dk-home-') })
-    expect((await devkit.run('devkit.audit-structure', {})).error).toContain('扫哪没说清')
-  })
-})
-
-describe('devkit.audit-deps', () => {
-  it('没有 unit-folder.list 也没给 root：说清扫哪', async () => {
-    const devkit = mountDevkit({ homeDir: tempDir('dk-home-') })
-    expect((await devkit.run('devkit.audit-deps')).error).toContain('扫哪没说清')
-  })
-
-  it('容器根下一份带 @godcreator 依赖的清单都没有：拒，不联网', async () => {
-    const container = tempDir('dk-container-')
-    const devkit = mountDevkit({ homeDir: tempDir('dk-home-') })
-    expect((await devkit.run('devkit.audit-deps', { root: container })).error).toContain('一份带 @godcreator 依赖的 package.json 都没扫到')
-    expect((await devkit.run('devkit.audit-deps', { root: path.join(container, 'nope') })).error).toContain('不在——root 给的是容器根')
-  })
-})
-
-describe('devkit.services 与 devkit.capabilities', () => {
-  it('services：服务表来自 ctx 的 fiber，用法从 home 里那个包的 gwb.provides 贴上', async () => {
-    const homeDir = tempDir('dk-home-')
-    writeJson(path.join(homeDir, 'node_modules', '@x', 'gwb-foo', 'package.json'), { name: '@x/gwb-foo', gwb: { provides: { gwbFoo: { summary: '一句话', usage: '怎么用' } } } })
-    const fiber: Record<string, unknown> = { entry: { id: 'home:foo', options: { name: '@x/gwb-foo' } } }
-    fiber['store'] = { one: { name: 'gwbFoo', fiber } }
-    const devkit = mountDevkit({ homeDir, fiber })
-    expect(await devkit.run('devkit.services')).toEqual({
-      ok: true,
-      data: { services: [{ service: 'gwbFoo', entryId: 'home:foo', pkg: '@x/gwb-foo', provides: { summary: '一句话', usage: '怎么用' } }] },
-    })
-  })
-
-  it('services：没有 fiber 时回空表，带 note 与 saw', async () => {
-    const devkit = mountDevkit({ homeDir: tempDir('dk-home-') })
-    const receipt = await devkit.run('devkit.services')
-    expect(receipt.ok).toBe(true)
-    expect(receipt.data).toMatchObject({ services: [], saw: { chainDepth: 0, runtimes: 0, fibers: 0, stores: 0 } })
-    expect((receipt.data as { note: string }).note).toContain('运行时没给出服务表')
-  })
-
-  it('capabilities：import 段按 home 的 dependencies 列，home 清单读不到时是空表', async () => {
-    const homeDir = tempDir('dk-home-')
-    const devkit = mountDevkit({ homeDir })
-    expect(await devkit.run('devkit.capabilities')).toEqual({
-      ok: true,
-      data: { inject: [], import: [], commands: '件暴露的命令面不在这儿重复——search {"plugin":"<包名>"} 按件查，那是命令的家' },
-    })
-    writeJson(path.join(homeDir, 'package.json'), { dependencies: { '@x/lib': '^1.0.0' } })
-    writeJson(path.join(homeDir, 'node_modules', '@x', 'lib', 'package.json'), {
-      name: '@x/lib',
-      version: '1.0.0',
-      keywords: ['gwb'],
-      exports: { '.': { types: './dist/index.d.ts', default: './dist/index.js' } },
-    })
-    const receipt = await devkit.run('devkit.capabilities')
-    expect((receipt.data as { import: unknown }).import).toEqual([
-      { pkg: '@x/lib', version: '1.0.0', kind: '库', entries: [{ specifier: '@x/lib', dts: 'node_modules/@x/lib/dist/index.d.ts' }] },
-    ])
-  })
-})
 
 describe('devkit.scaffold 与 devkit.scaffold.plugin', () => {
   it('docs false、没装站点插件：插件文件照写，回执说没建站', async () => {

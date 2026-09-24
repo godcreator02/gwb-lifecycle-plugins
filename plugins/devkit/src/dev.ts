@@ -1,5 +1,5 @@
 import path from 'node:path'
-import { KERNEL_PACKAGE } from './kernel-compat.js'
+import { KERNEL_PACKAGE } from '@godcreator/gwb-plugin-manager'
 import { isRecord } from './vocab.js'
 
 /** 团队源：gitea 上 godcreator 组织的 npm registry，与用户级 `~/.npmrc` 里 `@godcreator` 那行同一个地址 */

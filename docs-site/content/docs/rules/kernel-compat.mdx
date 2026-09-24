@@ -21,7 +21,7 @@ devkit 自己的清单（peer 里另外几项是它用到的插件，见[用到�
 
 只认 `^x.y.z` 一种写法，精确号、`>=`、`~`、少一段、带预发布段的都不算写对。主版本号为 0 时次版本号相同、主版本号 ≥1 时主版本号相同，并且不低于 x.y.z。只比 x.y.z 三段、预发布段不看，所以同一条线上的开发版内核也算在范围内。`^0.3.0` 包含 `0.3.0`、`0.3.4`、`0.3.1-dev.202609241500`，不包含 `0.2.7`、`0.4.0`；`^1.4.0` 包含 `1.9.2`，不包含 `1.0.0` 与 `2.0.0`。
 
-{/* ref file="../plugins/devkit/src/kernel-compat.ts" lines="38-52" */}
+{/* ref file="../plugins/plugin-manager/src/kernel-compat.ts" lines="38-52" */}
 
 这和内核的版本号规矩对得上：内核改了接缝上已有的东西——包括升级 loader、include 的版本、改 home 的布局、删改包根导出的接口类型——就升 x，插件写的范围不再包含新内核，所有插件都要在新内核上重新验过。只加东西的内核版本升 y，范围照样包含，插件的声明照样有效。
 
@@ -29,11 +29,11 @@ devkit 自己的清单（peer 里另外几项是它用到的插件，见[用到�
 
 **`devkit.release` 发版前检查**：对每个要发的插件包，peer 里没写内核包、写法不是 `^x.y.z`、范围不包含运行中的内核，三种都拒，一个包都不发；拒绝理由里写着该改成的 `^<运行中的内核的 x.y.z>`。「运行中的内核」是调 `devkit.release` 的那个 home 里的内核：
 
-{/* ref file="../plugins/devkit/src/release.ts" lines="149-169" */}
+{/* ref file="../plugins/devkit/src/release.ts" lines="217-237" */}
 
 **`plugin-manager.list` 按包报**：拿插件 peer 里内核包的范围和 home 里装的内核比，不包含的按包报出来。它只报告，不阻止加载（回执怎么读见插件管理那组页面里的[同名一页](/docs/plugin-manager/kernel-compat)）。
 
-比对规则在 devkit 与插件管理两边各存一份（两个包的 `src/kernel-compat.ts`），不跨包 import（见[插件之间怎么交互](/docs/rules/interaction)）；devkit 的 `tests/kernel-compat-parity.test.ts` 拿同一组输入运行两份、结果必须相同，改规则时两份在同一个提交里一起改。
+比对规则只有一份，在插件管理的 `src/kernel-compat.ts`；devkit 的发版前检查从插件管理的主入口 import 它，两处的判断一定相同（见[peer 里的内核包与插件](/docs/seams/kernel-peer)）。
 
 ## 内核升级之后
 

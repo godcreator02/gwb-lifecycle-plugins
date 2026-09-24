@@ -15,33 +15,33 @@ description: 连接 devkit、插件管理与工作台的四个服务：命令总
 
 **devkit 只把 `gwbCommands` 写进 `export const inject`**，其余三个都用 `ctx.inject([...], fn)` 局部注入：
 
-{/* ref file="../plugins/devkit/src/index.ts" lines="49-50" */}
+{/* ref file="../plugins/devkit/src/index.ts" lines="47-48" */}
 
 devkit 对命令总线用了三个方法：`register(定义, 处理函数)` 登记命令，定义带 `name`、`plugin`（包名）、`description`、`usage`，返回的撤销函数交给 `ctx.effect`；`list()` 查某个命令名在不在；`run(名字, 参数)` 调别的插件的命令（见[借用别的插件的命令](/docs/seams/borrowed-commands)）。
 
-{/* ref file="../plugins/devkit/src/index.ts" lines="300-308" */}
+{/* ref file="../plugins/devkit/src/index.ts" lines="285-293" */}
 
-{/* ref file="../plugins/devkit/src/index.ts" lines="156-160" */}
+{/* ref file="../plugins/devkit/src/index.ts" lines="139-143" */}
 
 `gwbNodeCli` 只用来登记一条命令行工具 `devkit.cdp`，`entry` 是包里 `bin/cdp.mjs` 的绝对路径；这条登记由 `gwbNodeCli` 自己放进调用方的 effect，devkit 卸载时自动撤销，devkit 不再包一层 `ctx.effect`：
 
-{/* ref file="../plugins/devkit/src/index.ts" lines="396-411" */}
+{/* ref file="../plugins/devkit/src/index.ts" lines="303-318" */}
 
 `gwbSkills` 登记包内 `skills/` 目录，`gwbShell` 只调一次 `describeSelf` 报一个显示名，devkit 没有窗格：
 
-{/* ref file="../plugins/devkit/src/index.ts" lines="882-890" */}
+{/* ref file="../plugins/devkit/src/index.ts" lines="689-697" */}
 
-{/* ref file="../plugins/devkit/src/index.ts" lines="389-394" */}
+{/* ref file="../plugins/devkit/src/index.ts" lines="296-301" */}
 
 devkit 源码里没有注入 `gwbSettings`，它没有设置项。
 
-**插件管理的四个依赖全部局部注入**：`gwbData`、`gwbSettings`、`gwbCommands`、`gwbSkills`。它自己提供服务 `gwbPluginManager`，值只有 `{ contract: 3 }`，没有方法：
+**插件管理的四个依赖全部局部注入**：`gwbData`、`gwbSettings`、`gwbCommands`、`gwbSkills`。它自己提供服务 `gwbPluginManager`，值是空对象 `{}`：
 
-{/* ref file="../plugins/plugin-manager/src/index.ts" lines="183-188" */}
+{/* ref file="../plugins/plugin-manager/src/index.ts" lines="66-74" */}
 
-{/* ref file="../plugins/plugin-manager/src/index.ts" lines="272-284" */}
+{/* ref file="../plugins/plugin-manager/src/index.ts" lines="189-194" */}
 
-这些服务的类型来自各服务包自带的 `declare module 'cordis'`：两个插件都只做 `import type`，服务包写在 peer 里（必需的命令总线直接写，局部注入可选使用的标 `optional`，见[用到的插件写 peer](/docs/rules/plugin-peers)），运行时不 import：
+这些服务的类型来自各服务包自带的 `declare module 'cordis'`：两个插件对这些服务包都只做 `import type`（devkit 另从插件管理的主入口按值 import 几个函数，见[插件之间怎么交互](/docs/rules/interaction)），服务包写在 peer 里（必需的命令总线直接写，局部注入可选使用的标 `optional`，见[用到的插件写 peer](/docs/rules/plugin-peers)），运行时不 import：
 
 {/* ref file="../plugins/devkit/src/index.ts" lines="5-9" */}
 
@@ -55,13 +55,13 @@ devkit 保证：
 插件管理保证：
 - 四个依赖都可以缺；`gwbCommands` 缺了，它就没有任何对外接口
 - 命令的 `plugin` 写包名 `@godcreator/gwb-plugin-manager`
-- 命令的参数或回执有破坏性变化时，`gwbPluginManager` 的 `contract` 加一
+- 命令的参数或回执有破坏性变化时升 x（`gwbPluginManager` 的值上不放版本数字）
 
 工作台服务保证：`register` 返回撤销函数、`list()` 的每一项带 `name` 与 `plugin`、`run` 回 `{ ok, data?, error? }`、`gwbNodeCli.register` 自己把登记放进调用方的 effect——这几条写在各服务包的类型声明与说明书里，两个插件只经类型检查对上，**运行时靠约定**。
 
 devkit 的就绪日志从 `list()` 里筛出 `plugin` 等于包名 `@godcreator/gwb-devkit` 的命令，与登记命令时写的 `plugin` 相同：
 
-{/* ref file="../plugins/devkit/src/index.ts" lines="892-901" */}
+{/* ref file="../plugins/devkit/src/index.ts" lines="699-708" */}
 
 ## 不负责的事
 

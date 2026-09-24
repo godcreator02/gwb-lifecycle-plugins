@@ -27,7 +27,7 @@ import {
   writePluginPage,
   writeRepo,
 } from '../src/scaffold.js'
-import { KERNEL_PACKAGE, declaredKernelRange, isCaretRange, kernelRangeCovers } from '../src/kernel-compat.js'
+import { KERNEL_PACKAGE, declaredKernelRange, isCaretRange, kernelRangeCovers } from '@godcreator/gwb-plugin-manager'
 
 /**
  * 建仓与加插件的纯逻辑。**写磁盘的那几条真的写临时目录**——`writeRepo` 做的就是往磁盘上写文件，
@@ -366,13 +366,13 @@ describe('包内 template/：两区', () => {
     expect(nodeEntry).toContain("import type { GwbContext } from '@godcreator/gwb-kernel-desktop'")
   })
 
-  it('生成的 build.ts 不手抄外置名单：从内核包清单的 gwb.shared 读键', () => {
+  it('生成的 build.ts 不手抄外置名单：从内核包页面入口的 importmap 读键', () => {
     const files = renderTemplate(TEMPLATE_ROOT, planScaffold({ name: 'hello', dir: 'D:\\tmp\\x', kernelVersion: KERNEL }))
     const buildScript = files.find((f) => f.rel === 'plugins/hello/build.ts')?.text ?? ''
     expect(buildScript).toContain("import.meta.resolve('@godcreator/gwb-kernel-desktop/package.json')")
-    expect(buildScript).toContain("gwb['shared']")
-    expect(buildScript).toContain('external: sharedNamesOfKernel()')
-    // 内核包 gwb.shared 里的四个名字，一个都不许以字面量出现在构建脚本里
+    expect(buildScript).toContain("path.join(path.dirname(manifestPath), 'dist', 'index.html')")
+    expect(buildScript).toContain('external: importmapNamesOfKernel()')
+    // 内核包页面 importmap 里的四个名字，一个都不许以字面量出现在构建脚本里
     for (const name of ['react', 'react/jsx-runtime', 'react-dom', 'react-dom/client']) {
       expect(buildScript).not.toContain(`'${name}'`)
     }
@@ -386,11 +386,11 @@ describe('包内 template/：两区', () => {
     expect(styles).not.toContain('gwb-tokens')
   })
 
-  it('生成的产物测试：node 侧只放行内置模块、electron、cordis；浏览器侧只放行内核包 gwb.shared 的键', () => {
+  it('生成的产物测试：node 侧只放行内置模块、electron 与自己 peer 里的包；浏览器侧只放行内核包页面 importmap 的名字', () => {
     const files = renderTemplate(TEMPLATE_ROOT, planScaffold({ name: 'hello', dir: 'D:\\tmp\\x', kernelVersion: KERNEL }))
     const artifactTest = files.find((f) => f.rel === 'plugins/hello/tests/artifact.test.ts')?.text ?? ''
-    const allowed = /const NODE_SIDE_ALLOWED = new Set\(\[([^\]]*)\]\)/.exec(artifactTest)?.[1] ?? ''
-    expect([...allowed.matchAll(/'([^']+)'/g)].map((m) => m[1]).sort()).toEqual(['cordis', 'electron'])
+    expect(artifactTest).toContain("spec !== 'electron' && !ownPeers.has(packageNameOf(spec))")
+    expect(artifactTest).toContain("ownManifest['peerDependencies']")
     expect(artifactTest).toContain('builtinModules.includes(spec)')
     expect(artifactTest).not.toContain('gwb-plugin-api')
     expect(artifactTest).toContain("resolve('@godcreator/gwb-kernel-desktop/package.json')")

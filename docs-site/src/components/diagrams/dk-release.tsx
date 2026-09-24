@@ -1,8 +1,8 @@
 'use client'
 
 /**
- * devkit.release 的检查流水线：左边六格依次做，右边是第五格「发版前检查」逐包查的各项（上半每个包都查，下半只查插件包）。
- * 最下面一格是任何一项没过时的结果：一个包都不发，回执按包列全。
+ * devkit.release 的检查流水线：左边六步依次做，右边是第五步「发版前检查」逐包查的各项（上半每个包都查，下半只查插件包）。
+ * 最下面那个框是任何一项没过时的结果：一个包都不发，回执按包列全。
  */
 
 import { Box, Chain, type ChainItem, FG, Frame, MUTED, NARROW, Note } from './parts'
@@ -17,18 +17,18 @@ const ITEMS: ChainItem[] = [
   { lines: ['6 按顺序发到 latest', '临时目录里组装'] },
 ]
 
-const EVERY_PACKAGE = ['不在 0.0.x', 'dev 范围含源上的 latest', '产物里没有空 import', '相对 import 的文件都在', 'tsc --noEmit 类型检查', 'gwb.provides 与源码对得上']
+const EVERY_PACKAGE = ['dev 范围含源上的 latest', '产物里没有空 import', '相对 import 的文件都在']
 const PLUGIN_ONLY = ['peer 只许三类包', 'peer 插件与 latest 同线', '包名 import 的两份名单', '内核包范围含运行中内核']
 
 const STEPS: { title: string; detail: string; active: number; refused?: boolean }[] = [
-  { title: '全貌', detail: '六格依次做，前五格任何一处没过，一个包都不发。它只碰团队源、不碰任何 home，不改仓里任何文件，从哪个 home 调用都可以。', active: -1 },
+  { title: '全貌', detail: '六步依次做，前五步任何一处没过，一个包都不发。它只碰团队源、不碰任何 home，不改仓里任何文件，从哪个 home 调用都可以。', active: -1 },
   { title: '第 1 步：git 工作区干净', detail: '在仓根运行 git status --porcelain=v1，有一条改动就拒，连构建都不运行；不是 git 仓也拒。发出去的必须是提交过的状态。', active: 0 },
   { title: '第 2 步：仓根 pnpm build', detail: '在仓根构建，不在包目录：同仓的包常常用着另一个包的产物。构建失败，一个都不发。', active: 1 },
   { title: '第 3 步：产物都在', detail: '按 package.json 的 files 白名单查：不带 ! 与通配的每一项都得在包目录里。不另列一份名单，免得两份对不上。', active: 2 },
   { title: '第 4 步：版本号没发过', detail: '同一个版本号永不重发：源上已经有这个版本号就拒。要发新的一版，先升 package.json 的版本号、提交，再调用。', active: 3 },
   {
     title: '第 5 步：发版前检查',
-    detail: '要发的包全部一起查、问题一次列全。每个包查右边上半的六项（dev 范围一项只看 @godcreator 的包，类型检查用 skipLibCheck false，gwb.provides 一项只看 keywords 含 gwb 或 gwb-plugin 的包）；keywords 含 gwb-plugin 的插件包另查下半的四项。只提醒、不拒的写进 reminders。',
+    detail: '要发的包全部一起查、问题一次列全。每个包查右边上半的三项（dev 范围一项只看 @godcreator 的包）；keywords 含 gwb-plugin 的插件包另查下半的四项。',
     active: 4,
   },
   {
@@ -66,11 +66,11 @@ export function DkRelease() {
             {`· ${line}`}
           </Note>
         ))}
-        <Note x={FRAME_X + 10} y={TOP + 196} size={12} weight={600} color={FG}>
+        <Note x={FRAME_X + 10} y={TOP + 146} size={12} weight={600} color={FG}>
           插件包另查
         </Note>
         {PLUGIN_ONLY.map((line, index) => (
-          <Note key={line} x={FRAME_X + 14} y={TOP + 218 + index * 22} size={12.5} color={itemColor}>
+          <Note key={line} x={FRAME_X + 14} y={TOP + 168 + index * 22} size={12.5} color={itemColor}>
             {`· ${line}`}
           </Note>
         ))}

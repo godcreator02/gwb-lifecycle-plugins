@@ -1,6 +1,6 @@
 /**
  * home 里有什么：左边是 home 的 node_modules 里的插件包与内核包，右边是插件代码运行时用到的东西各由谁提供。
- * cordis 与 react 由内核包提供（react 经页面 importmap，importmap 里只有内核包声明的名字），自己用的库打包进插件的构建产物，只取类型的 import 编译后就没了；
+ * cordis 与 react 由内核包提供（react 经页面 importmap，importmap 写死在内核包的页面入口 dist/index.html 里），自己用的库打包进插件的构建产物，只取类型的 import 编译后就没了；
  * 插件 peer 里写的别的插件是 home 里另一个有条目的插件，由人装。
  */
 
@@ -14,18 +14,18 @@ export function PmHomeContents() {
       </Note>
       <rect x={14} y={30} width={366} height={222} rx={10} fill="none" stroke={BORDER} />
       <Box x={26} y={46} w={342} h={92} lines={['插件包 @x/gwb-foo（有条目）', 'dist/：自己的代码', '+ 打包进来的库（yaml、接口定义包……）']} tone="a" />
-      <Box x={26} y={156} w={342} h={80} lines={['内核包 gwb-kernel-desktop 与 cordis（没有条目）', '内核包清单 gwb.shared 声明 react 的四个包名']} tone="a" />
+      <Box x={26} y={156} w={342} h={80} lines={['内核包 gwb-kernel-desktop 与 cordis（没有条目）', 'dist/index.html 里写死 react 的四个包名']} tone="a" />
 
       <Note x={478} y={22} size={12} color={FG} weight={600}>
         运行时由谁提供
       </Note>
       <Box x={470} y={40} w={276} h={56} lines={['内核（宿主）', "提供 cordis：import 'cordis' 用的是这一份"]} />
       <Box x={470} y={120} w={276} h={50} lines={['只取类型的 import', '内核包与别的插件的类型：编译后消失']} dashed />
-      <Box x={470} y={196} w={276} h={56} lines={['页面的 importmap', '只有内核包声明的 react 四个包名']} />
+      <Box x={470} y={196} w={276} h={56} lines={['页面的 importmap', '只有 react 的四个包名']} />
 
       <Arrow from={[368, 70]} to={[470, 68]} label="按值 import cordis" />
       <Arrow from={[368, 118]} to={[470, 145]} dashed label="import type" labelAt="below" />
-      <Arrow from={[368, 210]} to={[470, 224]} label="声明" />
+      <Arrow from={[368, 210]} to={[470, 224]} label="页面入口" />
 
       <Note x={380} y={284} anchor="middle" size={11.5} color={MUTED}>
         插件用到的东西各有提供方，peer 里的别的插件由人装——所以插件管理不替插件装 peer，也不判断装的是不是库

@@ -25,7 +25,7 @@ devkit 没有任何特权：装进 home 才有它的命令，加载不成功就�
 - **使用者是 agent，所以没有界面**：结果全在回执里；参数形状写进每条命令的 `usage`，参数错了回执带完整用法——命令总线不带参数 schema，agent 能看到的只有这些
 - **说明书与模板随包发布**：写插件的说明书、发版规则、模板都在包里，装上哪一版就读到哪一版，不另外维护一份（[说明书与模板回到包里](/trajectory/2026-09-09-skills-and-templates-ride-package)）
 - **只登记自己的说明书**：说明书名全局唯一，替别人登记的那份会和别人自己登记的重名，被挤掉的常常是新的那份
-- **只有一个必需依赖**：命令总线 `gwbCommands` 写在 `export const inject`，外壳、node 命令行、说明书三个服务都局部注入，缺了只少一部分功能
+- **只有一个必需服务**：命令总线 `gwbCommands` 写在 `export const inject`，外壳、node 命令行、说明书三个服务都局部注入，缺了只少一部分功能
 - **命令行形式的工具经 `gwbNodeCli` 登记**：`bin/cdp.mjs` 登记之后自动成为同名命令，也就自动能经 MCP 入口调用，回执带 stdout、stderr 与退出码；不自己再写一遍启动子进程与超时
 
 代价：devkit 的改动也要走发版、安装才能用上；改 devkit 自己不能用 `devkit.dev`（见下面「开发版只进隔离 home」）。
@@ -68,7 +68,7 @@ devkit 没有任何特权：装进 home 才有它的命令，加载不成功就�
 
 判据只有一句：**这段逻辑能不能不启动进程、不开窗口、只给输入看输出。**
 
-能的部分是纯逻辑：时序、检查、命名、版本号、「查不出算不算不在」「装上的是不是这次发的版本」「哪个依赖落后了」「插件声明的内核范围包不包含运行中的内核」这些判断都在这里，测试用假的依赖把整条流程跑完。不能的部分在四个 `node-*-deps.ts` 里，只负责在真机器上拿到答案：启动进程、查进程表、查端口被谁占着、读写磁盘、连 CDP、问团队源。这一层不做判断，也不进单元测试。
+能的部分是纯逻辑：时序、检查、命名、版本号、「查不出算不算不在」「装上的是不是这次发的版本」「插件声明的内核范围包不包含运行中的内核」「一个包的 `.d.ts` 给 cordis 补了哪些服务」这些判断都在这里，测试用假的依赖把整条流程跑完。不能的部分在四个 `node-*-deps.ts` 里，只负责在真机器上拿到答案：启动进程、查进程表、查端口被谁占着、读写磁盘、连 CDP、问团队源。这一层不做判断，也不进单元测试。
 
 两边靠显式接口隔开：`HomeDeps`、`DevDeps`、`ReleaseDeps` 三个接口由纯逻辑定义，运行时传 `node-*-deps.ts` 的实现，测试时传假实现。依赖方向是单向的：真机器那一层认识纯逻辑，纯逻辑不认识它。
 
@@ -81,20 +81,18 @@ devkit 没有任何特权：装进 home 才有它的命令，加载不成功就�
 | 模块 | 纯逻辑 | 真机器操作 | 细节 |
 | --- | --- | --- | --- |
 | 建仓 | `src/scaffold.ts` | 同一个文件，直接读写磁盘 | [建仓与加插件](/docs/devkit/scaffold) |
-| 结构体检 | `src/structure.ts`、`src/provides-declaration.ts` | 同样这两个文件，只读磁盘 | [结构体检](/docs/devkit/structure) |
 | 测试 home | `src/home.ts` | `src/node-home-deps.ts` | [测试 home](/docs/devkit/home) |
 | 改一版看一版 | `src/dev.ts` | `src/node-dev-deps.ts` | [改一版看一版](/docs/devkit/dev) |
-| 发正式版 | `src/release.ts`、`src/artifact-check.ts`、`src/kernel-compat.ts`、`src/provides-declaration.ts` | `src/node-dev-deps.ts` | [开发套件](/docs/devkit#发正式版的检查) |
-| 依赖对账 | `src/audit.ts` | `src/node-audit-deps.ts` | [开发套件](/docs/devkit#依赖对账的判据) |
-| 能用什么 | `src/services.ts`、`src/capabilities.ts` | 命令登记处读 home 里的 `package.json` | [开发套件](/docs/devkit) |
-| 进程与端口探测 | `src/probes.ts` | `src/node-probe-deps.ts` | [测试 home](/docs/devkit/home) |
+| 发正式版 | `src/release.ts`、`src/artifact-check.ts`（内核范围的比对规则从插件管理 import） | `src/node-dev-deps.ts` | [开发套件](/docs/devkit#发正式版的检查) |
+| 服务总览 | `src/services.ts` | `src/node-services-deps.ts` | [服务表与类型声明](/docs/seams/service-table) |
+| 进程与端口探测 | `src/probes.ts` | `src/node-probe-deps.ts`（只有 Windows 的 `tasklist` 与 `netstat`） | [测试 home](/docs/devkit/home) |
 | 小工具 | `src/vocab.ts`：`isRecord` 与 `requireKernel`（内核包只导出类型，这两个函数由插件自带） | — | — |
 | CDP 驱动 | `bin/cdp.mjs` 里算文件位置的几个函数 | `bin/cdp.mjs` 其余部分 | [CDP 驱动](/docs/devkit/cdp) |
 | 命令登记 | — | `src/index.ts`：登记命令、检查参数、组装回执 | — |
 
 {/* tree dir="../plugins/devkit/src" depth="1" glob="*.ts" */}
 
-建仓与结构体检是另一种形状：它们只做计算与同步读写磁盘，不需要注入接口，测试直接写临时目录。把「往磁盘上写文件」的函数换成假实现，等于没测。
+建仓是另一种形状：它只做计算与同步读写磁盘，不需要注入接口，测试直接写临时目录。把「往磁盘上写文件」的函数换成假实现，等于没测。
 
 读代码从 `src/index.ts` 的 `apply` 开始：那里登记了全部命令，一眼能看出对外有哪些命令；想知道某件事怎么判断，再去对应的纯逻辑模块。反方向的 import 一条都没有。
 
@@ -104,27 +102,27 @@ devkit 没有任何特权：装进 home 才有它的命令，加载不成功就�
 
 - `devkit.dev` 装完开发版调 `plugin-manager.remount` 重新加载，再轮询 `plugin-manager.list` 核对；重新加载插件管理自己时收到 `deferred`，就等 `list` 回来
 - `devkit.home.new` 把内核包、`cordis` 与插件管理等基础插件装进新 home，之后往这个 home 加插件用 `plugin-manager.install`、升内核用 `plugin-manager.update-kernel`
-- 插件 peer 里内核包的范围两边都用：插件管理在 `list` 里拿它和运行中的内核比对，`devkit.release` 发版前拒绝没写对的插件包。比对规则两边各存一份（两个包的 `src/kernel-compat.ts`），不跨包 import
+- 插件 peer 里内核包的范围两边都用：插件管理在 `list` 里拿它和运行中的内核比对，`devkit.release` 发版前拒绝没写对的插件包。比对规则只有一份，在插件管理的 `src/kernel-compat.ts`；devkit 的 peer 里写着插件管理，从它的主入口 import 这套规则，连同找 pnpm 的 `locatePnpm`（[两个插件删掉用不上的机制](/trajectory/2026-09-25-drop-unused-machinery)）
 
-{/* has file="../plugins/devkit/src/kernel-compat.ts" text="比对规则与插件管理的 src/kernel-compat.ts 各存一份" */}
+{/* has file="../plugins/devkit/src/release.ts" text="import { KERNEL_PACKAGE, isCaretRange, kernelRangeCovers } from '@godcreator/gwb-plugin-manager'" */}
 
-放在一个仓里，这些地方一个提交就能改两边，改比对规则时两份一起改、一起跑测试。
+放在一个仓里，这些地方一个提交就能改两边。
 
-代价：发版要用 `packages` 指明发哪个包；比对规则两份靠同一个提交保持一致，devkit 的一组对照测试拿同一组输入比对两份的结果。改插件管理的命令名、参数或回执形状是破坏性变更——插件管理窗格、`devkit.dev`、agent 的说明书都按它们写死了调用。
+代价：发版要用 `packages` 指明发哪个包，两个一起发时插件管理排在前面；devkit 离了插件管理加载不了。改插件管理的命令名、参数、回执形状或主入口导出的函数是破坏性变更——插件管理窗格、`devkit.dev`、agent 的说明书都按它们写死了调用。
 
 ## 模板是唯一正本
 
 仓的布局只有一种：workspace 仓，插件在 `plugins/<短名>/`。只有一个插件的仓也是这个布局，加第二个插件是一条命令，不会有「建小了要迁移」的时候（[只有一种仓的布局](/trajectory/2026-09-19-one-shape-workspace-always)）。
 
 - **建仓与加插件用同一份插件包模板** `template/pkg/`，两种命令生成的插件包格式一致靠这个，不靠纪律
-- **结构体检的规则以模板为准**：往返测试断言模板生成的仓零 findings，模板与检查规则谁改了另一个没跟上，测试当场失败（[结构体检](/trajectory/2026-09-19-structure-audit-comes)）
-- **旧布局仓不专门迁**，改到哪个迁哪个；`devkit.audit-structure` 给出按实际文件名列好的迁移清单
+- **模板带的产物测试与发版前检查用同一套名单**：生成的插件包在被生成的仓里 `pnpm check` 就能查出发版时会被拒的包名 import（[模板与发版前检查](/docs/seams/template-release)）
+- **旧布局仓不专门迁**，改到哪个迁哪个；`devkit.scaffold.plugin` 拒绝往旧布局仓里加插件，报错里写着怎么迁
 
 代价：旧布局仓会和新布局长期并存；workspace 仓发版与 `devkit.dev` 都要给 `packages`。
 
 ## 借别的插件只借命令名
 
-建仓要生成文档站骨架、装六区，这两件事归站点插件与 docfirst 插件；`audit-deps` 与 `audit-structure` 要知道容器根，这归单元目录插件。devkit 不依赖这三个插件的任何包，只在命令总线上按名字找 `docs-site.create`、`docfirst.attach`、`unit-folder.list`，每次现查、不缓存（插件是热加载的，装一个新插件之后答案当场就变）。找不到就跳过那一步或要求调用方给参数，不让建仓失败。
+建仓要生成文档站骨架、装六区，这两件事归站点插件与 docfirst 插件。devkit 不依赖这两个插件的任何包，只在命令总线上按名字找 `docs-site.create`、`docfirst.attach`，每次现查、不缓存（插件是热加载的，装一个新插件之后答案当场就变）。找不到就跳过那一步，不让建仓失败。
 
 {/* has file="../plugins/devkit/src/index.ts" text="const CREATE_SITE_COMMAND = 'docs-site.create'" */}
 
@@ -139,4 +137,5 @@ devkit 没有任何特权：装进 home 才有它的命令，加载不成功就�
 - **不构建内核**：启动 home 用宿主自己那个应用；改内核源码的验证走内核仓自己的流程
 - **不做设置项**：现在一项都不需要；将来要加用 `gwbSettings.define`，不读 `cordis.yml` 条目上的 `config`——写在 yml 里的那份界面看不见、agent 也不知道
 - **不自动清理**：`devkit.home.new` 的回执带着现有 home 清单，清理由人或 agent 在开新 home 时决定；工具只提供入口，不替人做判断
-- **没人用的命令就删**：本机源的启停、单独的停止 home、只看不验的 `dev-check` 都已删掉（[砍掉没人用的那一半](/trajectory/2026-09-11-cut-the-half-nobody-uses)），退役名单在[术语表](/docs/glossary#退役的命令与参数)
+- **不巡检别的仓**：不扫容器根下各仓的依赖与布局。依赖写法、peer 与产物在各仓发版时由 `devkit.release` 查，布局照模板、改到哪个仓迁哪个
+- **没人用的命令就删**：本机源的启停、单独的停止 home、只看不验的 `dev-check`（[砍掉没人用的那一半](/trajectory/2026-09-11-cut-the-half-nobody-uses)），依赖对账、结构体检、`devkit.capabilities`（[两个插件删掉用不上的机制](/trajectory/2026-09-25-drop-unused-machinery)）都已删掉，退役名单在[术语表](/docs/glossary#退役的命令与参数)

@@ -1,6 +1,6 @@
 import path from 'node:path'
 import { homePnpmPlan, type RunPlan } from './dev.js'
-import { KERNEL_PACKAGE } from './kernel-compat.js'
+import { KERNEL_PACKAGE } from '@godcreator/gwb-plugin-manager'
 import { isRecord } from './vocab.js'
 import { bareImage, type ProcessProbe } from './probes.js'
 

@@ -16,13 +16,15 @@ description: 插件管理不自带 pnpm，只认用户装在两个固定位置�
 
 {/* ref file="../plugins/plugin-manager/src/pnpm-location.ts" lines="22-28" */}
 
-找到之后运行一次 `--version` 核对版本：主版本号要是 12，并且不低于 12.4.2。两个位置都没有、`--version` 运行失败、版本不对，一律报错，报错里写明检查的是哪个路径、该装哪个版本；**不去试另一个位置，也不找 PATH、不读设置、不读 `PNPM_HOME`**。devkit 用的是同一套规则，两个插件各存一份 `src/pnpm-location.ts`、逐字相同，由 devkit 的 `tests/pnpm-location-parity.test.ts` 对照。
+找到之后运行一次 `--version` 核对版本：主版本号要是 12，并且不低于 12.4.2。两个位置都没有、`--version` 运行失败、版本不对，一律报错，报错里写明检查的是哪个路径、该装哪个版本；**不去试另一个位置，也不找 PATH、不读设置、不读 `PNPM_HOME`**。devkit 用的是同一套规则：它从插件管理的包主入口 import `locatePnpm`，不另存一份（见[接口](/docs/plugin-manager#接口)）。
 
 {/* ref file="../plugins/plugin-manager/src/pnpm-location.ts" lines="7-8" */}
 
+{/* has file="../plugins/devkit/src/index.ts" text="import { locatePnpm } from '@godcreator/gwb-plugin-manager'" */}
+
 **为什么**：
 
-- 装机、插件管理、devkit 用的是同一个 pnpm：第一次装 home 时插件管理还不在，只能用机器上的 pnpm，自带一份就会有两个版本改同一个 home
+- 安装工作台、插件管理、devkit 用的是同一个 pnpm：第一次装 home 时插件管理还不在，只能用机器上的 pnpm，自带一份就会有两个版本改同一个 home
 - 只认固定位置、不看 PATH：PATH 上排在前面的是哪一份，每台机器都不一样；两个位置都是原生可执行文件，可以直接启动，不用开 shell，也就没有参数引号转义的问题
 - 核对版本：pnpm 大版本之间 `node_modules` 的布局与输出格式会变，版本不对就当场报错，不带着错的版本改 home
 
@@ -36,7 +38,7 @@ description: 插件管理不自带 pnpm，只认用户装在两个固定位置�
 
 **命令行参数与工作目录**：改 home 只有 `add <spec…>` 与 `remove <包名>` 两种，都经 `applyToHome` 排进同一个串行队列；只读的是 `outdated --json`。工作目录一律是 home。
 
-{/* ref file="../plugins/plugin-manager/src/index.ts" lines="847-850" */}
+{/* ref file="../plugins/plugin-manager/src/index.ts" lines="827-831" */}
 
 **环境**：原样传下去，用户的 `~/.npmrc`、pnpm 配置（`@godcreator` 的包源、包龄豁免）照常读到；改两处。去掉 `ELECTRON_RUN_AS_NODE`：它只对 electron 有意义，留着会传给 pnpm 启动的依赖构建脚本。设 `pnpm_config_auto_install_peers=false`：插件的 peer 写了别的插件，home 里没装那个插件时 pnpm 默认把它自动装进 `node_modules/.pnpm`，不写进 home 的 `package.json`、没有条目，插件管理也不认它；命令行参数 `--config.auto-install-peers=false` 会被 pnpm 忽略，只有环境变量关得掉（见[peer 满没满足](/docs/plugin-manager/peers#缺的-peer-不会被自动装上)）。直接启动这个文件，不开 shell。
 

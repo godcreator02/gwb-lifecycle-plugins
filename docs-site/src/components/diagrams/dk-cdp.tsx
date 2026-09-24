@@ -2,7 +2,7 @@
 
 /**
  * 一次 CDP 驱动的运行：上面两个入口（命令总线上的 devkit.cdp、直接用 node 运行）进的是同一个 bin/cdp.mjs；
- * 往下是按 home 名查端口、连上唯一的页面、核对页面报的 home 名、执行动作（以 cmd 为例）、把 JSON 打到标准输出。
+ * 往下是按 home 名查端口、连上唯一的页面、核对页面报的 home 名、执行动作（以 cmd 为例）、把 JSON 写到标准输出。
  */
 
 import { Arrow, Box, Chain, type ChainItem, NARROW } from './parts'
@@ -13,7 +13,7 @@ const ITEMS: ChainItem[] = [
   { lines: ['2 连上唯一的页面', 'GET 127.0.0.1:<端口>/json/list'] },
   { lines: ['3 核对页面属于哪个 home', '页面报的名字 = 给的名字'] },
   { lines: ['4 执行动作（以 cmd 为例）', 'window.gwb.command(名, 参数)'] },
-  { lines: ['5 JSON 打到标准输出', '失败时退出码非零'] },
+  { lines: ['5 JSON 写到标准输出', '失败时退出码非零'] },
 ]
 
 const STEPS: { title: string; detail: string; active: number; entries?: boolean }[] = [
@@ -30,13 +30,13 @@ const STEPS: { title: string; detail: string; active: number; entries?: boolean 
     detail: '问调试端口的 /json/list，去掉 devtools:// 页；一个都没有、或不止一个（用 --target 选）时，把候选页面的标题与地址列进报错。选定后用 WebSocket 连上它。',
     active: 1,
   },
-  { title: '第 3 步：核对页面属于哪个 home', detail: '外壳插入的样式表与 importmap 都是带 home 路径的 file:// 地址，从里面读出 home 名，跟给的名字对不上就停：记录可能过时了，端口上已经是别的进程。', active: 2 },
+  { title: '第 3 步：核对页面属于哪个 home', detail: '外壳插入的样式表是带 home 路径的 file:// 地址，从里面读出 home 名，跟给的名字对不上就停：记录可能过时了，端口上已经是别的进程。', active: 2 },
   {
     title: '第 4 步：执行动作',
     detail: 'cmd 在页面里执行 window.gwb.command(命令名, 参数)，页面上没有它就说这不是工作台的外壳页。别的动作：click、type、shot 等发浏览器层的真实输入，eval 执行一个文件里的函数表达式。',
     active: 3,
   },
-  { title: '第 5 步：输出', detail: '结果是一段 JSON，打到标准输出；失败时照样打全，只把退出码设成非零。经 devkit.cdp 调用时，回执带 stdout、stderr 与退出码。', active: 4 },
+  { title: '第 5 步：输出', detail: '结果是一段 JSON，写到标准输出；失败时照样写全，只把退出码设成非零。经 devkit.cdp 调用时，回执带 stdout、stderr 与退出码。', active: 4 },
 ]
 
 const TOP = 92

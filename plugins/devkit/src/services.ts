@@ -1,158 +1,129 @@
-/**
- * 依赖 cordis 4.0.0-rc.9 的这几个字段（不是文档化接口）：`Fiber.store: Dict<Impl>`，`Impl = { name, fiber, value, check }`；
- * `fiber.parent`、`fiber.entry`（loader 补的，`entry.id` 是条目名、`entry.options.name` 是包名）、`ctx.registry.entries()`、
- * `runtime.fibers`、`runtime.name`。形状对不上就当没有、回空表，不抛
- */
+// 纯函数：输入是各包 .d.ts 的原文，读盘在 node-services-deps.ts
 
-/** 一条：某个服务是谁提供的 */
-export interface ServiceOwner {
-  /** 服务名，如 `gwbShell` */
+/** 一个包装在 home 里的样子：清单里的名字、版本，与它全部 .d.ts 的原文 */
+export interface PackageTypeDeclarations {
+  pkg: string
+  version: string
+  declarationTexts: string[]
+}
+
+/** 类型声明里给 cordis `Context` 补的一项：`gwbSkills: GwbSkillsApi;` */
+export interface ContextField {
   service: string
-  /** cordis.yml 里的条目名（`home:shell` 这种）；内核自己提供的、内层注入的都没有 */
-  entryId?: string
-  /** 提供者的包名（条目上的 `name`）；条目不在时退回插件自报的名字 */
-  pkg?: string
-  /** 那个包在自己 `package.json` 的 `gwb.provides` 里写的 summary 与 usage；没写的服务照样列出来，只是不带用法 */
-  provides?: ServiceProvides
+  type: string
+  optional: boolean
 }
 
-/** `gwb.provides` 里一条声明的形状 */
-export interface ServiceProvides {
-  summary: string
-  usage: string
+export interface ServiceEntry {
+  service: string
+  /** 声明了这个服务、类型也定义在自己声明里的包，`<包名>@<版本>`；正常只有一个 */
+  providers: string[]
+  type: string
+  /** 提供方声明里写的是 `name?:`（缺了也能加载） */
+  optional: boolean
+  /** 第一个提供方里这个类型的定义原文，连同紧挨着的文档注释；没有提供方时没有这个字段 */
+  definition?: string
+  /** 也声明了这个服务、类型却是从别的包 import 来的包（用它的一方） */
+  declaredAlsoBy: string[]
 }
 
-function asRecord(value: unknown): Record<string, unknown> | undefined {
-  return typeof value === 'object' && value !== null && !Array.isArray(value)
-    ? (value as Record<string, unknown>)
-    : undefined
+const CORDIS_MODULE_BLOCK = /declare module ['"]cordis['"]\s*\{/g
+const CONTEXT_INTERFACE = /\binterface Context\b[^{]*\{/g
+const CONTEXT_FIELD = /^\s*([A-Za-z_$][\w$]*)(\?)?\s*:\s*([^;]+);/gm
+
+/** `text[openBrace]` 是 `{`，回与它配对的 `}` 的下标；配不上回 -1 */
+function matchingBrace(text: string, openBrace: number): number {
+  let depth = 0
+  for (let index = openBrace; index < text.length; index++) {
+    if (text[index] === '{') depth++
+    else if (text[index] === '}' && --depth === 0) return index
+  }
+  return -1
 }
 
-function asString(value: unknown): string | undefined {
-  return typeof value === 'string' && value !== '' ? value : undefined
+/** 花括号块的正文：`pattern` 匹配到以 `{` 结尾的开头，回每一处 `{…}` 之间的内容 */
+function blockBodies(text: string, pattern: RegExp): string[] {
+  const bodies: string[] = []
+  for (const match of text.matchAll(pattern)) {
+    const openBrace = match.index + match[0].length - 1
+    const closeBrace = matchingBrace(text, openBrace)
+    if (closeBrace !== -1) bodies.push(text.slice(openBrace + 1, closeBrace))
+  }
+  return bodies
+}
+
+/** 一份 .d.ts 里 `declare module 'cordis' { interface Context { … } }` 补的全部项 */
+export function contextFieldsOf(declarationText: string): ContextField[] {
+  const fields: ContextField[] = []
+  for (const moduleBody of blockBodies(declarationText, CORDIS_MODULE_BLOCK)) {
+    for (const contextBody of blockBodies(moduleBody, CONTEXT_INTERFACE)) {
+      for (const match of contextBody.matchAll(CONTEXT_FIELD)) {
+        fields.push({ service: match[1]!, type: match[3]!.trim(), optional: match[2] === '?' })
+      }
+    }
+  }
+  return fields
+}
+
+function escapeRegExp(text: string): string {
+  return text.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')
 }
 
 /**
- * 只收这个 fiber 自己提供的：注入作用域的 fiber 里也放着解析来的 impl（它消费的服务），
- * 判据与 cordis 相同，`impl.fiber === fiber` 才算。少了这一道，消费方会被报成提供方
+ * 一份 .d.ts 里 `type` 这个名字的定义原文（interface / class / type 别名），连同紧挨在前面的文档注释；没定义回 undefined。
+ * `import type { X } from '…'` 只是引用，不算定义
  */
-function recordOwnersProvidedBy(fiber: Record<string, unknown>, ownersByKey: Map<string, ServiceOwner>): void {
-  const store = asRecord(fiber['store'])
-  if (store === undefined) return
-  const entry = asRecord(fiber['entry'])
-  const options = asRecord(entry?.['options'])
-  const runtime = asRecord(fiber['runtime'])
-  const entryId = asString(entry?.['id'])
-  const pkg = asString(options?.['name']) ?? asString(runtime?.['name'])
-  for (const storedImpl of Object.values(store)) {
-    const impl = asRecord(storedImpl)
-    if (impl === undefined) continue
-    if (asRecord(impl['fiber']) !== fiber) continue
-    const service = asString(impl['name'])
-    if (service === undefined) continue
-    const owner: ServiceOwner = {
-      service,
-      ...(entryId === undefined ? {} : { entryId }),
-      ...(pkg === undefined ? {} : { pkg }),
-    }
-    const dedupeKey = [service, entryId ?? '', pkg ?? ''].join('\u0000')
-    if (!ownersByKey.has(dedupeKey)) ownersByKey.set(dedupeKey, owner)
-  }
-}
-
-/** 沿 parent 往上走的层数上限：正常 home 就几层，防形状认错时绕圈 */
-const MAX_DEPTH = 32
-
-/** 这一次查询看见了多少东西：回空表时靠它说清「是没看见，还是看见了但表是空的」 */
-export interface ServiceSight {
-  /** 从自己的 fiber 沿 parent 往上走了几层 */
-  chainDepth: number
-  /** `registry.entries()` 里的插件数 */
-  runtimes: number
-  /** 这些插件的 fiber 数 */
-  fibers: number
-  /** 看见的服务表张数（`Fiber.store` 存在的 fiber 数量，含链上的） */
-  stores: number
-}
-
-/** 根上提供的服务（`gwbKernel` 这类没有条目）只在这条链上看得到 */
-function walkParentChain(root: Record<string, unknown>, saw: ServiceSight, ownersByKey: Map<string, ServiceOwner>): void {
-  let fiber = asRecord(root['fiber'])
-  for (let depth = 0; fiber !== undefined && depth < MAX_DEPTH; depth++) {
-    saw.chainDepth = depth + 1
-    if (asRecord(fiber['store']) !== undefined) saw.stores += 1
-    recordOwnersProvidedBy(fiber, ownersByKey)
-    fiber = asRecord(asRecord(fiber['parent'])?.['fiber'])
-  }
-}
-
-function walkRegistryFibers(root: Record<string, unknown>, saw: ServiceSight, ownersByKey: Map<string, ServiceOwner>): void {
-  const registry = asRecord(root['registry'])
-  const entries = registry?.['entries']
-  if (typeof entries !== 'function') return
-  for (const row of entries.call(registry) as Iterable<unknown>) {
-    const runtime = Array.isArray(row) ? asRecord(row[1]) : asRecord(row)
-    if (runtime === undefined) continue
-    saw.runtimes += 1
-    const fibers = runtime['fibers']
-    if (fibers === undefined || fibers === null) continue
-    for (const storedFiber of fibers as Iterable<unknown>) {
-      const fiber = asRecord(storedFiber)
-      if (fiber === undefined) continue
-      saw.fibers += 1
-      if (asRecord(fiber['store']) !== undefined) saw.stores += 1
-      recordOwnersProvidedBy(fiber, ownersByKey)
-    }
-  }
-}
-
-export function serviceSight(ctx: unknown): { owners: ServiceOwner[]; saw: ServiceSight } {
-  const root = asRecord(ctx)
-  const saw: ServiceSight = { chainDepth: 0, runtimes: 0, fibers: 0, stores: 0 }
-  if (root === undefined) return { owners: [], saw }
-  const ownersByKey = new Map<string, ServiceOwner>()
-  walkParentChain(root, saw, ownersByKey)
-  walkRegistryFibers(root, saw, ownersByKey)
-  const owners = [...ownersByKey.values()].sort(
-    (a, b) => (a.pkg ?? '').localeCompare(b.pkg ?? '') || a.service.localeCompare(b.service),
+export function definitionOf(declarationText: string, type: string): string | undefined {
+  const head = new RegExp(
+    `(?:/\\*\\*(?:(?!\\*/)[\\s\\S])*\\*/\\s*)?(?:export\\s+)?(?:declare\\s+)?(?:abstract\\s+)?(interface|class|type)\\s+${escapeRegExp(type)}\\b`,
+    'g',
   )
-  return { owners, saw }
-}
-
-/** 只要表。回空表时另用 `serviceSight` 拿「看见了多少」 */
-export function serviceOwners(ctx: unknown): ServiceOwner[] {
-  return serviceSight(ctx).owners
-}
-
-/** summary 与 usage 都是非空字符串才算声明了 */
-function declaredProvidesOf(manifest: unknown, service: string): ServiceProvides | undefined {
-  const declaration = asRecord(asRecord(asRecord(asRecord(manifest)?.['gwb'])?.['provides'])?.[service])
-  const summary = typeof declaration?.['summary'] === 'string' ? declaration['summary'] : undefined
-  const usage = typeof declaration?.['usage'] === 'string' ? declaration['usage'] : undefined
-  return summary !== undefined && summary !== '' && usage !== undefined && usage !== '' ? { summary, usage } : undefined
-}
-
-/**
- * 把各包 `package.json` 里的 `gwb.provides` 贴到服务表上。`readManifest` 收包名回解析好的清单（读不到回 undefined），
- * 注入进来让测试不用读磁盘。读不到、形状不对都当没声明，不让整条命令失败
- */
-export async function joinProvides(
-  owners: readonly ServiceOwner[],
-  readManifest: (pkg: string) => Promise<unknown>,
-): Promise<ServiceOwner[]> {
-  const manifestsByPackage = new Map<string, unknown>()
-  const cachedManifestOf = async (pkg: string): Promise<unknown> => {
-    if (!manifestsByPackage.has(pkg)) manifestsByPackage.set(pkg, await readManifest(pkg))
-    return manifestsByPackage.get(pkg)
-  }
-  const joined: ServiceOwner[] = []
-  for (const owner of owners) {
-    if (owner.pkg === undefined) {
-      joined.push(owner)
+  for (const match of declarationText.matchAll(head)) {
+    const start = match.index
+    if (match[1] === 'type') {
+      const end = declarationText.indexOf(';', start)
+      if (end !== -1) return declarationText.slice(start, end + 1).trim()
       continue
     }
-    const provides = declaredProvidesOf(await cachedManifestOf(owner.pkg), owner.service)
-    joined.push(provides === undefined ? owner : { ...owner, provides })
+    const openBrace = declarationText.indexOf('{', start + match[0].length)
+    const closeBrace = openBrace === -1 ? -1 : matchingBrace(declarationText, openBrace)
+    if (closeBrace !== -1) return declarationText.slice(start, closeBrace + 1).trim()
   }
-  return joined
+  return undefined
+}
+
+function definitionIn(declarations: PackageTypeDeclarations, type: string): string | undefined {
+  for (const text of declarations.declarationTexts) {
+    const found = definitionOf(text, type)
+    if (found !== undefined) return found
+  }
+  return undefined
+}
+
+/**
+ * 各包的 .d.ts → 服务总览，按服务名排序。一个包给 `Context` 补了某个服务、这个服务的类型又定义在它自己的声明里，
+ * 它就是提供方；类型从别处 import 来的只是在用
+ */
+export function servicesOf(packages: PackageTypeDeclarations[]): ServiceEntry[] {
+  const entries = new Map<string, ServiceEntry>()
+  for (const declarations of packages) {
+    const label = `${declarations.pkg}@${declarations.version}`
+    for (const field of declarations.declarationTexts.flatMap(contextFieldsOf)) {
+      const entry = entries.get(field.service) ?? { service: field.service, providers: [], type: field.type, optional: field.optional, declaredAlsoBy: [] }
+      entries.set(field.service, entry)
+      if (entry.providers.includes(label) || entry.declaredAlsoBy.includes(label)) continue
+      const definition = definitionIn(declarations, field.type)
+      if (definition === undefined) {
+        entry.declaredAlsoBy.push(label)
+        continue
+      }
+      if (entry.providers.length === 0) {
+        entry.type = field.type
+        entry.optional = field.optional
+        entry.definition = definition
+      }
+      entry.providers.push(label)
+    }
+  }
+  return [...entries.values()].sort((a, b) => (a.service < b.service ? -1 : 1))
 }

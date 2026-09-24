@@ -2,7 +2,7 @@
 
 开发套件，**一个普通的 gwb 插件**，源码在 `plugins/devkit/`。仓是 pnpm workspace（插件放在 `plugins/`，与基础插件仓的布局相同）：`plugins/devkit/` 是开发套件，
 `plugins/plugin-manager/` 是插件管理 `@godcreator/gwb-plugin-manager`（见下面「本仓还有插件管理」），`docs-site/` 是文档站。各包发到团队源（gitea 个人源，**本仓发版要给 packages 参数**），装进 home。
-开发套件的命令分八组：建仓与加插件、结构体检、依赖对账、测试 home、改一版看一版、发正式版、能用什么、CDP 驱动（包内命令行脚本 `bin/cdp.mjs`，经 `gwbNodeCli` 登记成 `devkit.cdp`）。
+开发套件的命令分六组：建仓与加插件、测试 home、改一版看一版、发正式版、服务总览、CDP 驱动（包内命令行脚本 `bin/cdp.mjs`，经 `gwbNodeCli` 登记成 `devkit.cdp`）。
 **开发套件没有界面**：它的使用者是 agent，读的是回执。设计与机制在文档站（见下面「文档地图」），这份只写**不知道就会做错事**的硬约束。
 
 ## 文档地图
@@ -15,7 +15,7 @@
 | 关键设计   | `design.mdx`      | 为什么这么切分：普通插件、写插件只有发布安装验证一条路、开发版只进隔离 home、只按名字定位 home、纯逻辑与真机器分开、两个包为什么同仓 |
 | 开发     | `develop.mdx`     | 怎么装与确认、提交前的检查、在隔离 home 里验证、发版、文档站的检查与生成                                 |
 | 接缝     | `seams/`          | 每条接缝交换什么、两边各保证什么                                                        |
-| 开发套件   | `devkit/`         | 首页讲功能、13 条命令、说明书、模板、依赖、不做的事；分页讲建仓、结构体检、测试 home、改一版看一版、CDP 驱动            |
+| 开发套件   | `devkit/`         | 首页讲功能、10 条命令、说明书、模板、依赖、不做的事；分页讲建仓、测试 home、改一版看一版、CDP 驱动                 |
 | 插件管理   | `plugin-manager/` | 首页讲功能、接口、依赖、不做的事；分页讲各个机制                                                |
 | 写插件的规矩 | `rules/`          | 规矩总表与每条规矩的做法、由哪道检查把关                                                    |
 | 术语表    | `glossary.mdx`    | 反复出现的词、退役的词与命令                                                          |
@@ -30,8 +30,8 @@
 * `devkit.dev` 装完开发版调 `plugin-manager.remount` 重新加载，再用 `plugin-manager.list` 取证；`devkit.home.new`
   在新 home 启动前把内核包、cordis 与插件管理等基础插件装进去
 * 插件 peer 里内核包 `@godcreator/gwb-kernel-desktop` 的范围两边都用：插件管理在 `list` 里拿它和 home 里装的内核比对，
-  `devkit.release` 发版前拒绝没写对的插件包。比对规则两边各存一份（两个包的 `src/kernel-compat.ts`，devkit 的
-  `tests/kernel-compat-parity.test.ts` 对照两份），**改规则时两份在同一个提交里一起改**
+  `devkit.release` 发版前拒绝没写对的插件包。**比对规则只有一份，在插件管理**：devkit 的 peer 里写着插件管理（`workspace:^`），
+  从它的主入口 import `locatePnpm`、`KERNEL_PACKAGE`、peer 范围的判定与 `tailLines`，不另存副本；删改这几个导出，devkit 跟着改
 * 插件 peer 里写的别的插件两边也都用：插件管理在 `list` 里报 `unmetPeers`、`update-all` 把 peer 写了被升级包的插件一起重新加载，
   `devkit.release` 发版前拒 peer 里不是插件的包、和源上 latest 不在同一条线的插件
 * **在 home 里启动 pnpm 一律带环境变量 `pnpm_config_auto_install_peers=false`**（devkit 的 `homePnpmPlan`、插件管理的 `spawnPlan`），在插件仓里不带——仓里开发靠自动补装把 peer 里的内核包与插件装进 `node_modules`，带上它 pnpm 会重装并拿掉这些 peer。
@@ -42,7 +42,7 @@
 说明书 `gwb-plugin-manager` 的正本是 `docs-site/content/outputs/skills/gwb-plugin-manager.mdx`。
 
 **改插件管理的命令名、参数或回执形状，是破坏性变更**：插件管理窗格、`devkit.dev`、agent 的说明书都按命令名与回执形状写死了调用，
-照说明书「gwb-release」升 x、把服务值里的 `contract` 加一，发之前先通知下游。
+照说明书「gwb-release」升 x，发之前先通知下游。
 
 ## 文档站是正本，六区
 
@@ -64,8 +64,8 @@ pnpm build          # 只构建 plugins/*，tsc 直接输出 dist/，没有打�
 
 **`pnpm check` 不构建。** 它检查的是源码，全绿只说明源码没问题，跟「装出来能不能运行」是两件事。
 
-开发套件的 `tests/provides-declaration.test.ts` 拿两个插件自己的 `package.json` 与源码运行一遍 `gwb.provides` 的检查：
-加减了服务，同一个提交里改 `gwb.provides`（发版前检查与 `devkit.audit-structure` 查的是同一条）。
+**开发套件的类型检查与测试用的是插件管理的 `dist/`**（插件管理的主入口指向 `dist/`）：刚拉下来的仓、或改了插件管理导出的函数，
+先 `pnpm build` 再 `pnpm check`。
 
 文档站的检查**不在 `pnpm check` 里**——它要运行文档站的解析过程，太慢。单独运行：
 `docs-site` 里 `pnpm doc`（`docfirst check`）与 `pnpm doc:confirm <页的路径…>`。
@@ -75,7 +75,7 @@ pnpm build          # 只构建 plugins/*，tsc 直接输出 dist/，没有打�
 升哪一位、依赖怎么写、什么时候跟上游，照说明书「gwb-release」——全生态同一套，本仓不另立。
 
 1. **先升 `package.json` 的版本号。** 同一个版本号永不重发；要发新的一版，先升版本号、提交，再调用
-2. 发版用 `devkit.release {"dir":"<本仓根>","packages":["plugins/devkit"]}`（发插件管理给 `["plugins/plugin-manager"]`，两个一起发按依赖顺序排）——仓根 git 工作区不干净就拒、构建之后的发版前检查（规矩见「gwb-release」）没过就拒、
+2. 发版用 `devkit.release {"dir":"<本仓根>","packages":["plugins/devkit"]}`（发插件管理给 `["plugins/plugin-manager"]`，两个一起发插件管理排前面：`["plugins/plugin-manager","plugins/devkit"]`）——仓根 git 工作区不干净就拒、构建之后的发版前检查（规矩见「gwb-release」）没过就拒、
    在临时目录里组装发布内容并发到 latest、不改仓里任何文件。**手工发版不做发版前检查**，那是 `devkit.release` 的事。**它不运行 `prepublishOnly`**（临时目录里组装的发布内容没有 `scripts`，产物靠
    仓根构建加 `files` 白名单检查）；真要运行仓里钩子的场景才手工发：在包目录里
    `pnpm publish --no-git-checks`（scope 对应的源写在用户级 `~/.npmrc`，**别手写 `--registry`**）——那时
@@ -110,9 +110,9 @@ pnpm build          # 只构建 plugins/*，tsc 直接输出 dist/，没有打�
 `template/site/plugin.mdx.tpl` 生成文档站现状区里的插件页（**站装好六区之后才写**：`docfirst.attach`
 只在没加过页的骨架上装得了）。插件包自带全部配置：tsconfig /
 vitest / oxlint 配置全在包内，搬到哪个仓都不用改（oxlint 按工作目录找配置，所以 `.oxlintrc.json`
-放在插件包里、不放仓根）。还在用的旧布局仓（仓根就是插件）改到哪个就顺手迁哪个，不专门迁——**迁之前运行 `devkit.audit-structure {"dir":"<仓根>"}`**：
-findings 里那条 info 按实际文件名列好了 git mv 清单；改已有的仓前后各运行一次，error 级必须清零再动。
-这条检查规则与模板由往返测试保证一致（模板生成的仓零 findings），改模板布局必须同时通过那条测试。
+放在插件包里、不放仓根）。还在用的旧布局仓（仓根就是插件）改到哪个就顺手迁哪个，不专门迁：
+插件包的文件 git mv 进 `plugins/<短名>/`，仓根换成 `private: true` 的 `package.json`，照模板生成的仓对齐。
+模板带的产物测试（`template/pkg/tests/artifact.test.ts.tpl`）与发版前检查用同一套包名 import 名单，改其中一边同一个提交里改另一边。
 
 `template/` 下的文件一律带 `.tpl` 后缀，写到磁盘时去掉（`npm pack` 不打包 `.gitignore` 是固定行为，
 一条规则管所有文件）；**每个文件都得声明属于哪一部分**——`landRel` 对不属于任何部分的文件直接抛错，
@@ -123,7 +123,7 @@ findings 里那条 info 按实际文件名列好了 git mv 清单；改已有的
 内核与这两个插件的类型从 peer 里的包 `import type`，不另写 dev（`tests/scaffold.test.ts` 查生成的源码与清单）。
 模板插件在 node 侧只 `import type`，peer 里没有 `cordis`，内核包的范围是 `^<运行建仓命令的内核版本号>`（规矩见文档站「依赖怎么写」「用到的插件写 peer」「兼容哪个内核」）。
 和 latest 不在同一条线、范围不含 latest，新仓第一次发版就被发版前检查拦下；写了源上没有的版本，新仓 `pnpm install` 直接失败——
-改模板里的版本号之前先用 `pnpm view <包> dist-tags.latest` 查。模板的起始版本号是 0.1.0（0.0.x 过不了发版前检查）。
+改模板里的版本号之前先用 `pnpm view <包> dist-tags.latest` 查。模板的起始版本号是 0.1.0。
 
 **占位符就这七个**：`{{name}}`、`{{title}}`、`{{pkg}}`、`{{pkgName}}`、`{{cssPrefix}}`、`{{kernelVersion}}`（运行建仓命令的内核版本号的 x.y.z 三段）、`{{docsBlock}}`。
 **认不出的占位符直接抛错**——给模板加了新占位符，`src/scaffold.ts` 的 `placeholders()`
@@ -136,8 +136,7 @@ findings 里那条 info 按实际文件名列好了 git mv 清单；改已有的
 
 ## 没有设置项
 
-启动 home 用的是宿主自己那个 exe，不认内核仓；`devkit.audit-deps` 的容器根缺省时当场调用命令总线上的
-`unit-folder.list`。所以开发套件一项设置都不 `define`，也不注入 `gwbSettings`。
+启动 home 用的是宿主自己那个 exe，不认内核仓，所以开发套件一项设置都不 `define`，也不注入 `gwbSettings`。
 
 **将来真要加，配置一律用 `gwbSettings.define`，不读 `cordis.yml` 的 `config`。** 新加一项可改的东西就
 `define` 一项（类型 `string` / `number` / `boolean` / `secret`），别在条目上加

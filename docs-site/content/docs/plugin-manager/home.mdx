@@ -22,9 +22,9 @@ home 里的插件分两层：**包**是 pnpm 装进 `package.json` 与 `node_mod
 - 每条条目带 `active`：看的是 fiber 的状态是不是 `ACTIVE`，不是 fiber 在不在——依赖没满足的插件也有 fiber，只是永远到不了 `ACTIVE`
 </Diagram>
 
-{/* ref file="../plugins/plugin-manager/src/inventory.ts" lines="100-127" */}
+{/* ref file="../plugins/plugin-manager/src/inventory.ts" lines="84-101" */}
 
-{/* ref file="../plugins/plugin-manager/src/index.ts" lines="458-468" */}
+{/* ref file="../plugins/plugin-manager/src/index.ts" lines="436-446" */}
 
 home 的 `package.json` 读不到或不是 JSON 时当空表：它由 pnpm 写入，安装中途可能只写了一半，`list` 因此整体失败比少报几行更难排查；条目那一层照样报得出来。
 
@@ -54,7 +54,7 @@ home 的 `package.json` 读不到或不是 JSON 时当空表：它由 pnpm 写�
 
 **怎么做**：安装、卸载、热升级、升内核都经 `applyToHome` 运行 pnpm，它把每一次运行排进同一个队列，前一个运行完下一个才开始；只读的 `pnpm outdated` 也排进去，省得另外处理两个 pnpm 同时运行。前一个失败不影响后面排队的。
 
-{/* ref file="../plugins/plugin-manager/src/index.ts" lines="846-857" */}
+{/* ref file="../plugins/plugin-manager/src/index.ts" lines="827-838" */}
 
 串行队列没有单元测试；它是否起作用，只能在隔离 home 里连着发几次安装、升级来看。
 
@@ -62,7 +62,7 @@ home 的 `package.json` 读不到或不是 JSON 时当空表：它由 pnpm 写�
 
 **怎么做**：条目的增删改只用条目树的 `create` / `update` / `remove`——它们把写回 `cordis.yml` 与当场加载、卸载一起做。启用传 `{ disabled: null }`（loader 把 null 当作删掉这个字段），停用传 `{ disabled: true }`；`remove-entry` 只删条目，包留在 home 里。
 
-{/* ref file="../plugins/plugin-manager/src/index.ts" lines="766-784" */}
+{/* ref file="../plugins/plugin-manager/src/index.ts" lines="769-786" */}
 
 条目树在构造时从插件管理自己那条条目的上一层取（`ctx.fiber.entry.parent.tree`），不用知道承载 `cordis.yml` 的那条条目叫什么。按 loader 自己的类型 `EntryTree` 取，再赋给收窄后的 `EntryTreeLike`：loader 改了这几个方法的签名，类型检查就在这里失败。
 

@@ -13,8 +13,8 @@ description: 按「运行时这份代码由谁提供」决定写 peer、dev、de
 
 构建产物里剩下的包名 import（直接写包名、不带相对路径的 import，比如 `from 'cordis'`）只能是：
 
-- node 侧代码：node 内置模块、`electron`、`cordis`
-- 浏览器侧代码：页面 importmap 里的名字，也就是内核包清单 `gwb.shared` 声明的 react 四个包名（见[页面代码与 importmap](/docs/rules/importmap)）
+- node 侧代码：node 内置模块、`electron` 与 peer 里写了的包（也就是 `cordis`、内核包、用到的插件，都是 home 里装着、按包名解析得到的）
+- 浏览器侧代码：页面 importmap 里的名字，也就是内核包页面入口 `dist/index.html` 里写死的 react 四个包名（见[页面代码与 importmap](/docs/rules/importmap)）
 
 判据只看构建产物，不管用什么构建：tsc 直接输出也好、esbuild 打包也好，构建产物里多出一个别的包名 import 就是违反。
 
@@ -54,7 +54,7 @@ export function apply(ctx: Context) {
 
 ## 类型引用到的包由使用方列全
 
-本插件做类型检查时引用到的别的包的类型，包括上游 d.ts 里又引用到的包，都写进本插件的 dev（写在 peer 里的包不用再写）。类型检查关掉 `skipLibCheck` 运行一次：缺哪个包它会报「找不到模块」并写出包名；不关的话那段类型会不报错地变成 any。`devkit.release` 的发版前检查就这样运行一次，查的是构建产物的类型：node 侧有 `tsconfig.build.json` 就按它查、没有才按 `tsconfig.json` 查，有 `src/client/tsconfig.json` 再查一次浏览器侧；测试与构建脚本引用的包不在其中（见[发正式版的检查](/docs/devkit#发正式版的检查)）。
+本插件做类型检查时引用到的别的包的类型，包括上游 d.ts 里又引用到的包，都写进本插件的 dev（写在 peer 里的包不用再写）。类型检查关掉 `skipLibCheck` 运行一次：缺哪个包它会报「找不到模块」并写出包名；不关的话那段类型会不报错地变成 any。发版前检查不做这一步，改了依赖之后在包目录自己运行一次 `tsc --noEmit -p tsconfig.json --skipLibCheck false`。
 
 **只引类型时写 `import type`。** `import { type X }` 在 `verbatimModuleSyntax` 下会在构建产物里留下一句空 import。
 
@@ -81,9 +81,9 @@ export function apply(ctx: Context) {
 
 {/* ref file="../plugins/devkit/template/pkg/package.json.tpl" lines="29-35" */}
 
-模板带的产物测试按上面两份名单查构建产物：node 侧放行 node 内置模块、`electron`、`cordis`；浏览器侧只放行内核包清单 `gwb.shared` 的键：
+模板带的产物测试按上面两份名单查构建产物：node 侧放行 node 内置模块、`electron` 与自己清单 peer 里写了的包；浏览器侧只放行内核包页面入口 `dist/index.html` 里 importmap 的键：
 
-{/* ref file="../plugins/devkit/template/pkg/tests/artifact.test.ts.tpl" lines="20-35" */}
+{/* ref file="../plugins/devkit/template/pkg/tests/artifact.test.ts.tpl" lines="20-40" */}
 
 ## 为什么
 

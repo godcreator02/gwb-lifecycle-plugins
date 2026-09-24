@@ -1,10 +1,14 @@
 import path from 'node:path'
 import { describe, expect, it } from 'vitest'
 import { DEFAULT_REGISTRY } from '../src/dev.js'
-import { KERNEL_PACKAGE } from '../src/kernel-compat.js'
+import { KERNEL_PACKAGE } from '@godcreator/gwb-plugin-manager'
 import {
+  caretCeiling,
+  caretFloor,
   checkTicket,
+  compareVersions,
   dirtyLines,
+  inCaret,
   kernelPeerProblems,
   isPluginManifest,
   peerProblems,
@@ -12,7 +16,6 @@ import {
   sameReleaseLine,
   ticketManifestOf,
   ticketRefusal,
-  typecheckArgs,
   type ReleaseDeps,
 } from '../src/release.js'
 
@@ -62,13 +65,7 @@ const T = (peers: Record<string, string>, devs: Record<string, string>, version 
 describe('checkTicket：版本号与 dev 范围', () => {
   it('dev 钉＝latest、workspace:* 跳过——干净；peer 里的内核包不归它查', () => {
     const got = checkTicket(T({ [KERNEL_PACKAGE]: '^0.1.0' }, { [SHELL]: '0.9.0', [B]: 'workspace:*' }), { [SHELL]: '0.9.0' })
-    expect(got).toEqual({ pkg: `${A}@0.3.0`, problems: [], reminders: [] })
-  })
-
-  it('自己在 0.0.x：拒，先抬到 0.1.0', () => {
-    const got = checkTicket(T({}, {}, '0.0.7'), {})
-    expect(got.problems).toHaveLength(1)
-    expect(got.problems[0]).toContain('0.1.0')
+    expect(got).toEqual({ pkg: `${A}@0.3.0`, problems: [] })
   })
 
   it('dev 范围罩住 latest 即放行（精确钉与 ^ 皆可）；出范围才拒', () => {
@@ -137,6 +134,43 @@ describe('sameReleaseLine 与 isPluginManifest', () => {
   })
 })
 
+describe('compareVersions：逐段数字比', () => {
+  it('0.10.0 大于 0.9.9——字符串比会翻车的那种', () => {
+    expect(compareVersions('0.10.0', '0.9.9')).toBe(1)
+    expect(compareVersions('0.9.9', '0.10.0')).toBe(-1)
+  })
+  it('缺段补零，0.1 等于 0.1.0', () => {
+    expect(compareVersions('0.1', '0.1.0')).toBe(0)
+  })
+  it('同三段时带预发布段的小：0.2.1-dev.x < 0.2.1，但大于 0.2.0', () => {
+    expect(compareVersions('0.2.1-dev.202609151533', '0.2.1')).toBe(-1)
+    expect(compareVersions('0.2.1-dev.202609151533', '0.2.0')).toBe(1)
+  })
+  it('两个预发布号按数字段比', () => {
+    expect(compareVersions('0.7.2-dev.202609171834', '0.7.2-dev.202609171837')).toBe(-1)
+    expect(compareVersions('0.7.2-dev.10', '0.7.2-dev.9')).toBe(1)
+  })
+})
+
+describe('caret 语义', () => {
+  it('上限：第一个非零段进一', () => {
+    expect(caretCeiling('1.2.3')).toBe('2.0.0')
+    expect(caretCeiling('0.8.3')).toBe('0.9.0')
+    expect(caretCeiling('0.0.4')).toBe('0.0.5')
+  })
+  it('范围内外；预发布号一概不算在内', () => {
+    expect(inCaret('0.8.0', '0.8.9')).toBe(true)
+    expect(inCaret('0.8.0', '0.9.0')).toBe(false)
+    expect(inCaret('0.8.0', '0.7.9')).toBe(false)
+    expect(inCaret('0.8.0', '0.8.1-dev.202609181200')).toBe(false)
+  })
+  it('只认 ^x.y.z', () => {
+    expect(caretFloor('^0.9.0')).toBe('0.9.0')
+    expect(caretFloor('>=0.9.0')).toBeUndefined()
+    expect(caretFloor('^0.9')).toBeUndefined()
+  })
+})
+
 describe('peerProblems：插件包的 peer 只写 cordis、内核包与别的插件', () => {
   const manifests: Record<string, unknown> = {
     [SHELL]: { keywords: ['gwb', 'gwb-plugin'] },
@@ -146,49 +180,39 @@ describe('peerProblems：插件包的 peer 只写 cordis、内核包与别的插
   }
   const peerManifestOf = (pkg: string): unknown => manifests[pkg]
 
-  it('peer 只有 cordis 与内核包、且产物 import 了 cordis：干净', () => {
-    expect(peerProblems(T({ cordis: '^4.0.0-rc.9', ...KERNEL_PEER }, {}, '0.3.0', true), true, peerManifestOf)).toEqual({ problems: [], reminders: [] })
+  it('peer 只有 cordis 与内核包：干净', () => {
+    expect(peerProblems(T({ cordis: '^4.0.0-rc.9', ...KERNEL_PEER }, {}, '0.3.0', true), peerManifestOf)).toEqual([])
   })
 
   it('peer 写别的插件（gwb 插件与 cordis 官方插件）：放行', () => {
-    const got = peerProblems(T({ [SHELL]: '^0.13.7', '@cordisjs/plugin-timer': '^1.1.3', ...KERNEL_PEER }, {}, '0.3.0', true), false, peerManifestOf)
-    expect(got).toEqual({ problems: [], reminders: [] })
+    const got = peerProblems(T({ [SHELL]: '^0.13.7', '@cordisjs/plugin-timer': '^1.1.3', ...KERNEL_PEER }, {}, '0.3.0', true), peerManifestOf)
+    expect(got).toEqual([])
   })
 
   it('peer 写了不是插件的包：拒，说库打包进产物写 dev；清单读不到：拒，说先 pnpm install', () => {
-    const got = peerProblems(T({ [API]: '^0.2.7', react: '^19.0.0', ghost: '^1.0.0', ...KERNEL_PEER }, {}, '0.3.0', true), false, peerManifestOf)
-    expect(got.problems).toEqual([
+    const got = peerProblems(T({ [API]: '^0.2.7', react: '^19.0.0', ghost: '^1.0.0', ...KERNEL_PEER }, {}, '0.3.0', true), peerManifestOf)
+    expect(got).toEqual([
       expect.stringContaining(`peer 写了 ${API},它不是插件`),
       expect.stringContaining('peer 写了 react,它不是插件'),
       expect.stringContaining('peer 写了 ghost,包目录的 node_modules 里读不到它的清单'),
     ])
-    expect(got.problems[0]).toContain('devDependencies')
-    expect(got.problems[0]).toContain('dependencies,并在清单里写明原因')
-  })
-
-  it('产物 import 了 cordis 而 peer 里没有：拒', () => {
-    expect(peerProblems(T({}, {}, '0.3.0', true), true, peerManifestOf).problems).toEqual([expect.stringContaining('写 peer cordis')])
-  })
-
-  it('写了 peer cordis 而产物没有 import 它：只提醒', () => {
-    const got = peerProblems(T({ cordis: '^4.0.0-rc.9' }, {}, '0.3.0', true), false, peerManifestOf)
-    expect(got.problems).toEqual([])
-    expect(got.reminders).toEqual([expect.stringContaining('只 import 类型时不写 peer')])
+    expect(got[0]).toContain('devDependencies')
+    expect(got[0]).toContain('dependencies,并在清单里写明原因')
   })
 
   it('不是插件包：不查', () => {
-    expect(peerProblems(T({ react: '^19.0.0' }), true, peerManifestOf)).toEqual({ problems: [], reminders: [] })
+    expect(peerProblems(T({ react: '^19.0.0' }), peerManifestOf)).toEqual([])
   })
 })
 
 describe('ticketRefusal', () => {
   it('拒的回执按包分组、带总数', () => {
     const text = ticketRefusal([
-      { pkg: `${A}@0.0.1`, problems: ['一', '二'], reminders: [] },
-      { pkg: `${B}@0.2.0`, problems: [], reminders: [] },
+      { pkg: `${A}@0.1.0`, problems: ['一', '二'] },
+      { pkg: `${B}@0.2.0`, problems: [] },
     ])
     expect(text).toContain('1 个包 2 条')
-    expect(text).toContain(`${A}@0.0.1:\n  - 一\n  - 二`)
+    expect(text).toContain(`${A}@0.1.0:\n  - 一\n  - 二`)
     expect(text).not.toContain(B)
   })
 })
@@ -256,19 +280,9 @@ interface FakeOptions {
   failRun?: string
   failPublish?: string
   latest?: Record<string, string>
-  /** 按哪份 tsconfig 做的类型检查没过：键是 -p 后面那份 tsconfig，值是输出 */
-  typecheckFails?: Record<string, string>
-  /** 包目录（相对仓根）→ 它 `src/` 下的源码文本 */
-  sources?: Record<string, string>
 }
 
-/** 一条 run 是不是类型检查；是的话回它查的那份 tsconfig */
 const PNPM = 'C:\\Users\\u\\AppData\\Local\\pnpm\\bin\\pnpm.exe'
-
-function typecheckedTsconfig(args: string[]): string | undefined {
-  if (!args.includes('--skipLibCheck')) return undefined
-  return args[args.indexOf('-p') + 1]
-}
 
 function fake(options: FakeOptions = {}): ReleaseDeps & { calls: string[]; ranges: Record<string, string>[] } {
   const calls: string[] = []
@@ -276,8 +290,6 @@ function fake(options: FakeOptions = {}): ReleaseDeps & { calls: string[]; range
   const files: Record<string, string> = {
     [path.resolve(REPO, 'a/package.json')]: manifestOf(A, '0.1.0'),
     [path.resolve(REPO, 'b/package.json')]: manifestOf(B, '0.2.0'),
-    [path.resolve(REPO, 'a/tsconfig.json')]: '{}',
-    [path.resolve(REPO, 'b/tsconfig.json')]: '{}',
     [path.resolve(REPO, 'a/dist/index.js')]: "import path from 'node:path';\n",
     [path.resolve(REPO, 'b/dist/index.js')]: "import path from 'node:path';\n",
     ...options.files,
@@ -288,7 +300,6 @@ function fake(options: FakeOptions = {}): ReleaseDeps & { calls: string[]; range
     pnpm: PNPM,
     readText: (file) => files[path.resolve(file)],
     exists: (target) => path.resolve(target) in files || target.endsWith('dist'),
-    sourceTextOf: (pkgDir) => options.sources?.[path.relative(REPO, pkgDir).replaceAll('\\', '/')] ?? '',
     async gitStatus(repoDir) {
       calls.push(`git status @${repoDir}`)
       if (options.gitError === true) return { ok: false, error: 'fatal: not a git repository' }
@@ -296,9 +307,6 @@ function fake(options: FakeOptions = {}): ReleaseDeps & { calls: string[]; range
     },
     async run(plan, _timeoutMs) {
       calls.push(`run ${plan.command === PNPM ? 'pnpm' : plan.command} ${plan.args.join(' ')} @${plan.cwd}`)
-      const tsconfig = typecheckedTsconfig(plan.args)
-      const typecheckOutput = tsconfig === undefined ? undefined : options.typecheckFails?.[tsconfig]
-      if (typecheckOutput !== undefined) return { ok: false, tail: typecheckOutput }
       const ok = options.failRun === undefined || !plan.args.join(' ').includes(options.failRun)
       return { ok, tail: ok ? '' : '假的失败' }
     },
@@ -342,14 +350,13 @@ describe('发正式版', () => {
     // 两个包看到的范围表是同一份、一次备齐的——发第一个的时候就得知道第二个的号
     expect(deps.ranges).toEqual([{ [A]: '^0.1.0', [B]: '^0.2.0' }, { [A]: '^0.1.0', [B]: '^0.2.0' }])
     expect(out.data.note).toContain('plugin-manager.update-all')
-    expect(out.data.reminders).toEqual([])
   })
 
   it('发版前检查没过：构建之后、发之前拒，一个都不发，所有包的问题一次列全', async () => {
     const deps = fake({
       latest: { [SHELL]: '0.9.0', [API]: '0.2.0' },
       files: {
-        [path.resolve(REPO, 'a/package.json')]: full(A, '0.0.3', { [SHELL]: '^0.8.0' }, { [SHELL]: '0.8.0' }),
+        [path.resolve(REPO, 'a/package.json')]: full(A, '0.1.0', { [SHELL]: '^0.8.0' }, { [SHELL]: '0.8.0' }),
         [path.resolve(REPO, 'b/package.json')]: pluginManifestOf(B, '0.2.0', undefined, {
           peerDependencies: { [API]: '^0.1.1', ...KERNEL_PEER },
           devDependencies: { [API]: '0.1.1' },
@@ -362,14 +369,13 @@ describe('发正式版', () => {
     expect(deps.calls.some((one) => one.includes('pnpm build'))).toBe(true)
     expect(deps.calls.some((one) => one.startsWith('publish'))).toBe(false)
     expect(out.error).toContain('发版前检查没过')
-    expect(out.error).toContain(`${A}@0.0.3`)
+    expect(out.error).toContain(`${A}@0.1.0`)
     expect(out.error).toContain(`${B}@0.2.0`)
-    expect(out.error).toContain('抬到 0.1.0')
     expect(out.error).toContain('出范围')
     expect(out.error).toContain(`peer 写了 ${API}`)
     expect(out.error).toContain(`peer ${API} 是 "^0.1.1",源上 latest 0.2.0(不在同一条线`)
-    // a 不是插件包：peer 不查；a 两条（0.0.x、dev 出范围），b 三条（dev 出范围、peer 和 latest 不在同一条线、peer 的清单读不到）
-    expect(out.error).toContain('2 个包 5 条')
+    // a 不是插件包：peer 不查；a 一条（dev 出范围），b 三条（dev 出范围、peer 和 latest 不在同一条线、peer 的清单读不到）
+    expect(out.error).toContain('2 个包 4 条')
   })
 
   it('插件包的产物有不在名单上的包名 import、有空 import：拒', async () => {
@@ -385,72 +391,6 @@ describe('发正式版', () => {
     expect(out.error).toContain("import 了 'yaml'")
     expect(out.error).toContain("空 import：import {} from '@godcreator/gwb-shell'")
     expect(deps.calls.some((one) => one.startsWith('publish'))).toBe(false)
-  })
-
-  /** 一个包做过的类型检查，按先后列出查的那份 tsconfig */
-  function typechecksOf(calls: string[], pkgDir: string): string[] {
-    return calls
-      .filter((one) => one.endsWith(` @${pkgDir}`) && one.includes('--skipLibCheck false'))
-      .map((one) => typecheckedTsconfig(one.split(' ')) ?? '')
-  }
-
-  it('没有 tsconfig.build.json：在包目录里用 pnpm exec tsc、关掉 skipLibCheck 按 tsconfig.json 查；没过就拒，带上查的是哪份与输出尾巴', async () => {
-    const deps = fake({ typecheckFails: { 'tsconfig.json': "index.d.ts(52,32): error TS2304: Cannot find name 'HTMLElement'." } })
-    const out = await runRelease({ repoDir: REPO, runningKernel: KERNEL, packages: ['a'] }, deps)
-    expect(deps.calls).toContain(`run pnpm ${typecheckArgs('tsconfig.json').join(' ')} @${path.resolve(REPO, 'a')}`)
-    expect(typechecksOf(deps.calls, path.resolve(REPO, 'a'))).toEqual(['tsconfig.json'])
-    expect(out.ok).toBe(false)
-    if (out.ok) return
-    expect(out.error).toContain('按 tsconfig.json 做的类型检查没过')
-    expect(out.error).toContain('HTMLElement')
-  })
-
-  it('有 tsconfig.build.json：node 侧只按它查，不查带着测试与构建脚本的 tsconfig.json', async () => {
-    const deps = fake({ files: { [path.resolve(REPO, 'a/tsconfig.build.json')]: '{}' } })
-    const out = await runRelease({ repoDir: REPO, runningKernel: KERNEL, packages: ['a'] }, deps)
-    expect(out.ok).toBe(true)
-    expect(typechecksOf(deps.calls, path.resolve(REPO, 'a'))).toEqual(['tsconfig.build.json'])
-  })
-
-  it('有 src/client/tsconfig.json：浏览器侧再查一次，没过的那份写进回执', async () => {
-    const deps = fake({
-      files: {
-        [path.resolve(REPO, 'a/tsconfig.build.json')]: '{}',
-        [path.resolve(REPO, 'a/src/client/tsconfig.json')]: '{}',
-      },
-      typecheckFails: { 'src/client/tsconfig.json': "index.tsx(3,1): error TS2307: Cannot find module 'react'." },
-    })
-    const out = await runRelease({ repoDir: REPO, runningKernel: KERNEL, packages: ['a'] }, deps)
-    expect(typechecksOf(deps.calls, path.resolve(REPO, 'a'))).toEqual(['tsconfig.build.json', 'src/client/tsconfig.json'])
-    expect(out.ok).toBe(false)
-    if (out.ok) return
-    expect(out.error).toContain('1 个包 1 条')
-    expect(out.error).toContain('按 src/client/tsconfig.json 做的类型检查没过')
-  })
-
-  it('包目录下 tsconfig.build.json 与 tsconfig.json 都没有：拒，不跑类型检查', async () => {
-    const deps = fake({
-      files: {
-        [path.resolve(REPO, 'c/package.json')]: manifestOf('@godcreator/gwb-fake-c', '0.1.0'),
-        [path.resolve(REPO, 'c/dist/index.js')]: '',
-        [path.resolve(REPO, 'c/src/client/tsconfig.json')]: '{}',
-      },
-    })
-    const out = await runRelease({ repoDir: REPO, runningKernel: KERNEL, packages: ['c'] }, deps)
-    expect(typechecksOf(deps.calls, path.resolve(REPO, 'c'))).toEqual([])
-    expect(out.ok).toBe(false)
-    if (!out.ok) expect(out.error).toContain('tsconfig.build.json 与 tsconfig.json 都没有')
-  })
-
-  it('检查过了：写了 peer cordis 而产物没 import 它，只提醒不拒，提醒带进回执', async () => {
-    const deps = fake({
-      files: {
-        [path.resolve(REPO, 'a/package.json')]: pluginManifestOf(A, '0.1.0', undefined, { peerDependencies: { cordis: '^4.0.0-rc.9', ...KERNEL_PEER } }),
-      },
-    })
-    const out = await runRelease({ repoDir: REPO, runningKernel: KERNEL, packages: ['a'] }, deps)
-    expect(out.ok).toBe(true)
-    if (out.ok) expect(out.data.reminders).toEqual([expect.stringContaining(`${A}@0.1.0:写了 peer cordis`)])
   })
 
   it('插件包 peer 里的内核包不对：构建之后、发之前拒，一个都不发，每个包的问题一次列全', async () => {
@@ -484,33 +424,6 @@ describe('发正式版', () => {
     const right = fake({ latest: { [SHELL]: '0.13.9' }, files: { [path.resolve(REPO, 'a/package.json')]: pluginA, ...shellManifest } })
     const shipped = await runRelease({ repoDir: REPO, runningKernel: KERNEL, packages: ['a'] }, right)
     expect(shipped.ok).toBe(true)
-  })
-
-  it('gwb.provides 与源码对不上：构建之后、发之前拒，库包（keywords 只有 gwb）也查；对上了照常发', async () => {
-    const wrong = fake({
-      files: {
-        [path.resolve(REPO, 'a/package.json')]: pluginManifestOf(A, '0.1.0', { provides: { gwbGone: { summary: '有', usage: '' } } }, { peerDependencies: KERNEL_PEER }),
-        [path.resolve(REPO, 'b/package.json')]: JSON.stringify({ name: B, version: '0.2.0', files: ['dist'], exports: EXPORTS, keywords: ['gwb'], gwb: { provides: { [`${B}/nope`]: { summary: '有', usage: '有' } } } }),
-      },
-      sources: { a: "super(ctx, 'gwbFake')" },
-    })
-    const refused = await runRelease({ repoDir: REPO, runningKernel: KERNEL, packages: ['a', 'b'] }, wrong)
-    expect(refused.ok).toBe(false)
-    if (refused.ok) return
-    expect(wrong.calls.some((one) => one.startsWith('publish'))).toBe(false)
-    expect(refused.error).toContain('2 个包 4 条')
-    expect(refused.error).toContain(`${A}@0.1.0:\n  - 源码提供服务 gwbFake，gwb.provides 里没有它`)
-    expect(refused.error).toContain('"gwbGone" 既不是源码提供的服务')
-    expect(refused.error).toContain('"gwbGone" 的 usage 是 ""')
-    expect(refused.error).toContain(`${B}@0.2.0:\n  - gwb.provides 里 "${B}/nope" 既不是源码提供的服务`)
-
-    const right = fake({
-      files: {
-        [path.resolve(REPO, 'a/package.json')]: pluginManifestOf(A, '0.1.0', { provides: { gwbFake: { summary: '有', usage: '有' }, [A]: { summary: '有', usage: '有' } } }, { peerDependencies: KERNEL_PEER }),
-      },
-      sources: { a: "super(ctx, 'gwbFake')" },
-    })
-    expect((await runRelease({ repoDir: REPO, runningKernel: KERNEL, packages: ['a'] }, right)).ok).toBe(true)
   })
 
   it('插件包 peer 里的内核包范围包含运行中的内核：照常发', async () => {

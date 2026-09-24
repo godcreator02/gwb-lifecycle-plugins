@@ -1,144 +1,122 @@
 import { describe, expect, it } from 'vitest'
-import { joinProvides, serviceOwners, serviceSight, type ServiceOwner } from '../src/services.js'
+import { contextFieldsOf, definitionOf, servicesOf } from '../src/services.js'
 
-/** 造一截 fiber：store 里每条 impl 的 `fiber` 指回自己（＝本 fiber 提供的服务） */
-function fiber(store: Record<string, string>, opts: { id?: string; name?: string; runtime?: string } = {}): Record<string, unknown> {
-  const self: Record<string, unknown> = {
-    entry: opts.id === undefined && opts.name === undefined ? undefined : { id: opts.id, options: { name: opts.name } },
-    runtime: opts.runtime === undefined ? undefined : { name: opts.runtime, fibers: [] },
-    parent: undefined,
-  }
-  self['store'] = Object.fromEntries(Object.entries(store).map(([k, v]) => [k, { name: v, fiber: self }]))
-  return self
-}
+const SKILLS_DTS = [
+  "import { Service, type Context } from 'cordis';",
+  '/** 调用方拿到的接口。写 `inject: [\'gwbSkills\']` 或局部注入才有 */',
+  'export interface GwbSkillsApi {',
+  '    /** 此刻登记着的全部说明书 */',
+  '    list(): GwbSkill[];',
+  '    read(name: string, file?: string): Promise<string | undefined>;',
+  '}',
+  "declare module 'cordis' {",
+  '    interface Context {',
+  '        gwbSkills: GwbSkillsApi;',
+  '    }',
+  '}',
+].join('\n')
 
-/** 注入作用域那种 fiber：store 里有服务，但 impl.fiber 指向别人（＝它消费的，不是它提供的） */
-function injectScope(store: Record<string, string>, owner: Record<string, unknown>): Record<string, unknown> {
-  return {
-    store: Object.fromEntries(Object.entries(store).map(([k, v]) => [k, { name: v, fiber: owner }])),
-    parent: undefined,
-  }
-}
+const COMMANDS_DTS = [
+  "import type { GwbResult } from '@godcreator/gwb-kernel-desktop';",
+  '/** 命令总线对外的接口 */',
+  'export declare class GwbCommands extends Service {',
+  '    run(name: string, args?: unknown): Promise<GwbResult>;',
+  '    list(): { name: string }[];',
+  '}',
+  "declare module 'cordis' {",
+  '    interface Context {',
+  '        gwbCommands?: GwbCommands;',
+  '    }',
+  '}',
+].join('\n')
 
-function chain(...fibers: Record<string, unknown>[]): Record<string, unknown> {
-  for (let i = 0; i < fibers.length - 1; i++) (fibers[i] as { parent: unknown })['parent'] = { fiber: fibers[i + 1] }
-  return fibers[0]!
-}
+const SHELL_DTS = [
+  "import type { GwbCommands } from '@godcreator/gwb-commands';",
+  "import type { GwbDataApi } from '@godcreator/gwb-data';",
+  'export interface GwbShellApi {',
+  '    describeSelf(face: { title: string }): void;',
+  '}',
+  "declare module 'cordis' {",
+  '    interface Context {',
+  '        gwbCommands?: GwbCommands;',
+  '        gwbData: GwbDataApi;',
+  '    }',
+  '}',
+  "declare module 'cordis' {",
+  '    interface Context {',
+  '        gwbShell: GwbShellApi;',
+  '    }',
+  '}',
+].join('\n')
 
-function ctxWith(fiberChain: Record<string, unknown>, runtimes: Record<string, unknown>[] = []): Record<string, unknown> {
-  return { fiber: fiberChain, registry: { entries: () => runtimes.map((r, i) => [i, r]) } }
-}
+const pkg = (name: string, version: string, ...declarationTexts: string[]) => ({ pkg: name, version, declarationTexts })
 
-describe('devkit.services：问运行时要服务表', () => {
-  it('沿自己的 fiber 链往上：捞到根上挂的服务（没有条目、没有包名）', () => {
-    const root = fiber({ gwbKernel: 'gwbKernel' })
-    const mine = fiber({}, { id: 'home:devkit', name: '@godcreator/gwb-devkit' })
-    expect(serviceOwners(ctxWith(chain(mine, root)))).toEqual([{ service: 'gwbKernel' }])
-  })
-
-  it('registry 里每个件的 fiber：带条目名与包名', () => {
-    const shell = fiber({ gwbShell: 'gwbShell' }, { id: 'home:shell', name: '@godcreator/gwb-shell' })
-    const data = fiber({ gwbData: 'gwbData' }, { id: 'home:data', name: '@godcreator/gwb-data' })
-    const out = serviceOwners(ctxWith(fiber({}), [{ name: '@godcreator/gwb-shell', fibers: [shell] }, { name: '@godcreator/gwb-data', fibers: [data] }]))
-    expect(out).toEqual([
-      { service: 'gwbData', entryId: 'home:data', pkg: '@godcreator/gwb-data' },
-      { service: 'gwbShell', entryId: 'home:shell', pkg: '@godcreator/gwb-shell' },
+describe('contextFieldsOf：只认 declare module cordis 里的 interface Context', () => {
+  it('一份声明里可以有几段，可选的带 ?', () => {
+    expect(contextFieldsOf(SHELL_DTS)).toEqual([
+      { service: 'gwbCommands', type: 'GwbCommands', optional: true },
+      { service: 'gwbData', type: 'GwbDataApi', optional: false },
+      { service: 'gwbShell', type: 'GwbShellApi', optional: false },
     ])
   })
 
-  it('注入作用域的 fiber 不算提供方——它 store 里的 impl 指着别人', () => {
-    const shell = fiber({ gwbShell: 'gwbShell' }, { id: 'home:shell', name: '@godcreator/gwb-shell' })
-    const baseui = fiber({}, { id: 'home:baseui', name: '@godcreator/gwb-baseui' })
-    const scope = injectScope({ gwbShell: 'gwbShell' }, shell)
-    const out = serviceOwners(
-      ctxWith(fiber({}), [
-        { name: '@godcreator/gwb-shell', fibers: [shell, injectScope({ gwbShell: 'gwbShell' }, shell)] },
-        { name: '@godcreator/gwb-baseui', fibers: [baseui, scope] },
-      ]),
-    )
-    expect(out).toEqual([{ service: 'gwbShell', entryId: 'home:shell', pkg: '@godcreator/gwb-shell' }])
-  })
-
-  it('没有挂载条目时退回件自报的名字', () => {
-    const inner = fiber({ gwbThing: 'gwbThing' }, { runtime: 'gwb-thing' })
-    expect(serviceOwners(ctxWith(fiber({}), [{ fibers: [inner] }]))).toEqual([{ service: 'gwbThing', pkg: 'gwb-thing' }])
-  })
-
-  it('同一个服务两个件都提供时两条都报', () => {
-    const a = fiber({ gwbX: 'gwbX' }, { id: 'home:a', name: 'pkg-a' })
-    const b = fiber({ gwbX: 'gwbX' }, { id: 'home:b', name: 'pkg-b' })
-    const out = serviceOwners(ctxWith(fiber({}), [{ fibers: [a] }, { fibers: [b] }]))
-    expect(out).toEqual([
-      { service: 'gwbX', entryId: 'home:a', pkg: 'pkg-a' },
-      { service: 'gwbX', entryId: 'home:b', pkg: 'pkg-b' },
-    ])
-  })
-
-  it('saw 记下看见了多少：链几层、件几个、fiber 几条、服务表几张', () => {
-    const root = fiber({ gwbKernel: 'gwbKernel' })
-    const mine = fiber({}, { id: 'home:devkit', name: '@godcreator/gwb-devkit' })
-    const shell = fiber({ gwbShell: 'gwbShell' }, { id: 'home:shell', name: '@godcreator/gwb-shell' })
-    const { saw } = serviceSight(ctxWith(chain(mine, root), [{ fibers: [shell] }]))
-    expect(saw).toEqual({ chainDepth: 2, runtimes: 1, fibers: 1, stores: 3 })
-  })
-
-  it('拿不到那些表时回空表——换了形状、或宿主不是 cordis，都不抛', () => {
-    expect(serviceOwners(undefined)).toEqual([])
-    expect(serviceOwners({})).toEqual([])
-    expect(serviceOwners({ fiber: '不是对象', registry: { entries: '不是函数' } })).toEqual([])
-    expect(serviceOwners({ fiber: { store: '不是对象' }, registry: { entries: () => [[0, { fibers: '不是数组' }]] } })).toEqual([])
-    expect(serviceSight(undefined).saw).toEqual({ chainDepth: 0, runtimes: 0, fibers: 0, stores: 0 })
+  it('别的模块里的 interface Context 不算', () => {
+    expect(contextFieldsOf("declare module 'other' {\n    interface Context {\n        x: X;\n    }\n}")).toEqual([])
   })
 })
 
-describe('joinProvides：把包声明的 gwb.provides 贴上服务表', () => {
-  const owners: ServiceOwner[] = [
-    { service: 'gwbKernel' },
-    { service: 'gwbData', entryId: 'home:data', pkg: '@godcreator/gwb-data' },
-    { service: 'gwbX', entryId: 'home:x', pkg: 'pkg-x' },
-  ]
+describe('definitionOf：取定义原文连同紧挨着的文档注释', () => {
+  it('interface 带注释', () => {
+    const got = definitionOf(SKILLS_DTS, 'GwbSkillsApi')
+    expect(got?.startsWith('/** 调用方拿到的接口')).toBe(true)
+    expect(got?.endsWith('}')).toBe(true)
+    expect(got).toContain('list(): GwbSkill[];')
+  })
 
-  it('声明了的贴上 { summary, usage }；没声明的、没有 pkg 的原样', async () => {
-    const out = await joinProvides(owners, (pkg) =>
-      Promise.resolve(
-        pkg === '@godcreator/gwb-data'
-          ? { gwb: { provides: { gwbData: { summary: '件的落盘状态', usage: 'readDoc / writeDoc / dir' } } } }
-          : pkg === 'pkg-x'
-            ? { name: 'pkg-x' }
-            : undefined,
-      ),
-    )
-    expect(out).toEqual([
-      { service: 'gwbKernel' },
-      { service: 'gwbData', entryId: 'home:data', pkg: '@godcreator/gwb-data', provides: { summary: '件的落盘状态', usage: 'readDoc / writeDoc / dir' } },
-      { service: 'gwbX', entryId: 'home:x', pkg: 'pkg-x' },
+  it('declare class 也算定义', () => {
+    expect(definitionOf(COMMANDS_DTS, 'GwbCommands')).toContain('export declare class GwbCommands extends Service {')
+  })
+
+  it('type 别名取到分号', () => {
+    expect(definitionOf('export type GwbPing = () => Promise<void>;\n', 'GwbPing')).toBe('export type GwbPing = () => Promise<void>;')
+  })
+
+  it('import type 只是引用，不算定义；名字前缀相同的别的类型不算', () => {
+    expect(definitionOf(SHELL_DTS, 'GwbCommands')).toBeUndefined()
+    expect(definitionOf('export interface GwbCommandsExtra {\n}\n', 'GwbCommands')).toBeUndefined()
+  })
+})
+
+describe('servicesOf：类型定义在自己声明里的是提供方，import 来的只是在用', () => {
+  it('提供方、用它的一方各归各，按服务名排序', () => {
+    const got = servicesOf([
+      pkg('@godcreator/gwb-shell', '0.13.7', SHELL_DTS),
+      pkg('@godcreator/gwb-commands', '0.5.0', COMMANDS_DTS),
+      pkg('@godcreator/gwb-skills', '0.4.5', SKILLS_DTS),
     ])
+    expect(got.map((entry) => entry.service)).toEqual(['gwbCommands', 'gwbData', 'gwbShell', 'gwbSkills'])
+    const commands = got.find((entry) => entry.service === 'gwbCommands')!
+    expect(commands.providers).toEqual(['@godcreator/gwb-commands@0.5.0'])
+    expect(commands.declaredAlsoBy).toEqual(['@godcreator/gwb-shell@0.13.7'])
+    expect(commands.optional).toBe(true)
+    expect(commands.definition).toContain('run(name: string')
+    expect(got.find((entry) => entry.service === 'gwbShell')?.providers).toEqual(['@godcreator/gwb-shell@0.13.7'])
   })
 
-  it('summary / usage 空串或不是字符串：当没声明，不炸', async () => {
-    const out = await joinProvides([{ service: 'gwbBad', pkg: 'pkg-bad' }], () =>
-      Promise.resolve({ gwb: { provides: { gwbBad: { summary: '', usage: 3 } } } }),
-    )
-    expect(out).toEqual([{ service: 'gwbBad', pkg: 'pkg-bad' }])
+  it('没有提供方的服务照样列出，providers 为空、不带 definition', () => {
+    const data = servicesOf([pkg('@godcreator/gwb-shell', '0.13.7', SHELL_DTS)]).find((entry) => entry.service === 'gwbData')!
+    expect(data.providers).toEqual([])
+    expect(data.declaredAlsoBy).toEqual(['@godcreator/gwb-shell@0.13.7'])
+    expect('definition' in data).toBe(false)
   })
 
-  it('manifest 读不到或不是对象：原样', async () => {
-    const out = await joinProvides([{ service: 'gwbData', pkg: '@godcreator/gwb-data' }], () => Promise.resolve('不是对象'))
-    expect(out).toEqual([{ service: 'gwbData', pkg: '@godcreator/gwb-data' }])
+  it('两个包都带着定义：两个都列进 providers，definition 取先读到的那个', () => {
+    const got = servicesOf([pkg('@godcreator/gwb-skills', '0.4.5', SKILLS_DTS), pkg('@godcreator/gwb-kernel-desktop', '0.5.0', SKILLS_DTS)])
+    expect(got[0]?.providers).toEqual(['@godcreator/gwb-skills@0.4.5', '@godcreator/gwb-kernel-desktop@0.5.0'])
   })
 
-  it('同一个包的多条服务只读一次 manifest', async () => {
-    let reads = 0
-    const two: ServiceOwner[] = [
-      { service: 'gwbA', pkg: 'pkg-same' },
-      { service: 'gwbB', pkg: 'pkg-same' },
-    ]
-    const out = await joinProvides(two, (pkg) => {
-      reads += 1
-      return Promise.resolve({ gwb: { provides: { gwbA: { summary: 'a', usage: 'a' }, gwbB: { summary: 'b', usage: 'b' } } } })
-    })
-    expect(reads).toBe(1)
-    expect(out[0]?.provides).toEqual({ summary: 'a', usage: 'a' })
-    expect(out[1]?.provides).toEqual({ summary: 'b', usage: 'b' })
+  it('同一个包的几份 .d.ts 里重复声明同一个服务只记一次', () => {
+    const got = servicesOf([pkg('@godcreator/gwb-skills', '0.4.5', SKILLS_DTS, SKILLS_DTS)])
+    expect(got[0]?.providers).toEqual(['@godcreator/gwb-skills@0.4.5'])
   })
 })
