@@ -21,11 +21,11 @@ description: 只通过服务和命令，不 import 别的插件；共享代码�
 
 插件管理调外壳的整页重载，只写命令名：
 
-{/* ref file="../plugins/plugin-manager/src/index.ts" lines="38-39" */}
+{/* ref file="../plugins/plugin-manager/src/index.ts" lines="39-40" */}
 
 **例外：同一个仓里一起开发、一起发版的两个插件**。devkit 要用插件管理的几条规则——找 pnpm、peer 里内核包的范围包不包含某个内核——它把插件管理写进 peer，从插件管理的主入口按值 import 这几个纯函数，规则只存一份。代价是 import 会加载插件管理的整个主入口模块、devkit 离了插件管理加载不了；两个包同仓，改导出的函数时一个提交改两边。发版前检查不拦这种 import：node 侧放行 peer 里写了的包，写进 peer 的插件也在其中，所以别的插件照样只能靠这条规矩自己守：
 
-{/* ref file="../plugins/plugin-manager/src/index.ts" lines="33-36" */}
+{/* ref file="../plugins/plugin-manager/src/index.ts" lines="34-37" */}
 
 {/* ref file="../plugins/devkit/src/release.ts" lines="11-11" */}
 
@@ -61,7 +61,7 @@ export function apply(ctx: GwbContext): void {
 
 插件管理导出每条命令的回执类型，调用方 `import type` 取：
 
-{/* ref file="../plugins/plugin-manager/src/index.ts" lines="84-94" */}
+{/* ref file="../plugins/plugin-manager/src/index.ts" lines="85-95" */}
 
 ## 为什么
 

@@ -50,9 +50,9 @@ description: 插件在 peerDependencies 里给内核包 @godcreator/gwb-kernel-d
 内核包与 `cordis`、清单读不到的包都不该声明兼容哪个内核，一律 `kernelUntested: false`、不带 `kernelRange`——不然窗格里这些包都显示「内核未测过」，
 真正没适配当前内核的插件反而看不出来。是不是插件的判法与 `update-kernel` 回执里的 `pluginsOutsideRange` 相同：
 
-{/* ref file="../plugins/plugin-manager/src/kernel-upgrade.ts" lines="63-70" */}
+{/* ref file="../plugins/plugin-manager/src/kernel-upgrade.ts" lines="61-68" */}
 
-{/* ref file="../plugins/plugin-manager/src/kernel-compat.ts" lines="54-67" */}
+{/* ref file="../plugins/plugin-manager/src/kernel-compat.ts" lines="63-76" */}
 
 **怎么读包清单**：按包名（含 scope）从 home 的 `node_modules` 读。文件不在（条目指向一个没装的包，或 pnpm 装到一半）就当不是插件、不标；文件在但读不了、或不是合法 JSON，`list` 直接报错并带上文件路径——那是 home 坏了，不该当成「范围不包含」报出来了事。
 

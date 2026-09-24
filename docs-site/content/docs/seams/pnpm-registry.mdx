@@ -63,7 +63,7 @@ description: 连接 devkit、插件管理与 pnpm、npm 源、两份 npmrc、git
 
 {/* ref file="../plugins/plugin-manager/src/registry.ts" lines="11-32" */}
 
-{/* ref file="../plugins/plugin-manager/src/search.ts" lines="6-7" */}
+{/* ref file="../plugins/plugin-manager/src/search.ts" lines="8-9" */}
 
 这个关键词写在 `search.ts` 与每个插件包的 `package.json` 两处：插件包忘了写，就不会出现在「可装」列表里。
 
@@ -79,7 +79,7 @@ description: 连接 devkit、插件管理与 pnpm、npm 源、两份 npmrc、git
 
 **按名字读 gitea 插件的设置**：`source.add` 用 `owner` 写法时，经命令总线调 `settings.get { section: 'gitea', key: 'base-url' }` 与 `{ section: 'gitea', key: 'token' }`：
 
-{/* ref file="../plugins/plugin-manager/src/package-sources.ts" lines="252-267" */}
+{/* ref file="../plugins/plugin-manager/src/package-sources.ts" lines="253-268" */}
 
 分区名 `gitea` 是 gitea 插件条目的 id，两个设置名写在 gitea 插件仓里。`settings.get` 只回存下的值、不回落到声明时的默认值，所以 gitea 插件的默认地址在插件管理里另写一份（`DEFAULT_GITEA_BASE`）。gitea 插件的条目 id 不叫 `gitea`、改了设置名或默认地址，这里都不会报错：地址退回这份默认值，token 取不到时 `source.add` 回 `ok: false`。
 

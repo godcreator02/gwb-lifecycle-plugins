@@ -52,23 +52,23 @@ description: 插件管理是唯一写 home 的插件——装卸包、增删条�
 - `plugin-manager.source.list`：列出机器级与 home 级两份 npmrc 里的包源
 - `plugin-manager.source.remove`：从机器级 `~/.npmrc` 删一条包源
 
-{/* ref file="../plugins/plugin-manager/src/index.ts" lines="51-66" */}
+{/* ref file="../plugins/plugin-manager/src/index.ts" lines="52-67" */}
 
 **服务 `gwbPluginManager`**：值是空对象 `{}`，只表示插件管理装了；别的插件（例如插件管理窗格所在的插件）inject 它，只为跟着插件管理一起加载、卸载。命令有没有破坏性变化看插件管理的版本号：
 
-{/* ref file="../plugins/plugin-manager/src/index.ts" lines="68-76" */}
+{/* ref file="../plugins/plugin-manager/src/index.ts" lines="69-77" */}
 
 **导出的回执类型**：调用方 `import type` 引用，不手写回执的形状——`InstallResult`、`UninstallResult`、`OutdatedReceipt`、`UpdateAllResult`、`UpdatedPackage`、`DependentPackage`、`UpdateKernelResult`、`TransferOwnerResult`、`PluginManagerPresence` 定义在入口文件里，另外转出这几个（`list` 回执里每个包是 `PluginPackageView`、每条条目是 `EntrySnapshot`；找插件与配包源的回执 `SearchReceipt`、`SourceAddResult`、`SourceListResult`、`SourceRemoveResult` 定义在 `package-sources.ts`）：
 
-{/* ref file="../plugins/plugin-manager/src/index.ts" lines="24-31" */}
+{/* ref file="../plugins/plugin-manager/src/index.ts" lines="25-32" */}
 
 **给 devkit 复用的函数**：找 pnpm（`locatePnpm`）、内核范围比对（`KERNEL_PACKAGE`、`isCaretRange`、`kernelRangeCovers`、`declaredKernelRange`）、取输出的最后几行（`tailLines`）从包主入口按值导出。devkit 在 peer 里写了插件管理，直接 import 这几个，不另存一份；devkit 构建时不打包依赖，运行时用的是 home 里装着的那一版插件管理。
 
-{/* ref file="../plugins/plugin-manager/src/index.ts" lines="33-38" */}
+{/* ref file="../plugins/plugin-manager/src/index.ts" lines="34-39" */}
 
 **说明书 `gwb-plugin-manager`**：给 agent 讲这些命令怎么调用，放在包根的 `skills/`，装了说明书插件就交给它登记，agent 经 MCP 入口的 `skill.read` 读。正本是 [gwb-plugin-manager](/outputs/skills/gwb-plugin-manager)，包里的 `SKILL.md` 是生成物：
 
-{/* ref file="../plugins/plugin-manager/src/index.ts" lines="239-244" */}
+{/* ref file="../plugins/plugin-manager/src/index.ts" lines="240-245" */}
 
 ## 依赖
 

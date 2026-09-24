@@ -19,7 +19,7 @@ description: plugin-manager.search 在配好的 npm 源上检索插件，地址�
 
 **是什么**：`search` 不给 `scope` 时，查两份 npmrc 里出现过的每个 scope，`@godcreator` 永远排第一（npmrc 里没写它时它走全局源），其余按名字排；各条源并发查，查成的合并进 `packages`，没查成的在 `note` 里写明是哪条、为什么，全部没查成才回 `ok: false`。给了 `scope` 只查那一条。
 
-{/* ref file="../plugins/plugin-manager/src/package-sources.ts" lines="86-113" */}
+{/* ref file="../plugins/plugin-manager/src/package-sources.ts" lines="87-114" */}
 
 每条源的地址按 scope 从两份 npmrc 里找：先找 `@scope:registry=`，再找 `registry=`，每一种都是 home 级优先于机器级，都没写就是 npm 官方源。
 
@@ -33,9 +33,9 @@ description: plugin-manager.search 在配好的 npm 源上检索插件，地址�
 
 **是不是插件只看包清单 `keywords` 里有没有 `gwb-plugin`**，包名前缀、scope 都不参与判断。这个字段只在检索响应里有（单包详情接口会去掉它），一次请求就能判断完。gitea 的检索响应把 scope 与名字分开放，解析时拼回完整包名。
 
-{/* ref file="../plugins/plugin-manager/src/search.ts" lines="6-7" */}
+{/* ref file="../plugins/plugin-manager/src/search.ts" lines="8-9" */}
 
-{/* ref file="../plugins/plugin-manager/src/search.ts" lines="43-46" */}
+{/* ref file="../plugins/plugin-manager/src/search.ts" lines="45-48" */}
 
 用环境变量或 pnpm 全局配置指定的源，这里看不到；本机的配置都写在 `~/.npmrc` 里。
 
@@ -65,7 +65,7 @@ description: plugin-manager.search 在配好的 npm 源上检索插件，地址�
 - 回执里的 `lines` 已把 token 换成 `***`，日志里也不写 token
 - `@godcreator` 不许改、不许删，两条命令都当场报错
 
-{/* ref file="../plugins/plugin-manager/src/package-sources.ts" lines="154-171" */}
+{/* ref file="../plugins/plugin-manager/src/package-sources.ts" lines="155-172" */}
 
 机器级没有这条 scope 时 `remove` 回 `ok: false`；它只写在 home 级时，`error` 里说明那一行要手工删。
 
@@ -81,19 +81,19 @@ description: plugin-manager.search 在配好的 npm 源上检索插件，地址�
 
 **是什么**：`source.add { scope, owner }` 把源地址拼成 `<gitea 地址>/api/packages/<owner>/npm/`。gitea 地址取设置 `gitea.base-url`，没配时用代码里写的默认实例，`note` 里写明；没显式给 token 时取设置 `gitea.token`，取不到就回 `ok: false`——私有源没有凭据装不了，与其等到安装时失败，不如现在说清楚。
 
-{/* ref file="../plugins/plugin-manager/src/package-sources.ts" lines="252-267" */}
+{/* ref file="../plugins/plugin-manager/src/package-sources.ts" lines="253-268" */}
 
 **为什么经命令读**：设置服务 `ctx.gwbSettings` 只读得到调用方自己的分区，`gitea` 分区属于 gitea 插件，读它只能按名字调 `settings.get` 命令。设置插件没装、设置里没配，都只是退回默认地址、没有 token。
 
 `settings.get` 只回存下的值、不回落到声明时的默认值，所以 gitea 插件的默认地址在这里另写一份（`DEFAULT_GITEA_BASE`）：
 
-{/* ref file="../plugins/plugin-manager/src/package-sources.ts" lines="83-84" */}
+{/* ref file="../plugins/plugin-manager/src/package-sources.ts" lines="84-85" */}
 
 ## 不改 home，不经 BUSY
 
 **是什么**：四条命令用不带 BUSY 检查的 `registerCommand` 登记，也不排进 pnpm 的串行队列。
 
-{/* ref file="../plugins/plugin-manager/src/index.ts" lines="381-388" */}
+{/* ref file="../plugins/plugin-manager/src/index.ts" lines="382-389" */}
 
 **为什么**：BUSY 与串行队列防的是两次改动同时改 home 的 `package.json`；这四条要么只读网络与文件，要么改的是机器级 `~/.npmrc`，不碰 home。检索可能要等好几条源，排在安装后面只会让「可装」列表等到安装做完才出来。
 

@@ -19,7 +19,7 @@ description: 连接 devkit 与插件管理：devkit 从插件管理的主入口 
 
 回执 `action` 是 `remounted` 时，`state` 必须是 `ACTIVE`；是 `deferred`（被重新加载的是插件管理自己）时，每 500 毫秒轮询一次 `plugin-manager.list`，60 秒内等到那条条目 `active: true`。插件管理这边的命令与处理：
 
-{/* ref file="../plugins/plugin-manager/src/index.ts" lines="336-345" */}
+{/* ref file="../plugins/plugin-manager/src/index.ts" lines="337-346" */}
 
 {/* ref file="../plugins/plugin-manager/src/remount.ts" lines="81-95" */}
 
@@ -43,7 +43,7 @@ description: 连接 devkit 与插件管理：devkit 从插件管理的主入口 
 
 **四、devkit 从插件管理的主入口 import 几个函数。** 找 pnpm 的 `locatePnpm`、内核包名 `KERNEL_PACKAGE`、peer 范围的判定 `isCaretRange` / `kernelRangeCovers` / `declaredKernelRange`、取输出最后几行的 `tailLines`，规则只有插件管理里这一份。devkit 的 peer 里写着插件管理（仓里写 `workspace:^`，`devkit.release` 发版时写成 `^<插件管理的版本号>`），home 里 pnpm 把它解析到装着的那一份：
 
-{/* ref file="../plugins/plugin-manager/src/index.ts" lines="33-36" */}
+{/* ref file="../plugins/plugin-manager/src/index.ts" lines="34-37" */}
 
 {/* ref file="../plugins/devkit/package.json" lines="35-42" */}
 
