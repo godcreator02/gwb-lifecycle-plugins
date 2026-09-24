@@ -11,7 +11,7 @@ description: devkit.dev 一条命令把工作区的改动换进另一个 home �
 
 七步，一步都不能省：问目标页面它是哪个 home、在仓根构建、发开发版、在目标 home 里装那个准确的版本号并读回核对、重新加载条目、整页刷新、取证。任何一步失败当场停，回执里写着停在哪一步。
 
-{/* ref file="../plugins/devkit/src/dev.ts" lines="525-572" */}
+{/* ref file="../plugins/devkit/src/dev.ts" lines="539-586" */}
 
 <Diagram name="dk-dev-loop" title="改一版看一版：改代码、调 devkit.dev 走完七步、读回执，再改下一版">
 - 左列在控制台 home 里做：`devkit.dev` 收 `home`、`dir`、`packages`，仓根 `pnpm build`，发开发版（版本号 `<patch+1>-dev.<yyyyMMddHHmm>`）到团队源
@@ -22,7 +22,7 @@ description: devkit.dev 一条命令把工作区的改动换进另一个 home �
 
 **重新加载是目标进程里的一条命令，不是这边发的两条。** 每条条目调一次 `plugin-manager.remount`，停用、等卸载完、启用、等加载完都在那一条命令里做完。拆成停用、启用两条的话，被换的正好是提供启用命令的插件管理自己、或者命令总线时，第二条没人接收，条目停在停用状态。回执有两种成功：`remounted` 表示回执之前就做完了，带着重新加载后的状态，只有 `ACTIVE` 算加载成功；`deferred` 是插件管理重新加载它自己，先发回执、下一个宏任务才动手，这边就轮询 `plugin-manager.list`，等它重新答复、那条条目在运行，超时没等到就回 `ok: false` 并说清卡在哪。所以目标 home 的插件管理要 0.4.0 起。
 
-{/* ref file="../plugins/devkit/src/dev.ts" lines="574-615" */}
+{/* ref file="../plugins/devkit/src/dev.ts" lines="588-629" */}
 
 **安装是「在目标 home 的清单里写准确版本号，再 `pnpm install`」，装完读回核对。** 不用 `pnpm add <包>@<号>`：清单里已有 `^` 声明时（`plugin-manager.install` 写的就是），pnpm 沿用这个前缀写回 `^<号>`，锁文件里已解析的同一补丁号的旧预发布版被当成满足新范围、不重新解析；源上有更新的同一补丁号时范围又解析到它——装上的都不是这次发的版本，退出码照样是 0。清单里写死准确版本号就没有范围可解析。装完读 `node_modules/<包>/package.json` 的 `version`，对不上当场 `ok: false`、不重新加载：
 
@@ -36,11 +36,11 @@ description: devkit.dev 一条命令把工作区的改动换进另一个 home �
 
 **发的包里有内核包时，重新加载与整页刷新换成重启目标 home。** 内核包 `@godcreator/gwb-kernel-desktop` 装在 home 里，由启动器在进程启动时加载，主进程里运行着的内核换不掉，所以重新加载条目没有用。内核包 `peerDependencies.cordis` 写的精确版本号（写成范围就当场拒，一个包都不发）和这一趟发的包一起写进目标 home 的清单、一起装、一起核对，home 根上的 cordis 就始终是内核要的那一版。装完停掉目标 home 的进程、用同一个 home 再启动，然后轮询 `shell.env`，直到回执里的 `versions.kernel` 就是这次发的版本号；报出的是别的版本号当场判失败——那说明启动器加载的不是 home 里装上的那份。同一趟里一起发的插件不再逐条重新加载：重启之后每条条目都是按新装的包从头加载的。取证照常做。
 
-{/* ref file="../plugins/devkit/src/dev.ts" lines="483-504" */}
+{/* ref file="../plugins/devkit/src/dev.ts" lines="497-518" */}
 
 **最后一步是取证，不是刷新。** 少了它，人看到「重新加载了、刷新了」就会说验过了。三样合起来才能排除那几种「看起来成功了」：装上的就是这次发的版本号（pnpm 退出码 0、条目都在运行、日志没有错误，运行着的也可能是上一次的版本）；条目真的是 `ACTIVE`（看的是加载状态，不是条目存在）；日志新增的部分里没有 error（`apply` 里一个 async 调用不报错地 reject，现象正好是「加载了但什么都没发生」，那一条只在日志里）。
 
-{/* ref file="../plugins/devkit/src/dev.ts" lines="633-656" */}
+{/* ref file="../plugins/devkit/src/dev.ts" lines="647-670" */}
 
 **目标用名字指定，端口是查出来的。** 给 `home` 名，端口从那个 home 的 `runtime.json` 里查（内核启动时写的），同时确认进程还在：pid 还活着，且那个 pid 确实在监听记录里的端口。**两边都要核对**：记录回答「你要的是哪个」，页面回答「你连上的实际是哪个」，对不上当场拒——端口会被下一个进程占用，只信记录就会不声不响地把改动推给另一个 home。
 
@@ -62,7 +62,7 @@ description: devkit.dev 一条命令把工作区的改动换进另一个 home �
 
 三样：一次的输入（指定的 home、仓根、包目录、刷新后等哪个选择器、本插件自己所在的 home）、一次的回执（目标 home、发了哪几个包各是什么版本号、重新加载了哪几条条目、刷新结果、取证；发了内核包时没有刷新结果，换成 `kernel`：页面报出的内核版本号与重启的经过），以及取证本身（每个包发出的版本号与装上的版本号、条目表、没在运行的几条、日志新增部分里的 error 与 warn）。
 
-{/* ref file="../plugins/devkit/src/dev.ts" lines="298-348" */}
+{/* ref file="../plugins/devkit/src/dev.ts" lines="312-362" */}
 
 输入里没有「要不要构建」，也没有源地址。**构建是这条流程的必需一步**：产物不是最新的就发，等于发的是上一版，而回执从头到尾一切正常；源在这台机器上只有一个，收一个参数只会多出一种「发到了别处」的可能。
 
@@ -72,7 +72,7 @@ description: devkit.dev 一条命令把工作区的改动换进另一个 home �
 
 **取证只有 `collect` 这一个函数，而且只在这条流程里调用。** 判断要有基线：哪些 error 是这次自己引起的，只有拿装包之前的日志长度才分得出来。单独看一眼现状的东西不该做成一条命令——它没有基线，看到的 error 可能是几天前的，而人会把它的绿色当成验收通过，那正是这条流程要防的事。
 
-{/* ref file="../plugins/devkit/src/dev.ts" lines="633-641" */}
+{/* ref file="../plugins/devkit/src/dev.ts" lines="647-655" */}
 
 要看一眼某个 home 的条目表，`devkit.cdp {"args":["<名>","cmd","plugin-manager.list"]}` 就行，那是看，不是验证。
 
@@ -89,7 +89,7 @@ description: devkit.dev 一条命令把工作区的改动换进另一个 home �
 | `restartHome` | 发了内核包时停掉目标 home 再启动 | `src/index.ts` 用测试 home 的停止与启动（`bringDownHome`、`launchHome`）接上，调试端口先沿用上次那个 | 记一行调用、可以让它失败 |
 | `pnpm` | 构建、发版、查版本、装进目标 home 时启动的 pnpm 可执行文件 | 命令开头在两个固定位置找到并核对过版本的那个（见[pnpm 与包源](/docs/seams/pnpm-registry)），找不到就不开始 | 一个假路径 |
 
-{/* ref file="../plugins/devkit/src/dev.ts" lines="266-294" */}
+{/* ref file="../plugins/devkit/src/dev.ts" lines="280-308" */}
 
 **CDP 那一项为什么是启动子进程，而不是在进程内连接。** CDP 驱动必须在工作台没运行的时候也能单独用，所以它是零依赖单文件的脚本，不是一个可以 import 的模块。一次流程多启动五六次进程，几百毫秒，对一次一分钟左右的流程可以忽略。
 
