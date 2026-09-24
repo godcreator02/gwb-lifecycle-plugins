@@ -124,3 +124,23 @@ module specifier "@godcreator/block-note"」。整页重载一次即愈（快照
 契约版本号对不上拒绝加载（第七节）；核心插件补回 `gwb.provides`。都还没发版。
 定案「已决定（2026-09-24）」里等块笔记撤声明的那一条，条件已满足，可以更新；删机制本身在内核仓（已另投一条），要等 default 切换卸掉旧的
 `@godcreator/block-note` 之后。
+
+## 2026-09-25 内核 0.6.0 删掉了 `gwb.shared` 字段：外置名单与发版检查改成写死 react 的四个名字
+
+来源：总控台会话，内核仓 9061518（轨迹卡 2026-09-25-static-importmap）。
+
+内核 0.6.0 把页面的 importmap 写死在页面入口 `index.html` 里，只有 `react`、`react/jsx-runtime`、`react-dom`、`react-dom/client` 四个包名，
+地址相对 `index.html` 指向内核包 `dist/react/`。内核包清单的 `gwb.shared` 字段和 `./react*` 四个出口都删了。devkit 现在读内核包 `gwb.shared`
+的几处，装上内核 0.6.0 后都会失败，要先改完，下游插件才能在 0.6 上构建和发版：
+
+- 发版检查（`artifact-check.ts`）：浏览器侧产物能 import 的包名直接是这四个，写死；删掉「从本包 `node_modules` 现读内核包清单」，删掉「内核包以外的包写了 `gwb.shared` 就拒」，
+  也删掉「本包 `gwb.shared` 指到的文件」这一段扫描范围。现在读不到 `gwb.shared` 就拒，内核 0.6 上的每个带界面的插件都会被拦
+- 模板 `build.ts.tpl`：`external` 直接写这四个名字，删掉 `sharedNamesOfKernel`；`artifact.test.ts.tpl`、`package.json.tpl` 的注释、`README.md.tpl` 跟着改
+- 说明书 `gwb-release`（发版前检查表里「浏览器侧产物」那一行）、`gwb-devkit` 与附件 `references/rules.md`、规矩页「页面代码与 importmap」、「依赖怎么写」等处的 `gwb.shared` 说法
+- devkit 与插件管理自己 peer 里的内核包改 `^0.6.0`，在跑 0.6.0 的隔离 home 里验过再发
+
+没有直接改：devkit 仓里 `artifact-check.ts`、模板、`scaffold.test.ts` 等正好有另一个会话未提交的改动。
+
+**顺带一条现象**：`devkit.home.new {"short":"static-importmap"}` 开出来的实例（pid 136532，default 里的 devkit 起的），我用 `Stop-Process` 停掉之后
+约 2 秒，default 自己走了一遍正常退出（default 的 `gwb.log` 里 `17:07:46.709Z info kernel 清理完成，退出`）。原因没查清，值得看一下 `home.new` 起的
+子进程和 default 的生命周期有没有绑在一起；在弄清之前，停这种实例别用杀进程的办法。
