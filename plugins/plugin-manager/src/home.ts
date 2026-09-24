@@ -2,20 +2,13 @@ import fs from 'node:fs'
 import path from 'node:path'
 import { toDependencies } from './inventory.js'
 
-/**
- * 读写磁盘：home 的 `package.json`、装在 home 里的包自己的 `package.json`、两份 npmrc。
- * 清单的类型收窄与跟条目树对照的纯逻辑在 `inventory.ts`，npmrc 文本的解析与改写在 `sources.ts`
- */
-
-/** pnpm 维护的清单文件，与 `cordis.yml` 在同一目录 */
 const MANIFEST = 'package.json'
 
 export function manifestFile(homeDir: string): string {
   return path.join(homeDir, MANIFEST)
 }
 
-/** 把 JSON 文件读成 unknown。**读不到或解析失败都回 undefined**，不抛——调用方按「无法识别」处理 */
-async function readJson(file: string): Promise<unknown> {
+async function readJsonOrUndefined(file: string): Promise<unknown> {
   let text: string
   try {
     text = await fs.promises.readFile(file, 'utf8')
@@ -29,26 +22,16 @@ async function readJson(file: string): Promise<unknown> {
   }
 }
 
-/**
- * home 里装了哪些包：包名 → 版本范围。
- *
- * **读不到就当空表**，不抛：清单由 pnpm 写入，安装过程中可能只写了一半；而
- * `list` 因为读不到清单而整体失败，比少报几行难排查得多。条目树那一侧照样报得出来。
- */
+/** 包名 → 版本范围。清单读不到或不是 JSON 都当空表：pnpm 安装中途它可能只写了一半 */
 export async function readHomeDependencies(homeDir: string): Promise<Record<string, string>> {
-  return toDependencies(await readJson(manifestFile(homeDir)))
+  return toDependencies(await readJsonOrUndefined(manifestFile(homeDir)))
 }
 
 export function installedPackageManifestFile(homeDir: string, pkg: string): string {
   return path.join(homeDir, 'node_modules', ...pkg.split('/'), MANIFEST)
 }
 
-/**
- * 装在 home 里的一个包自己的 `package.json`，原样返回解析结果。
- *
- * 文件不存在时是 undefined：条目可以引用没装的包，pnpm 装到一半时目录也可能还没建好，这两种都按
- * 「包没声明任何东西」报。文件在但读不了、或不是合法 JSON，直接抛错并带上文件路径。
- */
+/** 文件不在回 undefined（条目指向没装的包、或 pnpm 装到一半）；在但读不了或不是 JSON 就抛错，带上路径 */
 export async function readInstalledPackageManifest(homeDir: string, pkg: string): Promise<unknown> {
   const file = installedPackageManifestFile(homeDir, pkg)
   let text: string
@@ -72,7 +55,7 @@ export function npmrcFiles(userDir: string, homeDir: string): { user: string; ho
   return { user: path.join(userDir, NPMRC), home: path.join(homeDir, NPMRC) }
 }
 
-/** 读一份 npmrc。文件不在就是空文本——没加过包源时它多半不存在；在但读不了直接抛错并带上路径 */
+/** 文件不在就是空文本（没加过包源时多半不存在）；在但读不了就抛错，带上路径 */
 export async function readNpmrc(file: string): Promise<string> {
   try {
     return await fs.promises.readFile(file, 'utf8')
@@ -82,9 +65,9 @@ export async function readNpmrc(file: string): Promise<string> {
   }
 }
 
-/** 原子写：先写同目录的临时文件再改名，写到一半断电也不会留下半份 npmrc */
+/** 先写同目录的临时文件再改名，写到一半断电也不会留下半份 npmrc */
 export async function writeNpmrc(file: string, text: string): Promise<void> {
-  const temp = `${file}.gwb-tmp-${String(process.pid)}-${String(Date.now())}`
-  await fs.promises.writeFile(temp, text, 'utf8')
-  await fs.promises.rename(temp, file)
+  const tempFile = `${file}.gwb-tmp-${String(process.pid)}-${String(Date.now())}`
+  await fs.promises.writeFile(tempFile, text, 'utf8')
+  await fs.promises.rename(tempFile, file)
 }
