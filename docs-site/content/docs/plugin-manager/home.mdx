@@ -48,7 +48,7 @@ home 的 `package.json` 读不到或不是 JSON 时当空表：它由 pnpm 写�
 
 **为什么**：两层都不是「写一下文件」那么简单。pnpm 每次都读、改、写 `package.json` 与锁文件，两个同时运行会丢改动，而且都退出码 0（实测见下一节）；`cordis.yml` 的内容在 loader 的内存里也有一份，直接写文件，内存里的条目不知道，下一次写回就把磁盘上的改动覆盖掉。只有一个写入者、一条路，这两类覆盖才都不会发生。
 
-`devkit.dev` 是一个例外：它往隔离 home 装开发版时，自己把准确版本号写进那个 home 的 `package.json` 再运行 `pnpm install`，不经插件管理（`install` 对已经装过的包会再加一条条目，`pnpm add` 会把版本号写成范围）；装完重新加载仍然调 `plugin-manager.remount`，见[改一版看一版](/docs/devkit/dev)。这时不要同时在那个 home 里调插件管理的改动命令。
+`devkit.dev` 是一个例外：它往隔离 home 装开发版时，自己把准确版本号写进那个 home 的 `package.json` 再运行 `pnpm install`，不经插件管理（`install` 对已经装过的包会再加一条条目，`pnpm add` 会把版本号写成范围）；装完重新加载仍然调 `plugin-manager.remount`，见[改一版看一版](/docs/devkit/dev)。它不经过插件管理的 BUSY，也没有别的锁，所以 `devkit.dev` 运行期间，不要在同一个 home 里调插件管理的改动命令；一个隔离 home 同一时间只给一个会话用，名字各起各的。这两条靠约定，不加锁（[隔离 home 靠约定](/trajectory/2026-09-25-isolated-home-by-convention)）。
 
 ### 包：只经 applyToHome
 

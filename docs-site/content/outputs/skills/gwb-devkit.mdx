@@ -66,4 +66,5 @@ description: 写新插件、改插件、在隔离 home 里验证改动时读；�
 - **页面 importmap 里只有 react 的四个包名**，写死在内核包的页面入口 `dist/index.html` 里，别的包加不进名字：别的依赖一律打包进浏览器侧产物；模板的 `build.ts` 从那段 importmap 读外置名单，不手抄
 - **验证的必须是这一版**：改了内核（页面 importmap 里的 react 也由它提供）同样用 `devkit.dev`：`dir` 给内核仓根、`packages` 给 `["apps/desktop"]`，它把内核开发版连同内核要的 `cordis` 装进隔离 home，再重启那个 home（主进程里的内核换不掉），回执 `kernel.version` 就是页面上运行的内核版本；没发过内核开发版的隔离 home 里运行的是 `devkit.home.new` 装进去的内核包
 - **日志**：`%APPDATA%\gwb-kernel\homes\<home 名>\gwb.log`，内核、插件、页面三方的日志都在这一个文件里；哪些条目在运行看 `plugin-manager.list` 的 `active`
+- **一个隔离 home 同一时间只给一个会话用**：`short` 各起各的，不拿别的会话开的 home 来验。`devkit.dev` 运行期间不要在同一个 home 里调插件管理的改动命令（`install`、`uninstall`、`update-all`、`update-kernel`）：`devkit.dev` 自己改那个 home 的 `package.json` 再运行 `pnpm install`，不经插件管理，也没有锁，两个写 home 的 pnpm 同时运行会丢改动、而且都退出码 0
 - **home 里的包只通过安装来换**：`devkit.dev` 每次发新的开发版号再装。覆盖 `node_modules` 里的 `dist/` 会改到 pnpm 全局存储里的同一份文件，node 侧也换不掉

@@ -26,7 +26,7 @@ description: devkit.dev 一条命令把工作区的改动换进另一个 home �
 
 **安装是「在目标 home 的清单里写准确版本号，再 `pnpm install`」，装完读回核对。** 不用 `pnpm add <包>@<号>`：清单里已有 `^` 声明时（`plugin-manager.install` 写的就是），pnpm 沿用这个前缀写回 `^<号>`，锁文件里已解析的同一补丁号的旧预发布版被当成满足新范围、不重新解析；源上有更新的同一补丁号时范围又解析到它——装上的都不是这次发的版本，退出码照样是 0。清单里写死准确版本号就没有范围可解析。装完读 `node_modules/<包>/package.json` 的 `version`，对不上当场 `ok: false`、不重新加载：
 
-{/* ref file="../plugins/devkit/src/dev.ts" lines="441-480" */}
+{/* ref file="../plugins/devkit/src/dev.ts" lines="449-488" */}
 
 **版本号必须变，这是这条流程起作用的前提。** Node 的 ESM 模块图按 URL 缓存，同一个 URL 永远是同一个模块实例；原地覆盖产物不改路径，cordis 把插件停用再启用，`import()` 拿回的还是旧的。发一个开发版，版本号是 `<patch+1>-dev.<时间戳>`，装上的版本变了路径就变了，重新加载时才真的重新执行模块。同一个补丁号的多个开发版也成立：pnpm 虚拟存储的目录名超长时截成前段加全名哈希，预发布段与 peer 后缀都在哈希里。前提是这次的版本号真的装上了，所以上一段那道核对不能省。
 
@@ -55,6 +55,8 @@ description: devkit.dev 一条命令把工作区的改动换进另一个 home �
 **不知道怎么连 CDP、怎么启动进程、怎么读写磁盘。** 这三样都在注入的 `DevDeps` 后面。
 
 **不知道目标 home 的目录在哪**——这是问出来的，不是配置出来的。目标页面上外壳插入的样式表是带着 home 路径的 `file://` 地址，所以问一次正在运行的页面就有答案。配置里存一份 home 路径，人换了窗口之后它还指着旧的。
+
+**不和插件管理互斥。** 装包那一步在 `installIntoHome` 里自己读改写目标 home 的 `package.json`、再运行 `pnpm install`，不经过插件管理，也没有锁。两个写 home 的 pnpm 同时运行会丢改动，而且都退出码 0，所以 `devkit.dev` 运行期间，不要在同一个 home 里调插件管理的改动命令（`install`、`uninstall`、`update-all`、`update-kernel`）。一个隔离 home 同一时间只给一个会话用，名字各起各的，这两条靠约定，不加锁（[隔离 home 靠约定](/trajectory/2026-09-25-isolated-home-by-convention)）。
 
 **不管第一次安装。** 目标 home 里没有这个包的条目时，它装完就停在那里、在回执里说怎么补，不替人建条目。装包是一件事，加载条目是另一件事。
 

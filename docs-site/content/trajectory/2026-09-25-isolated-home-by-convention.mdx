@@ -1,0 +1,34 @@
+---
+title: 隔离 home 的并发靠约定，不加锁
+born-at: 2026-09-25T02:40
+type: choice
+parent: [2026-09-08-gwb-devkit]
+label: 隔离 home 约定
+domain: 开发循环
+---
+
+## 背景
+
+[两个 pnpm 同时改同一个 home](2026-09-25-concurrent-pnpm-loses-writes.md) 实测：两个写 home 的 pnpm 同时运行会丢改动，而且都退出码 0。插件管理进程内的写入由 BUSY 串起来，但 `devkit.dev` 往隔离 home 装开发版时，自己读改写目标 home 的 `package.json`、再运行 `pnpm install`，不经过插件管理，也没有任何互斥；`devkit.home.new` 与人手工运行的 pnpm 同样不经过插件管理。所以「`devkit.dev` 正在装、同一个 home 里又有人调插件管理的 `install`」，或者「两个会话拿同一个隔离 home 各跑一次 `devkit.dev`」，都会丢改动。
+
+问题是要不要为这种情况加一道锁。人的原话：
+
+> 我觉得做成个约定就行了，2个会话基本没可能同时访问隔离home，没必要搞busy和排队机制
+
+pivots-from:: [两个 pnpm 同时改同一个 home](2026-09-25-concurrent-pnpm-loses-writes.md)
+
+## 结论与边界
+
+不加锁，写成约定：一个隔离 home 同一时间只给一个会话用，名字各起各的；`devkit.dev` 运行期间，不要在同一个 home 里调插件管理的改动命令。约定写进 devkit 的「测试 home」「改一版看一版」两页、说明书 `gwb-devkit`，插件管理 home 页里给 `devkit.dev` 开的那段例外措辞与此对齐。
+
+边界：约定只管隔离 home。default 上的改动都经插件管理，由 BUSY 管；`devkit.dev` 本来就拒绝以 default 为目标。
+
+## 否掉的候选
+
+- **新加命令 `plugin-manager.pin`，让 `devkit.dev` 经插件管理写 home**：写 home 就都经过 BUSY 了，但要为一个几乎不会发生的并发多一条对外命令、改一次插件管理的接口
+- **home 目录里放锁文件**：插件管理、devkit、人手工运行的 pnpm 都得认它，进程崩溃后留下的锁还要有人清
+- **devkit 进程内按 home 加 BUSY**：只挡得住同一个 devkit 进程里的两次 `devkit.dev`，挡不住目标 home 里的插件管理，也挡不住另一个控制台 home 里的 devkit
+
+## 代价与遗留
+
+约定没人检查：真有两个会话撞上同一个隔离 home，会像实测那样静默丢改动，`devkit.dev` 装完读回核对版本号能发现装上的不是这次的版本，但发现不了别的包被丢掉。
