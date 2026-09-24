@@ -2468,7 +2468,7 @@
     "../plugins/devkit/src/node-services-deps.ts:7-58": {
       "kind": "git",
       "blob": "1682d673a029726ea21fa12dd15288ac73589e00",
-      "commit": "5f212ca01de84a270892754b7103de75a9da94b6",
+      "commit": "d7953194c5111ea08431af2ad254ca931bede900",
       "lines": [
         7,
         58
@@ -2477,38 +2477,18 @@
     },
     "../plugins/devkit/src/services.ts:55-66": {
       "kind": "git",
-      "blob": "1dbf20f38c8de668000a81ebcb269ca76e699812",
-      "commit": "5f212ca01de84a270892754b7103de75a9da94b6",
+      "blob": "9fea2453fa045085611453f38a46d15537f2f3f5",
+      "commit": "d7953194c5111ea08431af2ad254ca931bede900",
       "lines": [
         55,
         66
       ],
       "hash": "73fdbad5e732b2567b4e8bd807300fe036891dab254573fe9d13d96400d6d944"
     },
-    "../plugins/devkit/src/services.ts:72-93": {
-      "kind": "git",
-      "blob": "1dbf20f38c8de668000a81ebcb269ca76e699812",
-      "commit": "5f212ca01de84a270892754b7103de75a9da94b6",
-      "lines": [
-        72,
-        93
-      ],
-      "hash": "cfe82e40d551134625a881d9c241f5f1af0735330fa8213789366100d05daab6"
-    },
-    "../plugins/devkit/src/services.ts:103-129": {
-      "kind": "git",
-      "blob": "1dbf20f38c8de668000a81ebcb269ca76e699812",
-      "commit": "5f212ca01de84a270892754b7103de75a9da94b6",
-      "lines": [
-        103,
-        129
-      ],
-      "hash": "6ed76ff686b1359281da5004b1125c4e9607cb6ac08ecb9fc6db3fcb6bd62a1c"
-    },
     "../plugins/devkit/src/index.ts:437-454": {
       "kind": "git",
       "blob": "fac01718226b6905c3c9904094532bd64439631c",
-      "commit": "5f212ca01de84a270892754b7103de75a9da94b6",
+      "commit": "d7953194c5111ea08431af2ad254ca931bede900",
       "lines": [
         437,
         454
@@ -2526,6 +2506,26 @@
     },
     "has ../plugins/devkit/tests/services.test.ts \"两个包都带着定义：两个都列进 providers，definition 取先读到的那个\"": {
       "kind": "has"
+    },
+    "../plugins/devkit/src/services.ts:72-98": {
+      "kind": "git",
+      "blob": "9fea2453fa045085611453f38a46d15537f2f3f5",
+      "commit": "d7953194c5111ea08431af2ad254ca931bede900",
+      "lines": [
+        72,
+        98
+      ],
+      "hash": "fb259239d8fb20a1408120a7a72564c260292682fc9634582da81246024a3395"
+    },
+    "../plugins/devkit/src/services.ts:108-134": {
+      "kind": "git",
+      "blob": "9fea2453fa045085611453f38a46d15537f2f3f5",
+      "commit": "d7953194c5111ea08431af2ad254ca931bede900",
+      "lines": [
+        108,
+        134
+      ],
+      "hash": "6ed76ff686b1359281da5004b1125c4e9607cb6ac08ecb9fc6db3fcb6bd62a1c"
     }
   },
   "content/docs/seams/workbench.mdx": {
