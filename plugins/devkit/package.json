@@ -32,16 +32,16 @@
   },
   "//dependencies": "站那半的两条命令（docs-site.create / docfirst.attach）只按名字在命令总线上找——本包不依赖站件与 docfirst 件的任何包，那正是三者互不依赖的判据",
   "peerDependencies": {
-    "@godcreator/gwb-kernel-desktop": "^0.3.0"
+    "@godcreator/gwb-kernel-desktop": "^0.4.0"
   },
   "devDependencies": {
-    "@godcreator/gwb-plugin-api": "^0.3.0",
+    "@godcreator/gwb-plugin-api": "^0.4.0",
     "@godcreator/gwb-commands": "0.4.5",
     "@godcreator/gwb-node-cli": "0.4.5",
     "@godcreator/gwb-shell": "0.13.3",
     "@godcreator/gwb-skills": "0.4.3",
     "@types/node": "^24.0.0",
-    "cordis": "4.0.0-rc.9",
+    "cordis": "4.0.0-rc.10",
     "typescript": "^7.0.2",
     "vitest": "^4.1.10",
     "@godcreator/gwb-repo-kit": "workspace:*"

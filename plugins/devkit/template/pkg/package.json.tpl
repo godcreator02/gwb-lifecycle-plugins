@@ -33,7 +33,7 @@
   "//devDependencies": "cordis 只写 dev（给本地构建与类型检查）。命令总线、外壳、词汇表包只取类型，运行时经 inject 使用；react 由页面的 importmap 提供，构建时不打包",
   "devDependencies": {
     "@godcreator/gwb-commands": "^0.4.5",
-    "@godcreator/gwb-plugin-api": "^0.3.0",
+    "@godcreator/gwb-plugin-api": "^0.4.0",
     "@godcreator/gwb-repo-kit": "^0.3.0",
     "@godcreator/gwb-shell": "^0.13.5",
     "@tailwindcss/cli": "^4.3.0",
@@ -41,7 +41,7 @@
     "@types/node": "^24.0.0",
     "@types/react": "19.2.18",
     "@types/react-dom": "19.2.5",
-    "cordis": "4.0.0-rc.9",
+    "cordis": "4.0.0-rc.10",
     "esbuild": "^0.27.0",
     "oxlint": "1.76.0",
     "oxlint-tsgolint": "7.0.2001",

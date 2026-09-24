@@ -30,22 +30,22 @@
     "prepublishOnly": "pnpm build"
   },
   "peerDependencies": {
-    "@godcreator/gwb-kernel-desktop": "^0.3.0"
+    "@godcreator/gwb-kernel-desktop": "^0.4.0"
   },
   "dependencies": {
     "@pnpm/exe.win32-x64": "12.4.2"
   },
   "devDependencies": {
-    "@cordisjs/plugin-include": "1.0.5",
-    "@cordisjs/plugin-loader": "1.0.0-rc.6",
+    "@cordisjs/plugin-include": "1.1.0",
+    "@cordisjs/plugin-loader": "1.0.0-rc.7",
     "@godcreator/gwb-commands": "^0.4.6",
     "@godcreator/gwb-data": "^0.1.6",
-    "@godcreator/gwb-plugin-api": "^0.3.0",
+    "@godcreator/gwb-plugin-api": "^0.4.0",
     "@godcreator/gwb-repo-kit": "workspace:*",
     "@godcreator/gwb-settings": "^0.3.2",
     "@godcreator/gwb-skills": "^0.4.4",
     "@types/node": "^24.0.0",
-    "cordis": "4.0.0-rc.9",
+    "cordis": "4.0.0-rc.10",
     "oxlint": "1.81.0",
     "oxlint-tsgolint": "7.0.2001",
     "typescript": "^7.0.2",
