@@ -3,15 +3,11 @@ import fs from 'node:fs'
 import type { ProcessProbe } from './probes.js'
 import { parseNetstat, parsePid, parseSs, parseTasklist } from './probes.js'
 
-/**
- * 探测那半的环境胶水：碰盘走 node:fs，探进程与杀进程走系统命令。时序与守卫的
- * 纯机在 `probes.ts` 与 `home.ts`，**这一层不进单测**——这里只负责「真机器上怎么
- * 拿到那些答案」。home 与 dev 两半的 deps 都从这儿取件。
- */
+// 真机器上的读写文件、查进程、查端口、结束进程，没有单元测试；判断逻辑在 probes.ts 与 home.ts
 
-/** 查一次映像名的上限。tasklist 平时几十毫秒，卡住的话状态卡不能跟着一起卡住 */
+/** 查一次映像名的上限。tasklist 平时几十毫秒，卡住了查状态的命令不能跟着卡住 */
 const PROCESS_NAME_TIMEOUT_MS = 5_000
-/** 查一次端口持有者的上限。netstat 要把整张连接表打出来，比 tasklist 慢，但也就那样 */
+/** 查一次端口持有者的上限。netstat 要打出整张连接表，比 tasklist 慢 */
 const PORT_OWNER_TIMEOUT_MS = 5_000
 
 export const nodeFs = {
@@ -43,12 +39,8 @@ export const nodeFs = {
 }
 
 /**
- * 查一个 pid 对应的进程。**不走 WMI**：这台机器上 `Get-CimInstance` 那条路会死锁。
- * Windows 用 `tasklist` 的 CSV 单行输出，别的平台 `ps -o comm=`，两条都带超时。
- *
- * 超时、命令不在、tasklist 自己出错都归「查不出」（probes 的 ProcessProbe 三态）——
- * 把这些当成「进程不在」，停就退化成「只清一份 pid 文件」。POSIX 那侧 `ps` 对一个
- * 不存在的 pid 就是非零退出且不打东西，那才是确凿的「不在」。
+ * 不用 WMI：这台机器上 `Get-CimInstance` 会死锁。超时、命令不在、tasklist 自己出错都算「查不出」；
+ * POSIX 上 `ps` 对不存在的 pid 非零退出且不打东西，那才是确凿的「不在」
  */
 export function processName(pid: number): Promise<ProcessProbe> {
   const win = process.platform === 'win32'
@@ -84,10 +76,8 @@ function runProbe(command: string, args: string[], timeout: number): Promise<str
 }
 
 /**
- * 某个 tcp 端口上 listen 的那个 pid——**杀之前的第二道核对**。映像名那道只能证明
- * 「这是个 node 或者跟宿主同一个 exe」，pid 复用撞上别人的 node 就杀错人。取不出来
- * 一律回 undefined（没人听、命令不在、这个平台上查不了），那时按映像名那道走。
- * win32 用 `netstat -ano -p tcp`，别的平台先 `ss -ltnp` 再退到 `lsof`。
+ * 结束进程之前的第二道核对：映像名只能证明「这是 node 或跟宿主同一个 exe」，pid 被复用时会结束别人的进程。
+ * 取不出来（没人监听、命令不在、这个平台查不了）回 undefined，那时只按映像名核对
  */
 export async function portOwner(port: number): Promise<number | undefined> {
   if (process.platform === 'win32') {
@@ -101,7 +91,7 @@ export async function portOwner(port: number): Promise<number | undefined> {
   return lsof === undefined ? undefined : parsePid(lsof.split('\n')[0])
 }
 
-/** `process.kill` 的两种收场之外（EPERM 之类）一律往上抛，由调用方收进各自的失败说明 */
+/** 结束了或本来就不在之外的情况（EPERM 之类）一律抛出，由调用方写进各自的失败说明 */
 export function kill(pid: number): 'killed' | 'gone' {
   try {
     process.kill(pid)
