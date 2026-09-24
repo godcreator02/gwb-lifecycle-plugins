@@ -1624,26 +1624,6 @@
     "has ../packages/repo-kit/src/index.ts \"export type { GuardExpect, GuardVt } from './vitest-context.js'\"": {
       "kind": "has"
     },
-    "../packages/repo-kit/src/self-report-guard.ts:34-59": {
-      "kind": "git",
-      "blob": "62d22dd7320175850eeff635ef9b160d6f015e37",
-      "commit": "e262826bbd89467d1d1e5f45f4954971888ac831",
-      "lines": [
-        34,
-        59
-      ],
-      "hash": "a578f8a1d255072f29483c466eaeda4ca8767b93d7dc3b55a67ab50a771f954a"
-    },
-    "../packages/repo-kit/src/self-report-guard.ts:112-122": {
-      "kind": "git",
-      "blob": "62d22dd7320175850eeff635ef9b160d6f015e37",
-      "commit": "e262826bbd89467d1d1e5f45f4954971888ac831",
-      "lines": [
-        112,
-        122
-      ],
-      "hash": "fce6d2e28e98b508b609a92128938945e2ec6ce7e9355dfa3a63de21e0663884"
-    },
     "has ../plugins/devkit/template/pkg/tests/plugin.test.ts.tpl \"registerPluginGuard({ describe, it, expect }, {\"": {
       "kind": "has"
     },
@@ -1653,25 +1633,55 @@
     "has ../plugins/devkit/template/pkg/tests/self-report.test.ts.tpl \"docsDir: path.resolve(here, '../../../docs-site/content/docs')\"": {
       "kind": "has"
     },
-    "../packages/repo-kit/src/plugin-guard.ts:24-39": {
+    "../packages/repo-kit/src/self-report-guard.ts:12-35": {
       "kind": "git",
-      "blob": "6192a54c58ef3e0ea4b98e21f89daccb29151306",
-      "commit": "e262826bbd89467d1d1e5f45f4954971888ac831",
+      "blob": "3701f87ccc9d5e585ab1628f992117428bfc6c40",
+      "commit": "1cbe30c5ec6a06bbef4fd4160096ebc5ec0f33c4",
       "lines": [
-        24,
-        39
+        12,
+        35
       ],
-      "hash": "dca76141492f519fa833a665ac824e3d5aca1dd8b6e43bd05e0373d464795f88"
+      "hash": "c1bead23d7a894c4eea90af9eaf942448ec8505c30d597d2ab965c6629a76488"
     },
-    "../packages/repo-kit/src/plugin-guard.ts:55-88": {
+    "../packages/repo-kit/src/self-report-guard.ts:99-109": {
       "kind": "git",
-      "blob": "6192a54c58ef3e0ea4b98e21f89daccb29151306",
-      "commit": "e262826bbd89467d1d1e5f45f4954971888ac831",
+      "blob": "3701f87ccc9d5e585ab1628f992117428bfc6c40",
+      "commit": "1cbe30c5ec6a06bbef4fd4160096ebc5ec0f33c4",
       "lines": [
-        55,
-        88
+        99,
+        109
       ],
-      "hash": "e686ffeaf26611754f5123c71fb70f1bcc5308d6855858f9a1a872c16b8a15ab"
+      "hash": "77512e84321088f99340cdf30e44f54d5c398b5864ea00fb5c851a46c8dfd82d"
+    },
+    "../packages/repo-kit/src/self-report-guard.ts:137-140": {
+      "kind": "git",
+      "blob": "3701f87ccc9d5e585ab1628f992117428bfc6c40",
+      "commit": "1cbe30c5ec6a06bbef4fd4160096ebc5ec0f33c4",
+      "lines": [
+        137,
+        140
+      ],
+      "hash": "647065ecb73396eea7460e7eca14f47a7a8f74357fd0d14c6e2a1eb49ab6137b"
+    },
+    "../packages/repo-kit/src/plugin-guard.ts:3-13": {
+      "kind": "git",
+      "blob": "af8e2c56bf524760a48663a6283dc30048d003b4",
+      "commit": "1cbe30c5ec6a06bbef4fd4160096ebc5ec0f33c4",
+      "lines": [
+        3,
+        13
+      ],
+      "hash": "762e551d1a22e139e345830af8a10d04b7067fa3fc70b6111f95dd86e87bd6bc"
+    },
+    "../packages/repo-kit/src/plugin-guard.ts:29-58": {
+      "kind": "git",
+      "blob": "af8e2c56bf524760a48663a6283dc30048d003b4",
+      "commit": "1cbe30c5ec6a06bbef4fd4160096ebc5ec0f33c4",
+      "lines": [
+        29,
+        58
+      ],
+      "hash": "42e8a3318665136e5d3932007e21fc1c99ddbc649b0741908830bd1b6b9b2993"
     }
   },
   "content/docs/seams/borrowed-commands.mdx": {
@@ -2296,37 +2306,17 @@
     "../packages/repo-kit/src/index.ts:all": {
       "kind": "git",
       "blob": "31382052d46221fe02566a376e680e77b34a81a6",
-      "commit": "e262826bbd89467d1d1e5f45f4954971888ac831",
+      "commit": "1cbe30c5ec6a06bbef4fd4160096ebc5ec0f33c4",
       "lines": [
         1,
         3
       ],
       "hash": "38638b67f51bd0d861760e15a9147dbe212d795420332518e8ea0d607028826c"
     },
-    "../packages/repo-kit/src/vitest-context.ts:13-17": {
-      "kind": "git",
-      "blob": "a716eaf0317fdb2a9cfb9b12641f3e64708bbb57",
-      "commit": "e262826bbd89467d1d1e5f45f4954971888ac831",
-      "lines": [
-        13,
-        17
-      ],
-      "hash": "8ea5170a1e86e5bd3bf42fca369a9a26f808b2b27e100e6f416f019abb4de63b"
-    },
-    "../packages/repo-kit/src/self-report-guard.ts:105-155": {
-      "kind": "git",
-      "blob": "62d22dd7320175850eeff635ef9b160d6f015e37",
-      "commit": "e262826bbd89467d1d1e5f45f4954971888ac831",
-      "lines": [
-        105,
-        155
-      ],
-      "hash": "74c544ea1469865c4d6a413841249e83e9a88ad9bdd518eaaff286fc820c07ff"
-    },
     "../plugins/devkit/tests/self-report.test.ts:13-17": {
       "kind": "git",
       "blob": "1e6aa7f8947d1cd57330a781f549cc1724c96a4d",
-      "commit": "e262826bbd89467d1d1e5f45f4954971888ac831",
+      "commit": "1cbe30c5ec6a06bbef4fd4160096ebc5ec0f33c4",
       "lines": [
         13,
         17
@@ -2336,7 +2326,7 @@
     "../packages/repo-kit/package.json:2-3": {
       "kind": "git",
       "blob": "0297b88faf4968fd1f3ee6d8223b5cb82fac6dab",
-      "commit": "e262826bbd89467d1d1e5f45f4954971888ac831",
+      "commit": "1cbe30c5ec6a06bbef4fd4160096ebc5ec0f33c4",
       "lines": [
         2,
         3
@@ -2355,7 +2345,7 @@
     "../plugins/devkit/template/pkg/tests/self-report.test.ts.tpl:16-20": {
       "kind": "git",
       "blob": "2c409e16fb82fffd7bb4871e63f0fe22f12cbaa3",
-      "commit": "e262826bbd89467d1d1e5f45f4954971888ac831",
+      "commit": "1cbe30c5ec6a06bbef4fd4160096ebc5ec0f33c4",
       "lines": [
         16,
         20
@@ -2368,7 +2358,7 @@
     "../plugins/devkit/template/pkg/package.json.tpl:31-35": {
       "kind": "git",
       "blob": "be6f80618e9154ed2e9d2d83fc0f155465c5b693",
-      "commit": "e262826bbd89467d1d1e5f45f4954971888ac831",
+      "commit": "1cbe30c5ec6a06bbef4fd4160096ebc5ec0f33c4",
       "lines": [
         31,
         35
@@ -2378,18 +2368,38 @@
     "has ../plugins/devkit/tests/scaffold.test.ts \"端到端：建仓、站装好六区、写插件页，生成的插件包跑自述检查五项全过；不写插件页则 inject 那一项不过\"": {
       "kind": "has"
     },
-    "../packages/repo-kit/src/plugin-guard.ts:96-131": {
-      "kind": "git",
-      "blob": "6192a54c58ef3e0ea4b98e21f89daccb29151306",
-      "commit": "e262826bbd89467d1d1e5f45f4954971888ac831",
-      "lines": [
-        96,
-        131
-      ],
-      "hash": "6816cc0100c9fd7cf367f62ad2b04dc45ef6cf45fce917206e6a132fa47b9326"
-    },
     "has ../plugins/devkit/tests/scaffold.test.ts \"端到端：建仓后 import 生成的 src/index.ts，插件守卫四项全过；ping 命令的参数形状写在 usage 里\"": {
       "kind": "has"
+    },
+    "../packages/repo-kit/src/vitest-context.ts:10-14": {
+      "kind": "git",
+      "blob": "d0eac02d08fa08bb2f78df441d5a589dcbfb71ce",
+      "commit": "1cbe30c5ec6a06bbef4fd4160096ebc5ec0f33c4",
+      "lines": [
+        10,
+        14
+      ],
+      "hash": "8ea5170a1e86e5bd3bf42fca369a9a26f808b2b27e100e6f416f019abb4de63b"
+    },
+    "../packages/repo-kit/src/self-report-guard.ts:99-142": {
+      "kind": "git",
+      "blob": "3701f87ccc9d5e585ab1628f992117428bfc6c40",
+      "commit": "1cbe30c5ec6a06bbef4fd4160096ebc5ec0f33c4",
+      "lines": [
+        99,
+        142
+      ],
+      "hash": "8919da13354f3020b17fbc61036c56c8990cc92511399f1caae3bc76f18c8009"
+    },
+    "../packages/repo-kit/src/plugin-guard.ts:70-105": {
+      "kind": "git",
+      "blob": "af8e2c56bf524760a48663a6283dc30048d003b4",
+      "commit": "1cbe30c5ec6a06bbef4fd4160096ebc5ec0f33c4",
+      "lines": [
+        70,
+        105
+      ],
+      "hash": "8a7e0861b6cb28863eff3b04f41c88fa12664d0317b55d289122c7e6d471070b"
     }
   },
   "content/docs/seams/repo-shape.mdx": {
@@ -2559,7 +2569,7 @@
     "../plugins/devkit/src/services.ts:57-79": {
       "kind": "git",
       "blob": "8bc71c2d7aeedec0e378fb0901687d7cfe39d4c3",
-      "commit": "183787e55ac5f9a5f4bfd800c6449c03710d9d8f",
+      "commit": "1cbe30c5ec6a06bbef4fd4160096ebc5ec0f33c4",
       "lines": [
         57,
         79
@@ -2569,7 +2579,7 @@
     "../plugins/devkit/src/services.ts:97-134": {
       "kind": "git",
       "blob": "8bc71c2d7aeedec0e378fb0901687d7cfe39d4c3",
-      "commit": "183787e55ac5f9a5f4bfd800c6449c03710d9d8f",
+      "commit": "1cbe30c5ec6a06bbef4fd4160096ebc5ec0f33c4",
       "lines": [
         97,
         134
@@ -2579,22 +2589,12 @@
     "../plugins/devkit/src/services.ts:155-182": {
       "kind": "git",
       "blob": "8bc71c2d7aeedec0e378fb0901687d7cfe39d4c3",
-      "commit": "183787e55ac5f9a5f4bfd800c6449c03710d9d8f",
+      "commit": "1cbe30c5ec6a06bbef4fd4160096ebc5ec0f33c4",
       "lines": [
         155,
         182
       ],
       "hash": "ef0d385b995b4e4a4c238f31625dabd7213390f4d44900af46e03e26a4ede06f"
-    },
-    "../packages/repo-kit/src/self-report-guard.ts:135-144": {
-      "kind": "git",
-      "blob": "62d22dd7320175850eeff635ef9b160d6f015e37",
-      "commit": "183787e55ac5f9a5f4bfd800c6449c03710d9d8f",
-      "lines": [
-        135,
-        144
-      ],
-      "hash": "361e439b129e2f687ea4887654caaec41db223bf5a5395630fc6f38e12b0fe80"
     },
     "has ../plugins/devkit/tests/services.test.ts \"注入作用域的 fiber 不算提供方\"": {
       "kind": "has"
@@ -2605,20 +2605,10 @@
     "has ../plugins/devkit/tests/capabilities.test.ts \"库：只带 gwb 的 keywords、gwb.shared 报出来、没声明的入口照样列\"": {
       "kind": "has"
     },
-    "../plugins/devkit/src/index.ts:344-366": {
-      "kind": "git",
-      "blob": "e755ef1ea27c83fa1de672eed53992e54ebb1bf5",
-      "commit": "183787e55ac5f9a5f4bfd800c6449c03710d9d8f",
-      "lines": [
-        344,
-        366
-      ],
-      "hash": "2ac638e9915a0272857e8aa5406d0a599e15be7e45ed23b35e4ce997d9173675"
-    },
     "../plugins/devkit/src/capabilities.ts:80-137": {
       "kind": "git",
       "blob": "61c340bbd3e3d8c8ac6746a3a00cbacf67969657",
-      "commit": "183787e55ac5f9a5f4bfd800c6449c03710d9d8f",
+      "commit": "1cbe30c5ec6a06bbef4fd4160096ebc5ec0f33c4",
       "lines": [
         80,
         137
@@ -2628,7 +2618,7 @@
     "../plugins/devkit/src/capabilities.ts:52-63": {
       "kind": "git",
       "blob": "61c340bbd3e3d8c8ac6746a3a00cbacf67969657",
-      "commit": "183787e55ac5f9a5f4bfd800c6449c03710d9d8f",
+      "commit": "1cbe30c5ec6a06bbef4fd4160096ebc5ec0f33c4",
       "lines": [
         52,
         63
@@ -2637,6 +2627,26 @@
     },
     "has ../plugins/devkit/tests/capabilities.test.ts \"gwb.shared 按内核的读法：只认「外置名 → 子路径」对象，子路径不是非空字符串的那项不报，数组写法不报\"": {
       "kind": "has"
+    },
+    "../plugins/devkit/src/index.ts:347-369": {
+      "kind": "git",
+      "blob": "5b99d3ee84c7f4c82cd4e005aa6d9d20ce38b829",
+      "commit": "1cbe30c5ec6a06bbef4fd4160096ebc5ec0f33c4",
+      "lines": [
+        347,
+        369
+      ],
+      "hash": "2ac638e9915a0272857e8aa5406d0a599e15be7e45ed23b35e4ce997d9173675"
+    },
+    "../packages/repo-kit/src/self-report-guard.ts:122-131": {
+      "kind": "git",
+      "blob": "3701f87ccc9d5e585ab1628f992117428bfc6c40",
+      "commit": "1cbe30c5ec6a06bbef4fd4160096ebc5ec0f33c4",
+      "lines": [
+        122,
+        131
+      ],
+      "hash": "857aa4536617519704891c1d93cea2a006c7682b5c0aae8ec82710e107fd8910"
     }
   },
   "content/docs/seams/template-audit.mdx": {
