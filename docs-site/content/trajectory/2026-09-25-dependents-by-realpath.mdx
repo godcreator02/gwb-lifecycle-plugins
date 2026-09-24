@@ -1,0 +1,34 @@
+---
+title: update-all 跟着重新加载的包，从「按 peer 推 pnpm 的目录名」改成「装之前与装之后直接比真实目录」
+born-at: 2026-09-25T03:30
+type: choice
+parent: [2026-09-08-gwb-devkit]
+label: dependents 比目录
+domain: 插件管理
+---
+
+## 背景
+
+[插件之间写 peer](2026-09-24-plugins-peer-each-other.md) 定下：升级了某个包，peer 写了它的插件被 pnpm 装进新目录，`update-all` 要在同一条命令里把它们一起重新加载。当时的做法是在 `pnpm add` 之前，读 home 里每个包的清单，按 peer 关系推 pnpm 的目录命名规则：peer 写了被升级包的插件会换目录，peer 写了这些插件的插件也会换，一层层往外找，回执 `dependents[].because` 写它 peer 里的哪个包换了目录。
+
+这条规则只有一层实测过（`probes/2609242300_peer-between-plugins/`：A 的 peer 写 B，B 升级，A 换目录），往外那几层是推出来的，那张卡也写着「尚待实测」。而且推的时候只看 `keywords` 含 `gwb-plugin` 的包，不是插件的包 peer 写了被升级的插件，同样会换目录，却推不出来。
+
+pivots-from:: [插件之间写 peer](2026-09-24-plugins-peer-each-other.md)
+
+## 结论与边界
+
+改成直接看结果：`pnpm add` 之前与之后各读一次 home 的 dependencies 里每个包的 `realpath(<home>/node_modules/<包>)`，路径变了的包就重新加载。升级了的包归 `updated`，其余路径变了的归 `dependents`，按包名排；一次读得到、一次读不到也算变了。读真实目录是读盘，放在入口文件里；比两次结果、挑出要重新加载的包是纯函数 `plannedDependents`，单独测。
+
+回执 `dependents[]` 删掉 `because`：比目录只知道哪个包换了目录，说不出是因为 peer 里的哪个包，`DependentPackage` 只剩 `{ pkg, entries }`。这是回执形状的破坏性变化，插件管理 0.10.0 本来就升 x；插件管理窗格所在的 `gwb-ui-plugins` 仓收到过「回执新增 `because`」的通知（写卡时它的代码里还没读这个字段），已往它的 feedback 收件箱投一条说明删掉了。写卡时还没发。
+
+边界：测试里的真实目录是用目录链接在假 home 里模拟的，没有在隔离 home 里用真 pnpm 跑过这条命令；「多层 peer 时外层确实换目录」这件事本身也还没实测，只是改成了不管换不换，照实看结果。
+
+## 否掉的候选
+
+- **保留按 peer 推的做法，补实测外层**：实测只能证明某一个 pnpm 版本的命名规则，pnpm 改了规则还是会漏；直接比目录不依赖规则
+- **解析 `pnpm add` 的输出找换了目录的包**：pnpm 的输出里只列被升级的包，换了目录的写 peer 的包根本不出现
+- **两种都做、`because` 从 peer 关系补上**：为了一个回执字段保留一整套推断，而那个字段只是解释，重新加载本身用不上它
+
+## 代价与遗留
+
+每次 `update-all` 在 `pnpm add` 前后各读一遍 home 里全部依赖的真实目录，home 里几十个包时是几十次 `realpath`。读某个包的目录时出了 ENOENT 以外的错，整条命令报错；如果出在 `pnpm add` 之后，包已经升了、条目还没重新加载，再调 `update-all` 也找不回来（包已不过期、目录不再变），要逐条 `remount`。

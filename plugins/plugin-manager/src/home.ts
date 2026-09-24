@@ -48,6 +48,20 @@ export async function readInstalledPackageManifest(homeDir: string, pkg: string)
   }
 }
 
+/**
+ * `node_modules/<包名>` 这个目录链接指向的真实目录（pnpm 虚拟存储里的那一个，目录名带着包与它 peer 的版本）；
+ * 包不在回 undefined，在但读不了就抛错，带上路径
+ */
+export async function installedPackageRealpath(homeDir: string, pkg: string): Promise<string | undefined> {
+  const link = path.join(homeDir, 'node_modules', ...pkg.split('/'))
+  try {
+    return await fs.promises.realpath(link)
+  } catch (err) {
+    if ((err as NodeJS.ErrnoException).code === 'ENOENT') return undefined
+    throw new Error(`读不出 ${link} 的真实目录：${String(err)}`, { cause: err })
+  }
+}
+
 const NPMRC = '.npmrc'
 
 /** 机器级 npmrc 在用户目录下，home 级的在 home 目录下 */

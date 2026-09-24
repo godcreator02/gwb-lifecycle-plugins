@@ -6,7 +6,7 @@ import type { GwbCommands } from '@godcreator/gwb-commands'
 import type {} from '@godcreator/gwb-data'
 import type {} from '@godcreator/gwb-settings'
 import type {} from '@godcreator/gwb-skills'
-import { npmrcFiles, readHomeDependencies, readInstalledPackageManifest } from './home.js'
+import { installedPackageRealpath, npmrcFiles, readHomeDependencies, readInstalledPackageManifest } from './home.js'
 import { assertId, assertIdUsable, assertPkgName, bareId, installSpec, isPkgName, pickId, type IdOwners } from './ids.js'
 import { installedVersionOf, readEntries, reconcile, type PluginPackageView } from './inventory.js'
 import { describeAddFailure, describePnpm, locatePnpm, runPnpm, runPnpmCapture, type PnpmResult } from './pnpm.js'
@@ -15,7 +15,7 @@ import { entriesForPackage } from './uninstall.js'
 import { ownEntryId, treeOf, type EntryTreeLike } from './tree.js'
 import { BusyGate } from './busy.js'
 import { fiberStateOf } from './fiber.js'
-import { assertOnlyPackagesInHome, planUpdateAll, type KernelManagedPackage, type PlannedEntry, type UpdateAllPlan } from './update-all.js'
+import { assertOnlyPackagesInHome, planUpdateAll, plannedDependents, type InstalledDirectories, type KernelManagedPackage, type PlannedDependent, type PlannedEntry, type PlannedPackage } from './update-all.js'
 import { remountNow, remountOne, remountSelfLater, type RemountedEntry } from './remount.js'
 import { KERNEL_PACKAGE } from './kernel-compat.js'
 import { CORDIS_PACKAGE, installedVersionMismatch, kernelStatusInList, kernelUpgradeTargetOf, pluginsOutsideKernelRange, versionChangeOf, type VersionChange } from './kernel-upgrade.js'
@@ -110,11 +110,9 @@ export interface UpdatedPackage {
   entries: RemountedEntry[]
 }
 
-/** 一键热升级中没升级、但 peer 里写了换了目录的包，跟着重新加载的一个包 */
+/** 一键热升级中没升级、但 pnpm add 前后真实目录变了，跟着重新加载的一个包 */
 export interface DependentPackage {
   pkg: string
-  /** 它 peer 里写了的、这次换了目录的包（升级了的，或同样跟着重新加载的），按包名排 */
-  because: string[]
   /** 它的每条条目各自的处理结果 */
   entries: RemountedEntry[]
 }
@@ -349,7 +347,7 @@ class PluginManager {
     registerBusyGuardedCommand(
       UPDATE_ALL_COMMAND,
       '一键热升级过期包，不重启',
-      `一次 pnpm add 把过期包升到 outdated 返回的精确版本，再逐条停用→启用，重新加载成新版本（原本停用的跳过；插件管理自己那条在回执发出后才重新加载），最后 shell.reload 整页重新加载。peer 里写了被升级包的插件被 pnpm 装进了新目录，它们的条目在同一条命令里跟着重新加载（peer 写了这些插件的，一层层往外同样处理）。内核包 ${KERNEL_PACKAGE} 与 ${CORDIS_PACKAGE} 不升（only 点了名也不升），用 ${UPDATE_KERNEL_COMMAND} 升。回执 { updated: [{ pkg, from, to, entries: [{ id, action, state }] }], dependents: [{ pkg, because: [它 peer 里写了的、换了目录的包], entries: [{ id, action, state }] }], selfDeferred, reload, kernelManaged?: [{ pkg, from, to }]（过期了但没升的内核包与 cordis，过期清单里没有它们时没有这个字段）, note? }。参数 { only?: string[] }（只升这几个包，不在 home 的 dependencies 里的名字直接报错，已是最新的写进 note；不给就全升）；${BUSY_USAGE_NOTE}`,
+      `一次 pnpm add 把过期包升到 outdated 返回的精确版本，再逐条停用→启用，重新加载成新版本（原本停用的跳过；插件管理自己那条在回执发出后才重新加载），最后 shell.reload 整页重新加载。pnpm add 前后 home 里 node_modules/<包名> 指向的真实目录变了、本身没升级的包（多半是 peer 写了被升级包的插件），它们的条目在同一条命令里跟着重新加载。内核包 ${KERNEL_PACKAGE} 与 ${CORDIS_PACKAGE} 不升（only 点了名也不升），用 ${UPDATE_KERNEL_COMMAND} 升。回执 { updated: [{ pkg, from, to, entries: [{ id, action, state }] }], dependents: [{ pkg, entries: [{ id, action, state }] }], selfDeferred, reload, kernelManaged?: [{ pkg, from, to }]（过期了但没升的内核包与 cordis，过期清单里没有它们时没有这个字段）, note? }。参数 { only?: string[] }（只升这几个包，不在 home 的 dependencies 里的名字直接报错，已是最新的写进 note；不给就全升）；${BUSY_USAGE_NOTE}`,
       async (args) => {
         const result = await this.updateAll(onlyPackagesArgOf(args))
         return receiptWithPnpmTail(result)
@@ -516,13 +514,13 @@ class PluginManager {
   /** `only` 里包名不合规、或不在 home 的 dependencies 里直接抛；下面每一种失败都是正常结果，转成回执 */
   async updateAll(only?: readonly string[]): Promise<UpdateAllResult> {
     for (const pkg of only ?? []) assertPkgName(pkg)
-    assertOnlyPackagesInHome(only, await readHomeDependencies(this.homeDir))
+    const homeDependencies = await readHomeDependencies(this.homeDir)
+    assertOnlyPackagesInHome(only, homeDependencies)
 
     const checked = await this.outdated()
     if (!checked.ok || checked.updates === undefined) return failedUpdateAll(checked.error ?? '查不出过期清单')
 
-    // 升级前读清单就够了：跟着重新加载的包本身不升级，它的 peer 在这次安装前后不变
-    const plan = planUpdateAll(checked.updates, this.tree.store, ownEntryId(this.ctx), await this.readHomePackageManifests(), only)
+    const plan = planUpdateAll(checked.updates, this.tree.store, ownEntryId(this.ctx), only)
     const notes: string[] = []
     if (plan.alreadyLatest.length > 0) notes.push(`only 里这几个已是最新，没动：${plan.alreadyLatest.join('、')}`)
     if (plan.kernelManaged.length > 0) notes.push(kernelManagedNoteOf(plan.kernelManaged))
@@ -539,6 +537,8 @@ class PluginManager {
     }
     // 一次装完：pnpm 读改写 home 的 package.json，逐个包启动进程与并发安装一样会互相覆盖
     const specs = plan.pnpmArgs.slice(1)
+    const homePackages = Object.keys(homeDependencies).filter(isPkgName)
+    const directoriesBefore = await this.readInstalledDirectories(homePackages)
     this.log.info(`用 ${describePnpm(pnpmLookup)} 一次安装 ${specs.join(' ')}`)
     const pnpmRun = await this.applyToHome(pnpmLookup.file, { add: specs })
     if (!pnpmRun.ok) {
@@ -549,7 +549,14 @@ class PluginManager {
     }
 
     // 升完不重新加载，运行着的还是旧版本，等于没升；旧版本目录也不会一直留着（pnpm 默认约 7 天后清掉）。所以换了目录的每条条目都在这条命令里重新加载
-    const { updated, dependents, ownEntry } = await this.remountUpgradedEntries(plan)
+    const plannedDependentPackages = plannedDependents(
+      directoriesBefore,
+      await this.readInstalledDirectories(homePackages),
+      plan.packages.map((p) => p.pkg),
+      this.tree.store,
+      ownEntryId(this.ctx),
+    )
+    const { updated, dependents, ownEntry } = await this.remountUpgradedEntries(plan.packages, plannedDependentPackages)
     const summary =
       updated.map((p) => `${p.pkg} ${p.from} → ${p.to}`).join('，') +
       (dependents.length === 0 ? '' : `；跟着重新加载 ${dependents.map((d) => d.pkg).join('、')}`)
@@ -654,9 +661,19 @@ class PluginManager {
     return manifestsByPackage
   }
 
-  /** 按计划逐条重新加载：先升级了的包，再跟着重新加载的包；本插件自己那条（启用着的）只记 deferred，交给调用方在回执之后处理 */
+  /**
+   * 包 → `node_modules/<包名>` 指向的真实目录（没装的是 undefined）。`update-all` 在 `pnpm add` 前后各读一次，
+   * 变了的包跟着重新加载
+   */
+  private async readInstalledDirectories(pkgs: readonly string[]): Promise<InstalledDirectories> {
+    const directories = await Promise.all(pkgs.map((pkg) => installedPackageRealpath(this.homeDir, pkg)))
+    return new Map(pkgs.map((pkg, index) => [pkg, directories[index]]))
+  }
+
+  /** 逐条重新加载：先升级了的包，再跟着重新加载的包；本插件自己那条（启用着的）只记 deferred，交给调用方在回执之后处理 */
   private async remountUpgradedEntries(
-    plan: UpdateAllPlan,
+    packages: readonly PlannedPackage[],
+    plannedDependentPackages: readonly PlannedDependent[],
   ): Promise<{ updated: UpdatedPackage[]; dependents: DependentPackage[]; ownEntry: PlannedEntry | undefined }> {
     let ownEntry: PlannedEntry | undefined
     const remountEntriesOf = async (plannedEntries: readonly PlannedEntry[]): Promise<RemountedEntry[]> => {
@@ -672,12 +689,12 @@ class PluginManager {
       return entries
     }
     const updated: UpdatedPackage[] = []
-    for (const plannedPackage of plan.packages) {
+    for (const plannedPackage of packages) {
       updated.push({ pkg: plannedPackage.pkg, from: plannedPackage.from, to: plannedPackage.to, entries: await remountEntriesOf(plannedPackage.entries) })
     }
     const dependents: DependentPackage[] = []
-    for (const plannedDependent of plan.dependents) {
-      dependents.push({ pkg: plannedDependent.pkg, because: plannedDependent.because, entries: await remountEntriesOf(plannedDependent.entries) })
+    for (const plannedDependent of plannedDependentPackages) {
+      dependents.push({ pkg: plannedDependent.pkg, entries: await remountEntriesOf(plannedDependent.entries) })
     }
     return { updated, dependents, ownEntry }
   }

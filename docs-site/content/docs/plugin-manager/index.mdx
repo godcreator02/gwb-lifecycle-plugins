@@ -20,7 +20,7 @@ description: 插件管理是唯一写 home 的插件——装卸包、增删条�
 - **卸载一个包**：先删它的全部条目、再卸包，数据与设置留在磁盘上，见[安装与卸载](/docs/plugin-manager/install#卸载先删条目后卸包)
 - **加删条目、启用或停用一条条目**：条目只经 loader 的条目树改，见[home 的两层与唯一写入者](/docs/plugin-manager/home#条目只经-loader-的条目树)
 - **重新加载一条条目**：停用 → 等旧的卸载完 → 启用，一条命令做完，见[重新加载一条条目](/docs/plugin-manager/remount)
-- **查新版本、一键热升级**：升级与重新加载在同一条命令里，不重启；peer 写了被升级包的插件一起重新加载；内核包与 `cordis` 不在其中，见[热升级](/docs/plugin-manager/upgrade)
+- **查新版本、一键热升级**：升级与重新加载在同一条命令里，不重启；装之前与装之后真实目录变了的别的包（多半是 peer 写了被升级包的插件）一起重新加载；内核包与 `cordis` 不在其中，见[热升级](/docs/plugin-manager/upgrade)
 - **升内核**：先装新的内核包，再把 home 根上的 `cordis` 对齐到内核包 peer 里写的版本；不重新加载任何条目，重启工作台后生效，见[升内核](/docs/plugin-manager/upgrade#升内核)
 - **选条目 id**：沿用本包留在磁盘上的旧 id，避开别的包的数据与设置，见[id 与归属](/docs/plugin-manager/ids)
 - **转归属**：插件改了包名时把一个 id 的数据与设置转给新包，见[id 与归属](/docs/plugin-manager/ids#转归属transfer-owner)
@@ -44,7 +44,7 @@ description: 插件管理是唯一写 home 的插件——装卸包、增删条�
 - `plugin-manager.disable`：停用一条条目
 - `plugin-manager.remount`：重新加载一条条目（经 BUSY 检查）
 - `plugin-manager.outdated`：查已装的包哪些有新版本
-- `plugin-manager.update-all`：一键热升级过期的包，不重启；peer 写了被升级包的插件一起重新加载；内核包与 `cordis` 不升（经 BUSY 检查）
+- `plugin-manager.update-all`：一键热升级过期的包，不重启；装之前与装之后真实目录变了的别的包一起重新加载；内核包与 `cordis` 不升（经 BUSY 检查）
 - `plugin-manager.update-kernel`：升内核包，再把 home 根上的 `cordis` 对齐到内核要的版本，重启工作台后生效，参数 `{ version? }`（经 BUSY 检查）
 - `plugin-manager.transfer-owner`：把一个 id 的数据与设置的归属转给另一个包
 - `plugin-manager.search`：在配好的 npm 源上检索插件，参数 `{ scope? }`，不给就查全部源
@@ -78,7 +78,8 @@ description: 插件管理是唯一写 home 的插件——装卸包、增删条�
 | loader 的条目树：`store`、`create`、`update`、`remove`、`resolve` | 读条目、加删条目、启用停用、重新加载 | 构造时报错：取不到条目树（插件管理不是经 `cordis.yml` 的条目加载的），或条目树少了某个方法（loader 的接口变了），都说清是哪一种 |
 | 用户装的 pnpm 12（`%LOCALAPPDATA%\pnpm\bin\pnpm.exe` 或 `%APPDATA%\npm\node_modules\pnpm\pnpm.exe`，版本不低于 12.4.2） | `add`、`remove`、`outdated --json` | 要运行 pnpm 的命令回 `ok: false`，原因里写明检查了哪两个位置、找到的版本不对时该装哪个版本；`list`、启停条目不受影响 |
 | home 的 `package.json` | 装了哪些包、各自的版本范围 | 读不到或解析不了就当空表：`list` 里只有条目那一层 |
-| 装在 home 里的每个包自己的 `package.json` | 读 `peerDependencies` 与 `peerDependenciesMeta`：内核包的范围、peer 里别的插件的范围，以及那些插件装着的 `version`；`update-all` 用它找 peer 写了被升级包的插件；`update-kernel` 另读新装的内核包的 `version` 与 `peerDependencies.cordis`、各插件的 `keywords` | 文件不在就当不是插件，`kernelUntested` 是 `false`；peer 里的包文件不在就算没装；文件在但读不了、或不是合法 JSON，`list` 与 `update-kernel` 报错并带上文件路径；内核包 peer 里的 `cordis` 不是精确版本号时 `update-kernel` 不装 `cordis`、回 `ok: false` |
+| home 的 `node_modules/<包名>` 这个目录链接指向的真实目录 | `update-all` 在 `pnpm add` 之前与之后各读一次，找出跟着换了目录的包 | 读不到当没装；在但读不了，`update-all` 报错并带上路径 |
+| 装在 home 里的每个包自己的 `package.json` | 读 `peerDependencies` 与 `peerDependenciesMeta`：内核包的范围、peer 里别的插件的范围，以及那些插件装着的 `version`；`update-kernel` 另读新装的内核包的 `version` 与 `peerDependencies.cordis`、各插件的 `keywords` | 文件不在就当不是插件，`kernelUntested` 是 `false`；peer 里的包文件不在就算没装；文件在但读不了、或不是合法 JSON，`list` 与 `update-kernel` 报错并带上文件路径；内核包 peer 里的 `cordis` 不是精确版本号时 `update-kernel` 不装 `cordis`、回 `ok: false` |
 | 命令插件 `gwbCommands`（`@godcreator/gwb-commands`，局部注入） | 登记 16 条命令；热升级后按名字查找并执行 `shell.reload`；`source.add` 的 `owner` 写法按名字调 `settings.get` | 命令登记不上，插件管理没有调用方式；服务照常提供 |
 | 外壳插件的 `shell.reload` 命令（按命令名查找） | 热升级后整页重新加载 | `update-all` 的回执 `reload` 是 `unavailable`，界面要手动刷新 |
 | 数据插件 `gwbData`（`@godcreator/gwb-data`，局部注入） | 读和转数据目录的归属记录 | 选 id 时看不到数据目录的归属；`transfer-owner` 回执里 `data` 是 `false` |

@@ -32,7 +32,7 @@
 * 插件 peer 里内核包 `@godcreator/gwb-kernel-desktop` 的范围两边都用：插件管理在 `list` 里拿它和 home 里装的内核比对，
   `devkit.release` 发版前拒绝没写对的插件包。**比对规则只有一份，在插件管理**：devkit 的 peer 里写着插件管理（`workspace:^`），
   从它的主入口 import `locatePnpm`、`KERNEL_PACKAGE`、peer 范围的判定与 `tailLines`，不另存副本；删改这几个导出，devkit 跟着改
-* 插件 peer 里写的别的插件两边也都用：插件管理在 `list` 里报 `unmetPeers`、`update-all` 把 peer 写了被升级包的插件一起重新加载，
+* 插件 peer 里写的别的插件两边也都用：插件管理在 `list` 里报 `unmetPeers`、`update-all` 把 peer 写了被升级包、跟着换了目录的插件一起重新加载，
   `devkit.release` 发版前拒 peer 里不是插件的包、和源上 latest 不在同一条线的插件
 * **在 home 里启动 pnpm 一律带环境变量 `pnpm_config_auto_install_peers=false`**（devkit 的 `homePnpmPlan`、插件管理的 `spawnPlan`），在插件仓里不带——仓里开发靠自动补装把 peer 里的内核包与插件装进 `node_modules`，带上它 pnpm 会重装并拿掉这些 peer。
   home 里不带的话，pnpm 把插件 peer 里 home 没装的插件自动装进 `.pnpm`，成了没有条目、插件管理不认的包；

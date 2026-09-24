@@ -2,7 +2,7 @@ import fs from 'node:fs'
 import os from 'node:os'
 import path from 'node:path'
 import { afterEach, beforeEach, describe, expect, it } from 'vitest'
-import { installedPackageManifestFile, readHomeDependencies, readInstalledPackageManifest, readNpmrc, writeNpmrc } from '../src/home.js'
+import { installedPackageManifestFile, installedPackageRealpath, readHomeDependencies, readInstalledPackageManifest, readNpmrc, writeNpmrc } from '../src/home.js'
 
 /** 读 home 的 `package.json`。这条真的读磁盘，所以在临时目录里跑 */
 
@@ -45,6 +45,27 @@ describe('装在 home 里的包自己的 package.json', () => {
   it('清单不是合法 JSON 时抛错，报错里有文件路径', async () => {
     writeInstalledManifest('broken', '{ not json')
     await expect(readInstalledPackageManifest(home, 'broken')).rejects.toThrow(installedPackageManifestFile(home, 'broken'))
+  })
+})
+
+describe('装在 home 里的包的真实目录', () => {
+  /** 照 pnpm 的布局：`node_modules/<包名>` 是指向 `.pnpm/<目录名>/node_modules/<包名>` 的目录链接 */
+  function linkInstalled(pkg: string, dirName: string): string {
+    const real = path.join(home, 'node_modules', '.pnpm', dirName, 'node_modules', ...pkg.split('/'))
+    fs.mkdirSync(real, { recursive: true })
+    const link = path.join(home, 'node_modules', ...pkg.split('/'))
+    fs.mkdirSync(path.dirname(link), { recursive: true })
+    fs.symlinkSync(real, link, 'junction')
+    return real
+  }
+
+  it('node_modules/<包名> 是目录链接：回它指向的真实目录', async () => {
+    const real = linkInstalled('@x/gwb-a', '@x+gwb-a@1.0.0_@x+gwb-b@1.0.0')
+    expect(await installedPackageRealpath(home, '@x/gwb-a')).toBe(await fs.promises.realpath(real))
+  })
+
+  it('包不在 node_modules 里时是 undefined', async () => {
+    expect(await installedPackageRealpath(home, '@x/not-installed')).toBeUndefined()
   })
 })
 

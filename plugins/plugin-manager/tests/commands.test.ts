@@ -141,6 +141,16 @@ function writeInstalledManifest(pkg: string, manifest: Record<string, unknown>):
   writeJson(path.join(homeDir, 'node_modules', ...pkg.split('/'), 'package.json'), manifest)
 }
 
+/** 照 pnpm 的布局：`node_modules/<包名>` 是指向 `.pnpm/<目录名>/node_modules/<包名>` 的目录链接；再调一次就改指到新目录 */
+function linkInstalled(pkg: string, dirName: string): void {
+  const real = path.join(homeDir, 'node_modules', '.pnpm', dirName, 'node_modules', ...pkg.split('/'))
+  fs.mkdirSync(real, { recursive: true })
+  const link = path.join(homeDir, 'node_modules', ...pkg.split('/'))
+  fs.mkdirSync(path.dirname(link), { recursive: true })
+  fs.rmSync(link, { force: true })
+  fs.symlinkSync(real, link, 'junction')
+}
+
 function mount(opts: { entries: Record<string, string>; data?: FakeDataPlugin; settings?: FakeDataPlugin; shellReload?: boolean }): Mounted {
   const tree = fakeTree({ 'plugin-manager': OWN_PKG, ...opts.entries })
   const logs: string[] = []
@@ -486,13 +496,18 @@ describe('plugin-manager.update-all', () => {
     })
   })
 
-  it('peer 写了被升级包的插件：它的条目在同一条命令里跟着重新加载（停用的跳过），回执 dependents 列出来', async () => {
+  it('pnpm add 前后真实目录变了的别的包：它的条目在同一条命令里跟着重新加载（停用的跳过），回执 dependents 列出来；目录没变的不动', async () => {
     fakePnpm.captureExitCode = 1
     fakePnpm.captureStdout = JSON.stringify({ '@x/gwb-foo': { current: '1.0.0', latest: '1.1.0' } })
     writeHomeDependencies({ '@x/gwb-foo': '^1.0.0', '@x/gwb-bar': '^1.0.0', '@x/gwb-plain': '^1.0.0' })
-    writeInstalledManifest('@x/gwb-foo', { version: '1.0.0', keywords: ['gwb-plugin'] })
-    writeInstalledManifest('@x/gwb-bar', { version: '1.0.0', keywords: ['gwb-plugin'], peerDependencies: { [KERNEL_PKG]: '^0.2.0', '@x/gwb-foo': '^1.0.0' } })
-    writeInstalledManifest('@x/gwb-plain', { version: '1.0.0', keywords: ['gwb-plugin'], peerDependencies: { [KERNEL_PKG]: '^0.2.0' } })
+    linkInstalled('@x/gwb-foo', '@x+gwb-foo@1.0.0')
+    linkInstalled('@x/gwb-bar', '@x+gwb-bar@1.0.0_@x+gwb-foo@1.0.0')
+    linkInstalled('@x/gwb-plain', '@x+gwb-plain@1.0.0')
+    fakePnpm.afterRun = (args) => {
+      if (args[0] !== 'add') return
+      linkInstalled('@x/gwb-foo', '@x+gwb-foo@1.1.0')
+      linkInstalled('@x/gwb-bar', '@x+gwb-bar@1.0.0_@x+gwb-foo@1.1.0')
+    }
     const pm = mount({ entries: { foo: '@x/gwb-foo', bar: '@x/gwb-bar', 'bar-off': '@x/gwb-bar', plain: '@x/gwb-plain' }, shellReload: true })
     pm.tree.store['bar-off']!.disabled = true
     const plainFiberBefore = pm.tree.store['plain']!.fiber
@@ -504,7 +519,6 @@ describe('plugin-manager.update-all', () => {
         dependents: [
           {
             pkg: '@x/gwb-bar',
-            because: ['@x/gwb-foo'],
             entries: [
               { id: 'bar', action: 'remounted', state: 'ACTIVE' },
               { id: 'bar-off', action: 'skipped', state: 'disabled' },
@@ -520,19 +534,24 @@ describe('plugin-manager.update-all', () => {
     expect(pm.shellReloads).toBe(1)
   })
 
-  it('插件管理自己的 peer 写了被升级的包：别的都在命令里做完，自己那条先回 deferred，回执之后才重新加载', async () => {
+  it('插件管理自己的真实目录变了：别的都在命令里做完，自己那条先回 deferred，回执之后才重新加载', async () => {
     fakePnpm.captureExitCode = 1
     fakePnpm.captureStdout = JSON.stringify({ '@x/gwb-foo': { current: '1.0.0', latest: '1.1.0' } })
     writeHomeDependencies({ '@x/gwb-foo': '^1.0.0', [OWN_PKG]: '^0.9.0' })
-    writeInstalledManifest('@x/gwb-foo', { version: '1.0.0', keywords: ['gwb-plugin'] })
-    writeInstalledManifest(OWN_PKG, { version: '0.9.0', keywords: ['gwb-plugin'], peerDependencies: { '@x/gwb-foo': '^1.0.0' } })
+    linkInstalled('@x/gwb-foo', '@x+gwb-foo@1.0.0')
+    linkInstalled(OWN_PKG, '@godcreator+gwb-plugin-manager@0.9.0_@x+gwb-foo@1.0.0')
+    fakePnpm.afterRun = (args) => {
+      if (args[0] !== 'add') return
+      linkInstalled('@x/gwb-foo', '@x+gwb-foo@1.1.0')
+      linkInstalled(OWN_PKG, '@godcreator+gwb-plugin-manager@0.9.0_@x+gwb-foo@1.1.0')
+    }
     const pm = mount({ entries: { foo: '@x/gwb-foo' }, shellReload: true })
     expect(await pm.run('plugin-manager.update-all')).toEqual({
       ok: true,
       data: {
         ok: true,
         updated: [{ pkg: '@x/gwb-foo', from: '1.0.0', to: '1.1.0', entries: [{ id: 'foo', action: 'remounted', state: 'ACTIVE' }] }],
-        dependents: [{ pkg: OWN_PKG, because: ['@x/gwb-foo'], entries: [{ id: 'plugin-manager', action: 'deferred', state: 'ACTIVE' }] }],
+        dependents: [{ pkg: OWN_PKG, entries: [{ id: 'plugin-manager', action: 'deferred', state: 'ACTIVE' }] }],
         selfDeferred: true,
         reload: 'deferred',
       },
