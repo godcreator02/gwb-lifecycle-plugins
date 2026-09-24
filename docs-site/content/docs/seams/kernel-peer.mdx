@@ -16,7 +16,7 @@ description: 连接插件包 package.json 里 peer 的内核包范围、gwb.requ
 <Diagram name="seam-version-fields" title="两个声明，两处读：devkit.release 在发版时拒，plugin-manager.list 在 home 里只报告">
 - 插件包的 `package.json` 里写 peer 内核包的范围与 `gwb.requires`
 - `devkit.release` 发版时只查插件包：peer 内核包的范围要写成 `^x.y.z`、包含 devkit 所在 home 的 `gwbKernel.version`；`gwb.requires` 查写法（是对象、值是 x.y.z、包在 dev 里、不高于 dev 下限）；没过就一个都不发，回执写改成什么
-- `plugin-manager.list` 每次列出时对每个包：peer 内核包的范围拿插件管理所在 home 的 `gwbKernel.version` 比；`gwb.requires` 拿 home 里 `node_modules/<包>/package.json` 的版本比；报 `kernelUntested` 与 `unmetRequires`，只报告、照常加载
+- `plugin-manager.list` 每次列出时对每个包：是插件（keywords 含 `gwb-plugin`，内核包与 `cordis` 除外）才拿 peer 内核包的范围和插件管理所在 home 的 `gwbKernel.version` 比；`gwb.requires` 拿 home 里 `node_modules/<包>/package.json` 的版本比；报 `kernelUntested` 与 `unmetRequires`，只报告、照常加载
 - 比对规则两个包各有一份（两个 `kernel-compat.ts`、两个 `isMinimumVersion`），不跨包 import，对照测试拿同一组输入比两份的结果
 - 内核不读这两个声明；两处比的可以是不同的 home
 </Diagram>

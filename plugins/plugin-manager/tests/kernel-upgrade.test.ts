@@ -4,6 +4,7 @@ import {
   CORDIS_PACKAGE,
   installedVersionMismatch,
   KERNEL_MANAGED_PACKAGES,
+  kernelStatusInList,
   kernelUpgradeTargetOf,
   pluginsOutsideKernelRange,
   versionChangeOf,
@@ -99,6 +100,27 @@ describe('pluginsOutsideKernelRange：peer 范围不包含新内核的插件', (
       [CORDIS_PACKAGE, plugin()],
     ])
     expect(pluginsOutsideKernelRange(manifests, '0.3.1')).toEqual([])
+  })
+})
+
+describe('kernelStatusInList：list 回执里只给插件标内核兼容', () => {
+  const plugin = (kernelRange?: string): Record<string, unknown> => ({
+    keywords: ['gwb', 'gwb-plugin'],
+    ...(kernelRange === undefined ? {} : { peerDependencies: { [KERNEL_PACKAGE]: kernelRange } }),
+  })
+
+  it('插件：范围包含运行中的内核不标，不包含或没写范围就标，范围原样带上', () => {
+    expect(kernelStatusInList('@x/gwb-fits', plugin('^0.4.0'), '0.4.1')).toEqual({ kernelRange: '^0.4.0', kernelUntested: false })
+    expect(kernelStatusInList('@x/gwb-old', plugin('^0.2.7'), '0.4.1')).toEqual({ kernelRange: '^0.2.7', kernelUntested: true })
+    expect(kernelStatusInList('@x/gwb-bare', plugin(), '0.4.1')).toEqual({ kernelUntested: true })
+  })
+
+  it('不是插件的包不标：库与词汇表包、第三方 cordis 插件、清单读不到的包、内核包与 cordis 自己', () => {
+    expect(kernelStatusInList('@x/gwb-plugin-api', { keywords: ['gwb'] }, '0.4.1')).toEqual({ kernelUntested: false })
+    expect(kernelStatusInList('@cordisjs/plugin-timer', { keywords: ['cordis', 'plugin'] }, '0.4.1')).toEqual({ kernelUntested: false })
+    expect(kernelStatusInList('@x/gwb-ghost', undefined, '0.4.1')).toEqual({ kernelUntested: false })
+    expect(kernelStatusInList(KERNEL_PACKAGE, plugin(), '0.4.1')).toEqual({ kernelUntested: false })
+    expect(kernelStatusInList(CORDIS_PACKAGE, plugin(), '0.4.1')).toEqual({ kernelUntested: false })
   })
 })
 

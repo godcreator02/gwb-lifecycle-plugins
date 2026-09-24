@@ -62,7 +62,7 @@ home 里有两层：
 
 1. `plugin-manager.list`，看每个包的 `kernelUntested` 与 `kernelRange`
    - `kernelRange`：包清单 `peerDependencies` 里内核包 `@godcreator/gwb-kernel-desktop` 的范围，没写时没有这个字段
-   - `kernelUntested` 为 true：范围不包含运行中的内核，或没写、写的不是 `^x.y.z`。`^x.y.z` 在主版本号为 0 时要求次版本号相同（`^0.3.0` 包含 `0.3.4`，不包含 `0.4.0`），≥1 时要求主版本号相同，并且不低于 x.y.z
+   - `kernelUntested` 为 true：插件（keywords 含 gwb-plugin）的范围不包含运行中的内核，或没写、写的不是 `^x.y.z`。库、第三方 cordis 插件、内核包与 cordis 不标。`^x.y.z` 在主版本号为 0 时要求次版本号相同（`^0.3.0` 包含 `0.3.4`，不包含 `0.4.0`），≥1 时要求主版本号相同，并且不低于 x.y.z
 2. 同一份回执里看每个包的 `unmetRequires` 与 `requiresInvalid`
    - `requires`：包清单 `gwb.requires` 原样照抄，`{ 包名: 最低版本号 x.y.z }`，意思是运行时 home 里这些包不低于这个版本；没写时没有这个字段
    - `unmetRequires`：没满足的要求，每条 `{ pkg, required, installed? }`——装的版本低于 `required`、`required` 不是合法的 x.y.z、或没装（没有 `installed` 字段）；全都满足时是空数组。装的是 `0.5.0-dev.1` 不满足要求 `0.5.0`

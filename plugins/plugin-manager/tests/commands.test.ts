@@ -216,10 +216,11 @@ afterEach(() => {
 const settle = (): Promise<void> => new Promise((resolve) => setTimeout(resolve, 20))
 
 describe('plugin-manager.list', () => {
-  it('包与条目两层对上，带 peer 里内核包的范围与没满足的要求；条目指向没装的包报 installed: false', async () => {
+  it('包与条目两层对上，带 peer 里内核包的范围与没满足的要求；条目指向没装的包报 installed: false、不标内核兼容', async () => {
     writeHomeDependencies({ '@x/gwb-a': '^1.0.0' })
     writeInstalledManifest('@x/gwb-a', {
       version: '1.2.0',
+      keywords: ['gwb', 'gwb-plugin'],
       peerDependencies: { [KERNEL_PKG]: '^0.2.1' },
       gwb: { requires: { '@x/gwb-b': '1.0.0' } },
     })
@@ -240,7 +241,7 @@ describe('plugin-manager.list', () => {
       pkg: '@x/gwb-ghost',
       installed: false,
       entries: [{ id: 'ghost', entryId: 'home:ghost', pkg: '@x/gwb-ghost', disabled: false, active: true, group: false }],
-      kernelUntested: true,
+      kernelUntested: false,
       unmetRequires: [],
     })
     expect(listed.map((view) => view.pkg)).toEqual([...listed.map((view) => view.pkg)].sort((a, b) => a.localeCompare(b)))

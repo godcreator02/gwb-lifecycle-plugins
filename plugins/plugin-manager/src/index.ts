@@ -16,8 +16,8 @@ import { ownEntryId, treeOf, type EntryTreeLike } from './tree.js'
 import { BusyGate } from './busy.js'
 import { fiberStateOf, planUpdateAll, type KernelManagedPackage, type PlannedEntry, type UpdateAllPlan } from './update-all.js'
 import { remountNow, remountOne, remountSelfLater, type RemountedEntry } from './remount.js'
-import { KERNEL_PACKAGE, kernelCompatStatusOf } from './kernel-compat.js'
-import { CORDIS_PACKAGE, installedVersionMismatch, kernelUpgradeTargetOf, pluginsOutsideKernelRange, versionChangeOf, type VersionChange } from './kernel-upgrade.js'
+import { KERNEL_PACKAGE } from './kernel-compat.js'
+import { CORDIS_PACKAGE, installedVersionMismatch, kernelStatusInList, kernelUpgradeTargetOf, pluginsOutsideKernelRange, versionChangeOf, type VersionChange } from './kernel-upgrade.js'
 import { declaredRequires, installedVersionOf, requiresStatusOf } from './requires.js'
 import { addSource, listSources, removeSource, searchPlugins, type PackageSourcesDeps } from './package-sources.js'
 
@@ -295,7 +295,7 @@ class PluginManager {
     registerCommand(
       LIST_COMMAND,
       'home 里装了哪些包、各有哪些条目、有没有 peer 范围不包含当前内核或要求的插件版本没满足的',
-      `回执按包列：包名、spec、条目（id、entryId、启停、是否 ACTIVE、显示名）、kernelRange（包的 package.json 里 peerDependencies["${KERNEL_PACKAGE}"] 写的范围，没写时没有这个字段）、kernelUntested（范围不包含运行中的内核就是 true，没写、写的不是 ^x.y.z 也算；^x.y.z 在主版本号为 0 时要求次版本号相同，≥1 时要求主版本号相同，并且不低于 x.y.z）、requires（包的 package.json 里 gwb.requires 原样照抄：{ 包名: 最低版本号 x.y.z }，没写时没有这个字段）、unmetRequires（没满足的要求 [{ pkg, required, installed? }]：home 里装的版本低于 required、required 不是合法的 x.y.z、或没装（没有 installed 字段）；全都满足时是空数组）、requiresInvalid（gwb.requires 写了但不是「包名 → 字符串」的对象时说明哪里不对，这时不比对）。只报告，不拦加载。无参数`,
+      `回执按包列：包名、spec、条目（id、entryId、启停、是否 ACTIVE、显示名）、kernelRange（包的 package.json 里 peerDependencies["${KERNEL_PACKAGE}"] 写的范围，没写时没有这个字段）、kernelUntested（只标插件——keywords 含 gwb-plugin、不是内核包与 cordis 的包：范围不包含运行中的内核就是 true，没写、写的不是 ^x.y.z 也算；别的包与清单读不到的包一律 false；^x.y.z 在主版本号为 0 时要求次版本号相同，≥1 时要求主版本号相同，并且不低于 x.y.z）、requires（包的 package.json 里 gwb.requires 原样照抄：{ 包名: 最低版本号 x.y.z }，没写时没有这个字段）、unmetRequires（没满足的要求 [{ pkg, required, installed? }]：home 里装的版本低于 required、required 不是合法的 x.y.z、或没装（没有 installed 字段）；全都满足时是空数组）、requiresInvalid（gwb.requires 写了但不是「包名 → 字符串」的对象时说明哪里不对，这时不比对）。只报告，不拦加载。无参数`,
       () => this.list(),
     )
 
@@ -452,7 +452,7 @@ class PluginManager {
     const installedVersions = await this.installedVersionsFor(manifestsByPackage)
     return reconciledPackages.map((view) => {
       const manifest = manifestsByPackage.get(view.pkg)
-      return { ...view, ...kernelCompatStatusOf(manifest, this.kernelVersion), ...requiresStatusOf(manifest, installedVersions) }
+      return { ...view, ...kernelStatusInList(view.pkg, manifest, this.kernelVersion), ...requiresStatusOf(manifest, installedVersions) }
     })
   }
 

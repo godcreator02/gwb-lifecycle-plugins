@@ -1,4 +1,4 @@
-import { KERNEL_PACKAGE, declaredKernelRange, kernelRangeCovers } from './kernel-compat.js'
+import { KERNEL_PACKAGE, declaredKernelRange, kernelCompatStatusOf, kernelRangeCovers, type KernelCompatStatus } from './kernel-compat.js'
 import { PLUGIN_KEYWORD } from './search.js'
 import { isRecord } from './vocab.js'
 
@@ -57,6 +57,15 @@ function isPluginManifest(manifest: unknown): boolean {
   if (!isRecord(manifest)) return false
   const keywords = manifest['keywords']
   return Array.isArray(keywords) && keywords.includes(PLUGIN_KEYWORD)
+}
+
+/**
+ * `list` 回执里一个包的内核兼容字段。只有插件要声明兼容哪个内核：keywords 里没有 gwb-plugin 的包（库、词汇表包、第三方 cordis 插件）、
+ * 清单读不到的包、内核包与 cordis 自己一律不标
+ */
+export function kernelStatusInList(pkg: string, manifest: unknown, kernelVersion: string): KernelCompatStatus {
+  if (KERNEL_MANAGED_PACKAGES.has(pkg) || !isPluginManifest(manifest)) return { kernelUntested: false }
+  return kernelCompatStatusOf(manifest, kernelVersion)
 }
 
 /**

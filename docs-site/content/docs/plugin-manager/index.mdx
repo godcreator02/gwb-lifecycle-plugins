@@ -35,7 +35,7 @@ description: 插件管理是唯一写 home 的插件——装卸包、增删条�
 
 **17 条命令**：都登记在命令插件上，`plugin` 写包名。这是插件管理唯一的调用方式，页面、agent、别的插件调的是同一条命令。参数与回执见[对外只有命令](/docs/plugin-manager/commands)。
 
-- `plugin-manager.list`：列出 home 里装了哪些包、各有哪些条目；每个包带 `kernelRange`（包的 `package.json` 里 `peerDependencies` 给内核包写的范围，没写时没有这个字段）与 `kernelUntested`（范围不包含运行中的内核就是 `true`，没写、写的不是 `^x.y.z` 也算），`requires`（`gwb.requires` 原样照抄，没写时没有这个字段）与 `unmetRequires`（home 里装的版本低于要求、要求写得不合法或没装的那几条，每条 `{ pkg, required, installed? }`）
+- `plugin-manager.list`：列出 home 里装了哪些包、各有哪些条目；每个包带 `kernelRange`（包的 `package.json` 里 `peerDependencies` 给内核包写的范围，没写时没有这个字段）与 `kernelUntested`（只标插件：范围不包含运行中的内核就是 `true`，没写、写的不是 `^x.y.z` 也算；库、第三方 cordis 插件、内核包与 `cordis` 一律 `false`），`requires`（`gwb.requires` 原样照抄，没写时没有这个字段）与 `unmetRequires`（home 里装的版本低于要求、要求写得不合法或没装的那几条，每条 `{ pkg, required, installed? }`）
 - `plugin-manager.install`：装一个包并加一条条目（经 BUSY 检查）
 - `plugin-manager.uninstall`：先删一个包的全部条目，再卸包（经 BUSY 检查）
 - `plugin-manager.add-entry`：给已装的包再加一条条目
@@ -77,7 +77,7 @@ description: 插件管理是唯一写 home 的插件——装卸包、增删条�
 | loader 的条目树：`store`、`create`、`update`、`remove`、`resolve` | 读条目、加删条目、启用停用、重新加载 | 构造时报错：取不到条目树（插件管理不是经 `cordis.yml` 的条目加载的），或条目树少了某个方法（loader 的接口变了），都说清是哪一种 |
 | `@pnpm/exe.win32-x64`（`dependencies` 里的固定版本） | `add`、`remove`、`outdated --json` | 要运行 pnpm 的命令回 `ok: false`，原因是插件管理的依赖里没有它、要重装插件管理；`list`、启停条目不受影响 |
 | home 的 `package.json` | 装了哪些包、各自的版本范围 | 读不到或解析不了就当空表：`list` 里只有条目那一层 |
-| 装在 home 里的每个包自己的 `package.json` | 读 `peerDependencies` 里内核包的范围、`gwb.requires`，以及被要求的包装的 `version`；`update-kernel` 另读新装的内核包的 `version` 与 `peerDependencies.cordis`、各插件的 `keywords` | 文件不在就当没写，`kernelUntested` 是 `true`；被要求的包文件不在就算没装；文件在但读不了、或不是合法 JSON，`list` 与 `update-kernel` 报错并带上文件路径；内核包 peer 里的 `cordis` 不是精确版本号时 `update-kernel` 不装 `cordis`、回 `ok: false` |
+| 装在 home 里的每个包自己的 `package.json` | 读 `peerDependencies` 里内核包的范围、`gwb.requires`，以及被要求的包装的 `version`；`update-kernel` 另读新装的内核包的 `version` 与 `peerDependencies.cordis`、各插件的 `keywords` | 文件不在就当不是插件，`kernelUntested` 是 `false`；被要求的包文件不在就算没装；文件在但读不了、或不是合法 JSON，`list` 与 `update-kernel` 报错并带上文件路径；内核包 peer 里的 `cordis` 不是精确版本号时 `update-kernel` 不装 `cordis`、回 `ok: false` |
 | 命令插件 `gwbCommands`（`@godcreator/gwb-commands`，局部注入） | 登记 17 条命令；热升级后按名字查找并执行 `shell.reload`；`source.add` 的 `owner` 写法按名字调 `settings.get` | 命令登记不上，插件管理没有调用方式；服务照常提供 |
 | 外壳插件的 `shell.reload` 命令（按命令名查找） | 热升级后整页重新加载 | `update-all` 的回执 `reload` 是 `unavailable`，界面要手动刷新 |
 | 数据插件 `gwbData`（`@godcreator/gwb-data`，局部注入） | 存显示名；读和转数据目录的归属记录 | `set-label` 回 `ok: false`；选 id 时看不到数据目录的归属；`transfer-owner` 回执里 `data` 是 `false` |

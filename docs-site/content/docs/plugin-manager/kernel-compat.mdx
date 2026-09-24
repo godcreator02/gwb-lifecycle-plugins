@@ -44,9 +44,15 @@ description: 插件在 peerDependencies 里给内核包 @godcreator/gwb-kernel-d
 - `kernelRange`：`peerDependencies` 里内核包范围的原值；没写或不是字符串时没有这个字段
 - `kernelUntested`：范围不包含运行中的内核就是 `true`，包括没写、写的不是 `^x.y.z`
 
+**只标插件**：`keywords` 里有 `gwb-plugin`、又不是内核包与 `cordis` 自己的包才比。库与词汇表包、第三方 cordis 插件（如 `@cordisjs/plugin-timer`）、
+内核包与 `cordis`、清单读不到的包都不该声明兼容哪个内核，一律 `kernelUntested: false`、不带 `kernelRange`——不然窗格里这些包都挂着「内核未测过」，
+真正没迁的插件反而看不出来。是不是插件的判法与 `update-kernel` 回执里的 `pluginsOutsideRange` 相同：
+
+{/* ref file="../plugins/plugin-manager/src/kernel-upgrade.ts" lines="62-69" */}
+
 {/* ref file="../plugins/plugin-manager/src/kernel-compat.ts" lines="54-67" */}
 
-**怎么读包清单**：按包名（含 scope）从 home 的 `node_modules` 读。文件不在（条目指向一个没装的包，或 pnpm 装到一半）就当没写；文件在但读不了、或不是合法 JSON，`list` 直接报错并带上文件路径——那是 home 坏了，不该当成「范围不包含」混过去。
+**怎么读包清单**：按包名（含 scope）从 home 的 `node_modules` 读。文件不在（条目指向一个没装的包，或 pnpm 装到一半）就当不是插件、不标；文件在但读不了、或不是合法 JSON，`list` 直接报错并带上文件路径——那是 home 坏了，不该当成「范围不包含」混过去。
 
 {/* ref file="../plugins/plugin-manager/src/home.ts" lines="34-49" */}
 
@@ -57,6 +63,8 @@ description: 插件在 peerDependencies 里给内核包 @godcreator/gwb-kernel-d
 {/* has file="../plugins/plugin-manager/tests/kernel-compat.test.ts" text="写的不是 ^x.y.z：原样带出，kernelUntested 是 true" */}
 
 {/* has file="../plugins/plugin-manager/tests/home.test.ts" text="包不在 node_modules 里时是 undefined" */}
+
+{/* has file="../plugins/plugin-manager/tests/kernel-upgrade.test.ts" text="不是插件的包不标" */}
 
 {/* has file="../plugins/plugin-manager/tests/home.test.ts" text="清单不是合法 JSON 时抛错，报错里有文件路径" */}
 
