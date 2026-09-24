@@ -5,6 +5,7 @@ import {
   checkTicket,
   dirtyLines,
   peerProblems,
+  requiresProblems,
   runRelease,
   testedKernelProblems,
   ticketManifestOf,
@@ -44,7 +45,16 @@ function pluginManifestOf(name: string, version: string, gwb?: Record<string, un
   return JSON.stringify({ name, version, files: ['dist'], exports: EXPORTS, keywords: ['gwb', 'gwb-plugin'], ...(gwb === undefined ? {} : { gwb }), ...extra })
 }
 
-const T = (peers: Record<string, string>, devs: Record<string, string>, version = '0.3.0', plugin = false) => ({ name: A, version, peers, devs, plugin, testedKernel: undefined })
+const T = (peers: Record<string, string>, devs: Record<string, string>, version = '0.3.0', plugin = false) => ({
+  name: A,
+  version,
+  peers,
+  devs,
+  plugin,
+  testedKernel: undefined,
+  requires: undefined,
+  allDevs: devs,
+})
 
 describe('checkTicket：版本号与 dev 范围', () => {
   it('dev 钉＝latest、workspace:* 跳过——干净；peer 不归它查', () => {
@@ -133,7 +143,7 @@ describe('ticketManifestOf：是不是插件、测过的内核版本', () => {
 })
 
 describe('testedKernelProblems：插件包的 gwb.testedKernel', () => {
-  const P = (testedKernel: string | undefined, plugin = true) => ({ name: A, version: '0.3.0', peers: {}, devs: {}, plugin, testedKernel })
+  const P = (testedKernel: string | undefined, plugin = true) => ({ name: A, version: '0.3.0', peers: {}, devs: {}, plugin, testedKernel, requires: undefined, allDevs: {} })
 
   it('和运行中的内核在同一条版本线上：放行（0.x 比前两位，≥1 只比主版本号）', () => {
     expect(testedKernelProblems(P('0.2.1'), '0.2.7')).toEqual([])
@@ -162,6 +172,70 @@ describe('testedKernelProblems：插件包的 gwb.testedKernel', () => {
 
   it('运行中的内核版本号不合法：直接抛错', () => {
     expect(() => testedKernelProblems(P('0.2.7'), 'dev')).toThrow(/运行中的内核版本号/)
+  })
+})
+
+describe('ticketManifestOf：gwb.requires 与全部 dev', () => {
+  it('gwb.requires 原值读出，devDependencies 不分 scope 全部读出；没写 gwb.requires 时是 undefined', () => {
+    const text = pluginManifestOf(A, '0.3.0', { requires: { [SHELL]: '0.5.0' } }, { devDependencies: { [SHELL]: '^0.5.0', react: '^19.0.0' } })
+    expect(ticketManifestOf(text)).toMatchObject({ requires: { [SHELL]: '0.5.0' }, allDevs: { [SHELL]: '^0.5.0', react: '^19.0.0' }, devs: { [SHELL]: '^0.5.0' } })
+    expect(ticketManifestOf(pluginManifestOf(A, '0.3.0'))).toMatchObject({ requires: undefined })
+  })
+})
+
+describe('requiresProblems：插件包的 gwb.requires', () => {
+  const R = (requires: unknown, allDevs: Record<string, string>, plugin = true) => ({
+    name: A,
+    version: '0.3.0',
+    peers: {},
+    devs: {},
+    plugin,
+    testedKernel: KERNEL,
+    requires,
+    allDevs,
+  })
+
+  it('每个包写在 dev 里、要求的版本不高于 dev 下限：放行（^ 与精确号都认）', () => {
+    expect(requiresProblems(R({ [SHELL]: '0.5.0' }, { [SHELL]: '^0.5.0' }))).toEqual([])
+    expect(requiresProblems(R({ [SHELL]: '0.4.2' }, { [SHELL]: '^0.5.0' }))).toEqual([])
+    expect(requiresProblems(R({ [SHELL]: '0.5.0' }, { [SHELL]: '0.5.1' }))).toEqual([])
+  })
+
+  it('没写 gwb.requires、不是插件包：不查', () => {
+    expect(requiresProblems(R(undefined, {}))).toEqual([])
+    expect(requiresProblems(R({ [SHELL]: 'latest' }, {}, false))).toEqual([])
+  })
+
+  it('不是对象：拒，说要写成什么', () => {
+    expect(requiresProblems(R([SHELL], {}))).toEqual([expect.stringContaining('要写成对象')])
+    expect(requiresProblems(R('0.5.0', {}))).toHaveLength(1)
+  })
+
+  it('值不是合法的 x.y.z：拒（^、预发布段、少一段、不是字符串都算）', () => {
+    for (const bad of ['^0.5.0', '0.5.0-rc.1', '0.5', 5]) {
+      expect(requiresProblems(R({ [SHELL]: bad }, { [SHELL]: '^0.5.0' })), String(bad)).toEqual([expect.stringContaining('最低版本号要写成 x.y.z')])
+    }
+  })
+
+  it('没写在 devDependencies 里：拒，说在 dev 里写上什么', () => {
+    const got = requiresProblems(R({ [SHELL]: '0.5.0' }, {}))
+    expect(got).toEqual([expect.stringContaining('devDependencies 里却没有')])
+    expect(got[0]).toContain('"^0.5.0"')
+  })
+
+  it('要求的版本高于 dev 下限：拒，说把 dev 升到哪', () => {
+    const got = requiresProblems(R({ [SHELL]: '0.5.1' }, { [SHELL]: '^0.5.0' }))
+    expect(got).toEqual([expect.stringContaining('高于 devDependencies "^0.5.0" 的下限 0.5.0')])
+    expect(got[0]).toContain('"^0.5.1"')
+  })
+
+  it('dev 写法认不出下限：拒；dev 写 workspace: 的不比下限', () => {
+    expect(requiresProblems(R({ [SHELL]: '0.5.0' }, { [SHELL]: '>=0.5.0' }))).toEqual([expect.stringContaining('认不出下限')])
+    expect(requiresProblems(R({ [SHELL]: '0.5.0' }, { [SHELL]: 'workspace:*' }))).toEqual([])
+  })
+
+  it('多条要求各查各的，问题一次列全', () => {
+    expect(requiresProblems(R({ [SHELL]: '0.6.0', [API]: '0.2.0', [REACT]: 'x' }, { [SHELL]: '^0.5.0' }))).toHaveLength(3)
   })
 })
 
@@ -379,6 +453,29 @@ describe('发正式版', () => {
     expect(out.error).toContain('2 个包 2 条')
     expect(out.error).toContain(`${A}@0.1.0:\n  - 没写 gwb.testedKernel`)
     expect(out.error).toContain(`${B}@0.2.0:\n  - gwb.testedKernel 是 0.1.4`)
+  })
+
+  it('插件包的 gwb.requires 不对：构建之后、发之前拒，一个都不发；写对了照常发', async () => {
+    const wrong = fake({
+      latest: { [SHELL]: '0.5.0' },
+      files: {
+        [path.resolve(REPO, 'a/package.json')]: pluginManifestOf(A, '0.1.0', { testedKernel: KERNEL, requires: { [SHELL]: '0.5.1' } }, { devDependencies: { [SHELL]: '^0.5.0' } }),
+      },
+    })
+    const refused = await runRelease({ repoDir: REPO, runningKernel: KERNEL, packages: ['a'] }, wrong)
+    expect(refused.ok).toBe(false)
+    if (refused.ok) return
+    expect(wrong.calls.some((one) => one.startsWith('publish'))).toBe(false)
+    expect(refused.error).toContain(`${A}@0.1.0:\n  - gwb.requires 要求 ${SHELL} ≥ 0.5.1`)
+
+    const right = fake({
+      latest: { [SHELL]: '0.5.0' },
+      files: {
+        [path.resolve(REPO, 'a/package.json')]: pluginManifestOf(A, '0.1.0', { testedKernel: KERNEL, requires: { [SHELL]: '0.5.0' } }, { devDependencies: { [SHELL]: '^0.5.0' } }),
+      },
+    })
+    const shipped = await runRelease({ repoDir: REPO, runningKernel: KERNEL, packages: ['a'] }, right)
+    expect(shipped.ok).toBe(true)
   })
 
   it('插件包的 gwb.testedKernel 和运行中的内核同线：照常发', async () => {

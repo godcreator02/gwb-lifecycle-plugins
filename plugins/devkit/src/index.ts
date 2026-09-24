@@ -165,7 +165,7 @@ const RELEASE_USAGE = [
   '**号在仓里抬**：发的是 package.json 里声明的那个号，同号在源上就拒——要发新的一版，先抬号、提交，再来',
   '**仓根 git 树不干净就拒**：正式版只从提交过的状态发',
   '**发版前检查没过就拒**（构建之后，所有包一次列全）：自己不在 0.0.x；@godcreator 的 dev 范围包含源上 dist-tags.latest；产物里没有空 import（import { type X } 留下的）；包目录里 pnpm exec tsc --noEmit -p <tsconfig> --skipLibCheck false 通过（node 侧有 tsconfig.build.json 就查它、没有查 tsconfig.json、两份都没有就拒，有 src/client/tsconfig.json 再查一次；测试与构建脚本不查）',
-  '**插件包另加**（keywords 含 gwb-plugin）：peer 里只有 cordis，node 侧产物按值 import 了 cordis 就必须写它；node 侧产物（exports["."] 入口顺着相对 import 走到的文件）的包名 import 只有 node 内置模块、electron、cordis；浏览器侧产物（dist/client.js 与本包 gwb.shared 指到的文件）只 import importmap 里的名字；gwb.testedKernel 写了、是合法版本号、和运行中的内核在同一条版本线上（主版本号为 0 比前两位，≥1 只比主版本号）',
+  '**插件包另加**（keywords 含 gwb-plugin）：peer 里只有 cordis，node 侧产物按值 import 了 cordis 就必须写它；node 侧产物（exports["."] 入口顺着相对 import 走到的文件）的包名 import 只有 node 内置模块、electron、cordis；浏览器侧产物（dist/client.js 与本包 gwb.shared 指到的文件）只 import importmap 里的名字；gwb.testedKernel 写了、是合法版本号、和运行中的内核在同一条版本线上（主版本号为 0 比前两位，≥1 只比主版本号）；写了 gwb.requires 的，它是 { 包名: 最低版本号 } 的对象、每个值是 x.y.z、每个包也写在 devDependencies 里、要求的版本不高于 dev 范围的下限（dev 写 workspace: 的不比下限）',
   '**这条链只碰源、不碰任何 home**，从哪个 home 调都行；升 default 是下一步的事，走 plugin-manager.update-all',
   '例：{"dir":"D:\\\\unitfolders\\\\evew5-gwbapps\\\\gwb-block-note","packages":["packages/model","packages/engine","packages/client","plugins/gwb-bn-core","plugins/gwb-bn-comment"]}',
 ].join('\n')

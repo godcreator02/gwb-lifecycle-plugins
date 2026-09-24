@@ -32,7 +32,8 @@ description: 这个仓里反复出现的词各指什么、在哪一页定义；�
 | 建仓 | `devkit.scaffold` 把新插件的骨架写进一个新目录，插件文件与文档站分两部分完成 | [建仓与加插件](/docs/devkit/scaffold) |
 | workspace 仓 | 仓根是不发布的 private 包，插件在 `plugins/<短名>/`、别的包在 `packages/`。模板只生成这一种布局；代码注释里叫「薄壳」 | [建仓与加插件](/docs/devkit/scaffold) |
 | 旧布局仓 | 仓根本身就是插件包的仓，结构体检里叫 `bare-root-single`。改到哪个就迁哪个 | [结构体检](/docs/devkit/structure) |
-| 发版前检查 | `devkit.release` 构建之后、发第一个包之前查的那几条：版本不在 0.0.x、dev 范围、peer 只写 `cordis`、构建产物里的包名 import 与空 import、关掉 `skipLibCheck` 的类型检查、`gwb.testedKernel`。代码里的函数名与旧文档里叫「上车检票」 | [开发套件](/docs/devkit#发正式版的检查) |
+| 发版前检查 | `devkit.release` 构建之后、发第一个包之前查的那几条：版本不在 0.0.x、dev 范围、peer 只写 `cordis`、构建产物里的包名 import 与空 import、关掉 `skipLibCheck` 的类型检查、`gwb.testedKernel`、`gwb.requires` 的写法。代码里的函数名与旧文档里叫「上车检票」 | [开发套件](/docs/devkit#发正式版的检查) |
+| 最低版本要求 | 插件在 `package.json` 的 `gwb.requires` 里写的「home 里这个包不低于 x.y.z」。`plugin-manager.list` 报没满足的（`unmetRequires`），只报告不拦 | [要求别的插件的最低版本](/docs/rules/requires) |
 | 版本线 | 比对 `gwb.testedKernel` 用的范围：主版本号为 0 时是前两位（`0.2.7` 属于 `0.2`），主版本号不为 0 时是主版本号 | [在哪个内核上测过](/docs/rules/tested-kernel) |
 | 纯逻辑 | 不读写磁盘、不启动进程、只看输入输出的那部分代码，测试用假实现跑完。对面是只执行、不判断的 `node-*-deps.ts`。代码注释里叫「纯机」 | [关键设计](/docs/design#纯逻辑与真机器操作分开) |
 | 六区 | docfirst 文档站的六个目录：现状、轨迹、交接、未来、生成文件正本、反馈候选 | [开发](/docs/develop#文档站) |

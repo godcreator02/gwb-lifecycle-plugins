@@ -1,6 +1,6 @@
 ---
 name: gwb-plugin-manager
-description: 装插件、找插件或配包源、升级插件、查插件有没有在当前内核上测过、增删改条目、插件装了却没加载时读。
+description: 装插件、找插件或配包源、升级插件、查插件有没有在当前内核上测过或它要求的别的插件版本满没满足、增删改条目、插件装了却没加载时读。
 ---
 
 # 插件管理
@@ -46,14 +46,21 @@ home 里有两层：
 
 升级前的隔离 home 验证、上游发了破坏性版本时怎么升，见说明书 `gwb-release`。
 
-## 查哪些插件没在当前内核上测过
+## 查哪些插件没在当前内核上测过、要求的插件版本没满足
 
 1. `plugin-manager.list`，看每个包的 `kernelUntested` 与 `testedKernel`
    * `testedKernel`：包清单 `gwb.testedKernel` 声明的内核版本，没声明时没有这个字段
    * `kernelUntested` 为 true：声明的版本和运行中的内核不在同一条版本线上，或没声明、声明的不是合法版本号。版本线：主版本号为 0 看前两位（`0.2.1` 与 `0.2.7` 同一条，与 `0.3.0` 不同），≥1 只看主版本号
-2. 列出 `kernelUntested` 为 true 的包。它只是报告、照常加载；出了问题先怀疑这些包。要改就到那个插件的仓里在隔离 home 验证后改 `gwb.testedKernel` 再发版（说明书 `gwb-devkit`、`gwb-release`）
+2. 同一份回执里看每个包的 `unmetRequires` 与 `requiresInvalid`
+   * `requires`：包清单 `gwb.requires` 原样照抄，`{ 包名: 最低版本号 x.y.z }`，意思是运行时 home 里这些包不低于这个版本；没写时没有这个字段
+   * `unmetRequires`：没满足的要求，每条 `{ pkg, required, installed? }`——装的版本低于 `required`、`required` 不是合法的 x.y.z、或没装（没有 `installed` 字段）；全都满足时是空数组。装的是 `0.5.0-dev.1` 不满足要求 `0.5.0`
+   * `requiresInvalid`：`gwb.requires` 写了但不是「包名 → 字符串」的对象，说明哪里不对；这时不比对
+3. 列出 `kernelUntested` 为 true 的包、`unmetRequires` 不空或带 `requiresInvalid` 的包。这些都只是报告、照常加载；出了问题先怀疑它们
+   * 没测过：到那个插件的仓里在隔离 home 验证后改 `gwb.testedKernel` 再发版（说明书 `gwb-devkit`、`gwb-release`）
+   * 被要求的包太旧或没装：升级或安装那个包，`update-all {"only":["<被要求的包名>"]}` 或 `install`
+   * `requiresInvalid`、`required` 不合法：到那个插件的仓里改写法再发版，`devkit.release` 会拒写错的
 
-**完成判据**：给出 `kernelUntested` 为 true 的全部包名与各自的 `testedKernel`。
+**完成判据**：给出 `kernelUntested` 为 true 的全部包名与各自的 `testedKernel`，`unmetRequires` 不空的全部包名与每条没满足的要求，带 `requiresInvalid` 的包名与原因。
 
 ## 增删改条目
 

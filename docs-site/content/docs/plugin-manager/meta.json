@@ -1,5 +1,5 @@
 {
   "title": "gwb-plugin-manager · 插件管理",
   "description": "唯一写 home 的插件：入口页讲功能、接口、依赖与不做的事，其余每页讲一个机制",
-  "pages": ["index", "home", "commands", "install", "sources", "remount", "upgrade", "ids", "pnpm", "kernel-compat"]
+  "pages": ["index", "home", "commands", "install", "sources", "remount", "upgrade", "ids", "pnpm", "kernel-compat", "requires"]
 }

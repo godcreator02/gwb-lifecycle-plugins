@@ -9,7 +9,7 @@ import type {} from '@godcreator/gwb-data'
 import type {} from '@godcreator/gwb-settings'
 import type {} from '@godcreator/gwb-skills'
 import { npmrcFiles, readHomeDependencies, readInstalledPackageManifest } from './home.js'
-import { assertId, assertIdUsable, assertPkgName, bareId, installSpec, pickId, type IdOwners } from './ids.js'
+import { assertId, assertIdUsable, assertPkgName, bareId, installSpec, isPkgName, pickId, type IdOwners } from './ids.js'
 import { readEntries, reconcile, toLabels, type PluginPackageView } from './inventory.js'
 import { describeAddFailure, describePnpm, locatePnpm, runPnpm, runPnpmCapture, type PnpmResult } from './pnpm.js'
 import { parseOutdated, type UpdateInfo } from './outdated.js'
@@ -19,11 +19,13 @@ import { BusyGate } from './busy.js'
 import { fiberStateOf, planUpdateAll, type PlannedEntry } from './update-all.js'
 import { remountNow, remountOne, remountSelfLater, type RemountedEntry } from './remount.js'
 import { kernelTestStatusOf } from './tested-kernel.js'
+import { declaredRequires, installedVersionOf, requiresStatusOf } from './requires.js'
 import { addSource, listSources, removeSource, searchPlugins, type PackageSourcesDeps } from './package-sources.js'
 
 export type { EntrySnapshot, PluginEntryView, PluginPackageView } from './inventory.js'
 export type { RemountedEntry } from './remount.js'
 export type { KernelTestStatus } from './tested-kernel.js'
+export type { RequiresStatus, UnmetRequire } from './requires.js'
 export type { SearchReceipt, SourceAddResult, SourceListResult, SourceRemoveResult, SourceReport } from './package-sources.js'
 export type { SearchRow } from './search.js'
 
@@ -298,7 +300,12 @@ class PluginManager {
       }
       const busy = '同一时刻只允许一个变更，重入回 { ok:false, error:"BUSY…" }'
 
-      on(LIST_COMMAND, 'home 里装了哪些包、各有哪些条目', '回执按包列：包名、spec、条目（id、entryId、启停、是否 ACTIVE、显示名）、testedKernel（包的 package.json 里 gwb.testedKernel 声明的内核版本号，没声明时没有这个字段）、kernelUntested（声明的版本与运行中的内核不在同一条版本线上，或没声明、声明的不是合法版本号，就是 true；主版本号为 0 时比前两位，≥1 时只比主版本号）。无参数', () => this.list())
+      on(
+        LIST_COMMAND,
+        'home 里装了哪些包、各有哪些条目、有没有没在当前内核上测过或要求的插件版本没满足的',
+        '回执按包列：包名、spec、条目（id、entryId、启停、是否 ACTIVE、显示名）、testedKernel（包的 package.json 里 gwb.testedKernel 声明的内核版本号，没声明时没有这个字段）、kernelUntested（声明的版本与运行中的内核不在同一条版本线上，或没声明、声明的不是合法版本号，就是 true；主版本号为 0 时比前两位，≥1 时只比主版本号）、requires（包的 package.json 里 gwb.requires 原样照抄：{ 包名: 最低版本号 x.y.z }，没写时没有这个字段）、unmetRequires（没满足的要求 [{ pkg, required, installed? }]：home 里装的版本低于 required、required 不是合法的 x.y.z、或没装（没有 installed 字段）；全都满足时是空数组）、requiresInvalid（gwb.requires 写了但不是「包名 → 字符串」的对象时说明哪里不对，这时不比对）。只报告，不拦加载。无参数',
+        () => this.list(),
+      )
 
       onGuarded(
         INSTALL_COMMAND,
@@ -444,12 +451,40 @@ class PluginManager {
   async list(): Promise<PluginPackageView[]> {
     const deps = await readHomeDependencies(this.home)
     const packages = reconcile(deps, readEntries(this.tree.store), this.labels)
-    return Promise.all(
-      packages.map(async (view) => {
-        const manifest = await readInstalledPackageManifest(this.home, view.pkg)
-        return { ...view, ...kernelTestStatusOf(manifest, this.kernelVersion) }
-      }),
-    )
+    const manifests = new Map<string, unknown>()
+    await this.readInstalledManifests(packages.map((view) => view.pkg), manifests)
+    const installedVersions = await this.installedVersions(manifests)
+    return packages.map((view) => {
+      const manifest = manifests.get(view.pkg)
+      return { ...view, ...kernelTestStatusOf(manifest, this.kernelVersion), ...requiresStatusOf(manifest, installedVersions) }
+    })
+  }
+
+  /** 把这几个包装在 home 里的 `package.json` 读进 `into`（没装的读成 undefined） */
+  private async readInstalledManifests(pkgs: readonly string[], into: Map<string, unknown>): Promise<void> {
+    const read = await Promise.all(pkgs.map((pkg) => readInstalledPackageManifest(this.home, pkg)))
+    pkgs.forEach((pkg, index) => into.set(pkg, read[index]))
+  }
+
+  /**
+   * home 里装了的包 → 版本号，供 `gwb.requires` 比对。`gwb.requires` 点名、而 home 的 dependencies 与条目都没提到的包，
+   * 也去 `node_modules` 里读一次清单：装没装以 `node_modules/<包>/package.json` 在不在为准。
+   * 不合包名规则的键不拿去拼路径（`..` 之类会读到 `node_modules` 外面），按没装报
+   */
+  private async installedVersions(manifests: Map<string, unknown>): Promise<Map<string, string>> {
+    const unread = new Set<string>()
+    for (const manifest of manifests.values()) {
+      const declared = declaredRequires(manifest)
+      if (declared.kind !== 'declared') continue
+      for (const pkg of Object.keys(declared.requires)) if (!manifests.has(pkg) && isPkgName(pkg)) unread.add(pkg)
+    }
+    await this.readInstalledManifests([...unread], manifests)
+    const versions = new Map<string, string>()
+    for (const [pkg, manifest] of manifests) {
+      const version = installedVersionOf(manifest)
+      if (version !== undefined) versions.set(pkg, version)
+    }
+    return versions
   }
 
   /** 调用方写错（包名、版本范围不合规）直接抛；下面每一种失败都是正常结果，转成回执 */

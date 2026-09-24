@@ -37,7 +37,8 @@ import { isRecord } from './vocab.js'
  * - 插件包(`keywords` 含 `gwb-plugin`)另加:peer 里只有 `cordis`,node 侧产物按值 import 了
  *   `cordis` 就必须写 peer `cordis`(`peerProblems`);node 侧产物的包名 import 只有 node 内置模块、
  *   `electron`、`cordis`,浏览器侧只有 importmap 里的名字(`artifact-check.ts`);`gwb.testedKernel`
- *   写了、是合法版本号、和运行中的内核在同一条版本线上(`testedKernelProblems`)
+ *   写了、是合法版本号、和运行中的内核在同一条版本线上(`testedKernelProblems`);写了 `gwb.requires` 的,
+ *   它是对象、每个值是 x.y.z、每个包在 dev 里、要求的版本不高于 dev 下限(`requiresProblems`)
  */
 
 /** git 树的状态。`dirty` 里是 porcelain 条目原文(两列状态加路径) */
@@ -116,6 +117,10 @@ export interface TicketManifest {
   plugin: boolean
   /** `gwb.testedKernel` 的值;没写或不是字符串时是 undefined */
   testedKernel: string | undefined
+  /** `gwb.requires` 的原值;没写时是 undefined */
+  requires: unknown
+  /** devDependencies 的全部条目,`gwb.requires` 的每个包都要在这里 */
+  allDevs: Record<string, string>
 }
 
 /** 一个包的检票结论。`problems` 非空就拒;`reminders` 只提醒不拒 */
@@ -152,7 +157,56 @@ export function ticketManifestOf(text: string | undefined): TicketManifest | und
     devs: entries(devDependencies, (key) => key.startsWith(SCOPE)),
     plugin: Array.isArray(keywords) && keywords.includes('gwb-plugin'),
     testedKernel: declaredTestedKernel(doc),
+    requires: isRecord(doc) && isRecord(doc['gwb']) ? doc['gwb']['requires'] : undefined,
+    allDevs: entries(devDependencies, () => true),
   }
+}
+
+const MINIMUM_VERSION = /^(0|[1-9]\d*)\.(0|[1-9]\d*)\.(0|[1-9]\d*)$/
+
+/**
+ * 是不是合法的最低版本号:x.y.z,每段是不带前导零的数字,不带预发布段与构建段。
+ * 插件管理(@godcreator/gwb-plugin-manager 的 `src/requires.ts`)判法相同,两边各存一份、不跨包 import;
+ * `tests/requires-parity.test.ts` 拿同一组输入跑两份,结果不同就失败。
+ */
+export function isMinimumVersion(value: string): boolean {
+  return MINIMUM_VERSION.test(value)
+}
+
+/**
+ * 插件包的 `gwb.requires` 检查,纯函数。不是插件包的、没写 `gwb.requires` 的不查。
+ * 拒的四类:不是对象;某个值不是合法的 x.y.z;某个包没写在 devDependencies 里(没法对着它开发);
+ * 要求的版本高于 dev 范围的下限(本地没对着那个版本验过)。dev 写 `workspace:` 的不比下限:同仓的包本地对着的
+ * 就是工作区里的现版本,发出去的 dev 范围也写成 `^现版本`。
+ */
+export function requiresProblems(manifest: TicketManifest): string[] {
+  if (!manifest.plugin || manifest.requires === undefined) return []
+  const requires = manifest.requires
+  if (!isRecord(requires)) {
+    return [`gwb.requires 是 ${JSON.stringify(requires)}:要写成对象 { "<包名>": "<最低版本号 x.y.z>" }`]
+  }
+  return Object.entries(requires).flatMap(([pkg, minimum]) => requireProblem(pkg, minimum, manifest.allDevs[pkg]))
+}
+
+/** `gwb.requires` 里一条要求的问题;没问题时是空表 */
+function requireProblem(pkg: string, minimum: unknown, devRange: string | undefined): string[] {
+  if (typeof minimum !== 'string' || !isMinimumVersion(minimum)) {
+    return [`gwb.requires 里 ${pkg} 是 ${JSON.stringify(minimum)}:最低版本号要写成 x.y.z(不带 ^、不带预发布段),如 "0.5.0"`]
+  }
+  if (devRange === undefined) {
+    return [`gwb.requires 写了 ${pkg},devDependencies 里却没有:dev 里写上 "^${minimum}",对着它开发和验证`]
+  }
+  if (devRange.startsWith('workspace:')) return []
+  const floor = EXACT.test(devRange) ? devRange : caretFloor(devRange)
+  if (floor === undefined) {
+    return [`gwb.requires 写了 ${pkg},devDependencies 里它是 "${devRange}",认不出下限:dev 要写 ^x.y.z 或精确号`]
+  }
+  if (compareVersions(minimum, floor) > 0) {
+    return [
+      `gwb.requires 要求 ${pkg} ≥ ${minimum},高于 devDependencies "${devRange}" 的下限 ${floor}:本地没对着 ${minimum} 验过。把 dev 升到 "^${minimum}"、跑 check、在隔离 home 验过再发`,
+    ]
+  }
+  return []
 }
 
 /**
@@ -369,6 +423,7 @@ export async function runRelease(input: ReleaseInput, deps: ReleaseDeps): Promis
       ...checkTicket(ticket, latest).problems,
       ...peers.problems,
       ...testedKernelProblems(ticket, input.runningKernel),
+      ...requiresProblems(ticket),
       ...artifacts.problems,
     ]
     const tsconfigs = typecheckTsconfigs(pkgDir, deps.exists)

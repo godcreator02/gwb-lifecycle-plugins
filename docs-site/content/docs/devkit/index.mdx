@@ -14,7 +14,7 @@ description: 开发套件是一个普通的 gwb 插件，把「在一个新文�
 - **依赖对账**：`devkit.audit-deps` 扫容器根下各仓的 `package.json`，`@godcreator` 的 dev 依赖对照团队源上的最新正式版，报出写了源上没有的版本、落后、出范围的，插件包的 peer 写了 `cordis` 以外的包也报；只报告，不拦——见下面[依赖对账的判据](#依赖对账的判据)
 - **测试 home**：`devkit.home.new` 开一个装好七个基础插件的隔离 home，`open` 重开、`list` 列出、`rm` 删除；调试端口自动选，之后只按名字找——[测试 home](/docs/devkit/home)
 - **改一版看一版**：`devkit.dev` 把工作区的改动发成开发版，装进另一个 home 正在运行的进程，重新加载、整页刷新，最后取证——[改一版看一版](/docs/devkit/dev)
-- **发正式版**：`devkit.release` 从仓根把包按依赖顺序发到团队源，发之前检查 git 工作区、构建产物、依赖写法与插件的 `gwb.testedKernel`，不改仓里任何文件——见下面[发正式版的检查](#发正式版的检查)
+- **发正式版**：`devkit.release` 从仓根把包按依赖顺序发到团队源，发之前检查 git 工作区、构建产物、依赖写法与插件的 `gwb.testedKernel`、`gwb.requires`，不改仓里任何文件——见下面[发正式版的检查](#发正式版的检查)
 - **能用什么**：`devkit.services` 与 `devkit.capabilities` 当场问 cordis 与 home 里的包：这个 home 有哪些服务、各由谁提供、怎么用，已装的包有哪些 import 入口、类型文件在哪
 - **CDP 驱动**：`devkit.cdp`（`bin/cdp.mjs`）在隔离 home 的页面里点击、输入、截图、执行工作台命令、问页面属于哪个 home；工作台没运行时也能直接用 node 运行——[CDP 驱动](/docs/devkit/cdp)
 
@@ -37,7 +37,7 @@ description: 开发套件是一个普通的 gwb 插件，把「在一个新文�
 | `devkit.home.list` | 列出全部 home、哪些在运行、各自的调试端口与 MCP 入口 | [8 内核与 home](/docs/seams/kernel-home) |
 | `devkit.home.rm` | 删一个 home；还在运行的要 `force`，先停再删 | [8 内核与 home](/docs/seams/kernel-home) |
 | `devkit.dev` | 构建、发开发版、装进目标 home、重新加载、刷新、取证 | [2 devkit 调插件管理](/docs/seams/plugin-manager-calls)、[7 CDP](/docs/seams/cdp)、[10 pnpm 与团队源](/docs/seams/pnpm-registry) |
-| `devkit.release` | 检查后把包发成正式版（tag latest） | [3 testedKernel](/docs/seams/tested-kernel)、[10 pnpm 与团队源](/docs/seams/pnpm-registry) |
+| `devkit.release` | 检查后把包发成正式版（tag latest） | [3 testedKernel · requires](/docs/seams/tested-kernel)、[10 pnpm 与团队源](/docs/seams/pnpm-registry) |
 | `devkit.services` | 这个 home 有哪些 cordis 服务、各由哪个条目与包提供，带包自述的用法 | [12 服务表与包自述](/docs/seams/service-table) |
 | `devkit.capabilities` | 写新插件能用什么：可注入的服务、已装包的 import 入口与类型文件 | [12 服务表与包自述](/docs/seams/service-table) |
 | `devkit.cdp` | 在一个 home 的页面里执行一个动作，经 `gwbNodeCli` 登记 | [7 CDP](/docs/seams/cdp) |
@@ -85,6 +85,7 @@ description: 开发套件是一个普通的 gwb 插件，把「在一个新文�
 - peer 里只有 `cordis`，别的 peer 一律拒，报错写明按「运行时谁提供」该改写成 dev 还是 `dependencies`；node 侧产物按值 import 了 `cordis` 而 peer 里没有，拒；写了 peer `cordis` 而产物没有 import 它，只在回执的 `reminders` 里提醒
 - node 侧产物的包名 import 只有 node 内置模块、`electron`、`cordis`；浏览器侧产物只 import importmap 里的名字
 - `gwb.testedKernel` 与运行中的内核在同一条版本线上（没写、不是合法版本号、不在同一条线都拒）
+- 写了 `gwb.requires` 的：它是 `{ 包名: 最低版本号 }` 的对象，每个值是合法的 x.y.z，每个包也写在 `devDependencies` 里，要求的版本不高于 dev 范围的下限（dev 写 `workspace:` 的不比下限）；没写不查
 
 版本号与 dev 范围、peer 两类检查：
 
@@ -94,17 +95,21 @@ description: 开发套件是一个普通的 gwb 插件，把「在一个新文�
 
 {/* ref file="../plugins/devkit/src/release.ts" lines="158-175" */}
 
+`gwb.requires` 的检查：
+
+{/* ref file="../plugins/devkit/src/release.ts" lines="176-210" */}
+
 类型检查按哪几份 tsconfig 查：
 
 {/* ref file="../plugins/devkit/src/release.ts" lines="258-267" */}
 
-构建产物检查在 `src/artifact-check.ts`。哪些文件算 node 侧、哪些算浏览器侧，照模板生成的插件包的构建约定判断：node 侧是 `exports["."]` 的运行时入口（没有 `exports` 时是 `main`）加上顺着相对 import 走得到的文件，也就是内核的 loader 按包名 import 插件时加载的那些；浏览器侧是 `dist/client.js`（模板的 `build.ts` 用 esbuild 以 `platform: 'browser'` 输出的文件）加上本包 `gwb.shared` 声明的子路径指到的文件，同样顺着相对 import 走；两边都走不到的文件不查。importmap 里的名字取本包与它依赖到的包（`dependencies`、`devDependencies`、`peerDependencies`）的 `gwb.shared` 键，依赖的清单从包目录的 `node_modules` 现读，形状照内核计算 importmap 的那段代码：
+构建产物检查在 `src/artifact-check.ts`。哪些文件算 node 侧、哪些算浏览器侧，照模板生成的插件包的构建约定判断：node 侧是 `exports["."]` 的运行时入口（没有 `exports` 时是 `main`）加上顺着相对 import 走得到的文件，也就是内核的 loader 按包名 import 插件时加载的那些；浏览器侧是 `dist/client.js`（模板的 `build.ts` 用 esbuild 以 `platform: 'browser'` 输出的文件）加上本包 `gwb.shared` 声明的子路径指到的文件，同样顺着相对 import 走；两边都走不到的文件不查。importmap 里的名字取本包与它依赖到的包（`dependencies`、`devDependencies`、`peerDependencies`）的 `gwb.shared` 键，依赖的清单当场从包目录的 `node_modules` 读，形状照内核计算 importmap 的那段代码：
 
 {/* ref file="../plugins/devkit/src/artifact-check.ts" lines="5-24" */}
 
 {/* ref file="../plugins/devkit/src/artifact-check.ts" lines="165-224" */}
 
-库（没有 `gwb-plugin` 的包）只查空 import、相对 import 与类型检查，不查 peer 和包名 import 的两份名单：库由用它的插件打包进产物，它的 peer 与 import 不在 home 里按包名解析。规矩本身见[依赖怎么写](/docs/rules/deps)与[页面代码与 importmap](/docs/rules/importmap)；`gwb.testedKernel` 的比对规则与插件管理那份相同，见[在哪个内核上测过](/docs/rules/tested-kernel)。
+库（没有 `gwb-plugin` 的包）只查空 import、相对 import 与类型检查，不查 peer 和包名 import 的两份名单：库由用它的插件打包进产物，它的 peer 与 import 不在 home 里按包名解析。规矩本身见[依赖怎么写](/docs/rules/deps)与[页面代码与 importmap](/docs/rules/importmap)；`gwb.testedKernel` 的比对规则与插件管理那份相同，见[在哪个内核上测过](/docs/rules/tested-kernel)；`gwb.requires` 什么时候写、插件管理怎么报，见[要求别的插件的最低版本](/docs/rules/requires)。
 
 ### 依赖对账的判据
 

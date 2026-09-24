@@ -13,7 +13,7 @@ home 里的插件分两层：**包**是 pnpm 装进 `package.json` 与 `node_mod
 
 **为什么分两层**：装包是 pnpm 的事，加载是 loader 的事，pnpm 和 loader 各有自己的清单。只装包、不加条目，插件不会运行；条目指向的包被删了，条目还在。插件管理的工作就是让两层对应上，并且如实报告对不上的地方。
 
-**怎么做**：`list` 读 home 的 `package.json` 和条目树，按包名对照，两层都不丢；再给每个包读它自己的 `package.json`，带上它在哪个内核上测过（见[在哪个内核上测过](/docs/plugin-manager/kernel-compat)）：
+**怎么做**：`list` 读 home 的 `package.json` 和条目树，按包名对照，两层都不丢；再给每个包读它自己的 `package.json`，带上它在哪个内核上测过（见[在哪个内核上测过](/docs/plugin-manager/kernel-compat)）、它要求的插件版本满没满足（见[要求的插件版本](/docs/plugin-manager/requires)）：
 
 <Diagram name="pm-list" title="list 把 package.json 与 cordis.yml 两层对上，两层都不丢">
 - 左边是 home 的 `package.json` 里的依赖，中间是 `cordis.yml` 的条目，右边是 `list` 按包名排好的结果
@@ -24,7 +24,7 @@ home 里的插件分两层：**包**是 pnpm 装进 `package.json` 与 `node_mod
 
 {/* ref file="../plugins/plugin-manager/src/inventory.ts" lines="107-134" */}
 
-{/* ref file="../plugins/plugin-manager/src/index.ts" lines="444-453" */}
+{/* ref file="../plugins/plugin-manager/src/index.ts" lines="451-461" */}
 
 **守住它的测试**：
 
@@ -89,8 +89,8 @@ home 里的插件分两层：**包**是 pnpm 装进 `package.json` 与 `node_mod
 {/* has file="../plugins/plugin-manager/tests/busy.test.ts" text="执行中抛错也释放标志，下一次能执行" */}
 
 <Diagram name="pm-busy" title="两道检查：改动命令经过 BUSY 检查，所有 pnpm 排进串行队列">
-- 命令 A（`install`）通过 BUSY 检查、占住标志，它的 `pnpm add` 进队列开始运行
-- 命令 B（`uninstall`）进来时标志被占着，不排队，马上得到 `{ ok: false, error: "BUSY…" }`
+- 命令 A（`install`）通过 BUSY 检查、设上标志，它的 `pnpm add` 进队列开始运行
+- 命令 B（`uninstall`）进来时标志还设着，不排队，马上得到 `{ ok: false, error: "BUSY…" }`
 - 命令 C（`outdated`）只读，不经过 BUSY，但它的 `pnpm outdated` 排在 A 后面等
 - A 返回回执时释放标志（抛错也会释放），队列里 C 的 pnpm 开始运行
 </Diagram>

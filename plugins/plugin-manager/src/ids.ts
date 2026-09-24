@@ -138,6 +138,11 @@ export function assertIdUsable(id: string, pkg: string, taken: ReadonlySet<strin
   }
 }
 
+/** 合不合包名规则（规则同 `assertPkgName`），不抛 */
+export function isPkgName(value: string): boolean {
+  return PKG_PATTERN.test(value)
+}
+
 /**
  * 包名不合规立即抛错。**这不是安全边界**——参数全程以数组传递、从不经过 shell，本来就不需要
  * 转义。它拦截的是把 `-r` 这类会被 pnpm 当成命令行选项的东西当包名传进去。

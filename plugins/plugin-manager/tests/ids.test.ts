@@ -7,10 +7,22 @@ import {
   bareId,
   defaultIdFor,
   installSpec,
+  isPkgName,
   isValidId,
   pickId,
   uniqueId,
 } from '../src/ids.js'
+
+describe('isPkgName：不抛的包名判断', () => {
+  it('name 与 @scope/name 认；能拼出 node_modules 外路径的、大写、选项样的不认', () => {
+    for (const good of ['cordis', '@godcreator/gwb-shell', 'a.b_c~d']) {
+      expect(isPkgName(good), good).toBe(true)
+    }
+    for (const bad of ['..', '../x', '@x/..', 'a/b', 'Upper', '-r', '']) {
+      expect(isPkgName(bad), bad).toBe(false)
+    }
+  })
+})
 
 describe('条目 id 的字符集', () => {
   it('kebab-case 才认', () => {
