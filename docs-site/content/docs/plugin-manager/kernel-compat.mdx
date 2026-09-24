@@ -50,7 +50,7 @@ description: 插件在 package.json 的 gwb.testedKernel 写它在哪个内核�
 
 **怎么读包清单**：按包名（含 scope）从 home 的 `node_modules` 读。文件不在（条目指向一个没装的包，或 pnpm 装到一半）就当没声明；文件在但读不了、或不是合法 JSON，`list` 直接报错并带上文件路径——那是 home 坏了，不该当成「没测过」混过去。
 
-{/* ref file="../plugins/plugin-manager/src/home.ts" lines="43-63" */}
+{/* ref file="../plugins/plugin-manager/src/home.ts" lines="46-66" */}
 
 **守住它的测试**：
 

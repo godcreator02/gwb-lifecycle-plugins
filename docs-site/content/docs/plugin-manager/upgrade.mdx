@@ -15,7 +15,7 @@ description: outdated 查过期包；update-all 一次 pnpm add 精确版本，�
 
 **怎么做**：退出码 1 表示「有过期包」，是结果不是失败；找不到 pnpm、输出解析不了都转成 `ok: false` 的回执，界面上只显示一句提示。它只读不写，不经过 BUSY 检查，但 pnpm 照样排进串行队列（见[同一时刻只允许一个改动](/docs/plugin-manager/home#同一时刻只允许一个改动busy)）。
 
-{/* ref file="../plugins/plugin-manager/src/index.ts" lines="415-440" */}
+{/* ref file="../plugins/plugin-manager/src/index.ts" lines="487-512" */}
 
 **守住它的测试**：
 
@@ -73,10 +73,10 @@ description: outdated 查过期包；update-all 一次 pnpm add 精确版本，�
 
 **插件管理自己在回执之后**：升级清单里有插件管理自己时，它那条条目在回执发出之后才重新加载，回执里 `selfDeferred` 是 `true`，它的条目 `action` 是 `deferred`。理由与[重新加载插件管理自己](/docs/plugin-manager/remount#目标是插件管理自己先回执后重新加载)相同。
 
-{/* ref file="../plugins/plugin-manager/src/index.ts" lines="499-514" */}
+{/* ref file="../plugins/plugin-manager/src/index.ts" lines="571-586" */}
 
 **整页重新加载**：经命令插件调用外壳的 `shell.reload`，按命令名查找，不 import 外壳。回执的 `reload`：`done` 已经重新加载；`deferred` 等插件管理自己重新加载完再执行；`unavailable` 命令表里没有它或它失败了，界面要手动刷新，原因在 `note` 里。
 
-{/* ref file="../plugins/plugin-manager/src/index.ts" lines="118-137" */}
+{/* ref file="../plugins/plugin-manager/src/index.ts" lines="127-146" */}
 
 **升到 MCP 入口自己**：`gwb-mcp` 重新加载时，进行中的 MCP 请求会中断，agent 要重连一次，再用 `plugin-manager.list` 核对版本与 `active`。
