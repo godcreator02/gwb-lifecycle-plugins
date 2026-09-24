@@ -1,25 +1,7 @@
 import fs from 'node:fs'
 import path from 'node:path'
 
-/**
- * 结构体检：对一个仓（或整个生态）只读地回答「离模板生成的布局有多远」。
- *
- * 与别的检查分工，同一条规矩只由一处检查：
- *
- * - 依赖版本写法与 peer 规矩 → `devkit.audit-deps` 与发版前检查
- * - description 的三项自述 / 服务名 / 说明书份数 → repo-kit 的自述守卫（在各仓 tests 里）
- * - 文档里的说法 → docfirst
- * - 构建产物的形状 → 各仓的产物测试
- * - **这里查布局与能从文件直接判断的规矩**：仓的布局（workspace / 仓根就是插件）、插件包自带配置、
- *   短名 / 包名 / 插件名对得上、`files` 白名单、`prepublishOnly`，外加「写插件的规矩」里的三条（cordis 写在
- *   dependencies、tsconfig `paths` 除包内 `@/*` 之外的映射、`link:` / `file:` 依赖）
- *
- * 规则以 scaffold 模板为准：往返测试断言模板生成的仓零 findings，模板改了布局而规则没跟上，
- * 或规则加了一条而模板生成的仓过不了，测试都会失败。
- *
- * 仓根就是插件的旧布局不算错：报 `bare-root-single` 布局加一条 info 级 finding，detail 里是
- * 按这个仓实际文件名列好的迁移清单。
- */
+// 规则以建仓模板为准：往返测试断言模板生成的仓零 findings，规则与模板改了一边没改另一边，测试就失败
 
 /** findings 的三级：error 构建不出来 / 装不上 / 一定出错；warn 能用但偏离当前布局；info 是提示 */
 export type FindingLevel = 'error' | 'warn' | 'info'
@@ -67,9 +49,9 @@ export interface StructureReport {
 
 /** 按 kind 计数。与 audit-deps 的 countByKind 算法相同，参数是这边的 finding 形状 */
 export function tallyKinds(findings: { kind: string }[]): Record<string, number> {
-  const out: Record<string, number> = {}
-  for (const one of findings) out[one.kind] = (out[one.kind] ?? 0) + 1
-  return out
+  const countsByKind: Record<string, number> = {}
+  for (const finding of findings) countsByKind[finding.kind] = (countsByKind[finding.kind] ?? 0) + 1
+  return countsByKind
 }
 
 // ── 扫描（读磁盘）──────────────────────────────────────────────────────────
@@ -135,95 +117,84 @@ export function yamlHasPluginsZone(yaml: string | null): boolean {
   return yaml !== null && /^\s*-\s+plugins\//m.test(yaml)
 }
 
-/**
- * 扫一个仓。**只看三层的名字与几个关键文件**，不进 node_modules、不进 docs-site：
- * 体检查的是布局，不是文件内容。
- */
+function scanPluginsAndPackagesMembers(root: string): MemberScan[] {
+  const members: MemberScan[] = []
+  for (const group of ['plugins', 'packages']) {
+    for (const name of listDir(path.join(root, group))) {
+      if (fs.statSync(path.join(root, group, name)).isDirectory()) members.push(scanMember(root, `${group}/${name}`))
+    }
+  }
+  return members
+}
+
+/** 只看三层的名字与几个关键文件，不进 node_modules、不进 docs-site */
 export function scanRepo(root: string): RepoScan {
   const rootEntries = listDir(root)
   const workspaceYaml = readText(path.join(root, 'pnpm-workspace.yaml'))
   const rootManifest = parseManifest(path.join(root, 'package.json'))
-  const members: MemberScan[] = []
+  let members: MemberScan[]
   if (yamlHasPluginsZone(workspaceYaml)) {
-    for (const group of ['plugins', 'packages']) {
-      for (const name of listDir(path.join(root, group))) {
-        if (fs.statSync(path.join(root, group, name)).isDirectory()) members.push(scanMember(root, `${group}/${name}`))
-      }
-    }
+    members = scanPluginsAndPackagesMembers(root)
   } else if (rootManifest !== null && keywordsOf(rootManifest).includes('gwb-plugin')) {
-    members.push(scanMember(root, '.'))
+    members = [scanMember(root, '.')]
   } else {
-    // 认不出布局，但 plugins/ 或 packages/ 下有目录就照样扫成员——布局报 warn，成员的问题照报
-    for (const group of ['plugins', 'packages']) {
-      for (const name of listDir(path.join(root, group))) {
-        if (fs.statSync(path.join(root, group, name)).isDirectory()) members.push(scanMember(root, `${group}/${name}`))
-      }
-    }
+    // 认不出布局，但 plugins/ 或 packages/ 下有目录就照样扫成员：布局报 warn，成员的问题照报
+    members = scanPluginsAndPackagesMembers(root)
   }
   return { root, rootEntries, workspaceYaml, rootManifest, members }
 }
 
 // ── 规则（纯函数）──────────────────────────────────────────────────────────
 
+function stringListOf(manifest: Record<string, unknown> | null, field: string): string[] {
+  const value: unknown = manifest?.[field]
+  return Array.isArray(value) ? value.filter((one): one is string => typeof one === 'string') : []
+}
+
+function stringTableOf(manifest: Record<string, unknown> | null, field: string): Record<string, string> {
+  const value: unknown = manifest?.[field]
+  if (typeof value !== 'object' || value === null || Array.isArray(value)) return {}
+  const stringsByKey: Record<string, string> = {}
+  for (const [key, entry] of Object.entries(value as Record<string, unknown>)) {
+    if (typeof entry === 'string') stringsByKey[key] = entry
+  }
+  return stringsByKey
+}
+
 function keywordsOf(manifest: Record<string, unknown> | null): string[] {
-  const raw: unknown = manifest?.['keywords']
-  return Array.isArray(raw) ? raw.filter((one): one is string => typeof one === 'string') : []
+  return stringListOf(manifest, 'keywords')
 }
 
 function scriptsOf(manifest: Record<string, unknown> | null): Record<string, string> {
-  const raw: unknown = manifest?.['scripts']
-  if (typeof raw !== 'object' || raw === null || Array.isArray(raw)) return {}
-  const out: Record<string, string> = {}
-  for (const [key, value] of Object.entries(raw as Record<string, unknown>)) {
-    if (typeof value === 'string') out[key] = value
-  }
-  return out
-}
-
-function depsOf(manifest: Record<string, unknown> | null, field: string): Record<string, string> {
-  const raw: unknown = manifest?.[field]
-  if (typeof raw !== 'object' || raw === null || Array.isArray(raw)) return {}
-  const out: Record<string, string> = {}
-  for (const [key, value] of Object.entries(raw as Record<string, unknown>)) {
-    if (typeof value === 'string') out[key] = value
-  }
-  return out
-}
-
-function filesOf(manifest: Record<string, unknown> | null): string[] {
-  const raw: unknown = manifest?.['files']
-  return Array.isArray(raw) ? raw.filter((one): one is string => typeof one === 'string') : []
+  return stringTableOf(manifest, 'scripts')
 }
 
 function nameOf(manifest: Record<string, unknown> | null): string {
-  const raw: unknown = manifest?.['name']
-  return typeof raw === 'string' ? raw : ''
+  const value: unknown = manifest?.['name']
+  return typeof value === 'string' ? value : ''
 }
 
 function isPluginMember(member: MemberScan): boolean {
   return keywordsOf(member.manifest).includes('gwb-plugin')
 }
 
-/**
- * `src/index.ts` 里 `export const name = '…'` 的值，不在就是 null。单双引号都认——
- * 引号风格与名字对不对得上无关，拿它当判据只会误报
- */
+/** `src/index.ts` 里 `export const name = '…'` 的值，不在就是 null。单双引号都认：引号风格与名字对不对得上无关 */
 function entryNameOf(source: string | null): string | null {
   if (source === null) return null
-  const m = /export const name = ['"]([^'"]+)['"]/.exec(source)
-  return m === null ? null : (m[1] ?? null)
+  const match = /export const name = ['"]([^'"]+)['"]/.exec(source)
+  return match === null ? null : (match[1] ?? null)
 }
 
 /** tsconfig 是 JSONC：去掉字符串外的注释与对象、数组末尾的逗号再交给 JSON.parse */
 function jsoncToJson(text: string): string {
-  let out = ''
+  let json = ''
   let i = 0
   while (i < text.length) {
     const c = text[i] ?? ''
     if (c === '"') {
       let j = i + 1
       while (j < text.length && text[j] !== '"') j += text[j] === '\\' ? 2 : 1
-      out += text.slice(i, j + 1)
+      json += text.slice(i, j + 1)
       i = j + 1
     } else if (c === '/' && text[i + 1] === '/') {
       while (i < text.length && text[i] !== '\n') i++
@@ -231,21 +202,19 @@ function jsoncToJson(text: string): string {
       const end = text.indexOf('*/', i + 2)
       i = end === -1 ? text.length : end + 2
     } else {
-      out += c
+      json += c
       i++
     }
   }
-  return out.replaceAll(/,(\s*[}\]])/g, '$1')
+  return json.replaceAll(/,(\s*[}\]])/g, '$1')
 }
 
 /** shadcn CLI 读包根 tsconfig 的 `@/*` 决定组件放到哪，这是 paths 唯一放行的键 */
 const SHADCN_ALIAS = '@/*'
 
 /**
- * tsconfig 的 `compilerOptions.paths` 为什么不合规，合规时回 null。
- * 合规只有两种：没有 paths（或是空对象）；只有 `@/*` 一项，且每个目标都是 `./` 开头、规范化之后
- * 不出包目录（只查包根那几份 tsconfig，目标按包目录解析——TS 7 没有 baseUrl，paths 相对 tsconfig 所在目录）。
- * 解析不了的 tsconfig 只要文本里有 `"paths"` 就算不合规：确认不了它只有包内的 `@/*`。
+ * 合规只有两种：没有 paths（或空对象）；只有 `@/*` 一项，每个目标 `./` 开头、规范化后不出包目录
+ * （TS 7 没有 baseUrl，paths 相对 tsconfig 所在目录）。解析不了的 tsconfig 只要文本里有 `"paths"` 就算不合规
  */
 export function tsconfigPathsViolation(text: string): string | null {
   let parsed: unknown
@@ -294,12 +263,105 @@ function migrationDetail(member: MemberScan): string {
   ].join('\n')
 }
 
-/**
- * 检查规则。输入扫描结果，输出报告——不读磁盘、不访问网络，纯函数。
- */
+type AddFinding = (kind: string, level: FindingLevel, at: string, detail: string) => void
+
+function workspaceRootFindings(scan: RepoScan, add: AddFinding): void {
+  if (scan.rootManifest === null) {
+    add('root-manifest-missing', 'error', 'package.json', 'workspace 仓根缺 package.json——没有地方写递归到各包的 build/check 脚本')
+  } else {
+    if (scan.rootManifest['private'] !== true) add('root-not-private', 'warn', 'package.json', 'workspace 仓根的 package.json 应写 private: true——仓根只是工作区，不发布')
+    const build = scriptsOf(scan.rootManifest)['build'] ?? ''
+    if (!build.includes('pnpm -r') && !build.includes('./plugins/')) {
+      add('root-scripts-not-recursive', 'warn', 'package.json', `仓根 build 脚本（${build}）里看不出递归到各成员包——仓根的 build/check 应当用 pnpm -r`)
+    }
+  }
+  if (scan.workspaceYaml !== null && /^\s*-\s+docs-site\s*$/m.test(scan.workspaceYaml)) {
+    add('docs-site-in-workspace', 'warn', 'pnpm-workspace.yaml', 'docs-site 列进了 pnpm-workspace.yaml——装了六区的文档站自带 pnpm-workspace.yaml，列进来就成了工作区里嵌套工作区（devkit 仓自己就这么写着，是遗留的反例，别照抄）')
+  }
+}
+
+/** 插件与别的包都查：放错分区、cordis 写在 dependencies、tsconfig paths、本地协议依赖 */
+function anyMemberFindings(member: MemberScan, isPlugin: boolean, add: AddFinding): void {
+  if (member.dir.startsWith('packages/') && isPlugin) {
+    add('plugin-in-packages-zone', 'warn', member.dir, 'keywords 里声明了 gwb-plugin，却放在 packages/——插件应放在 plugins/<短名>/，放错了就不能按包名找到它的目录')
+  }
+  if ('cordis' in stringTableOf(member.manifest, 'dependencies')) {
+    add('cordis-in-dependencies', 'error', `${member.dir}/package.json`, 'cordis 写在了 dependencies——home 里会多出一份 cordis 实例，Service 身份对不上、插件加载失败，报错也不指向根因。应写在 devDependencies（规矩见 devkit 文档站「写插件的规矩」→「依赖怎么写」）')
+  }
+  for (const [file, text] of Object.entries(member.tsconfigs)) {
+    const violation = tsconfigPathsViolation(text)
+    if (violation !== null) {
+      add('tsconfig-paths', 'error', `${member.dir}/${file}`, `${violation}——源码里不许有指回别的仓的路径：映射出来的路径只在本机成立，出了问题运行时才报错；只放行 shadcn CLI 要的包内 @/*（如 "./src/*"）。规矩见 devkit 文档站「写插件的规矩」→「依赖怎么写」`)
+    }
+  }
+  for (const field of ['dependencies', 'devDependencies', 'peerDependencies', 'optionalDependencies']) {
+    for (const [pkg, spec] of Object.entries(stringTableOf(member.manifest, field))) {
+      if (spec.includes('link:') || spec.includes('file:')) {
+        add('local-protocol-dep', 'error', `${member.dir}/package.json`, `${pkg} 写成 ${spec}——本地协议依赖指向本机别的目录，发布出去谁也装不上。规矩见 devkit 文档站「写插件的规矩」→「依赖怎么写」`)
+      }
+    }
+  }
+}
+
+/** 短名、包名、插件名对得上 */
+function pluginNameFindings(member: MemberScan, add: AddFinding): void {
+  const short = member.dir === '.' ? '' : path.posix.basename(member.dir)
+  const pkgName = nameOf(member.manifest)
+  const scopeMatch = /^@godcreator\/gwb-(.+)$/.exec(pkgName)
+  if (scopeMatch === null) {
+    add('name-chain', 'error', `${member.dir}/package.json`, `包名 ${pkgName} 不是 @godcreator/gwb-<短名> 的形式`)
+  }
+  const shortFromPkg = scopeMatch?.[1] ?? ''
+  if (member.dir !== '.' && pkgName !== `@godcreator/gwb-${short}`) {
+    add('name-chain', 'error', `${member.dir}/package.json`, `目录叫 ${short}，包名却是 ${pkgName}——目录名就是短名，包名应是 @godcreator/gwb-${short}`)
+  }
+  if (member.dir.startsWith('plugins/') && short.startsWith('gwb-')) {
+    add('plugin-dir-full-name', 'warn', member.dir, `目录名 ${short} 带 gwb- 前缀——plugins/ 下的目录名用短名（像 block-note 仓那样用全名是旧写法），包名、插件名、命令名的前缀都由短名派生`)
+  }
+  const entryName = entryNameOf(member.entrySource)
+  const expectedEntry = shortFromPkg === '' ? null : `gwb-${shortFromPkg}`
+  // Service 形式（export default class … extends Service）没有 export const name，名字写在 super(ctx, "…") 里：只查入口文件在不在
+  const serviceForm = member.entrySource !== null && entryName === null && /export default/.test(member.entrySource)
+  if (member.entrySource === null) {
+    add('name-chain', 'error', `${member.dir}/src/index.ts`, '缺 src/index.ts——插件包 node 侧的入口')
+  } else if (entryName === null && !serviceForm) {
+    add('name-chain', 'error', `${member.dir}/src/index.ts`, "src/index.ts 里既没有 `export const name = '…'`，也没有 export default（Service 形式）——cordis 靠其中之一识别插件")
+  } else if (entryName !== null && expectedEntry !== null && entryName !== expectedEntry) {
+    add('name-chain', 'error', `${member.dir}/src/index.ts`, `插件名 ${entryName} 与包名 ${pkgName} 派生出的 ${expectedEntry ?? '?'} 对不上——短名、包名、插件名三者必须对得上`)
+  }
+}
+
+/** files 白名单、prepublishOnly、包内自带配置、浏览器侧的构建与 tsconfig */
+function pluginPackagingFindings(member: MemberScan, add: AddFinding): void {
+  const files = new Set(stringListOf(member.manifest, 'files'))
+  const whitelist = ['dist', 'src', ...(['skills', 'bin', 'template'] as const).flatMap((one) => (member.entries.includes(one) ? [one] : []))]
+  const missing = whitelist.filter((one) => !files.has(one))
+  if (missing.length > 0) {
+    add('files-whitelist', 'error', `${member.dir}/package.json`, `files 白名单缺 ${missing.join('、')}——装出来的包里就没有这些目录（${missing.includes('dist') ? '插件加载失败' : '这些目录里随包发布的东西装不进 home'}），而且安装时不报错`)
+  }
+  if (scriptsOf(member.manifest)['prepublishOnly'] === undefined) {
+    add('prepublish-only', 'error', `${member.dir}/package.json`, '没有 prepublishOnly——少了它，手工 pnpm publish 会把上一版的 dist/ 原样发出去，而且不报错。规矩见 devkit 文档站「写插件的规矩」→「依赖怎么写」')
+  }
+
+  const notSelfContained = ['tsconfig.json', 'vitest.config.ts', '.oxlintrc.json'].filter((one) => !member.entries.includes(one))
+  if (notSelfContained.length > 0) {
+    add('pkg-not-self-contained', 'warn', member.dir, `插件包缺 ${notSelfContained.join('、')}——这些配置应放在包内（放在仓根共享是旧仓的写法）；oxlint 按工作目录找配置，配置不在包内时它不报错地改用默认规则，检查变松了也看不出来`)
+  }
+  if (member.srcEntries.includes('client')) {
+    const browserMissing = [
+      ...(member.entries.includes('build.ts') ? [] : ['build.ts']),
+      ...(member.clientEntries.includes('tsconfig.json') ? [] : ['src/client/tsconfig.json']),
+    ]
+    if (browserMissing.length > 0) {
+      add('browser-half-incomplete', 'warn', `${member.dir}/src/client`, `有浏览器侧代码（src/client/）但缺 ${browserMissing.join('、')}——node 侧与浏览器侧各用各的构建与 tsconfig，缺了浏览器侧那份，浏览器侧代码就没人构建或检查`)
+    }
+  }
+}
+
+/** 不读磁盘、不访问网络 */
 export function auditStructure(scan: RepoScan): StructureReport {
   const findings: StructureFinding[] = []
-  const add = (kind: string, level: FindingLevel, at: string, detail: string): void => {
+  const add: AddFinding = (kind, level, at, detail) => {
     findings.push({ kind, level, path: at, detail })
   }
 
@@ -313,104 +375,18 @@ export function auditStructure(scan: RepoScan): StructureReport {
     return { shape, findings }
   }
 
-  if (workspace) {
-    if (scan.rootManifest === null) {
-      add('root-manifest-missing', 'error', 'package.json', 'workspace 仓根缺 package.json——没有地方写递归到各包的 build/check 脚本')
-    } else {
-      if (scan.rootManifest['private'] !== true) add('root-not-private', 'warn', 'package.json', 'workspace 仓根的 package.json 应写 private: true——仓根只是工作区，不发布')
-      const build = scriptsOf(scan.rootManifest)['build'] ?? ''
-      if (!build.includes('pnpm -r') && !build.includes('./plugins/')) {
-        add('root-scripts-not-recursive', 'warn', 'package.json', `仓根 build 脚本（${build}）里看不出递归到各成员包——仓根的 build/check 应当用 pnpm -r`)
-      }
-    }
-    if (scan.workspaceYaml !== null && /^\s*-\s+docs-site\s*$/m.test(scan.workspaceYaml)) {
-      add('docs-site-in-workspace', 'warn', 'pnpm-workspace.yaml', 'docs-site 列进了 pnpm-workspace.yaml——装了六区的文档站自带 pnpm-workspace.yaml，列进来就成了工作区里嵌套工作区（devkit 仓自己就这么写着，是遗留的反例，别照抄）')
-    }
-  }
+  if (workspace) workspaceRootFindings(scan, add)
 
   for (const member of scan.members) {
-    const isPlugin = isPluginMember(member)
-    const short = member.dir === '.' ? '' : path.posix.basename(member.dir)
-
     if (member.manifest === null) {
       add('manifest-missing', 'error', `${member.dir}/package.json`, '成员包缺 package.json——没有它就不是一个包')
       continue
     }
-
-    // ── 分区：插件放 plugins/，别的包放 packages/ ──────────────────────────
-    if (member.dir.startsWith('packages/') && isPlugin) {
-      add('plugin-in-packages-zone', 'warn', member.dir, 'keywords 里声明了 gwb-plugin，却放在 packages/——插件应放在 plugins/<短名>/，放错了就不能按包名找到它的目录')
-    }
-
-    // ── 能从文件直接判断的规矩（插件与别的包都查）────────────────────────────
-    if ('cordis' in depsOf(member.manifest, 'dependencies')) {
-      add('cordis-in-dependencies', 'error', `${member.dir}/package.json`, 'cordis 写在了 dependencies——home 里会多出一份 cordis 实例，Service 身份对不上、插件加载失败，报错也不指向根因。应写在 devDependencies（规矩见 devkit 文档站「写插件的规矩」→「依赖怎么写」）')
-    }
-    for (const [file, text] of Object.entries(member.tsconfigs)) {
-      const violation = tsconfigPathsViolation(text)
-      if (violation !== null) {
-        add('tsconfig-paths', 'error', `${member.dir}/${file}`, `${violation}——源码里不许有指回别的仓的路径：映射出来的路径只在本机成立，出了问题运行时才报错；只放行 shadcn CLI 要的包内 @/*（如 "./src/*"）。规矩见 devkit 文档站「写插件的规矩」→「依赖怎么写」`)
-      }
-    }
-    for (const field of ['dependencies', 'devDependencies', 'peerDependencies', 'optionalDependencies']) {
-      for (const [pkg, spec] of Object.entries(depsOf(member.manifest, field))) {
-        if (spec.includes('link:') || spec.includes('file:')) {
-          add('local-protocol-dep', 'error', `${member.dir}/package.json`, `${pkg} 写成 ${spec}——本地协议依赖指向本机别的目录，发布出去谁也装不上。规矩见 devkit 文档站「写插件的规矩」→「依赖怎么写」`)
-        }
-      }
-    }
-
+    const isPlugin = isPluginMember(member)
+    anyMemberFindings(member, isPlugin, add)
     if (!isPlugin) continue
-
-    // ── 插件包：短名 / 包名 / 插件名、files 白名单、自带配置 ────────────────────
-    const pkgName = nameOf(member.manifest)
-    const scopeMatch = /^@godcreator\/gwb-(.+)$/.exec(pkgName)
-    if (scopeMatch === null) {
-      add('name-chain', 'error', `${member.dir}/package.json`, `包名 ${pkgName} 不是 @godcreator/gwb-<短名> 的形式`)
-    }
-    const shortFromPkg = scopeMatch?.[1] ?? ''
-    if (member.dir !== '.' && pkgName !== `@godcreator/gwb-${short}`) {
-      add('name-chain', 'error', `${member.dir}/package.json`, `目录叫 ${short}，包名却是 ${pkgName}——目录名就是短名，包名应是 @godcreator/gwb-${short}`)
-    }
-    if (member.dir.startsWith('plugins/') && short.startsWith('gwb-')) {
-      add('plugin-dir-full-name', 'warn', member.dir, `目录名 ${short} 带 gwb- 前缀——plugins/ 下的目录名用短名（像 block-note 仓那样用全名是旧写法），包名、插件名、命令名的前缀都由短名派生`)
-    }
-    const entryName = entryNameOf(member.entrySource)
-    const expectedEntry = shortFromPkg === '' ? null : `gwb-${shortFromPkg}`
-    // Service 形式（export default class … extends Service）：没有也不需要 export const name，
-    // 名字写在 super(ctx, "…") 里——插件名与包名对不对得上查不了，只查入口文件在不在（基础插件仓的数据插件都是这种）
-    const serviceForm = member.entrySource !== null && entryName === null && /export default/.test(member.entrySource)
-    if (member.entrySource === null) {
-      add('name-chain', 'error', `${member.dir}/src/index.ts`, '缺 src/index.ts——插件包 node 侧的入口')
-    } else if (entryName === null && !serviceForm) {
-      add('name-chain', 'error', `${member.dir}/src/index.ts`, "src/index.ts 里既没有 `export const name = '…'`，也没有 export default（Service 形式）——cordis 靠其中之一识别插件")
-    } else if (entryName !== null && expectedEntry !== null && entryName !== expectedEntry) {
-      add('name-chain', 'error', `${member.dir}/src/index.ts`, `插件名 ${entryName} 与包名 ${pkgName} 派生出的 ${expectedEntry ?? '?'} 对不上——短名、包名、插件名三者必须对得上`)
-    }
-
-    const files = new Set(filesOf(member.manifest))
-    const whitelist = ['dist', 'src', ...(['skills', 'bin', 'template'] as const).flatMap((one) => (member.entries.includes(one) ? [one] : []))]
-    const missing = whitelist.filter((one) => !files.has(one))
-    if (missing.length > 0) {
-      add('files-whitelist', 'error', `${member.dir}/package.json`, `files 白名单缺 ${missing.join('、')}——装出来的包里就没有这些目录（${missing.includes('dist') ? '插件加载失败' : '这些目录里随包发布的东西装不进 home'}），而且安装时不报错`)
-    }
-    if (scriptsOf(member.manifest)['prepublishOnly'] === undefined) {
-      add('prepublish-only', 'error', `${member.dir}/package.json`, '没有 prepublishOnly——少了它，手工 pnpm publish 会把上一版的 dist/ 原样发出去，而且不报错。规矩见 devkit 文档站「写插件的规矩」→「依赖怎么写」')
-    }
-
-    const notSelfContained = ['tsconfig.json', 'vitest.config.ts', '.oxlintrc.json'].filter((one) => !member.entries.includes(one))
-    if (notSelfContained.length > 0) {
-      add('pkg-not-self-contained', 'warn', member.dir, `插件包缺 ${notSelfContained.join('、')}——这些配置应放在包内（放在仓根共享是旧仓的写法）；oxlint 按工作目录找配置，配置不在包内时它不报错地改用默认规则，检查变松了也看不出来`)
-    }
-    if (member.srcEntries.includes('client')) {
-      const browserMissing = [
-        ...(member.entries.includes('build.ts') ? [] : ['build.ts']),
-        ...(member.clientEntries.includes('tsconfig.json') ? [] : ['src/client/tsconfig.json']),
-      ]
-      if (browserMissing.length > 0) {
-        add('browser-half-incomplete', 'warn', `${member.dir}/src/client`, `有浏览器侧代码（src/client/）但缺 ${browserMissing.join('、')}——node 侧与浏览器侧各用各的构建与 tsconfig，缺了浏览器侧那份，浏览器侧代码就没人构建或检查`)
-      }
-    }
+    pluginNameFindings(member, add)
+    pluginPackagingFindings(member, add)
   }
 
   if (bareRoot) {
