@@ -29,7 +29,7 @@ description: importmap 只放整个页面必须只有一份的运行时代码，
 
 外壳（`@godcreator/gwb-shell`）没有导出返回外置名单的函数，它在清单的 `gwb.shared` 里声明 importmap 的包名。模板的 `build.ts` 构建时从装好的外壳包里读出 `gwb.shared` 的键，当作外置名单；读不到就报错，不回退到手写的名单：
 
-{/* ref file="../plugins/devkit/template/pkg/build.ts.tpl" lines="11-17" */}
+{/* ref file="../plugins/devkit/template/pkg/build.ts.tpl" lines="12-31" */}
 
 令牌的样式映射文件 `theme.reference.css` 也由外壳导出（包内路径 `@godcreator/gwb-shell/theme.reference.css`），模板的样式入口从外壳引，作为构建时的输入：
 

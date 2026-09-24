@@ -78,11 +78,11 @@ export function apply(ctx: Context) {
 
 `devkit.scaffold` 生成的插件在 node 侧只 `import type`，构建产物里没有 `cordis`，所以清单里没有 peer；词汇表包、`gwb-commands`、`gwb-shell` 与 `cordis` 都写在 dev：
 
-{/* ref file="../plugins/devkit/template/pkg/package.json.tpl" lines="30-37" */}
+{/* ref file="../plugins/devkit/template/pkg/package.json.tpl" lines="30-30" */}
 
 模板带的产物测试按上面两份名单查构建产物：node 侧放行 node 内置模块、`electron`、`cordis`；浏览器侧只放行外壳清单 `gwb.shared` 的键：
 
-{/* ref file="../plugins/devkit/template/pkg/tests/artifact.test.ts.tpl" lines="19-21" */}
+{/* ref file="../plugins/devkit/template/pkg/tests/artifact.test.ts.tpl" lines="20-35" */}
 
 ## 这个仓里还没照做的
 
