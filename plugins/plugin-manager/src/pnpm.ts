@@ -7,13 +7,14 @@ import { pnpmExecutableOf, spawnPlan, type LookupResult } from './pnpm-path.js'
 
 export { describePnpm } from './pnpm-path.js'
 
-/** 实际运行 pnpm。查磁盘与启动进程都在这里，纯逻辑部分在 `pnpm-path.ts` */
-
-/** 出错时把输出的最后几行返回给调用方——pnpm 把原因放在最后几行 */
+/** 失败时回执带输出的最后几行：pnpm 把原因放在最后 */
 export const TAIL_LINES = 12
 
-/** 输出在内存里最多留这么多字节。装一个大包的日志能有几 MB，全留着没意义 */
+/** 失败时要的输出在内存里最多留这么多字节；装一个大包的日志能有几 MB */
 const MAX_TAIL_BYTES = 64_000
+
+/** `runPnpmCapture` 的 stdout 上限，正常的 outdated 输出远小于它 */
+const MAX_CAPTURED_STDOUT_BYTES = 4_000_000
 
 export interface PnpmResult {
   /** 退出码 0 */
@@ -23,17 +24,16 @@ export interface PnpmResult {
   tail?: string
 }
 
-/** `runPnpmCapture` 的回执。不判 ok——退出码什么意思由调用方解释（`pnpm outdated` 用 1 当「有过期」） */
+/** `runPnpmCapture` 的回执。不判 ok：退出码什么意思由调用方解释（`pnpm outdated` 用 1 表示「有过期」） */
 export interface PnpmCaptureResult {
-  /** null 是进程没启动成功（pnpm 不存在之类），原因在 stderrTail 里 */
+  /** null 是进程没启动成功，原因在 stderrTail 里 */
   exitCode: number | null
-  /** stdout 全文。outdated 的 JSON 在这里 */
   stdout: string
-  /** stderr 的最后几行——pnpm 把给人看的说明放在那里 */
+  /** stderr 的最后几行：pnpm 把给人看的说明放在那里 */
   stderrTail: string
 }
 
-/** 取最后几行，去掉首尾空行。纯逻辑，单独测 */
+/** 取最后几行，去掉首尾空行 */
 export function tailLines(text: string, max = TAIL_LINES): string {
   const lines = text.replace(/\r\n/g, '\n').split('\n')
   while (lines.length > 0 && lines[lines.length - 1]!.trim() === '') lines.pop()
@@ -41,10 +41,18 @@ export function tailLines(text: string, max = TAIL_LINES): string {
   return lines.slice(-max).join('\n')
 }
 
-/**
- * 找自己依赖里的那份 pnpm：从本模块所在的位置按 node 的规则解析 `@pnpm/exe.<平台>-<架构>`。
- * 装在 home 里时本模块在 `node_modules/.pnpm/<插件管理>/node_modules/…` 下，解析到的是它旁边那份
- */
+function versionForLogOf(manifestFile: string): string {
+  try {
+    const manifest: unknown = JSON.parse(fs.readFileSync(manifestFile, 'utf8'))
+    if (typeof manifest === 'object' && manifest !== null && typeof (manifest as { version?: unknown }).version === 'string') {
+      return (manifest as { version: string }).version
+    }
+  } catch {
+    // 版本号只用于日志，读不出来不影响运行
+  }
+  return '?'
+}
+
 export function locatePnpm(): LookupResult {
   const { pkg, bin } = pnpmExecutableOf(process.platform, process.arch)
   let manifestFile: string
@@ -55,66 +63,46 @@ export function locatePnpm(): LookupResult {
   }
   const file = path.join(path.dirname(manifestFile), bin)
   if (!fs.existsSync(file)) return { ok: false, error: `${pkg} 里没有 ${bin}（找的是 ${file}），重装一次插件管理` }
-  let version = '?'
-  try {
-    const manifest: unknown = JSON.parse(fs.readFileSync(manifestFile, 'utf8'))
-    if (typeof manifest === 'object' && manifest !== null && typeof (manifest as { version?: unknown }).version === 'string') {
-      version = (manifest as { version: string }).version
-    }
-  } catch {
-    // 版本号只用于日志，读不出来不影响运行
-  }
-  return { ok: true, file, version }
+  return { ok: true, file, version: versionForLogOf(manifestFile) }
 }
 
-/** 直接启动 pnpm 可执行文件，stdout / stderr 走管道 */
 function spawnPnpm(file: string, cwd: string, args: readonly string[]): ChildProcessByStdio<null, Readable, Readable> {
   const plan = spawnPlan(file, args, process.env)
   return spawn(plan.command, plan.args, { cwd, env: plan.env, windowsHide: true, stdio: ['ignore', 'pipe', 'pipe'] })
 }
 
 /**
- * 运行一次 pnpm。**不抛**——启动失败也整理成一份回执，调用方只看 ok。
- *
- * 启动的是自己依赖里那份原生可执行文件（见 `locatePnpm`），不开 shell；环境怎么传见 `spawnPlan`。
- *
- * **不设超时**：装一个大包本来就可能几分钟，猜一个时限只会在慢网络上误杀一次正常的安装；
- * 网络层的超时 pnpm 自己有。真卡住了，由用户去结束进程。
- *
- * **本插件卸载时不结束正在运行的 pnpm**（「插件卸载时清理自己启动的子进程」的例外）：pnpm 正在改 home 的 `package.json` 与
- * `node_modules`，中途结束会留下装了一半的 home，比让它跑完更难收拾。它跑完之后回执没人接，改动照样生效
+ * 不抛：启动失败也整理成回执。不设超时：装大包本来可能要几分钟，网络层的超时 pnpm 自己有。
+ * 本插件卸载时不结束正在运行的 pnpm（「插件卸载时清理自己启动的子进程」的例外）：中途结束会留下装了一半的 home
  */
 export function runPnpm(opts: { pnpm: string; cwd: string; args: readonly string[] }): Promise<PnpmResult> {
   return new Promise((resolve) => {
-    const chunks: Buffer[] = []
-    let size = 0
-    const push = (chunk: Buffer): void => {
-      chunks.push(chunk)
-      size += chunk.length
-      // 只保留末尾部分，按整块丢弃，所以只有最后那次 concat 才可能切在多字节字符中间
-      while (size > MAX_TAIL_BYTES && chunks.length > 1) size -= chunks.shift()!.length
+    const tailChunks: Buffer[] = []
+    let tailBytes = 0
+    const keepTail = (chunk: Buffer): void => {
+      tailChunks.push(chunk)
+      tailBytes += chunk.length
+      // 按整块丢弃，所以只有最后那次 concat 才可能切在多字节字符中间
+      while (tailBytes > MAX_TAIL_BYTES && tailChunks.length > 1) tailBytes -= tailChunks.shift()!.length
     }
-    // 环境整份透传：用户级 ~/.npmrc 与 pnpm 配置（@godcreator 的 scope 路由、包龄豁免）照常读到
     const proc = spawnPnpm(opts.pnpm, opts.cwd, opts.args)
 
     let settled = false
-    const done = (exitCode: number | null): void => {
+    const settle = (exitCode: number | null): void => {
       if (settled) return
       settled = true
-      // 成功就不保留输出：那几十行「Progress: resolved 900」没人看
       if (exitCode === 0) return resolve({ ok: true, exitCode })
-      resolve({ ok: false, exitCode, tail: tailLines(Buffer.concat(chunks).toString('utf8')) })
+      resolve({ ok: false, exitCode, tail: tailLines(Buffer.concat(tailChunks).toString('utf8')) })
     }
 
-    proc.stdout?.on('data', (c: Buffer) => push(c))
-    proc.stderr?.on('data', (c: Buffer) => push(c))
-    // 启动失败：整理成一份 exitCode 为 null 的回执，原因放进 tail
+    proc.stdout?.on('data', (chunk: Buffer) => keepTail(chunk))
+    proc.stderr?.on('data', (chunk: Buffer) => keepTail(chunk))
     proc.on('error', (err) => {
-      push(Buffer.from(`${String(err)}\n`, 'utf8'))
-      done(null)
+      keepTail(Buffer.from(`${String(err)}\n`, 'utf8'))
+      settle(null)
     })
-    // 用 close 而不是 exit：等两条管道都读完再返回，否则 tail 可能缺最后一段——而失败原因正在那里
-    proc.on('close', (code) => done(code))
+    // 用 close 不用 exit：等两条管道都读完，否则 tail 可能缺最后一段，而失败原因正在那里
+    proc.on('close', (code) => settle(code))
   })
 }
 
@@ -124,52 +112,42 @@ export function describeAddFailure(what: string, run: PnpmResult): { error: stri
   return run.tail === undefined ? { error } : { error, tail: run.tail }
 }
 
-/**
- * 运行一次 pnpm，把 stdout **完整**带回来。给 `pnpm outdated --json` 用——它的 JSON 在
- * stdout 上，而且退出码 1 的意思是「存在过期包」，是结果不是失败，所以这里不判 ok，
- * 两样都原样返回，由调用方解释。
- *
- * spawn 的做法与 `runPnpm` 相同。**不合并进 `runPnpm`**：那个成功时不保留输出（装包日志几 MB 没人看），
- * 这个保留全文——两边的取舍相反，合成一个函数两边都得迁就。
- */
+/** stdout 全文带回、不判 ok：给 `pnpm outdated --json` 用，它的退出码 1 是结果不是失败 */
 export function runPnpmCapture(opts: { pnpm: string; cwd: string; args: readonly string[] }): Promise<PnpmCaptureResult> {
   return new Promise((resolve) => {
-    const out: Buffer[] = []
-    const err: Buffer[] = []
-    // 防御性上限，正常的 outdated 输出远小于它
-    const MAX_BYTES = 4_000_000
-    let outBytes = 0
-    let errBytes = 0
+    const stdoutChunks: Buffer[] = []
+    const stderrChunks: Buffer[] = []
+    let stdoutBytes = 0
+    let stderrBytes = 0
 
     const proc = spawnPnpm(opts.pnpm, opts.cwd, opts.args)
 
     let settled = false
-    const done = (exitCode: number | null): void => {
+    const settle = (exitCode: number | null): void => {
       if (settled) return
       settled = true
       resolve({
         exitCode,
-        stdout: Buffer.concat(out).toString('utf8'),
-        stderrTail: tailLines(Buffer.concat(err).toString('utf8')),
+        stdout: Buffer.concat(stdoutChunks).toString('utf8'),
+        stderrTail: tailLines(Buffer.concat(stderrChunks).toString('utf8')),
       })
     }
 
-    proc.stdout?.on('data', (c: Buffer) => {
-      if (outBytes < MAX_BYTES) {
-        outBytes += c.length
-        out.push(c)
+    proc.stdout?.on('data', (chunk: Buffer) => {
+      if (stdoutBytes < MAX_CAPTURED_STDOUT_BYTES) {
+        stdoutBytes += chunk.length
+        stdoutChunks.push(chunk)
       }
     })
-    proc.stderr?.on('data', (c: Buffer) => {
-      errBytes += c.length
-      err.push(c)
-      // stderr 只保留末尾部分
-      while (errBytes > MAX_TAIL_BYTES * 4 && err.length > 1) errBytes -= err.shift()!.length
+    proc.stderr?.on('data', (chunk: Buffer) => {
+      stderrBytes += chunk.length
+      stderrChunks.push(chunk)
+      while (stderrBytes > MAX_TAIL_BYTES * 4 && stderrChunks.length > 1) stderrBytes -= stderrChunks.shift()!.length
     })
     proc.on('error', (error) => {
-      err.push(Buffer.from(`${String(error)}\n`, 'utf8'))
-      done(null)
+      stderrChunks.push(Buffer.from(`${String(error)}\n`, 'utf8'))
+      settle(null)
     })
-    proc.on('close', (code) => done(code))
+    proc.on('close', (code) => settle(code))
   })
 }
