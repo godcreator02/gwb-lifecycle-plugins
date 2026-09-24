@@ -549,7 +549,7 @@ export async function resolveTarget(homesRoot: string, name: string, deps: HomeD
   if (record.cdp === undefined) {
     return {
       ok: false,
-      error: `${name} 在跑,但记录里没有 cdp 那格——起它的时候没带 --remote-debugging-port,够不着。停掉重开时给 cdp 参数`,
+      error: `${name} 在跑,但记录里没有 cdp 那格——起它的时候没带 --remote-debugging-port,够不着。停掉它，再用 devkit.home.open 重开一次(调试口自动挑)`,
     }
   }
   const owner = await deps.portOwner(record.cdp)

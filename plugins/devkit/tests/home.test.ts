@@ -504,14 +504,21 @@ describe('resolveTarget：「我要操作哪个 home」→ 够得着它的那个
     const { deps } = fakeDeps({ fs, processes: { 4242: 'electron.exe' } })
     const out = await resolveTarget(ROOT, NAME, deps)
     expect(out.ok).toBe(false)
-    if (!out.ok) expect(out.error).toContain('remote-debugging-port')
+    if (!out.ok) {
+      expect(out.error).toContain('remote-debugging-port')
+      expect(out.error).toContain('devkit.home.open')
+      expect(out.error).not.toContain('cdp 参数')
+    }
   })
 
-  it('压根没有记录：指去自己给端口，不猜', async () => {
+  it('压根没有记录：说清要停掉重开，不猜端口', async () => {
     const { deps } = fakeDeps({ fs: fakeFs({}, dirs) })
     const out = await resolveTarget(ROOT, NAME, deps)
     expect(out.ok).toBe(false)
-    if (!out.ok) expect(out.error).toContain('runtime.json')
+    if (!out.ok) {
+      expect(out.error).toContain('runtime.json')
+      expect(out.error).toContain('重开')
+    }
   })
 })
 
