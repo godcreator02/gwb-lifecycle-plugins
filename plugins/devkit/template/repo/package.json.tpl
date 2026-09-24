@@ -2,8 +2,8 @@
   "name": "gwb-{{name}}-workspace",
   "private": true,
   "type": "module",
-  "description": "{{title}} 的工作区：件住 plugins/（装进 home 的 cordis 件），非件包住 packages/（repo-kit 那类仓侧工具，按需）。文档站 docs-site/ 自己一套依赖，不进 workspace。",
-  "//scripts": "根壳自己没有代码，build/check 都递归到成员包；pnpm -r 不含根，不会自递归",
+  "description": "{{title}} 的 pnpm workspace：插件放在 plugins/（装进 home、由 cordis 加载的包），不是插件的包放在 packages/（repo-kit 那类只在仓里用的测试工具，需要时再加）。文档站 docs-site/ 自己一套依赖，不在 workspace 里。",
+  "//scripts": "仓根自己没有代码，build/check 都递归到各成员包；pnpm -r 不含仓根，不会递归调用自己",
   "scripts": {
     "build": "pnpm -r --filter \"./plugins/*\" build",
     "check": "pnpm -r --no-bail check"

@@ -15,7 +15,7 @@ const here = path.dirname(fileURLToPath(import.meta.url))
 const distDir = path.resolve(here, '../dist')
 const built = fs.existsSync(distDir)
 
-if (!built) console.warn('[{{pkgName}}] dist/ 还没生成，产物检查整组跳过（pnpm build 之后再跑）')
+if (!built) console.warn('[{{pkgName}}] dist/ 还没生成，产物检查整组跳过（pnpm build 之后再运行）')
 
 const CLIENT = 'client.js'
 /** node 侧产物里允许留下的包名 import：node 内置模块、electron、宿主提供的 cordis。别的插件与词汇表包只 import type，编译后整句消失 */

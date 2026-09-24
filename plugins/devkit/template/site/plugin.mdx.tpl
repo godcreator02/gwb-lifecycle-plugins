@@ -5,7 +5,7 @@ description: 插件 {{pkgName}}（包 {{pkg}}）的功能、接口、依赖与�
 
 **本页回答**：插件 `{{pkgName}}` 做什么；对外提供哪些命令和窗格；依赖哪些服务；不做什么。
 
-本页是 `devkit.scaffold` / `devkit.scaffold.plugin` 按模板插件生成的起稿。把模板改成真插件时，按实际情况改写每一节。
+本页是 `devkit.scaffold` / `devkit.scaffold.plugin` 按模板插件生成的草稿。把模板改成真插件时，按实际情况改写每一节。
 
 ## 功能
 

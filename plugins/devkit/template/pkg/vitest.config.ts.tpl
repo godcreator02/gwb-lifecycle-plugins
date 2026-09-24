@@ -1,10 +1,10 @@
 import { defineConfig } from 'vitest/config'
 
 /**
- * 件包自足：测试只认包内的 `tests/`，`src/` 里不放用例。
+ * 配置都在插件包内：测试只收包内的 `tests/`，`src/` 里不放用例。
  *
- * 「slow」标签：**凡真起子进程的用例必打标**（`pnpm build` / `pnpm pack` 那种）。
- * 日常 `pnpm test` 想跳过它们就加 `--tags-filter=!slow`。
+ * 「slow」标签：**真的启动子进程的用例一律打上它**（运行 `pnpm build` / `pnpm pack` 这类）。
+ * 日常 `pnpm test` 带着 `--tags-filter=!slow`，跳过它们；`pnpm test:all` 全部运行。
  */
 export default defineConfig({
   test: {
@@ -14,7 +14,7 @@ export default defineConfig({
     tags: [
       {
         name: 'slow',
-        description: '真起子进程的用例',
+        description: '真的启动子进程的用例',
         timeout: 300_000,
       },
     ],
