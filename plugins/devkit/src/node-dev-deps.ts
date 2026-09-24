@@ -8,28 +8,16 @@ import { PUBLISH_TIMEOUT_MS, pnpmPlan, type DevDeps, type RunPlan } from './dev.
 import type { ReleaseDeps } from './release.js'
 import { removeTree, runCaptured } from './node-home-deps.js'
 
-/**
- * `DevDeps` 的真身:碰盘走 node:fs,开进程走系统,连 CDP 走包里那支驱动。
- *
- * 与另外两个 `node-*-deps` 同一个分工——这一层全是环境胶水、**不进单测**;守卫与时序的
- * 判断全在 `dev.ts` 的纯机里,假件测试在那儿跑。
- */
+// DevDeps 与 ReleaseDeps 在这台机器上的实现：读写磁盘、启动进程、经 bin/cdp.mjs 连 CDP。
+// 真机器操作的部分没有单元测试，判断都在 dev.ts 与 release.ts 里；distManifest 与找工作区的两个函数有测试
 
-/**
- * 那支 CDP 驱动的身体。`../bin/` 两态都对:源码态本模块在 `src/`、产物态在 `dist/`,
- * 都是包根下一层。
- */
+/** CDP 驱动脚本。从源码运行时本模块在 `src/`、从构建产物运行时在 `dist/`，都是包根下一层 */
 export const CDP_ENTRY = fileURLToPath(new URL('../bin/cdp.mjs', import.meta.url))
 
-/** 回执尾巴留几行。全量没人读,报错住在尾巴上 */
+/** 回执里输出留最后几行：报错在最后 */
 const TAIL_LINES = 40
 
-/**
- * 起一趟 CDP 动作,把它打出来的 JSON 收回来。
- *
- * **退出码与 JSON 两样都要**:那支驱动在「命令没跑成」时照样打一张完整的回执,只是把退出码
- * 置成非零。只看退出码会丢掉原因,只看 JSON 会把失败当成功。
- */
+/** 退出码与 JSON 两样都要：命令没成功时驱动照样打印完整回执，只是退出码非零 */
 function runCdp(home: string, args: string[], timeoutMs: number): Promise<{ ok: boolean; data: unknown; tail: string }> {
   return new Promise((resolve) => {
     let out = ''
@@ -39,10 +27,9 @@ function runCdp(home: string, args: string[], timeoutMs: number): Promise<{ ok: 
       child = spawn(process.execPath, [CDP_ENTRY, home, ...args], {
         stdio: ['ignore', 'pipe', 'pipe'],
         windowsHide: true,
-        // 件跑在 Electron 主进程里,`process.execPath` 是 electron.exe:**不带
-        // `ELECTRON_RUN_AS_NODE` 它会去开一扇窗,而不是跑那个 js**(node-cli 件同一个绕法)
+        // 插件运行在 Electron 主进程里，process.execPath 是 electron.exe：不带 ELECTRON_RUN_AS_NODE 它会开一个窗口，而不是运行脚本
         env: { ...process.env, ELECTRON_RUN_AS_NODE: '1' },
-        // 那支驱动的路径一概不看工作目录;给个中性的,别把内核的 cwd 带进去
+        // 驱动的路径一概不看工作目录；给一个无关的，别把内核的工作目录带进去
         cwd: os.tmpdir(),
       })
     } catch (error) {
@@ -76,7 +63,7 @@ function runCdp(home: string, args: string[], timeoutMs: number): Promise<{ ok: 
   })
 }
 
-/** 分发形态的清单。`[key: string]` 那格让「原样带过去」成立:包里别的字段一个都不该丢 */
+/** 发布用的清单。`[key: string]` 让别的字段原样带过去，一个都不丢 */
 interface DistManifest {
   name: string
   version: string
@@ -89,45 +76,39 @@ interface DistManifest {
 }
 
 /**
- * 工作区里按包名找它当前的号(`workspace:` 依赖换范围时用)。
- *
- * **现扫,不认死 `packages/` 与 `plugins/` 这类目录名**:一仓一包与 monorepo 两种形状都要
- * 走得通,而目录怎么摆是各仓自己的事。只扫两层、跳过 `node_modules` 与点目录——再深就是
- * 在别人的依赖树里翻东西了。
+ * 工作区里各包当前的版本号（`workspace:` 依赖换成范围时用）。扫目录、不写死 `packages/`、`plugins/` 这类目录名；
+ * 只扫两层，跳过 `node_modules`、`dist` 与点开头的目录
  */
 export function workspaceVersions(repoDir: string, depth = 2): Map<string, string> {
-  const found = new Map<string, string>()
-  const walk = (dir: string, left: number): void => {
+  const versionsByName = new Map<string, string>()
+  const walk = (dir: string, levelsLeft: number): void => {
     const manifest = path.join(dir, 'package.json')
     if (fs.existsSync(manifest)) {
       try {
         const doc = JSON.parse(fs.readFileSync(manifest, 'utf8')) as { name?: unknown; version?: unknown }
-        if (typeof doc.name === 'string' && typeof doc.version === 'string') found.set(doc.name, doc.version)
+        if (typeof doc.name === 'string' && typeof doc.version === 'string') versionsByName.set(doc.name, doc.version)
       } catch {
-        // 读不动就当没有:这儿只是在给 workspace: 找一个号,不是在校验别人的包
+        // 读不了就当没有：这里只是给 workspace: 找一个版本号，不是在检查别人的包
       }
     }
-    if (left <= 0) return
-    let kids: fs.Dirent[]
+    if (levelsLeft <= 0) return
+    let children: fs.Dirent[]
     try {
-      kids = fs.readdirSync(dir, { withFileTypes: true })
+      children = fs.readdirSync(dir, { withFileTypes: true })
     } catch {
       return
     }
-    for (const kid of kids) {
-      if (!kid.isDirectory()) continue
-      if (kid.name.startsWith('.') || kid.name === 'node_modules' || kid.name === 'dist') continue
-      walk(path.join(dir, kid.name), left - 1)
+    for (const child of children) {
+      if (!child.isDirectory()) continue
+      if (child.name.startsWith('.') || child.name === 'node_modules' || child.name === 'dist') continue
+      walk(path.join(dir, child.name), levelsLeft - 1)
     }
   }
   walk(repoDir, depth)
-  return found
+  return versionsByName
 }
 
-/**
- * 包所在工作区的根:从包目录往上,第一个有 `pnpm-workspace.yaml` 的目录。`workspace:` 依赖的号
- * 要在整个工作区里找——包在 `plugins/<名>/` 时,它依赖的库可能在 `packages/` 下。
- */
+/** 从包目录往上第一个有 `pnpm-workspace.yaml` 的目录：包在 `plugins/<名>/` 时，它依赖的库可能在 `packages/` 下 */
 export function workspaceRootOf(pkgDir: string): string {
   let dir = path.resolve(pkgDir)
   for (;;) {
@@ -139,16 +120,8 @@ export function workspaceRootOf(pkgDir: string): string {
 }
 
 /**
- * 把一份清单改成能发出去的样子:
- *
- * - **号换成这一趟那个**
- * - **`scripts` 与 `devDependencies` 删掉**:分发包里没人跑它们,留着只会让装的那头去解析
- *   一堆开发期依赖
- * - **`workspace:` 换成 `^<工作区里那个号>`**。临时目录不在工作区里,pnpm 不会替我们换,留着它
- *   装不上
- * - **这一趟同时发的那几个包(`siblings`),dependencies 一律换成它给的写法**:开发版给准确
- *   dev 号(`^x` 认不到 dev 版——semver 不拿预发布版满足不带预发布的范围,不钉装出来就是
- *   「新件配旧库」,而且不报错),正式版给 `^新号`
+ * 版本号换成这次的；删掉 `scripts` 与 `devDependencies`；`workspace:` 换成 `^<工作区里的版本号>`（临时目录不在工作区里，
+ * pnpm 不会替换）；同一次发的包（`siblings`）在 dependencies 里一律换成给的写法（开发版给准确版本号、正式版给 `^新版本号`）
  */
 export function distManifest(
   manifest: DistManifest,
@@ -156,37 +129,31 @@ export function distManifest(
   siblings: Record<string, string>,
   workspace: Map<string, string>,
 ): DistManifest {
-  const out: DistManifest = { ...manifest, version }
-  delete out.scripts
-  delete out.devDependencies
-  const fix = (table: Record<string, string> | undefined, pinSiblings: boolean): Record<string, string> | undefined => {
+  const distributed: DistManifest = { ...manifest, version }
+  delete distributed.scripts
+  delete distributed.devDependencies
+  const rewrittenRanges = (table: Record<string, string> | undefined, useSiblingRanges: boolean): Record<string, string> | undefined => {
     if (table === undefined) return undefined
-    const next: Record<string, string> = {}
+    const rewritten: Record<string, string> = {}
     for (const [name, range] of Object.entries(table)) {
       const sibling = siblings[name]
-      if (pinSiblings && sibling !== undefined) next[name] = sibling
-      else if (range.startsWith('workspace:')) next[name] = `^${workspace.get(name) ?? '0.0.0'}`
-      else next[name] = range
+      if (useSiblingRanges && sibling !== undefined) rewritten[name] = sibling
+      else if (range.startsWith('workspace:')) rewritten[name] = `^${workspace.get(name) ?? '0.0.0'}`
+      else rewritten[name] = range
     }
-    return next
+    return rewritten
   }
-  const deps = fix(out.dependencies, true)
-  if (deps !== undefined) out.dependencies = deps
-  // peer 那格不钉准确号:钉了就是逼着消费方也换版本,而 peer 说的本来就是「你自己带一个」
-  const peers = fix(out.peerDependencies, false)
-  if (peers !== undefined) out.peerDependencies = peers
-  return out
+  const dependencies = rewrittenRanges(distributed.dependencies, true)
+  if (dependencies !== undefined) distributed.dependencies = dependencies
+  // peer 不写同一次发的准确版本号：写了就是逼消费方也换版本，peer 的意思本来是「你自己带一个」
+  const peers = rewrittenRanges(distributed.peerDependencies, false)
+  if (peers !== undefined) distributed.peerDependencies = peers
+  return distributed
 }
 
 /**
- * 发一个包的 staging 版。**在临时目录里摆一份分发形态再发,不改仓里的 package.json**:改仓里那份
- * 的话,中途摔了就留下一个号被动过的工作区,而那是最难认出来的现场。
- *
- * 开发版与正式版只差两处,都由调用方给:**打哪个 tag**(dev 不动 latest / latest)与
- * **同趟兄弟的依赖写什么**(开发版钉准确号,semver 的范围认不到预发布号;正式版给 `^`
- * 范围,消费方跟得进破坏边界以内的后续版本)。
- *
- * 带进分发包的东西**取自 `files` 白名单**,不在这儿另列一份——两份名单必然漂。
+ * 在临时目录组装发布内容再发，不改仓里的 package.json。开发版与正式版只差 tag 与同一次发的包的依赖写法，都由调用方给；
+ * 带进去的东西取自 `files` 白名单
  */
 async function publishStaged(input: {
   pkgDir: string
@@ -203,8 +170,7 @@ async function publishStaged(input: {
   }
   const files = manifest.files ?? []
   if (files.length === 0) return { ok: false, tail: `${manifest.name} 的 package.json 里 files 是空的,不知道该带什么进分发包` }
-  // `files` 的三种写法分开对待。**带通配的那种当场拒**:这儿只会照字面复制,悄悄漏掉几个
-  // 文件的代价是「发出去了、装上了、新写的东西没生效」,而那是这套里最难查的一种
+  // 带通配的当场拒：这里只按字面复制，悄悄漏掉文件的表现是「发出去了、装上了、新写的东西没生效」
   const positives = files.filter((one) => !one.startsWith('!'))
   const globbed = positives.filter((one) => /[*?]/.test(one))
   if (globbed.length > 0) {
@@ -227,7 +193,7 @@ async function publishStaged(input: {
       if (!fs.existsSync(from)) return { ok: false, tail: `产物不在:${from}` }
       const to = path.join(stage, rel)
       fs.mkdirSync(path.dirname(to), { recursive: true })
-      // cpSync 而不是 copyFileSync:`files` 里可以是目录(dist、skills、template 都是)
+      // cpSync 不用 copyFileSync：files 里可以是目录（dist、skills、template 都是）
       fs.cpSync(from, to, { recursive: true, filter: (src) => !excludes.includes(path.basename(src)) })
     }
     const readme = [path.join(input.pkgDir, 'README.md'), path.join(repoDir, 'README.md')].find((one) => fs.existsSync(one))
@@ -236,8 +202,7 @@ async function publishStaged(input: {
       path.join(stage, 'package.json'),
       JSON.stringify(distManifest(manifest, input.version, input.deps, workspaceVersions(repoDir)), null, 2) + '\n',
     )
-    // **tag 由调用方给**:开发版标 dev 不动 latest(源上这些包同时被别的仓消费,开发版顶掉
-    // latest 会让它们莫名其妙换了代码);正式版就是 latest
+    // 开发版标 dev、不动 latest：源上这些包同时被别的仓使用，开发版占了 latest 它们就不明不白地换了代码
     return await runCaptured(
       pnpmPlan(['publish', '--no-git-checks', '--tag', input.tag, '--registry', input.registry], stage, process.platform),
       PUBLISH_TIMEOUT_MS,
@@ -245,16 +210,16 @@ async function publishStaged(input: {
   } catch (err) {
     return { ok: false, tail: String(err) }
   } finally {
-    // 不走 fs.rmSync 的递归删:宿主 Node 会跟进 junction,见 removeTree
+    // 不用 fs.rmSync 递归删：宿主的 Node 会跟进 junction，见 removeTree
     try {
       removeTree(stage)
     } catch {
-      // 临时目录清不掉不影响这一趟的结论,留在 tmp 里
+      // 临时目录删不掉不影响这次的结论，留在 tmp 里
     }
   }
 }
 
-/** 这台机器上的真身(「改一版看一版」那条链) */
+/** 「改一版看一版」在这台机器上的实现 */
 export const devDeps: DevDeps = {
   run: (plan: RunPlan, timeoutMs: number) => runCaptured(plan, timeoutMs),
   cdp: runCdp,
@@ -286,7 +251,7 @@ export const devDeps: DevDeps = {
     try {
       return fs.statSync(file).size
     } catch {
-      // 日志还没出生(刚开的 home)。基线当 0,于是整份都算增量,那正是实情
+      // 日志还不存在（刚开的 home）：基线当 0，整份都算新增，这正是实情
       return 0
     }
   },
@@ -312,15 +277,12 @@ export const devDeps: DevDeps = {
   platform: process.platform,
 }
 
-/** git 那一趟的上限。问一句状态而已,卡住说明 git 本身出了问题 */
+/** git status 的上限。卡住说明 git 本身出了问题 */
 const GIT_TIMEOUT_MS = 30_000
 
 /**
- * 仓根的 git 树干不干净。git 是 exe(不像 pnpm 是 .cmd),不用借 cmd /c 一层。
- *
- * `runCaptured` 回的是 stdout 与 stderr 合流的尾巴,所以**按 porcelain 条目的长相认脏**
- * (两列状态加路径),合进来的别的行(git 的 safe.directory 警告之类)不拿来当脏——把它们
- * 算进去的话,一句无害的警告就能让这条链永远发不出版。
+ * git 是 exe（不像 pnpm 是 .cmd），不用经 cmd /c。runCaptured 回的是 stdout 与 stderr 合在一起的最后几行，
+ * 所以按 porcelain 条目的样子认改动：safe.directory 警告之类不算，不然一句无害的警告就让发版永远不成
  */
 async function gitStatusOf(repoDir: string): Promise<{ ok: true; dirty: string[] } | { ok: false; error: string }> {
   const out = await runCaptured({ command: 'git', args: ['status', '--porcelain=v1'], cwd: repoDir }, GIT_TIMEOUT_MS)
@@ -332,7 +294,7 @@ async function gitStatusOf(repoDir: string): Promise<{ ok: true; dirty: string[]
   return { ok: true, dirty }
 }
 
-/** 这台机器上的真身(发正式版那条链)。publish 的真体与开发版共用同一套 staging,只差 tag 与依赖写法 */
+/** 发正式版在这台机器上的实现。publish 与开发版共用 publishStaged，只差 tag 与依赖写法 */
 export const releaseDeps: ReleaseDeps = {
   run: (plan: RunPlan, timeoutMs: number) => runCaptured(plan, timeoutMs),
   publish: (input) =>
