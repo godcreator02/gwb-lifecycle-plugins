@@ -145,7 +145,7 @@ export function evalFileOf(given) {
 /** 端口从 `<dir>/runtime.json` 的 `cdp` 字段查；第一个位置给了数字当场拒，不悄悄当成端口 */
 function portOf(name, dir) {
   if (/^\d+$/.test(name)) {
-    throw new Error(`第一个位置要 home 名，不是端口（给的是 ${name}）。哪个 home 在跑、口在哪，看 devkit.home.list`)
+    throw new Error(`第一个位置要 home 名，不是端口（给的是 ${name}）。哪个 home 在运行、端口是多少，看 devkit.home.list`)
   }
   const file = path.join(dir, 'runtime.json')
   if (!fs.existsSync(file)) throw new Error(`${file} 不在——${name} 没起过，或者起它的内核版本还不写这份记录。停掉重开一次`)
@@ -157,7 +157,7 @@ function portOf(name, dir) {
   }
   const cdp = record?.cdp
   if (!Number.isInteger(cdp) || cdp <= 0 || cdp >= 65536) {
-    throw new Error(`${name} 的记录里没有 cdp 那格——起它的时候没带 --remote-debugging-port，够不着。停掉重开一次`)
+    throw new Error(`${name} 的记录里没有 cdp 字段——启动它的时候没带 --remote-debugging-port，连不上。停掉重开一次`)
   }
   return String(cdp)
 }
@@ -188,7 +188,7 @@ async function pagesOf() {
   try {
     list = await (await fetch(`http://127.0.0.1:${port}/json/list`)).json()
   } catch (err) {
-    throw new Error(`连不上 ${home} 记录里那个调试口 ${port}：那儿没人应答——它多半已经退了（记录是上一次留下的）。停掉重开一次。原始错：${String(err)}`)
+    throw new Error(`连不上 ${home} 记录里那个调试端口 ${port}：那里没有应答——它多半已经退出了（记录是上一次留下的）。停掉重开一次。原始错：${String(err)}`)
   }
   return list.filter((t) => t.type === 'page' && !String(t.url).startsWith('devtools://'))
 }
@@ -616,10 +616,10 @@ async function run(send, target) {
 async function assertHome(send) {
   const found = homeOf(await evaluate(send, HOME_EXPR))
   if (found.home === null) {
-    throw new Error(`这个口后头不是工作台的外壳页（${found.why}）——记录陈旧了，或者那扇窗已经不在`)
+    throw new Error(`这个端口上不是工作台的外壳页（${found.why}）——记录过时了，或者那个窗口已经不在`)
   }
   if (found.名字 !== home) {
-    throw new Error(`你要的是 ${home}，可这个口上的页面自报是 ${found.名字}——记录陈旧了。停掉重开那个 home`)
+    throw new Error(`你要的是 ${home}，可这个端口上的页面自报是 ${found.名字}——记录过时了。停掉重开那个 home`)
   }
 }
 
