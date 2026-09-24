@@ -89,7 +89,7 @@ description: devkit.dev 一条命令把工作区的改动换进另一个 home �
 | `restartHome` | 发了内核包时停掉目标 home 再启动 | `src/index.ts` 用测试 home 的停止与启动（`bringDownHome`、`launchHome`）接上，调试端口先沿用上次那个 | 记一行调用、可以让它失败 |
 | `pnpm` | 构建、发版、查版本、装进目标 home 时启动的 pnpm 可执行文件 | 命令开头在两个固定位置找到并核对过版本的那个（见[pnpm 与包源](/docs/seams/pnpm-registry)），找不到就不开始 | 一个假路径 |
 
-{/* ref file="../plugins/devkit/src/dev.ts" lines="268-294" */}
+{/* ref file="../plugins/devkit/src/dev.ts" lines="266-294" */}
 
 **CDP 那一项为什么是启动子进程，而不是在进程内连接。** CDP 驱动必须在工作台没运行的时候也能单独用，所以它是零依赖单文件的脚本，不是一个可以 import 的模块。一次流程多启动五六次进程，几百毫秒，对一次一分钟左右的流程可以忽略。
 

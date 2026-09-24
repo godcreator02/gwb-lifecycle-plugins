@@ -46,7 +46,7 @@ description: 插件管理不自带 pnpm，只认用户装在两个固定位置�
 
 **读回什么**：`add` / `remove` 只看退出码，0 是成功；成功时不保留输出（几十行进度没人看），失败时回执带 stdout 与 stderr 合起来的最后 12 行，pnpm 把原因写在最后。`outdated` 要读 stdout 上的 JSON，另用 `runPnpmCapture` 完整保留 stdout；退出码 1 表示「有过期的包」，是结果不是失败。两种运行方式对输出的取舍相反，所以是两个函数，不合成一个。
 
-{/* ref file="../plugins/plugin-manager/src/pnpm.ts" lines="10-25" */}
+{/* ref file="../plugins/plugin-manager/src/pnpm.ts" lines="8-23" */}
 
 pnpm 升大版本时输出格式可能变，`outdated` 解析不了就回失败，原因里说明这一点。
 
@@ -66,4 +66,4 @@ pnpm 升大版本时输出格式可能变，`outdated` 解析不了就回失败�
 
 **例外**：插件启动的子进程，卸载时本该结束整个进程树、等它真正退出。这是允许的例外，理由写在 `runPnpm` 的注释里：
 
-{/* ref file="../plugins/plugin-manager/src/pnpm.ts" lines="74-78" */}
+{/* ref file="../plugins/plugin-manager/src/pnpm.ts" lines="47-51" */}
