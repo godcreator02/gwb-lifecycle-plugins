@@ -1,6 +1,6 @@
 ---
 title: 热升级
-description: outdated 查过期包；update 的参数三选一（all 升全部过期包、only 升点名的过期包、specs 按给定写法装已装的包），一次 pnpm add --save-exact，specs 装完核对准确版本号；同一条命令里逐条停用再启用，装之前与装之后真实目录变了的别的包一起重新加载；插件管理自己那条在回执发出后才重新加载；不重启、不整页重新加载
+description: outdated 查过期包；update 的参数三选一（all 升全部过期包、only 升点名的过期包、specs 按给定写法装已装的包），一次 pnpm add --save-exact，specs 装完核对准确版本号；同一条命令里，装之前与装之后真实目录变了的包逐条停用再启用；插件管理自己那条在回执发出后才重新加载；不重启、不整页重新加载
 ---
 
 # 热升级
@@ -15,7 +15,7 @@ description: outdated 查过期包；update 的参数三选一（all 升全部�
 
 退出码 1 表示「有过期包」，是结果不是失败；找不到 pnpm、别的退出码、输出解析不了，都回 `ok: false`。它不写文件，不经过 BUSY 检查（见[同一时刻只允许一个改动](/docs/plugin-manager/busy)）。
 
-{/* ref file="../plugins/plugin-manager/src/index.ts" lines="410-430" */}
+{/* ref file="../plugins/plugin-manager/src/index.ts" lines="409-429" */}
 
 {/* has file="../plugins/plugin-manager/tests/outdated.test.ts" text="空串是「全都最新」，不是失败" */}
 
@@ -35,9 +35,9 @@ description: outdated 查过期包；update 的参数三选一（all 升全部�
 
 全部升级要显式给 `{"all":true}`：一条改 home 的命令，不给参数时不能执行影响最大的那个动作，漏写参数就整个 home 一起升级、当场生效（见轨迹卡 [update 显式 all 加 specs](/trajectory/2026-09-25-update-takes-all-param)）。
 
-{/* ref file="../plugins/plugin-manager/src/index.ts" lines="781-810" */}
+{/* ref file="../plugins/plugin-manager/src/index.ts" lines="773-802" */}
 
-{/* ref file="../plugins/plugin-manager/src/index.ts" lines="432-436" */}
+{/* ref file="../plugins/plugin-manager/src/index.ts" lines="431-435" */}
 
 {/* has file="../plugins/plugin-manager/tests/commands.test.ts" text="参数：不给、空对象、三种给了两种、认不出的键、all 不是 true、specs 是空对象，都直接抛错带用法，一次 pnpm 都不运行" */}
 
@@ -52,7 +52,7 @@ description: outdated 查过期包；update 的参数三选一（all 升全部�
 
 `all` 与 `only` 的版本号来自 `outdated`、清单一律写精确版本号，不再核对。
 
-{/* ref file="../plugins/plugin-manager/src/update.ts" lines="145-166" */}
+{/* ref file="../plugins/plugin-manager/src/update.ts" lines="127-148" */}
 
 {/* has file="../plugins/plugin-manager/tests/update.test.ts" text="写法是准确版本号、装上的不是它：ok false，逐项说出要的与装上的" */}
 
@@ -66,7 +66,7 @@ description: outdated 查过期包；update 的参数三选一（all 升全部�
 
 ## 升级与重新加载在同一条命令里
 
-`update` 一条命令做完：一次 `pnpm add` 把包装到计划的版本 → 逐条重新加载（真实目录变了的别的包也在其中）。三种参数装完都走这同一套（`specs` 里有内核包时除外）；没有「只升包、不重新加载」的命令。`pnpm add` 失败时一条条目都不动。
+`update` 一条命令做完：一次 `pnpm add` 把包装到定好的版本 → 真实目录变了的包逐条重新加载。三种参数装完都走这同一套（`specs` 里有内核包时除外）；没有「只升包、不重新加载」的命令。`pnpm add` 失败时一条条目都不动。
 
 升完不重新加载，运行着的还是旧版本的代码，等于没升。旧版本目录也不会一直留着：home 里没有 `pnpm-workspace.yaml`（default 就没有）时用 pnpm 的默认值，旧目录保留约 7 天（pnpm 文档写 `modulesCacheMaxAge` 默认 10080 分钟）后清掉。升级与重新加载分成两条命令，中间运行的一直是旧版，隔得久了目录被清掉，旧版再读自己的文件就读不到：
 
@@ -77,7 +77,7 @@ description: outdated 查过期包；update 的参数三选一（all 升全部�
 
 命令本该一条只做一件事，多步流程写进说明书由调用方一步步调；`update` 是允许的例外，拆开只多出上图那段运行旧版的空档。
 
-{/* ref file="../plugins/plugin-manager/src/index.ts" lines="524-558" */}
+{/* ref file="../plugins/plugin-manager/src/index.ts" lines="522-550" */}
 
 {/* has file="../plugins/plugin-manager/tests/commands.test.ts" text="pnpm add 失败：一条条目都不动，外层 error 带上输出的最后几行，没有 data" */}
 
@@ -125,7 +125,7 @@ description: outdated 查过期包；update 的参数三选一（all 升全部�
 
 {/* ref file="../plugins/plugin-manager/src/home.ts" lines="53-65" */}
 
-{/* ref file="../plugins/plugin-manager/src/index.ts" lines="567-574" */}
+{/* ref file="../plugins/plugin-manager/src/index.ts" lines="559-566" */}
 
 {/* ref file="../plugins/plugin-manager/src/update.ts" lines="150-174" */}
 
@@ -158,7 +158,7 @@ description: outdated 查过期包；update 的参数三选一（all 升全部�
 
 **插件管理自己在回执之后**：升级的包或跟着重新加载的包里有插件管理自己时，它那条条目在回执发出之后才重新加载，回执 `selfDeferred` 是 `true`，那条条目的 `action` 是 `deferred`。在命令里停用自己，回执就发不出去了，理由与做法同[重新加载插件管理自己](/docs/plugin-manager/remount#目标是插件管理自己先回执后重新加载)。
 
-{/* ref file="../plugins/plugin-manager/src/index.ts" lines="582-610" */}
+{/* ref file="../plugins/plugin-manager/src/index.ts" lines="574-602" */}
 
 {/* has file="../plugins/plugin-manager/tests/commands.test.ts" text="升级清单里有插件管理自己：自己那条先回 deferred，回执之后才重新加载，之后不整页重新加载" */}
 

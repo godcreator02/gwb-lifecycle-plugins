@@ -649,22 +649,6 @@
     "has ../plugins/plugin-manager/tests/update.test.ts \"file: 与 tag 写法不核对：装上什么就报什么\"": {
       "kind": "has"
     },
-    "../plugins/plugin-manager/src/update.ts:38-54": {
-      "kind": "git",
-      "blob": "d1edfdebca5010b7ee019919f3ee6bf8849fb0dc",
-      "commit": "3e67a8b3de20a5851bb530445a1fd99cbd4325aa",
-      "lines": [
-        38,
-        54
-      ],
-      "hash": "9113488e9c2187be8f44a19b22495b033fd67d3c568b4ea83db95b6174849cae"
-    },
-    "has ../plugins/plugin-manager/tests/update.test.ts \"包只按名排、包内条目照树里的先后，自己所在的包与自己那条都不挪\"": {
-      "kind": "has"
-    },
-    "has ../plugins/plugin-manager/tests/update.test.ts \"执行时保持停用，不重新加载\"": {
-      "kind": "has"
-    },
     "has ../plugins/plugin-manager/tests/update.test.ts \"点了名、不在过期清单里的（已是最新）进 alreadyLatest\"": {
       "kind": "has"
     },
@@ -674,67 +658,14 @@
     "has ../plugins/plugin-manager/tests/update.test.ts \"每项 <包名>@<写法> 原样交给 pnpm，按包名排\"": {
       "kind": "has"
     },
-    "has ../plugins/plugin-manager/tests/update.test.ts \"目录变了、本身没升级的包进 dependents，按包名排\"": {
-      "kind": "has"
-    },
     "has ../plugins/plugin-manager/tests/update.test.ts \"装之前读不到、装之后读得到（或反过来）也算目录变了\"": {
       "kind": "has"
-    },
-    "../plugins/plugin-manager/src/index.ts:410-430": {
-      "kind": "git",
-      "blob": "74e4ba860b75fb79f8b127c0d3daf3ca186d62c5",
-      "commit": "3e67a8b3de20a5851bb530445a1fd99cbd4325aa",
-      "lines": [
-        410,
-        430
-      ],
-      "hash": "c2d1bfd22480f886d4de977afbdce0079e9826236a2318acde2fa3cf46cb68ab"
     },
     "has ../plugins/plugin-manager/tests/commands.test.ts \"内核包与 cordis 不进回执：内核包经 update 的 specs 换\"": {
       "kind": "has"
     },
-    "../plugins/plugin-manager/src/index.ts:781-810": {
-      "kind": "git",
-      "blob": "74e4ba860b75fb79f8b127c0d3daf3ca186d62c5",
-      "commit": "3e67a8b3de20a5851bb530445a1fd99cbd4325aa",
-      "lines": [
-        781,
-        810
-      ],
-      "hash": "db89ddf2ea0b8a167f7e6bf4fde1fa07342eaee7ab31a2e1d5fd9a356f9cc493"
-    },
-    "../plugins/plugin-manager/src/update.ts:145-166": {
-      "kind": "git",
-      "blob": "d1edfdebca5010b7ee019919f3ee6bf8849fb0dc",
-      "commit": "3e67a8b3de20a5851bb530445a1fd99cbd4325aa",
-      "lines": [
-        145,
-        166
-      ],
-      "hash": "58c4b18df6558d11732e22965d479b8c545cf97b7d4b182feb80b0fde2156baf"
-    },
     "has ../plugins/plugin-manager/tests/commands.test.ts \"准确版本号对不上（清单里原来写的是 ^）：ok false，逐项说要的与装上的，一条条目都不重新加载\"": {
       "kind": "has"
-    },
-    "../plugins/plugin-manager/src/index.ts:524-558": {
-      "kind": "git",
-      "blob": "74e4ba860b75fb79f8b127c0d3daf3ca186d62c5",
-      "commit": "3e67a8b3de20a5851bb530445a1fd99cbd4325aa",
-      "lines": [
-        524,
-        558
-      ],
-      "hash": "250a3ae5fb1e9ab49a852a1cdaa25a90d62d8e003eb30f1a8b8bd8c3780a161d"
-    },
-    "../plugins/plugin-manager/src/update.ts:114-143": {
-      "kind": "git",
-      "blob": "d1edfdebca5010b7ee019919f3ee6bf8849fb0dc",
-      "commit": "3e67a8b3de20a5851bb530445a1fd99cbd4325aa",
-      "lines": [
-        114,
-        143
-      ],
-      "hash": "eaac4a4274eb8690e49ef58991d0368b49925ded51b228973c122cfa0938e528"
     },
     "has ../plugins/plugin-manager/tests/update.test.ts \"pnpm add 的每一项用 outdated 查到的版本号\"": {
       "kind": "has"
@@ -745,22 +676,12 @@
     "../plugins/plugin-manager/src/home.ts:53-65": {
       "kind": "git",
       "blob": "0ab48e2567e04e8ee0afe74280704838de23af59",
-      "commit": "3e67a8b3de20a5851bb530445a1fd99cbd4325aa",
+      "commit": "08f7f0c2cee7a31217aa732d6a2810ac70a80ff1",
       "lines": [
         53,
         65
       ],
       "hash": "055fa3625448d45afbc815b5611875e4821823e5e671684afa4501aad62ca5f1"
-    },
-    "../plugins/plugin-manager/src/update.ts:168-185": {
-      "kind": "git",
-      "blob": "d1edfdebca5010b7ee019919f3ee6bf8849fb0dc",
-      "commit": "3e67a8b3de20a5851bb530445a1fd99cbd4325aa",
-      "lines": [
-        168,
-        185
-      ],
-      "hash": "5f76dafac4fcec2672f78e7a39ad7a239bbf139dd4ab31f2a018f26c966fa345"
     },
     "has ../plugins/plugin-manager/tests/commands.test.ts \"升级清单里有插件管理自己：自己那条先回 deferred，回执之后才重新加载，之后不整页重新加载\"": {
       "kind": "has"
@@ -768,54 +689,136 @@
     "has ../plugins/plugin-manager/tests/commands.test.ts \"升一个包：一次 pnpm add --save-exact 精确版本，它的条目在这条命令里重新加载，停用的跳过；不整页重新加载\"": {
       "kind": "has"
     },
-    "../plugins/plugin-manager/src/index.ts:432-436": {
-      "kind": "git",
-      "blob": "74e4ba860b75fb79f8b127c0d3daf3ca186d62c5",
-      "commit": "3e67a8b3de20a5851bb530445a1fd99cbd4325aa",
-      "lines": [
-        432,
-        436
-      ],
-      "hash": "06cd339685b24f542ce4008d71c30bef86ad9f694af84f956b183f70e111ccfd"
-    },
     "has ../plugins/plugin-manager/tests/commands.test.ts \"装之前 node_modules 里读不到清单：回执里没有 from\"": {
       "kind": "has"
     },
     "has ../plugins/plugin-manager/tests/commands.test.ts \"pnpm add 失败：一条条目都不动，外层 error 带上输出的最后几行，没有 data\"": {
       "kind": "has"
     },
-    "../plugins/plugin-manager/src/update.ts:74-90": {
+    "has ../plugins/plugin-manager/tests/commands.test.ts \"插件管理自己的真实目录变了：别的都在命令里做完，自己那条先回 deferred，回执之后才重新加载\"": {
+      "kind": "has"
+    },
+    "../plugins/plugin-manager/src/index.ts:409-429": {
       "kind": "git",
-      "blob": "d1edfdebca5010b7ee019919f3ee6bf8849fb0dc",
-      "commit": "3e67a8b3de20a5851bb530445a1fd99cbd4325aa",
+      "blob": "5a0e8c02c7661ad20f5b3f9d2e1260af63d7b34e",
+      "commit": "08f7f0c2cee7a31217aa732d6a2810ac70a80ff1",
       "lines": [
-        74,
-        90
+        409,
+        429
+      ],
+      "hash": "c2d1bfd22480f886d4de977afbdce0079e9826236a2318acde2fa3cf46cb68ab"
+    },
+    "../plugins/plugin-manager/src/index.ts:773-802": {
+      "kind": "git",
+      "blob": "5a0e8c02c7661ad20f5b3f9d2e1260af63d7b34e",
+      "commit": "08f7f0c2cee7a31217aa732d6a2810ac70a80ff1",
+      "lines": [
+        773,
+        802
+      ],
+      "hash": "db89ddf2ea0b8a167f7e6bf4fde1fa07342eaee7ab31a2e1d5fd9a356f9cc493"
+    },
+    "../plugins/plugin-manager/src/index.ts:431-435": {
+      "kind": "git",
+      "blob": "5a0e8c02c7661ad20f5b3f9d2e1260af63d7b34e",
+      "commit": "08f7f0c2cee7a31217aa732d6a2810ac70a80ff1",
+      "lines": [
+        431,
+        435
+      ],
+      "hash": "06cd339685b24f542ce4008d71c30bef86ad9f694af84f956b183f70e111ccfd"
+    },
+    "../plugins/plugin-manager/src/update.ts:127-148": {
+      "kind": "git",
+      "blob": "5c8109cad2abd81035a5fca1a10ea0312fa424cb",
+      "commit": "08f7f0c2cee7a31217aa732d6a2810ac70a80ff1",
+      "lines": [
+        127,
+        148
+      ],
+      "hash": "58c4b18df6558d11732e22965d479b8c545cf97b7d4b182feb80b0fde2156baf"
+    },
+    "../plugins/plugin-manager/src/index.ts:522-550": {
+      "kind": "git",
+      "blob": "5a0e8c02c7661ad20f5b3f9d2e1260af63d7b34e",
+      "commit": "08f7f0c2cee7a31217aa732d6a2810ac70a80ff1",
+      "lines": [
+        522,
+        550
+      ],
+      "hash": "10f7c47278b98a3963266e7eab3b0ee47eafd477d43e50008b849186e0a493e0"
+    },
+    "../plugins/plugin-manager/src/update.ts:35-51": {
+      "kind": "git",
+      "blob": "5c8109cad2abd81035a5fca1a10ea0312fa424cb",
+      "commit": "08f7f0c2cee7a31217aa732d6a2810ac70a80ff1",
+      "lines": [
+        35,
+        51
+      ],
+      "hash": "a3936156f7412087206b4e801a32051e60826c5a8b992e20d7244e33b5295136"
+    },
+    "../plugins/plugin-manager/src/update.ts:71-87": {
+      "kind": "git",
+      "blob": "5c8109cad2abd81035a5fca1a10ea0312fa424cb",
+      "commit": "08f7f0c2cee7a31217aa732d6a2810ac70a80ff1",
+      "lines": [
+        71,
+        87
       ],
       "hash": "202d85e14e1582f749e0d81fbe6eedd81ce7af8a5227c23b2a9acb5a8b3608d8"
     },
-    "../plugins/plugin-manager/src/index.ts:567-574": {
+    "../plugins/plugin-manager/src/update.ts:109-125": {
       "kind": "git",
-      "blob": "74e4ba860b75fb79f8b127c0d3daf3ca186d62c5",
-      "commit": "3e67a8b3de20a5851bb530445a1fd99cbd4325aa",
+      "blob": "5c8109cad2abd81035a5fca1a10ea0312fa424cb",
+      "commit": "08f7f0c2cee7a31217aa732d6a2810ac70a80ff1",
       "lines": [
-        567,
-        574
+        109,
+        125
+      ],
+      "hash": "9de063c8619c51f850c3ead73f43dca4e91c46c6b60ab1fd79089c78a2bd84ce"
+    },
+    "../plugins/plugin-manager/src/index.ts:559-566": {
+      "kind": "git",
+      "blob": "5a0e8c02c7661ad20f5b3f9d2e1260af63d7b34e",
+      "commit": "08f7f0c2cee7a31217aa732d6a2810ac70a80ff1",
+      "lines": [
+        559,
+        566
       ],
       "hash": "6380f5da396071c890dbdd6a9c1f5d43e14c809b413752acc0dea5310c7aa259"
     },
-    "../plugins/plugin-manager/src/index.ts:582-610": {
+    "../plugins/plugin-manager/src/update.ts:150-174": {
       "kind": "git",
-      "blob": "74e4ba860b75fb79f8b127c0d3daf3ca186d62c5",
-      "commit": "3e67a8b3de20a5851bb530445a1fd99cbd4325aa",
+      "blob": "5c8109cad2abd81035a5fca1a10ea0312fa424cb",
+      "commit": "08f7f0c2cee7a31217aa732d6a2810ac70a80ff1",
       "lines": [
-        582,
-        610
+        150,
+        174
       ],
-      "hash": "187e6fc60f751ee9f1b0874f7bfcadf70b64b76bba099ee8a2fb4c5da44e0cf1"
+      "hash": "2429e84c89a03319a70292d9cdb8578e40da971387f8a49df5a33116544b5e30"
     },
-    "has ../plugins/plugin-manager/tests/commands.test.ts \"插件管理自己的真实目录变了：别的都在命令里做完，自己那条先回 deferred，回执之后才重新加载\"": {
+    "has ../plugins/plugin-manager/tests/update.test.ts \"点了名、目录变了的进 updated；没点名、目录变了的进 dependents，按包名排\"": {
       "kind": "has"
+    },
+    "has ../plugins/plugin-manager/tests/update.test.ts \"点了名、目录没变的（装的就是原来那一版）：照样列进 updated，但 entries 为空、不重新加载\"": {
+      "kind": "has"
+    },
+    "has ../plugins/plugin-manager/tests/update.test.ts \"插件管理自己的目录变了：照包名排，不挪位置，自己那条条目标 self\"": {
+      "kind": "has"
+    },
+    "has ../plugins/plugin-manager/tests/commands.test.ts \"装的就是原来那一版、真实目录没变：回执照样列出这个包，它的条目不重新加载\"": {
+      "kind": "has"
+    },
+    "../plugins/plugin-manager/src/index.ts:574-602": {
+      "kind": "git",
+      "blob": "5a0e8c02c7661ad20f5b3f9d2e1260af63d7b34e",
+      "commit": "08f7f0c2cee7a31217aa732d6a2810ac70a80ff1",
+      "lines": [
+        574,
+        602
+      ],
+      "hash": "b949a9c2aa7e2ef6bb2fa3f562f89f9b9d2d7e7d15628c2ddb0cc52d324694c4"
     }
   },
   "content/docs/rules/deps.mdx": {
@@ -2176,7 +2179,7 @@
     "../plugins/plugin-manager/src/inventory.ts:10-24": {
       "kind": "git",
       "blob": "46e1e36b63851be392f14ac75483dd8c44db6fcb",
-      "commit": "3e67a8b3de20a5851bb530445a1fd99cbd4325aa",
+      "commit": "08f7f0c2cee7a31217aa732d6a2810ac70a80ff1",
       "lines": [
         10,
         24
@@ -2189,7 +2192,7 @@
     "../plugins/devkit/src/dev.ts:214-235": {
       "kind": "git",
       "blob": "b4bdd9f57a9a55e860dc4d265c87969d2adb1629",
-      "commit": "3e67a8b3de20a5851bb530445a1fd99cbd4325aa",
+      "commit": "08f7f0c2cee7a31217aa732d6a2810ac70a80ff1",
       "lines": [
         214,
         235
@@ -2199,47 +2202,17 @@
     "../plugins/devkit/src/dev.ts:531-562": {
       "kind": "git",
       "blob": "b4bdd9f57a9a55e860dc4d265c87969d2adb1629",
-      "commit": "3e67a8b3de20a5851bb530445a1fd99cbd4325aa",
+      "commit": "08f7f0c2cee7a31217aa732d6a2810ac70a80ff1",
       "lines": [
         531,
         562
       ],
       "hash": "56a4fc0e1f7fc44e13accf241b26a8efe3edd7987c00717379157822f9beae5c"
     },
-    "../plugins/plugin-manager/src/index.ts:226-234": {
-      "kind": "git",
-      "blob": "74e4ba860b75fb79f8b127c0d3daf3ca186d62c5",
-      "commit": "3e67a8b3de20a5851bb530445a1fd99cbd4325aa",
-      "lines": [
-        226,
-        234
-      ],
-      "hash": "aa3b1747a6b408f275d97f042b9d679b4a1ab517f6bc8add55be9d8fb71a0b7e"
-    },
-    "../plugins/plugin-manager/src/index.ts:285-290": {
-      "kind": "git",
-      "blob": "74e4ba860b75fb79f8b127c0d3daf3ca186d62c5",
-      "commit": "3e67a8b3de20a5851bb530445a1fd99cbd4325aa",
-      "lines": [
-        285,
-        290
-      ],
-      "hash": "5c15f882d306c9846bd7fd87218080ab12387d8f13f30ca58fbd02f376273488"
-    },
-    "../plugins/plugin-manager/src/update.ts:114-143": {
-      "kind": "git",
-      "blob": "d1edfdebca5010b7ee019919f3ee6bf8849fb0dc",
-      "commit": "3e67a8b3de20a5851bb530445a1fd99cbd4325aa",
-      "lines": [
-        114,
-        143
-      ],
-      "hash": "eaac4a4274eb8690e49ef58991d0368b49925ded51b228973c122cfa0938e528"
-    },
     "../plugins/devkit/src/dev.ts:131-143": {
       "kind": "git",
       "blob": "b4bdd9f57a9a55e860dc4d265c87969d2adb1629",
-      "commit": "3e67a8b3de20a5851bb530445a1fd99cbd4325aa",
+      "commit": "08f7f0c2cee7a31217aa732d6a2810ac70a80ff1",
       "lines": [
         131,
         143
@@ -2249,7 +2222,7 @@
     "../plugins/devkit/src/home.ts:235-271": {
       "kind": "git",
       "blob": "2dd52754040980c8037d0ee3c16a5b5368a2170c",
-      "commit": "3e67a8b3de20a5851bb530445a1fd99cbd4325aa",
+      "commit": "08f7f0c2cee7a31217aa732d6a2810ac70a80ff1",
       "lines": [
         235,
         271
@@ -2259,47 +2232,27 @@
     "../plugins/devkit/src/home.ts:333-358": {
       "kind": "git",
       "blob": "2dd52754040980c8037d0ee3c16a5b5368a2170c",
-      "commit": "3e67a8b3de20a5851bb530445a1fd99cbd4325aa",
+      "commit": "08f7f0c2cee7a31217aa732d6a2810ac70a80ff1",
       "lines": [
         333,
         358
       ],
       "hash": "35b26a6ea37518b23fb2f7a89c58f2c97291e280c53c0e01aa2326d9818944dc"
     },
-    "../plugins/plugin-manager/src/index.ts:54-56": {
-      "kind": "git",
-      "blob": "74e4ba860b75fb79f8b127c0d3daf3ca186d62c5",
-      "commit": "3e67a8b3de20a5851bb530445a1fd99cbd4325aa",
-      "lines": [
-        54,
-        56
-      ],
-      "hash": "c4d22b1bf2bebad162d5bcd74e5d9cf2ac8a535fd470fe891c4eab471cacf1db"
-    },
     "../plugins/devkit/src/dev.ts:464-499": {
       "kind": "git",
       "blob": "b4bdd9f57a9a55e860dc4d265c87969d2adb1629",
-      "commit": "3e67a8b3de20a5851bb530445a1fd99cbd4325aa",
+      "commit": "08f7f0c2cee7a31217aa732d6a2810ac70a80ff1",
       "lines": [
         464,
         499
       ],
       "hash": "dd637e3b63e67e2e6b0f5a5fe40b30b9208ca68d7f91c49c01c096a0e4324e0b"
     },
-    "../plugins/plugin-manager/src/index.ts:41-44": {
-      "kind": "git",
-      "blob": "74e4ba860b75fb79f8b127c0d3daf3ca186d62c5",
-      "commit": "3e67a8b3de20a5851bb530445a1fd99cbd4325aa",
-      "lines": [
-        41,
-        44
-      ],
-      "hash": "2a1ec1dea8e611fa33607b14340bbd1f37e15e5fc0aba96d8a21dccb2563a6a3"
-    },
     "../plugins/devkit/package.json:34-42": {
       "kind": "git",
       "blob": "51a6210add9001f932e4a9b640af6f4d0cd508b9",
-      "commit": "3e67a8b3de20a5851bb530445a1fd99cbd4325aa",
+      "commit": "08f7f0c2cee7a31217aa732d6a2810ac70a80ff1",
       "lines": [
         34,
         42
@@ -2308,6 +2261,56 @@
     },
     "has ../plugins/plugin-manager/tests/main-entry.test.ts \"只导出插件本身（name、apply）与 devkit 复用的几样\"": {
       "kind": "has"
+    },
+    "../plugins/plugin-manager/src/index.ts:225-233": {
+      "kind": "git",
+      "blob": "5a0e8c02c7661ad20f5b3f9d2e1260af63d7b34e",
+      "commit": "08f7f0c2cee7a31217aa732d6a2810ac70a80ff1",
+      "lines": [
+        225,
+        233
+      ],
+      "hash": "aa3b1747a6b408f275d97f042b9d679b4a1ab517f6bc8add55be9d8fb71a0b7e"
+    },
+    "../plugins/plugin-manager/src/index.ts:284-289": {
+      "kind": "git",
+      "blob": "5a0e8c02c7661ad20f5b3f9d2e1260af63d7b34e",
+      "commit": "08f7f0c2cee7a31217aa732d6a2810ac70a80ff1",
+      "lines": [
+        284,
+        289
+      ],
+      "hash": "5c15f882d306c9846bd7fd87218080ab12387d8f13f30ca58fbd02f376273488"
+    },
+    "../plugins/plugin-manager/src/update.ts:109-125": {
+      "kind": "git",
+      "blob": "5c8109cad2abd81035a5fca1a10ea0312fa424cb",
+      "commit": "08f7f0c2cee7a31217aa732d6a2810ac70a80ff1",
+      "lines": [
+        109,
+        125
+      ],
+      "hash": "9de063c8619c51f850c3ead73f43dca4e91c46c6b60ab1fd79089c78a2bd84ce"
+    },
+    "../plugins/plugin-manager/src/index.ts:40-43": {
+      "kind": "git",
+      "blob": "5a0e8c02c7661ad20f5b3f9d2e1260af63d7b34e",
+      "commit": "08f7f0c2cee7a31217aa732d6a2810ac70a80ff1",
+      "lines": [
+        40,
+        43
+      ],
+      "hash": "2a1ec1dea8e611fa33607b14340bbd1f37e15e5fc0aba96d8a21dccb2563a6a3"
+    },
+    "../plugins/plugin-manager/src/index.ts:53-55": {
+      "kind": "git",
+      "blob": "5a0e8c02c7661ad20f5b3f9d2e1260af63d7b34e",
+      "commit": "08f7f0c2cee7a31217aa732d6a2810ac70a80ff1",
+      "lines": [
+        53,
+        55
+      ],
+      "hash": "c4d22b1bf2bebad162d5bcd74e5d9cf2ac8a535fd470fe891c4eab471cacf1db"
     }
   },
   "content/docs/seams/pnpm-registry.mdx": {
@@ -3451,35 +3454,15 @@
     }
   },
   "content/docs/plugin-manager/kernel-upgrade.mdx": {
-    "../plugins/plugin-manager/src/index.ts:461-512": {
-      "kind": "git",
-      "blob": "74e4ba860b75fb79f8b127c0d3daf3ca186d62c5",
-      "commit": "3e67a8b3de20a5851bb530445a1fd99cbd4325aa",
-      "lines": [
-        461,
-        512
-      ],
-      "hash": "72adb48fb66b9be647b65475e1e6bc2fd54124a2c3a09b9496b666d269973659"
-    },
     "../plugins/plugin-manager/src/kernel-upgrade.ts:9-10": {
       "kind": "git",
       "blob": "ac6db78614e41c2b427fafc3d2fd6a49d9a87ccf",
-      "commit": "3e67a8b3de20a5851bb530445a1fd99cbd4325aa",
+      "commit": "08f7f0c2cee7a31217aa732d6a2810ac70a80ff1",
       "lines": [
         9,
         10
       ],
       "hash": "36526a391df484037bfc45e183d7410c1c5ca6809d478da2687cb5aa6c824ead"
-    },
-    "../plugins/plugin-manager/src/index.ts:624-628": {
-      "kind": "git",
-      "blob": "74e4ba860b75fb79f8b127c0d3daf3ca186d62c5",
-      "commit": "3e67a8b3de20a5851bb530445a1fd99cbd4325aa",
-      "lines": [
-        624,
-        628
-      ],
-      "hash": "5b4b6e0c7ee39b7c45e8c88963e8138e5ab1938cbe53108dcf9e46871b633117"
     },
     "has ../plugins/plugin-manager/tests/commands.test.ts \"uninstall：内核包与 cordis 不许卸载，直接抛错，一次 pnpm 都不运行\"": {
       "kind": "has"
@@ -3487,20 +3470,10 @@
     "has ../plugins/plugin-manager/tests/commands.test.ts \"only 点了内核包或 cordis：直接抛错、指向 specs 写法，一次 pnpm 都不运行\"": {
       "kind": "has"
     },
-    "../plugins/plugin-manager/src/update.ts:131-133": {
-      "kind": "git",
-      "blob": "d1edfdebca5010b7ee019919f3ee6bf8849fb0dc",
-      "commit": "3e67a8b3de20a5851bb530445a1fd99cbd4325aa",
-      "lines": [
-        131,
-        133
-      ],
-      "hash": "204ec49a63d2e1128732b74054c5f6f7463fe72a9cf3dc913d80900568c16e1e"
-    },
     "../plugins/plugin-manager/src/kernel-upgrade.ts:24-52": {
       "kind": "git",
       "blob": "ac6db78614e41c2b427fafc3d2fd6a49d9a87ccf",
-      "commit": "3e67a8b3de20a5851bb530445a1fd99cbd4325aa",
+      "commit": "08f7f0c2cee7a31217aa732d6a2810ac70a80ff1",
       "lines": [
         24,
         52
@@ -3516,7 +3489,7 @@
     "../plugins/plugin-manager/src/kernel-upgrade.ts:70-80": {
       "kind": "git",
       "blob": "ac6db78614e41c2b427fafc3d2fd6a49d9a87ccf",
-      "commit": "3e67a8b3de20a5851bb530445a1fd99cbd4325aa",
+      "commit": "08f7f0c2cee7a31217aa732d6a2810ac70a80ff1",
       "lines": [
         70,
         80
@@ -3532,16 +3505,6 @@
     "has ../plugins/plugin-manager/tests/kernel-upgrade.test.ts \"范围不包含新内核的、没写范围的插件算在内，包含的不算；按包名排\"": {
       "kind": "has"
     },
-    "../plugins/plugin-manager/src/index.ts:116-117": {
-      "kind": "git",
-      "blob": "74e4ba860b75fb79f8b127c0d3daf3ca186d62c5",
-      "commit": "3e67a8b3de20a5851bb530445a1fd99cbd4325aa",
-      "lines": [
-        116,
-        117
-      ],
-      "hash": "d04d345861d4cf6fa037f79acc10563623bbe4a35f92282d9055d53a9792ccb0"
-    },
     "has ../plugins/plugin-manager/tests/commands.test.ts \"第一次 pnpm add 失败：不装 cordis，外层 error 带输出的最后几行，没有 data\"": {
       "kind": "has"
     },
@@ -3553,6 +3516,46 @@
     },
     "has ../plugins/plugin-manager/tests/commands.test.ts \"pnpm 退出码 0 但装上的 cordis 不是内核要的版本：ok false，data 带内核版本，说明先别重启\"": {
       "kind": "has"
+    },
+    "../plugins/plugin-manager/src/index.ts:460-510": {
+      "kind": "git",
+      "blob": "5a0e8c02c7661ad20f5b3f9d2e1260af63d7b34e",
+      "commit": "08f7f0c2cee7a31217aa732d6a2810ac70a80ff1",
+      "lines": [
+        460,
+        510
+      ],
+      "hash": "52c4b28ef3eb7e5eb132b2d8b46a38f86f840182c92eed035c9f3402c271f931"
+    },
+    "../plugins/plugin-manager/src/index.ts:616-620": {
+      "kind": "git",
+      "blob": "5a0e8c02c7661ad20f5b3f9d2e1260af63d7b34e",
+      "commit": "08f7f0c2cee7a31217aa732d6a2810ac70a80ff1",
+      "lines": [
+        616,
+        620
+      ],
+      "hash": "5b4b6e0c7ee39b7c45e8c88963e8138e5ab1938cbe53108dcf9e46871b633117"
+    },
+    "../plugins/plugin-manager/src/update.ts:121-123": {
+      "kind": "git",
+      "blob": "5c8109cad2abd81035a5fca1a10ea0312fa424cb",
+      "commit": "08f7f0c2cee7a31217aa732d6a2810ac70a80ff1",
+      "lines": [
+        121,
+        123
+      ],
+      "hash": "204ec49a63d2e1128732b74054c5f6f7463fe72a9cf3dc913d80900568c16e1e"
+    },
+    "../plugins/plugin-manager/src/index.ts:115-116": {
+      "kind": "git",
+      "blob": "5a0e8c02c7661ad20f5b3f9d2e1260af63d7b34e",
+      "commit": "08f7f0c2cee7a31217aa732d6a2810ac70a80ff1",
+      "lines": [
+        115,
+        116
+      ],
+      "hash": "d04d345861d4cf6fa037f79acc10563623bbe4a35f92282d9055d53a9792ccb0"
     }
   },
   "content/docs/rules/index.mdx": {
