@@ -2813,37 +2813,17 @@
     "../plugins/plugin-manager/src/pnpm.ts:10-23": {
       "kind": "git",
       "blob": "b62dd927fe34fcdbc67977e805e6c44861f60864",
-      "commit": "15440880739d0fe311259f29c75d86d61eed6089",
+      "commit": "9bca0a6de70a112ab1c6b0d1dbf36d2b8ebc43cc",
       "lines": [
         10,
         23
       ],
       "hash": "a8e6203c4d425d23138fe3b6a20d4eb84b9858bb4801cc55145575786943b723"
     },
-    "../plugins/devkit/src/release.ts:148-157": {
-      "kind": "git",
-      "blob": "f7c5bcd462bf38d587d49b0855154575fdfdfa10",
-      "commit": "15440880739d0fe311259f29c75d86d61eed6089",
-      "lines": [
-        148,
-        157
-      ],
-      "hash": "4c0b32bbd73e378d03d2998132d10bb7a0f3bc216b5f64d527af75e24012411f"
-    },
-    "../plugins/devkit/src/release.ts:180-202": {
-      "kind": "git",
-      "blob": "f7c5bcd462bf38d587d49b0855154575fdfdfa10",
-      "commit": "15440880739d0fe311259f29c75d86d61eed6089",
-      "lines": [
-        180,
-        202
-      ],
-      "hash": "93c4dc712a0232fc6752a9b7c5005053b555fefeaa89dc6ff32868e4d9f4a28a"
-    },
     "../plugins/devkit/src/dev.ts:265-272": {
       "kind": "git",
       "blob": "48d80099fae01000cbb538249a688d2aa8184741",
-      "commit": "15440880739d0fe311259f29c75d86d61eed6089",
+      "commit": "9bca0a6de70a112ab1c6b0d1dbf36d2b8ebc43cc",
       "lines": [
         265,
         272
@@ -2852,13 +2832,48 @@
     },
     "../plugins/devkit/package.json:30-42": {
       "kind": "git",
-      "blob": "4a5920647545770017b48d4f0bcaa3e983f64ab9",
-      "commit": "15440880739d0fe311259f29c75d86d61eed6089",
+      "blob": "bf9d65ff15a02e1597e7f1e9d6afee5470d446a7",
+      "commit": "9bca0a6de70a112ab1c6b0d1dbf36d2b8ebc43cc",
       "lines": [
         30,
         42
       ],
       "hash": "32fbfb866764a0a36cb083e9f75d8ed0035b3f66814533483d11dadcf90827c3"
+    },
+    "../plugins/devkit/src/release.ts:150-159": {
+      "kind": "git",
+      "blob": "cf95a093af6cccc1e1d9122013dd00b337c5cf56",
+      "commit": "9bca0a6de70a112ab1c6b0d1dbf36d2b8ebc43cc",
+      "lines": [
+        150,
+        159
+      ],
+      "hash": "4c0b32bbd73e378d03d2998132d10bb7a0f3bc216b5f64d527af75e24012411f"
+    },
+    "../plugins/devkit/src/release.ts:182-204": {
+      "kind": "git",
+      "blob": "cf95a093af6cccc1e1d9122013dd00b337c5cf56",
+      "commit": "9bca0a6de70a112ab1c6b0d1dbf36d2b8ebc43cc",
+      "lines": [
+        182,
+        204
+      ],
+      "hash": "93c4dc712a0232fc6752a9b7c5005053b555fefeaa89dc6ff32868e4d9f4a28a"
+    },
+    "has ../plugins/devkit/src/wiring-check.ts \"export function wiringProblems(input: WiringCheckInput, io: WiringCheckIo): string[]\"": {
+      "kind": "has"
+    },
+    "has ../plugins/devkit/src/release.ts \"...(manifest.plugin ? wiringProblems(\"": {
+      "kind": "has"
+    },
+    "has ../plugins/devkit/tests/wiring-check.test.ts \"局部注入、提供方是同工作区里 peer 写了本包的插件（写 peer 会成环）：放行；必需注入不放行\"": {
+      "kind": "has"
+    },
+    "has ../plugins/devkit/tests/wiring-check.test.ts \"像注入又读不出服务名的逐处报：变量参数、对象形式、拼出来的数组、叫 inject 的变量、对象字面量里值是数组的 inject 键、不经 . 直接调用\"": {
+      "kind": "has"
+    },
+    "has ../plugins/devkit/tests/wiring-check.test.ts \"不是注入的不管：属性读取、类型里的 inject 成员与方法声明\"": {
+      "kind": "has"
     }
   },
   "content/docs/seams/template-release.mdx": {
@@ -3342,9 +3357,6 @@
     "has ../plugins/devkit/src/style-check.ts \"const SHELL_THEME_REFERENCE = './theme.reference.css'\"": {
       "kind": "has"
     },
-    "has ../plugins/devkit/src/wiring-check.ts \"export const WIRING_PAGE = 'docs-site/content/docs/wiring.mdx'\"": {
-      "kind": "has"
-    },
     "has ../plugins/plugin-manager/src/index.ts \"ctx.effect(() => ctx.provide('gwbPluginManager', PRESENCE))\"": {
       "kind": "has"
     },
@@ -3430,26 +3442,6 @@
       "kind": "has"
     },
     "has ../plugins/plugin-manager/src/registry.ts \"-/v1/search?text=\"": {
-      "kind": "has"
-    }
-  },
-  "content/docs/rules/wiring.mdx": {
-    "has ../plugins/devkit/src/wiring-check.ts \"export const WIRING_PAGE = 'docs-site/content/docs/wiring.mdx'\"": {
-      "kind": "has"
-    },
-    "has ../plugins/devkit/src/wiring-check.ts \"export function wiringProblems(input: WiringCheckInput, io: WiringCheckIo): string[]\"": {
-      "kind": "has"
-    },
-    "has ../plugins/devkit/src/release.ts \"...(manifest.plugin ? wiringProblems(\"": {
-      "kind": "has"
-    },
-    "has ../plugins/devkit/tests/wiring-check.test.ts \"局部注入、提供方是同工作区里 peer 写了本包的插件（写 peer 会成环）：放行；必需注入不放行\"": {
-      "kind": "has"
-    },
-    "has ../plugins/devkit/tests/wiring-check.test.ts \"像注入又读不出服务名的逐处报：变量参数、对象形式、拼出来的数组、叫 inject 的变量、对象字面量里值是数组的 inject 键、不经 . 直接调用\"": {
-      "kind": "has"
-    },
-    "has ../plugins/devkit/tests/wiring-check.test.ts \"不是注入的不管：属性读取、类型里的 inject 成员与方法声明\"": {
       "kind": "has"
     }
   }
