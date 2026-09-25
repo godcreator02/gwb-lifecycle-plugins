@@ -3,10 +3,7 @@ import path from 'node:path'
 import { fileURLToPath } from 'node:url'
 import { build } from 'esbuild'
 
-/**
- * node 侧与浏览器侧都用 esbuild 打成一个文件，外置名单之外的依赖全部打包进去。
- * 类型声明另由 tsc 输出到 dist/（package.json 的 build 脚本）。
- */
+/** node 侧与浏览器侧都用 esbuild 打成一个文件，外置名单之外的依赖全部打包进去 */
 const here = path.dirname(fileURLToPath(import.meta.url))
 
 /**

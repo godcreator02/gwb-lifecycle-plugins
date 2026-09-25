@@ -287,7 +287,6 @@ describe('包内 template/：两部分', () => {
       'plugins/hello/src/client/styles.css',
       'plugins/hello/src/client/tsconfig.json',
       'plugins/hello/src/index.ts',
-      'plugins/hello/tsconfig.build.json',
       'plugins/hello/tsconfig.json',
       'pnpm-workspace.yaml',
     ])
@@ -421,15 +420,18 @@ describe('包内 template/：两部分', () => {
     expect(manifest.devDependencies['@tailwindcss/node']).toBeUndefined()
   })
 
-  it('node 侧也用 esbuild 打成一个文件：外置 peer、electron 与 cordis，tsc 只出类型声明', () => {
+  it('node 侧也用 esbuild 打成一个文件：外置 peer、electron 与 cordis；不输出类型声明', () => {
     const files = renderTemplate(TEMPLATE_ROOT, planScaffold({ name: 'hello', dir: 'D:\\tmp\\x', peerVersions: PEERS }))
     const text = (rel: string): string => files.find((f) => f.rel === rel)?.text ?? ''
     const buildScript = text('plugins/hello/build.ts')
     expect(buildScript).toContain("entryPoints: ['src/index.ts']")
     expect(buildScript).toContain('external: nodeSideExternals()')
     expect(buildScript).toContain("['electron', 'cordis', ...peers]")
-    const buildConfig = JSON.parse(text('plugins/hello/tsconfig.build.json')) as { compilerOptions: Record<string, unknown> }
-    expect(buildConfig.compilerOptions['emitDeclarationOnly']).toBe(true)
+    // 模板插件不提供服务，没有别的插件要 import type 它，不出 .d.ts
+    const manifest = JSON.parse(text('plugins/hello/package.json')) as { exports: Record<string, unknown>; scripts: Record<string, string> }
+    expect(manifest.exports['.']).toBe('./dist/index.js')
+    expect(manifest.scripts['build']).not.toContain('tsc')
+    expect(files.some((f) => f.rel.endsWith('tsconfig.build.json'))).toBe(false)
     // 关掉 verbatimModuleSyntax，esbuild 才会去掉只引类型的 import，不需要「只写 import type」这条规矩
     for (const rel of ['plugins/hello/tsconfig.json', 'plugins/hello/src/client/tsconfig.json']) expect(text(rel), rel).not.toContain('verbatimModuleSyntax')
   })

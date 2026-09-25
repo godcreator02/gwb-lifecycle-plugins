@@ -28,6 +28,7 @@
 
 改成真插件：把窗格与 ping 换成你的东西，description 换成一句话说它做什么。
 要提供扩展点服务就继承 cordis 的 `Service`：构建产物里有了按值 import 的 `cordis`，peer 里加上 `cordis`（别的包仍写 dev）。
+用这个服务的插件要 `import type` 它的类型，这时再让构建输出类型声明（做法见说明书「gwb-devkit」第 4 步「提供服务」）；模板插件不提供服务，不输出。
 
 开发界面前读 `skill.read {"name":"gwb-shell"}`：shadcn 官方组件配置、令牌、样式前缀、
 多桌面浮层与视觉验收都以外壳的说明书为准。模板只带一个最简单的窗格，组件照那份说明书接入。
@@ -36,7 +37,7 @@
 
 ```powershell
 pnpm install
-pnpm build          # 递归构建 plugins/*：pnpm -r --filter "./plugins/*"（esbuild 打两侧、tsc 出类型声明、tailwindcss 出样式）
+pnpm build          # 递归构建 plugins/*：pnpm -r --filter "./plugins/*"（esbuild 打两侧、tailwindcss 出样式）
 pnpm check          # 递归检查：typecheck（node 侧 + 浏览器侧）+ oxlint + vitest
 ```
 

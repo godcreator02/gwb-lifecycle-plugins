@@ -15,7 +15,7 @@ description: 写新插件、改插件、在隔离 home 里验证改动时读；�
    * `tests/`：不启动进程、不开窗口就能测的逻辑抽成纯函数来测，模板不带测试文件。构建产物的包名 import、类名前缀、颜色只用主题令牌这些由 devkit 查（`devkit.dev` 构建之后、`devkit.release` 发之前），报「前缀要排在最前」时照报错里的改法改：前缀排在所有变体前面（`<前缀>:disabled:opacity-50`），写反了 Tailwind 不报错、只是一条规则都不出
    * 不要界面的插件：照生成的 README 里那张清单删掉浏览器侧的文件、脚本与依赖
    * `package.json`：peer 里内核包 `@godcreator/gwb-kernel-desktop` 的范围 `^x.y.z` 要包含验证时用的内核（模板写的是运行建仓命令的那个 home 里的内核）；用到的别的插件（经 `ctx.inject` 用它的服务、import 它的类型）写进 peer，范围 `^x.y.z`，不另写 dev：写在 `export const inject` 里的是普通 peer，只在 `ctx.inject([...], fn)` 里用的在 `peerDependenciesMeta` 标 `optional: true`。模板已写命令总线与外壳，下限是建仓那个 home 里装着的版本；不用外壳就删掉那一项；`description` 改成一句话说这个插件做什么；有了 `skills/` 目录就把 `skills` 加进 `files`
-   * 提供服务：在源码里给 cordis 的 `Context` 补上这一项（`declare module 'cordis' { interface Context { gwbExample: GwbExample } }`），`GwbExample` 定义在本包里、写文档注释说清怎么用；用它的插件从你发布的 `.d.ts` 读到这些
+   * 提供服务：在源码里给 cordis 的 `Context` 补上这一项（`declare module 'cordis' { interface Context { gwbExample: GwbExample } }`），`GwbExample` 定义在本包里、写文档注释说清怎么用；用它的插件从你发布的 `.d.ts` 读到这些。模板不输出 `.d.ts`，提供服务时加上三处：包里加 `tsconfig.build.json`（`"extends": "./tsconfig.json"`，`compilerOptions` 写 `"noEmit": false, "declaration": true, "emitDeclarationOnly": true, "outDir": "dist", "rootDir": "src"`，`"include": ["src/index.ts"]`）；`build` 脚本在 `node build.ts` 之后加 `tsc -p tsconfig.build.json`；`exports["."]` 改成 `{ "types": "./dist/index.d.ts", "default": "./dist/index.js" }`
    * 仓里有文档站的，在它的现状区写这个插件的页：功能、接口、依赖、不做的事四节
 5. 仓根 `pnpm build`，再 `pnpm check`
 

@@ -4,13 +4,13 @@
   "description": "{{name}}：devkit 生成的模板插件，一个窗格与一条 ping 命令（改成真插件时换成一句话说它做什么）",
   "type": "module",
   "exports": {
-    ".": { "types": "./dist/index.d.ts", "default": "./dist/index.js" }
+    ".": "./dist/index.js"
   },
   "files": ["dist"],
   "keywords": ["gwb-plugin"],
   "publishConfig": { "registry": "{{registry}}" },
   "scripts": {
-    "build": "node build.ts && tsc -p tsconfig.build.json && tailwindcss -i src/client/styles.css -o dist/style.css",
+    "build": "node build.ts && tailwindcss -i src/client/styles.css -o dist/style.css",
     "typecheck": "tsc --noEmit -p tsconfig.json && tsc --noEmit -p src/client/tsconfig.json",
     "lint": "oxlint . --deny-warnings",
     "test": "vitest run --passWithNoTests",

@@ -29,7 +29,7 @@ description: 页面 importmap 写死在内核包的页面入口 dist/index.html 
 
 内核包不导出外置名单，也不在清单里声明它，名单只写在页面入口那一段 importmap 里。模板的 `build.ts` 经内核包的 `./package.json` 出口找到包目录，读 `dist/index.html`，取 importmap 的键当作 `external`；读不到这段 importmap 就报错，不回退到手写的名单：
 
-{/* ref file="../plugins/devkit/template/pkg/build.ts.tpl" lines="22-38" */}
+{/* ref file="../plugins/devkit/template/pkg/build.ts.tpl" lines="19-35" */}
 
 令牌的样式映射文件 `theme.reference.css` 也由外壳导出（包内路径 `@godcreator/gwb-shell/theme.reference.css`），模板的样式入口从外壳引，作为构建时的输入：
 
