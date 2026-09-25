@@ -92,12 +92,11 @@ const STYLE_CHECK_SUMMARY =
   '颜色类（text-/bg-/border-/from-/via-/to-/divide-）只用主题令牌（外壳 theme.reference.css 与本插件样式入口声明的 --color-<名>）；样式入口所在目录下 .tsx 字符串里的类名：前缀排在最前、带前缀的编得出规则、' +
   '不带前缀却编得出规则的报「漏了前缀」。编译用包自己 dev 里 @tailwindcss/cli 旁边的 @tailwindcss/node，找不到就报'
 
-/** 插件包的注入与 wiring 页两项检查查什么：devkit.release 的两份 usage 共用这一句 */
+/** 插件包的注入与 peer 一致查什么：devkit.release 的两份 usage 共用这一句 */
 const WIRING_CHECK_SUMMARY =
   '注入与 peer 一致——扫 src/ 下源码（.d.ts 除外）里的 export const inject = [...]、static inject = [...]（必需）与 <上下文>.inject([...], fn)（局部注入），数组里只认字符串字面量，像注入又读不出服务名的写法直接拒；' +
   '服务由谁提供看 peer 与 dev 里插件的类型入口（exports["."] 的 types）给 cordis Context 补的名字，几个都补了就只认运行时代码里 super(<上下文>, \'<名>\') 或 .provide(\'<名>\') 提供它的那个；' +
-  '必需注入的提供方写在 peer 且不标 optional，局部注入的提供方写在 peer（标不标 optional 都行）；gwbKernel、本包自己提供的、提供方不是 gwb 插件的不查；局部注入的提供方是同工作区里 peer 写了本包的插件（写 peer 会成环）时放行。' +
-  'wiring 页写全——仓根 docs-site/content/docs/wiring.mdx 在，注入的服务名（gwbKernel 除外）与本包 super(<上下文>, \'<名>\') / .provide(\'<名>\') 提供的服务名都在页面里整词出现'
+  '必需注入的提供方写在 peer 且不标 optional，局部注入的提供方写在 peer（标不标 optional 都行）；gwbKernel、本包自己提供的、提供方不是 gwb 插件的不查；局部注入的提供方是同工作区里 peer 写了本包的插件（写 peer 会成环）时放行'
 
 const DEV_USAGE = [
   'devkit.dev 的参数：',

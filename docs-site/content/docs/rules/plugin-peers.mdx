@@ -35,11 +35,47 @@ peer 的意思是「运行时从 home 里得到这个包」。插件的 peer 因
 
 {/* has file="../plugins/devkit/tests/release.test.ts" text="插件包 peer 里的插件和源上 latest 不在同一条线：构建之后、发之前拒，一个都不发" */}
 
-同一道检查还扫插件包源码里注入的服务，找出提供方：必需注入的提供方要写在 peer 里、不标 `optional`，局部注入的提供方要写在 peer 里（标不标 `optional` 都放行）。怎么扫、提供方怎么判、哪些放行，见[插件之间怎么连写成一页](/docs/rules/wiring#由谁查)。
+同一道检查还扫插件包源码里注入的服务，找出提供方：必需注入的提供方要写在 peer 里、不标 `optional`，局部注入的提供方要写在 peer 里（标不标 `optional` 都放行）。怎么扫、提供方怎么判、哪些放行，见下面「源码注入由谁查」。
 
 **`plugin-manager.list` 按包报 `unmetPeers`**：只看插件 peer 里内核包与 `cordis` 以外的包，每条没满足的是 `{ pkg, range, installed? }`——没装（没有 `installed`；optional 的没装不算）、装着的版本不在范围里、或范围不是 `^x.y.z`。只报告，不拦加载、不拦安装（回执怎么读见插件管理那组页面里的[peer 满没满足](/docs/plugin-manager/peers)）。
 
 **`plugin-manager.update` 一起重新加载**：升级了某个包，home 里 peer 写了它的插件被 pnpm 装进新目录，插件管理比装之前与装之后的真实目录发现它，在同一条命令里重新加载，回执 `dependents` 列出来（见[热升级](/docs/plugin-manager/upgrade#真实目录变了的包一起重新加载)）。
+
+## 源码注入由谁查
+
+`devkit.release` 的发版前检查，只查插件包（`keywords` 含 `gwb-plugin`），和别的插件包检查一起列在回执里。它扫包的 `src/` 下的源码（`.d.ts` 除外），每个注入的服务找出提供方，看 peer 写得对不对：
+
+- **必需注入**（`export const inject = [...]`、`static inject = [...]`）的提供方写在 peer 里，不标 `optional`
+- **局部注入**（`<上下文>.inject([...], fn)`）的提供方写在 peer 里。标 `optional` 是常规写法；缺了它本插件一样功能都没有时写必需（插件管理对命令总线就是这样），两种都放行
+- **提供方怎么判**：peer 与 dev 里的插件，读包目录 `node_modules` 里它的类型入口（`exports["."]` 的 `types`），看 `declare module 'cordis' { interface Context { … } }` 补了哪些名字。几个插件都补了同一个名字（外壳为了 pnpm 的目录布局把 `gwbCommands`、`gwbData` 按真类型再声明一遍），只认运行时代码里 `super(<上下文>, '<名>')` 或 `.provide('<名>')` 提供它的那个；还是判不出就拒
+- **不查的**：`gwbKernel`（内核接口，用 `requireKernel` 取）；本包自己提供的服务；提供方不是 gwb 插件的（cordis 官方插件 `@cordisjs/plugin-timer` 提供的 `timer`，「用到的插件写 peer」管不到它）
+- **不写 peer 也放行的只有一种**：局部注入、提供方是同一个工作区里的插件、它自己 peer 或 dev 写了本包——本包再写它就成了包依赖环，pnpm 12 的 `pnpm -r` 遇环直接退出。命令总线对说明书插件就是这样。这条按规则判出来，包清单里不另写例外
+
+{/* has file="../plugins/devkit/src/wiring-check.ts" text="export function wiringProblems(input: WiringCheckInput, io: WiringCheckIo): string[]" */}
+
+{/* has file="../plugins/devkit/src/release.ts" text="...(manifest.plugin ? wiringProblems(" */}
+
+{/* has file="../plugins/devkit/tests/wiring-check.test.ts" text="局部注入、提供方是同工作区里 peer 写了本包的插件（写 peer 会成环）：放行；必需注入不放行" */}
+
+扫描先去掉注释、字符串与模板字面量的内容、正则字面量，再找 `inject` 这个标识符：
+
+| 写法 | 算什么 |
+| --- | --- |
+| `export const inject = ['<名>', …]`（可带类型标注、`as const`） | 必需注入 |
+| `static inject = ['<名>', …]` | 必需注入 |
+| `<上下文>.inject(['<名>', …], fn)`，可带类型参数 `inject<…>(…)` | 局部注入 |
+| 上面三种、但参数不是只由字符串字面量组成的数组（变量、对象形式 `{ required: […] }`、展开 `...more`）；叫 `inject` 的变量；对象字面量里值是数组的 `inject:` 键（`ctx.plugin({ inject: [...] })`）；不经 `.` 直接调用 `inject([...])` | **认不出，拒**，报出文件、行号与那一行，改写成上面三种 |
+| 属性读取（`plugin.inject ?? []`）、类型里的 `inject` 成员与方法声明 | 不是注入，不管 |
+
+提供只认服务名是字符串字面量的 `super(<上下文>, '<名>')` 与 `.provide('<名>')`：名字不是字面量的不算、也不报，因为 `super` 与 `provide` 都是常见的名字（继承 `Error` 的 `super(message)`、别的库的 `provide` 方法）。
+
+扫不准的就拒、让人改写成扫得准的写法，不做模糊匹配。命令名不在这里查：源码里命令名有字面量、常量、模板串、条件登记四种形态，扫出来的数和运行时对不上（见轨迹卡[能力地图挪到运行时](/trajectory/2026-09-18-capability-map-moves-to-runtime)）。
+
+{/* has file="../plugins/devkit/tests/wiring-check.test.ts" text="像注入又读不出服务名的逐处报：变量参数、对象形式、拼出来的数组、叫 inject 的变量、对象字面量里值是数组的 inject 键、不经 . 直接调用" */}
+
+{/* has file="../plugins/devkit/tests/wiring-check.test.ts" text="不是注入的不管：属性读取、类型里的 inject 成员与方法声明" */}
+
+查不到的：只 `import type` 了别的插件、没注入它的服务，不在注入里，不查它写没写 peer；局部注入写成必需 peer 合不合理，两种都放行；服务名不是字面量的 `super` / `provide` 不算提供。为什么放在发版时查，见轨迹卡[发版前查注入与 wiring 页](/trajectory/2026-09-25-release-checks-wiring)。
 
 ## pnpm 不自动补装缺的 peer
 

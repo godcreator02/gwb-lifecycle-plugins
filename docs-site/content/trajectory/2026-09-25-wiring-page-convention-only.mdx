@@ -1,0 +1,40 @@
+---
+title: wiring 页只作约定，发版不查：devkit.release 只留「注入与 peer 一致」
+born-at: 2026-09-25T22:10
+type: choice
+parent: [2026-09-08-gwb-devkit]
+label: wiring 页只作约定
+domain: 生态规范
+---
+
+## 背景
+
+devkit 0.23.6 在 `devkit.release` 的发版前检查里加了两项：注入与 peer 一致、wiring 页写全（见[发版前查注入与 wiring 页](2026-09-25-release-checks-wiring.md)）。用户复查时问的是：一个写插件、发插件的工具，为什么要管插件仓的文档站。
+
+把两项分开看：
+
+- **注入与 peer 一致**只看 `package.json` 与源码，拦的是运行时会出事的写法——用到的插件写在 dev、没写 peer，装进 home 之后插件管理不知道它依赖谁，`unmetPeers` 报不出来
+- **wiring 页写全**要求仓根有 `docs-site/content/docs/wiring.mdx` 这条 docfirst 站的固定路径，没有文档站的插件仓（例如 `gwb-agent-hooks-skills`）先得建站才能发版；它只查服务名作为整词在页里出现过，表里写的提供方、peer 写法对不对都不查——这正是 repo-kit 退役时判这条守卫没用的理由；页里写的字面量已经由这一页自己的钉码守着
+
+## 结论与边界
+
+- **`devkit.release` 只留「注入与 peer 一致」**，删掉「wiring 页写全」：`src/wiring-check.ts` 里查页面的函数与 `WIRING_PAGE` 常量删掉，发版前检查不再读仓的文档站
+- **wiring 页改成约定**：写在说明书 `gwb-devkit` 的「参考：约定与容易出错的地方」与规矩页 `/docs/rules/wiring`，有文档站的插件仓照写；没有工具查，不进规矩总表（总表只收有工具查的、或违反了一定出事的）
+- 已经写好的 wiring 页（基础插件仓、界面插件仓、本仓）都留着，作为文档本身有用
+- 注入检查的判法与扫描认得的写法，从规矩页 `rules/wiring` 挪到 `rules/plugin-peers`：它查的是 peer，和文档站无关
+- **版本升 y**：删一项拒发条件，命令名、参数、回执形状都没变
+
+supersedes:: [发版前查注入与 wiring 页](2026-09-25-release-checks-wiring.md)
+
+旧卡里「注入与 peer 一致」的结论照旧成立，被推翻的只有 wiring 页那一项。
+
+## 否掉的候选
+
+- **两项都留**：wiring 页检查让发版依赖文档站的目录结构，没有站的仓发不了版；拦下来的只是页里缺了某个词
+- **把缺页降成警告、不拦发版**：devkit 的发版前检查只有拒与不拒两种，加一档「只提示」就是为一条弱检查多一种机制
+- **挪进 docfirst 的 check**：docfirst 是通用的文档工具，不认识 cordis 的注入；这一页的钉码已经在守写进页里的字面量
+
+## 代价与遗留
+
+- 源码里新加了注入、wiring 页没跟上，没有工具报，靠改代码的人在同一个提交里补
+- 应用线那批插件仓发版时不再被「缺 wiring 页」拦下，只按「注入与 peer 一致」要求把用到的插件从 dev 挪到 peer

@@ -1,7 +1,7 @@
 import path from 'node:path'
 import { describe, expect, it } from 'vitest'
 import { KERNEL_PACKAGE } from '@godcreator/gwb-plugin-manager'
-import { contextServicesOf, maskSource, sourceWiringOf, typesEntryOf, WIRING_PAGE, wiringProblems, type WiringCheckIo } from '../src/wiring-check.js'
+import { contextServicesOf, maskSource, sourceWiringOf, typesEntryOf, wiringProblems, type WiringCheckIo } from '../src/wiring-check.js'
 
 const REPO = path.resolve('D:/fake-repo')
 const PKG = path.join(REPO, 'plugins', 'hello')
@@ -36,7 +36,6 @@ function manifestOf(extra: Record<string, unknown>): Record<string, unknown> & {
   return { name: SELF, version: '0.1.0', keywords: ['gwb-plugin'], ...extra }
 }
 
-const page = (text: string): Record<string, string> => ({ [path.join(REPO, ...WIRING_PAGE.split('/'))]: text })
 const source = (text: string, rel = 'src/index.ts'): Record<string, string> => ({ [path.join(PKG, ...rel.split('/'))]: text })
 
 describe('maskSource：注释、字符串、模板、正则里的内容不算代码', () => {
@@ -162,12 +161,10 @@ describe('wiringProblems：注入与 peer 一致', () => {
     ...installed(SHELL, { declares: ['gwbShell', 'gwbCommands'], provides: ['gwbShell'] }),
     ...installed(SKILLS, { declares: ['gwbSkills'], provides: ['gwbSkills'] }),
   }
-  const wiringPage = page('gwbCommands gwbShell gwbSkills gwbPluginManager')
 
-  it('devkit 的写法：必需注入命令总线写普通 peer，局部注入的写可选 peer；gwbKernel 不查；干净', () => {
+  it('devkit 的写法：必需注入命令总线写普通 peer，局部注入的写可选 peer；gwbKernel 不查；仓里没有文档站也不报', () => {
     const files = {
       ...installedAll,
-      ...wiringPage,
       ...source("export const inject = ['gwbCommands']\nctx.inject(['gwbShell'], f)\nctx.inject(['gwbSkills'], f)\nctx.inject(['gwbKernel'], f)\n"),
     }
     expect(wiringProblems({ pkgDir: PKG, repoDir: REPO, manifest: manifestOf({ peerDependencies: peers, peerDependenciesMeta: optional }) }, ioOf(files))).toEqual([])
@@ -176,14 +173,13 @@ describe('wiringProblems：注入与 peer 一致', () => {
   it('局部注入、peer 写成必需也放行（缺了它本插件一样功能都没有时的写法）；自己提供的服务不找提供方', () => {
     const files = {
       ...installedAll,
-      ...wiringPage,
       ...source("ctx.effect(() => ctx.provide('gwbPluginManager', {}))\nthis.ctx.inject(['gwbCommands'], f)\n"),
     }
     expect(wiringProblems({ pkgDir: PKG, repoDir: REPO, manifest: manifestOf({ peerDependencies: peers }) }, ioOf(files))).toEqual([])
   })
 
   it('提供方只写在 dev：必需的说写普通 peer，局部的说标 optional', () => {
-    const files = { ...installedAll, ...wiringPage, ...source("export const inject = ['gwbCommands']\nctx.inject(['gwbShell'], f)\n") }
+    const files = { ...installedAll, ...source("export const inject = ['gwbCommands']\nctx.inject(['gwbShell'], f)\n") }
     const got = wiringProblems({ pkgDir: PKG, repoDir: REPO, manifest: manifestOf({ peerDependencies: { [KERNEL_PACKAGE]: '^0.7.0' }, devDependencies: { [COMMANDS]: '^0.5.0', [SHELL]: '^0.14.0' } }) }, ioOf(files))
     expect(got).toEqual([
       'gwbCommands（src/index.ts:1，必需注入） 由 @godcreator/gwb-commands 提供，它不在 peerDependencies 里：写进 peer（范围 ^x.y.z），dev 里那一条删掉',
@@ -192,14 +188,14 @@ describe('wiringProblems：注入与 peer 一致', () => {
   })
 
   it('必需注入的提供方标了 optional：拒', () => {
-    const files = { ...installedAll, ...wiringPage, ...source("export const inject = ['gwbShell']\n") }
+    const files = { ...installedAll, ...source("export const inject = ['gwbShell']\n") }
     const got = wiringProblems({ pkgDir: PKG, repoDir: REPO, manifest: manifestOf({ peerDependencies: peers, peerDependenciesMeta: optional }) }, ioOf(files))
     expect(got).toEqual([expect.stringContaining('的提供方 @godcreator/gwb-shell 在 peerDependenciesMeta 里标了 optional')])
   })
 
   it('peer 与 dev 里都没有提供方：拒，说写进 peer；一处必需就按必需报', () => {
-    const files = { ...wiringPage, ...source("ctx.inject(['gwbSettings'], f)\n"), ...source("export const inject = ['gwbSettings']\n", 'src/other.ts') }
-    const got = wiringProblems({ pkgDir: PKG, repoDir: REPO, manifest: manifestOf({ peerDependencies: { [KERNEL_PACKAGE]: '^0.7.0' } }) }, ioOf({ ...files, ...page('gwbSettings') }))
+    const files = { ...source("ctx.inject(['gwbSettings'], f)\n"), ...source("export const inject = ['gwbSettings']\n", 'src/other.ts') }
+    const got = wiringProblems({ pkgDir: PKG, repoDir: REPO, manifest: manifestOf({ peerDependencies: { [KERNEL_PACKAGE]: '^0.7.0' } }) }, ioOf(files))
     expect(got).toEqual([expect.stringContaining('gwbSettings（src/index.ts:1、src/other.ts:1，必需注入）：peer 与 dev 里没有哪个包的类型入口')])
     expect(got[0]).toContain('必需注入写普通 peer')
   })
@@ -208,7 +204,6 @@ describe('wiringProblems：注入与 peer 一致', () => {
     const files = {
       ...installed(COMMANDS, { declares: ['gwbCommands'] }),
       ...installed('@someone/gwb-fork', { declares: ['gwbCommands'] }),
-      ...wiringPage,
       ...source("export const inject = ['gwbCommands']\n"),
     }
     const got = wiringProblems({ pkgDir: PKG, repoDir: REPO, manifest: manifestOf({ peerDependencies: { [COMMANDS]: '^0.5.0', '@someone/gwb-fork': '^1.0.0' } }) }, ioOf(files))
@@ -216,7 +211,7 @@ describe('wiringProblems：注入与 peer 一致', () => {
   })
 
   it('提供方不是 gwb 插件（cordis 官方插件）：不查', () => {
-    const files = { ...installed('@cordisjs/plugin-timer', { plugin: false, declares: ['timer'] }), ...page('timer'), ...source("export const inject = ['timer']\n") }
+    const files = { ...installed('@cordisjs/plugin-timer', { plugin: false, declares: ['timer'] }), ...source("export const inject = ['timer']\n") }
     expect(wiringProblems({ pkgDir: PKG, repoDir: REPO, manifest: manifestOf({ devDependencies: { '@cordisjs/plugin-timer': '1.1.3' } }) }, ioOf(files))).toEqual([])
   })
 
@@ -226,38 +221,21 @@ describe('wiringProblems：注入与 peer 一致', () => {
       [path.join(skillsDir, 'package.json')]: JSON.stringify({ name: SKILLS, keywords: ['gwb-plugin'], exports: TYPES_EXPORTS, peerDependencies: { [SELF]: 'workspace:^' } }),
       [path.join(skillsDir, 'dist', 'index.d.ts')]: augment('gwbSkills: GwbSkills'),
     }
-    const local = { ...sibling, ...page('gwbSkills'), ...source("this.ctx.inject(['gwbSkills'], f)\n") }
+    const local = { ...sibling, ...source("this.ctx.inject(['gwbSkills'], f)\n") }
     expect(wiringProblems({ pkgDir: PKG, repoDir: REPO, manifest: manifestOf({}) }, ioOf(local, [PKG, skillsDir]))).toEqual([])
-    const required = { ...sibling, ...page('gwbSkills'), ...source("export const inject = ['gwbSkills']\n") }
+    const required = { ...sibling, ...source("export const inject = ['gwbSkills']\n") }
     expect(wiringProblems({ pkgDir: PKG, repoDir: REPO, manifest: manifestOf({}) }, ioOf(required, [PKG, skillsDir]))).toHaveLength(1)
   })
 
   it('认不出的写法报出文件与行号', () => {
-    const files = { ...wiringPage, ...source('\nctx.inject(deps, fn)\n', 'src/node/index.ts') }
+    const files = { ...source('\nctx.inject(deps, fn)\n', 'src/node/index.ts') }
     const got = wiringProblems({ pkgDir: PKG, repoDir: REPO, manifest: manifestOf({}) }, ioOf(files))
     expect(got).toEqual([expect.stringContaining('src/node/index.ts:2 认不出的注入或提供写法：ctx.inject(deps, fn)')])
   })
 
   it('.d.ts 与 src 以外的文件不扫', () => {
-    const files = { ...wiringPage, ...source("declare const inject: string\n", 'src/types.d.ts'), [path.join(PKG, 'tests', 'x.test.ts')]: 'ctx.inject(deps, fn)\n' }
+    const files = { ...source("declare const inject: string\n", 'src/types.d.ts'), [path.join(PKG, 'tests', 'x.test.ts')]: 'ctx.inject(deps, fn)\n' }
     expect(wiringProblems({ pkgDir: PKG, repoDir: REPO, manifest: manifestOf({}) }, ioOf(files))).toEqual([])
   })
 })
 
-describe('wiringProblems：wiring 页写全', () => {
-  it('仓里没有 wiring 页：拒，写明路径', () => {
-    const got = wiringProblems({ pkgDir: PKG, repoDir: REPO, manifest: manifestOf({}) }, ioOf({}))
-    expect(got).toEqual([expect.stringContaining(`仓里没有「插件之间怎么连」页 ${WIRING_PAGE}`)])
-  })
-
-  it('注入与提供的服务名按整词出现在页里；gwbKernel 不要求；缺的一次列全', () => {
-    const files = {
-      ...installed(COMMANDS, { declares: ['gwbCommands'] }),
-      ...source("export const inject = ['gwbCommands']\nctx.inject(['gwbKernel'], f)\nctx.provide('gwbHello', {})\n"),
-    }
-    const manifest = manifestOf({ peerDependencies: { [COMMANDS]: '^0.5.0' } })
-    expect(wiringProblems({ pkgDir: PKG, repoDir: REPO, manifest }, ioOf({ ...files, ...page('| gwbCommands | gwbHello |') }))).toEqual([])
-    const got = wiringProblems({ pkgDir: PKG, repoDir: REPO, manifest }, ioOf({ ...files, ...page('gwbCommandsX') }))
-    expect(got).toEqual([expect.stringContaining('没写到 gwbCommands、gwbHello')])
-  })
-})

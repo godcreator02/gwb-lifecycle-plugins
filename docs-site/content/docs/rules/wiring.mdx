@@ -1,15 +1,15 @@
 ---
 title: 插件之间怎么连写成一页
-description: 每个插件仓的文档站都有 docs/wiring.mdx，按插件写提供、注入、按名字调用与约定通道三张表，钉码按内容钉；devkit.release 发版前查源码注入的服务提供方写在 peer 里、必需注入不标 optional，注入与提供的服务名都在这一页里出现
+description: 约定：有文档站的插件仓写一页 docs/wiring.mdx，按插件写提供、注入、按名字调用与约定通道三张表，钉码按内容钉；没有工具查这一页，发版不看它
 ---
 
 # 插件之间怎么连写成一页
 
-**本页回答**：每个插件仓的文档站要有哪一页、写成什么格式、钉码怎么钉；发版时查这一页与 peer 的哪几样、按什么判；静态扫描认得哪些写法、认不出的怎么办；哪些查不到。
+**本页回答**：有文档站的插件仓要写哪一页、写成什么格式、钉码怎么钉；谁来保证它写对。
 
-## 规则
+## 约定
 
-**每个插件仓的文档站都有一页 `docs-site/content/docs/wiring.mdx`「插件之间怎么连」，本仓每个插件一节，格式固定：**
+**有文档站的插件仓，在现状区写一页 `docs-site/content/docs/wiring.mdx`「插件之间怎么连」，本仓每个插件一节，格式固定：**
 
 ```mdx
 ---
@@ -17,7 +17,7 @@ title: 插件之间怎么连
 description: <一句话>
 ---
 
-**本页回答**：本仓插件提供哪些服务、命令与事件；注入了哪些服务、是必需还是局部注入、peer 怎么写；按名字调用了别家哪些命令、用了哪些约定通道。
+**本页回答**：本仓插件提供哪些服务、命令与事件；注入了哪些服务、是必需还是局部注入、peer 怎么写；按名字调用了别的插件的哪些命令、用了哪些约定通道。
 
 ## <插件包名>
 
@@ -36,60 +36,16 @@ description: <一句话>
 
 - **提供**：服务、命令、事件、说明书、窗格、给别的插件按值 import 的主入口导出
 - **注入**：源码里注入的每个服务，连同不写进 `inject`、用 `requireKernel` 取的 `gwbKernel`；peer 怎么写照[用到的插件写 peer](/docs/rules/plugin-peers)：写在 `export const inject` / `static inject` 里的是普通 peer，只在 `ctx.inject([...], fn)` 里用的标 `optional: true`
-- **按名字调用与约定通道**：按命令名调的别家命令、推或收的事件、共享的 id、直接读写的别人的文件（`runtime.json`、`cordis.yml`、别的 home 的清单）、loader 与 cordis 的内部状态、子进程与网络
+- **按名字调用与约定通道**：按命令名调用的别的插件的命令、推送或接收的事件、共享的 id、直接读写的别人的文件（`runtime.json`、`cordis.yml`、别的 home 的清单）、loader 与 cordis 的内部状态、子进程与网络
 - **钉码按内容钉**：表下面用 `has file=… text=…` 钉在服务名、`inject` 写法、peer 条目、命令名、文件名这些字面量上，不用行号钉。这一页钉的都是散在各文件里的一行字面量，行号钉在无关的改动之后就对不上，逼着人一遍遍确认；字面量改了，按内容钉的才真的该报
-- 插件页原来写依赖的那一节只留一句话链到这一页，不写第二份
+- 插件页讲依赖的那一节只留一句话链到这一页，不写第二份
 
 本仓的这一页是[插件之间怎么连](/docs/wiring)，照着写。
 
-## 由谁查
+## 谁来保证它写对
 
-`devkit.release` 的发版前检查，只查插件包（`keywords` 含 `gwb-plugin`），和别的插件包检查一起列在回执里：
+没有工具查这一页：`devkit.release` 不看仓里有没有文档站、有没有这一页。写进页里的字面量由这一页自己的钉码守着，源码里的字面量改了，文档站的 `docfirst check` 报出来；源码里新加了注入、页面没跟上，靠改代码的人同一个提交里补上。
 
-**注入与 peer 一致**：扫包的 `src/` 下的源码（`.d.ts` 除外），每个注入的服务找出提供方，看 peer 写得对不对。
+peer 写得对不对另有检查：`devkit.release` 扫源码里的注入，提供方要写在 peer 里，见[用到的插件写 peer](/docs/rules/plugin-peers#源码注入由谁查)。
 
-- **必需注入**（`export const inject = [...]`、`static inject = [...]`）的提供方写在 peer 里，不标 `optional`
-- **局部注入**（`<上下文>.inject([...], fn)`）的提供方写在 peer 里。标 `optional` 是常规写法；缺了它本插件一样功能都没有时写必需（插件管理对命令总线就是这样），两种都放行
-- **提供方怎么判**：peer 与 dev 里的插件，读包目录 `node_modules` 里它的类型入口（`exports["."]` 的 `types`），看 `declare module 'cordis' { interface Context { … } }` 补了哪些名字。几个插件都补了同一个名字（外壳为了 pnpm 的目录布局把 `gwbCommands`、`gwbData` 按真类型再声明一遍），只认运行时代码里 `super(<上下文>, '<名>')` 或 `.provide('<名>')` 提供它的那个；还是判不出就拒
-- **不查的**：`gwbKernel`（内核接口，用 `requireKernel` 取）；本包自己提供的服务；提供方不是 gwb 插件的（cordis 官方插件 `@cordisjs/plugin-timer` 提供的 `timer`，「用到的插件写 peer」管不到它）
-- **不写 peer 也放行的只有一种**：局部注入、提供方是同一个工作区里的插件、它自己 peer 或 dev 写了本包——本包再写它就成了包依赖环，pnpm 12 的 `pnpm -r` 遇环直接退出。命令总线对说明书插件就是这样。这条按规则判出来，包清单里不另写例外
-
-**wiring 页写全**：仓根的 `docs-site/content/docs/wiring.mdx` 在；源码注入的每个服务名（`gwbKernel` 除外）与本包 `super(<上下文>, '<名>')` / `.provide('<名>')` 提供的每个服务名，都在这一页里整词出现。
-
-{/* has file="../plugins/devkit/src/wiring-check.ts" text="export const WIRING_PAGE = 'docs-site/content/docs/wiring.mdx'" */}
-
-{/* has file="../plugins/devkit/src/wiring-check.ts" text="export function wiringProblems(input: WiringCheckInput, io: WiringCheckIo): string[]" */}
-
-{/* has file="../plugins/devkit/src/release.ts" text="...(manifest.plugin ? wiringProblems(" */}
-
-{/* has file="../plugins/devkit/tests/wiring-check.test.ts" text="局部注入、提供方是同工作区里 peer 写了本包的插件（写 peer 会成环）：放行；必需注入不放行" */}
-
-## 静态扫描认得哪些写法
-
-扫描先去掉注释、字符串与模板字面量的内容、正则字面量，再找 `inject` 这个标识符：
-
-| 写法 | 算什么 |
-| --- | --- |
-| `export const inject = ['<名>', …]`（可带类型标注、`as const`） | 必需注入 |
-| `static inject = ['<名>', …]` | 必需注入 |
-| `<上下文>.inject(['<名>', …], fn)`，可带类型参数 `inject<…>(…)` | 局部注入 |
-| 上面三种、但参数不是只由字符串字面量组成的数组（变量、对象形式 `{ required: […] }`、展开 `...more`）；叫 `inject` 的变量；对象字面量里值是数组的 `inject:` 键（`ctx.plugin({ inject: [...] })`）；不经 `.` 直接调用 `inject([...])` | **认不出，拒**，报出文件、行号与那一行，改写成上面三种 |
-| 属性读取（`plugin.inject ?? []`）、类型里的 `inject` 成员与方法声明 | 不是注入，不管 |
-
-提供只认服务名是字符串字面量的 `super(<上下文>, '<名>')` 与 `.provide('<名>')`：名字不是字面量的不算、也不报，因为 `super` 与 `provide` 都是常见的名字（继承 `Error` 的 `super(message)`、别的库的 `provide` 方法）。
-
-扫不准的就拒、让人改写成扫得准的写法，不做模糊匹配。命令名不在这里查：源码里命令名有字面量、常量、模板串、条件登记四种形态，扫出来的数和运行时对不上（见轨迹卡[能力地图挪到运行时](/trajectory/2026-09-18-capability-map-moves-to-runtime)）。
-
-{/* has file="../plugins/devkit/tests/wiring-check.test.ts" text="像注入又读不出服务名的逐处报：变量参数、对象形式、拼出来的数组、叫 inject 的变量、对象字面量里值是数组的 inject 键、不经 . 直接调用" */}
-
-{/* has file="../plugins/devkit/tests/wiring-check.test.ts" text="不是注入的不管：属性读取、类型里的 inject 成员与方法声明" */}
-
-## 查不到的部分
-
-- 页面里写的对不对：只查服务名出现过，表里的提供方、peer 写法、「缺了会怎样」写错了不报，靠钉码与人复核
-- 按名字调用的命令、事件、共享 id、直接读写的文件：扫不准，只靠这一页的钉码
-- 只 `import type` 了别的插件、没注入它的服务：不在注入里，不查它写没写 peer
-- 局部注入写成必需 peer 合不合理：两种都放行
-- 服务名不是字面量的 `super` / `provide`：不算提供，页面也就不要求写到它
-
-为什么恢复这道检查、为什么放在发版时、为什么按内容钉，见轨迹卡[发版前查注入与 wiring 页](/trajectory/2026-09-25-release-checks-wiring)。
+为什么这一页只是约定、不作为发版的前提，见轨迹卡[wiring 页只作约定，发版不查](/trajectory/2026-09-25-wiring-page-convention-only)。

@@ -13,9 +13,6 @@ export interface WiringCheckIo {
   workspacePackageDirs(repoDir: string): string[]
 }
 
-/** 每个插件仓都有的「插件之间怎么连」页，相对仓根 */
-export const WIRING_PAGE = 'docs-site/content/docs/wiring.mdx'
-
 /** 内核接口在根上下文上、永不撤销，用 `requireKernel` 取，不写进 inject，也不查 */
 const KERNEL_SERVICE = 'gwbKernel'
 
@@ -570,29 +567,11 @@ function injectPeerProblems(input: WiringCheckInput, usages: Map<string, Service
   return problems
 }
 
-function escapeRegExp(text: string): string {
-  return text.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')
-}
-
-function wiringPageProblems(repoDir: string, names: readonly string[], io: Pick<WiringCheckIo, 'readText'>): string[] {
-  const file = path.join(repoDir, ...WIRING_PAGE.split('/'))
-  const page = io.readText(file)
-  if (page === undefined) {
-    return [
-      `仓里没有「插件之间怎么连」页 ${WIRING_PAGE}（${file}）：每个插件仓的文档站都有这一页，按插件写提供、注入、按名字调用与约定通道三张表，格式见 devkit 文档站 /docs/rules/wiring`,
-    ]
-  }
-  const missing = names.filter((name) => !new RegExp(`(?<![\\w$])${escapeRegExp(name)}(?![\\w$])`).test(page))
-  if (missing.length === 0) return []
-  return [`「插件之间怎么连」页 ${WIRING_PAGE} 没写到 ${missing.join('、')}：源码注入或提供的每个服务名都要在这页的表里出现（写明提供方包、必需还是局部注入、peer 怎么写）`]
-}
-
 /**
- * 插件包的两项检查。注入与 peer 一致：源码里注入的每个服务，提供方（peer / dev 里的插件，看类型入口给 cordis Context
- * 补的名字）写在 peer 里，必需注入的不标 optional。wiring 页写全：仓的 `WIRING_PAGE` 在，注入与提供的服务名都出现在页面里
+ * 插件包的注入与 peer 一致：源码里注入的每个服务，提供方（peer / dev 里的插件，看类型入口给 cordis Context
+ * 补的名字）写在 peer 里，必需注入的不标 optional
  */
 export function wiringProblems(input: WiringCheckInput, io: WiringCheckIo): string[] {
   const scanned = scanSources(input.pkgDir, io)
-  const names = [...new Set([...scanned.usages.keys(), ...scanned.provides])].filter((name) => name !== KERNEL_SERVICE).sort()
-  return [...scanned.problems, ...injectPeerProblems(input, scanned.usages, scanned.provides, io), ...wiringPageProblems(input.repoDir, names, io)]
+  return [...scanned.problems, ...injectPeerProblems(input, scanned.usages, scanned.provides, io)]
 }

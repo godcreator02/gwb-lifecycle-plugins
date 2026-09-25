@@ -83,7 +83,6 @@ description: 升版本号、改依赖版本号、发版时读。
 | peer 里没写内核包 `@godcreator/gwb-kernel-desktop`，或写法不是 `^x.y.z`。范围包不包含哪个内核不查，照第三节第 1 步由人改 | 拒，写明改成 `^<验证时那个内核的版本号>` |
 | 带界面的插件（构建后有 `dist/style.css`）的样式检查：类选择器前缀、前缀排在变体前面、颜色只用主题令牌、`var()` 的 fallback 不写死值；和 `devkit.dev` 构建之后查的是同一套 | 拒，逐条写明怎么改 |
 | 注入与 peer 一致：`src/` 下源码注入的每个服务（`export const inject`、`static inject` 是必需，`<上下文>.inject([...], fn)` 是局部注入，数组里只认字符串字面量），提供方（peer 与 dev 里的插件，看类型入口给 cordis `Context` 补的名字）写在 peer 里，必需注入的不标 `optional`。`gwbKernel`、本包自己提供的、提供方不是 gwb 插件的、局部注入且写 peer 会和同工作区的提供方成环的不查 | 拒，写明服务名、源码位置、提供方与该怎么写 peer；注入写法认不出也拒，写明文件与行号 |
-| wiring 页写全：仓根 `docs-site/content/docs/wiring.mdx` 在，源码注入的服务名（`gwbKernel` 除外）与本包提供的服务名都在页里出现（格式见 devkit 文档站的规矩页「插件之间怎么连写成一页」） | 拒，写明缺的服务名 |
 
 发版只走 `devkit.release`，不手工 `pnpm publish`：手工发不做发版前检查，也不先构建。
 

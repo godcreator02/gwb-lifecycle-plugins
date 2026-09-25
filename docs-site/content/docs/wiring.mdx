@@ -1,13 +1,13 @@
 ---
 title: 插件之间怎么连
-description: 开发套件与插件管理各提供什么服务、命令与说明书，注入了谁、是必需还是局部注入、peer 怎么写，按名字调用了别家哪些命令，直接读写了哪些文件与别的约定通道
+description: 开发套件与插件管理各提供什么服务、命令与说明书，注入了谁、是必需还是局部注入、peer 怎么写，按名字调用了别的插件的哪些命令，直接读写了哪些文件与别的约定通道
 ---
 
 # 插件之间怎么连
 
-**本页回答**：本仓插件提供哪些服务、命令与事件；注入了哪些服务、是必需还是局部注入、peer 怎么写；按名字调用了别家哪些命令、用了哪些约定通道。
+**本页回答**：本仓插件提供哪些服务、命令与事件；注入了哪些服务、是必需还是局部注入、peer 怎么写；按名字调用了别的插件的哪些命令、用了哪些约定通道。
 
-每张表下面是钉码，按内容钉在服务名、`inject` 写法、peer 条目、命令名、文件名这些字面量上：源码里的字面量改了，这一页就报出来。这一页的格式与由谁查见规矩页[插件之间怎么连写成一页](/docs/rules/wiring)；`devkit.release` 发版前查源码注入与提供的每个服务名都在这一页里出现。
+每张表下面是钉码，按内容钉在服务名、`inject` 写法、peer 条目、命令名、文件名这些字面量上：源码里的字面量改了，这一页就报出来。这一页的格式见规矩页[插件之间怎么连写成一页](/docs/rules/wiring)，是约定，没有工具查。
 
 peer 的写法照[用到的插件写 peer](/docs/rules/plugin-peers)：跨仓的插件写 `^<源上 latest>`，同仓的插件写 `workspace:^`、发版时换成 `^<版本号>`；只在 `ctx.inject([...], fn)` 里用、缺了只少一部分功能的标 `optional: true`。两个包都不按值 import `cordis`，peer 里没有它。
 
@@ -105,7 +105,6 @@ peer 里另有插件管理 `@godcreator/gwb-plugin-manager`（`workspace:^`，�
 | 读文件 | 本 home 装着的命令总线与外壳 | `<本 home>/node_modules/@godcreator/gwb-commands/package.json`、`.../gwb-shell/package.json` | 建仓与加插件时模板 peer 的版本号；没装就报错 |
 | 环境变量与命令行参数 | 宿主安装版应用 | `GWB_HOME=<home 名>`、`--remote-debugging-port=<端口>` | `devkit.home.new` / `open` 再启动一次宿主，指定 home 与调试端口 |
 | 读被发版的包 | 包目录 `node_modules` 里装好的内核包与外壳 | 内核包的 `dist/index.html`（页面 importmap）、外壳的 `theme.reference.css`（主题令牌） | 发版前检查的浏览器侧 import 名单与样式检查的色名 |
-| 读被发版的仓 | 仓的文档站 | `docs-site/content/docs/wiring.mdx` | 发版前检查：插件源码注入与提供的服务名都在这一页里出现 |
 | 子进程 | pnpm、git、`tasklist` / `netstat` / `taskkill` | | 构建、打包、发布、`pnpm view` 查源；查工作区干不干净；查进程与端口、终止进程树 |
 
 {/* has file="../plugins/devkit/src/dev.ts" text="import { INSTALL_COMMAND, KERNEL_PACKAGE, LIST_COMMAND, UPDATE_COMMAND } from '@godcreator/gwb-plugin-manager'" */}
@@ -139,8 +138,6 @@ peer 里另有插件管理 `@godcreator/gwb-plugin-manager`（`workspace:^`，�
 {/* has file="../plugins/devkit/src/artifact-check.ts" text="path.join(pkgDir, 'node_modules', ...KERNEL_PACKAGE.split('/'), 'dist', 'index.html')" */}
 
 {/* has file="../plugins/devkit/src/style-check.ts" text="const SHELL_THEME_REFERENCE = './theme.reference.css'" */}
-
-{/* has file="../plugins/devkit/src/wiring-check.ts" text="export const WIRING_PAGE = 'docs-site/content/docs/wiring.mdx'" */}
 
 ## @godcreator/gwb-plugin-manager
 
@@ -210,7 +207,7 @@ peer 里另有插件管理 `@godcreator/gwb-plugin-manager`（`workspace:^`，�
 
 ### 按名字调用与约定通道
 
-插件管理不按名字调别家的命令，也不推事件；它直接碰的是 loader、cordis 的内部状态与 home 里的文件。
+插件管理不按名字调用别的插件的命令，也不推事件；它直接碰的是 loader、cordis 的内部状态与 home 里的文件。
 
 | 通道 | 对方 | 名字 | 用来做什么 |
 | --- | --- | --- | --- |

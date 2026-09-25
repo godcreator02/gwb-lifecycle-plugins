@@ -219,7 +219,6 @@ function fake(options: FakeOptions = {}): ReleaseDeps & { calls: string[]; range
     [path.resolve(REPO, 'b/package.json')]: manifestOf(B, '0.2.0'),
     [path.resolve(REPO, 'a/dist/index.js')]: "import path from 'node:path';\n",
     [path.resolve(REPO, 'b/dist/index.js')]: "import path from 'node:path';\n",
-    [path.resolve(REPO, 'docs-site/content/docs/wiring.mdx')]: '# 插件之间怎么连\n',
     ...options.files,
   }
   return {
@@ -404,7 +403,7 @@ describe('发正式版', () => {
     expect(shipped.ok).toBe(true)
   })
 
-  it('插件包注入的服务提供方没写 peer、wiring 页没写到它：构建之后、发之前拒，两条都列出；库不查', async () => {
+  it('插件包注入的服务提供方没写 peer：构建之后、发之前拒；仓里没有文档站不拦；库不查', async () => {
     const commandsDir = 'a/node_modules/@godcreator/gwb-commands'
     const deps = fake({
       files: {
@@ -418,9 +417,8 @@ describe('发正式版', () => {
     const out = await runRelease({ repoDir: REPO, packages: ['a', 'b'] }, deps)
     expect(out.ok).toBe(false)
     if (out.ok) return
-    expect(out.error).toContain('1 个包 2 条')
+    expect(out.error).toContain('1 个包 1 条')
     expect(out.error).toContain('gwbCommands（src/index.ts:1，必需注入） 由 @godcreator/gwb-commands 提供，它不在 peerDependencies 里')
-    expect(out.error).toContain('没写到 gwbCommands')
     expect(deps.calls.some((one) => one.startsWith('publish'))).toBe(false)
   })
 

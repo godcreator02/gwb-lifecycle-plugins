@@ -16,7 +16,7 @@ description: 写新插件、改插件、在隔离 home 里验证改动时读；�
    * 不要界面的插件：照生成的 README 里那张清单删掉浏览器侧的文件、脚本与依赖
    * `package.json`：peer 里内核包 `@godcreator/gwb-kernel-desktop` 的范围 `^x.y.z` 要包含验证时用的内核（模板写的是运行建仓命令的那个 home 里的内核）；用到的别的插件（经 `ctx.inject` 用它的服务、import 它的类型）写进 peer，范围 `^x.y.z`，不另写 dev：写在 `export const inject` 里的是普通 peer，只在 `ctx.inject([...], fn)` 里用的在 `peerDependenciesMeta` 标 `optional: true`。模板已写命令总线与外壳，下限是建仓那个 home 里装着的版本；不用外壳就删掉那一项；`description` 改成一句话说这个插件做什么；有了 `skills/` 目录就把 `skills` 加进 `files`
    * 提供服务：在源码里给 cordis 的 `Context` 补上这一项（`declare module 'cordis' { interface Context { gwbExample: GwbExample } }`），`GwbExample` 定义在本包里、写文档注释说清怎么用；用它的插件从你发布的 `.d.ts` 读到这些。模板不输出 `.d.ts`，提供服务时加上三处：包里加 `tsconfig.build.json`（`"extends": "./tsconfig.json"`，`compilerOptions` 写 `"noEmit": false, "declaration": true, "emitDeclarationOnly": true, "outDir": "dist", "rootDir": "src"`，`"include": ["src/index.ts"]`）；`build` 脚本在 `node build.ts` 之后加 `tsc -p tsconfig.build.json`；`exports["."]` 改成 `{ "types": "./dist/index.d.ts", "default": "./dist/index.js" }`
-   * 仓里有文档站的，在它的现状区写这个插件的页：功能、接口、依赖、不做的事四节；依赖写进 `docs/wiring.mdx`「插件之间怎么连」里这个插件那一节（提供、注入、按名字调用与约定通道三张表，钉码按内容钉），插件页的依赖一节只链过去。`devkit.release` 发版前查这一页在、源码注入与提供的服务名都写到了，格式见规矩总表里链到的 `/docs/rules/wiring`
+   * 仓里有文档站的，在它的现状区写这个插件的页：功能、接口、依赖、不做的事四节；依赖写进「插件之间怎么连」那一页（见下面「参考：约定与容易出错的地方」），插件页的依赖一节只链过去
 5. 仓根 `pnpm build`，再 `pnpm check`
 
 **完成判据**：仓根 `pnpm check` 全绿。接着做「改一版看一版」。
@@ -61,6 +61,7 @@ description: 写新插件、改插件、在隔离 home 里验证改动时读；�
 * **`apply` 里的 async 自己 catch 并写日志**：reject 了不报错，现象是「加载了但什么都没发生」
 * **重新加载只重新运行 `apply`**：每次重新加载都该清掉的状态放在 `apply` 里，要跨重新加载保留的放在模块顶层
 * **说明书跟它描述的代码同仓同提交**，随那个包发布；每个插件只登记自己的说明书
+* **有文档站的插件仓写一页「插件之间怎么连」**：现状区的 `docs/wiring.mdx`，本仓每个插件一节，提供、注入、按名字调用与约定通道三张表，钉码按内容钉，格式见 `/docs/rules/wiring`。加减了命令、服务、说明书、注入就同一个提交改它。这是约定，没有工具查，`devkit.release` 不看它
 * **文档站的 README**：第一次在站目录 `pnpm doc:render` 之前，把手写 README 里要留的内容搬进 `content/outputs/readme.mdx`，render 会整份覆盖 README
 * **页面 importmap 里只有 react 的四个包名**，写死在内核包的页面入口 `dist/index.html` 里，别的包加不进名字：别的依赖一律打包进浏览器侧产物；模板的 `build.ts` 从那段 importmap 读外置名单，不手抄
 * **验证的必须是这一版**：改了内核（页面 importmap 里的 react 也由它提供）同样用 `devkit.dev`：`dir` 给内核仓根、`packages` 给 `["apps/desktop"]`，它把内核开发版装进隔离 home（`cordis` 由那个 home 的插件管理照内核包 peer 里写的版本对齐），再重启那个 home（主进程里的内核换不掉），回执 `kernel.version` 就是页面上运行的内核版本；没装过内核开发版的隔离 home 里运行的是 `devkit.home.new` 装进去的内核包
