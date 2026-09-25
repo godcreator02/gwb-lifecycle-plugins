@@ -180,9 +180,9 @@ home 名只收 kebab-case：
 | `fs` | 读运行时记录与装上的内核包、`cordis` 的清单，列 home 目录、写 `cordis.yml`、删整个目录 | `node:fs`，删除是自己逐个遍历目录（见下） | 一张内存文件表加一张目录表，删除可以模拟「返回成功但目录还在」 |
 | `spawn` | 启动 detached 且**看得见**的 electron；`stdio` 全部 `ignore`、`unref`，和开它的 home 之间没有管道也没有 IPC，结束它不牵连开它的 home（[实测](/trajectory/2026-09-25-runner-tree-kill)） | `child_process.spawn`，不带 `windowsHide` | 记一笔，回假 pid |
 | `appSpawnPlan` | 拼再启动一次宿主应用的命令行：安装版启动那个 exe，宿主是开发态 electron 就拒 | 从宿主进程的 `execPath` 拼（`hostAppSpawnPlan`） | 回一份写死的计划（或抛错），不碰真宿主 |
-| `run` | 在前台运行装内核包、`cordis`、基础插件的三条 `pnpm add` 到结束，回输出的最后几行；三条都带环境变量 `pnpm_config_auto_install_peers=false`，基础插件 peer 里写的插件不会被 pnpm 自动补装；pnpm 是 `home.new` 开头在两个固定位置找到的那个可执行文件，经 `install.pnpm` 传进来 | `runCaptured` 合并输出；超时终止整棵进程树、确认都退出了才回，回执的 `timedOut` 说整棵树终止了没有（`node-process-tree.ts`） | 按预设回成功或失败 |
+| `run` | 在前台运行装内核包、`cordis`、基础插件的三条 `pnpm add` 到结束，回输出的最后几行；三条的环境都由插件管理导出的 `homePnpmEnv` 从宿主环境算出（带 `pnpm_config_auto_install_peers=false`、去掉 `ELECTRON_RUN_AS_NODE`），基础插件 peer 里写的插件不会被 pnpm 自动补装；pnpm 是 `home.new` 开头在两个固定位置找到的那个可执行文件，经 `install.pnpm` 传进来 | `runCaptured` 合并输出；超时终止整棵进程树、确认都退出了才回，回执的 `timedOut` 说整棵树终止了没有（`node-process-tree.ts`） | 按预设回成功或失败 |
 | `processTable` / `portOwner` / `kill` | 判断进程在不在（看一个 pid 也列整张表：`tasklist` 带不带过滤都一样慢）、端口上是谁在监听、停进程；前两个查不出就抛 | `node-probe-deps.ts`：`tasklist`、`netstat`、`process.kill` | 一张假进程表与端口占用者，可以让它们抛；记下进程表被列了几次 |
-| `execPath` / `env` | 认宿主映像名、拼子进程环境 | 宿主进程自己的值 | 给固定值 |
+| `execPath` / `env` | 认宿主映像名；拼窗口子进程的环境（`guiChildEnv`）与在 home 里启动 pnpm 的环境（`homePnpmEnv`） | 宿主进程自己的值 | 给固定值 |
 
 **映像名只认 electron 与宿主自己**：宿主安装版的 exe 名是产品名，它启动的子进程是 electron。把 node 也认进来只会在 pid 被复用时多误判。
 
@@ -194,7 +194,7 @@ home 名只收 kebab-case：
 
 用假磁盘、假进程表、假时钟，整个流程在 `tests/home.test.ts` 里运行完，不真的启动窗口。
 
-测的是：名字重了怎么改用秒、秒也重了时直接拒；宿主是开发态 electron 时一个动作都不做；内核包、cordis 与基础插件哪一步装不上都不启动进程，装的时候先写 `cordis.yml`、再装内核包、读它清单里的 cordis 版本、再装 cordis、最后装基础插件，只有装 cordis 那次带 `--save-exact`，三次都关掉自动补装 peer；内核包清单读不到、内核包或 cordis 装上的版本对不上、内核包 peer 里的 cordis 不是精确版本号时拒；启动得来时环境变量与观察时间都对、读回的记录写进回执；记录没出现时不算失败但回执要说明；刚启动就退出时立刻报并指向那个 home 的日志；同一个 home 已有实例在运行时拒开第二个；选端口时记录里占着的与有进程监听的各自会不会被跳过（**过时记录里的端口也算占着**）；列出时不论几个 home 只查一次进程表、没有记录就不查；进程表或端口占用查不出时列出、定位、停止、删除都报错而不往下做；按名字定位的三道检查各自能拦住什么；停止之前的两次核对各自能拦住什么；`default` 不带 `force` 删不了、正在运行时带 `force` 也删不了；还在运行、没带 `force` 拒删，带了 `force` 先停再删，停不掉就不删；信号发出后进程晚几轮才退时等到它退、一直不退时不删；删除调用返回成功而目录还在时不说已删，晚一点删得掉时照删。
+测的是：名字重了怎么改用秒、秒也重了时直接拒；宿主是开发态 electron 时一个动作都不做；内核包、cordis 与基础插件哪一步装不上都不启动进程，装的时候先写 `cordis.yml`、再装内核包、读它清单里的 cordis 版本、再装 cordis、最后装基础插件，只有装 cordis 那次带 `--save-exact`，三次的环境都是 `homePnpmEnv` 算出的那份；内核包清单读不到、内核包或 cordis 装上的版本对不上、内核包 peer 里的 cordis 不是精确版本号时拒；启动得来时环境变量与观察时间都对、读回的记录写进回执；记录没出现时不算失败但回执要说明；刚启动就退出时立刻报并指向那个 home 的日志；同一个 home 已有实例在运行时拒开第二个；选端口时记录里占着的与有进程监听的各自会不会被跳过（**过时记录里的端口也算占着**）；列出时不论几个 home 只查一次进程表、没有记录就不查；进程表或端口占用查不出时列出、定位、停止、删除都报错而不往下做；按名字定位的三道检查各自能拦住什么；停止之前的两次核对各自能拦住什么；`default` 不带 `force` 删不了、正在运行时带 `force` 也删不了；还在运行、没带 `force` 拒删，带了 `force` 先停再删，停不掉就不删；信号发出后进程晚几轮才退时等到它退、一直不退时不删；删除调用返回成功而目录还在时不说已删，晚一点删得掉时照删。
 
 记录是**测试预先放在假磁盘上的**，不是 `launchHome` 写的——真实时序也是这样：内核启动时才写，`launchHome` 启动之后去读，读到什么算什么。测试里让假的 `spawn` 顺带把记录放上去，模拟的就是这个时序。
 

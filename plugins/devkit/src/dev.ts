@@ -257,25 +257,16 @@ export interface RunPlan {
   command: string
   args: string[]
   cwd: string
-  /** 叠在宿主进程环境上的变量；没有就原样用宿主的环境 */
-  env?: Record<string, string>
+  /** 子进程的整份环境；不给就用宿主进程的环境 */
+  env?: Record<string, string | undefined>
 }
 
 /**
- * 在 home 里运行的 pnpm 不自动补装缺的 peer：插件的 peer 写别的插件，home 里没装那个插件时补装进来，就成了一个没有条目、插件管理也不知道的包。
- * 命令行参数 `--config.auto-install-peers=false` 关不掉，环境变量关得掉（probes/2609242300_peer-between-plugins）。
- * 插件仓里不能带：仓里开发靠自动补装把 peer 里的内核包与插件装进 node_modules，带上它 pnpm 会按新配置重装、把这些 peer 拿掉，构建找不到类型
+ * 直接启动 pnpm 的原生可执行文件（`locatePnpm` 找到并核对过版本的那个），不经 shell；用在插件仓、临时目录这些不是 home 的地方。
+ * 插件仓里不关自动补装 peer：仓里开发靠它把 peer 里的内核包与插件装进 node_modules；在 home 里运行的 pnpm 见 `home.ts` 的 `pnpmAddPlan`
  */
-export const HOME_PNPM_ENV: Readonly<Record<string, string>> = { pnpm_config_auto_install_peers: 'false' }
-
-/** 直接启动 pnpm 的原生可执行文件（`locatePnpm` 找到并核对过版本的那个），不经 shell；用在插件仓、临时目录这些不是 home 的地方 */
 export function pnpmPlan(args: string[], cwd: string, pnpm: string): RunPlan {
   return { command: pnpm, args, cwd }
-}
-
-/** 同 `pnpmPlan`，在 home 里运行：带上 `HOME_PNPM_ENV` */
-export function homePnpmPlan(args: string[], home: string, pnpm: string): RunPlan {
-  return { command: pnpm, args, cwd: home, env: { ...HOME_PNPM_ENV } }
 }
 
 /** 前台运行一条命令的结果：成没成加输出的最后几行 */

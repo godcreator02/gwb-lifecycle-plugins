@@ -40,7 +40,7 @@ export function makeAppSpawnPlan(): HomeDeps['appSpawnPlan'] {
 
 /** 前台运行一条命令到结束：stdout 与 stderr 合在一起收，超时就终止整棵进程树；只回最后几行，报错在最后 */
 export async function runCaptured(
-  plan: { command: string; args: string[]; cwd: string; env?: Record<string, string> },
+  plan: { command: string; args: string[]; cwd: string; env?: Record<string, string | undefined> },
   timeoutMs: number,
 ): Promise<RunResult> {
   let out = ''
@@ -49,7 +49,7 @@ export async function runCaptured(
     // 输出可能很大，只留后面一段：报错在最后
     if (out.length > 200_000) out = out.slice(-100_000)
   }
-  const env = plan.env === undefined ? process.env : { ...process.env, ...plan.env }
+  const env = plan.env ?? process.env
   const end = await runWithTreeTimeout({ command: plan.command, args: plan.args, cwd: plan.cwd, env }, timeoutMs, { stdout: keep, stderr: keep })
   switch (end.kind) {
     case 'failed-to-start':

@@ -81,7 +81,7 @@ description: 开发套件是一个普通的 gwb 插件，把「在一个新文�
 | 依赖 | 用来做什么 | 缺了会怎样 |
 | --- | --- | --- |
 | 命令插件的服务 `gwbCommands`（`@godcreator/gwb-commands`，写在 `export const inject`，peer 必需） | 登记 8 条命令；按名字查找并调用别的插件的命令 | 插件不加载：cordis 等到这个服务出现才调用 `apply`；`apply` 里取不到它就抛错。这是唯一的必需服务 |
-| 插件管理包 `@godcreator/gwb-plugin-manager` 主入口导出的函数（peer 必需） | 找 pnpm 的 `locatePnpm`、内核包名与 peer 范围的判定、取输出最后几行的 `tailLines`，以及 `devkit.dev` 调的三条命令的名字 `LIST_COMMAND`、`INSTALL_COMMAND`、`UPDATE_COMMAND` | 模块 import 不到，插件加载失败 |
+| 插件管理包 `@godcreator/gwb-plugin-manager` 主入口导出的函数（peer 必需） | 找 pnpm 的 `locatePnpm`、在 home 里启动 pnpm 用的环境 `homePnpmEnv`、内核包名与 peer 范围的判定、取输出最后几行的 `tailLines`，以及 `devkit.dev` 调的三条命令的名字 `LIST_COMMAND`、`INSTALL_COMMAND`、`UPDATE_COMMAND` | 模块 import 不到，插件加载失败 |
 | 内核服务 `gwbKernel` 的 `dataDir` 与 `version`（用 `requireKernel` 取，不写进 `inject`） | `dataDir` 是本插件自己所在的 home：`devkit.dev` 拒绝以它为目标（home 根目录不从它推，按 `%APPDATA%\gwb-kernel\homes` 算）；`version` 用于发版前检查插件 peer 里内核包的范围，也是建仓与加插件时新包 peer 里内核包范围的下限、`devkit.home.new` 装进新 home 的内核包版本 | 用到它的命令抛错「ctx.gwbKernel 不在」 |
 | 外壳插件的服务 `gwbShell`（局部注入） | `describeSelf` 报显示名「开发套件」与图标 | 插件清单里没有显示名，别的不受影响 |
 | node 命令行插件的服务 `gwbNodeCli`（局部注入） | 把 `bin/cdp.mjs` 登记成 `devkit.cdp` | 没有 `devkit.cdp` 命令；`devkit.dev` 不受影响，它自己启动 `bin/cdp.mjs` 子进程 |

@@ -36,7 +36,7 @@ import {
   type HomeFs,
   type HomeRecord,
 } from '../src/home.js'
-import { KERNEL_PACKAGE } from '@godcreator/gwb-plugin-manager'
+import { KERNEL_PACKAGE, homePnpmEnv } from '@godcreator/gwb-plugin-manager'
 import { DAILY_HOME, installedManifest } from '../src/dev.js'
 
 /**
@@ -218,33 +218,42 @@ function installsOnRuns(deps: HomeDeps, fs: HomeFs, kernelManifestText: string, 
 }
 
 describe('装进新 home 的东西：内核包、cordis 与基础插件', () => {
-  const NO_AUTO_PEERS = { pnpm_config_auto_install_peers: 'false' }
+  const HOST_ENV = { PATH: 'x', ELECTRON_RUN_AS_NODE: '1', pnpm_config_auto_install_peers: 'true' }
+  const HOME_PNPM_ENV = homePnpmEnv(HOST_ENV)
 
-  it('装内核包：直接启动找到的 pnpm，add 运行中内核的版本（不带 --save-exact），不自动补装 peer', () => {
-    expect(kernelInstallPlan(HOME, KERNEL_VERSION, PNPM)).toEqual({
+  it('三条 pnpm add 的环境都由插件管理的 homePnpmEnv 从宿主环境算出：不自动补装 peer，不带 ELECTRON_RUN_AS_NODE', () => {
+    for (const plan of [kernelInstallPlan(HOME, KERNEL_VERSION, PNPM, HOST_ENV), cordisInstallPlan(HOME, '4.0.0-rc.9', PNPM, HOST_ENV), baseInstallPlan(HOME, PNPM, HOST_ENV)]) {
+      expect(plan.env).toEqual(HOME_PNPM_ENV)
+      expect(plan.env?.['pnpm_config_auto_install_peers']).toBe('false')
+      expect(plan.env).not.toHaveProperty('ELECTRON_RUN_AS_NODE')
+      expect(plan.env?.['PATH']).toBe('x')
+    }
+  })
+
+  it('装内核包：直接启动找到的 pnpm，add 运行中内核的版本（不带 --save-exact）', () => {
+    expect(kernelInstallPlan(HOME, KERNEL_VERSION, PNPM, HOST_ENV)).toEqual({
       command: PNPM,
       args: ['add', `${KERNEL_PACKAGE}@${KERNEL_VERSION}`],
       cwd: HOME,
-      env: NO_AUTO_PEERS,
+      env: HOME_PNPM_ENV,
     })
-    expect(kernelInstallPlan(HOME, '0.3.1-dev.202609241500', PNPM)).toEqual({
+    expect(kernelInstallPlan(HOME, '0.3.1-dev.202609241500', PNPM, HOST_ENV)).toEqual({
       command: PNPM,
       args: ['add', `${KERNEL_PACKAGE}@0.3.1-dev.202609241500`],
       cwd: HOME,
-      env: NO_AUTO_PEERS,
+      env: HOME_PNPM_ENV,
     })
   })
 
   it('装 cordis：pnpm add --save-exact 精确版本（只有它带：要正好等于内核包 peer 里那个版本）', () => {
-    expect(cordisInstallPlan(HOME, '4.0.0-rc.9', PNPM)).toEqual({ command: PNPM, args: ['add', '--save-exact', 'cordis@4.0.0-rc.9'], cwd: HOME, env: NO_AUTO_PEERS })
+    expect(cordisInstallPlan(HOME, '4.0.0-rc.9', PNPM, HOST_ENV)).toEqual({ command: PNPM, args: ['add', '--save-exact', 'cordis@4.0.0-rc.9'], cwd: HOME, env: HOME_PNPM_ENV })
   })
 
-  it('装基础插件：只装插件，不写版本（取 latest）、不带 --save-exact，不自动补装 peer', () => {
-    const plan = baseInstallPlan(HOME, PNPM)
+  it('装基础插件：只装插件，不写版本（取 latest）、不带 --save-exact', () => {
+    const plan = baseInstallPlan(HOME, PNPM, HOST_ENV)
     expect(plan.command).toBe(PNPM)
     expect(plan.cwd).toBe(HOME)
     expect(plan.args).toEqual(['add', ...BASE_PLUGINS.map((one) => one.pkg)])
-    expect(plan.env).toEqual(NO_AUTO_PEERS)
   })
 
   it('装上的包清单：版本是要装的那个才回清单；读不到、不是 JSON、版本对不上都拒，说清是哪个文件、装上的是哪个版本', () => {

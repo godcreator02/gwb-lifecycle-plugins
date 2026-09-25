@@ -1,6 +1,6 @@
 import path from 'node:path'
-import { DAILY_HOME, homePnpmPlan, installedManifest, type RunPlan, type RunResult } from './dev.js'
-import { KERNEL_PACKAGE } from '@godcreator/gwb-plugin-manager'
+import { DAILY_HOME, installedManifest, type RunPlan, type RunResult } from './dev.js'
+import { KERNEL_PACKAGE, homePnpmEnv } from '@godcreator/gwb-plugin-manager'
 import { isRecord, VERSION } from './vocab.js'
 import { bareImage, type ProcessProbe } from './probes.js'
 
@@ -185,7 +185,7 @@ export interface HomeDeps {
   now(): number
   /** 启动子进程用的可执行文件（宿主进程自己那个） */
   execPath: string
-  /** 启动子进程的环境，经 guiChildEnv 处理 */
+  /** 宿主进程的环境：启动窗口前经 guiChildEnv 处理，在 home 里启动 pnpm 前经插件管理的 homePnpmEnv 处理 */
   env: NodeJS.ProcessEnv
 }
 
@@ -250,24 +250,27 @@ export function baseYaml(): string {
   return BASE_PLUGINS.map((p) => `- id: ${p.id}\n  name: '${p.pkg}'`).join('\n') + '\n'
 }
 
-/** 在 home 里运行 `pnpm add <args…>` 的命令行：直接启动 pnpm 的原生可执行文件，不自动补装缺的 peer */
-function pnpmAddPlan(home: string, addArgs: string[], pnpm: string): RunPlan {
-  return homePnpmPlan(['add', ...addArgs], home, pnpm)
+/**
+ * 在 home 里运行 `pnpm add <args…>` 的命令行：直接启动 pnpm 的原生可执行文件，环境由插件管理的 `homePnpmEnv` 从宿主环境算出，
+ * 与插件管理在 home 里启动 pnpm 用同一份规则（不自动补装缺的 peer）
+ */
+function pnpmAddPlan(home: string, addArgs: string[], pnpm: string, env: NodeJS.ProcessEnv): RunPlan {
+  return { command: pnpm, args: ['add', ...addArgs], cwd: home, env: homePnpmEnv(env) }
 }
 
 /** 装内核包：运行中内核的版本，清单照 pnpm 默认写 `^` 范围；装完核对版本 */
-export function kernelInstallPlan(home: string, kernelVersion: string, pnpm: string): RunPlan {
-  return pnpmAddPlan(home, [`${KERNEL_PACKAGE}@${kernelVersion}`], pnpm)
+export function kernelInstallPlan(home: string, kernelVersion: string, pnpm: string, env: NodeJS.ProcessEnv): RunPlan {
+  return pnpmAddPlan(home, [`${KERNEL_PACKAGE}@${kernelVersion}`], pnpm, env)
 }
 
 /** 装 cordis：内核包 peer 里写的精确版本、带 `--save-exact`——它是预发布版，写成 `^` 范围时别的 rc 也算满足，而它要正好等于内核包 peer 里那个版本 */
-export function cordisInstallPlan(home: string, cordisVersion: string, pnpm: string): RunPlan {
-  return pnpmAddPlan(home, ['--save-exact', `cordis@${cordisVersion}`], pnpm)
+export function cordisInstallPlan(home: string, cordisVersion: string, pnpm: string, env: NodeJS.ProcessEnv): RunPlan {
+  return pnpmAddPlan(home, ['--save-exact', `cordis@${cordisVersion}`], pnpm, env)
 }
 
 /** 装基础插件：不写版本，取源上的 latest，清单写 `^` 范围。home 里除了内核包与 cordis 只装插件 */
-export function baseInstallPlan(home: string, pnpm: string): RunPlan {
-  return pnpmAddPlan(home, BASE_PLUGINS.map((p) => p.pkg), pnpm)
+export function baseInstallPlan(home: string, pnpm: string, env: NodeJS.ProcessEnv): RunPlan {
+  return pnpmAddPlan(home, BASE_PLUGINS.map((p) => p.pkg), pnpm, env)
 }
 
 /** 装包（内核包、cordis、基础插件各一次）的超时 */
@@ -342,7 +345,7 @@ async function installKernelCordisAndBasePlugins(
   const { kernelVersion, pnpm } = install
   deps.fs.writeText(path.join(home, 'cordis.yml'), baseYaml())
   const kernelFailure = await refusalIfInstallFailed(
-    kernelInstallPlan(home, kernelVersion, pnpm),
+    kernelInstallPlan(home, kernelVersion, pnpm, deps.env),
     `内核包 ${KERNEL_PACKAGE}@${kernelVersion}`,
     '查源上有没有这个版本、scope 路由、源连不连得上',
     deps,
@@ -350,11 +353,11 @@ async function installKernelCordisAndBasePlugins(
   if (kernelFailure !== undefined) return kernelFailure
   const cordis = cordisVersionForKernel(deps.fs.readText(installedManifest(home, KERNEL_PACKAGE)), kernelVersion, home)
   if (!cordis.ok) return cordis
-  const cordisFailure = await refusalIfInstallFailed(cordisInstallPlan(home, cordis.cordis, pnpm), `cordis@${cordis.cordis}`, '查源连不连得上', deps)
+  const cordisFailure = await refusalIfInstallFailed(cordisInstallPlan(home, cordis.cordis, pnpm, deps.env), `cordis@${cordis.cordis}`, '查源连不连得上', deps)
   if (cordisFailure !== undefined) return cordisFailure
   const cordisInstalled = installedManifestAtVersion(deps.fs.readText(installedManifest(home, 'cordis')), 'cordis', cordis.cordis, home)
   if (!cordisInstalled.ok) return cordisInstalled
-  return refusalIfInstallFailed(baseInstallPlan(home, pnpm), '基础插件', '查 scope 路由与源连不连得上', deps)
+  return refusalIfInstallFailed(baseInstallPlan(home, pnpm, deps.env), '基础插件', '查 scope 路由与源连不连得上', deps)
 }
 
 /** 观察一会儿，只抓刚启动就退出 */

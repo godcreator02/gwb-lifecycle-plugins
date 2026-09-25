@@ -13,7 +13,6 @@ import {
   entriesOf,
   errorLines,
   guardHome,
-  homePnpmPlan,
   installedManifest,
   literalArtifacts,
   packFileName,
@@ -316,9 +315,6 @@ describe('pnpm 的命令行', () => {
     expect(pnpmPlan(['build'], 'D:/repo', PNPM)).toEqual({ command: PNPM, args: ['build'], cwd: 'D:/repo' })
   })
 
-  it('在 home 里运行的 pnpm 不自动补装缺的 peer：带上关掉它的环境变量', () => {
-    expect(homePnpmPlan(['install'], 'D:/h', PNPM)).toEqual({ command: PNPM, args: ['install'], cwd: 'D:/h', env: { pnpm_config_auto_install_peers: 'false' } })
-  })
 })
 
 describe('一次流程', () => {
