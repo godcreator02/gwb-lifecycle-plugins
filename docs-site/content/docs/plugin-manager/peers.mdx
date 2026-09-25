@@ -57,3 +57,5 @@ description: 插件在 peerDependencies 里写它用到的别的插件的 ^x.y.z
 **是什么**：插件管理启动 pnpm 时带环境变量 `pnpm_config_auto_install_peers=false`，`install` 与 `update` 都不会把插件 peer 里 home 没装的插件顺带装进来（见 [pnpm](/docs/plugin-manager/pnpm#参数环境与读回什么)）。
 
 **为什么**：pnpm 默认会把缺的 peer 装进 `node_modules/.pnpm`，但不写进 home 的 `package.json`、不加条目，插件管理也不认它，成了一个谁也管不到的包。装哪个插件由人决定，缺的由 `unmetPeers` 报出来。
+
+在隔离 home 里实测过：node 命令行插件从 0.4.6 升到 0.4.7，peer 写了它的 devkit 列在 `update` 回执的 `dependents` 里、换到新的真实目录重新加载；0.4.6 的 peer 写着 home 里没装的 `@godcreator/gwb-plugin-api`，pnpm 没有自动补装，`list` 的 `unmetPeers` 报出了它。
