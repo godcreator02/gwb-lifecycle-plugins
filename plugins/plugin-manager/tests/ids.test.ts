@@ -1,7 +1,5 @@
 import { describe, expect, it } from 'vitest'
 import {
-  assertId,
-  assertIdUsable,
   assertPkgName,
   assertSpec,
   bareId,
@@ -37,12 +35,8 @@ describe('条目 id 的字符集', () => {
     }
   })
 
-  it('不合规当场抛，错话里带出规矩', () => {
-    expect(() => assertId('Commands')).toThrow(/kebab-case/)
-  })
-
   it('和 gwb-data、gwb-settings 的校验是同一套——生成的 id 在那边要存得下数据', () => {
-    // 那两个件按 id 的末段分区，字符集松了就等于发了一条谁也存不下东西的条目
+    // 那两个插件按 id 的末段分区，字符集松了就等于建了一条谁也存不下东西的条目
     expect(isValidId('py-cli')).toBe(true)
     expect(isValidId('py_cli')).toBe(false)
   })
@@ -114,59 +108,21 @@ describe('撞名加数字后缀', () => {
   })
 })
 
-describe('选 id：连磁盘上的归属记录一起看', () => {
-  const none = new Set<string>()
-
-  it('磁盘上什么都没有：用默认 id', () => {
-    expect(pickId('@a/gwb-foo', none, {})).toBe('foo')
+describe('选 id：默认 id，条目树上重名加后缀', () => {
+  it('条目树上没有：用默认 id', () => {
+    expect(pickId('@a/gwb-foo', new Set())).toBe('foo')
   })
 
-  it('scope 不同、默认 id 相同：前一个包卸载后数据留在磁盘上，后来的包不拿这个 id', () => {
-    expect(pickId('@b/foo', none, { foo: ['@a/gwb-foo', '@a/gwb-foo'] })).toBe('foo-2')
+  it('scope 不同、默认 id 相同：后来的包加 -2 后缀共存', () => {
+    expect(pickId('@b/foo', new Set(['foo']))).toBe('foo-2')
   })
 
-  it('数据与设置只要有一份属于别的包就算被占', () => {
-    expect(pickId('@b/foo', none, { foo: ['@b/foo', '@a/gwb-foo'] })).toBe('foo-2')
-  })
-
-  it('本包装过又卸了：沿用自己的旧 id，数据与设置原样接上', () => {
-    // @a 卸了之后 @b 占了 foo-2；@a 装回来还是 foo，不会被挤成 foo-3
-    expect(pickId('@a/gwb-foo', new Set(['foo-2']), { foo: ['@a/gwb-foo'], 'foo-2': ['@b/foo'] })).toBe('foo')
-  })
-
-  it('本包留下的旧 id 不是默认那个也接回——比如当初手给的', () => {
-    expect(pickId('@a/gwb-py-cli', none, { 'py-311': ['@a/gwb-py-cli'] })).toBe('py-311')
-  })
-
-  it('本包留下好几个：默认那个优先，其余按字典序', () => {
-    expect(pickId('@a/gwb-foo', none, { 'foo-3': ['@a/gwb-foo'], foo: ['@a/gwb-foo'] })).toBe('foo')
-    expect(pickId('@a/gwb-foo', new Set(['foo']), { 'foo-3': ['@a/gwb-foo'], 'foo-2': ['@a/gwb-foo'] })).toBe('foo-2')
-  })
-
-  it('条目树上正被占着的不沿用——那是同一个包正在用的另一条条目', () => {
-    expect(pickId('@a/gwb-foo', new Set(['foo']), { foo: ['@a/gwb-foo'] })).toBe('foo-2')
+  it('同一个包的第二条条目也加后缀', () => {
+    expect(pickId('@a/gwb-foo', new Set(['foo', 'foo-2']))).toBe('foo-3')
   })
 
   it('编出来的照样过校验', () => {
-    expect(isValidId(pickId('@b/foo', none, { foo: ['@a/foo'] }))).toBe(true)
-  })
-})
-
-describe('手动给的 id', () => {
-  it('条目树上已被占用：拒绝', () => {
-    expect(() => assertIdUsable('foo', '@a/foo', new Set(['foo']), {})).toThrow(/被占/)
-  })
-
-  it('磁盘上属于别的包：拒绝，错误里写明属于谁与 transfer-owner', () => {
-    expect(() => assertIdUsable('foo', '@b/foo', new Set(), { foo: ['@a/foo'] })).toThrow(/@a\/foo[\s\S]*transfer-owner/)
-  })
-
-  it('盘上归自己：放行', () => {
-    expect(() => assertIdUsable('foo', '@a/foo', new Set(), { foo: ['@a/foo'] })).not.toThrow()
-  })
-
-  it('不合规：拒', () => {
-    expect(() => assertIdUsable('Foo', '@a/foo', new Set(), {})).toThrow(/kebab-case/)
+    expect(isValidId(pickId('@b/foo', new Set(['foo'])))).toBe(true)
   })
 })
 

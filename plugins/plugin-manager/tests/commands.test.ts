@@ -6,7 +6,7 @@ import type { GwbResult } from '@godcreator/gwb-kernel-desktop'
 import type { EntryTreeLike } from '../src/tree.js'
 
 /**
- * 命令这一层：在假 ctx 上运行 `apply`，按命令名调登记下来的处理函数。条目树、数据插件、设置插件、命令插件都是假的；
+ * 命令这一层：在假 ctx 上运行 `apply`，按命令名调登记下来的处理函数。条目树、命令插件都是假的；
  * pnpm 换成记录参数的假实现（真 pnpm 会去网络上装包），找 pnpm、跑 pnpm 之外的部分都是真代码。
  */
 
@@ -99,26 +99,6 @@ function fakeTree(entries: Record<string, string>): FakeTree {
   }
 }
 
-interface FakeDataPlugin {
-  ownerRecords: Record<string, string>
-  transfers: [string, string][]
-  owners(): Record<string, string>
-  transferOwner(id: string, pkg: string): Promise<void>
-}
-
-function fakeDataPlugin(ownerRecords: Record<string, string> = {}): FakeDataPlugin {
-  const plugin: FakeDataPlugin = {
-    ownerRecords,
-    transfers: [],
-    owners: () => plugin.ownerRecords,
-    transferOwner: (id, pkg) => {
-      plugin.transfers.push([id, pkg])
-      return Promise.resolve()
-    },
-  }
-  return plugin
-}
-
 type Handler = (args?: unknown) => unknown
 
 interface Mounted {
@@ -165,7 +145,7 @@ function upgradesOnAdd(pkg: string, from: string, to: string): void {
   }
 }
 
-function mount(opts: { entries: Record<string, string>; data?: FakeDataPlugin; settings?: FakeDataPlugin; shellReload?: boolean }): Mounted {
+function mount(opts: { entries: Record<string, string>; shellReload?: boolean }): Mounted {
   const tree = fakeTree({ 'plugin-manager': OWN_PKG, ...opts.entries })
   const logs: string[] = []
   const handlers = new Map<string, Handler>()
@@ -208,8 +188,6 @@ function mount(opts: { entries: Record<string, string>; data?: FakeDataPlugin; s
         return Promise.resolve({ ok: false, error: `没有这条命令：${name}` })
       },
     },
-    gwbData: opts.data,
-    gwbSettings: opts.settings,
   }
   apply(ctx as never)
   return mounted
@@ -283,23 +261,22 @@ describe('plugin-manager.list', () => {
 })
 
 describe('条目命令', () => {
-  it('add-entry：没装的包抛错；装了的包按默认 id 加，重名加后缀，磁盘上属于别的包的 id 跳过', async () => {
-    writeHomeDependencies({ '@x/gwb-foo': '^1.0.0', '@x/gwb-bar': '^1.0.0' })
-    const pm = mount({ entries: {}, data: fakeDataPlugin({ bar: '@y/bar' }) })
+  it('add-entry：没装的包抛错；装了的包按默认 id 加，条目树上重名加后缀（不同 scope 的同名包也一样）', async () => {
+    writeHomeDependencies({ '@x/gwb-foo': '^1.0.0', '@y/foo': '^1.0.0' })
+    const pm = mount({ entries: {} })
     await expect(pm.run('plugin-manager.add-entry', { pkg: '@x/gwb-nope' })).rejects.toThrow('home 里没装 @x/gwb-nope')
     expect(await pm.run('plugin-manager.add-entry', { pkg: '@x/gwb-foo' })).toEqual({ ok: true, data: { entryId: 'home:foo' } })
     expect(await pm.run('plugin-manager.add-entry', { pkg: '@x/gwb-foo' })).toEqual({ ok: true, data: { entryId: 'home:foo-2' } })
-    expect(await pm.run('plugin-manager.add-entry', { pkg: '@x/gwb-bar' })).toEqual({ ok: true, data: { entryId: 'home:bar-2' } })
+    expect(await pm.run('plugin-manager.add-entry', { pkg: '@y/foo' })).toEqual({ ok: true, data: { entryId: 'home:foo-3' } })
     expect(pm.tree.store['foo']?.options).toEqual({ id: 'foo', name: '@x/gwb-foo' })
-    await expect(pm.run('plugin-manager.add-entry', { pkg: '@x/gwb-foo', id: 'foo' })).rejects.toThrow('已经被占用')
-    await expect(pm.run('plugin-manager.add-entry', { pkg: '@x/gwb-foo', id: 'bar' })).rejects.toThrow('归 @y/bar')
   })
 
-  it('add-entry 不收 config：给了直接抛错，不加条目', async () => {
+  it('add-entry 只收 pkg：给了 id 或 config 直接抛错，不加条目', async () => {
     writeHomeDependencies({ '@x/gwb-foo': '^1.0.0' })
     const pm = mount({ entries: {} })
-    await expect(pm.run('plugin-manager.add-entry', { pkg: '@x/gwb-foo', id: 'custom', config: { a: 1 } })).rejects.toThrow('认不出参数 config')
-    expect(pm.tree.store['custom']).toBeUndefined()
+    await expect(pm.run('plugin-manager.add-entry', { pkg: '@x/gwb-foo', id: 'custom' })).rejects.toThrow('认不出参数 id')
+    await expect(pm.run('plugin-manager.add-entry', { pkg: '@x/gwb-foo', config: { a: 1 } })).rejects.toThrow('认不出参数 config')
+    expect(Object.keys(pm.tree.store)).toEqual(['plugin-manager'])
   })
 
   it('remove-entry、enable、disable：完整 entryId 与不带前缀的 id 都认；没有这条就抛错', async () => {
@@ -323,21 +300,10 @@ describe('条目命令', () => {
   })
 })
 
-describe('plugin-manager.transfer-owner', () => {
-  it('数据与设置的归属一起转；完整 entryId 也认', async () => {
-    const data = fakeDataPlugin()
-    const settings = fakeDataPlugin()
-    const pm = mount({ entries: {}, data, settings })
-    expect(await pm.run('plugin-manager.transfer-owner', { id: 'home:foo', pkg: '@x/gwb-new' })).toEqual({ ok: true, data: { id: 'foo', pkg: '@x/gwb-new' } })
-    expect(data.transfers).toEqual([['foo', '@x/gwb-new']])
-    expect(settings.transfers).toEqual([['foo', '@x/gwb-new']])
-  })
-
-  it('数据插件或设置插件没装：直接抛错、说出缺哪个，哪一份都不转', async () => {
-    const data = fakeDataPlugin()
-    const pm = mount({ entries: {}, data })
-    await expect(pm.run('plugin-manager.transfer-owner', { id: 'foo', pkg: '@x/gwb-new' })).rejects.toThrow('gwb-settings')
-    expect(data.transfers).toEqual([])
+describe('登记的命令', () => {
+  it('transfer-owner 不再登记', () => {
+    const pm = mount({ entries: {} })
+    expect(() => pm.run('plugin-manager.transfer-owner')).toThrow('没有登记 plugin-manager.transfer-owner')
   })
 })
 

@@ -1,13 +1,11 @@
 import os from 'node:os'
 import type { GwbContext } from '@godcreator/gwb-kernel-desktop'
 import { isRecord, noteOf, requireKernel, type Outcome } from './vocab.js'
-// 这几条 type import 只为引入对方的 `declare module 'cordis'`（commands 另取一个类型）；这些插件写在 peer 里，数据、设置、说明书标 optional，都经嵌套注入使用
+// 这几条 type import 只为引入对方的 `declare module 'cordis'`（commands 另取一个类型）；这些插件写在 peer 里，说明书标 optional，都经嵌套注入使用
 import type { GwbCommands } from '@godcreator/gwb-commands'
-import type {} from '@godcreator/gwb-data'
-import type {} from '@godcreator/gwb-settings'
 import type {} from '@godcreator/gwb-skills'
 import { installedPackageRealpath, npmrcFiles, readHomeDependencies, readInstalledPackageManifest } from './home.js'
-import { assertId, assertIdUsable, assertPkgName, bareId, installSpec, isPkgName, pickId, type IdOwners } from './ids.js'
+import { assertPkgName, bareId, installSpec, isPkgName, pickId } from './ids.js'
 import { installedVersionOf, readEntries, reconcile, type PluginPackageView } from './inventory.js'
 import { describeAddFailure, describePnpm, runPnpm, runPnpmCapture, type PnpmResult } from './pnpm.js'
 import { locatePnpm } from './pnpm-location.js'
@@ -60,15 +58,10 @@ const DISABLE_COMMAND = 'plugin-manager.disable'
 const REMOUNT_COMMAND = 'plugin-manager.remount'
 const OUTDATED_COMMAND = 'plugin-manager.outdated'
 const UNINSTALL_COMMAND = 'plugin-manager.uninstall'
-const TRANSFER_OWNER_COMMAND = 'plugin-manager.transfer-owner'
 const SEARCH_COMMAND = 'plugin-manager.search'
 const SOURCE_ADD_COMMAND = 'plugin-manager.source.add'
 const SOURCE_LIST_COMMAND = 'plugin-manager.source.list'
 const SOURCE_REMOVE_COMMAND = 'plugin-manager.source.remove'
-
-/** 数据插件与设置插件的包名：转移归属时两个都要装着 */
-const DATA_PACKAGE = '@godcreator/gwb-data'
-const SETTINGS_PACKAGE = '@godcreator/gwb-settings'
 
 /**
  * 服务 `gwbPluginManager` 的值：只表示插件管理装了（别的插件 inject 它，跟着它一起加载、卸载），上面没有字段。
@@ -115,12 +108,6 @@ interface Updated {
 /** specs 里有内核包、内核包已经装上而 cordis 没对齐时的失败回执：`data.kernel` 是已经装上的内核版本 */
 type KernelInstalledButCordisNot = { ok: false; error: string; data: { kernel: VersionChange } }
 
-/** 数据插件与设置插件各有一份的归属记录（id → 包），`ctx.gwbData` 与 `ctx.gwbSettings` 都满足它 */
-interface OwnerBook {
-  owners(): Promise<Record<string, string>> | Record<string, string>
-  transferOwner(id: string, pkg: string): Promise<void>
-}
-
 type CommandHandler = (args?: unknown) => unknown
 type RegisterCommand = (name: string, description: string, usage: string, handler: CommandHandler) => void
 
@@ -145,11 +132,6 @@ class PluginManager {
   /** 事先拿到的 logger：最后重新加载本插件那一步运行时，本插件的 fiber 已经卸载，ctx 上什么都不能访问 */
   private readonly log: { info(message: string): void; warn(message: string): void }
 
-  /** 装了数据插件才有 */
-  private dataOwnerBook: OwnerBook | undefined
-  /** 装了设置插件才有 */
-  private settingsOwnerBook: OwnerBook | undefined
-
   private readonly busyGate = new BusyGate()
 
   constructor(ctx: GwbContext) {
@@ -163,8 +145,6 @@ class PluginManager {
   }
 
   wire(): void {
-    this.wireData()
-    this.wireSettings()
     this.wireCommands()
     this.wireSkills()
   }
@@ -173,26 +153,6 @@ class PluginManager {
   private wireSkills(): void {
     this.ctx.inject(['gwbSkills'], (ctx) => {
       ctx.effect(() => ctx.gwbSkills.register(new URL('../skills/', import.meta.url)))
-    })
-  }
-
-  /** 只用数据插件的归属记录：分配 id 时避开别的包的数据目录，转移归属时一起改 */
-  private wireData(): void {
-    this.ctx.inject(['gwbData'], (ctx) => {
-      this.dataOwnerBook = ctx.gwbData
-      ctx.effect(() => () => {
-        this.dataOwnerBook = undefined
-      })
-    })
-  }
-
-  /** 只用设置插件的归属记录：分配 id 时避开别的包的设置分区，转移归属时一起改 */
-  private wireSettings(): void {
-    this.ctx.inject(['gwbSettings'], (ctx) => {
-      this.settingsOwnerBook = ctx.gwbSettings
-      ctx.effect(() => () => {
-        this.settingsOwnerBook = undefined
-      })
     })
   }
 
@@ -232,19 +192,13 @@ class PluginManager {
       },
     )
 
-    registerCommand(ADD_ENTRY_COMMAND, '给已装的包再加一条条目', '参数 { pkg, id? }。不给 id 就自动生成（磁盘上有本包留下的旧 id 时优先沿用）；给的 id 在条目树上已被占用、或磁盘上的数据与设置属于别的包，直接拒绝。回执 data { entryId }', async (args) => {
-      const argsObject = argsObjectOf(args, ['pkg', 'id'])
-      const entryId = await this.addEntry(requiredString(argsObject, 'pkg'), optionalString(argsObject, 'id'))
-      return { ok: true, data: { entryId } }
-    })
-
     registerCommand(
-      TRANSFER_OWNER_COMMAND,
-      '把一个 id 的数据与设置的归属转给另一个包',
-      `同一个插件改了包名、要继续用旧数据与设置时调用它；数据目录与设置分区的归属一起改。数据插件（${DATA_PACKAGE}）与设置插件（${SETTINGS_PACKAGE}）都要装着，缺一个直接报错、哪一份都不转。参数 { id, pkg }：id 是条目 id（不带前缀的 id 或完整 entryId，条目树上不必有这条），pkg 是新的所属包名。回执 data { id, pkg }`,
+      ADD_ENTRY_COMMAND,
+      '给已装的包再加一条条目',
+      '参数 { pkg }。id 自动生成：包名去掉 scope 与 gwb- 前缀转成 kebab-case，条目树上已有就加 -2、-3 后缀。回执 data { entryId }',
       async (args) => {
-        const argsObject = argsObjectOf(args, ['id', 'pkg'])
-        return { ok: true, data: await this.transferOwner(requiredString(argsObject, 'id'), requiredString(argsObject, 'pkg')) }
+        const entryId = await this.addEntry(requiredString(argsObjectOf(args, ['pkg']), 'pkg'))
+        return { ok: true, data: { entryId } }
       },
     )
 
@@ -394,7 +348,7 @@ class PluginManager {
     if (!added.ok) return added
 
     try {
-      const entryId = await this.createEntry(pkg)
+      const entryId = this.createEntry(pkg)
       // 不等加载，所以日志说「已加进」不说「已加载」
       this.log.info(`${packageSpec} 装上了，条目 ${entryId} 已加进 cordis.yml`)
       return { ok: true, data: { pkg, entryId } }
@@ -640,43 +594,16 @@ class PluginManager {
     return { ok: true, data: { pkg } }
   }
 
-  /** 包没装、id 已被占用、id 的数据或设置属于别的包，都会抛 */
-  async addEntry(pkg: string, id?: string): Promise<string> {
+  /** 包没装就抛 */
+  async addEntry(pkg: string): Promise<string> {
     assertPkgName(pkg)
     const homeDependencies = await readHomeDependencies(this.homeDir)
     if (homeDependencies[pkg] === undefined) {
       throw new Error(`home 里没装 ${pkg}，加不了条目。先调用 ${INSTALL_COMMAND}，或者自己去 home 里 pnpm add。`)
     }
-    const entryId = await this.createEntry(pkg, id)
+    const entryId = this.createEntry(pkg)
     this.log.info(`条目 ${entryId}（${pkg}）加进 cordis.yml 了`)
     return entryId
-  }
-
-  /** 数据插件或设置插件没装就抛错、哪一份都不转；`id` 不要求条目树上有这条 */
-  async transferOwner(id: string, pkg: string): Promise<{ id: string; pkg: string }> {
-    assertPkgName(pkg)
-    const bareEntryId = bareId(id)
-    assertId(bareEntryId)
-    const dataOwnerBook = this.dataOwnerBook
-    const settingsOwnerBook = this.settingsOwnerBook
-    if (dataOwnerBook === undefined || settingsOwnerBook === undefined) {
-      const missing = [dataOwnerBook === undefined ? DATA_PACKAGE : undefined, settingsOwnerBook === undefined ? SETTINGS_PACKAGE : undefined].filter((one) => one !== undefined)
-      throw new Error(`没装 ${missing.join('、')}：数据与设置的归属要一起转，缺一个就哪一份都不转`)
-    }
-    await dataOwnerBook.transferOwner(bareEntryId, pkg)
-    await settingsOwnerBook.transferOwner(bareEntryId, pkg)
-    this.log.info(`${bareEntryId} 的数据与设置的归属已转给 ${pkg}`)
-    return { id: bareEntryId, pkg }
-  }
-
-  /** 两份归属记录合并：id → 登记为其归属的包（每份记录各一个，所以可能有两个） */
-  private async idOwners(): Promise<IdOwners> {
-    const ownersById: Record<string, string[]> = {}
-    for (const ownerBook of [this.dataOwnerBook, this.settingsOwnerBook]) {
-      if (ownerBook === undefined) continue
-      for (const [id, pkg] of Object.entries(await ownerBook.owners())) (ownersById[id] ??= []).push(pkg)
-    }
-    return ownersById
   }
 
   removeEntry(entryId: string): void {
@@ -708,17 +635,8 @@ class PluginManager {
   }
 
   /** id 一定显式给：不给的话 loader 每次启动生成一个新的随机 id，按 id 分区的设置与数据每启动一次就新建一份 */
-  private async createEntry(pkg: string, id?: string): Promise<string> {
-    // 磁盘上的归属记录在条目删除后仍然保留，只按条目树判断重复会把别的包的数据分给这条条目
-    const owners = await this.idOwners()
-    const idsInTree = new Set(Object.keys(this.tree.store))
-    let chosenId: string
-    if (id === undefined) {
-      chosenId = pickId(pkg, idsInTree, owners)
-    } else {
-      assertIdUsable(id, pkg, idsInTree, owners)
-      chosenId = id
-    }
+  private createEntry(pkg: string): string {
+    const chosenId = pickId(pkg, new Set(Object.keys(this.tree.store)))
 
     // 不 await：create 返回的 promise 包含加载，inject 满足不了的插件永远加载不完；写进 yml 在第一个 await 之前就同步安排好了。
     // 每次传一个新对象：create 会把它原样放进 group.data，共用一个对象等于两条条目共享配置

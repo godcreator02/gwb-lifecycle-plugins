@@ -20,17 +20,9 @@ const GWB_PREFIX = /^gwb-/
 /** 处理后一个字符都不剩时（包名完全不是 ASCII）用的 id；重名由后面的去重处理 */
 const FALLBACK_ID = 'plugin'
 
+/** 自动生成的 id 都满足它：测试拿它核对 `defaultIdFor` 与 `uniqueId` 的产物 */
 export function isValidId(value: string): boolean {
   return ID_PATTERN.test(value)
-}
-
-/** 不合规的 id 一旦写进 cordis.yml 就成了那条条目的身份，所以当场抛错 */
-export function assertId(value: string): void {
-  if (!isValidId(value)) {
-    throw new Error(
-      `条目 id ${JSON.stringify(value)} 不合规。一律 kebab-case（小写字母、数字、单连字符分段），比如 commands、py-cli。`,
-    )
-  }
 }
 
 /** 完整 entryId → 末段。loader 的 resolve / remove / update 只认末段，传完整 id 会报「cannot resolve entry」 */
@@ -61,53 +53,12 @@ export function uniqueId(base: string, taken: ReadonlySet<string>): string {
   throw new Error(`以 ${JSON.stringify(base)} 为基础生成不出一个没被占用的 id。`)
 }
 
-/** 磁盘上的归属记录：id → 用过它的包。数据目录与设置分区各记一次，所以可能不止一个 */
-export type IdOwners = Readonly<Record<string, readonly string[]>>
-
-function otherOwnerOf(owners: IdOwners, id: string, pkg: string): string | undefined {
-  return owners[id]?.find((owner) => owner !== pkg)
-}
-
-function isOwnedOnlyBy(owners: IdOwners, id: string, pkg: string): boolean {
-  const ownersOfId = owners[id]
-  return ownersOfId !== undefined && ownersOfId.length > 0 && ownersOfId.every((owner) => owner === pkg)
-}
-
-/** 磁盘上只属于本包、条目树上又空着的 id（这个包装过又卸了），按字典序 */
-function reclaimableIdsOf(pkg: string, taken: ReadonlySet<string>, owners: IdOwners): string[] {
-  return Object.keys(owners)
-    .filter((id) => !taken.has(id) && isOwnedOnlyBy(owners, id, pkg))
-    .sort()
-}
-
-/** 条目树上已有的，加上磁盘上属于别的包的 */
-function idsUnavailableTo(pkg: string, taken: ReadonlySet<string>, owners: IdOwners): Set<string> {
-  const unavailableIds = new Set(taken)
-  for (const id of Object.keys(owners)) {
-    if (otherOwnerOf(owners, id, pkg) !== undefined) unavailableIds.add(id)
-  }
-  return unavailableIds
-}
-
-/** 先沿用本包的旧 id（优先默认 id），否则从默认 id 起加后缀 */
-export function pickId(pkg: string, taken: ReadonlySet<string>, owners: IdOwners): string {
-  const base = defaultIdFor(pkg)
-  const reclaimableIds = reclaimableIdsOf(pkg, taken, owners)
-  if (reclaimableIds.includes(base)) return base
-  if (reclaimableIds.length > 0) return reclaimableIds[0]!
-  return uniqueId(base, idsUnavailableTo(pkg, taken, owners))
-}
-
-/** 手动指定的 id：条目树上已被占用、磁盘上属于别的包，都抛错 */
-export function assertIdUsable(id: string, pkg: string, taken: ReadonlySet<string>, owners: IdOwners): void {
-  assertId(id)
-  if (taken.has(id)) throw new Error(`条目 id ${JSON.stringify(id)} 已经被占用了。换一个，或者不给 id 由插件管理自动生成一个。`)
-  const otherOwner = otherOwnerOf(owners, id, pkg)
-  if (otherOwner !== undefined) {
-    throw new Error(
-      `条目 id ${JSON.stringify(id)} 的数据或设置归 ${otherOwner}，给 ${pkg} 用会读到别人的东西。换一个 id；确认是同一个插件改了包名，先调用 plugin-manager.transfer-owner 把归属转过去。`,
-    )
-  }
+/**
+ * 新条目的 id：默认 id，条目树上重名就加数字后缀。不读数据插件与设置插件的归属记录：卸载后另一个同名包拿到同一个 id、
+ * 读到前一个包留下的数据时，由那两个插件自己的归属检查报错
+ */
+export function pickId(pkg: string, taken: ReadonlySet<string>): string {
+  return uniqueId(defaultIdFor(pkg), taken)
 }
 
 /** 合不合包名规则（规则同 `assertPkgName`），不抛 */
