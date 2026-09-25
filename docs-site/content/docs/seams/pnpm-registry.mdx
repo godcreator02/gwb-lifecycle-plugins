@@ -46,7 +46,7 @@ description: 连接 devkit、插件管理与 pnpm、npm 源、两份 npmrc、git
 
 {/* ref file="../plugins/devkit/src/dev.ts" lines="295-300" */}
 
-{/* ref file="../plugins/plugin-manager/src/pnpm-path.ts" lines="7-16" */}
+{/* ref file="../plugins/plugin-manager/src/pnpm.ts" lines="10-19" */}
 
 **发布目标**：每个包发到自己 `package.json` 的 `publishConfig.registry`；没写这个字段、或写的不是 http(s) 地址就拒，报错里拿团队源 `TEAM_REGISTRY` 作例子写明要加什么。`TEAM_REGISTRY` 另一处用在建仓：不给 `registry` 参数时写进生成的插件包：
 
@@ -135,7 +135,7 @@ pnpm 与源都只在实机上真正运行；单元测试覆盖命令行怎么拼
 
 {/* has file="../plugins/devkit/tests/dev.test.ts" text="在 home 里运行的 pnpm 不自动补装缺的 peer：带上关掉它的环境变量" */}
 
-{/* has file="../plugins/plugin-manager/tests/pnpm-path.test.ts" text="调用方环境里自动补装 peer 是开着的也照样关掉" */}
+{/* has file="../plugins/plugin-manager/tests/pnpm.test.ts" text="调用方环境里自动补装 peer 是开着的也照样关掉" */}
 
 {/* has file="../plugins/plugin-manager/tests/pnpm-location.test.ts" text="先是官方安装脚本的默认位置，再是 npm 全局装的 pnpm 包里的原生可执行文件" */}
 
