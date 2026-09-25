@@ -1204,6 +1204,19 @@
         638
       ],
       "hash": "c8442bc4b9cce7e92e653b5866b1b8fdcbed493c77a7e78a9d1cc840a3e80981"
+    },
+    "../plugins/devkit/bin/cdp.mjs:625-649": {
+      "kind": "git",
+      "blob": "570d24bab252ab25a3c60f8b75aaeb46ddd7f1dc",
+      "commit": "c7379c45169e630f010cb66f0f51f7276467417e",
+      "lines": [
+        625,
+        649
+      ],
+      "hash": "7b48f3cbb06bd1cd59fb22c82a828f287aa17738e8ad446d6bb24591515c56b0"
+    },
+    "has ../plugins/devkit/tests/cdp.test.ts \"两张表不相交，合起来正好是 run() 里分发的全部动作\"": {
+      "kind": "has"
     }
   },
   "content/docs/devkit/dev.mdx": {
