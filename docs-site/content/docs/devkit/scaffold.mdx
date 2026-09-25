@@ -146,6 +146,12 @@ Markdown / MDX 开头的 frontmatter 是 YAML，里面的 `title` 写在双引�
 - **`pnpm-workspace.yaml` 里的 `allowBuilds`**：pnpm 11 起这项设置写在这个文件里，`package.json` 的 `pnpm` 字段不再读；esbuild 的构建脚本要在这里放行。不放行的现象是连锁的：install 报「Ignored build scripts」，`pnpm run` 核对依赖时自动补装又遇到同样的拒绝，最后的调用栈在 pnpm 内部，看不出是构建脚本没放行
 - **`oxlint-tsgolint`**：`oxlint` 需要类型信息的规则要用它，少了 `pnpm lint` 报 "Failed to find tsgolint executable"。模板里它与 `oxlint` 都写准确版本号
 
+## 改模板时要守的三条
+
+- **`template/` 下的文件一律带 `.tpl` 后缀**，写到磁盘时去掉：`npm pack` 固定不打包 `.gitignore`，给所有文件统一加后缀，一条规则就管住了全部文件
+- **`.oxlintrc.json` 放在插件包里、不放仓根**：oxlint 按工作目录找配置，插件包自带配置，搬到哪个仓都不用改
+- **模板里 `@godcreator` 包的版本号跟着源走**：peer 里是内核包与模板用到的两个插件（命令总线 `gwb-commands`、外壳 `gwb-shell`），别的 `@godcreator` 包写 dev，都写 `^<版本>`；peer 里的插件要和源上的 `dist-tags.latest` 在同一条线，dev 的范围要包含它。不在同一条线、范围不含 latest，新仓第一次发版就被发版前检查拦下；写了源上没有的版本，新仓 `pnpm install` 直接失败。所以改模板里的版本号之前先用 `pnpm view <包> dist-tags.latest` 查
+
 ## 代码地图
 
 **在哪**：纯逻辑全在 `src/scaffold.ts`；命令登记与建文档站那部分在 `src/index.ts` 的 `devkit.scaffold` / `devkit.scaffold.plugin` 两段与 `buildDocsSite`；初始文件的正本在包根的 `template/repo/`、`template/pkg/` 与 `template/site/`。

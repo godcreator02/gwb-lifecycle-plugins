@@ -1,246 +1,51 @@
 # gwb-devkit
 
-开发套件，**一个普通的 gwb 插件**，源码在 `plugins/devkit/`。仓是 pnpm workspace（插件放在 `plugins/`，与基础插件仓的布局相同）：`plugins/devkit/` 是开发套件，
-`plugins/plugin-manager/` 是插件管理 `@godcreator/gwb-plugin-manager`（见下面「本仓还有插件管理」），`docs-site/` 是文档站。两个包的 `publishConfig.registry` 都写团队源（gitea 个人源），发版要给 `packages` 参数，装进 home。
-开发套件的命令分六组：建仓与加插件、测试 home、改一版看一版、发正式版、服务总览、CDP 驱动（包内命令行脚本 `bin/cdp.mjs`，经 `gwbNodeCli` 登记成 `devkit.cdp`）。
-**开发套件没有界面**：它的使用者是 agent，读的是回执。设计与机制在文档站（见下面「文档地图」），这份只写**不知道就会做错事**的硬约束。
+开发套件，**一个普通的 gwb 插件**，源码在 `plugins/devkit/`。仓是 pnpm workspace：`plugins/devkit/` 是开发套件，
+`plugins/plugin-manager/` 是插件管理 `@godcreator/gwb-plugin-manager`（单独发版），`docs-site/` 是文档站。两个包都发到团队源，发版要给 `packages` 参数。
+**开发套件没有界面**：使用者是 agent，读的是回执。这份只写不知道就会做错事的硬约束，为什么这么做在文档站。
 
-## 文档地图
+## 先读
 
-文档站在 `docs-site/`，现状页在 `content/docs/`，站点地址 `/docs/...` 与文件路径一一对应：
+文档站的现状页在 `docs-site/content/docs/`，站点地址 `/docs/...` 与文件路径一一对应：
 
-| 页      | 文件                | 讲什么                                                                                       |
-| ------ | ----------------- | ----------------------------------------------------------------------------------------- |
-| 入口     | `index.mdx`       | 接缝图：两个包与工作台、内核、别的插件之间有哪几条接缝                                                               |
-| 关键设计   | `design.mdx`      | 为什么这么切分：普通插件、写插件只有打包安装验证一条路、包名与发到哪用 npm 的标准字段、开发版只进隔离 home、只按名字定位 home、纯逻辑与真机器分开、两个包为什么同仓 |
-| 开发     | `develop.mdx`     | 怎么装与确认、提交前的检查、在隔离 home 里验证、发版、文档站的检查与生成                                                   |
-| 接缝     | `seams/`          | 每条接缝交换什么、两边各保证什么                                                                          |
-| 开发套件   | `devkit/`         | 首页讲功能、10 条命令、说明书、模板、依赖、不做的事；分页讲建仓、测试 home、改一版看一版、CDP 驱动                                   |
-| 插件管理   | `plugin-manager/` | 首页讲功能、接口、依赖、不做的事；分页讲各个机制                                                                  |
-| 写插件的规矩 | `rules/`          | 规矩总表与每条规矩的做法、由哪道检查把关                                                                      |
-| 术语表    | `glossary.mdx`    | 反复出现的词、退役的词与命令                                                                            |
+| 页                           | 讲什么                                   |
+| --------------------------- | ------------------------------------- |
+| `index.mdx`                 | 接缝图；按来意从哪页读起                          |
+| `design.mdx`                | 为什么这么切分、两个包为什么同仓                      |
+| `develop.mdx`               | 装与确认、提交前的检查、在隔离 home 里验证、发版、文档站的检查与生成 |
+| `devkit/`、`plugin-manager/` | 两个包的功能、命令、机制，一个模块一页                   |
+| `seams/`                    | 每条接缝交换什么、两边各保证什么                      |
+| `rules/`                    | 写插件的规矩总表                              |
+| `glossary.mdx`              | 术语、退役的词与命令                            |
 
-另外五区：`content/trajectory/` 轨迹卡、`content/spec/` 进行中的交接、`content/future/` 未来、`content/outputs/` 生成文件的正本、`content/feedback/` 反复做的操作的候选。
+文档怎么写、六区、confirm 与提交的先后读 skill「docfirst-docs」；写插件、在隔离 home 里验证读「gwb-devkit」；升版本号、发版读「gwb-release」。
+
+## 怎么跑
+
+提交前在仓根 `pnpm check`、`pnpm build`，在 `docs-site` 里 `pnpm doc`。`pnpm check` 不构建、要先 build 插件管理再 check 开发套件、files 白名单哪几项不能少，见 `develop.mdx` 的「提交前的检查」「发版」。
+
+**生成文件别手改**：`AGENTS.md`、`CLAUDE.md`、`README.md`、两个插件 `skills/` 下的 `SKILL.md` 与 `references/` 附件都由 `docs-site/content/` 下的 mdx 生成（对应关系在 `docs-site/docfirst.config.mjs` 的 `outputs`），改 mdx 后在 `docs-site` 运行 `pnpm doc:render`。`skills/fresh-eyes/SKILL.md` 是手写的。
 
 ## 本仓还有插件管理
 
-`plugins/plugin-manager/` 是插件管理 `@godcreator/gwb-plugin-manager`：home 里的一个普通插件，由 `cordis.yml`
-里的一条条目加载，**单独发版**。它和开发套件放在同一个仓里，是因为两边互相依赖的地方多：
+* devkit 从插件管理的主入口 import `locatePnpm`、`KERNEL_PACKAGE`、peer 范围的判定、`tailLines` 与 `devkit.dev` 调的三条命令名，规则只有插件管理那一份，不另存副本；删改这几个导出，devkit 跟着改
+* **改插件管理的命令名、参数或回执形状，或删改上面那几个导出，是破坏性变更**：照「gwb-release」升 x，发之前先通知下游
+* **在 home 里启动 pnpm 一律带环境变量 `pnpm_config_auto_install_peers=false`**，在插件仓里不带；命令行参数 `--config.auto-install-peers=false` 会被 pnpm 忽略，不能拿它代替
 
-* `devkit.dev` 把开发版的包文件交给目标 home 的 `plugin-manager.install` / `plugin-manager.update {"specs":{…}}` 装并重新加载，
-  再用 `plugin-manager.list` 取证；`devkit.home.new` 在新 home 启动前把内核包、cordis 与插件管理等基础插件装进去
-* 插件 peer 里内核包 `@godcreator/gwb-kernel-desktop` 的范围两边都用：插件管理在 `list` 里拿它和 home 里装的内核比对，
-  `devkit.release` 发版前拒绝没写对的插件包。**比对规则只有一份，在插件管理**：devkit 的 peer 里写着插件管理（`workspace:^`），
-  从它的主入口 import `locatePnpm`、`KERNEL_PACKAGE`、peer 范围的判定、`tailLines` 与 `devkit.dev` 调的三条命令名，不另存副本；删改这几个导出，devkit 跟着改
-* 插件 peer 里写的别的插件两边也都用：插件管理在 `list` 里报 `unmetPeers`、`update` 把 peer 写了被升级包、跟着换了目录的插件一起重新加载，
-  `devkit.release` 发版前拒 peer 里不是插件的包、和源上 latest 不在同一条线的插件
-* **在 home 里启动 pnpm 一律带环境变量 `pnpm_config_auto_install_peers=false`**（devkit 的 `homePnpmPlan`、插件管理的 `spawnPlan`），在插件仓里不带——仓里开发靠自动补装把 peer 里的内核包与插件装进 `node_modules`，带上它 pnpm 会重装并拿掉这些 peer。
-  home 里不带的话，pnpm 把插件 peer 里 home 没装的插件自动装进 `.pnpm`，成了没有条目、插件管理不认的包；
-  命令行参数 `--config.auto-install-peers=false` 会被 pnpm 忽略，别拿它代替
+## 硬约束
 
-放在同一个仓里，这些地方一个提交就能改两边。插件管理的设计、命令与机制在文档站 `content/docs/plugin-manager/`，
-说明书 `gwb-plugin-manager` 的正本是 `docs-site/content/outputs/skills/gwb-plugin-manager.mdx`。
-
-**改插件管理的命令名、参数或回执形状，是破坏性变更**：插件管理窗格、`devkit.dev`、agent 的说明书都按命令名与回执形状写死了调用，
-照说明书「gwb-release」升 x，发之前先通知下游。
-
-## 文档站是正本，六区
-
-`AGENTS.md`、`CLAUDE.md`、`README.md`、两个插件 `skills/` 下的 `SKILL.md` 与 `references/` 附件**全是生成文件，别手改**——
-正本在 `docs-site/content/outputs/`（附件 `references/rules.md` 的正本是现状区的规矩总表 `content/docs/rules/index.mdx`），对应关系在 `docs-site/docfirst.config.mjs` 的 `outputs`。
-改完在 `docs-site` 运行 `pnpm doc:render` 重新生成，mdx 正本、生成文件、`.ledger.json` 放进同一个提交。
-`skills/fresh-eyes/SKILL.md` 是手写的，不经生成。
-
-六区各是什么：`content/docs` 现状（**代码引用只写在这一区**与 outputs）、`trajectory` 轨迹卡（只增
-不改、**不引用会变的代码**）、`spec` 进行中的交接（有页就是有工作还没做完，做完把内容并进现状区后删页）、`future`
-未来、`outputs` 生成文件的正本、`feedback` 本仓反复做的操作的候选。怎么写见 skill「docfirst-docs」。
-
-## 提交前的检查
-
-```powershell
-pnpm check          # 各包的 check：typecheck + vitest，插件管理另加 oxlint
-pnpm build          # 只构建 plugins/*，两个包都先清空 dist/：开发套件 esbuild 打包成一个 dist/index.js、tsc 只出类型声明，插件管理 tsc 直接输出；文档站不在里面
-```
-
-**`pnpm check` 不构建。** 它检查的是源码，全绿只说明源码没问题，跟「装出来能不能运行」是两件事。
-
-**开发套件的产物开头那个 `require` 别删**：`build.ts` 用 `createRequire` 在 ESM 产物里造了一个，打包进来的 CommonJS 库（yaml）靠它找 node 内置模块。
-删了它 vitest 里照样全绿（vitest 自己提供 `require`），只有 `tests/built-artifact.test.ts` 里另起 node 进程 import 产物的那条会失败。
-
-**开发套件的类型检查与测试用的是插件管理的 `dist/`**（插件管理的主入口指向 `dist/`）：刚拉下来的仓、或改了插件管理导出的函数，
-先 `pnpm build` 再 `pnpm check`。
-
-文档站的检查**不在 `pnpm check` 里**——它要运行文档站的解析过程，太慢。单独运行：
-`docs-site` 里 `pnpm doc`（`docfirst check`）与 `pnpm doc:confirm <页的路径…>`。
-
-## 发版
-
-升哪一位、依赖怎么写、什么时候跟上游，照说明书「gwb-release」——全生态同一套，本仓不另立。
-
-1. **先升 `package.json` 的版本号。** 同一个版本号永不重发；要发新的一版，先升版本号、提交，再调用
-2. 发版用 `devkit.release {"dir":"<本仓根>","packages":["plugins/devkit"]}`（发插件管理给 `["plugins/plugin-manager"]`，两个一起发插件管理排前面：`["plugins/plugin-manager","plugins/devkit"]`）——仓根 git 工作区不干净就拒、构建之后的发版前检查（规矩见「gwb-release」）没过就拒、
-   在临时目录里组装发布内容并发到 latest、不改仓里任何文件。**手工发版不做发版前检查**，那是 `devkit.release` 的事。**它不运行 `prepublishOnly`**（临时目录里组装的发布内容没有 `scripts`，产物靠
-   仓根构建加 `files` 白名单检查）；真要运行仓里钩子的场景才手工发：在包目录里
-   `pnpm publish --no-git-checks`（scope 对应的源写在用户级 `~/.npmrc`，**别手写 `--registry`**）——那时
-   `prepublishOnly` **别删**，少了它会把上一版的 `dist/` 原样发出去而且不报错（现象是
-   「插件加载了但新写的东西全没生效」）
-
-**发版前先在隔离 home 装一遍验完**——`plugin-manager.update {"all":true}`（插件管理窗格的「全部更新」按钮）
-直接升级日常 home，跳过了隔离验证；人点那个按钮是最后一步，不是验证的一步。
-
-**发完当场升级 default。** 说明书与命令都随包发布，不升级＝ agent 读到的还是上一版，
-而它照着过期的说明书做事**不报错**。新插件第一次装用 `plugin-manager.install`，装完下一次调 MCP 入口的
-`index` 就有它的命令。
-
-**开发套件的 `files` 白名单五项，一项都不能少**：`dist`、`src`、`template`、`skills`、`bin`。
-
-| 少了哪项       | 什么马上坏掉                                               |
-| ---------- | ---------------------------------------------------- |
-| `dist`     | 插件根本加载不了                                             |
-| `template` | `devkit.scaffold` 回「包内 template/ 不在」                 |
-| `skills`   | 说明书装不进 home，agent 读不到                                |
-| `bin`      | `devkit.cdp` 指向一个不存在的文件，`devkit.dev` 的装包、刷新、取证三步一起失败 |
-| `src`      | 类型跳转与读源码断掉（不影响运行）                                    |
-
-插件管理的 `files` 是 `dist`、`skills`、`src` 三项。
-
-## 模板
-
-**只有一种仓的布局**：workspace——仓根是一个不发布的 private 包，插件放在 `plugins/<短名>/`，别的包放在
-`packages/`（按需）。「只有一个插件的仓」只是 `plugins/` 下恰好一个目录。模板分三部分：`template/repo/`
-生成仓根，`template/pkg/` 生成插件包（**唯一正本**——建仓 `devkit.scaffold` 与加插件
-`devkit.scaffold.plugin` 生成的是同一份，一个插件与多个插件的仓格式一致靠这个，不靠纪律），
-`template/site/plugin.mdx.tpl` 生成文档站现状区里的插件页（**站装好六区之后才写**：`docfirst.attach`
-只在没加过页的初始站点上装得了）。插件包自带全部配置：tsconfig /
-vitest / oxlint 配置全在包内，搬到哪个仓都不用改（oxlint 按工作目录找配置，所以 `.oxlintrc.json`
-放在插件包里、不放仓根）。
-模板带的产物测试（`template/pkg/tests/artifact.test.ts.tpl`）与发版前检查用同一套包名 import 名单，改其中一边同一个提交里改另一边。
-
-`template/` 下的文件一律带 `.tpl` 后缀，写到磁盘时去掉（`npm pack` 不打包 `.gitignore` 是固定行为，
-一条规则管所有文件）；**每个文件都得声明属于哪一部分**——`landRel` 对不属于任何部分的文件直接抛错，
-没声明的写下去就是一堆不属于任何部分的文件。
-
-**模板里 `@godcreator` 包的版本号跟着源走**：peer 里是内核包与模板用到的两个插件（命令总线 `gwb-commands`、外壳 `gwb-shell`），
-别的 `@godcreator` 包写 devDependencies，都写 `^<版本>`；peer 里的插件要和源上的 `dist-tags.latest` 在同一条线，dev 的范围要包含它。
-内核与这两个插件的类型从 peer 里的包 `import type`，不另写 dev（`tests/scaffold.test.ts` 查生成的源码与清单）。
-模板插件在 node 侧只 `import type`，peer 里没有 `cordis`，内核包的范围是 `^<运行建仓命令的内核版本号>`（规矩见文档站「依赖怎么写」「用到的插件写 peer」「兼容哪个内核」）。
-和 latest 不在同一条线、范围不含 latest，新仓第一次发版就被发版前检查拦下；写了源上没有的版本，新仓 `pnpm install` 直接失败——
-改模板里的版本号之前先用 `pnpm view <包> dist-tags.latest` 查。模板的起始版本号是 0.1.0。
-
-**占位符就这八个**：`{{name}}`、`{{title}}`、`{{pkg}}`（`<scope>/gwb-<短名>`，`scope` 参数缺省 `@godcreator`）、`{{registry}}`（插件包 `publishConfig.registry` 的值，`registry` 参数缺省团队源；只收与 `new URL(x).href` 逐字相同的 http(s) 地址，所以原样写进 JSON 不用转义）、`{{pkgName}}`、`{{cssPrefix}}`、`{{kernelVersion}}`（运行建仓命令的内核版本号的 x.y.z 三段）、`{{docsBlock}}`。
-**认不出的占位符直接抛错**——给模板加了新占位符，`src/scaffold.ts` 的 `placeholders()`
-必须同时加一条，否则下一次建仓整个失败（而不是留一个 `{{typo}}` 写进别人的 package.json 里）。
-
-**`{{title}}` 是调用方给的任意一行文字，按所在文件编码，每类文件只许写在一种位置**：`.json` 写在双引号里、
-`.ts` 写在单引号里、`.tsx` 写在 JSX 文本里、`.md` / `.mdx` 写在正文里，frontmatter 里写在双引号里。
-写在别的位置（比如 `.ts` 的双引号、模板串或注释里）不报错、生成的代码是坏的——`tests/scaffold.test.ts`
-拿一个带各种特殊字符的 title 真编译、真执行生成的文件，改模板之后跑它。别的类型的文件里出现 `{{title}}` 直接抛错。
-
-两条写磁盘的规矩，都是因为「没有干净的回滚点」：**全部先在内存里渲染完、生成的 JSON / YAML / frontmatter 读一遍再写磁盘**；
-**目标目录必须还不存在**（建仓是仓根，加插件是 `plugins/<短名>/`），存在就拒，不覆盖任何东西。
-加插件另有一条前提：仓的 `pnpm-workspace.yaml` 的 `packages` 里得有 `plugins/*` 这一条（带不带引号、块列表还是流式列表都认），没有就拒，
-不把插件放进一个用不了的布局。YAML 用 yaml 库读（dev 依赖，打包进 `dist/index.js`），
-写坏了报出文件与第几行第几列，不当成「没有这一条」。
-
-## 没有设置项
-
-启动 home 用的是宿主自己那个 exe，不认内核仓，所以开发套件一项设置都不 `define`，也不注入 `gwbSettings`。
-
-**将来真要加，配置一律用 `gwbSettings.define`，不读 `cordis.yml` 的 `config`。** 新加一项可改的东西就
-`define` 一项（类型 `string` / `number` / `boolean` / `secret`），别在条目上加
-config——写在 yml 里的那份界面看不见、agent 也不知道有它。
-
-## 命令的参数形状写进 usage
-
-命令总线不带参数 schema，命令也不单独出现在 MCP 的工具列表里：MCP 入口只有 `index` / `search` / `run`
-三个工具，agent 经 `index` 看到 `description`、经 `search` 看到 `usage`、经 `run` 按名字调用。所以每条
-`register` 的 `description` 写一句话说命令做什么，参数形状写进 `usage`（`{ lines?: number }`、
-`{ name, force? }`），**无参数的写「无参数」**。参数复杂的，回执里再带完整说明
-（`devkit.scaffold` / home 那几条就是这样做的），但 `usage` 里那句形状仍然要有。
-
-## 建站是两步，两条都不是本包的命令
-
-`devkit.scaffold` 建站的那部分**经命令总线按名字转给别的插件**，本包不依赖那两个插件的任何包：
-
-1. `docs-site.create`（站点插件 `@godcreator/gwb-docs-site`）生成 fumadocs 初始站点
-2. `docfirst.attach`（docfirst 插件 `@godcreator/gwb-docfirst-workflow`）在**刚生成的**初始站点上装六区
-
-两条都认**站目录**（`<仓>\docs-site`），不是仓根。**哪个插件没装就跳过那一步**——回执里
-说清怎么补、README 那段话跟着改，插件那部分照样写到磁盘，**不报错终止建仓**。回执里
-`docs.built`（初始站点）与 `docs.attached`（六区）两个字段才是实际结果，`nextSteps` 按它俩分三种情况。
-
-`docfirst.attach` **只在还没写过内容的初始站点上装得了**（它自己检查这条），所以补建的两条
-要连着调用。
-
-## 改一版看一版：替换插件的工具不能运行在被替换的进程里
-
-`devkit.dev` **运行在控制台 home 里、操作另一个 home**：磁盘上的部分（构建、打包）在本进程做，
-页面上的部分（经目标 home 的插件管理装包并重新加载、刷新、取证）经 CDP 发到目标页面去。替换插件那一步要把条目停用再启用，
-工具自己运行在目标里就会把正在运行的自己停掉。**目标是 `default` 或开发套件自己所在的 home，两种都直接拒**。
-
-**装包与重新加载交给目标 home 的插件管理，本包不写目标 home 的清单、不在目标 home 里启动 pnpm**：已在 `dependencies`
-里的包合成一条 `plugin-manager.update {"specs":{…}}`，没装的插件逐个 `plugin-manager.install`；不许自己拆成 `remount`、
-`disable`、`enable` 几条——被替换的是插件管理自己或命令总线时，第二条没人接收。回执 `selfDeferred`（插件管理自己的条目
-回执之后才重新加载）就轮询 `plugin-manager.list` 等它回来，带超时；`restartRequired`（装了内核包）就重启目标 home。
-
-**目标 home 的运行时记录（`<home>/runtime.json`）本包只读不写。** 写它的是内核（启动时整份重写 pid /
-startedAt / appDir / cdp）与 mcp 插件（绑定端口之后补上 `mcp` 那个字段）。所以本包里**不许出现写这份
-文件的代码**——已经有两个写入者，第三个只会让这份记录谁也说不清。读它的规矩有两条：
-**验活**（pid 还在、且那个 pid 真的在监听记录里那个端口），以及**记录不删**（进程退出了也留着，
-下一次启动内核会整份重写）。
-
-**定位一个 home 只有一条路：说出它的名字。** `devkit.dev` 与 `bin/cdp.mjs` 两处**都不收端口**，
-给了直接拒；启动 home 的那两条也不收，端口由 `pickCdpPort` 自动选。端口是查出来的，连上之后还要拿
-页面自报的名字核对一次：
-记录回答「你要的是哪个」，页面回答「你连上的实际是哪个」。理由是端口没有含义，敲错一位就连到
-另一个 home，而那个 home 会照样收下这次改动。**所以本包里不许再出现「给个端口就连」的另一条路**，
-包括为了省事的内部调用：流程里那六步也是按名字调用驱动的，为的就是每一步都顺带核对一次。
-
-**不许把产物覆盖进 home 的 `node_modules`**：home 里那些文件是硬链接到 pnpm 全局存储的，覆盖写会
-改坏存储里的原件；而且 ESM 模块图按 URL 缓存，不换版本号，主进程里的代码就换不掉。开发版不进团队源：
-在临时目录组装发布内容、`pnpm pack` 到 `<目标 home>\dev-packs\`，插件管理照 `file:./dev-packs/<包文件>` 装。
-
-**包文件的路径每一版都必须不同，已存在就拒**：pnpm 虚拟存储的目录名只看包文件路径、不看内容，新包文件覆盖写到
-同一个路径，`pnpm add` 退出码 0 却装着旧代码，版本号相同所以核对也看不出来。版本号带到秒的时间戳、包文件名用
-`pnpm pack` 的默认写法，就每版一个新路径。**旧的包文件一个都不许删**：home 清单引用着的包文件删了，这个 home 里之后
-任何一次 `pnpm add`（插件管理的 `install`、`update`）都失败。
-
-**最后一步是取证不是刷新**：装上的是这次的版本号、条目真的 ACTIVE、日志新增的部分里没有 error，取不到就回
-`ok: false&#x60;。**`devkit.home.rm` 同一个规矩**：回「已删」之前目录必须真的不在（删除调用不报错不算数）。
-
-**启动子进程的超时一律终止整棵进程树并确认退出**（`src/node-process-tree.ts`），不许只 `child.kill()`：pnpm 下面的 node
-还会接着改 home、发包。确认不了就回 `timedOut: 'kill-failed'`，调用方这时不删临时目录。
-
-`bin/cdp.mjs` 是**零依赖的单文件纯 JS，不进 typecheck**——工作台启动不了时也要能直接运行，
-这是它的另一个用途。**它的路径一概不看工作目录**：截图缺省存到被截的那个 home 自己的 `out\cdp\`，
-给输出与 `eval` 的文件都只收绝对路径；写磁盘的位置不许在本包目录与任何 `node_modules` 里
-（`tests/cdp.test.ts` 检查这条，文件里出现 `process.cwd()` 也直接失败）。
-
-## 说明书只登记自己那份
-
-开发套件登记三份说明书，随包发布、经 `gwbSkills` 登记给 agent：
-
-| 说明书           | 正本                                                                                                                                                          | 管什么                                   |
-| ------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------- | ------------------------------------- |
-| `gwb-devkit`  | `docs-site/content/outputs/skills/gwb-devkit.mdx`；附件：取证 `gwb-devkit-evidence.mdx`，规矩总表 `content/docs/rules/index.mdx`，`gwb-devkit-ui.mdx` 指向外壳的 `gwb-shell` | 新写插件、改插件、改一版看一版、在页面里取证、写插件的规矩         |
-| `gwb-release` | `docs-site/content/outputs/skills/gwb-release.mdx`                                                                                                          | 全生态的发版规则：升哪一位、改依赖版本号、发正式版、发破坏性版本多做的两步 |
-| `fresh-eyes`  | 包内 `skills/fresh-eyes/SKILL.md`（手写）                                                                                                                         | 生态自举验收                                |
-
-插件管理登记自己的说明书 `gwb-plugin-manager`，正本 `gwb-plugin-manager.mdx` 也在 `content/outputs/skills/`。
-
-主文件只放每次写插件都要的；只有部分场景用得上的放附件，经 `skill.read {name, file}` 读。
-UI 接入规则由 shell 的 `gwb-shell` 说明书维护，本包只引用；模板按该规则接入外壳。
-这份 AGENTS 不复述说明书，说明书也不往这里搬。
-
-**别替别的插件登记说明书。** 说明书是全局唯一的命名空间，重名的那份直接不登记、只留一行
-警告，而被挤掉的常常是新的那份——症状是 agent 读到旧的、照着做但做错了，最难查。
-说明书随它描述的插件发布，别人的说明书由那个插件自己登记。
-
-## 代码引用与确认
-
-`docfirst check` 检查现状区与 outputs 区的说法跟源码一致，也检查生成文件跟 mdx 正本一致，失败就是
-不一致了或者没重新生成。
-
-被引用的源码改动过，要**先 commit 再 `pnpm doc:confirm <页的路径…>`**——git 比较器只对已提交、
-工作区干净的内容记录；只点名自己改过的页。轨迹区（`content/trajectory/`）**不引用会变的代码**：它记录历史，
-引用了就变成一份代码一改就要复核的现状文档。
+* **开发套件产物开头那个 `require` 别删**：`build.ts` 用 `createRequire` 造的，打包进来的 yaml 靠它；删了 vitest 照样全绿，只有 `tests/built-artifact.test.ts` 会失败
+* **模板**：`template/pkg/` 是插件包的唯一正本，建仓与加插件都用它；`template/` 下每个文件带 `.tpl`、都要声明属于哪一部分；加占位符同时改 `src/scaffold.ts` 的 `placeholders()`；`{{title}}` 每类文件只许写在一种位置，改模板后跑 `tests/scaffold.test.ts`；改模板里 `@godcreator` 包的版本号之前先 `pnpm view <包> dist-tags.latest`。细节见 `devkit/scaffold.mdx`
+* **建站是两步，都不是本包的命令**：`devkit.scaffold` 经命令总线按名字调 `docs-site.create`、`docfirst.attach`（都认站目录，不是仓根），哪个插件没装就跳过、不让建仓失败；本包不依赖这两个插件的任何包
+* **没有设置项**；将来要加一律用 `gwbSettings.define`，不读 `cordis.yml` 的 `config`
+* **每条命令的参数形状写进 `usage`**，无参数写「无参数」
+* **改一版看一版**（`devkit.dev`，机制见 `devkit/dev.mdx`）：
+  * 目标是 `default` 或开发套件自己所在的 home，直接拒
+  * 装包与重新加载只经目标 home 的插件管理：已装的包合成一条 `plugin-manager.update {"specs":{…}}`，不拆成 `remount` / `disable` / `enable`
+  * `<home>/runtime.json` 只读不写
+  * 定位 home 只按名字：`devkit.dev` 与 `bin/cdp.mjs` 都不收端口，不许加「给个端口就连」的另一条路
+  * 不许把产物覆盖进 home 的 `node_modules`；包文件放 `<目标 home>\dev-packs\`，路径每版不同、已存在就拒、旧的一个都不删
+  * 最后一步是取证不是刷新；`devkit.home.rm` 回「已删」之前目录必须真的不在
+  * 子进程超时一律终止整棵进程树并确认退出（`src/node-process-tree.ts`），不许只 `child.kill()`
+* **`bin/cdp.mjs` 零依赖、单文件纯 JS、不进类型检查**；路径一概不看工作目录（文件里不出现 `process.cwd()`），写磁盘的位置不许在本包目录与任何 `node_modules` 里
+* **只登记自己的说明书**（`gwb-devkit`、`gwb-release`、`fresh-eyes`；插件管理登记 `gwb-plugin-manager`），别替别的插件登记：说明书名全局唯一，重名的那份不登记
