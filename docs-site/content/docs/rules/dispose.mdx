@@ -46,7 +46,7 @@ export function apply(ctx: GwbContext): void {
 - **位置由外部固定的文件**（`runtime.json` 里 MCP 入口那一项、`~/.npmrc`）和用户指定的数据根目录（论文库这类）：不经过数据插件
 - **中途结束会让共享的磁盘状态只改了一半的子进程**：卸载时让它运行完，不结束。插件管理的 pnpm 就是这一类：
 
-{/* ref file="../plugins/plugin-manager/src/pnpm.ts" lines="67-67" */}
+{/* ref file="../plugins/plugin-manager/src/pnpm.ts" lines="71-71" */}
 
 ## 谁来查
 

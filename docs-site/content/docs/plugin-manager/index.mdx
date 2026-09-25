@@ -41,30 +41,30 @@ description: 插件管理是唯一写 home 的插件——装卸包、增删启�
 | `outdated` / `update` | 查新版本 / 升级已装的包，内核包也经 `update` 的 `specs`（`update` 经 BUSY 检查） | [热升级](/docs/plugin-manager/upgrade)、[升内核](/docs/plugin-manager/kernel-upgrade) |
 | `search` | 在配好的全部源上找插件 | [找插件](/docs/plugin-manager/sources) |
 
-{/* ref file="../plugins/plugin-manager/src/index.ts" lines="53-67" */}
+{/* ref file="../plugins/plugin-manager/src/index.ts" lines="51-60" */}
 
 - **回执只有一层 `ok`**：成功时 `data` 是结果本身，里面没有第二层 `ok`；执行中的失败（找不到 pnpm、pnpm 失败、条目写不进去）回 `{ ok: false, error }`，pnpm 输出的最后几行拼在 `error` 末尾。失败时还带结构化字段的只有一处：`update` 装上了内核包而 `cordis` 没对齐时带 `data: { kernel }`。为什么只留一层见轨迹卡[升内核并进 specs](/trajectory/2026-09-25-kernel-via-specs-caller-reloads)
 - **调用方写错直接报错**：参数不是对象、有认不出的键、缺字段、包名不合规、条目不存在，处理函数直接抛错，不猜、不忽略；命令总线把抛出的错误转成 `{ ok: false, error }`
 
 {/* ref file="../plugins/plugin-manager/src/vocab.ts" lines="16-17" */}
 
-{/* ref file="../plugins/plugin-manager/src/index.ts" lines="809-818" */}
+{/* ref file="../plugins/plugin-manager/src/index.ts" lines="658-667" */}
 
 ### 服务 gwbPluginManager
 
 值是空对象，只表示「插件管理装着」；别的插件 inject 它，只为跟着插件管理一起加载、卸载（插件管理窗格就这样用它）。有没有破坏性变化看插件管理的版本号，服务上不放版本数字。同一件事如果既能调命令、又能调服务方法，两种调用方式会慢慢变得不一致，而 BUSY 检查只加在命令上，服务方法会绕过去，所以要加能力就加一条命令，不往服务上加方法。只表示存在的服务用 `ctx.provide` 提供普通对象，不继承 cordis 的 `Service` 类，插件管理因此在运行时不 import `cordis`。
 
-{/* ref file="../plugins/plugin-manager/src/index.ts" lines="73-79" */}
+{/* ref file="../plugins/plugin-manager/src/index.ts" lines="62-68" */}
 
-{/* ref file="../plugins/plugin-manager/src/index.ts" lines="127-134" */}
+{/* ref file="../plugins/plugin-manager/src/index.ts" lines="108-115" */}
 
 ### 主入口给 devkit 的导出
 
 包主入口除了插件本身（`name`、`apply`），只导出 devkit 复用的几样——找 pnpm 的 `locatePnpm`、在 home 里启动 pnpm 用的环境 `homePnpmEnv`（见 [pnpm](/docs/plugin-manager/pnpm#参数环境与读回什么)）、内核包名 `KERNEL_PACKAGE`、peer 范围写法的判定 `isCaretRange`、取输出最后几行的 `tailLines`，以及 `devkit.dev` 调的三条命令名 `LIST_COMMAND`、`INSTALL_COMMAND`、`UPDATE_COMMAND`。devkit 在 peer 里写了插件管理，直接 import 这几样，规则只有这一份；devkit 构建时把 peer 里的包留在外面，运行时用的是 home 里装着的那一版插件管理。回执类型不导出，调用方照命令的 `usage` 读回执。devkit 怎么用这几样见接缝页 [devkit 调插件管理](/docs/seams/plugin-manager-calls)。
 
-{/* ref file="../plugins/plugin-manager/src/index.ts" lines="40-43" */}
+{/* ref file="../plugins/plugin-manager/src/index.ts" lines="38-41" */}
 
-{/* ref file="../plugins/plugin-manager/src/index.ts" lines="53-55" */}
+{/* ref file="../plugins/plugin-manager/src/index.ts" lines="51-53" */}
 
 {/* has file="../plugins/plugin-manager/tests/main-entry.test.ts" text="只导出插件本身（name、apply）与 devkit 复用的几样" */}
 
@@ -72,7 +72,7 @@ description: 插件管理是唯一写 home 的插件——装卸包、增删启�
 
 给 agent 讲这些命令怎么调用，放在包根的 `skills/`，装了说明书插件就交给它登记，agent 经 `skill.read` 读。正本是站里的 [gwb-plugin-manager](/outputs/skills/gwb-plugin-manager)，包里的 `SKILL.md` 是生成物。
 
-{/* ref file="../plugins/plugin-manager/src/index.ts" lines="172-177" */}
+{/* ref file="../plugins/plugin-manager/src/index.ts" lines="146-151" */}
 
 ### 什么算破坏性变更
 
@@ -97,7 +97,7 @@ description: 插件管理是唯一写 home 的插件——装卸包、增删启�
 
 插件管理不写 `export const inject`：命令、说明书两个插件都用 `ctx.inject` 局部注入，缺了只少一部分功能，插件管理照常加载。这两个插件写在 peer 里，命令总线必需，说明书插件标 `optional`（见[依赖怎么写](/docs/rules/deps#例子插件管理的清单)）；数据插件、设置插件不在 peer 里，插件管理不用它们；cordis、loader、include 写在 `devDependencies`；内核与这两个插件的类型都从 peer 里的包 `import type`，构建产物里没有它们的 import。
 
-{/* ref file="../plugins/plugin-manager/package.json" lines="32-43" */}
+{/* ref file="../plugins/plugin-manager/package.json" lines="32-39" */}
 
 内核对插件管理的承诺——home 的文件布局、loader 与 include 的版本、按真实路径解析包名——写在内核仓文档站的接缝页「home 布局与条目树」；插件管理用到 loader 的哪几样见接缝页[条目树 loader](/docs/seams/entry-tree)。
 
