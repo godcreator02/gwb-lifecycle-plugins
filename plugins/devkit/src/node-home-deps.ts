@@ -1,10 +1,12 @@
 import { spawn } from 'node:child_process'
 import { chmodSync, lstatSync, mkdirSync, readdirSync, rmdirSync, unlinkSync } from 'node:fs'
 import path from 'node:path'
+import type { RunResult } from './dev.js'
 import type { HomeDeps, HomeFs } from './home.js'
 import { hostAppFacts, hostAppSpawnPlan, RUN_TAIL_LINES } from './home.js'
 import { tailLines } from '@godcreator/gwb-plugin-manager'
 import { kill, nodeFs, portOwner, processName } from './node-probe-deps.js'
+import { runWithTreeTimeout, timeoutNote } from './node-process-tree.js'
 
 // HomeDeps 在这台机器上的实现：读写磁盘、启动进程，没有单元测试；判断在 home.ts 里。查进程、结束进程用 node-probe-deps 的
 
@@ -41,41 +43,31 @@ export function makeAppSpawnPlan(): HomeDeps['appSpawnPlan'] {
   }
 }
 
-/** 前台运行一条命令到结束：stdout 与 stderr 合在一起收，超时就结束进程；只回最后几行，报错在最后 */
-export function runCaptured(
+/** 前台运行一条命令到结束：stdout 与 stderr 合在一起收，超时就终止整棵进程树；只回最后几行，报错在最后 */
+export async function runCaptured(
   plan: { command: string; args: string[]; cwd: string; env?: Record<string, string> },
   timeoutMs: number,
-): Promise<{ ok: boolean; tail: string }> {
-  return new Promise((resolve) => {
-    let out = ''
-    const keep = (chunk: Buffer): void => {
-      out += chunk.toString()
-      // 输出可能很大，只留后面一段：报错在最后
-      if (out.length > 200_000) out = out.slice(-100_000)
-    }
-    let child
-    try {
-      const env = plan.env === undefined ? process.env : { ...process.env, ...plan.env }
-      child = spawn(plan.command, plan.args, { cwd: plan.cwd, env, stdio: ['ignore', 'pipe', 'pipe'], windowsHide: true })
-    } catch (err) {
-      resolve({ ok: false, tail: String(err) })
-      return
-    }
-    child.stdout?.on('data', keep)
-    child.stderr?.on('data', keep)
-    const timer = setTimeout(() => {
-      child.kill()
-      resolve({ ok: false, tail: `${tailLines(out, RUN_TAIL_LINES)}\n…(超 ${timeoutMs / 1000} 秒,已杀)` })
-    }, timeoutMs)
-    child.on('error', (err) => {
-      clearTimeout(timer)
-      resolve({ ok: false, tail: String(err) })
-    })
-    child.on('exit', (code) => {
-      clearTimeout(timer)
-      resolve({ ok: code === 0, tail: tailLines(out, RUN_TAIL_LINES) })
-    })
-  })
+): Promise<RunResult> {
+  let out = ''
+  const keep = (chunk: Buffer): void => {
+    out += chunk.toString()
+    // 输出可能很大，只留后面一段：报错在最后
+    if (out.length > 200_000) out = out.slice(-100_000)
+  }
+  const env = plan.env === undefined ? process.env : { ...process.env, ...plan.env }
+  const end = await runWithTreeTimeout({ command: plan.command, args: plan.args, cwd: plan.cwd, env }, timeoutMs, { stdout: keep, stderr: keep })
+  switch (end.kind) {
+    case 'failed-to-start':
+      return { ok: false, tail: end.error }
+    case 'exited':
+      return { ok: end.code === 0, tail: tailLines(out, RUN_TAIL_LINES) }
+    case 'timed-out':
+      return {
+        ok: false,
+        tail: `${tailLines(out, RUN_TAIL_LINES)}\n…(${timeoutNote(timeoutMs, end.kill)})`,
+        timedOut: end.kill.ok ? 'tree-killed' : 'kill-failed',
+      }
+  }
 }
 
 /**

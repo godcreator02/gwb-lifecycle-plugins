@@ -1,12 +1,12 @@
-import { spawn } from 'node:child_process'
 import fs from 'node:fs'
 import os from 'node:os'
 import path from 'node:path'
 import { fileURLToPath } from 'node:url'
 import { tailLines } from '@godcreator/gwb-plugin-manager'
-import { PACK_TIMEOUT_MS, PUBLISH_TIMEOUT_MS, pnpmPlan, type DevDeps, type RunPlan } from './dev.js'
+import { PACK_TIMEOUT_MS, PUBLISH_TIMEOUT_MS, pnpmPlan, type DevDeps, type RunPlan, type RunResult } from './dev.js'
 import type { ReleaseDeps } from './release.js'
 import { removeTree, runCaptured } from './node-home-deps.js'
+import { runWithTreeTimeout, timeoutNote } from './node-process-tree.js'
 
 // DevDeps 与 ReleaseDeps 在这台机器上的实现：读写磁盘、启动进程、经 bin/cdp.mjs 连 CDP。
 // 真机器操作的部分没有单元测试，判断都在 dev.ts 与 release.ts 里；distManifest 与找工作区的两个函数有测试
@@ -18,49 +18,43 @@ export const CDP_ENTRY = fileURLToPath(new URL('../bin/cdp.mjs', import.meta.url
 const TAIL_LINES = 40
 
 /** 退出码与 JSON 两样都要：命令没成功时驱动照样打印完整回执，只是退出码非零 */
-function runCdp(home: string, args: string[], timeoutMs: number): Promise<{ ok: boolean; data: unknown; tail: string }> {
-  return new Promise((resolve) => {
-    let out = ''
-    let err = ''
-    let child
-    try {
-      child = spawn(process.execPath, [CDP_ENTRY, home, ...args], {
-        stdio: ['ignore', 'pipe', 'pipe'],
-        windowsHide: true,
-        // 插件运行在 Electron 主进程里，process.execPath 是 electron.exe：不带 ELECTRON_RUN_AS_NODE 它会开一个窗口，而不是运行脚本
-        env: { ...process.env, ELECTRON_RUN_AS_NODE: '1' },
-        // 驱动的路径一概不看工作目录；给一个无关的，别把内核的工作目录带进去
-        cwd: os.tmpdir(),
-      })
-    } catch (error) {
-      resolve({ ok: false, data: undefined, tail: String(error) })
-      return
-    }
-    child.stdout?.on('data', (chunk: Buffer) => {
-      out += chunk.toString()
-    })
-    child.stderr?.on('data', (chunk: Buffer) => {
-      err += chunk.toString()
-    })
-    const timer = setTimeout(() => {
-      child.kill()
-      resolve({ ok: false, data: undefined, tail: `等了 ${String(timeoutMs / 1000)} 秒没回,已杀。${tailLines(err, TAIL_LINES)}` })
-    }, timeoutMs)
-    child.on('error', (error) => {
-      clearTimeout(timer)
-      resolve({ ok: false, data: undefined, tail: String(error) })
-    })
-    child.on('exit', (code) => {
-      clearTimeout(timer)
+async function runCdp(home: string, args: string[], timeoutMs: number): Promise<{ ok: boolean; data: unknown; tail: string }> {
+  let out = ''
+  let err = ''
+  const end = await runWithTreeTimeout(
+    {
+      command: process.execPath,
+      args: [CDP_ENTRY, home, ...args],
+      // 插件运行在 Electron 主进程里，process.execPath 是 electron.exe：不带 ELECTRON_RUN_AS_NODE 它会开一个窗口，而不是运行脚本
+      env: { ...process.env, ELECTRON_RUN_AS_NODE: '1' },
+      // 驱动的路径一概不看工作目录；给一个无关的，别把内核的工作目录带进去
+      cwd: os.tmpdir(),
+    },
+    timeoutMs,
+    {
+      stdout: (chunk) => {
+        out += chunk.toString()
+      },
+      stderr: (chunk) => {
+        err += chunk.toString()
+      },
+    },
+  )
+  switch (end.kind) {
+    case 'failed-to-start':
+      return { ok: false, data: undefined, tail: end.error }
+    case 'timed-out':
+      return { ok: false, data: undefined, tail: `${timeoutNote(timeoutMs, end.kill)}。${tailLines(err, TAIL_LINES)}` }
+    case 'exited': {
       let data: unknown
       try {
         data = JSON.parse(out)
       } catch {
         data = undefined
       }
-      resolve({ ok: code === 0, data, tail: tailLines(err === '' ? out : err, TAIL_LINES) })
-    })
-  })
+      return { ok: end.code === 0, data, tail: tailLines(err === '' ? out : err, TAIL_LINES) }
+    }
+  }
 }
 
 /** 发布用的清单。`[key: string]` 让别的字段原样带过去，一个都不丢 */
@@ -153,12 +147,13 @@ export function distManifest(
 
 /**
  * 在临时目录组装发布内容（`files` 白名单里的东西、README、改写后的清单），交给 `action` 在那个目录里发布或打包，
- * 做完删掉临时目录；仓里的 package.json 一个字都不改。`deps` 是同一次发的包的依赖写法（正式版给 `^新版本号`，开发版不给）
+ * 做完删掉临时目录；仓里的 package.json 一个字都不改。`deps` 是同一次发的包的依赖写法（正式版给 `^新版本号`，开发版不给）。
+ * `action` 超时、进程树没终止掉时临时目录不删：它派生的 pnpm 可能还在读
  */
 async function withStagedDistribution(
   input: { pkgDir: string; version: string; deps: Record<string, string> },
-  action: (stage: string) => Promise<{ ok: boolean; tail: string }>,
-): Promise<{ ok: boolean; tail: string }> {
+  action: (stage: string) => Promise<RunResult>,
+): Promise<RunResult> {
   let manifest: DistManifest
   try {
     manifest = JSON.parse(fs.readFileSync(path.join(input.pkgDir, 'package.json'), 'utf8')) as DistManifest
@@ -183,6 +178,7 @@ async function withStagedDistribution(
     .filter((one): one is string => one !== undefined && !/[*?]/.test(one))
 
   const stage = fs.mkdtempSync(path.join(os.tmpdir(), 'gwb-devkit-stage-'))
+  let stageMayStillBeRead = false
   try {
     const repoDir = workspaceRootOf(input.pkgDir)
     for (const rel of positives) {
@@ -199,31 +195,38 @@ async function withStagedDistribution(
       path.join(stage, 'package.json'),
       JSON.stringify(distManifest(manifest, input.version, input.deps, workspaceVersions(repoDir)), null, 2) + '\n',
     )
-    return await action(stage)
+    const done = await action(stage)
+    if (done.timedOut !== 'kill-failed') return done
+    stageMayStillBeRead = true
+    return { ...done, tail: `${done.tail}\n临时目录 ${stage} 没删:进程树没终止掉,pnpm 可能还在读它` }
   } catch (err) {
     return { ok: false, tail: String(err) }
   } finally {
-    // 不用 fs.rmSync 递归删：宿主的 Node 会跟进 junction，见 removeTree
-    try {
-      removeTree(stage)
-    } catch {
-      // 临时目录删不掉不影响这次的结论，留在 tmp 里
+    if (!stageMayStillBeRead) {
+      // 不用 fs.rmSync 递归删：宿主的 Node 会跟进 junction，见 removeTree
+      try {
+        removeTree(stage)
+      } catch {
+        // 临时目录删不掉不影响这次的结论，留在 tmp 里
+      }
     }
   }
 }
 
 /** 组装好的发布内容发到源，标 latest */
-function publishStaged(input: { pkgDir: string; version: string; registry: string; ranges: Record<string, string>; pnpm: string }): Promise<{ ok: boolean; tail: string }> {
-  return withStagedDistribution({ pkgDir: input.pkgDir, version: input.version, deps: input.ranges }, (stage) =>
+async function publishStaged(input: { pkgDir: string; version: string; registry: string; ranges: Record<string, string>; pnpm: string }): Promise<RunResult> {
+  const sent = await withStagedDistribution({ pkgDir: input.pkgDir, version: input.version, deps: input.ranges }, (stage) =>
     runCaptured(pnpmPlan(['publish', '--no-git-checks', '--tag', 'latest', '--registry', input.registry], stage, input.pnpm), PUBLISH_TIMEOUT_MS),
   )
+  if (sent.timedOut !== 'kill-failed') return sent
+  return { ...sent, tail: `${sent.tail}\n这一版可能照样发出去了——过一会儿用 pnpm view 查源上有没有这个号` }
 }
 
 /**
  * 组装好的发布内容打成包文件，放进 `destination`（目标 home 的 dev-packs）。pnpm pack 再按清单的 `files` 挑一遍文件，
  * 漏写的文件同样进不了包文件
  */
-function packStaged(input: { pkgDir: string; version: string; destination: string; pnpm: string }): Promise<{ ok: boolean; tail: string }> {
+function packStaged(input: { pkgDir: string; version: string; destination: string; pnpm: string }): Promise<RunResult> {
   return withStagedDistribution({ pkgDir: input.pkgDir, version: input.version, deps: {} }, (stage) => {
     fs.mkdirSync(input.destination, { recursive: true })
     return runCaptured(pnpmPlan(['pack', '--pack-destination', input.destination], stage, input.pnpm), PACK_TIMEOUT_MS)

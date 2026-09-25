@@ -214,6 +214,9 @@ startedAt / appDir / cdp）与 mcp 插件（绑定端口之后补上 `mcp` 那�
 **最后一步是取证不是刷新**：装上的是这次的版本号、条目真的 ACTIVE、日志新增的部分里没有 error，取不到就回
 `ok: false`。**`devkit.home.rm` 同一个规矩**：回「已删」之前目录必须真的不在（删除调用不报错不算数）。
 
+**启动子进程的超时一律终止整棵进程树并确认退出**（`src/node-process-tree.ts`），不许只 `child.kill()`：pnpm 下面的 node
+还会接着改 home、发包。确认不了就回 `timedOut: 'kill-failed'`，调用方这时不删临时目录。
+
 `bin/cdp.mjs` 是**零依赖的单文件纯 JS，不进 typecheck**——工作台启动不了时也要能直接运行，
 这是它的另一个用途。**它的路径一概不看工作目录**：截图缺省存到被截的那个 home 自己的 `out\cdp\`，
 给输出与 `eval` 的文件都只收绝对路径；写磁盘的位置不许在本包目录与任何 `node_modules` 里

@@ -69,7 +69,7 @@ devkit 没有任何特权：装进 home 才有它的命令，加载不成功就�
 
 判据只有一句：**这段逻辑能不能不启动进程、不开窗口、只给输入看输出。**
 
-能的部分是纯逻辑：时序、检查、命名、版本号、「查不出算不算不在」「装上的是不是这次打包的版本」「插件声明的内核范围包不包含运行中的内核」「一个包的 `.d.ts` 给 cordis 补了哪些服务」这些判断都在这里，测试用假的依赖把整条流程运行完。不能的部分在四个 `node-*-deps.ts` 里，只负责在真机器上拿到答案：启动进程、查进程表、查端口被谁占着、读写磁盘、连 CDP、问团队源。这一层不做判断，也不进单元测试。
+能的部分是纯逻辑：时序、检查、命名、版本号、「查不出算不算不在」「装上的是不是这次打包的版本」「插件声明的内核范围包不包含运行中的内核」「一个包的 `.d.ts` 给 cordis 补了哪些服务」这些判断都在这里，测试用假的依赖把整条流程运行完。不能的部分在四个 `node-*-deps.ts` 与 `node-process-tree.ts` 里，只负责在真机器上拿到答案：启动进程、超时终止整棵进程树、查进程表、查端口被谁占着、读写磁盘、连 CDP、问团队源。这一层不做判断，也不进单元测试；唯一的例外是超时终止整棵进程树，它用真的子进程测（孙进程真的没了，假实现证明不了）。
 
 两边靠显式接口隔开：`HomeDeps`、`DevDeps`、`ReleaseDeps` 三个接口由纯逻辑定义，运行时传 `node-*-deps.ts` 的实现，测试时传假实现。依赖方向是单向的：真机器那一层认识纯逻辑，纯逻辑不认识它。
 
@@ -86,6 +86,7 @@ devkit 没有任何特权：装进 home 才有它的命令，加载不成功就�
 | 改一版看一版 | `src/dev.ts` | `src/node-dev-deps.ts` | [改一版看一版](/docs/devkit/dev) |
 | 发正式版 | `src/release.ts`、`src/artifact-check.ts`（内核范围的比对规则从插件管理 import，产物里的 import 用 es-module-lexer 按 JS 语法找） | `src/node-dev-deps.ts` | [开发套件](/docs/devkit#发正式版的检查) |
 | 服务总览 | `src/services.ts` | `src/node-services-deps.ts` | [服务表与类型声明](/docs/seams/service-table) |
+| 前台运行命令 | — | `src/node-process-tree.ts`：启动子进程，超时终止整棵进程树并确认退出；devkit 在前台启动的 pnpm、git 与 CDP 驱动都经它 | [改一版看一版](/docs/devkit/dev) |
 | 进程与端口探测 | `src/probes.ts` | `src/node-probe-deps.ts`（只有 Windows 的 `tasklist` 与 `netstat`） | [测试 home](/docs/devkit/home) |
 | 小工具 | `src/vocab.ts`：`isRecord` 与 `requireKernel`（内核包只导出类型，这两个函数由插件自带） | — | — |
 | CDP 驱动 | `bin/cdp.mjs` 里算文件位置的几个函数 | `bin/cdp.mjs` 其余部分 | [CDP 驱动](/docs/devkit/cdp) |

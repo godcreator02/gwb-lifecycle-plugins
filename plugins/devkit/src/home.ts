@@ -1,5 +1,5 @@
 import path from 'node:path'
-import { homePnpmPlan, type RunPlan } from './dev.js'
+import { homePnpmPlan, type RunPlan, type RunResult } from './dev.js'
 import { KERNEL_PACKAGE } from '@godcreator/gwb-plugin-manager'
 import { isRecord } from './vocab.js'
 import { bareImage, type ProcessProbe } from './probes.js'
@@ -199,11 +199,8 @@ export interface HomeDeps {
   spawn(plan: { command: string; args: string[]; cwd: string }, env: NodeJS.ProcessEnv): number | undefined
   /** 再启动一次宿主应用的命令行，由宿主进程自报的事实拼出来（见 hostAppSpawnPlan） */
   appSpawnPlan(cdp?: number): Promise<{ command: string; args: string[]; cwd: string }>
-  /** 前台运行一条命令到结束：成没成，加输出的最后几行 */
-  run(
-    plan: RunPlan,
-    timeoutMs: number,
-  ): Promise<{ ok: boolean; tail: string }>
+  /** 前台运行一条命令到结束：成没成，加输出的最后几行；超时终止整棵进程树 */
+  run(plan: RunPlan, timeoutMs: number): Promise<RunResult>
   /** 查 pid 对应的进程：running / gone / unknown 三种（见 probes 的 ProcessProbe） */
   processName(pid: number): Promise<ProcessProbe>
   portOwner(port: number): Promise<number | undefined>

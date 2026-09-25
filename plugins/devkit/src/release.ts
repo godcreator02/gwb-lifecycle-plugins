@@ -1,5 +1,5 @@
 import path from 'node:path'
-import { BUILD_TIMEOUT_MS, DEFAULT_REGISTRY, literalArtifacts, pnpmPlan, type RunPlan } from './dev.js'
+import { BUILD_TIMEOUT_MS, DEFAULT_REGISTRY, literalArtifacts, pnpmPlan, type RunPlan, type RunResult } from './dev.js'
 import { KERNEL_PACKAGE, isCaretRange, kernelRangeCovers } from '@godcreator/gwb-plugin-manager'
 import { artifactProblems } from './artifact-check.js'
 import { isRecord, versionCore } from './vocab.js'
@@ -8,8 +8,8 @@ import { isRecord, versionCore } from './vocab.js'
 export type GitStatus = { ok: true; dirty: string[] } | { ok: false; error: string }
 
 export interface ReleaseDeps {
-  /** 前台运行一条命令到结束：成没成加输出的最后几行 */
-  run(plan: RunPlan, timeoutMs: number): Promise<{ ok: boolean; tail: string }>
+  /** 前台运行一条命令到结束：成没成加输出的最后几行；超时终止整棵进程树 */
+  run(plan: RunPlan, timeoutMs: number): Promise<RunResult>
   /**
    * 发一个正式版：在临时目录组装发布内容再 publish，不改仓里的 package.json。
    * `ranges` 是依赖名 → 写进去的范围：同一次发的包给 `^新版本号`，其余 workspace 依赖由实现按工作区里的版本号补 `^`

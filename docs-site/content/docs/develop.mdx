@@ -48,6 +48,8 @@ pnpm build          # 只构建 plugins/*：开发套件 esbuild 打包成一个
 
 **`pnpm check` 不构建。** 它检查的是源码，全绿只说明源码没问题，跟「装出来能不能运行」是两件事。
 
+开发套件的测试里只有 `tests/process-tree.test.ts` 启动真的子进程：超时终止整棵进程树要看孙进程真的没了，假实现证明不了。它几秒钟跑完，跟着 `pnpm check` 一起跑。
+
 **开发套件的类型检查与测试用的是插件管理的 `dist/`**：插件管理的清单把主入口指到 `dist/index.js` 与 `dist/index.d.ts`，开发套件从那里 import。刚拉下来的仓、或者改了插件管理导出的函数，先 `pnpm build` 再 `pnpm check`，不然开发套件那一半报找不到模块，或者用的还是旧函数。
 
 {/* has file="../plugins/plugin-manager/package.json" text="./dist/index.d.ts" */}
@@ -66,6 +68,8 @@ pnpm build          # 只构建 plugins/*：开发套件 esbuild 打包成一个
 `devkit.dev` 只拒绝以 `default` 或 devkit 自己所在的 home 为目标，所以从日常用的 home 往隔离 home 装开发版的 devkit 是可以的；日常用的 home 里的 devkit 只能发正式版后用 `plugin-manager.update {"all":true}` 升级。装的是插件管理自己时，它的条目在回执之后才重新加载（回执 `selfDeferred: true`），`devkit.dev` 会轮询 `plugin-manager.list` 等它回来。目标 home 的插件管理要认 `update` 的 `specs` 参数（0.12.0 起）。
 
 改了模板时，模板生成的新仓能不能顺利运行完 install / build / check，单元测试回答不了：用构建产物实际建一个仓运行一遍，做法见 `probes/2609191042_workspace-scaffold/`。
+
+要验 devkit 开、停 home 的行为（`home.new`、`home.rm`，或者结束它开出的实例会怎样），在两个隔离 home 之间做：脚本直接用安装版启动隔离 home A、装上 devkit，经 `bin/cdp.mjs` 让 A 里的 devkit 开隔离 home B，再对 B 动手、看 A。不拿日常用的 home 当 A——它退出或卡住，正在用它的会话一起断。做法见 `probes/2609251010_parent-exit-on-child-kill/`。
 
 ## 发版
 

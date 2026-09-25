@@ -1,0 +1,45 @@
+---
+title: 超时终止整棵进程树；结束 devkit 开出的实例不牵连开它的 home
+born-at: 2026-09-25T10:30
+parent: [2026-09-08-gwb-devkit]
+label: 杀整棵树
+domain: 改一版看一版
+---
+
+## 背景
+
+审查报告记了两条（GWB-21、GWB-19），总控台又记了一个现象，三件事一起查。
+
+GWB-21：构建、安装、发版这几条前台命令超时，只结束了最上面那个子进程就回「已杀」。pnpm 会再启动 node 去跑脚本，只结束 pnpm
+自己的话，下面的 node 还在改 home、发包，而调用方已经开始放回 home 的清单、删发版用的临时目录（当时 `devkit.dev` 还自己改目标 home 的清单再 `pnpm install`）。同样的写法也用在启动 CDP 驱动的地方。
+报告里说 Windows 上是经 `cmd /c pnpm` 启动的，这个仓当时已经改成直接启动 pnpm 的原生可执行文件，问题照样在：pnpm 下面还有 node。
+
+GWB-19：`devkit.dev` 整页刷新那一步只取了 cdp 打印的 JSON，退出码被丢掉。刷新失败、或者给了的选择器没等到，只要取证那三样过了，
+整条命令照样回 `ok: true`，人会把这一版当成验过了。
+
+现象：default 里的 devkit 用 `devkit.home.new` 开了 static-importmap，用 `Stop-Process` 结束它约 2 秒后，default 自己走了一遍正常退出。
+怀疑是 devkit 启动子实例的方式、Electron 的单实例锁或者别的进程间联系让父进程跟着退。
+
+## 结论与边界
+
+超时一律终止整棵进程树，确认都退出了才回失败。Windows 上用 `taskkill /T /F` 按父子关系终止，再逐个确认它报出的进程都已退出；
+别的平台让子进程启动时自成一个进程组，对整组发 `SIGKILL`，等组里一个都不剩。确认不了就如实报「终止失败」，这时调用方不删临时目录，
+错误里写明子进程可能还在运行。只看管道关闭来判断不够：孙进程可以不接管道，测试里的孙进程就是这样。
+没有做成「终止失败就再重试」：再试一次的结果一样说不清，交给人比替人猜强。
+`gwb-docs-site` 的 runner 也用 `taskkill /T`，但它不看结果、不确认退出，这里没有照搬。
+
+GWB-19 这部分没有合进 main：同一时段 `devkit.dev` 整体重写成经插件管理装包文件，新流程里整页刷新没成（驱动退出码非零、或选择器没等到）
+就当场回 `ok: false`、不再取证，已经不会把刷新失败报成成功。分支上「刷新失败照样取证、两句都写进 error」的写法与它的测试一起丢掉。
+
+结束 devkit 开出的实例不牵连开它的 home。在两个隔离 home 之间复现：脚本直接启动隔离 home A 并装上 devkit，A 里的 devkit 开隔离 home B，
+`Stop-Process -Force` 结束 B，20 秒后 A 还在、A 的日志一行没多。回头看事发时段各 home 的日志，35 秒里有 7 个实例先后正常退出，
+default 只是其中第二个，它们都是安装版 `gwb-kernel.exe` 启动的，同一时段用源码 electron 启动的那个没退。正常退出只可能是窗口被关
+或有人调 `app.quit()`，插件里没有调它的代码，所以是有东西按映像名给所有安装版实例发了关窗口，跟 static-importmap 被结束无关。
+机制上也没有牵连的路：devkit 启动子实例时 `stdio` 全部 `ignore`、`unref`，没有管道也没有 IPC；内核的单实例锁按每个 home 自己的
+userData 目录区分。是谁发的关窗口事后查不到，Windows 事件日志与会话记录里都没有线索，根因不在 devkit，也不在内核。
+
+## 依据
+
+`probes/2609251010_parent-exit-on-child-kill/`：`runs/01-kill.txt`（结束 B 之后 A 还在、A 的日志没有新增）、`runs/02-timeline.txt`
+（事发时段 7 个实例先后正常退出）。超时终止整棵树由 `tests/process-tree.test.ts` 用真的子进程验证：父进程派生一个不接管道的孙进程，
+改之前超时之后孙进程还活着，改之后孙进程也没了。改动前的 commit 是 `e71d842`。

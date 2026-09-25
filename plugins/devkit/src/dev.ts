@@ -313,9 +313,20 @@ export function homePnpmPlan(args: string[], home: string, pnpm: string): RunPla
   return { command: pnpm, args, cwd: home, env: { ...HOME_PNPM_ENV } }
 }
 
+/** 前台运行一条命令的结果：成没成加输出的最后几行 */
+export interface RunResult {
+  ok: boolean
+  tail: string
+  /**
+   * 超时才有。`tree-killed`：整棵进程树已终止并确认都已退出；`kill-failed`：没能确认，它派生的子进程可能还在改磁盘，
+   * 调用方别接着删临时目录
+   */
+  timedOut?: 'tree-killed' | 'kill-failed'
+}
+
 export interface DevDeps {
-  /** 前台运行一条命令到结束：成没成加输出的最后几行 */
-  run(plan: RunPlan, timeoutMs: number): Promise<{ ok: boolean; tail: string }>
+  /** 前台运行一条命令到结束；超时终止整棵进程树 */
+  run(plan: RunPlan, timeoutMs: number): Promise<RunResult>
   /** 对目标 home 的页面执行一个 `devkit.cdp` 动作，回它打印的 JSON。按 home 名调用、启动子进程运行 */
   cdp(home: string, args: string[], timeoutMs: number): Promise<{ ok: boolean; data: unknown; tail: string }>
   /** 在临时目录组装发布内容（与发正式版同一套组装），`pnpm pack` 到 `destination` 目录。不改仓里任何文件 */

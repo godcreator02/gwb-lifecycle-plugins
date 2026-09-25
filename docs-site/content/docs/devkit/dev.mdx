@@ -30,6 +30,10 @@ description: devkit.dev 一条命令把工作区的改动换进另一个 home �
 
 {/* ref file="../plugins/devkit/src/dev.ts" lines="51-62" */}
 
+**构建、打包超时，终止的是整棵进程树，确认都退出了才回失败。** pnpm 会再启动 node 去跑脚本、跑构建，只结束最上面那个进程的话，下面的还在读临时目录、写包文件，而这边已经在删临时目录。所以超时之后在 Windows 上用 `taskkill /T /F` 按父子关系终止整棵树，再逐个确认它报出的每个进程都已退出；别的平台让子进程启动时自成一个进程组，对整组发 `SIGKILL`，等组里一个都不剩。`run` 的结果里 `timedOut` 分两种：`tree-killed` 是整棵树确认退出了，照常删临时目录；`kill-failed` 是没能确认，pnpm 可能还在读，这时临时目录不删，错误里写明它留在哪。
+
+{/* ref file="../plugins/devkit/src/node-process-tree.ts" lines="90-115" */}
+
 **旧的包文件不删。** home 清单里的 `file:` 写法一直引用着装进去的那个包文件；删掉它，这个 home 里之后任何一次 `pnpm add`（插件管理的 `install`、`update` 都是）都失败，报那个包文件不存在。`dev-packs` 目录只增不减，隔离 home 整个删掉时一起删。
 
 {/* ref file="../plugins/devkit/src/dev.ts" lines="14-15" */}
@@ -100,7 +104,7 @@ description: devkit.dev 一条命令把工作区的改动换进另一个 home �
 
 | 接口 | 用来做什么 | 运行时的实现 | 测试时的实现 |
 | --- | --- | --- | --- |
-| `run` | 仓根 `pnpm build` 到结束，拿回输出的最后几行 | `node-dev-deps.ts` 启动子进程 | 记一行调用、按名字让某一条失败 |
+| `run` | 仓根 `pnpm build` 到结束，拿回输出的最后几行；超时的话带回整棵进程树终止了没有 | `node-home-deps.ts` 的 `runCaptured`，启动子进程与超时终止整棵树在 `node-process-tree.ts` | 记一行调用、按名字让某一条失败 |
 | `cdp` | 对目标页面执行一个动作，拿回它打印的 JSON；插件管理的 `install`、`update`、`list` 都经它在目标页面里调 | 启动 `bin/cdp.mjs` 子进程 | 直接回一份假回执，假的 `install` / `update` 把这次的版本号写进内存里的 `node_modules` |
 | `pack` | 在临时目录组装发布内容，`pnpm pack` 到目标 home 的 `dev-packs` | 与发正式版共用组装的那段，最后一步换成 `pnpm pack` | 记一行、在内存里的文件表放一个包文件 |
 | 读磁盘的几个函数 | 读清单、查产物与包文件在不在、读目标 home 的清单与装上的包清单、取日志基线与新增部分 | `node:fs` | 内存里的文件表 |
@@ -116,7 +120,7 @@ description: devkit.dev 一条命令把工作区的改动换进另一个 home �
 
 ## 怎么单独测
 
-注入一套假的 `DevDeps`，整个流程在测试里跑完，不必真的打包、真的开 home。假实现要能模拟的是边界情况：目标是 `default`、目标就是自己所在的 home、构建失败、库包（被拒）、这次的包文件路径已经存在（被拒，旧包文件原样留着）、打包失败、已装的包走一条 `update` 而没装的插件走 `install`、`install` 失败、`update` 回执 `ok: false`（错误原样传出、不刷新）、`selfDeferred`（轮询到插件管理回来；回不来要超时判失败）、刷新带不带 `waitFor`、刷新没等到页面回来或驱动退出码非零、条目没在运行、日志新增部分里有 error、装上的版本号不是这次的。装内核包那条路另测：内核包和 cordis 放进同一条 `update`、回执 `restartRequired` 时重启而不刷新、内核包不在目标 home 里（被拒）、peer 里的 cordis 写成范围（被拒）、回执里没有 `restartRequired`、重启失败、重启后页面报的内核版本不对（当场判失败，不接着等）、`shell.env` 一直报不出内核版本（到点判失败）。分哪个包走 `update`、哪个走 `install` 是纯函数 `pluginManagerCallsFor`，单测直接给清单。
+注入一套假的 `DevDeps`，整个流程在测试里跑完，不必真的打包、真的开 home。假实现要能模拟的是边界情况：目标是 `default`、目标就是自己所在的 home、构建失败、库包（被拒）、这次的包文件路径已经存在（被拒，旧包文件原样留着）、打包失败、已装的包走一条 `update` 而没装的插件走 `install`、`install` 失败、`update` 回执 `ok: false`（错误原样传出、不刷新）、`selfDeferred`（轮询到插件管理回来；回不来要超时判失败）、刷新带不带 `waitFor`、刷新没等到页面回来或驱动退出码非零、条目没在运行、日志新增部分里有 error、装上的版本号不是这次的。装内核包那条路另测：内核包和 cordis 放进同一条 `update`、回执 `restartRequired` 时重启而不刷新、内核包不在目标 home 里（被拒）、peer 里的 cordis 写成范围（被拒）、回执里没有 `restartRequired`、重启失败、重启后页面报的内核版本不对（当场判失败，不接着等）、`shell.env` 一直报不出内核版本（到点判失败）。分哪个包走 `update`、哪个走 `install` 是纯函数 `pluginManagerCallsFor`，单测直接给清单。超时终止整棵树用真的子进程测：父进程再派生一个不接管道的孙进程，超时之后孙进程也必须没了（`tests/process-tree.test.ts`）。
 
 检查目标的那几道是这条流程上最该测的：它们决定拒不拒，而一旦判错，代价是开发版进了日常用的 home、这条命令把正在运行的自己停掉，或者这次改动装进了另一个隔离 home。
 
@@ -124,7 +128,7 @@ description: devkit.dev 一条命令把工作区的改动换进另一个 home �
 
 ## 代码地图
 
-**在哪**：纯逻辑在 `src/dev.ts`，真实的机器操作在 `src/node-dev-deps.ts`，页面上的操作在 `bin/cdp.mjs`（见 [CDP 驱动](/docs/devkit/cdp)），命令登记在 `src/index.ts`。
+**在哪**：纯逻辑在 `src/dev.ts`，真实的机器操作在 `src/node-dev-deps.ts`（前台运行命令与超时终止整棵进程树在 `src/node-home-deps.ts` 与 `src/node-process-tree.ts`），页面上的操作在 `bin/cdp.mjs`（见 [CDP 驱动](/docs/devkit/cdp)），命令登记在 `src/index.ts`。
 
 **先读** `runDev`：六步的顺序在这一个函数里，长一点的步骤各是一个函数（`probeTargetHome`、`planDevPackages`、`packDevPackages`、`installNewPlugins`、`updateInstalledPackages`、`restartForKernel`、`collect`），位置不显然的那几步旁边有一句注释说明为什么在这里。
 

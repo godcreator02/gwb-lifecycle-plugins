@@ -1,0 +1,11 @@
+10:04:36.008 场景 kill；A=exit-probe-a-2609251004；内核 0.6.1；安装版 C:\Users\godamericatb14\AppData\Local\Programs\gwb-kernel\gwb-kernel.exe
+10:04:37.964 A 装好了：{ "name": "exit-probe-a-2609251004", "version": "1.0.0", "description": "", "main": "index.js", "scripts": { "test": "echo \"Error: no test specified\" && exit 1" }, "keywords": [], "author": "", "license": "ISC", "dependencies": { "@godcreator/gwb-baseui": "^0.1.11", "@godcreator/gwb-commands": "^0.5.0", "@godcreator/gwb-data": "^0.1.7", "@godcreator/gwb-devkit": "^0.19.1", "@godcreator/gwb-kernel-desktop": "0.6.1", "@godcreator/gwb-plugin-manager": "^0.11.0", "@godcreator/gwb-settings": "^0.3.3", "@godcreator/gwb-shell": "^0.13.10", "@godcreator/gwb-skills": "^0.4.5", "cordis": "4.0.0-rc.10" } } 
+10:04:38.235 A 起了：pid 164764
+10:04:41.727 A 就绪（plugin-manager.list 答话了）
+10:05:40.543 A 的 devkit 开了 B：exit-probe-b-2609251004 pid 155252（起来了(pid 155252,CDP 9416),runtime.json 记下了 CDP 9416——日志在 C:\Users\godamericatb14\AppData\Roaming\gwb-kernel\homes\exit-probe-b-2609251004\gwb.log）
+10:05:45.569 Stop-Process -Id 155252 -Force
+10:06:05.608 20 秒后：A pid 164764 还在=True；B pid 155252 还在=False
+10:06:05.634 A 的 gwb.log 在结束 B 之后新增的行：
+    （共 0 行；含「清理完成」=False）
+10:06:05.672 收尾：Stop-Process A
+10:06:05.673 home 目录留着：C:\Users\godamericatb14\AppData\Roaming\gwb-kernel\homes\exit-probe-a-2609251004、C:\Users\godamericatb14\AppData\Roaming\gwb-kernel\homes\exit-probe-b-2609251004
