@@ -1814,6 +1814,59 @@
     },
     "has ../plugins/devkit/template/pkg/tests/prefix.test.ts.tpl \"带 {{cssPrefix}}: 前缀的类名都编得出规则，前缀排在变体后面的单独报出\"": {
       "kind": "has"
+    },
+    "../plugins/devkit/src/artifact-check.ts:118-126": {
+      "kind": "git",
+      "blob": "ebbe6668906eb854dc11aff15c21c769288eede5",
+      "commit": "ce3c6fc26f2e70816f8624a11d7dc219119f2c4a",
+      "lines": [
+        118,
+        126
+      ],
+      "hash": "d55bd3f5c6328e3aa5151ac94d19dd518e4bccdf03166fa982d88f7451129884"
+    },
+    "../plugins/devkit/src/artifact-check.ts:84-93": {
+      "kind": "git",
+      "blob": "ebbe6668906eb854dc11aff15c21c769288eede5",
+      "commit": "ce3c6fc26f2e70816f8624a11d7dc219119f2c4a",
+      "lines": [
+        84,
+        93
+      ],
+      "hash": "922f9d86ac92a30d26c802c8749ec44ee8af11e71d1274d986ad15c5ce48a537"
+    },
+    "../plugins/devkit/src/artifact-check.ts:219-238": {
+      "kind": "git",
+      "blob": "ebbe6668906eb854dc11aff15c21c769288eede5",
+      "commit": "ce3c6fc26f2e70816f8624a11d7dc219119f2c4a",
+      "lines": [
+        219,
+        238
+      ],
+      "hash": "17069d48782ffe66df3a193d381c13b2adb263572804d5c680266b1551725914"
+    },
+    "../plugins/devkit/src/artifact-check.ts:240-257": {
+      "kind": "git",
+      "blob": "ebbe6668906eb854dc11aff15c21c769288eede5",
+      "commit": "ce3c6fc26f2e70816f8624a11d7dc219119f2c4a",
+      "lines": [
+        240,
+        257
+      ],
+      "hash": "28dfae0a8865b81adfb25509845a97485161458a32e4e82dde6994e0b017c087"
+    },
+    "../plugins/devkit/src/artifact-check.ts:33-69": {
+      "kind": "git",
+      "blob": "ebbe6668906eb854dc11aff15c21c769288eede5",
+      "commit": "ce3c6fc26f2e70816f8624a11d7dc219119f2c4a",
+      "lines": [
+        33,
+        69
+      ],
+      "hash": "9a0e2b39bbadcc589d4f24264a958ab58faba26631e48231d2be35108d3fce1d"
+    },
+    "has ../plugins/devkit/tests/artifact-check.test.ts \"压成一行的各种写法：静态 import、副作用 import、import * as、export from、export *、export * as、动态 import 都找到\"": {
+      "kind": "has"
     }
   },
   "content/docs/devkit/scaffold.mdx": {
@@ -3406,6 +3459,26 @@
       "lines": [
         205,
         222
+      ],
+      "hash": "28dfae0a8865b81adfb25509845a97485161458a32e4e82dde6994e0b017c087"
+    },
+    "../plugins/devkit/src/artifact-check.ts:84-93": {
+      "kind": "git",
+      "blob": "ebbe6668906eb854dc11aff15c21c769288eede5",
+      "commit": "ce3c6fc26f2e70816f8624a11d7dc219119f2c4a",
+      "lines": [
+        84,
+        93
+      ],
+      "hash": "922f9d86ac92a30d26c802c8749ec44ee8af11e71d1274d986ad15c5ce48a537"
+    },
+    "../plugins/devkit/src/artifact-check.ts:240-257": {
+      "kind": "git",
+      "blob": "ebbe6668906eb854dc11aff15c21c769288eede5",
+      "commit": "ce3c6fc26f2e70816f8624a11d7dc219119f2c4a",
+      "lines": [
+        240,
+        257
       ],
       "hash": "28dfae0a8865b81adfb25509845a97485161458a32e4e82dde6994e0b017c087"
     }
