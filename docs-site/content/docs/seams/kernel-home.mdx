@@ -15,9 +15,9 @@ description: 连接 devkit.home.* 与 cdp.mjs 和内核 exe：启动 home 用 GW
 
 **启动 home**：启动宿主自己那个 exe，环境里给 `GWB_HOME=<名>`（顺带去掉 `ELECTRON_RUN_AS_NODE` 与 `npm_config_*`），命令行带 `--remote-debugging-port=<端口>` 与 `--disable-backgrounding-occluded-windows`。端口从 9400 起往上找 50 个，先沿用这个 home 上次记录里的端口：
 
-{/* ref file="../plugins/devkit/src/home.ts" lines="138-172" */}
+{/* ref file="../plugins/devkit/src/home.ts" lines="135-169" */}
 
-{/* ref file="../plugins/devkit/src/home.ts" lines="22-26" */}
+{/* ref file="../plugins/devkit/src/home.ts" lines="23-27" */}
 
 **runtime.json**：内核每次启动整份重写，退出不删。devkit 读 `pid`、`startedAt`、`appDir`、`cdp`，以及插件补写的 `mcp`；内核还写了 `version`，devkit 不读。devkit 里有两份各自的解析：
 
@@ -43,7 +43,7 @@ description: 连接 devkit.home.* 与 cdp.mjs 和内核 exe：启动 home 用 GW
 
 **home 名**：devkit 只收 kebab-case 的 home 名，注释说这条正则就是内核对 `GWB_HOME` 的检查：
 
-{/* ref file="../plugins/devkit/src/home.ts" lines="6-7" */}
+{/* ref file="../plugins/devkit/src/home.ts" lines="7-8" */}
 
 ## 约定
 

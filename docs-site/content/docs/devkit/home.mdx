@@ -67,13 +67,13 @@ home 在 `%APPDATA%\gwb-kernel\homes\<名>\`。打开哪一个由环境变量 `G
 
 **名字是 `<短名>-<yyMMddHHmm>`**，重名了改用秒，再重名就直接拒：
 
-{/* ref file="../plugins/devkit/src/home.ts" lines="116-125" */}
+{/* ref file="../plugins/devkit/src/home.ts" lines="112-121" */}
 
 不悄悄加序号，因为名字里每一段都得能读出时间。同一个插件的 home 因此在目录里挨在一起、按时间排，正好是清理时要的顺序。
 
 **`devkit.home.new` 在启动之前装好内核包、cordis 与基础插件。** 安装包只带启动器，启动器从 home 里加载内核，home 里没有内核包就启动不了。写 `cordis.yml`（文件已存在就不写）之后在 home 目录里依次 `pnpm add` 三次：先装内核包 `@godcreator/gwb-kernel-desktop`，版本是运行这条命令的内核的精确版本（`gwbKernel.version`）；装完读 `node_modules` 里内核包的清单，版本对得上、peer 里的 `cordis` 是精确版本号，再装这个版本的 `cordis`，装完同样读清单核对版本；最后装七个基础插件。home 里除了内核包与 `cordis` 只装插件。任何一步不成都不启动，回执里带 pnpm 输出的最后几十行：
 
-{/* ref file="../plugins/devkit/src/home.ts" lines="367-394" */}
+{/* ref file="../plugins/devkit/src/home.ts" lines="363-390" */}
 
 **内核包与 `cordis` 在 home 的 `package.json` 里必须是精确版本号**，所以这两次都带 `--save-exact`，并且只在清单里还没有这两项的新 home 上这样装：清单里已有 `^` 声明时，pnpm 12 的 `pnpm add <包>@<精确版本> --save-exact` 退出码是 0，写回的却还是 `^`、装上的是范围里更新的版本。装完读 `node_modules` 里的清单核对版本，就是为了抓住这种不报错的偏差（实测见轨迹卡[清单里原来写 ^ 时 pnpm add 照样装上更新的预发布版](/trajectory/2026-09-24-pnpm-add-keeps-caret)）。
 
@@ -81,11 +81,11 @@ home 在 `%APPDATA%\gwb-kernel\homes\<名>\`。打开哪一个由环境变量 `G
 
 基础插件清单写死、不做参数，要加别的插件，装完再用 `plugin-manager.install`：
 
-{/* ref file="../plugins/devkit/src/home.ts" lines="260-270" */}
+{/* ref file="../plugins/devkit/src/home.ts" lines="256-266" */}
 
 **`new` 与 `open` 都不构建内核、不认内核仓，启动的是宿主自己那个应用**（安装版里只有启动器，内核从 home 里的内核包加载）：
 
-{/* ref file="../plugins/devkit/src/home.ts" lines="129-137" */}
+{/* ref file="../plugins/devkit/src/home.ts" lines="125-133" */}
 
 启动的永远是宿主当前运行着的那个应用，日常就是安装版；内核版本跟着 home 走：`new` 装的是运行这条命令的内核的版本，之后每个 home 里的内核包各自升级。改了内核源码要验证，走内核仓自己的流程，这里不代劳。`open` 与 `new` 的区别在另一件事上：**机器重启之后回到原来那个 home 只有 `open`**，`new` 永远建新目录，插件得全部重装一遍。
 
@@ -95,19 +95,19 @@ home 在 `%APPDATA%\gwb-kernel\homes\<名>\`。打开哪一个由环境变量 `G
 
 启动之后观察五秒：
 
-{/* ref file="../plugins/devkit/src/home.ts" lines="396-409" */}
+{/* ref file="../plugins/devkit/src/home.ts" lines="392-405" */}
 
 「启动成功没有」没有接口可问，进程还活着是此刻唯一拿得到的信号。这五秒只为抓住「刚启动就退出」这一种最常见的失败（产物不在、端口被占），真正成功没有，由那个窗口和人来判断。
 
 **观察完再读一次记录**：
 
-{/* ref file="../plugins/devkit/src/home.ts" lines="442-451" */}
+{/* ref file="../plugins/devkit/src/home.ts" lines="438-447" */}
 
 记录是内核启动时才写的，而它是之后「按名字找到这个 home」的全部依据，所以回执里要说清它出现没有。**读不到不算启动失败**：窗口已经开了，只是内核写得比这五秒晚，或者写坏了。那时按名字定位与按记录停止都用不了，回执里说明；之后的命令只认名字、每次现读记录，一直读不到就停掉重开一次。
 
 调试端口**放在命令行上，不放在环境变量里**：
 
-{/* ref file="../plugins/devkit/src/home.ts" lines="139-158" */}
+{/* ref file="../plugins/devkit/src/home.ts" lines="135-154" */}
 
 内核不认任何调试相关的环境变量，`--remote-debugging-port` 是 Chromium 自己的开关，写在命令行上就生效。开了调试端口就同时带 `--disable-backgrounding-occluded-windows`：窗口被完全挡住时 Chromium 停止渲染新帧，取证时发的输入事件会卡住、截图拿到的是旧画面。`new` 与 `open` 用同一个启动计划，两条都带。
 
@@ -119,23 +119,23 @@ home 在 `%APPDATA%\gwb-kernel\homes\<名>\`。打开哪一个由环境变量 `G
 
 被别人占了才另选，另选过两道筛。第一道：**别的** home 记录里写着的端口一律跳过，**过时的记录也算占着**——那份记录还指着这个端口，再分给第二个 home 的话，两份记录会同时声称自己是这个端口，而按名字定位全靠端口唯一。**自己那份记录不算**，不然重开一次时，自己上一次的记录会让这个端口被跳过、换成别的。
 
-{/* ref file="../plugins/devkit/src/home.ts" lines="495-504" */}
+{/* ref file="../plugins/devkit/src/home.ts" lines="488-497" */}
 
 第二道：此刻真有进程在监听的跳过，从 9400 起逐个问，问到空的就用。换了端口会在回执的 `cdpNote` 里说一句——不说的话，人会以为还是上次那个。
 
-{/* ref file="../plugins/devkit/src/home.ts" lines="506-520" */}
+{/* ref file="../plugins/devkit/src/home.ts" lines="499-513" */}
 
 **选好端口到 electron 真正绑定之间有一段时间**。这段时间里别人占了这个端口，记录里就会写着一个不属于它的端口。这段时间里被别人占了，这里既防不住、事后也改不了记录；这种情况由后面「监听端口的进程必须是记录里的 pid」那道检查抓住。一个空端口都找不到时直接拒、不启动——说明这台机器上有很多没停的 home，该清理了。
 
 给子进程的环境变量要**去掉 `ELECTRON_RUN_AS_NODE`**：
 
-{/* ref file="../plugins/devkit/src/home.ts" lines="160-173" */}
+{/* ref file="../plugins/devkit/src/home.ts" lines="156-169" */}
 
 插件运行在 Electron 主进程里，会启动 node 子进程的插件会带上这个变量。它漏进这里，启动的就不是一个窗口，而是一个看不见的 node 进程。
 
 **按名字定位：`resolveTarget`。** 它不是一条命令，是「我要操作哪个 home」这句话的实现——`devkit.dev` 的 `home` 参数经它变成调试端口。**这是唯一的一条路**：那条命令不收端口，给了当场拒，所以这个函数失败了就是真的连不上，没有别的办法绕过去。
 
-{/* ref file="../plugins/devkit/src/home.ts" lines="524-529" */}
+{/* ref file="../plugins/devkit/src/home.ts" lines="517-522" */}
 
 **三道检查都要过**，少一道就可能把这次改动推给另一个进程：
 
@@ -147,23 +147,23 @@ home 在 `%APPDATA%\gwb-kernel\homes\<名>\`。打开哪一个由环境变量 `G
 
 **`devkit.home.rm` 是删除，也是唯一会停止一个 home 的地方。** 停一个测试 home 唯一的用途就是接着删它，所以没有单独的停止命令：
 
-{/* ref file="../plugins/devkit/src/home.ts" lines="674-682" */}
+{/* ref file="../plugins/devkit/src/home.ts" lines="667-675" */}
 
 `force` 是同一个意思用在两处，都是**越过检查**：一处是「它还在运行，停了再删」，另一处是「`default` 是日常用的 home，确实要删」。**但两处不叠加**——`default` 正在运行时带了 `force` 也不停它。开发工具不该去关人正在用的窗口，那不是删一个测试 home，是打断人正在做的事；照实说，让人自己关。
 
-{/* ref file="../plugins/devkit/src/home.ts" lines="641-662" */}
+{/* ref file="../plugins/devkit/src/home.ts" lines="634-655" */}
 
 记录里的进程「查不出还在不在」时不删：不知道它还在不在用这个目录，删了可能删到正在使用的文件。停不掉也不删——删掉一半的目录加上大量 EBUSY 报错，比一句「没删成」难收拾得多。确实停了的话，停的是哪个 pid 写进回执：人得知道自己刚才顺带结束了一个进程。
 
 **「停了」指进程真的退出了，不是信号发出去了。** 发完信号按 pid 轮询，查到「不在」才算停；到时间还在、或者一直查不出，就回停不掉：
 
-{/* ref file="../plugins/devkit/src/home.ts" lines="566-581" */}
+{/* ref file="../plugins/devkit/src/home.ts" lines="559-574" */}
 
 **「已删」只认磁盘。** 删除调用返回成功不算数，每删一次核对一次目录还在不在；还在就等一会儿再删（刚停的 home 的子进程要几秒才释放文件句柄），试满次数还在就回没删掉，并列出还剩什么：
 
-{/* ref file="../plugins/devkit/src/home.ts" lines="664-672" */}
+{/* ref file="../plugins/devkit/src/home.ts" lines="657-665" */}
 
-{/* ref file="../plugins/devkit/src/home.ts" lines="686-695" */}
+{/* ref file="../plugins/devkit/src/home.ts" lines="679-688" */}
 
 停止之前**核对两次再结束进程**：映像名认得出是 home 进程，记录里有调试端口的，再核对监听那个端口的进程就是记录里的 pid：
 
@@ -173,7 +173,7 @@ home 在 `%APPDATA%\gwb-kernel\homes\<名>\`。打开哪一个由环境变量 `G
 
 ## 依赖的接口
 
-{/* ref file="../plugins/devkit/src/home.ts" lines="200-222" */}
+{/* ref file="../plugins/devkit/src/home.ts" lines="196-218" */}
 
 | 接口 | 用来做什么 | 运行时的实现 | 测试时的实现 |
 | --- | --- | --- | --- |

@@ -33,7 +33,7 @@ description: 连接 devkit.dev、devkit.release、devkit.scaffold.plugin 与被�
 
 **`keywords` 含 `gwb-plugin` 表示插件**：`devkit.release` 只对它查 peer（含 peer 里内核包的范围）与构建产物里包名 import 的两份名单；`devkit.dev` 只收插件与内核包，别的包（库）直接拒：
 
-{/* ref file="../plugins/devkit/src/release.ts" lines="195-195" */}
+{/* ref file="../plugins/devkit/src/release.ts" lines="191-191" */}
 
 {/* ref file="../plugins/devkit/src/dev.ts" lines="448-451" */}
 
@@ -59,7 +59,7 @@ description: 连接 devkit.dev、devkit.release、devkit.scaffold.plugin 与被�
 
 **git 工作区干净**：`devkit.release` 在构建之前运行 `git status --porcelain=v1`，有一条改动就一个都不发；不是 git 仓也拒。`devkit.dev` 不查：
 
-{/* ref file="../plugins/devkit/src/release.ts" lines="329-338" */}
+{/* ref file="../plugins/devkit/src/release.ts" lines="331-340" */}
 
 ## 约定
 
