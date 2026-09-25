@@ -92,3 +92,6 @@ description: 这个仓里反复出现的词各指什么、在哪一页定义；�
 | `update` 回执的 `reload`；插件管理升级完自己调 `shell.reload` | 插件管理 0.13.0 | 调用方拿到成功回执后自己调 `shell.reload` |
 | 插件管理回执 `data` 里的 `ok` / `error` / `tail`；`search` 的 `scope` 参数与回执每行的 `keywords`；`uninstall` 回执的 `removedEntries`；`add-entry` 的 `config`；`transfer-owner` 回执的 `data` / `settings` | 插件管理 0.13.0 | 只看外层 `ok`，失败原因与 pnpm 输出的最后几行都在外层 `error`；`search` 一律查全部源；`transfer-owner` 缺数据插件或设置插件直接报错 |
 | 插件管理主入口的 `caretRangeCovers`、`declaredKernelRange`、回执类型与 `list` / `install` / `update` 以外的命令名常量 | 插件管理 0.13.0 | devkit 用 `isCaretRange`、`kernelRangeCovers`；回执照命令的 `usage` 读 |
+| `devkit.scaffold` 的 `port` 参数；建仓回执 `nextSteps` 里复述的整套流程；建仓成功时 `docs` 里 `create` / `attach` 两条命令的原始回执；`devkit.services` 回执的 `declaredAlsoBy` | devkit 0.22.0 | 端口由站点插件自己选，看回执 `docs.port`；流程读说明书 `gwb-devkit` 的「新写一个插件」；原始回执只在那条命令失败时带；只在用某个服务的包不再列出。见[轨迹卡](/trajectory/2026-09-25-devkit-no-fallbacks) |
+| devkit 命令里认不出的参数键被忽略；`devkit.cdp` 的 `--mod` 写错的键名被忽略 | devkit 0.22.0 | 一律报错并说出是哪个键 |
+| 包清单字段 `gwb.title`；插件模板的 `slow` 测试标签与 `test:all` 脚本 | devkit 0.22.0 | 显示名写在插件代码里（窗格标题、外壳的 `describeSelf`）；测试不分快慢，`pnpm test` 全部运行 |
