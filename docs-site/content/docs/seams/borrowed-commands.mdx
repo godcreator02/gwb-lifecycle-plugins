@@ -8,7 +8,7 @@ description: 连接 devkit、插件管理与三个不在本仓的插件：建仓
 ## 连接的模块
 
 - devkit 的 `devkit.scaffold`（`src/index.ts`）
-- 插件管理的 `plugin-manager.update-all`（`src/index.ts`）
+- 插件管理的 `plugin-manager.update`（`src/index.ts`）
 - 被调的插件，都不在本仓：站点插件 `@godcreator/gwb-docs-site`（`docs-site.create`）、docfirst 插件 `@godcreator/gwb-docfirst-workflow`（`docfirst.attach`）、外壳 `@godcreator/gwb-shell`（`shell.reload`）
 
 ## 接口
@@ -48,7 +48,7 @@ devkit 保证：
 
 ## 测试
 
-没有测试用真实的命令总线跑这几次调用。能测到的是命令不在时回执里给的补建步骤：
+没有测试用真实的命令总线运行这几次调用。能测到的是命令不在时回执里给的补建步骤：
 
 {/* has file="../plugins/devkit/tests/scaffold.test.ts" text="骨架都没铺就给两步补建" */}
 

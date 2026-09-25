@@ -7,34 +7,34 @@ docfirst: none
 # 投来的反馈
 
 **本页回答**：别的仓在用 devkit 的过程中投来了什么意见。一条一节，处理完删——周转区不是档案，
-定下来的判据落轨迹卡。本仓自己反复做的操作候选在 [hatch](/feedback/hatch)。
+定下来的判据写成轨迹卡。本仓自己反复做的操作候选在 [hatch](/feedback/hatch)。
 
-## 2026-09-12 devkit 缺一条「往隔离 home 首装件」的路
+## 2026-09-12 devkit 缺一条「往隔离 home 首次装插件」的路
 
-来源：总控台（试 block-note 测试版 + devkit 调试闭环时撞的）。
+来源：总控台（试 block-note 测试版 + devkit 调试闭环时遇到的）。
 
-`devkit.dev` 预设条目已在 `cordis.yml` 里（做的是 add 之后停用→启用重挂）。给刚 `devkit.home.new` 开出来的
-空隔离 home **首次**装件只有两条路，都不对劲：`plugins.install` 经 MCP 调装的是 default（总线在哪个 home
-就装哪个），对隔离 home 够不着；手动 pnpm add + 手写条目 + 重开全是能错的地方。
+`devkit.dev` 预设条目已在 `cordis.yml` 里（做的是 add 之后停用→启用、重新加载）。给刚 `devkit.home.new` 开出来的
+空隔离 home **首次**装插件只有两条路，都不对劲：`plugins.install` 经 MCP 调装的是 default（总线在哪个 home
+就装哪个），装不到隔离 home；手动 pnpm add + 手写条目 + 重开全是能错的地方。
 
 **建议**：补一条 `devkit.home.add`（`{ home, pkg, spec?, entryId? }`），或让 `devkit.dev` 对无条目的包自动走
 首装。守卫照旧：只认 home 名不认端口、default 当场拒。
 
-**顺带三条（同一轮实测撞见）**：
+**顺带三条（同一轮实测遇到）**：
 
-1. `devkit.home.new` / `home.open` 起的内核不带 `--disable-backgrounding-occluded-windows`，要看帧的件
-   （截图、等帧、`--size` 查询）对这种 home 取证拿陈旧帧或挂住。统一带上，或给个透传口。
-2. `devkit.dev` 隐含前置：目标 home 必须装着 `gwb-plugins`（开头要经它问条目表），空 home 直接跑会退；
-   报错文案说清，或 `home.new` 提供带底座件的选项。
+1. `devkit.home.new` / `home.open` 启动的内核不带 `--disable-backgrounding-occluded-windows`，要看画面帧的操作
+   （截图、等帧、`--size` 查询）对这种 home 取证拿到陈旧帧或卡住。统一带上，或给个透传参数。
+2. `devkit.dev` 隐含前置：目标 home 必须装着 `gwb-plugins`（开头要经它问条目表），空 home 直接运行会失败退出；
+   报错文案说清，或 `home.new` 提供装基础插件的选项。
 3. agent 侧绕法值得进说明书：**devkit 命令里凡传 Windows 路径一律用正斜杠**（`D:/unitfolders/...`）——
-   ZCode 的 MCP 参数会把 `\\` 吃掉一层，进 JSON 就是 `\u` 坏转义，报错只说 Bad Unicode escape 不指根因。
+   ZCode 的 MCP 参数会把 `\\` 去掉一层，进 JSON 就是 `\u` 坏转义，报错只说 Bad Unicode escape 不指根因。
 
-**进展**（09-18）：顺带第 1 条 0.14.1 修了（`home.new` / `open` 带调试口就带遮挡开关）；第 2 条由
-`home.new` 自动铺底座解决。剩主诉「首装自动化」与第 3 条（见下面 09-14 那条正斜杠）。
+**进展**（09-18）：顺带第 1 条 0.14.1 修了（`home.new` / `open` 带调试端口就带遮挡开关）；第 2 条由
+`home.new` 自动装基础插件解决。剩主诉「首装自动化」与第 3 条（见下面 09-14 那条正斜杠）。
 
 ## 2026-09-14 前缀与变体的顺序写反了静默编不出规则——手册只暗示没明说，守卫也测不到
 
-来源：总控台（第三轮 fresh-eyes 自举验收，功能题 gwb-timer，隔离 home 实跑）。
+来源：总控台（第三轮 fresh-eyes 自举验收，功能题 gwb-timer，在隔离 home 里实际运行）。
 
 窗格样式写 `disabled:timer:opacity-50`：编译**一条规则都不出、也不报错**；写成
 `timer:disabled:opacity-50` 才有。写插件手册里 `logger:group-hover:*` 的示例只暗示
@@ -44,74 +44,74 @@ docfirst: none
 实测：`timer:disabled:*` 出规则，`disabled:timer:*` 与 `hover:timer:*` 都不出。
 
 **投来的建议**：手册明写一句「前缀永远排最前；顺序写反不报错，只是没有规则」；更进一步，
-模板产物守卫加一层「源码里出现的全类名 ⊆ 产物规则」的覆盖检查，把这类静默失败拦进门禁。
+模板产物守卫加一层「源码里出现的全类名 ⊆ 产物规则」的覆盖检查，把这类静默失败拦在检查里。
 
-**进展**（09-18）：说明书那半写进了附件 `references/ui.md`；剩覆盖检查那半。
+**进展**（09-18）：说明书那部分写进了附件 `references/ui.md`；剩覆盖检查那部分。
 
 ## 2026-09-14 「路径一律正斜杠」对 `devkit.scaffold` 不成立
 
 来源：同上。
 
-经 HTTP 门 curl 传含 Windows 路径的 JSON：`unit-folder.readFile` 吃正斜杠，
-`devkit.scaffold` 的 `dir` **必须真反斜杠**——本仓 09-12 那张卡「凡传 Windows 路径一律用
+经 HTTP 入口用 curl 传含 Windows 路径的 JSON：`unit-folder.readFile` 接受正斜杠，
+`devkit.scaffold` 的 `dir` **必须真反斜杠**——本仓 09-12 那条反馈「凡传 Windows 路径一律用
 正斜杠」的绕法在 scaffold 这里行不通，代理在 `bad json` 上来回试了好几轮（稳法见同日投给
-base-plugins 的卡：body 落文件再 `--data-binary @file`，那条归 command-http 说明书）。
+base-plugins 的反馈：body 写进文件再 `--data-binary @file`，那条归 command-http 说明书）。
 
-**投来的建议**：scaffold 与一切收路径参数的 devkit 命令统一吃正斜杠（入口处归一），让
+**投来的建议**：scaffold 与一切收路径参数的 devkit 命令统一接受正斜杠（在入口处统一转换），让
 「一律正斜杠」这条绕法全线成立。
 
-## 2026-09-14 三条小的：client 半 import type 行给得太晚、测试 harness 的无参类型、首装条目复验
+## 2026-09-14 三条小的：浏览器侧 import type 那一行给得太晚、测试 harness 的无参类型、首装条目复验
 
 来源：同上。
 
-1. client 半 tsconfig `"types": []` 不吃全局声明，`window.gwb` 要在文件头
+1. 浏览器侧 tsconfig `"types": []` 不读全局声明，`window.gwb` 要在文件头
    `import type {} from '@godcreator/gwb-plugin-api'` 才认。说明书里有这条信息
-   （plugin-api ≥0.1.1 声明 `window.gwb`，实测属实），但埋得深——代理是先撞了编译错才回头
-   找到的。建议把这一行提前到写码/窗格章节开头明写。
+   （plugin-api ≥0.1.1 声明 `window.gwb`，实测属实），但埋得深——代理是先遇到编译错误才回头
+   找到的。建议把这一行提前到写代码/窗格章节开头明写。
 2. 模板测试里无参调 handler 类型不过（参数 `unknown` 不自动可省），代理把 harness 的
    handler 类型改成 `(args?: unknown)` 才过。建议模板直接给这个形状。
-3. 本仓 09-12「往隔离 home 首装件」卡的复验结论：`devkit.home.new` **自动铺底座已管用**
-   （基座七件，`devkit.dev` 不再因空 home 退）；首装仍要按 `devkit.dev` 回执里的指引手写
-   `plugin-manager.add-entry`——指引清楚，但离那张卡要的自动化还差最后一步，建议那条不撤。
+3. 本仓 09-12「往隔离 home 首次装插件」那条的复验结论：`devkit.home.new` **自动装基础插件已经可用**
+   （七个基础插件，`devkit.dev` 不再因为空 home 失败）；首装仍要按 `devkit.dev` 回执里的指引手写
+   `plugin-manager.add-entry`——指引清楚，但离那条要的自动化还差最后一步，建议那条不撤。
 
 **进展**（09-18）：第 1 条写进了附件 `references/ui.md`「浏览器半」开头；剩第 2、3 条。
 
 ## 2026-09-18 audit-deps 全生态回执过大，经 MCP 工具调用会被客户端截断
 
-来源：总控台（全生态依赖清账会话：12 个仓、30 余包发版，逐仓清账时反复要读这份账）。
+来源：总控台（全生态依赖核对会话：12 个仓、30 余个包发版，逐个仓核对时反复要读这份结果）。
 
-现场：全生态 23 仓 / 45 清单 / 166 findings 时，`run devkit.audit-deps` 的回执 JSON 约 50KB——
-经 MCP 门（`run`）调用超出客户端单次回执预算，**尾部被截断**：本会话第一次调用就丢了后半段
-（gwb-reimburse / gwb-pomodoro 两段与 `byKind` 汇总）。绕法是把 `bin/client.mjs` 拿到命令行直跑、
-重定向落文件再读（`run mcp.client` 那份说明书里有这支 CLI），全量拿得到——但得先知道要绕。
+情况：全生态 23 仓 / 45 清单 / 166 findings 时，`run devkit.audit-deps` 的回执 JSON 约 50KB——
+经 MCP 入口（`run`）调用超出客户端单次回执预算，**尾部被截断**：本会话第一次调用就丢了后半段
+（gwb-reimburse / gwb-pomodoro 两段与 `byKind` 汇总）。绕法是把 `bin/client.mjs` 拿到命令行直接运行、
+重定向到文件再读（`run mcp.client` 那份说明书里有这个命令行工具），全量拿得到——但得先知道要绕。
 
 **投来的建议**：给 audit-deps 加一个可选过滤参数（如 `{ repo?: "<单元>/<仓>" }`，或 `{ only: [...] }`），
-或让回执分两档（摘要 + 按仓索取）。清账的 agent 一轮能读完自己那一仓的账，不必落文件再解析。
+或让回执分两档（摘要 + 按仓索取）。核对依赖的 agent 一次能读完自己那个仓的结果，不必写到文件再解析。
 
 ## 2026-09-19 要追 shell 0.10：peer 会出范围，改个号就行
 
 来源：gwb-ui-plugins（窗格模型第二版第一期；shell 0.10.0 今天发团队源）。
 
-shell 0.10.0 按 gwb-release 抬了次版本号：开窗格的行为变了（本桌优先、从不切桌面，新窗格落在来源旁边，预览每组一个），
+shell 0.10.0 按 gwb-release 升了次版本号：开窗格的行为变了（本桌优先、从不切桌面，新窗格放在来源旁边，预览每组一个），
 插件调用面只增不减。`plugins/devkit` 对外壳是可选 peer（`^0.9.2`），装上 0.10.0 会出 peer 警告。本仓不调开窗格，
-追法就是 dev 钉与 peer 下限抬到 `0.10.0`、跑 check，下次发版时带上。
+跟进的做法是把 dev 的版本号与 peer 下限升到 `0.10.0`、运行 check，下次发版时带上。
 
 ## 2026-09-22 页面加载后才补装的 peer 不进 importmap——devkit.dev 首装流的重载时机偏早
 
 来源：gwb-block-note（v2 引擎线第 2 单验收，隔离 home bn-v2-2609222003）。
 
-现场：`devkit.dev` 首装（回执 note 指引走 `plugin-manager.install` 建条目）之后，install 发现缺 peer
+情况：`devkit.dev` 首装（回执 note 指引走 `plugin-manager.install` 建条目）之后，install 发现缺 peer
 （`@godcreator/block-note`）顺手补装——但**整页重载在 devkit.dev 那一步早就做完了**，importmap 是页面
 加载那一刻按当时的 node_modules 拼的快照，后补的 peer 不在表里。首开窗格，浏览器端产物里
 `import "@godcreator/block-note"` 解析不到，窗格里一整行红：「加载失败：TypeError: Failed to resolve
-module specifier "@godcreator/block-note"」。整页重载一次即愈（快照重拼）。两个坑上加坑的点：node 侧
+module specifier "@godcreator/block-note"」。整页重载一次即愈（快照重拼）。两个让它更难发现的地方：node 侧
 日志**全程无 error**——它只在渲染层现形，devkit.dev 的日志基线测不到；且窗格源码没错、装也没错，纯看
 「挂上了 / 条目 ACTIVE」全绿。
 
-**投来的建议**（修的落点在 plugin-manager 那半，devkit 这边至少要把话写进说明书）：`plugin-manager.install`
-补装过 peer 后自己触发一次整页重载（与 update-all 同款），或 devkit.dev 的回执 note 在「首装建条目」那句后面
-带上「install 若补装了 peer，建完条目再整页重载一次」。顺带给验收纪律补一句：带浏览器端的件，实装验证要配
-截图或窗格渲染取证——这类坑只有渲染层会喊。
+**投来的建议**（该修的地方在插件管理，devkit 这边至少要把话写进说明书）：`plugin-manager.install`
+补装过 peer 后自己触发一次整页重载（与 plugin-manager.update 相同），或 devkit.dev 的回执 note 在「首装建条目」那句后面
+带上「install 若补装了 peer，建完条目再整页重载一次」。顺带给验收纪律补一句：带浏览器端代码的插件，实际安装验证要配
+截图或窗格渲染取证——这类问题只有渲染层会报出来。
 
 ## 2026-09-25 块笔记已撤掉 `gwb.shared`，定案第四节与第六节在块笔记一侧做完
 
@@ -141,6 +141,6 @@ module specifier "@godcreator/block-note"」。整页重载一次即愈（快照
 
 没有直接改：devkit 仓里 `artifact-check.ts`、模板、`scaffold.test.ts` 等正好有另一个会话未提交的改动。
 
-**顺带一条现象**：`devkit.home.new {"short":"static-importmap"}` 开出来的实例（pid 136532，default 里的 devkit 起的），我用 `Stop-Process` 停掉之后
-约 2 秒，default 自己走了一遍正常退出（default 的 `gwb.log` 里 `17:07:46.709Z info kernel 清理完成，退出`）。原因没查清，值得看一下 `home.new` 起的
+**顺带一条现象**：`devkit.home.new {"short":"static-importmap"}` 开出来的实例（pid 136532，由 default 里的 devkit 启动），我用 `Stop-Process` 停掉之后
+约 2 秒，default 自己走了一遍正常退出（default 的 `gwb.log` 里 `17:07:46.709Z info kernel 清理完成，退出`）。原因没查清，值得看一下 `home.new` 启动的
 子进程和 default 的生命周期有没有绑在一起；在弄清之前，停这种实例别用杀进程的办法。

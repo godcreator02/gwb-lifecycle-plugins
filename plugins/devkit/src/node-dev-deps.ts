@@ -4,7 +4,7 @@ import os from 'node:os'
 import path from 'node:path'
 import { fileURLToPath } from 'node:url'
 import { tailLines } from '@godcreator/gwb-plugin-manager'
-import { PUBLISH_TIMEOUT_MS, pnpmPlan, type DevDeps, type RunPlan } from './dev.js'
+import { PACK_TIMEOUT_MS, PUBLISH_TIMEOUT_MS, pnpmPlan, type DevDeps, type RunPlan } from './dev.js'
 import type { ReleaseDeps } from './release.js'
 import { removeTree, runCaptured } from './node-home-deps.js'
 
@@ -121,7 +121,7 @@ export function workspaceRootOf(pkgDir: string): string {
 
 /**
  * 版本号换成这次的；删掉 `scripts` 与 `devDependencies`；`workspace:` 换成 `^<工作区里的版本号>`（临时目录不在工作区里，
- * pnpm 不会替换）；同一次发的包（`siblings`）在 dependencies 里一律换成给的写法（开发版给准确版本号、正式版给 `^新版本号`）
+ * pnpm 不会替换）；同一次发的包（`siblings`）在 dependencies 里一律换成给的写法（正式版给 `^新版本号`，开发版的打包给空表）
  */
 export function distManifest(
   manifest: DistManifest,
@@ -152,17 +152,13 @@ export function distManifest(
 }
 
 /**
- * 在临时目录组装发布内容再发，不改仓里的 package.json。开发版与正式版只差 tag 与同一次发的包的依赖写法，都由调用方给；
- * 带进去的东西取自 `files` 白名单
+ * 在临时目录组装发布内容（`files` 白名单里的东西、README、改写后的清单），交给 `action` 在那个目录里发布或打包，
+ * 做完删掉临时目录；仓里的 package.json 一个字都不改。`deps` 是同一次发的包的依赖写法（正式版给 `^新版本号`，开发版不给）
  */
-async function publishStaged(input: {
-  pkgDir: string
-  version: string
-  registry: string
-  tag: 'dev' | 'latest'
-  deps: Record<string, string>
-  pnpm: string
-}): Promise<{ ok: boolean; tail: string }> {
+async function withStagedDistribution(
+  input: { pkgDir: string; version: string; deps: Record<string, string> },
+  action: (stage: string) => Promise<{ ok: boolean; tail: string }>,
+): Promise<{ ok: boolean; tail: string }> {
   let manifest: DistManifest
   try {
     manifest = JSON.parse(fs.readFileSync(path.join(input.pkgDir, 'package.json'), 'utf8')) as DistManifest
@@ -177,7 +173,7 @@ async function publishStaged(input: {
   if (globbed.length > 0) {
     return {
       ok: false,
-      tail: `${manifest.name} 的 files 里有通配(${globbed.join('、')}),这条链只认字面路径。把它写成实在的目录名,或者这一版走正路发(在仓里 pnpm publish)`,
+      tail: `${manifest.name} 的 files 里有通配(${globbed.join('、')}),这里只认字面路径。把它写成实在的目录名`,
     }
   }
   /** 否定式里那个末段名(`!py/**\/__pycache__` → `__pycache__`):复制完按名字剪掉 */
@@ -186,7 +182,7 @@ async function publishStaged(input: {
     .map((one) => one.replace(/^!/, '').split(/[\\/]/).filter((seg) => seg !== '' && seg !== '**').pop())
     .filter((one): one is string => one !== undefined && !/[*?]/.test(one))
 
-  const stage = fs.mkdtempSync(path.join(os.tmpdir(), 'gwb-devkit-dev-'))
+  const stage = fs.mkdtempSync(path.join(os.tmpdir(), 'gwb-devkit-stage-'))
   try {
     const repoDir = workspaceRootOf(input.pkgDir)
     for (const rel of positives) {
@@ -203,11 +199,7 @@ async function publishStaged(input: {
       path.join(stage, 'package.json'),
       JSON.stringify(distManifest(manifest, input.version, input.deps, workspaceVersions(repoDir)), null, 2) + '\n',
     )
-    // 开发版标 dev、不动 latest：源上这些包同时被别的仓使用，开发版占了 latest 它们就不明不白地换了代码
-    return await runCaptured(
-      pnpmPlan(['publish', '--no-git-checks', '--tag', input.tag, '--registry', input.registry], stage, input.pnpm),
-      PUBLISH_TIMEOUT_MS,
-    )
+    return await action(stage)
   } catch (err) {
     return { ok: false, tail: String(err) }
   } finally {
@@ -220,29 +212,34 @@ async function publishStaged(input: {
   }
 }
 
+/** 组装好的发布内容发到源，标 latest */
+function publishStaged(input: { pkgDir: string; version: string; registry: string; ranges: Record<string, string>; pnpm: string }): Promise<{ ok: boolean; tail: string }> {
+  return withStagedDistribution({ pkgDir: input.pkgDir, version: input.version, deps: input.ranges }, (stage) =>
+    runCaptured(pnpmPlan(['publish', '--no-git-checks', '--tag', 'latest', '--registry', input.registry], stage, input.pnpm), PUBLISH_TIMEOUT_MS),
+  )
+}
+
+/**
+ * 组装好的发布内容打成包文件，放进 `destination`（目标 home 的 dev-packs）。pnpm pack 再按清单的 `files` 挑一遍文件，
+ * 漏写的文件同样进不了包文件
+ */
+function packStaged(input: { pkgDir: string; version: string; destination: string; pnpm: string }): Promise<{ ok: boolean; tail: string }> {
+  return withStagedDistribution({ pkgDir: input.pkgDir, version: input.version, deps: {} }, (stage) => {
+    fs.mkdirSync(input.destination, { recursive: true })
+    return runCaptured(pnpmPlan(['pack', '--pack-destination', input.destination], stage, input.pnpm), PACK_TIMEOUT_MS)
+  })
+}
+
 /** 「改一版看一版」在这台机器上的实现。`pnpm` 是命令开头找到的那个；重启 home 要用到测试 home 的启停，由 index.ts 接上 */
 export const devDepsWith = (pnpm: string): Omit<DevDeps, 'restartHome'> => ({
   run: (plan: RunPlan, timeoutMs: number) => runCaptured(plan, timeoutMs),
   cdp: runCdp,
-  publish: (input) =>
-    publishStaged({ pkgDir: input.pkgDir, version: input.version, registry: input.registry, tag: 'dev', deps: input.siblings, pnpm }),
-  async published(spec, registry) {
-    const seen = await runCaptured(pnpmPlan(['view', spec, 'version', '--registry', registry], os.tmpdir(), pnpm), 60_000)
-    return seen.ok
-  },
+  pack: (input) => packStaged({ ...input, pnpm }),
   readText(file) {
     try {
       return fs.readFileSync(file, 'utf8')
     } catch {
       return undefined
-    }
-  },
-  writeText(file, text) {
-    try {
-      fs.writeFileSync(file, text, 'utf8')
-      return { ok: true }
-    } catch (err) {
-      return { ok: false, error: String(err) }
     }
   },
   exists(target) {
@@ -275,7 +272,6 @@ export const devDepsWith = (pnpm: string): Omit<DevDeps, 'restartHome'> => ({
   },
   now: () => Date.now(),
   sleep: (ms) => new Promise((resolve) => setTimeout(resolve, ms)),
-  platform: process.platform,
   pnpm,
 })
 
@@ -296,11 +292,10 @@ async function gitStatusOf(repoDir: string): Promise<{ ok: true; dirty: string[]
   return { ok: true, dirty }
 }
 
-/** 发正式版在这台机器上的实现。`pnpm` 是命令开头找到的那个；publish 与开发版共用 publishStaged，只差 tag 与依赖写法 */
+/** 发正式版在这台机器上的实现。`pnpm` 是命令开头找到的那个；组装发布内容与开发版的打包共用 withStagedDistribution */
 export const releaseDepsWith = (pnpm: string): ReleaseDeps => ({
   run: (plan: RunPlan, timeoutMs: number) => runCaptured(plan, timeoutMs),
-  publish: (input) =>
-    publishStaged({ pkgDir: input.pkgDir, version: input.version, registry: input.registry, tag: 'latest', deps: input.ranges, pnpm }),
+  publish: (input) => publishStaged({ ...input, pnpm }),
   published: async (spec, registry) => {
     const seen = await runCaptured(pnpmPlan(['view', spec, 'version', '--registry', registry], os.tmpdir(), pnpm), 60_000)
     return seen.ok

@@ -1,9 +1,9 @@
 ---
 title: 开发
-description: 怎么装开发套件、怎么确认它加载了；改 devkit、插件管理本身时怎么准备、提交前跑哪些检查、怎么在隔离 home 里验证、怎么发版、文档站怎么检查与生成
+description: 怎么装开发套件、怎么确认它加载了；改 devkit、插件管理本身时怎么准备、提交前运行哪些检查、怎么在隔离 home 里验证、怎么发版、文档站怎么检查与生成
 ---
 
-**本页回答**：开发套件怎么装、装完怎么确认；什么时候才进这个仓；第一次怎么准备；提交前跑哪些检查；改了 devkit 或插件管理怎么在隔离 home 里验证；发版按什么顺序做；文档站怎么检查、怎么生成 AGENTS.md 这些文件。
+**本页回答**：开发套件怎么装、装完怎么确认；什么时候才进这个仓；第一次怎么准备；提交前运行哪些检查；改了 devkit 或插件管理怎么在隔离 home 里验证；发版按什么顺序做；文档站怎么检查、怎么生成 AGENTS.md 这些文件。
 
 ## 安装与确认
 
@@ -59,13 +59,13 @@ pnpm build          # 只构建 plugins/*，tsc 直接输出 dist/，没有打�
 单元测试覆盖不了「装出来能不能加载、命令调不调得通」，这要在隔离 home 里实际运行：
 
 1. 从日常用的 home 开一个隔离 home：`devkit.home.new {"short":"<这次验什么>"}`，回执里有 home 名
-2. 把这次的改动装进去：`devkit.dev {"home":"<名>","dir":"<本仓根>","packages":["plugins/devkit"]}`——改的是插件管理就给 `["plugins/plugin-manager"]`。`devkit.dev` 会重新加载条目并核对装上的版本与日志，回执 `ok: false` 就是没验过
+2. 把这次的改动装进去：`devkit.dev {"home":"<名>","dir":"<本仓根>","packages":["plugins/devkit"]}`——改的是插件管理就给 `["plugins/plugin-manager"]`。`devkit.dev` 把包打成包文件放进那个 home 的 `dev-packs` 目录，经那个 home 的插件管理装并重新加载，再核对装上的版本与日志，回执 `ok: false` 就是没验过
 3. 在那个 home 里调命令看结果：`devkit.cdp {"args":["<名>","cmd","<命令名>","<JSON 参数>"]}`。验 devkit 自己的命令也是这样调——命令在隔离 home 的进程里运行，跟日常用的 home 里那份 devkit 无关
 4. 看那个 home 的 `gwb.log`；验完 `devkit.home.rm {"name":"<名>","force":true}`
 
-`devkit.dev` 只拒绝以 `default` 或 devkit 自己所在的 home 为目标，所以从日常用的 home 往隔离 home 装开发版的 devkit 是可以的；日常用的 home 里的 devkit 只能发正式版后用 `plugin-manager.update-all` 升级。插件管理重新加载自己时回执是 `deferred`，`devkit.dev` 会轮询 `plugin-manager.list` 等它回来。
+`devkit.dev` 只拒绝以 `default` 或 devkit 自己所在的 home 为目标，所以从日常用的 home 往隔离 home 装开发版的 devkit 是可以的；日常用的 home 里的 devkit 只能发正式版后用 `plugin-manager.update {"all":true}` 升级。装的是插件管理自己时，它的条目在回执之后才重新加载（回执 `selfDeferred: true`），`devkit.dev` 会轮询 `plugin-manager.list` 等它回来。目标 home 的插件管理要认 `update` 的 `specs` 参数（0.12.0 起）。
 
-改了模板时，模板生成的新仓能不能跑通 install / build / check，单元测试回答不了：用构建产物实际建一个仓跑一遍，做法见 `probes/2609191042_workspace-scaffold/`。
+改了模板时，模板生成的新仓能不能顺利运行完 install / build / check，单元测试回答不了：用构建产物实际建一个仓运行一遍，做法见 `probes/2609191042_workspace-scaffold/`。
 
 ## 发版
 
@@ -79,7 +79,7 @@ pnpm build          # 只构建 plugins/*，tsc 直接输出 dist/，没有打�
    - 发插件管理：`["plugins/plugin-manager"]`；两个一起发时插件管理排在前面：`["plugins/plugin-manager","plugins/devkit"]`，devkit 的 peer 里插件管理那一项写成这次发的 `^<版本号>`
 
    它检查 git 工作区、构建、按 `files` 白名单检查产物、做发版前检查（[开发套件](/docs/devkit#发正式版的检查)），在临时目录组装发布内容发到 latest，不改仓里任何文件
-5. **发完就升级 `default`**：人在插件管理窗格点「全部更新」，或调 `plugin-manager.update-all`。说明书与命令都随包发布，不升级等于 agent 读到的还是上一版，而它照着过期的说明书做事不报错。升级到开发套件或插件管理自己时，回执可能收不到，重连后用 `plugin-manager.list` 核对
+5. **发完就升级 `default`**：人在插件管理窗格点「全部更新」，或调 `plugin-manager.update {"all":true}`。说明书与命令都随包发布，不升级等于 agent 读到的还是上一版，而它照着过期的说明书做事不报错。升级到开发套件或插件管理自己时，回执可能收不到，重连后用 `plugin-manager.list` 核对
 
 **`devkit.release` 不运行 `prepublishOnly`**：临时目录里组装的发布内容没有 `scripts`，产物靠仓根构建加白名单检查保证。只有需要运行仓里钩子时才在包目录手动 `pnpm publish --no-git-checks`（scope 对应的源写在用户级 `~/.npmrc`，不手写 `--registry`）；手动发版不做发版前检查，而且 `prepublishOnly` 不能删——少了它会把上一版的 `dist/` 原样发出去而且不报错，现象是「插件加载了但新写的东西都没生效」。
 
@@ -92,7 +92,7 @@ pnpm build          # 只构建 plugins/*，tsc 直接输出 dist/，没有打�
 | `dist` | 插件加载不了 |
 | `template` | `devkit.scaffold` 回「包内 template/ 不在」 |
 | `skills` | 说明书装不进 home，agent 读不到 |
-| `bin` | `devkit.cdp` 指向一个不存在的文件，`devkit.dev` 的重新加载、刷新、核对三步一起失败 |
+| `bin` | `devkit.cdp` 指向一个不存在的文件，`devkit.dev` 的装包、刷新、核对三步一起失败 |
 | `src` | 类型跳转与读源码断掉（不影响运行） |
 
 插件管理的 `files` 是 `dist`、`skills`、`src` 三项。

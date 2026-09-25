@@ -47,7 +47,7 @@ pnpm check          # 递归检查：typecheck（node 侧 + 浏览器侧）+ oxl
 1. 在隔离 home 里用 `devkit.dev` 验过；peer 里内核包的范围要包含验证时那个内核，不包含就改成 `^<验证时那个内核的版本号>`；
 2. 照说明书「gwb-release」升 `package.json` 的版本号并提交：0.x 里只有破坏契约（改名或删掉命令、服务、窗格 id，改参数或回执的形状，改磁盘上的数据格式）才升 x，其余升 y；同一个号不重发；
 3. `devkit.release {"dir":"<仓根>","packages":["plugins/{{name}}"]}`：仓根 git 工作区不干净就拒；构建之后先做发版前检查（peer 只能是 `cordis`、内核包与用到的插件，peer 里的插件与源上 latest 在同一条线、构建产物里的包名 import、`@godcreator` 包的 dev 范围包含源上 latest、peer 里内核包写 `^x.y.z` 且包含运行中的内核等），没过一个都不发；
-4. 发完当场升级 default：插件管理窗格点「全部更新」或调 `plugin-manager.update-all`；default 里还没有这个插件时用 `plugin-manager.install {"pkg":"{{pkg}}"}`。
+4. 发完当场升级 default：插件管理窗格点「全部更新」或调 `plugin-manager.update {"all":true}`；default 里还没有这个插件时用 `plugin-manager.install {"pkg":"{{pkg}}"}`。
 
 ## 规矩在哪
 

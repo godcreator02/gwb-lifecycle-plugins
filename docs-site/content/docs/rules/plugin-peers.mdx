@@ -1,6 +1,6 @@
 ---
 title: 用到的插件写 peer
-description: 插件经 ctx.inject 用别的插件的服务、或 import 它的类型，就在 peerDependencies 里写它的 ^x.y.z，可选使用的标 optional；devkit.release 查 peer 里只有插件、和源上 latest 在同一条线，plugin-manager.list 报没满足的，update-all 把写 peer 的插件一起重新加载，pnpm 不自动补装缺的 peer
+description: 插件经 ctx.inject 用别的插件的服务、或 import 它的类型，就在 peerDependencies 里写它的 ^x.y.z，可选使用的标 optional；devkit.release 查 peer 里只有插件、和源上 latest 在同一条线，plugin-manager.list 报没满足的，plugin-manager.update 把写 peer 的插件一起重新加载，pnpm 不自动补装缺的 peer
 ---
 
 # 用到的插件写 peer
@@ -33,7 +33,7 @@ peer 的意思是「运行时从 home 里得到这个包」。插件的 peer 因
 
 **`plugin-manager.list` 按包报 `unmetPeers`**：只看插件 peer 里内核包与 `cordis` 以外的包，每条没满足的是 `{ pkg, range, installed? }`——没装（没有 `installed`；optional 的没装不算）、装着的版本不在范围里、或范围不是 `^x.y.z`。只报告，不拦加载、不拦安装（回执怎么读见插件管理那组页面里的[peer 满没满足](/docs/plugin-manager/peers)）。
 
-**`plugin-manager.update-all` 一起重新加载**：升级了某个包，home 里 peer 写了它的插件被 pnpm 装进新目录，插件管理比装之前与装之后的真实目录发现它，在同一条命令里重新加载，回执 `dependents` 列出来（见[热升级](/docs/plugin-manager/upgrade#真实目录变了的包一起重新加载)）。
+**`plugin-manager.update` 一起重新加载**：升级了某个包，home 里 peer 写了它的插件被 pnpm 装进新目录，插件管理比装之前与装之后的真实目录发现它，在同一条命令里重新加载，回执 `dependents` 列出来（见[热升级](/docs/plugin-manager/upgrade#真实目录变了的包一起重新加载)）。
 
 ## pnpm 不自动补装缺的 peer
 
@@ -57,7 +57,7 @@ devkit 用命令总线登记命令（写在 `export const inject` 里，必需�
 }
 ```
 
-处理办法是升级那个插件：`plugin-manager.update-all {"only":["@godcreator/gwb-shell"]}`。
+处理办法是升级那个插件：`plugin-manager.update {"only":["@godcreator/gwb-shell"]}`。
 
 ## 为什么
 

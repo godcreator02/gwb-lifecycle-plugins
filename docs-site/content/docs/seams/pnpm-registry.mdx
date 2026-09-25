@@ -1,6 +1,6 @@
 ---
 title: 9 pnpm 与包源
-description: 连接 devkit、插件管理与 pnpm、npm 源、两份 npmrc、gitea 插件的设置：两个插件用同一个 pnpm——用户装在两个固定位置之一的 pnpm 12，按同一套规则找、核对版本，直接启动，关掉自动补装 peer；插件管理用它改 home，devkit 用它做 build / publish / view / install / add；团队源地址写在 devkit 里，开发版打 dev、正式版打 latest；插件管理按 scope 从两份 npmrc 找源、调 registry 的检索接口找插件、读写机器级 ~/.npmrc 的包源，owner 写法按名字调 settings.get 读 gitea 分区
+description: 连接 devkit、插件管理与 pnpm、npm 源、两份 npmrc、gitea 插件的设置：两个插件用同一个 pnpm——用户装在两个固定位置之一的 pnpm 12，按同一套规则找、核对版本，直接启动，关掉自动补装 peer；插件管理用它改 home，devkit 用它做 build / pack / publish / view / add；团队源地址写在 devkit 里，只有正式版发到源、打 latest，开发版打成包文件放进目标 home；插件管理按 scope 从两份 npmrc 找源、调 registry 的检索接口找插件、读写机器级 ~/.npmrc 的包源，owner 写法按名字调 settings.get 读 gitea 分区
 ---
 
 **本页回答**：两个插件用的是哪一个 pnpm、怎么找到它、各拿它做什么；团队源的地址写在哪、哪几处显式传、哪几处靠用户的 `~/.npmrc`；开发版与正式版怎么分开；插件管理找插件、配包源时读写哪两份 npmrc、怎么决定去哪条源检索、读 gitea 插件的哪两项设置。
@@ -15,7 +15,7 @@ description: 连接 devkit、插件管理与 pnpm、npm 源、两份 npmrc、git
 
 ## 接口
 
-**两个插件用同一个 pnpm**：每条要运行 pnpm 的命令开头按顺序检查两个位置——`%LOCALAPPDATA%\pnpm\bin\pnpm.exe`（pnpm 12 官方安装脚本的默认位置）、`%APPDATA%\npm\node_modules\pnpm\pnpm.exe`（npm 全局装的 pnpm 包里的原生可执行文件）——第一个存在的作数，运行 `--version` 核对是 12.x 并且不低于 12.4.2；不存在、版本不对都报错，不去试另一个位置，不看 PATH。找到的文件直接启动，不经 shell。规则只有一份，写在插件管理的 `src/pnpm-location.ts`，devkit 从插件管理的主入口 import `locatePnpm`：
+**两个插件用同一个 pnpm**：每条要运行 pnpm 的命令开头按顺序检查两个位置——`%LOCALAPPDATA%\pnpm\bin\pnpm.exe`（pnpm 12 官方安装脚本的默认位置）、`%APPDATA%\npm\node_modules\pnpm\pnpm.exe`（npm 全局装的 pnpm 包里的原生可执行文件）——用第一个存在的，运行 `--version` 核对是 12.x 并且不低于 12.4.2；不存在、版本不对都报错，不去试另一个位置，不看 PATH。找到的文件直接启动，不经 shell。规则只有一份，写在插件管理的 `src/pnpm-location.ts`，devkit 从插件管理的主入口 import `locatePnpm`：
 
 {/* ref file="../plugins/plugin-manager/src/pnpm-location.ts" lines="22-28" */}
 
@@ -28,32 +28,32 @@ description: 连接 devkit、插件管理与 pnpm、npm 源、两份 npmrc、git
 | 命令 | 在哪运行 | 谁调 | 带 `--registry` |
 | --- | --- | --- | --- |
 | `pnpm build` | 被测仓的仓根 | `devkit.dev`、`devkit.release` | 不适用 |
-| `pnpm publish --no-git-checks --tag <dev 或 latest>` | 临时目录里组装好的发布内容 | `devkit.dev`、`devkit.release` | 带 |
-| `pnpm view <包@版本> version`、`pnpm view <包> dist-tags.latest` | 系统临时目录 | `devkit.dev`、`devkit.release` | 带 |
-| `pnpm install` | 目标 home | `devkit.dev` | 不带 |
-| `pnpm add <七个基础插件>` | 新 home | `devkit.home.new` | 不带 |
+| `pnpm pack --pack-destination <目标 home>\dev-packs` | 临时目录里组装好的发布内容 | `devkit.dev` | 不适用 |
+| `pnpm publish --no-git-checks --tag latest` | 临时目录里组装好的发布内容 | `devkit.release` | 带 |
+| `pnpm view <包@版本> version`、`pnpm view <包> dist-tags.latest` | 系统临时目录 | `devkit.release` | 带 |
+| `pnpm add <内核包、cordis、七个基础插件>` | 新 home | `devkit.home.new` | 不带 |
 
-{/* ref file="../plugins/devkit/src/dev.ts" lines="270-278" */}
+`devkit.dev` 不在目标 home 里启动 pnpm：装包是目标 home 的插件管理在它自己的进程里运行的 `pnpm add`。
 
-{/* ref file="../plugins/devkit/src/node-dev-deps.ts" lines="206-210" */}
+{/* ref file="../plugins/devkit/src/dev.ts" lines="306-314" */}
 
-{/* ref file="../plugins/devkit/src/node-dev-deps.ts" lines="304-313" */}
+{/* ref file="../plugins/devkit/src/node-dev-deps.ts" lines="215-231" */}
 
-**在 home 里运行的 pnpm 都关掉自动补装 peer**：启动 pnpm 时环境变量原样传下去，只加一项 `pnpm_config_auto_install_peers=false`（插件管理另去掉 `ELECTRON_RUN_AS_NODE`）。插件管理的 pnpm 都在 home 里运行；devkit 只在 `home.new` 的三次 `pnpm add` 与 `dev` 的 `pnpm install` 带它，在插件仓里的 build、publish 与临时目录里的 view 不带——插件仓里开发要靠自动补装把 peer 里的内核包与插件装进 `node_modules`，带上它 pnpm 会按新配置重装、把这些 peer 拿掉，构建时找不到类型。插件的 peer 写了别的插件，home 里没装那个插件时，pnpm 默认把它不声不响装进 `node_modules/.pnpm`，不写进 home 的 `package.json`、没有条目，插件管理也不认它。命令行参数 `--config.auto-install-peers=false` 会被 pnpm 忽略，只有环境变量或 home 的 `pnpm-workspace.yaml` 关得掉（实验见本仓 `probes/2609242300_peer-between-plugins/`）：
+{/* ref file="../plugins/devkit/src/node-dev-deps.ts" lines="299-308" */}
 
-{/* ref file="../plugins/devkit/src/dev.ts" lines="263-268" */}
+**在 home 里运行的 pnpm 都关掉自动补装 peer**：启动 pnpm 时环境变量原样传下去，只加一项 `pnpm_config_auto_install_peers=false`（插件管理另去掉 `ELECTRON_RUN_AS_NODE`）。插件管理的 pnpm 都在 home 里运行；devkit 只在 `home.new` 的三次 `pnpm add` 带它，在插件仓里的 build 与临时目录里的 pack、publish、view 不带——插件仓里开发要靠自动补装把 peer 里的内核包与插件装进 `node_modules`，带上它 pnpm 会按新配置重装、把这些 peer 拿掉，构建时找不到类型。插件的 peer 写了别的插件，home 里没装那个插件时，pnpm 默认把它不声不响装进 `node_modules/.pnpm`，不写进 home 的 `package.json`、没有条目，插件管理也不认它。命令行参数 `--config.auto-install-peers=false` 会被 pnpm 忽略，只有环境变量或 home 的 `pnpm-workspace.yaml` 关得掉（实验见本仓 `probes/2609242300_peer-between-plugins/`）：
+
+{/* ref file="../plugins/devkit/src/dev.ts" lines="299-304" */}
 
 {/* ref file="../plugins/plugin-manager/src/pnpm-path.ts" lines="7-16" */}
 
-**团队源地址**：写死在 `dev.ts`，`devkit.dev` 与 `devkit.release` 都只用它，不收参数：
+**团队源地址**：写死在 `dev.ts`，只有 `devkit.release` 用它，不收参数：
 
 {/* ref file="../plugins/devkit/src/dev.ts" lines="5-6" */}
 
-**两个 tag**：开发版号是 `<patch+1>-dev.<yyyyMMddHHmm>`，打 `dev`，不动 `latest`；正式版发 `package.json` 里的号，打 `latest`：
+**开发版不进源**：开发版的版本号是 `<patch+1>-dev.<yyyyMMddHHmmss>`，打成包文件放进目标 home 的 `dev-packs`，经那个 home 的插件管理装；正式版发 `package.json` 里的版本号，打 `latest`：
 
-{/* ref file="../plugins/devkit/src/dev.ts" lines="43-50" */}
-
-{/* ref file="../plugins/devkit/src/node-dev-deps.ts" lines="223-228" */}
+{/* ref file="../plugins/devkit/src/dev.ts" lines="51-62" */}
 
 **插件管理找插件：按 scope 找源、调检索接口**。`plugin-manager.search` 每条源的地址照 pnpm 读两份 npmrc 的优先级找：先找 `@scope:registry=`，再找 `registry=`，每一种都是 home 级优先于机器级，都没有就是 npm 官方源：
 
@@ -96,9 +96,9 @@ description: 连接 devkit、插件管理与 pnpm、npm 源、两份 npmrc、git
 - `search` 不带参数时查全部配好的 scope（`@godcreator` 在前、其余按名字排），各条源并发查，一条失败不影响别的，全都失败才 `ok: false`
 
 devkit 保证：
-- 发版只发到 `DEFAULT_REGISTRY`，开发版不动 `latest`
+- 正式版只发到 `DEFAULT_REGISTRY`，打 `latest`；开发版不发到任何源
 - 同一个版本号在源上已有就不发
-- 发布内容在临时目录里组装好，不改仓里的 `package.json`
+- 发布内容与开发版的包文件都在临时目录里组装，不改仓里的 `package.json`
 
 团队源需要保证的：`dist-tags.latest` 是正式最新版。源地址与 `~/.npmrc` 里 `@godcreator` 那一行一致**靠约定**：`dev.ts` 的注释写着两者同一个地址，没有代码核对。
 
@@ -106,9 +106,9 @@ devkit 保证：
 
 gitea 插件需要保证的（gitea 插件仓的约定）：条目 id 是 `gitea`，设置名是 `base-url` 与 `token`。
 
-**改 home 的是同一个 pnpm，但互斥只在插件管理里**：插件管理、`devkit.home.new`、`devkit.dev` 找到的是同一个文件；插件管理的改动经过它自己的 BUSY 检查，devkit 的两条命令不经过插件管理，两边同时写同一个 home 会丢改动（[两个 pnpm 同时改同一个 home](/trajectory/2026-09-25-concurrent-pnpm-loses-writes)）。
+**改 home 的是同一个 pnpm，但互斥只在插件管理里**：插件管理与 `devkit.home.new` 找到的是同一个文件；插件管理的改动经过它自己的 BUSY 检查，`devkit.dev` 装包也经目标 home 的插件管理，所以同样经过这道检查；`devkit.home.new` 不经过插件管理（那时插件管理还没装、home 还没启动），同时有别的 pnpm 写同一个 home 会丢改动（[两个 pnpm 同时改同一个 home](/trajectory/2026-09-25-concurrent-pnpm-loses-writes)）。
 
-本仓 AGENTS 写「手工发版别手写 `--registry`，scope 对应的源写在 `~/.npmrc`」；`devkit.dev` 与 `devkit.release` 的 `publish` 与 `view` 显式带 `--registry`。
+本仓 AGENTS 写「手工发版别手写 `--registry`，scope 对应的源写在 `~/.npmrc`」；`devkit.release` 的 `publish` 与 `view` 显式带 `--registry`。
 
 ## 不负责的事
 

@@ -1,0 +1,55 @@
+---
+title: devkit.dev 改成打包进目标 home、经目标 home 的插件管理装，开发版不再进团队源、devkit 不再写目标 home 的清单
+born-at: 2026-09-25T10:25
+type: choice
+parent: [2026-09-25-dev-install-via-file-tgz]
+label: 开发版经插件管理装
+domain: 开发循环
+---
+
+supersedes:: [开发版装进 home 是清单写准确号再装，装上的号读回核对](2026-09-17-dev-install-pins-exact.md)
+
+pivots-from:: [重挂是目标进程里的一条命令，不是这边发的停用加启用](2026-09-17-remount-is-one-command.md)
+
+pivots-from:: [改一版看一版进 devkit，工具站在被换的进程外面](2026-09-11-dev-loop-comes-to-devkit.md)
+
+pivots-from:: [devkit.dev 发内核包时连同 cordis 写进清单一起装，改成重启目标 home](2026-09-24-dev-ships-kernel.md)
+
+## 背景
+
+`devkit.dev` 原来的做法：把开发版发到团队源（tag `dev`），在目标 home 的 `package.json` 里写准确版本号再 `pnpm install`，装完读回核对，再对每条条目发一条 `plugin-manager.remount`。三处不对劲：
+
+- **devkit 自己写目标 home**：不经插件管理、也不经它的 BUSY 检查，和插件管理的改动同时写同一个 home 会丢改动，而且都退出码 0。全生态定案里「只由插件管理写 home」这一条，`devkit.dev` 是除 `home.new` 之外唯一的例外
+- **开发版进团队源**：源上积攒了约五百个 `-dev.*`，每次要 `pnpm view` 查重；源上的包同时被别的仓用，开发版本来只该出现在一个隔离 home 里
+- **重新加载要自己算**：devkit 只重新加载这次发的包的条目，peer 里写了被换的包、跟着换了目录的插件没人管；插件管理的 `update` 已经会比装前装后的真实目录、把它们一起重新加载
+
+插件管理 0.12.0 的 `plugin-manager.update` 新加了 `specs` 参数（[update-all 改名 update，另加 specs](2026-09-25-update-takes-all-param.md)），能按给定写法装已装的包；探针（本卡的上一张）确认了 pnpm 12 在 home 里装 `file:` 包文件的行为。
+
+## 结论与边界
+
+- **打包进目标 home**：每个包在临时目录里组装发布内容（与发正式版同一套组装），版本号 `<patch+1>-dev.<yyyyMMddHHmmss>`，`pnpm pack --pack-destination <目标 home>\dev-packs`。开发版不再发到团队源
+- **包文件路径每版不同，已存在就拒，旧的不删**：pnpm 虚拟存储的目录名只看包文件路径，覆盖写同一路径会静默装旧代码；清单引用着的包文件删了，这个 home 之后的 `pnpm add` 全失败。版本号改成到秒，包文件名用 `pnpm pack` 的默认写法
+- **经目标 home 的插件管理装**：devkit 只读目标 home 的 `package.json`。已在 `dependencies` 里的包合成一条 `plugin-manager.update {"specs":{"<包>":"file:./dev-packs/<包文件>"}}`（有内核包时连同它 peer 里 cordis 的精确版本号），不在的插件逐个 `plugin-manager.install`（新建条目）；内核包不在目标 home 里直接拒。写法用相对 home 的路径：清单里不写 home 所在位置，路径里的空白也不会被插件管理的写法检查拒掉
+- **重新加载交给插件管理**：`update` 回 `ok: false` 就整体失败；回执 `selfDeferred` 就轮询 `plugin-manager.list` 等插件管理自己的条目回来；回执 `restartRequired` 就照旧重启目标 home、轮询 `shell.env`。`specs` 不整页重载，devkit 自己带 `waitFor` 刷新，没等到或驱动退出码非零就整体失败
+- **只收插件与内核包**：`keywords` 里没有 `gwb-plugin` 的库直接拒，库打包进用它的插件；开发版不再改写同一次发的包之间的依赖（容器里的插件 dependencies 里都没有 `@godcreator` 包）
+- **取证不变**：装上的版本号是这次打包的、条目 `ACTIVE`、日志新增部分没有 error。插件管理对 `file:` 写法不核对版本号，这一步的核对只剩取证里那一次
+- 构建不变，仍在仓根整仓构建
+
+## 否掉的候选
+
+- **在 `plugin-manager.update` 上加 `reload: false` 参数**，让 `all` / `only` 也能不整页重载、devkit 复用它们：装开发版只会走 `specs`，`specs` 本来就不整页重载；为唯一的使用者加一个参数，等于把「谁刷新页面」做成可配置的，而只有一种配法
+- **devkit 继续自己写清单，只把源上的准确版本号换成 `file:` 再 `pnpm install`**：省掉团队源，但「devkit 绕过插件管理写 home」和不经 BUSY 检查的问题原样留着，跟着换了目录的插件也还是没人重新加载
+- **包文件放在 home 外面的公共目录**：锁文件记成 `../../` 开头的相对路径，虚拟存储目录名超长被截成哈希；删隔离 home 时这些包文件不跟着删，攒在另一个地方
+
+## 代价与遗留
+
+- **还没在真的隔离 home 里跑过**：判断来自探针与 `plugins/devkit/tests/dev.test.ts`；目标 home 的插件管理要 0.12.0 起，现有隔离 home 里装的旧版插件管理不认 `specs`
+- 隔离 home 的 `dev-packs` 只增不减，随 home 一起删；pnpm 存储里的开发版照旧要定期清理
+- `file:` 装的包在 pnpm 眼里满足不了任何 peer 范围：peer 里写了被换的插件的别的插件，每次 `pnpm add` 打一行 peer 警告，在隔离 home 里接受
+- `devkit.home.new` 仍在新 home 启动前直接 `pnpm add`、写 `cordis.yml`：那时插件管理还没装、home 还没启动
+- 团队源上已有的约五百个 `-dev.*` 删不删，仍是全生态定案里的待决定项
+
+## 依据
+
+- 探针 `probes/2609250930_pnpm-file-tgz-home/`（上一张卡）：包文件路径决定虚拟存储目录、覆盖写同一路径不生效、删掉被引用的包文件之后 `pnpm add` 失败、`file:` 写法把清单里原来的 `^` 整条换掉、`outdated` 不列 `file:` 依赖
+- `plugins/devkit/tests/dev.test.ts`：库包被拒、包文件路径已存在被拒、已装走 `update` 未装走 `install`、`update` 的 `ok: false` 传出、`restartRequired` 走重启、`selfDeferred` 轮询、刷新带 `waitFor` 与刷新失败、取证失败

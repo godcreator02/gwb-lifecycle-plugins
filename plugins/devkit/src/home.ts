@@ -44,8 +44,6 @@ export interface HomeRecord {
   cdp?: number
   /** gwb-mcp 补的 `mcp` 字段 */
   mcp?: DoorEndpoint
-  /** 更早的 command-http 插件补的 `command-http` 字段，旧 home 的记录里还有，照读、只作参考 */
-  commandHttp?: DoorEndpoint
 }
 
 export function recordFile(homeDir: string): string {
@@ -75,11 +73,10 @@ export function parseRecord(text: string | undefined): HomeRecord | undefined {
     return undefined
   }
   if (!isRecord(doc)) return undefined
-  const { pid, startedAt, appDir, cdp, mcp, 'command-http': commandHttp } = doc
+  const { pid, startedAt, appDir, cdp, mcp } = doc
   if (typeof pid !== 'number' || !Number.isInteger(pid) || pid <= 0) return undefined
   if (typeof startedAt !== 'number' || !Number.isFinite(startedAt)) return undefined
   const mcpEndpoint = endpointOf(mcp)
-  const commandHttpEndpoint = endpointOf(commandHttp)
   const cdpPort = asPort(cdp)
   return {
     pid,
@@ -87,7 +84,6 @@ export function parseRecord(text: string | undefined): HomeRecord | undefined {
     ...(typeof appDir === 'string' && appDir !== '' ? { appDir } : {}),
     ...(cdpPort === undefined ? {} : { cdp: cdpPort }),
     ...(mcpEndpoint === undefined ? {} : { mcp: mcpEndpoint }),
-    ...(commandHttpEndpoint === undefined ? {} : { commandHttp: commandHttpEndpoint }),
   }
 }
 
@@ -409,7 +405,7 @@ async function refusalIfExitedEarly(pid: number, home: string, deps: HomeDeps): 
 }
 
 function recordSeenNote(record: HomeRecord | undefined): string {
-  if (record === undefined) return `,但 ${RECORD_FILE} 还没出现——这个内核版本可能还不写它,那么 stop 与「按 home 名定位」都用不了`
+  if (record === undefined) return `,但 ${RECORD_FILE} 还没出现或读不出——没有它,stop 与「按 home 名定位」都用不了;停掉重开一次`
   if (record.cdp === undefined) return `,${RECORD_FILE} 里没有 cdp 那格(起的时候没带 --remote-debugging-port?)`
   return `,${RECORD_FILE} 记下了 CDP ${String(record.cdp)}`
 }
@@ -462,8 +458,6 @@ export interface HomeEntry {
   /** 调试端口。没记录、或那个字段没写，就是 null */
   cdp: number | null
   mcp: DoorEndpoint | null
-  /** 更早的 command-http 插件的端口，旧 home 的记录里有，照报只作参考 */
-  commandHttp: DoorEndpoint | null
 }
 
 /** 名字带着时间戳后缀，字典序就是时间序 */
@@ -484,7 +478,6 @@ export async function listHomes(homesRoot: string, deps: HomeDeps): Promise<Home
       // 端口按记录如实报，不因为进程看起来不在就去掉：过时的端口正是人要看到的线索
       cdp: record?.cdp ?? null,
       mcp: record?.mcp ?? null,
-      commandHttp: record?.commandHttp ?? null,
     })
   }
   return entries
@@ -533,7 +526,7 @@ export async function resolveTarget(homesRoot: string, name: string, deps: HomeD
   if (record === undefined) {
     return {
       ok: false,
-      error: `${name} 里没有能读的 ${RECORD_FILE}——它没起过,或者起它的内核版本还不写这份记录。停掉重开一次就有了`,
+      error: `${name} 里的 ${RECORD_FILE} 不在或读不出——它没启动过,或记录写坏了。停掉重开一次`,
     }
   }
   const isHome = recordedPidIsHomeProcess(await deps.processName(record.pid), deps.execPath)
@@ -584,7 +577,7 @@ export async function waitExited(pid: number, deps: HomeDeps): Promise<{ ok: tru
 export async function bringDownHome(homeDir: string, deps: HomeDeps): Promise<StopOutcome> {
   const record = parseRecord(deps.fs.readText(recordFile(homeDir)))
   if (record === undefined) {
-    return { ok: true, killed: null, note: `没有运行时记录(${RECORD_FILE} 不在或读不出)——它没起过,或者起它的内核版本还不写这份记录` }
+    return { ok: true, killed: null, note: `没有运行时记录(${RECORD_FILE} 不在或读不出)——它没启动过,没什么可停的` }
   }
   const isHome = recordedPidIsHomeProcess(await deps.processName(record.pid), deps.execPath)
   if (isHome === undefined) {

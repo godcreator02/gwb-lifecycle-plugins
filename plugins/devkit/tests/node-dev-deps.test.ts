@@ -5,9 +5,9 @@ import { afterEach, describe, expect, it } from 'vitest'
 import { distManifest, workspaceRootOf, workspaceVersions } from '../src/node-dev-deps.js'
 
 /**
- * `node-dev-deps.ts` 整层是环境胶水、不进单测，唯独 `distManifest` 与 `workspaceRootOf` 不是胶水：
- * 它们决定分发形态里每一条依赖写什么号。写错的那句话是「新插件配旧库」——装得上、能运行、
- * 不报错，是最难查的一种。所以单独在这儿测。
+ * `node-dev-deps.ts` 的其余部分是读写磁盘、启动进程，不进单元测试；`distManifest` 与 `workspaceRootOf` 不是：
+ * 它们决定发布内容与开发版包文件里每一条依赖写什么版本号。写错的后果是「新插件配旧库」——装得上、能运行、
+ * 不报错，最难查。所以单独测
  */
 
 /** 一份典型的工作区清单：同仓兄弟用 workspace:，外来包用普通范围 */
@@ -27,16 +27,17 @@ const MANIFEST = {
   gwb: { title: '假的' },
 } as const
 
-const SIBLINGS = { '@godcreator/gwb-sibling': '0.4.0-dev.202609131200' }
+/** 正式版：同一次发的包写 `^新版本号` */
+const SIBLINGS = { '@godcreator/gwb-sibling': '^0.4.0' }
 const WORKSPACE = new Map([
   ['@godcreator/gwb-sibling', '0.3.9'],
   ['@godcreator/gwb-plugin-api', '0.1.0'],
 ])
 
 describe('分发清单', () => {
-  it('号换成这一趟那个，scripts 与 devDependencies 删掉，别的字段原样带过去', () => {
-    const out = distManifest(MANIFEST, '0.4.0-dev.202609131200', SIBLINGS, WORKSPACE)
-    expect(out.version).toBe('0.4.0-dev.202609131200')
+  it('版本号换成这次的，scripts 与 devDependencies 删掉，别的字段原样带过去', () => {
+    const out = distManifest(MANIFEST, '0.4.0', SIBLINGS, WORKSPACE)
+    expect(out.version).toBe('0.4.0')
     expect(out.scripts).toBeUndefined()
     expect(out.devDependencies).toBeUndefined()
     expect(out.gwb).toEqual({ title: '假的' })
@@ -44,26 +45,21 @@ describe('分发清单', () => {
   })
 
   it('不改入参那份清单——仓里的 package.json 一个字都不动', () => {
-    distManifest(MANIFEST, '0.4.0-dev.202609131200', SIBLINGS, WORKSPACE)
+    distManifest(MANIFEST, '0.4.0', SIBLINGS, WORKSPACE)
     expect(MANIFEST.version).toBe('0.3.1')
     expect(MANIFEST.scripts).toEqual({ build: 'tsc', test: 'vitest run' })
     expect(MANIFEST.devDependencies).toEqual({ typescript: '^7.0.2' })
   })
 
-  it('同趟发的兄弟钉成它的准确号——范围认不到 dev 版，不钉就是新件配旧库', () => {
-    const out = distManifest(MANIFEST, '0.4.0-dev.202609131200', SIBLINGS, WORKSPACE)
-    expect(out.dependencies?.['@godcreator/gwb-sibling']).toBe('0.4.0-dev.202609131200')
-  })
-
-  it('正式版那趟给的是 ^ 范围，原样写进去——消费方跟得进破坏边界以内的后续版本', () => {
-    const out = distManifest(MANIFEST, '0.4.0', { '@godcreator/gwb-sibling': '^0.4.0' }, WORKSPACE)
+  it('正式版给的是 ^ 范围，原样写进去——消费方跟得上破坏边界以内的后续版本', () => {
+    const out = distManifest(MANIFEST, '0.4.0', SIBLINGS, WORKSPACE)
     expect(out.dependencies?.['@godcreator/gwb-sibling']).toBe('^0.4.0')
   })
 
-  it('不是兄弟的 workspace: 换成 ^<工作区里那个号>；工作区里没有就 ^0.0.0', () => {
+  it('开发版打包不给同一次的写法：workspace: 换成 ^<工作区里的版本号>；工作区里没有就 ^0.0.0', () => {
     const out = distManifest(
       { ...MANIFEST, dependencies: { '@godcreator/gwb-sibling': 'workspace:^', '@godcreator/gwb-stranger': 'workspace:*' } },
-      '0.4.0-dev.202609131200',
+      '0.4.1-dev.20260913120000',
       {},
       WORKSPACE,
     )
@@ -71,15 +67,15 @@ describe('分发清单', () => {
     expect(out.dependencies?.['@godcreator/gwb-stranger']).toBe('^0.0.0')
   })
 
-  it('普通范围原样过，外来包不掺和', () => {
-    const out = distManifest(MANIFEST, '0.4.0-dev.202609131200', SIBLINGS, WORKSPACE)
+  it('普通范围原样写，不是本仓的包不改', () => {
+    const out = distManifest(MANIFEST, '0.4.0', SIBLINGS, WORKSPACE)
     expect(out.dependencies?.['yaml']).toBe('^2.8.0')
   })
 
-  it('peer 不钉兄弟的准确号——钉了就是逼消费方也换版本；workspace: 照样换成真号', () => {
+  it('peer 不写同一次发的写法——peer 的意思是「你自己带一个」；workspace: 照样换成工作区里的版本号', () => {
     const out = distManifest(
       { ...MANIFEST, peerDependencies: { '@godcreator/gwb-sibling': 'workspace:^', '@godcreator/gwb-plugin-api': '>=0.1.0' } },
-      '0.4.0-dev.202609131200',
+      '0.4.0',
       SIBLINGS,
       WORKSPACE,
     )

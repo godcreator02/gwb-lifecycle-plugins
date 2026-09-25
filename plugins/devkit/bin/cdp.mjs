@@ -41,7 +41,6 @@
 // 最小化这个开关管不了，别最小化。
 
 import fs from 'node:fs'
-import os from 'node:os'
 import path from 'node:path'
 import { fileURLToPath } from 'node:url'
 
@@ -67,20 +66,13 @@ const [home, verb, ...args] = rest
 export const PACKAGE_ROOT = path.dirname(path.dirname(fileURLToPath(import.meta.url)))
 
 /**
- * home 根 `<appData>/gwb-kernel/homes`，与内核 `main.ts` 里 `GWB_HOME` 是名字时的算法相同。`<appData>` 是 Electron
- * `app.getPath('appData')`：Windows 是 `%APPDATA%`，macOS 是 `~/Library/Application Support`，其余是 `$XDG_CONFIG_HOME`（没设时 `~/.config`）
+ * home 根 `%APPDATA%\gwb-kernel\homes`，与内核 `main.ts` 里 `GWB_HOME` 是名字时的算法相同（Electron 的
+ * `app.getPath('appData')` 在 Windows 上就是 `%APPDATA%`）。只支持 Windows：开发套件找 pnpm、查进程也都只支持 Windows
  */
-export function homesRootOf(env = process.env, platform = process.platform, userHome = os.homedir()) {
-  return path.join(appDataOf(env, platform, userHome), 'gwb-kernel', 'homes')
-}
-
-function appDataOf(env, platform, userHome) {
-  if (platform === 'win32') {
-    if (!env.APPDATA) throw new Error('环境变量 APPDATA 没有设置——Windows 上 home 根在 %APPDATA%\\gwb-kernel\\homes，没有它算不出来')
-    return env.APPDATA
-  }
-  if (platform === 'darwin') return path.join(userHome, 'Library', 'Application Support')
-  return env.XDG_CONFIG_HOME || path.join(userHome, '.config')
+export function homesRootOf(env = process.env, platform = process.platform) {
+  if (platform !== 'win32') throw new Error(`开发套件只支持 Windows，当前平台是 ${platform}——home 根算不出来`)
+  if (!env.APPDATA) throw new Error('环境变量 APPDATA 没有设置——home 根在 %APPDATA%\\gwb-kernel\\homes，没有它算不出来')
+  return path.join(env.APPDATA, 'gwb-kernel', 'homes')
 }
 
 /** home 名 → 那个 home 的目录。`root` 是 `homesRootOf()` 的结果 */
@@ -88,7 +80,7 @@ export function homeDirOf(name, root) {
   return path.join(root, name)
 }
 
-/** Windows 上 `\foo` 也算 isAbsolute，可它落在进程当前所在的盘上，所以那边要带盘符或是 UNC */
+/** Windows 上 `\foo` 也算 isAbsolute，可它指向进程当前所在的盘，所以那边要带盘符或是 UNC */
 export function isFullPath(p) {
   if (typeof p !== 'string' || !path.isAbsolute(p)) return false
   return process.platform !== 'win32' || /^(?:[a-zA-Z]:[\\/]|[\\/]{2}[^\\/])/.test(p)
@@ -148,7 +140,7 @@ function portOf(name, dir) {
     throw new Error(`第一个位置要 home 名，不是端口（给的是 ${name}）。哪个 home 在运行、端口是多少，看 devkit.home.list`)
   }
   const file = path.join(dir, 'runtime.json')
-  if (!fs.existsSync(file)) throw new Error(`${file} 不在——${name} 没起过，或者起它的内核版本还不写这份记录。停掉重开一次`)
+  if (!fs.existsSync(file)) throw new Error(`${file} 不在——${name} 没启动过。用 devkit.home.open 启动它`)
   let record
   try {
     record = JSON.parse(fs.readFileSync(file, 'utf8'))
@@ -270,7 +262,7 @@ async function visibility(send, raise) {
 
 /**
  * 这段字符串送进页面里执行，只能用页面认得的东西。`ok` 说这个点打不打得中目标，`x`/`y` 只要算得出来就给
- * （滚轮本来就该落在最上面那个元素上）；打不中时把挡住它的祖先链与目标的 `pointer-events` 一起报出来
+ * （滚轮本来就该作用在最上面那个元素上）；打不中时把挡住它的祖先链与目标的 `pointer-events` 一起报出来
  */
 const probeExpr = (steps) => `(() => {
   const brief = (n) => (n.textContent || '').replace(/\\s+/g, ' ').trim().slice(0, 30) || '(没字)';
@@ -589,7 +581,7 @@ async function run(send, target) {
       await send('Page.enable')
       // 只有截图真的要画面，所以只有它把窗口提到前面
       const seen = await visibility(send, true)
-      // 裁剪只要盒子、不要命中检查：长元素的中心点落在别的元素上很常见，跟能不能截它无关
+      // 裁剪只要盒子、不要命中检查：长元素的中心点在别的元素上很常见，跟能不能截它无关
       const spot = sel === undefined ? undefined : await pointOf(send, sel)
       if (spot !== undefined && spot.clip === undefined) insist(spot)
       const clip = spot === undefined ? undefined : { ...spot.clip, scale: 1 }
@@ -622,22 +614,8 @@ async function assertHome(send) {
 
 // ---------------------------------------------------------------------------
 
-/**
- * 被 `node <本文件>` 运行时才动手，被 import 时（单测与 `src/index.ts`）只交出上面那几个纯函数。
- * `import.meta.main` 从 Node 24.2 起才有；更老的 Node 上比 argv[1] 与本文件的真实路径（home 里经 pnpm 的 junction，两边都要 realpath）
- */
-function invokedDirectly() {
-  if (typeof import.meta.main === 'boolean') return import.meta.main
-  const entry = process.argv[1]
-  if (entry === undefined) return false
-  try {
-    return fs.realpathSync.native(entry) === fs.realpathSync.native(fileURLToPath(import.meta.url))
-  } catch {
-    return false
-  }
-}
-
-if (invokedDirectly()) {
+// 被 `node <本文件>` 运行时才动手，被 import 时（单测与 `src/index.ts`）只交出上面那几个纯函数
+if (import.meta.main) {
   if (!home || !verb) throw new Error('用法：node <本文件> <home 名> <动作> [参数…]，动作见文件头')
   homeDir = homeDirOf(home, homesRootOf())
   port = portOf(home, homeDir)

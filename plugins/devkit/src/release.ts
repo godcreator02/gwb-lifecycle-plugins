@@ -65,26 +65,22 @@ export function dirtyLines(tail: string): string[] {
 const SCOPE = '@godcreator/'
 const EXACT = /^\d+\.\d+\.\d+$/
 const CARET = /^\^(\d+\.\d+\.\d+)$/
-const VERSION_WITH_PRERELEASE = /^(\d+)\.(\d+)\.(\d+)(?:-([0-9A-Za-z.-]+))?/
+const SEMVER = /^(\d+)\.(\d+)\.(\d+)(?:-([0-9A-Za-z.-]+))?(?:\+[0-9A-Za-z.-]+)?$/
+
+/** `x.y.z`，可带预发布段与构建段 */
+function isVersion(version: string): boolean {
+  return SEMVER.test(version)
+}
 
 interface ParsedVersion {
   core: number[]
   prerelease: string[]
 }
 
-/** 认不出的号三段按点拆、各取整数，取不到当 0 */
+/** 认不出直接抛错：比较的两边都该是查过的版本号，源上问来的号在 `checkTicket` 里先查 */
 function parseVersion(version: string): ParsedVersion {
-  const match = VERSION_WITH_PRERELEASE.exec(version)
-  if (match === null) {
-    const parts = version.split('.')
-    return {
-      core: [0, 1, 2].map((i) => {
-        const n = Number.parseInt(parts[i] ?? '0', 10)
-        return Number.isNaN(n) ? 0 : n
-      }),
-      prerelease: [],
-    }
-  }
+  const match = SEMVER.exec(version)
+  if (match === null) throw new Error(`"${version}" 不是版本号(要 x.y.z,可带 -预发布段),没法比大小`)
   return { core: [Number(match[1]), Number(match[2]), Number(match[3])], prerelease: match[4] === undefined ? [] : match[4].split('.') }
 }
 
@@ -134,7 +130,7 @@ export function caretCeiling(floor: string): string {
   return `0.0.${String(patch + 1)}`
 }
 
-/** 正式号 `version` 落不落在 `^<floor>` 里。带预发布段的号一概不算（semver 不拿预发布号满足不带预发布的范围） */
+/** 正式号 `version` 在不在 `^<floor>` 范围里。带预发布段的号一概不算（semver 不拿预发布号满足不带预发布的范围） */
 export function inCaret(floor: string, version: string): boolean {
   if (version.includes('-')) return false
   return compareVersions(version, floor) >= 0 && compareVersions(version, caretCeiling(floor)) < 0
@@ -240,7 +236,7 @@ export function kernelPeerProblems(manifest: TicketManifest, runningKernel: stri
 
 /**
  * peer 里 `@godcreator` 插件（内核包除外，它比运行中的内核）的范围要和源上 latest 在同一条线上：0.x 只看 x，≥1 只看主版本号。
- * 不在同一条线就是上游出了破坏版，先适配再抬范围；`workspace:` 的不查。不是插件包的不查：库的 peer 不进 home
+ * 不在同一条线就是上游出了破坏版，先适配再升范围；`workspace:` 的不查。不是插件包的不查：库的 peer 不进 home
  */
 function peerLineProblems(manifest: TicketManifest, latest: Record<string, string | undefined>): string[] {
   if (!manifest.plugin) return []
@@ -263,7 +259,7 @@ function peerLineProblems(manifest: TicketManifest, latest: Record<string, strin
 
 /**
  * `latest` 是各 `@godcreator` 包在源上的 `dist-tags.latest`（问不出的缺席）。拒两类：
- * dev 写法认不出下限、下限比源上 latest 还新、或 latest 已出 dev 范围（范围内落后、含相等放行）；
+ * dev 写法认不出下限、源上 latest 问不出或不是版本号、下限比源上 latest 还新、或 latest 已出 dev 范围（范围内落后、含相等放行）；
  * peer 里的 `@godcreator` 插件和源上 latest 不在同一条线。`workspace:` 的不查
  */
 export function checkTicket(manifest: TicketManifest, latest: Record<string, string | undefined>): Ticket {
@@ -279,6 +275,10 @@ export function checkTicket(manifest: TicketManifest, latest: Record<string, str
     }
     if (latestOnRegistry === undefined) {
       problems.push(`dev ${pkg} 是 "${range}":问不出源上的 dist-tags.latest(源不通,或它还没发过正式版),查不了`)
+      continue
+    }
+    if (!isVersion(latestOnRegistry)) {
+      problems.push(`dev ${pkg} 是 "${range}":源上的 dist-tags.latest 是 "${latestOnRegistry}",不是版本号,查不了`)
       continue
     }
     if (compareVersions(testedFloor, latestOnRegistry) > 0) {
@@ -441,7 +441,7 @@ export async function runRelease(input: ReleaseInput, deps: ReleaseDeps): Promis
     data: {
       repoDir: input.repoDir,
       shipped,
-      note:`发好了 ${shippedList}(tag latest)。这条命令只发到源、没碰任何 home:升级 default 用 plugin-manager.update-all(由插件管理自己做,热重新加载时它不会被停掉)。发版前该在隔离 home 里验过的,验完再升级`,
+      note: `发好了 ${shippedList}(tag latest)。这条命令只发到源、没碰任何 home:升级 default 用 plugin-manager.update {"all":true}(由插件管理自己做,热重新加载时它不会被停掉)。发版前该在隔离 home 里验过的,验完再升级`,
     },
   }
 }

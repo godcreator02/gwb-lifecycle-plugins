@@ -86,6 +86,11 @@ describe('checkTicket：版本号与 dev 范围', () => {
       expect.stringContaining('要写 ^<验过的号>'),
     ])
   })
+
+  it('源上的 latest 不是版本号：写进 problems，不拿它比大小', () => {
+    const got = checkTicket(T({}, { [SHELL]: '^0.9.0' }), { [SHELL]: 'garbage' })
+    expect(got.problems).toEqual([expect.stringContaining('dist-tags.latest 是 "garbage",不是版本号')])
+  })
 })
 
 describe('checkTicket：peer 里的插件和源上 latest 在同一条线', () => {
@@ -139,8 +144,12 @@ describe('compareVersions：逐段数字比', () => {
     expect(compareVersions('0.10.0', '0.9.9')).toBe(1)
     expect(compareVersions('0.9.9', '0.10.0')).toBe(-1)
   })
-  it('缺段补零，0.1 等于 0.1.0', () => {
-    expect(compareVersions('0.1', '0.1.0')).toBe(0)
+  it('认不出的号直接抛错，不补零、不当 0', () => {
+    expect(() => compareVersions('0.1', '0.1.0')).toThrow(/"0.1" 不是版本号/)
+    expect(() => compareVersions('0.1.0', 'latest')).toThrow(/"latest" 不是版本号/)
+  })
+  it('构建段不参与比较', () => {
+    expect(compareVersions('0.1.0+build.7', '0.1.0')).toBe(0)
   })
   it('同三段时带预发布段的小：0.2.1-dev.x < 0.2.1，但大于 0.2.0', () => {
     expect(compareVersions('0.2.1-dev.202609151533', '0.2.1')).toBe(-1)
@@ -349,7 +358,7 @@ describe('发正式版', () => {
     expect(second).toBeGreaterThan(first)
     // 两个包看到的范围表是同一份、一次备齐的——发第一个的时候就得知道第二个的号
     expect(deps.ranges).toEqual([{ [A]: '^0.1.0', [B]: '^0.2.0' }, { [A]: '^0.1.0', [B]: '^0.2.0' }])
-    expect(out.data.note).toContain('plugin-manager.update-all')
+    expect(out.data.note).toContain('plugin-manager.update {"all":true}')
   })
 
   it('发版前检查没过：构建之后、发之前拒，一个都不发，所有包的问题一次列全', async () => {

@@ -15,15 +15,15 @@ import {
 } from '../bin/cdp.mjs'
 
 /**
- * `bin/cdp.mjs` 的落点纯函数。它一概不看工作目录：截图缺省落被截那个 home 自己的
- * `out\cdp\`，给输出与 eval 的文件都只收绝对路径，写盘落点不许在本包目录与任何 node_modules 里。
+ * `bin/cdp.mjs` 里决定写到哪里的纯函数。它一概不看工作目录：截图缺省存到被截的那个 home 自己的
+ * `out\cdp\`，给输出与 eval 的文件都只收绝对路径，写磁盘的位置不许在本包目录与任何 node_modules 里。
  */
 
 const SCRIPT = fileURLToPath(new URL('../bin/cdp.mjs', import.meta.url))
 const PKG = path.dirname(path.dirname(SCRIPT))
 const HOME = path.join(os.tmpdir(), 'gwb-kernel', 'homes', 'cdpshot-2609181130')
 const AT = new Date('2026-09-18T03:30:05.123Z')
-/** 装进 home 之后那个包的样子：经总线跑时进程的工作目录就是这儿的 bin */
+/** 装进 home 之后那个包的样子：经命令总线运行时进程的工作目录就是这里的 bin */
 const INSTALLED = path.join(
   HOME,
   'node_modules',
@@ -53,16 +53,13 @@ describe('home 根与 home 目录', () => {
     expect(() => homesRootOf({}, 'win32')).toThrow(/APPDATA/)
   })
 
-  it('别的平台与 Electron 的 appData 相同：macOS 在 Application Support，其余在 XDG_CONFIG_HOME 或 ~/.config', () => {
-    const userHome = path.join(os.tmpdir(), 'someone')
-    expect(homesRootOf({}, 'darwin', userHome)).toBe(path.join(userHome, 'Library', 'Application Support', 'gwb-kernel', 'homes'))
-    expect(homesRootOf({ XDG_CONFIG_HOME: path.join(userHome, 'cfg') }, 'linux', userHome)).toBe(
-      path.join(userHome, 'cfg', 'gwb-kernel', 'homes'),
-    )
-    expect(homesRootOf({}, 'linux', userHome)).toBe(path.join(userHome, '.config', 'gwb-kernel', 'homes'))
+  it('不是 Windows：直接抛错，说只支持 Windows', () => {
+    for (const platform of ['darwin', 'linux'] as const) {
+      expect(() => homesRootOf({ APPDATA: path.join(os.tmpdir(), 'Roaming') }, platform), platform).toThrow(/只支持 Windows/)
+    }
   })
 
-  it('home 目录是根下同名那一格', () => {
+  it('home 目录是根目录下同名的子目录', () => {
     expect(homeDirOf('cdpshot-2609181130', path.dirname(HOME))).toBe(HOME)
   })
 
@@ -73,35 +70,35 @@ describe('home 根与 home 目录', () => {
   })
 })
 
-describe('shot 的落点', () => {
-  it('缺省落被截那个 home 自己的 out\\cdp\\，文件名带时刻', () => {
+describe('shot 的输出位置', () => {
+  it('缺省存到被截的那个 home 自己的 out\\cdp\\，文件名带时刻', () => {
     expect(shotFileOf(undefined, HOME, AT)).toBe(path.join(HOME, 'out', 'cdp', 'shot-2026-09-18T03-30-05.png'))
   })
 
-  it('缺省落点不在本包目录里，也不在任何 node_modules 里', () => {
+  it('缺省位置不在本包目录里，也不在任何 node_modules 里', () => {
     const file = shotFileOf(undefined, HOME, AT)
     const rel = path.relative(PKG, file)
     expect(rel.startsWith('..') || path.isAbsolute(rel)).toBe(true)
     expect(file.split(/[\\/]/).map((s) => s.toLowerCase())).not.toContain('node_modules')
   })
 
-  it('算出来的缺省落点要是掉进包目录或 node_modules，就抛，不落盘', () => {
+  it('算出来的缺省位置要是在包目录或 node_modules 里，就抛错，不写磁盘', () => {
     expect(() => shotFileOf(undefined, path.join(PKG, 'bin'), AT)).toThrow(/包目录/)
     expect(() => shotFileOf(undefined, path.join(INSTALLED, 'bin'), AT, PKG)).toThrow(/node_modules/)
   })
 
-  it('给了绝对路径就落那儿', () => {
+  it('给了绝对路径就存到那里', () => {
     const want = path.join(os.tmpdir(), 'evidence', 'a.png')
     expect(shotFileOf(want, HOME, AT)).toBe(want)
   })
 
-  it('给了相对路径当场拒，错话里说清缺省落哪', () => {
+  it('给了相对路径直接拒，报错里说清缺省存到哪', () => {
     for (const bad of ['a.png', 'out/cdp/a.png', './a.png', '..\\a.png']) {
       expect(() => shotFileOf(bad, HOME, AT), bad).toThrow(/只收绝对路径[\s\S]*out/)
     }
   })
 
-  it.runIf(process.platform === 'win32')('Windows 上挂在当前盘的 \\a.png 与盘符相对的 D:a.png 都算相对', () => {
+  it.runIf(process.platform === 'win32')('Windows 上指向当前盘的 \\a.png 与盘符相对的 D:a.png 都算相对', () => {
     for (const bad of ['\\a.png', '/a.png', 'D:a.png']) {
       expect(() => shotFileOf(bad, HOME, AT), bad).toThrow(/只收绝对路径/)
     }
@@ -125,7 +122,7 @@ describe('eval 的文件', () => {
     expect(evalFileOf(want)).toBe(want)
   })
 
-  it('相对路径当场拒，错话里说为什么、怎么拿绝对路径', () => {
+  it('相对路径直接拒，报错里说为什么、怎么拿绝对路径', () => {
     for (const bad of ['measure.js', 'out/measure.js', './measure.js']) {
       expect(() => evalFileOf(bad), bad).toThrow(/只收绝对路径[\s\S]*Resolve-Path/)
     }
@@ -136,7 +133,7 @@ describe('eval 的文件', () => {
   })
 })
 
-describe('写盘守卫', () => {
+describe('写磁盘前的检查', () => {
   it('完整的绝对路径才过', () => {
     expect(isFullPath(path.join(os.tmpdir(), 'a.png'))).toBe(true)
     expect(isFullPath('a.png')).toBe(false)

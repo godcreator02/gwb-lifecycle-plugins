@@ -23,17 +23,19 @@ description: 连接 devkit.dev、devkit.release、devkit.scaffold.plugin 与被�
 
 **仓根能 `pnpm build`**：`devkit.dev` 与 `devkit.release` 都在调用方给的 `dir` 上运行 `pnpm build`，不在包目录里构建；失败就停：
 
-{/* ref file="../plugins/devkit/src/dev.ts" lines="547-549" */}
+{/* ref file="../plugins/devkit/src/dev.ts" lines="618-620" */}
 
-**`files` 白名单就是产物清单**：构建之后，白名单里不带 `!`、不带通配的每一项都得在包目录里；组装发布内容时只复制这些，带通配的直接拒：
+**`files` 白名单就是产物清单**：构建之后，白名单里不带 `!`、不带通配的每一项都得在包目录里；组装发布内容与开发版的包文件时只复制这些，带通配的直接拒：
 
-{/* ref file="../plugins/devkit/src/dev.ts" lines="110-112" */}
+{/* ref file="../plugins/devkit/src/dev.ts" lines="120-123" */}
 
-{/* ref file="../plugins/devkit/src/node-dev-deps.ts" lines="172-182" */}
+{/* ref file="../plugins/devkit/src/node-dev-deps.ts" lines="170-178" */}
 
-**`keywords` 含 `gwb-plugin` 表示插件**：`devkit.release` 只对它查 peer（含 peer 里内核包的范围）与构建产物里包名 import 的两份名单：
+**`keywords` 含 `gwb-plugin` 表示插件**：`devkit.release` 只对它查 peer（含 peer 里内核包的范围）与构建产物里包名 import 的两份名单；`devkit.dev` 只收插件与内核包，别的包（库）直接拒：
 
 {/* ref file="../plugins/devkit/src/release.ts" lines="195-195" */}
+
+{/* ref file="../plugins/devkit/src/dev.ts" lines="449-451" */}
 
 **产物分两侧，按模板的构建约定认**：`devkit.release` 的构建产物检查把 `exports["."]` 的运行时入口（没有 `exports` 时是 `main`）当作 node 侧入口，把包目录下的 `dist/client.js` 当作浏览器侧入口，各自顺着相对 import 走；入口找不到、相对 import 指向的文件不在，都拒。产物不在这几个位置的仓，那部分文件不被查到：
 
@@ -62,7 +64,7 @@ description: 连接 devkit.dev、devkit.release、devkit.scaffold.plugin 与被�
 ## 约定
 
 devkit 保证：
-- 除了 `pnpm build` 生成的构建产物与 `devkit.scaffold.plugin` 新写的插件包，这些命令不改仓里的文件；发布内容在系统临时目录里组装
+- 除了 `pnpm build` 生成的构建产物与 `devkit.scaffold.plugin` 新写的插件包，这些命令不改仓里的文件；发布内容与开发版的包文件在系统临时目录里组装
 - 假设不满足时报错并说明缺了什么，不替调用方补（不补构建、不猜包目录、不改 `files`）
 
 被处理的仓需要满足上面这几条，**全部靠约定**：没有一份检查把它们合在一起查。建仓模板生成的仓天然满足；其余只写在各命令的 `usage` 与说明书「gwb-devkit」「gwb-release」里。
@@ -70,7 +72,7 @@ devkit 保证：
 ## 不负责的事
 
 - devkit 不决定一个仓该有几个包、怎么分组，只按上面的约定去找
-- `devkit.dev` 不看 git 状态，未提交的改动照样发成开发版
+- `devkit.dev` 不看 git 状态，未提交的改动照样打包进开发版
 - 不查旧布局仓离 workspace 布局有多远：改到哪个仓就照模板迁哪个
 
 ## 测试
@@ -87,6 +89,6 @@ devkit 保证：
 
 {/* has file="../plugins/devkit/tests/scaffold.test.ts" text="repo 不在、yaml 不在（老裸根单件仓）、yaml 没有 plugins/ 那条，三种都拒，话里带路" */}
 
-{/* has file="../plugins/devkit/tests/node-dev-deps.test.ts" text="不是兄弟的 workspace: 换成 ^<工作区里那个号>；工作区里没有就 ^0.0.0" */}
+{/* has file="../plugins/devkit/tests/node-dev-deps.test.ts" text="开发版打包不给同一次的写法：workspace: 换成 ^<工作区里的版本号>；工作区里没有就 ^0.0.0" */}
 
 {/* has file="../plugins/devkit/tests/node-dev-deps.test.ts" text="包在 plugins/<名>/ 时，根是有 pnpm-workspace.yaml 的那层，packages/ 下的号找得到" */}

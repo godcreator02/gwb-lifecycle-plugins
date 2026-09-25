@@ -1,6 +1,6 @@
 ---
 title: 关键设计
-description: devkit 仓为什么这么切分——devkit 是普通插件、写插件只有发布安装验证一条路、开发版只进隔离 home、只按名字定位 home、纯逻辑与真机器操作分开、devkit 与插件管理同仓、借别的插件只借命令名；各自推出了什么、放弃了什么
+description: devkit 仓为什么这么切分——devkit 是普通插件、写插件只有打包安装验证一条路、开发版只进隔离 home、只按名字定位 home、纯逻辑与真机器操作分开、devkit 与插件管理同仓、借别的插件只借命令名；各自推出了什么、放弃了什么
 ---
 
 **本页回答**：devkit 仓里的两个包为什么是现在这个形状；每条设计推出了什么、代价是什么；哪些事刻意不做。每个包的功能与接口见各自的首页：[开发套件](/docs/devkit)、[插件管理](/docs/plugin-manager)。
@@ -30,35 +30,36 @@ devkit 没有任何特权：装进 home 才有它的命令，加载不成功就�
 
 代价：devkit 的改动也要走发版、安装才能用上；改 devkit 自己不能用 `devkit.dev`（见下面「开发版只进隔离 home」）。
 
-## 写插件只有一条路：发布、安装、验证
+## 写插件只有一条路：打包、安装、验证
 
-每个插件都在自己的仓里开发，发到团队源，再装进 home 验证。**安装这一步本身就在验证**：`exports` 漏了一个子路径、`files` 少带了一个目录，只有装出来才会暴露；在仓里用相对路径直接加载，这些问题一个都看不到。
+每个插件都在自己的仓里开发，按 `files` 白名单打成包，再装进 home 验证：开发版打成包文件、经目标 home 的插件管理装进隔离 home，正式版发到团队源、再装进日常用的 home。**安装这一步本身就在验证**：`exports` 漏了一个子路径、`files` 少带了一个目录，只有装出来才会暴露；在仓里用相对路径直接加载，这些问题一个都看不到。
 
 推出了：
 
-- **改一版看一版也发版**：`devkit.dev` 每次发一个开发版（`<patch+1>-dev.<时间戳>`，tag 是 `dev`，不动 `latest`），装进目标 home。版本号变了模块路径才变，重新加载时 Node 才会重新执行新代码；覆盖 home 里 `node_modules` 下的文件会改坏 pnpm 全局存储里的原件（[改一版看一版进 devkit](/trajectory/2026-09-11-dev-loop-comes-to-devkit)）
-- **装开发版写准确版本号**：在目标 home 的清单里写死准确版本号再 `pnpm install`，装完读回核对，不用 `pnpm add`（[开发版写准确版本号安装](/trajectory/2026-09-17-dev-install-pins-exact)）
+- **改一版看一版也换版本号**：`devkit.dev` 每次打一个开发版的包文件（`<patch+1>-dev.<到秒的时间>`），放进目标 home 的 `dev-packs` 目录，经那个 home 的插件管理装。包文件的路径变了，pnpm 虚拟存储里的目录才变，重新加载时 Node 才会重新执行新代码；覆盖 home 里 `node_modules` 下的文件会改坏 pnpm 全局存储里的原件（[改一版看一版进 devkit](/trajectory/2026-09-11-dev-loop-comes-to-devkit)、[开发版打成包文件、经插件管理装](/trajectory/2026-09-25-dev-via-pack-and-plugin-manager)）
+- **包文件每版一个新路径、只增不删**：新包文件覆盖写到同一个路径，pnpm 退出码 0 却装着旧代码；home 清单还引用着的包文件一删，这个 home 里之后的 `pnpm add` 全部失败（[pnpm 在 home 里对包文件的表现](/trajectory/2026-09-25-dev-install-via-file-tgz)）
 - **正式版只从提交过的状态发**：版本号在仓里改、随提交走；`devkit.release` 在 git 工作区不干净、同一个版本号已在源上、发版前检查没过时一概不发，也不改仓里任何文件（[发正式版进 devkit](/trajectory/2026-09-14-release-comes-to-devkit)）
 - **最后一步是核对**：`devkit.dev` 回「成功」之前，要确认装上的是这次的版本号、条目在运行、日志新增部分里没有 error
 
-代价：一次改一版看一版大约一分钟，比直接覆盖文件慢；源上与 pnpm 存储里会积攒开发版，要定期清理。
+代价：一次改一版看一版大约一分钟，比直接覆盖文件慢；隔离 home 的 `dev-packs` 与 pnpm 存储里会积攒开发版，前者随隔离 home 一起删，存储要定期清理。
 
 ## 开发版只进隔离 home
 
 开发和验证都在单独新建的隔离 home 里做，日常用的 `default` 只装正式版。
 
 - **`devkit.dev` 拒绝 `default`**：开发版进了 `default`，版本号看起来跟正式版没两样，界面上一点异常都看不出来
-- **`devkit.dev` 运行在控制台 home 里，操作另一个 home**：换插件要把条目停用再启用，工具自己运行在被换的 home 里，换到命令总线、外壳、MCP 入口或它自己时，调用方会跟着停掉。所以构建、发版、安装在本进程做，重新加载、刷新、核对经 CDP 发到目标页面；目标就是 devkit 自己所在的 home 也拒
-- **重新加载是目标进程里的一条命令**：`plugin-manager.remount` 一条做完停用与启用，不拆成两条——被换的是插件管理自己或命令总线时，第二条没人接收（[重新加载是一条命令](/trajectory/2026-09-17-remount-is-one-command)）
-- **升级 `default` 是发正式版之后的事**：`devkit.release` 只发到源、不碰任何 home；升级 `default` 由人点插件管理窗格的「全部更新」或调 `plugin-manager.update-all`，这一步在隔离 home 验证之后
+- **`devkit.dev` 运行在控制台 home 里，操作另一个 home**：换插件要把条目停用再启用，工具自己运行在被换的 home 里，换到命令总线、外壳、MCP 入口或它自己时，调用方会跟着停掉。所以构建、打包在本进程做，安装、刷新、核对经 CDP 发到目标页面；目标就是 devkit 自己所在的 home 也拒
+- **开发版不进团队源**：源上的包同时被别的仓使用；开发版的包文件只放在那个隔离 home 里，别处装不到它
+- **安装与重新加载交给目标 home 的插件管理**：`plugin-manager.update` 在目标进程里装包、一条命令做完重新加载，插件管理自己的条目推迟到回执之后——被换的是插件管理自己或命令总线时，这边再发的第二条命令没人接收（[重新加载是一条命令](/trajectory/2026-09-17-remount-is-one-command)、[开发版打成包文件、经插件管理装](/trajectory/2026-09-25-dev-via-pack-and-plugin-manager)）
+- **升级 `default` 是发正式版之后的事**：`devkit.release` 只发到源、不碰任何 home；升级 `default` 由人点插件管理窗格的「全部更新」或调 `plugin-manager.update {"all":true}`，这一步在隔离 home 验证之后
 
-代价：改 devkit 自己不能用 `devkit.dev`，只能发正式版再 `plugin-manager.update-all`；想在隔离 home 里验证 devkit 自己，要从另一个 home 驱动。
+代价：改 devkit 自己不能用 `devkit.dev`，只能发正式版再 `plugin-manager.update {"all":true}`；想在隔离 home 里验证 devkit 自己，要从另一个 home 驱动。
 
 ## 只按名字定位一个 home
 
 说出 home 名，工具去这个 home 的 `runtime.json` 里查调试端口，并确认 pid 还活着、那个 pid 确实在监听这个端口；连上页面之后，再拿页面自己报的 home 名核对一次。`devkit.dev`、`devkit.cdp` 与启动 home 的两条命令都不收端口（[端口不是地址](/trajectory/2026-09-11-port-is-not-an-address)、[按名字定位](/trajectory/2026-09-11-address-a-home-by-name)）。
 
-理由：端口是一个没有含义的数字，敲错一位就连到另一个 home，而那个 home 会照样收下这次的发版、安装与重新加载。名字有拼写、有记录、能交叉核对，这三样端口都没有。
+理由：端口是一个没有含义的数字，敲错一位就连到另一个 home，而那个 home 会照样收下这次的安装与重新加载。名字有拼写、有记录、能交叉核对，这三样端口都没有。
 
 推出了：调试端口由 `devkit.home.new` / `open` 自动选，先沿用这个 home 上次那个；`runtime.json` 由内核写，devkit 只读。
 
@@ -68,7 +69,7 @@ devkit 没有任何特权：装进 home 才有它的命令，加载不成功就�
 
 判据只有一句：**这段逻辑能不能不启动进程、不开窗口、只给输入看输出。**
 
-能的部分是纯逻辑：时序、检查、命名、版本号、「查不出算不算不在」「装上的是不是这次发的版本」「插件声明的内核范围包不包含运行中的内核」「一个包的 `.d.ts` 给 cordis 补了哪些服务」这些判断都在这里，测试用假的依赖把整条流程跑完。不能的部分在四个 `node-*-deps.ts` 里，只负责在真机器上拿到答案：启动进程、查进程表、查端口被谁占着、读写磁盘、连 CDP、问团队源。这一层不做判断，也不进单元测试。
+能的部分是纯逻辑：时序、检查、命名、版本号、「查不出算不算不在」「装上的是不是这次打包的版本」「插件声明的内核范围包不包含运行中的内核」「一个包的 `.d.ts` 给 cordis 补了哪些服务」这些判断都在这里，测试用假的依赖把整条流程运行完。不能的部分在四个 `node-*-deps.ts` 里，只负责在真机器上拿到答案：启动进程、查进程表、查端口被谁占着、读写磁盘、连 CDP、问团队源。这一层不做判断，也不进单元测试。
 
 两边靠显式接口隔开：`HomeDeps`、`DevDeps`、`ReleaseDeps` 三个接口由纯逻辑定义，运行时传 `node-*-deps.ts` 的实现，测试时传假实现。依赖方向是单向的：真机器那一层认识纯逻辑，纯逻辑不认识它。
 
@@ -98,9 +99,9 @@ devkit 没有任何特权：装进 home 才有它的命令，加载不成功就�
 
 ## devkit 与插件管理放在同一个仓
 
-插件管理 `@godcreator/gwb-plugin-manager` 仍是 home 里的普通插件：由 `cordis.yml` 里的一条条目加载、单独发版、用 `plugin-manager.update-all` 升级。它和 devkit 放在一起，是因为两者互相依赖的地方多（[插件管理迁入 devkit 仓](/trajectory/2026-09-24-plugin-manager-joins-devkit)）：
+插件管理 `@godcreator/gwb-plugin-manager` 仍是 home 里的普通插件：由 `cordis.yml` 里的一条条目加载、单独发版、用 `plugin-manager.update` 升级。它和 devkit 放在一起，是因为两者互相依赖的地方多（[插件管理迁入 devkit 仓](/trajectory/2026-09-24-plugin-manager-joins-devkit)）：
 
-- `devkit.dev` 装完开发版调 `plugin-manager.remount` 重新加载，再轮询 `plugin-manager.list` 核对；重新加载插件管理自己时收到 `deferred`，就等 `list` 回来
+- `devkit.dev` 打包之后在目标页面里调 `plugin-manager.install` 与 `plugin-manager.update {"specs":{…}}` 装包并重新加载，再用 `plugin-manager.list` 核对；回执 `selfDeferred` 时轮询 `list` 等插件管理自己回来
 - `devkit.home.new` 把内核包、`cordis` 与插件管理等基础插件装进新 home，之后往这个 home 加插件用 `plugin-manager.install`、升内核用 `plugin-manager.update-kernel`
 - 插件 peer 里内核包的范围两边都用：插件管理在 `list` 里拿它和运行中的内核比对，`devkit.release` 发版前拒绝没写对的插件包。比对规则只有一份，在插件管理的 `src/kernel-compat.ts`；devkit 的 peer 里写着插件管理，从它的主入口 import 这套规则，连同找 pnpm 的 `locatePnpm`（[两个插件删掉用不上的机制](/trajectory/2026-09-25-drop-unused-machinery)）
 

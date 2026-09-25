@@ -1,6 +1,6 @@
 ---
 title: 插件之间的运行时要求写 peer：删掉 gwb.requires，发版检查改查 peer
-description: 插件用到别的插件（服务、命令、样式令牌）就在 peer 里写它的 ^ 范围，和内核包同一套；home 里关掉 pnpm 自动补装 peer；一键热升级把 peer 写了被升级包的插件一起重新加载；发版检查从查 dev 改成查 peer
+description: 插件用到别的插件（服务、命令、样式令牌）就在 peer 里写它的 ^ 范围，和内核包同一套；home 里关掉 pnpm 自动补装 peer；热升级（`plugin-manager.update`）把 peer 写了被升级包的插件一起重新加载；发版检查从查 dev 改成查 peer
 ---
 
 # 插件之间的运行时要求写 peer
@@ -15,7 +15,7 @@ description: 插件用到别的插件（服务、命令、样式令牌）就在 
 - [x] `gwb.requires` 删掉：插件清单不再写，插件管理不再报，发版检查不再查
 - [x] 发版检查：peer 里每个 `@godcreator` 插件的范围要和源上 `latest` 在同一条线（0.x 比 x，≥1 比主版本号；不在同一条线就是上游出了破坏版，先适配）；内核包的范围照旧要包含运行中的内核；peer 里出现插件、`cordis`、内核包以外的包就拒
 - [x] 插件管理 `list`：每个包报 home 里没满足的 peer（没装、版本不在范围里）；只报告，不拦加载、不拦安装
-- [x] 插件管理 `update-all`：升级了某个包，home 里 peer 写了它的插件的条目一起重新加载，回执里列出来
+- [x] 插件管理 `update`：升级了某个包，home 里 peer 写了它的插件的条目一起重新加载，回执里列出来
 - [x] home 里不会自动补装缺的 peer：插件管理、`devkit.home.new`、`devkit.dev` 与 `INSTALL.md` 的手工步骤都关掉 pnpm 的自动补装（插件仓里不关）
 - [x] 模板：用到的插件（命令总线、外壳）从 dev 挪到 peer
 - [ ] 隔离 home 实测：升级一个被 peer 的插件后，写 peer 的插件换到新目录并在运行；home 里缺一个 peer 时不会被自动装上，`list` 报出来
@@ -43,7 +43,7 @@ description: 插件用到别的插件（服务、命令、样式令牌）就在 
   - `gwb.requires` 的检查删掉
 - **插件管理**：
   - `list`：删掉 `requires`、`unmetRequires`、`requiresInvalid`；加 `unmetPeers`（每条 `{ pkg, range, installed? }`，只看 `@godcreator` 插件的 peer；内核包照旧用 `kernelRange` / `kernelUntested`，界面插件的窗格在用）
-  - `update-all`：pnpm 装完后，找出 peer 里写了本次升级的包的插件，把它们的条目一起重新加载；回执加 `dependents`（哪些包因为 peer 跟着重新加载了）
+  - `update`：pnpm 装完后，找出 peer 里写了本次升级的包的插件，把它们的条目一起重新加载；回执加 `dependents`（哪些包因为 peer 跟着重新加载了）
   - `install` / `uninstall` 不拦 peer 没满足的情况，`list` 报
 - **关掉自动补装**：见待决定第 1 条
 - **迁移**：各插件把用到的别的插件从 dev 挪到 peer、删 `gwb.requires`（现在没有插件写过），和适配内核 0.5 放在同一轮重发；往下游收件页再投一条
@@ -60,7 +60,7 @@ description: 插件用到别的插件（服务、命令、样式令牌）就在 
 
 **第一步：devkit 仓（插件管理与 devkit）**
 
-- [x] 插件管理：`list` 的 `unmetPeers`、删 `requires` 三个字段；`update-all` 重新加载写 peer 的插件；启动 pnpm 时关掉自动补装（待决定第 1 条）；测试先写
+- [x] 插件管理：`list` 的 `unmetPeers`、删 `requires` 三个字段；`update` 重新加载写 peer 的插件；启动 pnpm 时关掉自动补装（待决定第 1 条）；测试先写
 - [x] devkit：发版检查改查 peer；删 `gwb.requires` 的检查与两份判法的对照测试；`home.new` / `dev` 启动 pnpm 时关掉自动补装；模板把命令总线、外壳挪到 peer
 - [x] 现状页：依赖怎么写、要求的插件版本（删页或改写）、兼容哪个内核、插件管理的 list 与热升级、发版检查、说明书 gwb-release / gwb-devkit / gwb-plugin-manager；写轨迹卡，`supersedes::` 指向「要求别的插件的最低版本」那张
 - [ ] 隔离 home 实测（验收最后一条）；发版（版本号按待决定第 2 条问人）

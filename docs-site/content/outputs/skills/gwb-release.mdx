@@ -47,14 +47,14 @@ description: 升版本号、改依赖版本号、发版时读。
 2. 按第一节升版本号并提交，仓根 git 工作区干净
 3. `devkit.release {"dir":"<仓根>","packages":["plugins/<短名>"]}`。`packages` 相对仓根、按依赖顺序（被依赖的在前），workspace 仓必须给，例：`["packages/model","packages/engine","plugins/gwb-bn-core"]`
 4. 回执 `ok: false`：发版前检查按包列全了没过的条目，一个包都没发。逐条改完、`pnpm check`、提交，再调第 3 步
-5. 升级日常用的 default：人在插件管理窗格点「全部更新」，或调 `plugin-manager.update-all`（只升几个给 `{"only":["<包名>"]}`）。新插件第一次装用 `plugin-manager.install {"pkg":"<包名>"}`。升到 gwb-mcp 自己时连接会断，重连后再核对
+5. 升级日常用的 default：人在插件管理窗格点「全部更新」，或调 `plugin-manager.update {"all":true}`（只升几个给 `{"only":["<包名>"]}`，装指定版本给 `{"specs":{"<包名>":"<版本或 file:路径>"}}`）。新插件第一次装用 `plugin-manager.install {"pkg":"<包名>"}`。升到 gwb-mcp 自己时连接会断，重连后再核对
 
 **完成判据**：`devkit.release` 回执 `ok: true`，`shipped` 里是这次的包与版本；default 的 `plugin-manager.list` 里这个包的版本是刚发的正式版、条目 `active` 为 true；再调一次 `index`，看得到这个包的命令与说明书。
 
 ## 四、发破坏性版本多做的两步
 
 1. **发之前**：在容器根下各仓的 `package.json` 里搜这个包名（仓在哪用 `unit-folder.list` 查），找出 dev 或 peer 里写了它的下游（它们下次发版会被发版前检查拒），往每个下游仓文档站 feedback 区的 `inbox.mdx` 投一条「要跟 X 0.9」
-2. **发之后**：升 default 之前先让下游跟上，或用 `plugin-manager.update-all {"only":[…]}` 只升别的。插件的 peer 写了它用到的插件：升级之后 `plugin-manager.list` 的 `unmetPeers` 会报出 peer 范围不包含新版本的下游，`update-all` 会把 peer 写了被升级包的插件一起重新加载，但不阻止它们和出了范围的上游一起运行。改了名字（命令名、说明书名、术语）的，再查两遍：
+2. **发之后**：升 default 之前先让下游跟上，或用 `plugin-manager.update {"only":[…]}` 只升别的。插件的 peer 写了它用到的插件：升级之后 `plugin-manager.list` 的 `unmetPeers` 会报出 peer 范围不包含新版本的下游，`plugin-manager.update` 会把 peer 写了被升级包的插件一起重新加载，但不阻止它们和出了范围的上游一起运行。改了名字（命令名、说明书名、术语）的，再查两遍：
    - 拿旧名字搜 MCP 入口的 instructions、各仓 AGENTS 里讲命令的段落、所有随包说明书的描述
    - 文档里点名的每个说明书名与命令名，拿 `skill.list` 与 `index` 现查一遍，指向不存在的就改
 
@@ -70,7 +70,7 @@ description: 升版本号、改依赖版本号、发版时读。
 
 | 检什么 | 没过 |
 | --- | --- |
-| `@godcreator` 的 dev：写法认不出下限、下限比源上 latest 新、latest 已出范围、或问不出源上的 latest（`workspace:` 跳过） | 拒；范围内落后（含相等）放行 |
+| `@godcreator` 的 dev：写法认不出下限、下限比源上 latest 新、latest 已出范围、问不出源上的 latest、或源上的 latest 不是版本号（`workspace:` 跳过） | 拒；范围内落后（含相等）放行 |
 | 构建产物里有空 import（`import {} from '…'`，源码写了 `import { type X }`），或相对 import 指向的文件不在 | 拒 |
 
 插件包（`keywords` 含 `gwb-plugin`）另查：

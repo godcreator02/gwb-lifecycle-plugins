@@ -92,7 +92,7 @@ app.asar 的那份（rc.9）今天就不是同一个物理实例；要让两边�
 **归属**：插件管理（devkit 仓 `plugins/plugin-manager/`，被 inject 使用的那部分接口）；devkit 的 `home.new` 与 `dev` 改为调用它。
 
 **删掉**：install 里提升 peer 的那一步（必选 peer 只剩宿主提供的 `cordis`，pnpm 自己补装一份给所有插件共用，不必写进清单）、
-`pnpm peers check` 与 `peerWarnings`、`peers.ts` / `peer-warnings.ts`、「库 / 共享包」分类；`plugin-manager.update`（并进 `update-all {"only":[…]}`）；devkit 里自己写清单、读回核对、
+`pnpm peers check` 与 `peerWarnings`、`peers.ts` / `peer-warnings.ts`、「库 / 共享包」分类；旧的按包名升一个包的 `plugin-manager.update`（并进升级全部过期包那条命令的 `only` 参数；那条命令 2026-09-25 起叫 `plugin-manager.update`，参数三选一，见本站「热升级」页）；devkit 里自己写清单、读回核对、
 重新加载的那一套；`home.new` 里绕过插件管理直接运行的 `pnpm add`。内核 `INSTALL.md` 的安装方法随之改成「装插件管理与 MCP 入口插件，其余经
 `plugin-manager.install`」或同一份首次安装的插件集清单（见第九节）。
 
@@ -219,9 +219,9 @@ promise，退出时可能丢数据。
 - [ ] 模板：两侧都用 esbuild 打包、`cordis` 外置并写 peer、其余按「依赖怎么写」那张表写、调用 shell 的构建期函数（peer 里写内核包范围已做，见下一条）
 - [x] `devkit.release`：构建产物检查（包名 import、`skipLibCheck: false` 类型检查、无空 import）；去掉 peer 那一类发版前检查，改成插件包 peer 只许 `cordis`；`devkit.audit-deps` 去掉 peer 下限四类、加 `peer-not-cordis`
 - [x] `devkit.release` 发插件前检查 peer 里内核包的范围（`^x.y.z`、包含运行中的内核）；`plugin-manager.list` 按包报 `kernelRange` 与 `kernelUntested`；
-  模板在 peer 里写内核包 `^<建仓时的内核版本>`；`update-all` 跳过内核包与 `cordis`，另有 `plugin-manager.update-kernel`；`devkit.home.new` 按精确版本装内核包与 `cordis`
+  模板在 peer 里写内核包 `^<建仓时的内核版本>`；`plugin-manager.update` 的 `all` 与 `only` 跳过内核包与 `cordis`，另有 `plugin-manager.update-kernel`；`devkit.home.new` 按精确版本装内核包与 `cordis`
   （内核仓交接页「内核装进 home」第二步，2026-09-24；取代同日早些时候的 `gwb.testedKernel`）
-- [ ] `devkit.dev`：pack + `file:`，只构建被测包及其依赖；安装与重新加载先临时用现有插件管理命令，第四期换成统一入口
+- [x] `devkit.dev`：pack + `file:`，包文件放进目标 home 的 `dev-packs`，安装与重新加载经目标 home 的 `plugin-manager.install` / `plugin-manager.update {"specs":…}`（2026-09-25，见轨迹卡[开发版打成包文件、经插件管理装](/trajectory/2026-09-25-dev-via-pack-and-plugin-manager)）。构建没改：仍在仓根整仓构建，工作区里的插件常用着同仓另一个包的产物
 - [x] audit-deps / audit-structure 减少无用输出、支持无参数调用：两条命令都删了，见轨迹卡[两个插件删掉用不上的机制](/trajectory/2026-09-25-drop-unused-machinery)
 - [x] 写插件的规矩写进本站[写插件的规矩](/docs/rules)；说明书 `gwb-devkit` 的红线按新规矩改写，`gwb-release` 写明 peer 内核包范围的检查与内核升 x 的范围
 - [x] 说明书 `gwb-release` 的依赖表（`@godcreator` peer 的写法）随发版前检查一起改成新规矩
@@ -260,9 +260,10 @@ promise，退出时可能丢数据。
 **第四期：插件管理成为唯一写 home 的插件**
 
 - [x] 插件管理按规矩整理完（devkit 仓重做内核仓的那次整理）：写 home 只经一个串行入口 `applyToHome`；删 peer 提升、`peerWarnings`、库分类；
-  `update` 并入 `update-all {"only":[…]}`；服务收成只表示装了的 `{ contract }`，不写 peer
-- [ ] home 清单一律写精确版本号、以锁文件为准；整页重载只在 shell 变了时做（现在一键热升级每次都整页重载）
-- [ ] `devkit.dev` / `home.new` 改为调用插件管理的统一入口；`INSTALL.md` 的首次安装插件集清单改为从 devkit 的正本来
+  旧的 `update` 并入升级全部过期包那条命令的 `only` 参数（那条命令 2026-09-25 起叫 `plugin-manager.update`）；服务收成只表示装了的 `{ contract }`，不写 peer
+- [ ] home 清单一律写精确版本号、以锁文件为准；整页重载只在 shell 变了时做（现在 `plugin-manager.update` 每次都整页重载）
+- [x] `devkit.dev` 改为调用插件管理的统一入口：已装的包一条 `plugin-manager.update {"specs":…}`，没装的插件 `plugin-manager.install`，devkit 不再写目标 home 的清单（2026-09-25）
+- [ ] `home.new` 改为调用插件管理的统一入口；`INSTALL.md` 的首次安装插件集清单改为从 devkit 的正本来。`home.new` 仍直接写新 home（`pnpm add` 与 `cordis.yml`）：那时插件管理还没装、home 还没启动，没有可调的插件管理
 - [ ] default home 清单里的库与共享包清出去，只剩插件（2026-09-24 查 default：非插件的除内核包与 `cordis` 外还有词汇表包 `@godcreator/gwb-plugin-api` 0.2.7、块笔记的库 `@godcreator/block-note` 0.5.3；`@cordisjs/plugin-timer` 是 cordis 官方的定时器插件，不算库）
 - [x] `devkit.home.new` 不再把词汇表包装进新 home：`src/home.ts` 的 `BASE_SHARED` 把它当 home 的直接依赖装，和 `INSTALL.md`「只装插件、不装库，词汇表包运行时用不到」矛盾；删掉这一项，基础插件清单、测试与测试 home 页跟着改
 
@@ -279,5 +280,6 @@ promise，退出时可能丢数据。
 
 新的在上。
 
+- 2026-09-25｜`devkit.dev` 改成「pack 成包文件 → 经目标 home 的插件管理装」：每个包在临时目录组装后 `pnpm pack` 到目标 home 的 `dev-packs`（版本号到秒、包文件路径已存在就拒、旧包文件不删），已装的包合成一条 `plugin-manager.update {"specs":…}`、没装的插件逐个 `plugin-manager.install`，回执 `selfDeferred` 轮询 `list`、`restartRequired` 重启目标 home；只收插件与内核包。删掉开发版发到团队源、写目标 home 清单再 `pnpm install`、逐条 `remount` 那一套。勾掉第三期 `devkit.dev` 与第四期 `devkit.dev` 部分，`home.new` 仍直接写新 home（devkit 0.20.0，未发）｜devkit 仓会话
 - 2026-09-25｜人判定删掉 devkit 与插件管理里用不上的机制：`devkit.capabilities`、`devkit.audit-structure`、`devkit.audit-deps`、清单字段 `gwb.provides` 与它的检查、发版前检查里关掉 `skipLibCheck` 的类型检查、拒 0.0.x、拒内核包以外写 `gwb.shared`、`reminders`；`devkit.services` 改从 home 里各包的 `.d.ts` 现读；node 侧产物的包名 import 改成放行 peer 里写了的包；devkit 从插件管理的主入口 import pnpm 定位与内核范围判定，删掉两份副本与对照测试；插件管理删 `set-label` 与显示名（devkit 0.19.0、插件管理 0.10.0，未发）。第九节里「类型检查在 `skipLibCheck: false` 下通过」「audit-deps / audit-structure」两条不再做｜devkit 仓会话
 - 2026-09-24｜内核 0.5.0 退役词汇表包、只收内核包的 `gwb.shared`；devkit 跟上：发版前检查浏览器侧只认内核包清单的名字、拒内核包以外写了 `gwb.shared` 的包，`devkit.capabilities` 只给内核包报外置名，`devkit.home.new` 不再装词汇表包，模板与两个插件从内核包取接口类型、peer 写 `^0.5.0`（devkit 0.18.14、插件管理 0.8.4，未发）。人定不等块笔记，勾掉第三期块笔记撤声明、第四期 `home.new` 与第五期删扫描三项｜devkit 仓会话
