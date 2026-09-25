@@ -47,7 +47,7 @@ description: 连接 devkit.dev、devkit.release、devkit.scaffold.plugin 与被�
 
 {/* ref file="../plugins/devkit/src/artifact-check.ts" lines="219-238" */}
 
-**peer 里的包装在包目录的 `node_modules` 里**：发版前检查读 `<包目录>/node_modules/<包>/package.json` 判断 peer 里的包是不是插件，读不到就拒并提示先 `pnpm install`；浏览器侧产物有包名 import 时，页面 importmap 里的名字从 `<包目录>/node_modules/@godcreator/gwb-kernel-desktop/dist/index.html` 里那段 importmap 现读（插件 peer 里写了内核包，pnpm 把它链接在那里），读不到同样拒，提示 peer 写上内核包 `^0.6.0` 起：
+**peer 里的包装在包目录的 `node_modules` 里**：发版前检查读 `<包目录>/node_modules/<包>/package.json` 判断 peer 里的包是不是插件，读不到就拒并提示先 `pnpm install`；浏览器侧产物有包名 import 时，页面 importmap 里的名字从 `<包目录>/node_modules/@godcreator/gwb-kernel-desktop/dist/index.html` 里那段 importmap 现读（插件 peer 里写了内核包，pnpm 把它链接在那里），读不到同样拒，提示 peer 写上内核包、再 `pnpm install`：
 
 {/* ref file="../plugins/devkit/src/artifact-check.ts" lines="240-257" */}
 
@@ -59,7 +59,7 @@ description: 连接 devkit.dev、devkit.release、devkit.scaffold.plugin 与被�
 
 {/* ref file="../plugins/devkit/src/node-dev-deps.ts" lines="105-114" */}
 
-**`pnpm-workspace.yaml` 的 `packages` 里有 `plugins/*`**：`devkit.scaffold.plugin` 只往这样的仓里加插件，仓根就是插件包的旧布局仓直接拒，报错里写着怎么迁。`packages` 按 YAML 读，带不带引号、块列表还是流式列表都认；读不懂的写法报出是第几行，不当成「没有这一条」：
+**`pnpm-workspace.yaml` 的 `packages` 里有 `plugins/*`**：`devkit.scaffold.plugin` 只往这样的仓里加插件，别的一概拒。`packages` 按 YAML 读，带不带引号、块列表还是流式列表都认；读不懂的写法报出是第几行，不当成「没有这一条」：
 
 {/* ref file="../plugins/devkit/src/scaffold.ts" lines="258-266" */}
 
@@ -79,7 +79,7 @@ devkit 保证：
 
 - devkit 不决定一个仓该有几个包、怎么分组，只按上面的约定去找
 - `devkit.dev` 不看 git 状态，未提交的改动照样打包进开发版
-- 不查旧布局仓离 workspace 布局有多远：改到哪个仓就照模板迁哪个
+- 不查一个仓离 workspace 布局有多远、不替它迁：不是 workspace 布局的仓要先照模板迁
 
 ## 测试
 
@@ -93,7 +93,7 @@ devkit 保证：
 
 {/* has file="../plugins/devkit/tests/artifact-check.test.ts" text="浏览器侧：内核包的页面入口读不到就报，不猜" */}
 
-{/* has file="../plugins/devkit/tests/scaffold.test.ts" text="repo 不在、yaml 不在（仓根就是插件的旧布局仓）、yaml 的 packages 里没有 plugins/*，三种都拒，报错里写怎么迁" */}
+{/* has file="../plugins/devkit/tests/scaffold.test.ts" text="repo 不在、yaml 不在、yaml 的 packages 里没有 plugins/*，三种都拒" */}
 
 {/* has file="../plugins/devkit/tests/scaffold.test.ts" text="加插件认 pnpm-workspace.yaml 里各种写法的 plugins/*（GWB-27）" */}
 

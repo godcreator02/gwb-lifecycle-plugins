@@ -100,9 +100,9 @@ describe('参数不对：回 ok false，带上那条命令的用法', () => {
     expect((await devkit.run('devkit.home.rm', { name: '' })).error).toContain('name 缺了或不是 kebab-case')
   })
 
-  it('devkit.dev：给端口当场拒，home 名不合格也拒', async () => {
+  it('devkit.dev：给 cdp 当场拒，home 名不合格也拒', async () => {
     const devkit = mountDevkit({ homeDir: tempDir('dk-home-') })
-    expect((await devkit.run('devkit.dev', { cdp: 9401, dir: 'D:\\x', packages: ['plugins/x'] })).error).toContain('这儿不收端口了，只收 home 名')
+    expect((await devkit.run('devkit.dev', { cdp: 9401, dir: 'D:\\x', packages: ['plugins/x'] })).error).toContain('不认识参数 cdp')
     expect((await devkit.run('devkit.dev', { home: 'Bad', packages: ['plugins/x'] })).error).toContain('home 缺了或不是个合格的 home 名')
   })
 

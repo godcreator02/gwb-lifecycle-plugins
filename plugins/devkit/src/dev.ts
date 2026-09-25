@@ -46,12 +46,11 @@ function pad(value: number): string {
 }
 
 /**
- * `<patch+1>-dev.<yyyyMMddHHmmss>`。patch 加一：开发版要排在正式版之后，不然 `>=` 那类范围会把它当成旧版跳过。
- * 版本号决定包文件名，包文件名决定 home 里的真实目录：同一秒跑两次撞到同一个包文件，当场拒
+ * `<patch+1>-dev.<yyyyMMddHHmmss>`。开发版号只用来让每一版的包文件路径不同：版本号决定包文件名，包文件名决定
+ * home 里的真实目录。同一秒跑两次撞到同一个包文件，当场拒
  */
 export function devVersion(version: string, now: number): string {
   const [major = '0', minor = '0', rest = '0'] = version.split('.')
-  // 用 parseInt 不用 Number：底版本本身可能已经是预发布号（`0.3.1-dev.x`），那时该出 0.3.2-dev.y
   const patch = Number.parseInt(rest, 10)
   const nowDate = new Date(now)
   const stamp = `${String(nowDate.getFullYear())}${pad(nowDate.getMonth() + 1)}${pad(nowDate.getDate())}${pad(nowDate.getHours())}${pad(nowDate.getMinutes())}${pad(nowDate.getSeconds())}`

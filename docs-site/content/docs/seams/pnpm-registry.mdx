@@ -111,7 +111,7 @@ devkit 保证：
 
 团队源需要保证的：`dist-tags.latest` 是正式最新版。源地址与 `~/.npmrc` 里 `@godcreator` 那一行一致**靠约定**：`vocab.ts` 的注释写着两者同一个地址，没有代码核对。发版前检查问 `@godcreator` 包的 latest 靠那一行路由，机器上没有它就问不出、发版前检查拒。
 
-插件包需要保证的：`package.json` 的 `keywords` 里写 `gwb-plugin`；库、共享包不写。
+插件包需要保证的：`package.json` 的 `keywords` 里写 `gwb-plugin`；库不写。
 
 gitea 插件需要保证的（gitea 插件仓的约定）：条目 id 是 `gitea`，设置名是 `base-url` 与 `token`。
 

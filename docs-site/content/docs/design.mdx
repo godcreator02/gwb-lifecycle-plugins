@@ -75,7 +75,7 @@ devkit 没有任何特权：装进 home 才有它的命令，加载不成功就�
 
 推出了：调试端口由 `devkit.home.new` / `open` 自动选，先沿用这个 home 上次那个；`runtime.json` 由内核写，devkit 只读。
 
-代价：记录坏了、或者启动它的内核太旧而不写记录的 home 连不上，要停掉重开一次；CDP 驱动从此只能操作 gwb 的窗口。
+代价：记录坏了的 home 连不上，要停掉重开一次；CDP 驱动从此只能操作 gwb 的窗口。
 
 ## 纯逻辑与真机器操作分开
 
@@ -151,5 +151,5 @@ devkit 没有任何特权：装进 home 才有它的命令，加载不成功就�
 - **不构建内核**：启动 home 用宿主自己那个应用；改内核源码的验证走内核仓自己的流程
 - **不做设置项**：现在一项都不需要；将来要加用 `gwbSettings.define`，不读 `cordis.yml` 条目上的 `config`——写在 yml 里的那份界面看不见、agent 也不知道
 - **不自动清理**：`devkit.home.new` 的回执带着现有 home 清单，清理由人或 agent 在开新 home 时决定；工具只提供入口，不替人做判断
-- **不巡检别的仓**：不扫容器根下各仓的依赖与布局。依赖写法、peer 与产物在各仓发版时由 `devkit.release` 查，布局照模板、改到哪个仓迁哪个
+- **不巡检别的仓**：不扫容器根下各仓的依赖与布局。依赖写法、peer 与产物在各仓发版时由 `devkit.release` 查；不是 workspace 布局的仓用不了 `devkit.dev`、`devkit.release` 与 `devkit.scaffold.plugin`，要先照模板迁
 - **没人用的命令就删**：本机源的启停、单独的停止 home、只看不验的 `dev-check`（[砍掉没人用的那一半](/trajectory/2026-09-11-cut-the-half-nobody-uses)），依赖对账、结构体检、`devkit.capabilities`（[两个插件删掉用不上的机制](/trajectory/2026-09-25-drop-unused-machinery)）都已删掉，退役名单在[术语表](/docs/glossary#退役的命令与参数)

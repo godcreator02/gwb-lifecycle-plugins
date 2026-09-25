@@ -245,7 +245,7 @@ function kernelImportmapNamesOf(pkgDir: string, io: ArtifactIo): { names: Set<st
   const file = path.join(pkgDir, 'node_modules', ...KERNEL_PACKAGE.split('/'), 'dist', 'index.html')
   const html = io.readText(file)
   if (html === undefined) {
-    return { names: new Set(), problems: [`内核包的页面入口读不到（${file}），算不出页面 importmap 里的名字：peer 写上内核包 ^0.6.0 起，再在仓根 pnpm install`] }
+    return { names: new Set(), problems: [`内核包的页面入口读不到（${file}），算不出页面 importmap 里的名字：包目录的 node_modules 里没装内核包，peer 写上 ${KERNEL_PACKAGE}，再在仓根 pnpm install`] }
   }
   try {
     const names = importmapNamesOf(html)

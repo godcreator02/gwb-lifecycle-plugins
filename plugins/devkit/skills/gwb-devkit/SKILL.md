@@ -53,7 +53,7 @@ description: 写新插件、改插件、在隔离 home 里验证改动时读；�
 
 ## 参考：约定与容易出错的地方
 
-* **是不是插件看 `keywords`**：插件写 `["gwb", "gwb-plugin"]`（模板已带），库与共享包只写 `["gwb"]`。插件管理的「可装」列表按 `gwb-plugin` 筛，不看包名范围
+* **是不是插件看 `keywords`**：插件写 `["gwb", "gwb-plugin"]`（模板已带），库只写 `["gwb"]`。`plugin-manager.search`（插件管理窗格的「可装」列表就是它）按 `gwb-plugin` 筛，不看包名范围
 * **包名与发到哪用 npm 的标准字段**：包的身份是 `package.json` 的 `name`，发到哪是 `publishConfig.registry`（每个要发的包都得写，没写 `devkit.release` 就拒发；模板已写）。别的包名范围的插件要装进 home，那个范围的源得先配进 `~/.npmrc`（`plugin-manager.source.add`）
 * **内核的接口类型从内核包的包根 `import type`**：`import type { GwbContext } from '@godcreator/gwb-kernel-desktop'`，peer 里写着内核包，不另写 dev。包根只导出类型，`isRecord`、`requireKernel` 这类无状态小函数由插件自带一份（devkit 的 `src/vocab.ts`）
 * **node 侧的测试只 import `.ts`**：node 侧的 tsc 没开 jsx

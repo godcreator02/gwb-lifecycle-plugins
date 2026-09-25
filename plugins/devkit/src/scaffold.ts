@@ -244,7 +244,7 @@ function assertFrontmatter(text: string, file: string): void {
   }
 }
 
-/** 要读磁盘：repo 必须已经是 workspace 仓（`pnpm-workspace.yaml` 的 packages 里有 `plugins/*` 那条），旧布局仓报错里写清怎么迁 */
+/** 要读磁盘：repo 必须已经是 workspace 仓（`pnpm-workspace.yaml` 的 packages 里有 `plugins/*` 那条） */
 export function planScaffoldPlugin(input: ScaffoldPluginInput): ScaffoldPluginPlan {
   const name = validShortName(input.name)
   const pkg = `${scopeOrTeamScope(input.scope)}/gwb-${name}`
@@ -259,10 +259,7 @@ export function planScaffoldPlugin(input: ScaffoldPluginInput): ScaffoldPluginPl
   const globs = fs.existsSync(yamlPath) ? workspacePackageGlobs(fs.readFileSync(yamlPath, 'utf8'), yamlPath) : null
   if (globs === null || !globs.includes(PLUGINS_GLOB)) {
     const found = globs === null ? '没有 pnpm-workspace.yaml 或里面没有 packages' : `读到的是 ${JSON.stringify(globs)}`
-    throw new Error(
-      `${repoDir} 不是薄壳 workspace：pnpm-workspace.yaml 的 packages 里没有 ${PLUGINS_GLOB} 这一条（${found}）。` +
-        '仓根就是插件的旧布局仓，加插件之前先迁成 workspace 布局：插件包的文件 git mv 进 plugins/<短名>/，仓根换成 private: true 的 package.json（照 devkit 仓），再来',
-    )
+    throw new Error(`${repoDir} 不是 workspace 仓：pnpm-workspace.yaml 的 packages 里没有 ${PLUGINS_GLOB} 这一条（${found}）`)
   }
   return {
     name,

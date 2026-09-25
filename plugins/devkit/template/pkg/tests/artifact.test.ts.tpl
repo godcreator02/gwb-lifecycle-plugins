@@ -29,7 +29,7 @@ function importmapNamesOfKernel(): Set<string> {
   const manifestPath = createRequire(import.meta.url).resolve('@godcreator/gwb-kernel-desktop/package.json')
   const pageEntry = path.join(path.dirname(manifestPath), 'dist', 'index.html')
   const importmapScript = /<script type="importmap">([\s\S]*?)<\/script>/.exec(fs.readFileSync(pageEntry, 'utf8'))
-  if (importmapScript === null) throw new Error(`${pageEntry} 里没有 importmap：装的内核包早于 0.6`)
+  if (importmapScript === null) throw new Error(`${pageEntry} 里没有 <script type="importmap">，读不出页面 importmap 的名字`)
   const importmap: unknown = JSON.parse(importmapScript[1]!)
   const imports = isRecord(importmap) ? importmap['imports'] : undefined
   if (!isRecord(imports)) throw new Error(`${pageEntry} 的 importmap 里没有 imports`)

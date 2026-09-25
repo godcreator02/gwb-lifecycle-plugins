@@ -113,8 +113,7 @@ pnpm build          # 只构建 plugins/*，两个包都先清空 dist/：开发
 `template/site/plugin.mdx.tpl` 生成文档站现状区里的插件页（**站装好六区之后才写**：`docfirst.attach`
 只在没加过页的初始站点上装得了）。插件包自带全部配置：tsconfig /
 vitest / oxlint 配置全在包内，搬到哪个仓都不用改（oxlint 按工作目录找配置，所以 `.oxlintrc.json`
-放在插件包里、不放仓根）。还在用的旧布局仓（仓根就是插件）改到哪个就顺手迁哪个，不专门迁：
-插件包的文件 git mv 进 `plugins/<短名>/`，仓根换成 `private: true` 的 `package.json`，照模板生成的仓对齐。
+放在插件包里、不放仓根）。
 模板带的产物测试（`template/pkg/tests/artifact.test.ts.tpl`）与发版前检查用同一套包名 import 名单，改其中一边同一个提交里改另一边。
 
 `template/` 下的文件一律带 `.tpl` 后缀，写到磁盘时去掉（`npm pack` 不打包 `.gitignore` 是固定行为，
@@ -139,8 +138,8 @@ vitest / oxlint 配置全在包内，搬到哪个仓都不用改（oxlint 按工
 
 两条写磁盘的规矩，都是因为「没有干净的回滚点」：**全部先在内存里渲染完、生成的 JSON / YAML / frontmatter 读一遍再写磁盘**；
 **目标目录必须还不存在**（建仓是仓根，加插件是 `plugins/<短名>/`），存在就拒，不覆盖任何东西。
-加插件另有一条前提：仓的 `pnpm-workspace.yaml` 的 `packages` 里得有 `plugins/*` 这一条（带不带引号、块列表还是流式列表都认）——旧布局的仓
-直接拒，报错里写着怎么迁，而不是把插件放进一个用不了的布局。YAML 用 yaml 库读（dev 依赖，打包进 `dist/index.js`），
+加插件另有一条前提：仓的 `pnpm-workspace.yaml` 的 `packages` 里得有 `plugins/*` 这一条（带不带引号、块列表还是流式列表都认），没有就拒，
+不把插件放进一个用不了的布局。YAML 用 yaml 库读（dev 依赖，打包进 `dist/index.js`），
 写坏了报出文件与第几行第几列，不当成「没有这一条」。
 
 ## 没有设置项

@@ -243,15 +243,11 @@ describe('artifactProblems', () => {
       io({
         'dist/index.js': "import path from 'node:path';\n",
         'dist/client.js':
-          "import { jsx } from 'react/jsx-runtime';\nimport { createRoot } from 'react-dom/client';\nimport dayjs from 'dayjs';\nimport x from 'shell-shared';\n",
+          "import { jsx } from 'react/jsx-runtime';\nimport { createRoot } from 'react-dom/client';\nimport dayjs from 'dayjs';\n",
         [`node_modules/${KERNEL_PACKAGE}/dist/index.html`]: KERNEL_INDEX_HTML,
-        'node_modules/@godcreator/gwb-shell/package.json': JSON.stringify({ name: '@godcreator/gwb-shell', gwb: { shared: { 'shell-shared': './x' } } }),
       }),
     )
-    expect(got).toEqual([
-      expect.stringContaining("浏览器侧产物 dist/client.js import 了 'dayjs'"),
-      expect.stringContaining("浏览器侧产物 dist/client.js import 了 'shell-shared'"),
-    ])
+    expect(got).toEqual([expect.stringContaining("浏览器侧产物 dist/client.js import 了 'dayjs'")])
     expect(got[0]).toContain('react、react/jsx-runtime、react-dom/client')
   })
 

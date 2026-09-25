@@ -18,7 +18,7 @@ function importmapNamesOfKernel(): string[] {
   const pageEntry = path.join(path.dirname(manifestPath), 'dist', 'index.html')
   const importmapScript = /<script type="importmap">([\s\S]*?)<\/script>/.exec(fs.readFileSync(pageEntry, 'utf8'))
   if (importmapScript === null) {
-    throw new Error(`${pageEntry} 里没有 importmap：装的内核包早于 0.6，把 peer 里的 @godcreator/gwb-kernel-desktop 抬到 ^0.6.0 起`)
+    throw new Error(`${pageEntry} 里没有 <script type="importmap">：外置名单只从内核包页面入口的这段 importmap 读，读不到就不构建`)
   }
   const importmap: unknown = JSON.parse(importmapScript[1]!)
   const imports = isRecord(importmap) ? importmap['imports'] : undefined

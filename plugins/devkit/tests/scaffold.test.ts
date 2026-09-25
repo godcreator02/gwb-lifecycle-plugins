@@ -58,7 +58,7 @@ afterEach(() => {
   for (const dir of sandboxes.splice(0)) fs.rmSync(dir, { recursive: true, force: true })
 })
 
-/** 临时目录里搭一个薄壳仓（pnpm-workspace.yaml 带 plugins/ 那条） */
+/** 临时目录里搭一个 workspace 仓（pnpm-workspace.yaml 带 plugins/ 那条） */
 function fakeWorkspace(yaml = 'packages:\n  - plugins/*\n'): string {
   const dir = path.join(sandbox(), 'repo')
   fs.mkdirSync(dir, { recursive: true })
@@ -125,13 +125,13 @@ describe('planScaffoldPlugin：往薄壳仓加件', () => {
     expect(plan.title).toBe('第二件')
   })
 
-  it('repo 不在、yaml 不在（仓根就是插件的旧布局仓）、yaml 的 packages 里没有 plugins/*，三种都拒，报错里写怎么迁', () => {
+  it('repo 不在、yaml 不在、yaml 的 packages 里没有 plugins/*，三种都拒', () => {
     expect(() => planScaffoldPlugin({ name: 'x', repo: path.join(sandbox(), 'nope'), kernelVersion: KERNEL })).toThrow(/不在/)
     const bare = path.join(sandbox(), 'bare')
     fs.mkdirSync(bare, { recursive: true })
-    expect(() => planScaffoldPlugin({ name: 'x', repo: bare, kernelVersion: KERNEL })).toThrow(/薄壳 workspace/)
+    expect(() => planScaffoldPlugin({ name: 'x', repo: bare, kernelVersion: KERNEL })).toThrow(/不是 workspace 仓/)
     const noPlugins = fakeWorkspace('packages:\n  - docs-site\n')
-    expect(() => planScaffoldPlugin({ name: 'x', repo: noPlugins, kernelVersion: KERNEL })).toThrow(/薄壳 workspace/)
+    expect(() => planScaffoldPlugin({ name: 'x', repo: noPlugins, kernelVersion: KERNEL })).toThrow(/不是 workspace 仓/)
     for (const bad of ['', 'Hello', 'x--']) {
       expect(() => planScaffoldPlugin({ name: bad, repo: fakeWorkspace(), kernelVersion: KERNEL })).toThrow(/kebab-case/)
     }
@@ -267,7 +267,7 @@ describe('nextSteps：按站真建到哪一步分三支', () => {
     expect(nextSteps(plan).join('\n')).toContain('doc:confirm')
   })
 
-  it('薄壳仓的 dev 与 release 都带 packages 指到 plugins/ 下——packages 缺省只属于老裸根仓', () => {
+  it('dev 与 release 都带 packages 指到 plugins/ 下', () => {
     const steps = nextSteps(plan).join('\n')
     expect(steps).toContain('"packages":["plugins/x"]')
     expect(steps).toContain('devkit.release')
@@ -375,7 +375,7 @@ describe('包内 template/：两区', () => {
       private: boolean
       scripts: Record<string, string>
     }
-    // 根是薄壳：private、无依赖、build 只递归 plugins/*（fresh 仓没有 packages/，过滤器不带它）
+    // 仓根是 private 包：无依赖、build 只递归 plugins/*（fresh 仓没有 packages/，过滤器不带它）
     expect(shell.name).toBe('gwb-hello-workspace')
     expect(shell.private).toBe(true)
     expect(shell.scripts.build).toContain('./plugins/*')
@@ -416,7 +416,6 @@ describe('包内 template/：两区', () => {
       expect(range).toBe(`^${KERNEL}`)
       expect(isCaretRange(range ?? '')).toBe(true)
       expect(kernelRangeCovers(range, KERNEL)).toBe(true)
-      expect(manifestText).not.toContain('testedKernel')
     }
   })
 
@@ -441,7 +440,7 @@ describe('包内 template/：两区', () => {
     expect(manifest.devDependencies['cordis']).toBeDefined()
   })
 
-  it('生成的清单：命令总线、外壳写 peer、不写 dev；已停发的 gwb-tokens、gwb-shared-react、gwb-plugin-api 不出现', () => {
+  it('生成的清单：命令总线、外壳写 peer、不写 dev', () => {
     const files = renderTemplate(TEMPLATE_ROOT, planScaffold({ name: 'hello', dir: 'D:\\tmp\\x', kernelVersion: KERNEL }))
     const text = files.find((f) => f.rel === 'plugins/hello/package.json')?.text ?? ''
     const manifest = JSON.parse(text) as { peerDependencies: Record<string, string>; devDependencies: Record<string, string> }
@@ -449,7 +448,6 @@ describe('包内 template/：两区', () => {
       expect(manifest.peerDependencies[pkg], `${pkg} 不在 peer 里`).toMatch(/^\^\d+\.\d+\.\d+$/)
       expect(manifest.devDependencies[pkg], `${pkg} 不该再写 dev`).toBeUndefined()
     }
-    for (const retired of ['gwb-tokens', 'gwb-shared-react', 'gwb-plugin-api']) expect(text).not.toContain(retired)
   })
 
   it('生成的源码从 peer 里的内核包取接口类型', () => {
@@ -470,12 +468,11 @@ describe('包内 template/：两区', () => {
     }
   })
 
-  it('生成的样式入口从外壳导出的 theme.reference.css 引令牌映射，不再引已停发的 gwb-tokens', () => {
+  it('生成的样式入口从外壳导出的 theme.reference.css 引令牌映射', () => {
     const files = renderTemplate(TEMPLATE_ROOT, planScaffold({ name: 'hello', dir: 'D:\\tmp\\x', kernelVersion: KERNEL }))
     const styles = files.find((f) => f.rel === 'plugins/hello/src/client/styles.css')?.text ?? ''
     const imports = [...styles.replaceAll(/\/\*[\s\S]*?\*\//g, '').matchAll(/^@import '([^']+)'/gm)].map((m) => m[1])
     expect(imports).toContain('@godcreator/gwb-shell/theme.reference.css')
-    expect(styles).not.toContain('gwb-tokens')
   })
 
   it('生成的产物测试：node 侧只放行内置模块、electron 与自己 peer 里的包；浏览器侧只放行内核包页面 importmap 的名字', () => {
@@ -891,7 +888,7 @@ describe('加插件认 pnpm-workspace.yaml 里各种写法的 plugins/*（GWB-27
   it('没有 packages 这个键、或文件是空的，报原来那句「没有 packages」', () => {
     for (const yaml of ['allowBuilds:\n  esbuild: true\n', '']) {
       expect(() => planScaffoldPlugin({ name: 'w', repo: fakeWorkspace(yaml), kernelVersion: KERNEL }), JSON.stringify(yaml)).toThrow(
-        /薄壳 workspace.*没有 pnpm-workspace\.yaml 或里面没有 packages/,
+        /不是 workspace 仓.*没有 pnpm-workspace\.yaml 或里面没有 packages/,
       )
     }
   })

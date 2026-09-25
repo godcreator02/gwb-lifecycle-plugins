@@ -9,7 +9,7 @@ description: devkit.scaffold 把新插件的初始文件写进一个新文件夹
 
 workspace 仓：仓根是一个不发布的 private 包（`pnpm build` / `pnpm check` 递归到各成员，自己没有代码），插件放在 `plugins/<短名>/`，不是插件的包放在 `packages/`（插件共用的库之类，按需）。**只有一个插件的仓不是另一种布局**，只是 `plugins/` 下恰好一个目录；加第二个插件永远是 `devkit.scaffold.plugin` 往 `plugins/` 再生成一个，不会出现「当初建小了、现在要迁移」的情况。插件包自带全部配置（src / tests / tsconfig / vitest / oxlint 配置全在包内），放在哪个仓里都一样。
 
-模板分三部分：`template/repo/` 生成仓根，`template/pkg/` 生成 `plugins/<短名>/`（插件包，**唯一正本**——建仓与加插件生成的是同一份，两条命令生成的格式一致靠这个保证），`template/site/plugin.mdx.tpl` 生成文档站现状区里的插件页 `docs-site/content/docs/plugins/<短名>.mdx`。还在用的旧布局仓（仓根就是插件包）不专门迁，改到哪个就迁哪个；`devkit.scaffold.plugin` 收到这种仓当场拒，报错里写着怎么迁。
+模板分三部分：`template/repo/` 生成仓根，`template/pkg/` 生成 `plugins/<短名>/`（插件包，**唯一正本**——建仓与加插件生成的是同一份，两条命令生成的格式一致靠这个保证），`template/site/plugin.mdx.tpl` 生成文档站现状区里的插件页 `docs-site/content/docs/plugins/<短名>.mdx`。`devkit.scaffold.plugin` 只收 workspace 仓，别的当场拒。
 
 ## 管什么
 
@@ -133,7 +133,7 @@ Markdown / MDX 开头的 frontmatter 是 YAML，里面的 `title` 写在双引�
 
 给一份参数，看抛什么、算出什么；给一个临时目录，看磁盘上写下了什么。整个过程不启动进程、不开窗口，`tests/scaffold.test.ts` 直接测这几件事：
 
-短名的正则会不会放过 `x--` 这种结尾；`planScaffold` 的派生与缺省值；给了 `scope`、`registry` 时包名、`publishConfig.registry`、README、插件页与回执跟着变，内核包与模板用到的两个插件仍在 `@godcreator` 下，不给时是团队范围与团队源，不合规的范围与地址（不带 `@`、大写、非 http(s)、不是规范写法、带账号或查询串）建仓与加插件都拒；`planScaffoldPlugin` 对不存在的 repo、`pnpm-workspace.yaml` 的 `packages` 里没有 `plugins/*`（旧布局仓）的拒绝，以及带引号、块列表、流式列表、注释、CRLF 几种写法都收，YAML 写坏了、`packages` 不是字符串列表时报出文件与行列；`dir` / `repo` 用正斜杠写与用反斜杠写得到同一个路径；`docsBlock` 在建站与不建站时写的是两段不同的话；`nextSteps` / `nextStepsPlugin` 各种情况写了什么、`packages` 参数有没有带上；生成的 `package.json` 在 peer 里写了内核包 `^<运行命令的内核版本号>`、过得了发版前检查的比对，开发版内核只取 x.y.z 三段；认不出的占位符真的会抛错；`.tpl` 后缀与三部分的去向（`landRel`）对不对；包内 `template/` 里每个文件都声明了属于哪部分；生成的清单 peer 里有内核包、只在 node 侧按值 import 了 `cordis` 时才写 peer `cordis`，命令总线与外壳写在 dev、已停发的 `gwb-tokens`、`gwb-shared-react`、`gwb-plugin-api` 不出现；生成的 node 侧源码从 peer 里的内核包 `import type` 接口类型；构建脚本从内核包页面入口 `dist/index.html` 里的 importmap 读外置名单、不写 react 包名的字面量，产物测试同样从装好的内核包读名单、样式入口从外壳引令牌映射；产物测试的颜色类白名单从外壳的 `theme.reference.css` 与样式入口读色名，不手抄；插件页写出插件名、包名、命令与显示名；生成的 `description` 是一句话、不带计数，生成的文件里没有已退役的 `gwb-repo-kit`；在临时 workspace 仓里真的生成一个 `plugins/<短名>/`；`writeRepo` 对已存在的目录真的拒绝。
+短名的正则会不会放过 `x--` 这种结尾；`planScaffold` 的派生与缺省值；给了 `scope`、`registry` 时包名、`publishConfig.registry`、README、插件页与回执跟着变，内核包与模板用到的两个插件仍在 `@godcreator` 下，不给时是团队范围与团队源，不合规的范围与地址（不带 `@`、大写、非 http(s)、不是规范写法、带账号或查询串）建仓与加插件都拒；`planScaffoldPlugin` 对不存在的 repo、`pnpm-workspace.yaml` 的 `packages` 里没有 `plugins/*` 的拒绝，以及带引号、块列表、流式列表、注释、CRLF 几种写法都收，YAML 写坏了、`packages` 不是字符串列表时报出文件与行列；`dir` / `repo` 用正斜杠写与用反斜杠写得到同一个路径；`docsBlock` 在建站与不建站时写的是两段不同的话；`nextSteps` / `nextStepsPlugin` 各种情况写了什么、`packages` 参数有没有带上；生成的 `package.json` 在 peer 里写了内核包 `^<运行命令的内核版本号>`、过得了发版前检查的比对，开发版内核只取 x.y.z 三段；认不出的占位符真的会抛错；`.tpl` 后缀与三部分的去向（`landRel`）对不对；包内 `template/` 里每个文件都声明了属于哪部分；生成的清单 peer 里有内核包、只在 node 侧按值 import 了 `cordis` 时才写 peer `cordis`，命令总线与外壳写在 peer、不写 dev；生成的 node 侧源码从 peer 里的内核包 `import type` 接口类型；构建脚本从内核包页面入口 `dist/index.html` 里的 importmap 读外置名单、不写 react 包名的字面量，产物测试同样从装好的内核包读名单、样式入口从外壳引令牌映射；产物测试的颜色类白名单从外壳的 `theme.reference.css` 与样式入口读色名，不手抄；插件页写出插件名、包名、命令与显示名；生成的 `description` 是一句话、不带计数，生成的文件里没有已退役的 `gwb-repo-kit`；在临时 workspace 仓里真的生成一个 `plugins/<短名>/`；`writeRepo` 对已存在的目录真的拒绝。
 
 `title` 那几条用一个凑齐了引号、反斜杠、`{}`、`<>`、Markdown 标点、`${y}`、`*/` 的 title 渲染整套模板，再用真的解析器与编译器读生成的文件：JSON 用 `JSON.parse`，YAML 与 frontmatter 用 yaml 库，node 侧入口与浏览器侧窗格用 esbuild 编成 CommonJS 后执行、看窗格标题与 `<h1>` 的文字，README 与插件页用 MDX 编译器（带 GFM 表格）渲染、看标题与表格那一格。模板里坏了一份 JSON 或 YAML 时，渲染就抛、目标目录还不存在；回执与 README 里给的命令参数都过得了 `JSON.parse`。
 
