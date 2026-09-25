@@ -730,6 +730,8 @@ describe('title 按所在文件的上下文编码（GWB-25）', () => {
   })
 
   describe('生成的结构化文件解析不过就拒，一个文件都不写', () => {
+    const PLUGIN_PAGE_TPL = `${SITE_ZONE}/plugin.mdx.tpl`
+
     /** 临时目录里搭一份模板：仓根部分一份 JSON、插件包部分一份 */
     function fakeTemplate(files: Record<string, string>): string {
       const root = path.join(sandbox(), 'template')
@@ -752,6 +754,21 @@ describe('title 按所在文件的上下文编码（GWB-25）', () => {
       expect(() => renderTemplate(root, planScaffold({ name: 'x', dir: 'D:\\tmp\\x', kernelVersion: KERNEL }))).toThrow(/pnpm-workspace\.yaml/)
     })
 
+    it('插件页的 frontmatter：YAML 写坏了、不是一层「键: 标量」，渲染时就抛，写出文件与位置', () => {
+      const plan = planScaffoldPlugin({ name: 'x', repo: fakeWorkspace(), kernelVersion: KERNEL })
+      const broken: Array<[string, RegExp]> = [
+        ['---\ntitle: "{{title}}\n---\n\n# x\n', /x\.mdx 第 \d+ 行第 \d+ 列不是合法的 YAML/],
+        ['---\ntitle:\n  - a\n---\n\n# x\n', /x\.mdx 第 2 行第 3 列：title 的值要是一个标量/],
+        ['---\n- a\n---\n\n# x\n', /x\.mdx 第 1 行第 1 列：frontmatter 要是「键: 值」/],
+      ]
+      for (const [page, why] of broken) {
+        const root = fakeTemplate({ [PLUGIN_PAGE_TPL]: page })
+        expect(() => renderPluginPage(root, plan), JSON.stringify(page)).toThrow(why)
+      }
+      const root = fakeTemplate({ [PLUGIN_PAGE_TPL]: '---\ntitle: "{{title}}"\ndescription: 插件 gwb-x（包 @godcreator/gwb-x）的功能\n---\n\n# x\n' })
+      expect(() => renderPluginPage(root, plan)).not.toThrow()
+    })
+
     it('加插件：插件包里的 JSON 坏了也在渲染时抛', () => {
       const root = fakeTemplate({ 'pkg/package.json.tpl': '{"a": 1,}\n' })
       expect(() => renderPlugin(root, planScaffoldPlugin({ name: 'x', repo: fakeWorkspace(), kernelVersion: KERNEL }))).toThrow(/package\.json/)
@@ -765,7 +782,17 @@ describe('加插件认 pnpm-workspace.yaml 里各种写法的 plugins/*（GWB-27
     ['块列表单引号', "packages:\n  - 'plugins/*'\n"],
     ['块列表双引号', 'packages:\n  - "plugins/*"\n'],
     ['块列表不带引号', 'packages:\n  - plugins/*\n  - docs-site\n'],
+    ['块列表的短横线与键同一缩进', 'packages:\n- plugins/*\n- docs-site\n'],
     ['流式列表不带引号', 'packages: [packages/*, plugins/*]\n'],
+    ['流式列表不带引号、两头有空格', 'packages: [ plugins/* , packages/* ]\n'],
+    ['流式列表跨行、带尾逗号', "packages: [\n  'plugins/*',\n  \"packages/*\",\n]\n"],
+    ['带注释、别的键有嵌套映射与带引号的键', "# 头注\npackages:\n  # 插件\n  - plugins/* # 行尾注释\n  - docs-site\n\nallowBuilds:\n  '@parcel/watcher': false\n  esbuild: true\n"],
+    ['CRLF 换行', 'packages:\r\n  - plugins/*\r\n'],
+    ['别的键是跨行的流式映射', 'overrides: {\n  a: 1,\n  b: 2\n}\npackages: [plugins/*]\n'],
+    ['别的键是块标量', 'note: |\n  第一行\n  第二行\npackages:\n  - plugins/*\n'],
+    ['开头有 --- 文档标记', '---\npackages:\n  - plugins/*\n'],
+    ['带锚点', 'packages:\n  - &p plugins/*\n'],
+    ['顶层整体缩进', '  packages:\n  - plugins/*\n'],
   ]
   for (const [label, yaml] of accepted) {
     it(`${label}：收`, () => {
@@ -774,14 +801,50 @@ describe('加插件认 pnpm-workspace.yaml 里各种写法的 plugins/*（GWB-27
     })
   }
 
-  it('没有 plugins/* 这一条就拒，报错里写出读到的是哪几条', () => {
-    for (const yaml of ["packages: ['packages/*', 'docs-site']\n", 'packages:\n  - plugin/*\n']) {
-      expect(() => planScaffoldPlugin({ name: 'w', repo: fakeWorkspace(yaml), kernelVersion: KERNEL })).toThrow(/plugins\/\*.*读到的是/)
+  it('没有 plugins/* 这一条就拒，报错里写出读到的是哪几条（引号与转义已经解开）', () => {
+    const rejected: Array<[string, string]> = [
+      ["packages: ['packages/*', 'docs-site']\n", '["packages/*","docs-site"]'],
+      ['packages:\n  - plugin/*\n', '["plugin/*"]'],
+      ["packages:\n  - 'it''s/*'\n", `["it's/*"]`],
+      ['packages:\n  - "a\\\\b/*"\n', '["a\\\\b/*"]'],
+      ['packages:\n  - "\\x41"\n', '["A"]'],
+    ]
+    for (const [yaml, found] of rejected) {
+      expect(() => planScaffoldPlugin({ name: 'w', repo: fakeWorkspace(yaml), kernelVersion: KERNEL }), JSON.stringify(yaml)).toThrow(
+        `${PLUGINS_GLOB} 这一条（读到的是 ${found}）`,
+      )
     }
   })
 
-  it('yaml 读不懂就把读不懂的那一行报出来，不当成「没有 plugins/*」', () => {
-    expect(() => planScaffoldPlugin({ name: 'w', repo: fakeWorkspace("packages: ['plugins/*'\n"), kernelVersion: KERNEL })).toThrow(/第 1 行/)
+  it('没有 packages 这个键、或文件是空的，报原来那句「没有 packages」', () => {
+    for (const yaml of ['allowBuilds:\n  esbuild: true\n', '']) {
+      expect(() => planScaffoldPlugin({ name: 'w', repo: fakeWorkspace(yaml), kernelVersion: KERNEL }), JSON.stringify(yaml)).toThrow(
+        /薄壳 workspace.*没有 pnpm-workspace\.yaml 或里面没有 packages/,
+      )
+    }
+  })
+
+  it('YAML 写坏了、或 packages 不是字符串列表，报错写出文件与第几行第几列，不当成「没有 plugins/*」', () => {
+    const unreadable: Array<[string, RegExp]> = [
+      ["packages: ['plugins/*'\n", /第 2 行第 1 列不是合法的 YAML/],
+      ["packages:\n  - 'plugins/*\n", /第 3 行第 1 列不是合法的 YAML/],
+      ['packages:\n    - plugins/*\n  - docs-site\n', /第 3 行第 1 列不是合法的 YAML/],
+      ['packages: plugins/*\n', /第 1 行第 11 列：packages 要是列表/],
+      ['packages: {a: 1}\n', /第 1 行第 11 列：packages 要是列表/],
+      ['packages:\n  foo: bar\n', /第 2 行第 3 列：packages 要是列表/],
+      ['packages:\n', /第 1 行第 10 列：packages 要是列表/],
+      ['packages:\n  - [plugins/*]\n', /第 2 行第 5 列：packages 的每一项要是一条字符串/],
+      ['packages:\n  - a: b\n', /第 2 行第 5 列：packages 的每一项要是一条字符串/],
+      ['packages:\n  -\n', /第 2 行第 4 列：packages 的每一项要是一条字符串/],
+      ['packages: [a: b]\n', /第 1 行第 12 列：packages 的每一项要是一条字符串/],
+      ['- plugins/*\n', /第 1 行第 1 列：顶层要是「键: 值」/],
+    ]
+    for (const [yaml, why] of unreadable) {
+      const repo = fakeWorkspace(yaml)
+      const file = path.join(repo, 'pnpm-workspace.yaml')
+      expect(() => planScaffoldPlugin({ name: 'w', repo, kernelVersion: KERNEL }), JSON.stringify(yaml)).toThrow(why)
+      expect(() => planScaffoldPlugin({ name: 'w', repo, kernelVersion: KERNEL }), JSON.stringify(yaml)).toThrow(file)
+    }
   })
 
   it('建仓生成的仓，加插件认得出', () => {

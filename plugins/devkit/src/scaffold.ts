@@ -1,7 +1,7 @@
 import fs from 'node:fs'
 import path from 'node:path'
+import { isMap, isScalar, isSeq, LineCounter, parseDocument, type Document } from 'yaml'
 import { versionCore } from './vocab.js'
-import { assertReadableYaml, topLevelScalars, workspacePackageGlobs } from './workspace-yaml.js'
 
 /** 短名：kebab-case。段之间只许一个连字符、结尾不许有连字符——宽松的写法会放过 `x--`，生成的包名就一直带着它 */
 export const NAME_RE = /^[a-z][a-z0-9]*(?:-[a-z0-9]+)*$/
@@ -152,6 +152,55 @@ export function planScaffold(input: ScaffoldInput): ScaffoldPlan {
     docs: input.docs !== false,
     port,
     kernelVersion: versionCore(input.kernelVersion),
+  }
+}
+
+/** 读好的一份 YAML，连同把字符偏移换成行列的表：读出来的形状不对时，报错指出是哪一处 */
+interface ParsedYaml {
+  doc: Document.Parsed
+  lines: LineCounter
+  file: string
+}
+
+/** 按 YAML 读一份文字。有语法错误就抛，报出文件、第几行第几列与 yaml 库的说明 */
+function parseYaml(text: string, file: string): ParsedYaml {
+  const lines = new LineCounter()
+  const doc = parseDocument(text, { lineCounter: lines })
+  const yaml = { doc, lines, file }
+  const [syntaxError] = doc.errors
+  if (syntaxError !== undefined) throw yamlError(yaml, syntaxError.pos[0], `不是合法的 YAML：${syntaxError.message}`)
+  return yaml
+}
+
+/** `offset` 是文字里的字符偏移，报错里换成从 1 数的行列 */
+function yamlError({ lines, file }: ParsedYaml, offset: number, why: string): Error {
+  const { line, col } = lines.linePos(offset)
+  return new Error(`${file} 第 ${String(line)} 行第 ${String(col)} 列${why}`)
+}
+
+/** pnpm-workspace.yaml 里 `packages` 的各条 glob。没有这个键回 null；YAML 写坏了、或 packages 不是字符串列表，报错 */
+function workspacePackageGlobs(text: string, file: string): string[] | null {
+  const yaml = parseYaml(text, file)
+  const root = yaml.doc.contents
+  if (root === null) return null
+  if (!isMap(root)) throw yamlError(yaml, root.range[0], '：顶层要是「键: 值」')
+  const entry = root.items.find((pair) => isScalar(pair.key) && pair.key.value === 'packages')
+  if (entry === undefined) return null
+  const packages = entry.value
+  if (!isSeq(packages)) throw yamlError(yaml, (packages ?? entry.key).range[0], '：packages 要是列表')
+  return packages.items.map((item) => {
+    if (isScalar(item) && typeof item.value === 'string') return item.value
+    throw yamlError(yaml, item.range[0], '：packages 的每一项要是一条字符串')
+  })
+}
+
+/** 生成的 Markdown / MDX 的 frontmatter：一层「键: 值」，值都是标量 */
+function assertFrontmatter(text: string, file: string): void {
+  const yaml = parseYaml(text, file)
+  const root = yaml.doc.contents
+  if (!isMap(root)) throw yamlError(yaml, root?.range[0] ?? 0, '：frontmatter 要是「键: 值」')
+  for (const { key, value } of root.items) {
+    if (!isScalar(value)) throw yamlError(yaml, (value ?? key).range[0], `：${String(key)} 的值要是一个标量`)
   }
 }
 
@@ -331,7 +380,7 @@ export function render(text: string, values: Record<string, string>, file: strin
   return open + substitute(yaml, values, file, jsonStringContent) + close + substitute(body, values, file, titleEncoderFor(file))
 }
 
-/** 渲染好的一份结构化文件读一遍：JSON 整份解析，YAML 与 Markdown 的 frontmatter 读顶层 */
+/** 渲染好的一份结构化文件读一遍：JSON 与 YAML 整份解析，Markdown 的 frontmatter 按一层「键: 标量」读 */
 function assertStructuredFile({ rel, text }: RenderedFile): void {
   const extension = path.extname(rel)
   if (extension === '.json') {
@@ -341,10 +390,10 @@ function assertStructuredFile({ rel, text }: RenderedFile): void {
       throw new Error(`生成的 ${rel} 不是合法的 JSON：${err instanceof Error ? err.message : String(err)}`)
     }
   } else if (extension === '.yaml' || extension === '.yml') {
-    assertReadableYaml(text, rel)
+    parseYaml(text, rel)
   } else if (extension === '.md' || extension === '.mdx') {
     const front = FRONTMATTER.exec(text)
-    if (front !== null) topLevelScalars(front[2] ?? '', rel)
+    if (front !== null) assertFrontmatter(front[2] ?? '', rel)
   }
 }
 

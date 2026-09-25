@@ -69,6 +69,9 @@ pnpm build          # 只构建 plugins/*：开发套件 esbuild 打包成一个
 
 **`pnpm check` 不构建。** 它检查的是源码，全绿只说明源码没问题，跟「装出来能不能运行」是两件事。
 
+**开发套件的产物开头那个 `require` 别删**：`build.ts` 用 `createRequire` 在 ESM 产物里造了一个，打包进来的 CommonJS 库（yaml）靠它找 node 内置模块。
+删了它 vitest 里照样全绿（vitest 自己提供 `require`），只有 `tests/built-artifact.test.ts` 里另起 node 进程 import 产物的那条会失败。
+
 **开发套件的类型检查与测试用的是插件管理的 `dist/`**（插件管理的主入口指向 `dist/`）：刚拉下来的仓、或改了插件管理导出的函数，
 先 `pnpm build` 再 `pnpm check`。
 
@@ -142,8 +145,8 @@ vitest / oxlint 配置全在包内，搬到哪个仓都不用改（oxlint 按工
 两条写磁盘的规矩，都是因为「没有干净的回滚点」：**全部先在内存里渲染完、生成的 JSON / YAML / frontmatter 读一遍再写磁盘**；
 **目标目录必须还不存在**（建仓是仓根，加插件是 `plugins/<短名>/`），存在就拒，不覆盖任何东西。
 加插件另有一条前提：仓的 `pnpm-workspace.yaml` 的 `packages` 里得有 `plugins/*` 这一条（带不带引号、块列表还是流式列表都认）——旧布局的仓
-直接拒，报错里写着怎么迁，而不是把插件放进一个用不了的布局。YAML 由本包的 `src/workspace-yaml.ts` 读，
-不用 yaml 库：插件运行时只能 import node 内置模块与 peer 里的包，本包构建不打包；它读不懂的写法报出第几行。
+直接拒，报错里写着怎么迁，而不是把插件放进一个用不了的布局。YAML 用 yaml 库读（dev 依赖，打包进 `dist/index.js`），
+写坏了报出文件与第几行第几列，不当成「没有这一条」。
 
 ## 没有设置项
 

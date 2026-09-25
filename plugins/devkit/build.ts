@@ -36,6 +36,9 @@ await build({
   // cordis 不在 peer 里：外置它，是为了哪天有人按值 import 了它，产物里留下包名、被发版前检查拦住，而不是悄悄打包进一份拷贝
   external: ['electron', 'cordis', ...peerNames],
   plugins: [cdpScriptStaysOutside],
+  // 打包进来的 CommonJS 依赖（yaml 的 node 入口）会 require node 内置模块；ESM 产物里没有 require，
+  // esbuild 的 __require 执行到就抛「Dynamic require ... is not supported」。在产物开头用 createRequire 造一个
+  banner: { js: 'import { createRequire as __createRequire } from "node:module";\nconst require = __createRequire(import.meta.url);' },
   format: 'esm',
   platform: 'node',
   target: 'node22',

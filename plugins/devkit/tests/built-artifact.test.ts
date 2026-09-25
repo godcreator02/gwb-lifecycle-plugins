@@ -1,3 +1,4 @@
+import { spawnSync } from 'node:child_process'
 import fs from 'node:fs'
 import os from 'node:os'
 import path from 'node:path'
@@ -94,6 +95,13 @@ describe.skipIf(!built)('构建产物', () => {
     expect(fs.readdirSync(path.join(pkgDir, 'dist')).filter((file) => file.endsWith('.js'))).toEqual(['index.js'])
     const relative = [...fs.readFileSync(bundle, 'utf8').matchAll(/^import\s[^'"]*from\s*"(\.[^"]+)"/gm)].map((m) => m[1])
     expect(relative).toEqual(['../bin/cdp.mjs'])
+  })
+
+  it('另起一个 node 进程直接 import 得起来：打包进来的 CommonJS 依赖 require 的 node 内置模块，在 ESM 产物里也找得到', () => {
+    // vitest 给被测模块提供了 require，在它里面加载测不出这一条
+    const script = `await import(${JSON.stringify(pathToFileURL(bundle).href)})`
+    const result = spawnSync(process.execPath, ['--input-type=module', '-e', script], { cwd: pkgDir, encoding: 'utf8' })
+    expect(result.status, result.stderr).toBe(0)
   })
 
   it('加载得起来，交出去的包内路径都指向包根下的真文件：cdp 脚本、说明书目录', async () => {
