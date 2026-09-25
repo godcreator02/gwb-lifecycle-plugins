@@ -1,60 +1,55 @@
 ---
 title: 安装与卸载
-description: install 在一条命令里装一个还没装的包（--save-exact）并加一条条目，只等写入、不等加载；已装的包直接报错，再挂一条用 add-entry、换版本用 update 的 specs；home 里只有插件、内核包与 cordis，所以不替插件装它 peer 里的插件、不判断是不是库；uninstall 先删条目后卸包、不回滚
+description: install 在一条命令里装一个还没装的包（--save-exact）并加一条条目，只等写入、不等加载；已装的包直接报错；home 里只有插件、内核包与 cordis，所以不替插件装它 peer 里的插件、不判断是不是库；uninstall 先删条目后卸包、不回滚，内核包与 cordis 不许卸
 ---
 
 # 安装与卸载
 
-**本页回答**：装一个包要经过哪几步、每一步失败时回执是什么样；为什么建条目不等加载；为什么安装不替插件装它 peer 里的插件、也不判断是不是库；卸载为什么先删条目、失败不回滚。
+**本页回答**：装一个包经过哪几步、每一步失败时回执是什么样；为什么已装的包不许再 `install`；为什么建条目不等加载；为什么不替插件装它 peer 里的插件、也不判断是不是库；卸载为什么先删条目、失败不回滚。条目 id 怎么选见 [id 与归属](/docs/plugin-manager/ids)。
 
 ## 装包与加条目在一条命令里
 
-**是什么**：`install` 一条命令做完三步：校验参数 → 一次 `pnpm add --save-exact` → 选 id、加一条条目（默认启用）。home 的 `package.json` 里写精确版本号。
-
-**为什么**：条目必须指向刚装上的那个包。拆成「先装包、再加条目」两条命令，中间可能插进别的改动，调用方也得自己处理「包装上了、条目没加上」的中间状态。
-
-**怎么做**：
+`install` 一条命令做完三步：校验参数 → 一次 `pnpm add --save-exact`（home 的 `package.json` 里写精确版本号）→ 选 id、加一条启用的条目，回执 `data` 是 `{ pkg, entryId }`。拆成「先装包、再加条目」两条命令，中间可能插进别的改动，调用方也得自己处理「包装上了、条目没加上」的中间状态。
 
 <Diagram name="pm-install" title="安装一个包：三步依次做，每一步失败时回执是什么样，回执里逐步多出哪几行">
-1. **校验参数**：包名与版本范围不合规就抛错——拦的是 `-r` 这类会被 pnpm 当成命令行选项的参数。参数全程以数组传给 pnpm、不经过 shell。包已在 home 的 dependencies 里也抛错。只有调用方写错才抛，下面每一种失败都转成 `ok: false` 的回执
-2. **一次 `pnpm add --save-exact`**：先在两个固定位置找到 pnpm 并核对版本（见 [pnpm](/docs/plugin-manager/pnpm)），再经 `applyToHome` 运行。失败时 `error` 末尾带 pnpm 输出的最后几行
-3. **选 id，加一条条目**：id 的规则见[id 与归属](/docs/plugin-manager/ids)，经条目树 `create` 写进 `cordis.yml`，回执带 `entryId`。写不进 `cordis.yml` 时回执 `ok: false`，包留在 home 里、不回滚——删包比留着危险
+1. **校验参数**：包名与版本写法不合规就抛错——拦的是 `-r` 这类会被 pnpm 当成命令行选项的参数，参数全程以数组传给 pnpm、不经过 shell。包已在 home 的 dependencies 里也抛错。只有调用方写错才抛，下面每一种失败都转成 `ok: false` 的回执
+2. **一次 `pnpm add --save-exact`**：先在两个固定位置找到 pnpm 并核对版本（见 [pnpm](/docs/plugin-manager/pnpm)），再经 `applyToHome` 运行。失败时 `error` 末尾带 pnpm 输出的最后几行，不加条目
+3. **选 id，加一条条目**：经条目树 `create` 写进 `cordis.yml`，回执带 `entryId`。写不进 `cordis.yml` 时回 `ok: false`，包留在 home 里、不回滚——删包比留着危险，删除时也未必只删掉这一个
 </Diagram>
 
 {/* ref file="../plugins/plugin-manager/src/index.ts" lines="384-408" */}
 
-- 包已在 home 的 dependencies 里，`install` 直接报错、一次 pnpm 都不运行，报错指向两条路：再加一条条目用 `add-entry`，换版本用 `update {"specs":{…}}`。已装的包再 `pnpm add` 一次，只会悄悄换掉版本号、再多一条条目，两件事都不是调用方要的
-- 装完之后，agent 要再调一次 MCP 入口的 `index`，新插件的命令才出现
-
-**覆盖它的测试**：参数校验与失败回执有单元测试；整条命令在假条目树、假 pnpm 上有测试；真的 pnpm 与 loader 下的安装只能实机验证（隔离 home 里调 `plugin-manager.install`）。
-
 {/* has file="../plugins/plugin-manager/tests/commands.test.ts" text="install：在 home 里 pnpm add 包名@spec --save-exact，再加一条条目" */}
 
-{/* has file="../plugins/plugin-manager/tests/commands.test.ts" text="install：包已在 home 的 dependencies 里，直接抛错、指向 add-entry 与 update 的 specs，不运行 pnpm" */}
+{/* has file="../plugins/plugin-manager/tests/commands.test.ts" text="install：pnpm 失败时不加条目，外层 error 带上输出的最后几行，没有 data" */}
+
+{/* has file="../plugins/plugin-manager/tests/commands.test.ts" text="install：包名不合规直接抛错，不运行 pnpm" */}
 
 {/* has file="../plugins/plugin-manager/tests/ids.test.ts" text="以 - 开头的包名不认" */}
 
 {/* has file="../plugins/plugin-manager/tests/ids.test.ts" text="拼出 pnpm add 的参数" */}
 
-{/* has file="../plugins/plugin-manager/tests/pnpm.test.ts" text="退出码与输出的最后几行" */}
+装完之后，agent 要再调一次 MCP 入口的 `index`，新插件的命令才出现。
+
+## 已装的包直接报错
+
+包已在 home 的 dependencies 里，`install` 直接报错、一次 pnpm 都不运行，报错指向两条路：再加一条条目用 `add-entry`，换版本用 `update {"specs":{…}}`（见[热升级](/docs/plugin-manager/upgrade)）。已装的包再 `pnpm add` 一次，只会悄悄换掉版本号、再多一条条目，两件事都不是调用方要的。
+
+{/* has file="../plugins/plugin-manager/tests/commands.test.ts" text="install：包已在 home 的 dependencies 里，直接抛错、指向 add-entry 与 update 的 specs，不运行 pnpm" */}
 
 ## 建条目只等写入、不等加载
 
-**是什么**：第 3 步只等条目写进 `cordis.yml` 就返回回执，不等插件加载完。加载成功没有，看 `list` 里的 `active`；失败原因在日志里。
+第 3 步只等条目写进 `cordis.yml` 就返回回执，不等插件加载完；加载成功没有看 `list` 里的 `active`，失败原因在日志里。条目树的 `create` 返回的 promise 里包含加载过程，而 inject 满足不了的插件，fiber 会一直等待——等它的话，装一个依赖还没装齐的插件，这条命令就永远没有回执。
 
-**为什么**：条目树的 `create` 返回的 promise 里包含加载过程，而加载可能永远不结束——`inject` 满足不了的插件，fiber 会一直等待。等它的话，装一个依赖还没装的插件，这条命令就永远没有回执（实机遇到过：加载同一服务的第二个提供方，cordis 报「service has been registered」，整个安装卡住）。
+写回 `cordis.yml` 在 `create` 的第一个 `await` 之前就同步安排好了，所以不 `await` 也不影响写入；加载失败只记一条 warn。id 一定显式传给 loader：不给的话 loader 每次启动生成一个新的随机 id。
 
-**怎么做**：写回 `cordis.yml` 在 `create` 的第一个 `await` 之前就同步安排好了，所以不 `await` 也不影响写入；加载失败只记一条 warn。
-
-{/* ref file="../plugins/plugin-manager/src/index.ts" lines="730-734" */}
+{/* ref file="../plugins/plugin-manager/src/index.ts" lines="717-736" */}
 
 这一条没有单元测试：要验证，就在隔离 home 里装一个依赖还没装齐的插件，看命令是否照常返回回执、`list` 里是否显示未加载。
 
 ## home 里只有插件、内核包与 cordis
 
-**是什么**：安装只装你点名的那个包，不替它装它 peer 里写的插件或任何别的包，也不按 `keywords` 猜它是不是库。pnpm 默认会把缺的 peer 自动补装进来，插件管理启动 pnpm 时把这一项关掉了（见 [pnpm](/docs/plugin-manager/pnpm#参数环境与读回什么)）。
-
-**为什么**：插件代码运行时用到的东西，各有提供方，不需要另外装进 home：
+安装只装点名的那个包，不替它装它 peer 里写的插件或任何别的包，也不按 `keywords` 猜它是不是库。pnpm 默认会把缺的 peer 自动补装进来，插件管理启动 pnpm 时把这一项关掉了（见 [pnpm](/docs/plugin-manager/pnpm#参数环境与读回什么)）。插件运行时用到的东西各有提供方，不需要另外装进 home：
 
 <Diagram name="pm-home-contents" title="home 的 node_modules 里只有插件、内核包与 cordis；插件运行时用到的东西各由谁提供">
 - 内核包 `@godcreator/gwb-kernel-desktop` 与 `cordis` 装在 home 根上，由创建 home 的一方装，内核包经 `update` 的 `specs` 换、`cordis` 由插件管理照内核包对齐；`cordis` 的版本等于内核包 peer 里写的那个，内核与插件 import 的是同一份
@@ -64,17 +59,15 @@ description: install 在一条命令里装一个还没装的包（--save-exact�
 - 只取类型的 import（内核包导出的接口类型、别的插件的类型）编译后就消失了
 </Diagram>
 
-所以 home 里除了内核包与 `cordis` 只该有插件，插件管理没有什么需要替插件额外装的：插件 peer 里的插件是另一个要由人装、要加条目的插件，被 pnpm 自动补装进来的那份没有条目，也不在 home 的 `package.json` 里。插件管理自己也没有运行时依赖：pnpm 是用户装在机器上的，不在 home 里。
+所以 home 里除了内核包与 `cordis` 只该有插件：插件 peer 里的插件是另一个要由人装、要加条目的插件，被 pnpm 自动补装进来的那份没有条目，也不在 home 的 `package.json` 里。插件管理自己也没有运行时依赖：pnpm 是用户装在机器上的，不在 home 里。
 
-**代价**：没按这个规矩写的插件——peer 写了插件以外的包、构建产物里留着没打包的库——装上以后运行时找不到依赖，加载失败，在 `list` 里显示为未加载。装了一个没有 `apply` 的包（比如一个库），条目照样加上、加载失败（日志 `invalid plugin, expect function or object with apply`），不要它就 `uninstall`。
+没按这个规矩写的插件——peer 写了插件以外的包、构建产物里留着没打包的库——装上以后运行时找不到依赖，加载失败，在 `list` 里显示为未加载。装了一个没有 `apply` 的包（比如一个库），条目照样加上、加载失败（日志 `invalid plugin, expect function or object with apply`），不要它就 `uninstall`。
 
 ## 卸载：先删条目、后卸包
 
-**是什么**：`uninstall` 先删这个包在 `cordis.yml` 里的全部条目，再 `pnpm remove`。设置与数据留在磁盘上。内核包与 `cordis` 不许卸，直接报错：卸掉 home 就启动不了。
+`uninstall` 先删这个包在 `cordis.yml` 里的全部条目，再 `pnpm remove`，回执 `data` 是 `{ pkg }`。设置与数据留在磁盘上，重新装回来沿用原来的 id，还是那一份（见 [id 与归属](/docs/plugin-manager/ids)）。内核包与 `cordis` 不许卸，直接报错：卸掉 home 就启动不了。没装的包也直接报错；只删一条条目、保留包，用 `remove-entry`。
 
-**为什么**：反过来先卸包，条目会指向一个不在 home 里的包。先删条目，fiber 当场卸载，依赖它的插件也被 cordis 一起卸载，状态是干净的。pnpm 失败不回滚：条目已删是可以接受的结果，包会出现在「已装、没有条目」那一组里，要用再加条目。设置与数据留着，重新装回来沿用原来的 id，还是那一份（见[id 与归属](/docs/plugin-manager/ids)）。
-
-**怎么做**：
+反过来先卸包，条目会指向一个不在 home 里的包。先删条目，fiber 当场卸载，依赖它的插件也被 cordis 一起卸载，状态是干净的。pnpm 失败不回滚：`error` 说明条目已删几条、包还在，包会出现在「已装、没有条目」那一组里，要用再加条目。
 
 <Diagram name="pm-uninstall" title="卸载：先删全部条目，再 pnpm remove；pnpm 失败不回滚">
 - 第 1 步：逐条 `tree.remove`，写回 `cordis.yml` 并当场卸载；依赖它的插件被 cordis 一起卸载，停在未加载
@@ -85,14 +78,14 @@ description: install 在一条命令里装一个还没装的包（--save-exact�
 
 {/* ref file="../plugins/plugin-manager/src/index.ts" lines="623-648" */}
 
-只删一条条目、保留包，用 `remove-entry`。
-
-**覆盖它的测试**：删哪些条目有单元测试；整条命令（先删条目、再 `pnpm remove`，pnpm 失败时的回执）在假条目树、假 pnpm 上有测试；真的 pnpm 下的卸载只能实机验证。
+{/* ref file="../plugins/plugin-manager/src/uninstall.ts" lines="3-8" */}
 
 {/* has file="../plugins/plugin-manager/tests/commands.test.ts" text="uninstall：没装的包抛错；装了的先删它的全部条目，再 pnpm remove" */}
 
-{/* has file="../plugins/plugin-manager/tests/commands.test.ts" text="uninstall：内核包与 cordis 不许卸载，直接抛错，一次 pnpm 都不运行" */}
+{/* has file="../plugins/plugin-manager/tests/commands.test.ts" text="uninstall：pnpm 失败时条目已删、包还在，回执说明" */}
 
 {/* has file="../plugins/plugin-manager/tests/uninstall.test.ts" text="同一个包的多条条目全部删" */}
 
 {/* has file="../plugins/plugin-manager/tests/uninstall.test.ts" text="停用的、没加载成功的条目也一起删" */}
+
+真的 pnpm 与 loader 下的安装、卸载只能实机验证：在隔离 home 里调 `plugin-manager.install` / `uninstall`。
