@@ -10,7 +10,7 @@ home 里有两层：
 * **包**：pnpm 装进 home 的 `node_modules`，只是在磁盘上
 * **条目**：`cordis.yml` 里指向一个包的一行。有了条目，插件的代码才加载运行。一个包可以有好几条条目，各是一个实例、各存各的数据
 
-`plugin-manager.list` 同时报两层：每个包下有哪些条目，每条启用没有、`active`（加载成功）没有。命令作用在 MCP 入口连着的那个 home；要操作隔离 home，经 `devkit.cdp {"args":["<home 名>","cmd","plugin-manager.<命令>","<JSON 参数>"]}` 调。
+`plugin-manager.list` 同时报两层：每个包下有哪些条目，每条启用没有、`active`（加载成功）没有。内核包与 `cordis` 没有条目，`list` 与 `outdated` 都不列它们，由下面「升内核」那条命令管，也不许 `uninstall`。命令作用在 MCP 入口连着的那个 home；要操作隔离 home，经 `devkit.cdp {"args":["<home 名>","cmd","plugin-manager.<命令>","<JSON 参数>"]}` 调。
 
 ## 装一个插件
 
@@ -38,17 +38,17 @@ home 里有两层：
 ## 升级插件
 
 1. `plugin-manager.outdated` 看谁有新版本，回 `包名 → { current, latest }`
-2. `plugin-manager.update-all`（只升几个给 `{"only":["<包名>"]}`；名字不在 home 的 dependencies 里直接报错，已是最新的写进 `note`）。一条命令做完：一次 `pnpm add` 升到精确版本 → 升了的包的每条条目重新加载（本来停用的保持停用）→ 装之前与装之后真实目录变了的别的包（多半是 peer 写了被升级包的插件）的条目也跟着重新加载 → 整页重新加载，不重启
-3. 读回执 `updated[].entries[]` 与 `dependents[].entries[]`：`state` 为 `ACTIVE` 才算加载成功；`dependents` 是没升级、但这次换了目录跟着重新加载的包。`selfDeferred: true` 表示插件管理自己在回执发出后才重新加载，过一会儿用 `list` 核对；升到 gwb-mcp 自己时进行中的 MCP 请求会断，重连一次。回执带 `kernelManaged` 表示内核包或 `cordis` 有新版本、这条命令没升它们，按下一节升内核
+2. `plugin-manager.update-all`（只升几个给 `{"only":["<包名>"]}`；名字不在 home 的 dependencies 里、或是内核包与 `cordis`，直接报错；已是最新的写进 `note`）。一条命令做完：一次 `pnpm add` 升到精确版本 → 升了的包的每条条目重新加载（本来停用的保持停用）→ 装之前与装之后真实目录变了的别的包（多半是 peer 写了被升级包的插件）的条目也跟着重新加载 → 整页重新加载，不重启
+3. 读回执 `updated[].entries[]` 与 `dependents[].entries[]`：`state` 为 `ACTIVE` 才算加载成功；`dependents` 是没升级、但这次换了目录跟着重新加载的包。`selfDeferred: true` 表示插件管理自己在回执发出后才重新加载，过一会儿用 `list` 核对；升到 gwb-mcp 自己时进行中的 MCP 请求会断，重连一次
 4. `plugin-manager.list` 核对版本与 `active`，再调一次 `index`
 
-**完成判据**：`outdated` 里除内核包与 `cordis` 外不再有这次升的包；`list` 里它们的版本是新版、条目 `active` 为 true，`dependents` 里的包条目 `active` 也为 true。
+**完成判据**：`outdated` 里不再有这次升的包；`list` 里它们的版本是新版、条目 `active` 为 true，`dependents` 里的包条目 `active` 也为 true。
 
 升级前的隔离 home 验证、上游发了破坏性版本时怎么升，见说明书 `gwb-release`。
 
 ## 升内核
 
-内核包 `@godcreator/gwb-kernel-desktop` 与 home 根上的 `cordis` 由这条命令升，`update-all` 不动它们。新内核先在隔离 home 里升、重启验完，再升 default。
+内核包 `@godcreator/gwb-kernel-desktop` 与 home 根上的 `cordis` 由这条命令升，`update-all` 不动它们。`outdated` 不报内核有没有新版本：不给 `version` 就装源上的 latest，回执的 `kernel.from` 与 `kernel.to` 相同就是已是最新。新内核先在隔离 home 里升、重启验完，再升 default。
 
 1. `plugin-manager.update-kernel`（指定版本给 `{"version":"<版本>"}`，不给就装源上的 latest）。它先装内核包，再按内核包 `peerDependencies.cordis` 写的精确版本号装 `cordis`；不重新加载任何条目
 2. 读回执：`kernel` 与 `cordis` 的 `{ from, to }`；`restartRequired`（装上的内核与正在运行的不同时是 true）；`pluginsOutsideRange` 是 peer 里内核包的范围不包含新内核（或没写范围）的插件
@@ -61,7 +61,7 @@ home 里有两层：
 
 1. `plugin-manager.list`，看每个包的 `kernelUntested` 与 `kernelRange`
    * `kernelRange`：包清单 `peerDependencies` 里内核包 `@godcreator/gwb-kernel-desktop` 的范围，没写时没有这个字段
-   * `kernelUntested` 为 true：插件（keywords 含 gwb-plugin）的范围不包含运行中的内核，或没写、写的不是 `^x.y.z`。库、第三方 cordis 插件、内核包与 cordis 不标。`^x.y.z` 在主版本号为 0 时要求次版本号相同（`^0.3.0` 包含 `0.3.4`，不包含 `0.4.0`），≥1 时要求主版本号相同，并且不低于 x.y.z
+   * `kernelUntested` 为 true：插件（keywords 含 gwb-plugin）的范围不包含运行中的内核，或没写、写的不是 `^x.y.z`。库、第三方 cordis 插件不标。`^x.y.z` 在主版本号为 0 时要求次版本号相同（`^0.3.0` 包含 `0.3.4`，不包含 `0.4.0`），≥1 时要求主版本号相同，并且不低于 x.y.z
 2. 同一份回执里看每个包的 `unmetPeers`：插件 peer 里内核包与 `cordis` 以外、home 里没满足的包，每条 `{ pkg, range, installed? }`
    * 没装：没有 `installed` 字段；`peerDependenciesMeta` 里标了 `optional: true` 的没装不算
    * 装着但版本不在 `range` 里：带 `installed`，比法与内核范围相同，预发布段不看

@@ -1,0 +1,34 @@
+---
+title: 内核包与 cordis 从 list、outdated 里拿掉，uninstall 不许卸，update-all 回执删掉 kernelManaged
+born-at: 2026-09-25T09:30
+type: choice
+parent: [2026-09-08-gwb-devkit]
+label: 内核包不进列表
+domain: 插件管理
+---
+
+## 背景
+
+内核包 `@godcreator/gwb-kernel-desktop` 与 `cordis` 装在 home 的 `package.json` 里，但没有条目，由 `update-kernel` 升。插件管理 0.10.0 的 `list` 与 `outdated` 照样列出它们：
+
+- `list` 把它们报成「装了包、没有条目」。插件管理窗格给这种包配的提示是「不是插件的包不该装进 home，卸载它」，旁边有卸载按钮，而 `uninstall` 对它们不拦，点了就是 `pnpm remove` 内核，home 下次启动不了。default home 里当时就显示着这两行
+- `outdated` 把它们算进过期清单，窗格「全部更新 N」的 N 与确认框都算上它们；`update-all` 却不升它们，只在回执 `kernelManaged` 与 `note` 里说一句。升完它们仍在清单里，按钮一直亮着。内核把 `cordis` 固定在精确版本，npm 上 `cordis` 出了更新的版本而内核没跟时，这一条永远消不掉
+
+「这两个包升不了」的判断只在 `update-all` 里做，`list` 与 `outdated` 不知道，下游（窗格、agent）要么各自再判断一次，要么被误导。
+
+## 结论与边界
+
+判断挪到源头：`list` 与 `outdated` 都不列这两个包；`uninstall` 碰到它们直接报错；`update-all` 的 `only` 点了它们直接报错，指向 `update-kernel`。`outdated` 既然不含它们，`update-all` 里专门处理它们的部分就没用了：回执字段 `kernelManaged`、导出类型 `KernelManagedPackage`、拼那句提示的函数、「`only` 点了名也不升」的分支一起删掉。窗格一行不用改。
+
+删回执字段、`list` 与 `outdated` 不再列某一类包，照 gwb-release 算破坏性变化，插件管理升 0.11.0。
+
+边界：agent 调 `outdated` 不再能看出内核有没有新版本。内核是这台机器的人自己发的，`update-kernel` 不给版本就装源上的 latest，回执 `kernel.from` 与 `kernel.to` 相同就是已是最新，说明书里写了这一句。`update-kernel` 算 `pluginsOutsideRange` 时读的 home 清单里仍有内核包，那里跳过它们的判断保留。
+
+## 否掉的候选
+
+- **只在窗格里按名字过滤**：窗格要写死两个包名，agent 读 `outdated`、`list` 时照样被误导，`uninstall` 也照样不拦
+- **`outdated` 回执拆成「能热升级的」与「内核管的」两组**：多一个字段给唯一的使用者做它本来不需要的区分；人要升内核时本来就调 `update-kernel`
+
+## 代价与遗留
+
+插件管理发完 0.10.0 当天又升一次 x（0.10.0 → 0.11.0），依赖插件管理的下游要跟一次：devkit 的 peer 写的是 `workspace:^`，同批发版时写成 `^0.11.0`；`gwb-ui-plugins` 的 `gwb-baseui` 在 dev 里写 `^0.8.0`，已往它的 feedback 收件箱投一条。

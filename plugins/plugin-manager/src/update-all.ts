@@ -32,13 +32,6 @@ export interface PlannedDependent {
   entries: PlannedEntry[]
 }
 
-/** 过期了、但版本由内核决定而没升的一个包 */
-export interface KernelManagedPackage {
-  pkg: string
-  from: string
-  to: string
-}
-
 export interface UpdateAllPlan {
   /** 一次 `pnpm add` 的参数：`['add', 'a@1.2.3', …]`，精确版本（outdated 查到的 latest，不是 `@latest` 标签）；清单为空时是空数组 */
   pnpmArgs: string[]
@@ -46,8 +39,6 @@ export interface UpdateAllPlan {
   packages: PlannedPackage[]
   /** `only` 里点了名、在 home 里但不在过期清单里的包（已是最新）——回执里说明，免得人以为它升级了 */
   alreadyLatest: string[]
-  /** 过期清单里的内核包与 cordis（`only` 给了就只算点了名的），按包名排：一键热升级不升它们，回执里说明 */
-  kernelManaged: KernelManagedPackage[]
 }
 
 /** 包名 → `node_modules/<包名>` 指向的真实目录；读不到（没装）的是 undefined */
@@ -71,7 +62,15 @@ export function assertOnlyPackagesInHome(only: readonly string[] | undefined, ho
   }
 }
 
-/** `ownEntryId` 完整 id（`home:plugins`）或不带前缀的都接受；`only` 给了就只升级点名的那几个 */
+/** 内核包与 cordis 热升级不了：`only` 点了它们的名直接抛错，指向升内核的命令 */
+export function assertOnlyNotKernelManaged(only: readonly string[] | undefined): void {
+  const kernelManaged = (only ?? []).filter((pkg) => KERNEL_MANAGED_PACKAGES.has(pkg))
+  if (kernelManaged.length > 0) {
+    throw new Error(`only 里的 ${kernelManaged.join('、')} 由内核决定版本，热升级不了：内核包用 plugin-manager.update-kernel 升，cordis 随它对齐`)
+  }
+}
+
+/** `outdated` 已经不含内核包与 cordis。`ownEntryId` 完整 id（`home:plugins`）或不带前缀的都接受；`only` 给了就只升级点名的那几个 */
 export function planUpdateAll(outdated: Readonly<OutdatedMap>, store: unknown, ownEntryId: string, only?: readonly string[]): UpdateAllPlan {
   const ownBareId = bareId(ownEntryId)
   const onlyThesePackages = only === undefined ? undefined : new Set(only)
@@ -79,15 +78,10 @@ export function planUpdateAll(outdated: Readonly<OutdatedMap>, store: unknown, o
 
   const pluginEntries = pluginEntriesOf(store)
   const packages: PlannedPackage[] = []
-  const kernelManaged: KernelManagedPackage[] = []
   for (const pkg of Object.keys(outdated).sort((a, b) => a.localeCompare(b))) {
     if (onlyThesePackages !== undefined && !onlyThesePackages.has(pkg)) continue
     const versionGap = outdated[pkg]
     if (versionGap === undefined) continue
-    if (KERNEL_MANAGED_PACKAGES.has(pkg)) {
-      kernelManaged.push({ pkg, from: versionGap.current, to: versionGap.latest })
-      continue
-    }
     packages.push({ pkg, from: versionGap.current, to: versionGap.latest, entries: plannedEntriesOf(pkg, pluginEntries, ownBareId) })
   }
 
@@ -95,7 +89,6 @@ export function planUpdateAll(outdated: Readonly<OutdatedMap>, store: unknown, o
     pnpmArgs: packages.length === 0 ? [] : ['add', ...packages.map((p) => installSpec(p.pkg, p.to))],
     packages,
     alreadyLatest,
-    kernelManaged,
   }
 }
 

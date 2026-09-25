@@ -35,15 +35,15 @@ description: 插件管理是唯一写 home 的插件——装卸包、增删条�
 
 **16 条命令**：都登记在命令插件上，`plugin` 写包名。这是插件管理唯一的调用方式，页面、agent、别的插件调的是同一条命令。参数与回执见[对外只有命令](/docs/plugin-manager/commands)。
 
-- `plugin-manager.list`：列出 home 里装了哪些包、各有哪些条目；每个包带 `kernelRange`（包的 `package.json` 里 `peerDependencies` 给内核包写的范围，没写时没有这个字段）与 `kernelUntested`（只标插件：范围不包含运行中的内核就是 `true`，没写、写的不是 `^x.y.z` 也算；库、第三方 cordis 插件、内核包与 `cordis` 一律 `false`），`unmetPeers`（插件 peer 里内核包与 `cordis` 以外、home 里没装或版本不在范围里的包，每条 `{ pkg, range, installed? }`，optional 的没装不算）
+- `plugin-manager.list`：列出 home 里装了哪些包（内核包与 `cordis` 不列）、各有哪些条目；每个包带 `kernelRange`（包的 `package.json` 里 `peerDependencies` 给内核包写的范围，没写时没有这个字段）与 `kernelUntested`（只标插件：范围不包含运行中的内核就是 `true`，没写、写的不是 `^x.y.z` 也算；库、第三方 cordis 插件一律 `false`），`unmetPeers`（插件 peer 里内核包与 `cordis` 以外、home 里没装或版本不在范围里的包，每条 `{ pkg, range, installed? }`，optional 的没装不算）
 - `plugin-manager.install`：装一个包并加一条条目（经 BUSY 检查）
-- `plugin-manager.uninstall`：先删一个包的全部条目，再卸包（经 BUSY 检查）
+- `plugin-manager.uninstall`：先删一个包的全部条目，再卸包；内核包与 `cordis` 不许卸（经 BUSY 检查）
 - `plugin-manager.add-entry`：给已装的包再加一条条目
 - `plugin-manager.remove-entry`：删一条条目，不删包
 - `plugin-manager.enable`：启用一条条目
 - `plugin-manager.disable`：停用一条条目
 - `plugin-manager.remount`：重新加载一条条目（经 BUSY 检查）
-- `plugin-manager.outdated`：查已装的包哪些有新版本
+- `plugin-manager.outdated`：查已装的包哪些有新版本，内核包与 `cordis` 不在里面
 - `plugin-manager.update-all`：一键热升级过期的包，不重启；装之前与装之后真实目录变了的别的包一起重新加载；内核包与 `cordis` 不升（经 BUSY 检查）
 - `plugin-manager.update-kernel`：升内核包，再把 home 根上的 `cordis` 对齐到内核要的版本，重启工作台后生效，参数 `{ version? }`（经 BUSY 检查）
 - `plugin-manager.transfer-owner`：把一个 id 的数据与设置的归属转给另一个包
@@ -106,7 +106,7 @@ description: 插件管理是唯一写 home 的插件——装卸包、增删条�
 - **不删数据与设置**：卸载包、删条目都不动它们，内容归数据插件与设置插件管；插件管理只读、只转它们的归属记录
 - **不拦范围不包含当前内核的插件**：`kernelUntested` 只报告；发版前拒绝 peer 里没写对内核包范围的插件是 `devkit.release` 的事
 - **不重启工作台**：`update-kernel` 装完只在回执里说要重启，重启由人决定；主进程里的内核热替换不了
-- **一键热升级不动内核包与 `cordis`**：它们的版本由内核决定，经 `update-kernel` 一起升
+- **一键热升级不动内核包与 `cordis`**：它们的版本由内核决定，经 `update-kernel` 一起升；`list`、`outdated` 不列它们，`uninstall` 不许卸它们
 - **不拦 peer 没满足的插件，也不替它装或升级 peer 里的插件**：`unmetPeers` 只报告，装不装、升不升由人或 agent 决定；发版前拒绝 peer 没写对的包是 `devkit.release` 的事
 - **不替人装 pnpm，也不找 PATH 上的 pnpm**：两个固定位置都没有、或版本不对，就报错说明该怎么装
 - **不猜承载 `cordis.yml` 的条目叫什么**：条目树从自己那条条目的上一层取

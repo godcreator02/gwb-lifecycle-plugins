@@ -11,7 +11,7 @@ description: outdated 查过期包；update-all 一次 pnpm add 精确版本，�
 
 ## 查新版本
 
-**是什么**：`outdated` 运行一次 `pnpm outdated --json`，返回「包名 → `{ current, latest }`」，空对象表示全都最新。
+**是什么**：`outdated` 运行一次 `pnpm outdated --json`，返回「包名 → `{ current, latest }`」，空对象表示全都最新。内核包与 `cordis` 从结果里拿掉：一键热升级升不了它们（见[升内核](#升内核)），列出来只会让界面上「全部更新」的数字里多出两个永远升不掉的包。
 
 **怎么做**：退出码 1 表示「有过期包」，是结果不是失败；找不到 pnpm、输出解析不了都转成 `ok: false` 的回执，界面上只显示一句提示。它不写文件，不经过 BUSY 检查，和正在运行的安装、升级同时运行也不影响它们（见[包：只经 applyToHome](/docs/plugin-manager/home#包只经-applytohome)）。
 
@@ -22,6 +22,8 @@ description: outdated 查过期包；update-all 一次 pnpm add 精确版本，�
 {/* has file="../plugins/plugin-manager/tests/outdated.test.ts" text="空串是「全都最新」，不是失败" */}
 
 {/* has file="../plugins/plugin-manager/tests/outdated.test.ts" text="单条缺 current 或 latest 只跳过那一条" */}
+
+{/* has file="../plugins/plugin-manager/tests/commands.test.ts" text="内核包与 cordis 不进回执：它们由 update-kernel 升" */}
 
 ## 升级与重新加载在同一条命令里
 
@@ -50,9 +52,11 @@ description: outdated 查过期包；update-all 一次 pnpm add 精确版本，�
 - **跟着重新加载的包排在升级的包之后**：装之前与装之后真实目录变了的别的包，按包名排，理由与找法见下一节
 - **插件管理自己那条标 `self`**：它照包名、照树里的先后排，不挪位置；执行到它时只记 `deferred`、跳过，回执发出之后才重新加载（见下面「插件管理自己在回执之后」），排在哪都一样
 - 给了 `only` 就只升点名的几个；名字不在 home 的 `package.json` 的 dependencies 里（多半拼错）直接报错、说出是哪个，一次 pnpm 都不运行；在 home 里但已是最新的，回执的 `note` 里列出来
-- **内核包与 `cordis` 不升**：过期清单里有它们（`only` 点了名也一样）就列进 `kernelManaged`，回执带上这个字段，`note` 指向 `update-kernel`；过期清单里没有它们时回执里没有这个字段。理由见下面[升内核](#升内核)
+- **内核包与 `cordis` 不升**：`outdated` 本来就不含它们；`only` 点了它们的名直接报错，指向 `update-kernel`，一次 pnpm 都不运行。理由见下面[升内核](#升内核)
 
 {/* ref file="../plugins/plugin-manager/src/kernel-upgrade.ts" lines="9-10" */}
+
+{/* ref file="../plugins/plugin-manager/src/update-all.ts" lines="65-71" */}
 
 **守住它的测试**：计划是纯函数，每一条都有测试。
 
@@ -68,9 +72,11 @@ description: outdated 查过期包；update-all 一次 pnpm add 精确版本，�
 
 {/* has file="../plugins/plugin-manager/tests/commands.test.ts" text="only 里的包名不在 home 的 dependencies 里（多半拼错）：直接抛错、说出是哪个名字，一次 pnpm 都不运行" */}
 
-{/* has file="../plugins/plugin-manager/tests/update-all.test.ts" text="过期清单里有它们：不进 pnpm 参数与 packages，列进 kernelManaged" */}
+{/* has file="../plugins/plugin-manager/tests/update-all.test.ts" text="only 点了它们的名：抛错、说出是哪几个、指向 update-kernel" */}
 
-{/* has file="../plugins/plugin-manager/tests/update-all.test.ts" text="only 点了它们的名也不升，照样列进 kernelManaged、不进 alreadyLatest" */}
+{/* has file="../plugins/plugin-manager/tests/commands.test.ts" text="pnpm 报内核包与 cordis 过期：不升它们，回执里也不提" */}
+
+{/* has file="../plugins/plugin-manager/tests/commands.test.ts" text="only 点了内核包或 cordis：直接抛错、指向 update-kernel，一次 pnpm 都不运行" */}
 
 ## 真实目录变了的包一起重新加载
 
@@ -133,7 +139,7 @@ description: outdated 查过期包；update-all 一次 pnpm add 精确版本，�
 
 {/* ref file="../plugins/plugin-manager/src/kernel-upgrade.ts" lines="42-52" */}
 
-**为什么不热升级**：内核在主进程里运行，停用再启用条目换不掉它；home 根上的 `cordis` 是内核与所有插件共用的那一份，内核与插件都已经 import 了它，换了也要重启才生效。所以一键热升级跳过这两个包，由这条命令单独升，什么时候重启由人决定。
+**为什么不热升级**：内核在主进程里运行，停用再启用条目换不掉它；home 根上的 `cordis` 是内核与所有插件共用的那一份，内核与插件都已经 import 了它，换了也要重启才生效。所以 `outdated` 与 `list` 都不列这两个包，`update-all` 的 `only` 点了它们直接报错，`uninstall` 也不许卸它们（卸掉 home 就启动不了），由这条命令单独升，什么时候重启由人决定。
 
 **为什么 `cordis` 要跟着对齐**：内核包把 `cordis` 写成 peer，pnpm 把它解析到 home 根上的那一份；home 根上的版本和内核包要的不同，内核就运行在它没验过的 `cordis` 上。内核包 peer 里的 `cordis` 因此必须是精确版本号，写成范围就说不清 home 根上该装哪一个，这时命令不装 `cordis`、回 `ok: false`。
 

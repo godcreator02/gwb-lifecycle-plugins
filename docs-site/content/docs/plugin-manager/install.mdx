@@ -69,7 +69,7 @@ description: install 在一条命令里装包并加一条条目，只等写入�
 
 ## 卸载：先删条目、后卸包
 
-**是什么**：`uninstall` 先删这个包在 `cordis.yml` 里的全部条目，再 `pnpm remove`。设置与数据留在磁盘上。
+**是什么**：`uninstall` 先删这个包在 `cordis.yml` 里的全部条目，再 `pnpm remove`。设置与数据留在磁盘上。内核包与 `cordis` 不许卸，直接报错：卸掉 home 就启动不了。
 
 **为什么**：反过来先卸包，条目会指向一个不在 home 里的包。先删条目，fiber 当场卸载，依赖它的插件也被 cordis 一起卸载，状态是干净的。pnpm 失败不回滚：条目已删是可以接受的结果，包会出现在「已装、没有条目」那一组里，要用再加条目。设置与数据留着，重新装回来沿用原来的 id，还是那一份（见[id 与归属](/docs/plugin-manager/ids)）。
 
@@ -89,6 +89,8 @@ description: install 在一条命令里装包并加一条条目，只等写入�
 **覆盖它的测试**：删哪些条目有单元测试；整条命令（先删条目、再 `pnpm remove`，pnpm 失败时的回执）在假条目树、假 pnpm 上有测试；真的 pnpm 下的卸载只能实机验证。
 
 {/* has file="../plugins/plugin-manager/tests/commands.test.ts" text="uninstall：没装的包抛错；装了的先删它的全部条目，再 pnpm remove" */}
+
+{/* has file="../plugins/plugin-manager/tests/commands.test.ts" text="uninstall：内核包与 cordis 不许卸载，直接抛错，一次 pnpm 都不运行" */}
 
 {/* has file="../plugins/plugin-manager/tests/uninstall.test.ts" text="同一个包的多条条目全部删" */}
 

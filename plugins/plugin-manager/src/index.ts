@@ -15,10 +15,10 @@ import { entriesForPackage } from './uninstall.js'
 import { ownEntryId, treeOf, type EntryTreeLike } from './tree.js'
 import { BusyGate } from './busy.js'
 import { fiberStateOf } from './fiber.js'
-import { assertOnlyPackagesInHome, planUpdateAll, plannedDependents, type InstalledDirectories, type KernelManagedPackage, type PlannedDependent, type PlannedEntry, type PlannedPackage } from './update-all.js'
+import { assertOnlyNotKernelManaged, assertOnlyPackagesInHome, planUpdateAll, plannedDependents, type InstalledDirectories, type PlannedDependent, type PlannedEntry, type PlannedPackage } from './update-all.js'
 import { remountNow, remountOne, remountSelfLater, type RemountedEntry } from './remount.js'
 import { KERNEL_PACKAGE } from './kernel-compat.js'
-import { CORDIS_PACKAGE, installedVersionMismatch, kernelStatusInList, kernelUpgradeTargetOf, pluginsOutsideKernelRange, versionChangeOf, type VersionChange } from './kernel-upgrade.js'
+import { CORDIS_PACKAGE, installedVersionMismatch, KERNEL_MANAGED_PACKAGES, kernelStatusInList, kernelUpgradeTargetOf, pluginsOutsideKernelRange, versionChangeOf, type VersionChange } from './kernel-upgrade.js'
 import { declaredPluginPeers, peerStatusOf } from './peers.js'
 import { addSource, listSources, removeSource, searchPlugins, type PackageSourcesDeps } from './package-sources.js'
 
@@ -26,7 +26,6 @@ export type { EntrySnapshot, PluginPackageView } from './inventory.js'
 export type { RemountedEntry } from './remount.js'
 export type { KernelCompatStatus } from './kernel-compat.js'
 export type { VersionChange } from './kernel-upgrade.js'
-export type { KernelManagedPackage } from './update-all.js'
 export type { PeerStatus, UnmetPeer } from './peers.js'
 export type { SearchReceipt, SourceAddResult, SourceListResult, SourceRemoveResult, SourceReport } from './package-sources.js'
 export type { SearchRow } from './search.js'
@@ -132,9 +131,7 @@ export interface UpdateAllResult {
    * 没有升级任何包或整体失败时，没有这个字段
    */
   reload?: 'done' | 'deferred' | 'unavailable'
-  /** 过期了、但版本由内核决定而没升的内核包与 cordis；过期清单里没有它们时没有这个字段 */
-  kernelManaged?: KernelManagedPackage[]
-  /** 需要提醒的情况：全都最新、only 里列出但不在过期清单里的包、内核管的包要用哪条命令升、界面要手动刷新 */
+  /** 需要提醒的情况：全都最新、only 里列出但已是最新的包、界面要手动刷新 */
   note?: string
   /** 失败时的原因 */
   error?: string
@@ -280,8 +277,8 @@ class PluginManager {
   private registerHomeCommands(registerCommand: RegisterCommand, registerBusyGuardedCommand: RegisterCommand): void {
     registerCommand(
       LIST_COMMAND,
-      'home 里装了哪些包、各有哪些条目、有没有 peer 范围不包含当前内核或 peer 里写的别的包没满足的',
-      `回执按包列：包名、spec、条目（id、entryId、启停、是否 ACTIVE）、kernelRange（包的 package.json 里 peerDependencies["${KERNEL_PACKAGE}"] 写的范围，没写时没有这个字段）、kernelUntested（只标插件——keywords 含 gwb-plugin、不是内核包与 cordis 的包：范围不包含运行中的内核就是 true，没写、写的不是 ^x.y.z 也算；别的包与清单读不到的包一律 false；^x.y.z 在主版本号为 0 时要求次版本号相同，≥1 时要求主版本号相同，并且不低于 x.y.z）、unmetPeers（只看插件 peer 里除了内核包与 ${CORDIS_PACKAGE} 之外的包，home 里没满足的列成 [{ pkg, range, installed? }]：没装（没有 installed 字段；peerDependenciesMeta 里 optional: true 的没装不算）、装着的版本不在范围里、或范围不是 ^x.y.z，range 原样照抄，范围规则同上；每个包都有这个字段，不是插件、清单读不到、全都满足时是空数组）。只报告，不拦加载。无参数`,
+      'home 里装了哪些包（内核包与 cordis 除外）、各有哪些条目、有没有 peer 范围不包含当前内核或 peer 里写的别的包没满足的',
+      `回执按包列，不列内核包 ${KERNEL_PACKAGE} 与 ${CORDIS_PACKAGE}（它们没有条目、由 ${UPDATE_KERNEL_COMMAND} 管）：包名、spec、条目（id、entryId、启停、是否 ACTIVE）、kernelRange（包的 package.json 里 peerDependencies["${KERNEL_PACKAGE}"] 写的范围，没写时没有这个字段）、kernelUntested（只标插件——keywords 含 gwb-plugin 的包：范围不包含运行中的内核就是 true，没写、写的不是 ^x.y.z 也算；别的包与清单读不到的包一律 false；^x.y.z 在主版本号为 0 时要求次版本号相同，≥1 时要求主版本号相同，并且不低于 x.y.z）、unmetPeers（只看插件 peer 里除了内核包与 ${CORDIS_PACKAGE} 之外的包，home 里没满足的列成 [{ pkg, range, installed? }]：没装（没有 installed 字段；peerDependenciesMeta 里 optional: true 的没装不算）、装着的版本不在范围里、或范围不是 ^x.y.z，range 原样照抄，范围规则同上；每个包都有这个字段，不是插件、清单读不到、全都满足时是空数组）。只报告，不拦加载。无参数`,
       () => this.list(),
     )
 
@@ -338,7 +335,7 @@ class PluginManager {
       },
     )
 
-    registerCommand(OUTDATED_COMMAND, '查已装的包哪些有新版本', 'pnpm outdated。回执 { ok, updates: { 包名: { current, latest } } }，空对象表示全都最新。无参数', async () => {
+    registerCommand(OUTDATED_COMMAND, '查已装的包哪些有新版本', `pnpm outdated。回执 { ok, updates: { 包名: { current, latest } } }，空对象表示全都最新；不含内核包 ${KERNEL_PACKAGE} 与 ${CORDIS_PACKAGE}（热升级不了，用 ${UPDATE_KERNEL_COMMAND} 升）。无参数`, async () => {
       const result = await this.outdated()
       if (result.ok) return { ok: true, data: result }
       return { ok: false, error: result.error ?? '没有给出原因' }
@@ -347,7 +344,7 @@ class PluginManager {
     registerBusyGuardedCommand(
       UPDATE_ALL_COMMAND,
       '一键热升级过期包，不重启',
-      `一次 pnpm add 把过期包升到 outdated 返回的精确版本，再逐条停用→启用，重新加载成新版本（原本停用的跳过；插件管理自己那条在回执发出后才重新加载），最后 shell.reload 整页重新加载。pnpm add 前后 home 里 node_modules/<包名> 指向的真实目录变了、本身没升级的包（多半是 peer 写了被升级包的插件），它们的条目在同一条命令里跟着重新加载。内核包 ${KERNEL_PACKAGE} 与 ${CORDIS_PACKAGE} 不升（only 点了名也不升），用 ${UPDATE_KERNEL_COMMAND} 升。回执 { updated: [{ pkg, from, to, entries: [{ id, action, state }] }], dependents: [{ pkg, entries: [{ id, action, state }] }], selfDeferred, reload, kernelManaged?: [{ pkg, from, to }]（过期了但没升的内核包与 cordis，过期清单里没有它们时没有这个字段）, note? }。参数 { only?: string[] }（只升这几个包，不在 home 的 dependencies 里的名字直接报错，已是最新的写进 note；不给就全升）；${BUSY_USAGE_NOTE}`,
+      `一次 pnpm add 把过期包升到 outdated 返回的精确版本，再逐条停用→启用，重新加载成新版本（原本停用的跳过；插件管理自己那条在回执发出后才重新加载），最后 shell.reload 整页重新加载。pnpm add 前后 home 里 node_modules/<包名> 指向的真实目录变了、本身没升级的包（多半是 peer 写了被升级包的插件），它们的条目在同一条命令里跟着重新加载。内核包 ${KERNEL_PACKAGE} 与 ${CORDIS_PACKAGE} 不在过期清单里，用 ${UPDATE_KERNEL_COMMAND} 升。回执 { updated: [{ pkg, from, to, entries: [{ id, action, state }] }], dependents: [{ pkg, entries: [{ id, action, state }] }], selfDeferred, reload, note? }。参数 { only?: string[] }（只升这几个包，不在 home 的 dependencies 里的名字、内核包与 ${CORDIS_PACKAGE} 直接报错，已是最新的写进 note；不给就全升）；${BUSY_USAGE_NOTE}`,
       async (args) => {
         const result = await this.updateAll(onlyPackagesArgOf(args))
         return receiptWithPnpmTail(result)
@@ -364,7 +361,7 @@ class PluginManager {
       },
     )
 
-    registerBusyGuardedCommand(UNINSTALL_COMMAND, '卸载一个包：删除它的全部条目，再卸载包', `设置与数据留在磁盘上（只删一条条目调用 plugin-manager.remove-entry）。参数 { pkg }；${BUSY_USAGE_NOTE}`, async (args) => {
+    registerBusyGuardedCommand(UNINSTALL_COMMAND, '卸载一个包：删除它的全部条目，再卸载包', `设置与数据留在磁盘上（只删一条条目调用 plugin-manager.remove-entry）。内核包与 ${CORDIS_PACKAGE} 不许卸载，直接报错。参数 { pkg }；${BUSY_USAGE_NOTE}`, async (args) => {
       const result = await this.uninstall(requiredString(argsObjectOf(args), 'pkg'))
       return receiptWithPnpmTail(result)
     })
@@ -427,7 +424,7 @@ class PluginManager {
 
   async list(): Promise<PluginPackageView[]> {
     const homeDependencies = await readHomeDependencies(this.homeDir)
-    const reconciledPackages = reconcile(homeDependencies, readEntries(this.tree.store))
+    const reconciledPackages = reconcile(withoutKernelManaged(homeDependencies), readEntries(this.tree.store))
     const manifestsByPackage = new Map<string, unknown>()
     await this.readInstalledManifests(reconciledPackages.map((view) => view.pkg), manifestsByPackage)
     const installedVersions = await this.installedVersionsFor(manifestsByPackage)
@@ -492,7 +489,10 @@ class PluginManager {
     }
   }
 
-  /** `pnpm outdated --json` 的退出码 1 表示「存在过期包」，是结果不是失败。它不写文件，和写 home 的 pnpm 同时运行没有影响，所以不经 BUSY */
+  /**
+   * `pnpm outdated --json` 的退出码 1 表示「存在过期包」，是结果不是失败。它不写文件，和写 home 的 pnpm 同时运行没有影响，所以不经 BUSY。
+   * 内核包与 cordis 从结果里拿掉：一键热升级升不了它们
+   */
   async outdated(): Promise<OutdatedReceipt> {
     const pnpmLookup = await locatePnpm()
     if (!pnpmLookup.ok) return { ok: false, error: pnpmLookup.error }
@@ -508,14 +508,15 @@ class PluginManager {
     if (updates === undefined) {
       return { ok: false, error: withStderr('pnpm outdated 的输出解析不了（需要的是 JSON）——pnpm 升大版本时输出格式可能变了') }
     }
-    return { ok: true, updates }
+    return { ok: true, updates: withoutKernelManaged(updates) }
   }
 
-  /** `only` 里包名不合规、或不在 home 的 dependencies 里直接抛；下面每一种失败都是正常结果，转成回执 */
+  /** `only` 里包名不合规、不在 home 的 dependencies 里、是内核包或 cordis 直接抛；下面每一种失败都是正常结果，转成回执 */
   async updateAll(only?: readonly string[]): Promise<UpdateAllResult> {
     for (const pkg of only ?? []) assertPkgName(pkg)
     const homeDependencies = await readHomeDependencies(this.homeDir)
     assertOnlyPackagesInHome(only, homeDependencies)
+    assertOnlyNotKernelManaged(only)
 
     const checked = await this.outdated()
     if (!checked.ok || checked.updates === undefined) return failedUpdateAll(checked.error ?? '查不出过期清单')
@@ -523,11 +524,8 @@ class PluginManager {
     const plan = planUpdateAll(checked.updates, this.tree.store, ownEntryId(this.ctx), only)
     const notes: string[] = []
     if (plan.alreadyLatest.length > 0) notes.push(`only 里这几个已是最新，没动：${plan.alreadyLatest.join('、')}`)
-    if (plan.kernelManaged.length > 0) notes.push(kernelManagedNoteOf(plan.kernelManaged))
-    const kernelManagedField = plan.kernelManaged.length === 0 ? {} : { kernelManaged: plan.kernelManaged }
     if (plan.packages.length === 0) {
-      const everythingUpToDate = plan.kernelManaged.length === 0
-      return { ok: true, updated: [], dependents: [], selfDeferred: false, ...kernelManagedField, note: [...(everythingUpToDate ? ['全都最新'] : []), ...notes].join('；') }
+      return { ok: true, updated: [], dependents: [], selfDeferred: false, note: ['全都最新', ...notes].join('；') }
     }
 
     const pnpmLookup = await locatePnpm()
@@ -566,7 +564,7 @@ class PluginManager {
       const reload = await runShellReload(commandBus)
       if (reload.note !== undefined) notes.push(reload.note)
       this.log.info(`一键热升级完成：${summary}${reload.reload === 'done' ? '；界面已整页重载' : ''}`)
-      return { ok: true, updated, dependents, selfDeferred: false, reload: reload.reload, ...kernelManagedField, ...noteOf(notes) }
+      return { ok: true, updated, dependents, selfDeferred: false, reload: reload.reload, ...noteOf(notes) }
     }
 
     // 本插件自己在回执之后重新加载：闭包只持有 tree、id、命令插件的引用与 logger，不调 this 上的其他方法
@@ -579,7 +577,7 @@ class PluginManager {
     const canReload = hasCommand(commandBus, SHELL_RELOAD_COMMAND)
     if (!canReload) notes.push(`命令表里没有 ${SHELL_RELOAD_COMMAND}，界面要手动刷新`)
     this.log.info(`一键热升级：${summary}；插件管理自己（${id}）在回执之后重新加载${canReload ? '，随后整页重载' : ''}`)
-    return { ok: true, updated, dependents, selfDeferred: true, reload: canReload ? 'deferred' : 'unavailable', ...kernelManagedField, ...noteOf(notes) }
+    return { ok: true, updated, dependents, selfDeferred: true, reload: canReload ? 'deferred' : 'unavailable', ...noteOf(notes) }
   }
 
   /** 版本写法不合规直接抛；pnpm 失败、内核包 peer 里的 cordis 不是精确版本号都转成回执。不重新加载任何条目 */
@@ -710,9 +708,12 @@ class PluginManager {
     return remountOne(this.tree, id, bareId(ownEntryId(this.ctx)), this.log)
   }
 
-  /** 包没装（调用方写错了）直接抛；删条目与 pnpm 两步的失败转成回执 */
+  /** 包没装（调用方写错了）、是内核包或 cordis 直接抛；删条目与 pnpm 两步的失败转成回执 */
   async uninstall(pkg: string): Promise<UninstallResult> {
     assertPkgName(pkg)
+    if (KERNEL_MANAGED_PACKAGES.has(pkg)) {
+      throw new Error(`${pkg} 是 home 运行必需的包，不许卸载：卸掉之后 home 启动不了。内核包用 ${UPDATE_KERNEL_COMMAND} 升级，${CORDIS_PACKAGE} 随它对齐`)
+    }
     const homeDependencies = await readHomeDependencies(this.homeDir)
     if (homeDependencies[pkg] === undefined) {
       throw new Error(`home 里没装 ${pkg}，无法卸载。只删条目请调用 ${REMOVE_ENTRY_COMMAND}。`)
@@ -862,9 +863,9 @@ async function runShellReload(commandBus: GwbCommands | undefined): Promise<{ re
   return { reload: 'unavailable', note: `${SHELL_RELOAD_COMMAND} 失败（${result.error ?? '没有给出原因'}），界面要手动刷新` }
 }
 
-function kernelManagedNoteOf(kernelManaged: readonly KernelManagedPackage[]): string {
-  const listed = kernelManaged.map((p) => `${p.pkg} ${p.from} → ${p.to}`).join('、')
-  return `这几个由内核决定版本，没升：${listed}。内核包用 ${UPDATE_KERNEL_COMMAND} 升，cordis 随它对齐`
+/** 包名作键的表去掉内核包与 cordis：它们由 `update-kernel` 管，不进 `list` 与 `outdated` */
+function withoutKernelManaged<T>(byPackage: Readonly<Record<string, T>>): Record<string, T> {
+  return Object.fromEntries(Object.entries(byPackage).filter(([pkg]) => !KERNEL_MANAGED_PACKAGES.has(pkg)))
 }
 
 /** 失败时 pnpm 输出的最后几行既拼进 error（给人看），也原样留在 data 里（界面要单独排版时用） */

@@ -11,15 +11,15 @@ description: 16 条命令是插件管理唯一的调用方式；服务 gwbPlugin
 
 | 命令 | 参数 | 回执（`data`） | 细节 |
 | --- | --- | --- | --- |
-| `list` | 无 | 按包列出：包名、spec、是否装了、`kernelRange`、`kernelUntested`、`unmetPeers`、条目（id、entryId、启停、是否 `ACTIVE`） | [两层](/docs/plugin-manager/home#包与条目两层)、[内核兼容性](/docs/plugin-manager/kernel-compat)、[peer 满没满足](/docs/plugin-manager/peers) |
+| `list` | 无 | 按包列出（内核包与 `cordis` 不列）：包名、spec、是否装了、`kernelRange`、`kernelUntested`、`unmetPeers`、条目（id、entryId、启停、是否 `ACTIVE`） | [两层](/docs/plugin-manager/home#包与条目两层)、[内核兼容性](/docs/plugin-manager/kernel-compat)、[peer 满没满足](/docs/plugin-manager/peers) |
 | `install` | `{ pkg, spec? }` | `{ ok, pkg, entryId }` | [安装](/docs/plugin-manager/install) |
-| `uninstall` | `{ pkg }` | `{ ok, pkg, removedEntries }` | [卸载](/docs/plugin-manager/install#卸载先删条目后卸包) |
+| `uninstall` | `{ pkg }`，内核包与 `cordis` 不许卸 | `{ ok, pkg, removedEntries }` | [卸载](/docs/plugin-manager/install#卸载先删条目后卸包) |
 | `add-entry` | `{ pkg, id?, config? }` | `{ entryId }` | [选 id](/docs/plugin-manager/ids#选-id-时看磁盘上的归属记录) |
 | `remove-entry` | `{ entryId }` | 无 | [两层](/docs/plugin-manager/home#条目只经-loader-的条目树) |
 | `enable` / `disable` | `{ entryId }` | 无 | [两层](/docs/plugin-manager/home#条目只经-loader-的条目树) |
 | `remount` | `{ entryId }` | `{ id, action, state }` | [重新加载](/docs/plugin-manager/remount) |
-| `outdated` | 无 | `{ ok, updates: { 包名: { current, latest } } }` | [热升级](/docs/plugin-manager/upgrade#查新版本) |
-| `update-all` | `{ only? }` | `{ updated, dependents, selfDeferred, reload, kernelManaged?, note? }` | [热升级](/docs/plugin-manager/upgrade) |
+| `outdated` | 无 | `{ ok, updates: { 包名: { current, latest } } }`，不含内核包与 `cordis` | [热升级](/docs/plugin-manager/upgrade#查新版本) |
+| `update-all` | `{ only? }` | `{ updated, dependents, selfDeferred, reload, note? }` | [热升级](/docs/plugin-manager/upgrade) |
 | `update-kernel` | `{ version? }` | `{ ok, kernel: { from?, to }, cordis: { from?, to }, restartRequired, pluginsOutsideRange, note }` | [升内核](/docs/plugin-manager/upgrade#升内核) |
 | `transfer-owner` | `{ id, pkg }` | `{ id, pkg, data, settings }` | [转归属](/docs/plugin-manager/ids#转归属transfer-owner) |
 | `search` | `{ scope? }` | `{ ok, packages: [{ pkg, version, description, keywords }], note? }` | [找插件](/docs/plugin-manager/sources#从哪装就在哪搜) |
@@ -70,7 +70,7 @@ description: 16 条命令是插件管理唯一的调用方式；服务 gwbPlugin
 
 ## 回执类型由插件管理导出
 
-**是什么**：命令的参数与回执类型由插件管理自己导出（`InstallResult`、`UpdateAllResult`、`DependentPackage`、`KernelManagedPackage`、`UpdateKernelResult`、`VersionChange`、`UninstallResult`、`RemountedEntry`、`PluginPackageView`、`KernelCompatStatus`、`PeerStatus`、`UnmetPeer` 等），命令名也导出成常量（`LIST_COMMAND` 等）。
+**是什么**：命令的参数与回执类型由插件管理自己导出（`InstallResult`、`UpdateAllResult`、`DependentPackage`、`UpdateKernelResult`、`VersionChange`、`UninstallResult`、`RemountedEntry`、`PluginPackageView`、`KernelCompatStatus`、`PeerStatus`、`UnmetPeer` 等），命令名也导出成常量（`LIST_COMMAND` 等）。
 
 **为什么**：谁提供接口，谁定义类型。类型放在调用方那边，就等于调用方持有契约，插件管理改了回执也没人拦得住。
 
@@ -78,7 +78,7 @@ description: 16 条命令是插件管理唯一的调用方式；服务 gwbPlugin
 
 ## 改了命令形状就升 x
 
-**是什么**：插件管理的版本号独立于内核，还在 0.x。改了命令名、参数或回执的形状，删了命令，改了服务的值，都是破坏性变更：升 x。包主入口给 devkit 复用的函数（见[接口](/docs/plugin-manager#接口)）改名、删掉、改签名或改了 devkit 依赖的行为，也是破坏性变更，升 x。加命令、加可选参数、回执加字段、修 bug 升 y——加 `update-kernel` 属于加命令，`update-all` 回执加上 `kernelManaged` 属于回执加字段；把回执里已有的字段删掉、改名或改含义属于改形状。
+**是什么**：插件管理的版本号独立于内核，还在 0.x。改了命令名、参数或回执的形状，删了命令，改了服务的值，都是破坏性变更：升 x。包主入口给 devkit 复用的函数（见[接口](/docs/plugin-manager#接口)）改名、删掉、改签名或改了 devkit 依赖的行为，也是破坏性变更，升 x。加命令、加可选参数、回执加字段、修 bug 升 y——加 `update-kernel` 属于加命令；把回执里已有的字段删掉、改名或改含义属于改形状，`list` 与 `outdated` 不再列某一类包属于改含义。
 
 **为什么**：下游（插件管理窗格、别的插件、agent 的说明书、`devkit.dev`）按命令名与回执形状写死了调用，devkit 还在 peer 里写了插件管理、import 它导出的函数；x 变了，它们写的版本范围就不再匹配，要各自确认、适配后再升。有没有破坏性变更只看版本号，服务值上不另放版本数字。
 

@@ -249,6 +249,13 @@ describe('plugin-manager.list', () => {
     expect(listed.map((view) => view.pkg)).toEqual([...listed.map((view) => view.pkg)].sort((a, b) => a.localeCompare(b)))
   })
 
+  it('home 的 dependencies 里的内核包与 cordis 不列出来：它们没有条目，由 update-kernel 管', async () => {
+    writeHomeDependencies({ '@x/gwb-a': '^1.0.0', [KERNEL_PKG]: '0.3.0', cordis: '4.0.0-rc.9' })
+    const pm = mount({ entries: { a: '@x/gwb-a' } })
+    const listed = (await pm.run('plugin-manager.list')) as { pkg: string }[]
+    expect(listed.map((view) => view.pkg)).toEqual(['@godcreator/gwb-plugin-manager', '@x/gwb-a'])
+  })
+
   it('peer 写的包装着且在范围里：unmetPeers 是空数组；不合包名规则的 peer 不拿去拼路径、按没装报', async () => {
     writeHomeDependencies({ '@x/gwb-a': '^1.0.0', '@x/gwb-b': '^1.0.0' })
     writeInstalledManifest('@x/gwb-a', { version: '1.0.0', keywords: ['gwb-plugin'], peerDependencies: { '@x/gwb-b': '^1.0.0' } })
@@ -378,6 +385,14 @@ describe('plugin-manager.install 与 uninstall', () => {
     expect(fakePnpm.calls).toEqual([{ args: ['remove', '@x/gwb-foo'], cwd: homeDir }])
   })
 
+  it('uninstall：内核包与 cordis 不许卸载，直接抛错，一次 pnpm 都不运行', async () => {
+    writeHomeDependencies({ [KERNEL_PKG]: '0.3.0', cordis: '4.0.0-rc.9' })
+    const pm = mount({ entries: {} })
+    await expect(pm.run('plugin-manager.uninstall', { pkg: KERNEL_PKG })).rejects.toThrow(`${KERNEL_PKG} 是 home 运行必需的包，不许卸载`)
+    await expect(pm.run('plugin-manager.uninstall', { pkg: 'cordis' })).rejects.toThrow('cordis 是 home 运行必需的包，不许卸载')
+    expect(fakePnpm.calls).toEqual([])
+  })
+
   it('uninstall：pnpm 失败时条目已删、包还在，回执说明', async () => {
     writeHomeDependencies({ '@x/gwb-foo': '^1.0.0' })
     fakePnpm.runExitCode = 1
@@ -397,6 +412,17 @@ describe('plugin-manager.outdated', () => {
     const pm = mount({ entries: {} })
     expect(await pm.run('plugin-manager.outdated')).toEqual({ ok: true, data: { ok: true, updates: { '@x/gwb-foo': { current: '1.0.0', latest: '1.1.0' } } } })
     expect(fakePnpm.calls).toEqual([{ args: ['outdated', '--json'], cwd: homeDir }])
+  })
+
+  it('内核包与 cordis 不进回执：它们由 update-kernel 升', async () => {
+    fakePnpm.captureExitCode = 1
+    fakePnpm.captureStdout = JSON.stringify({
+      '@x/gwb-foo': { current: '1.0.0', latest: '1.1.0' },
+      [KERNEL_PKG]: { current: '0.3.0', latest: '0.3.1' },
+      cordis: { current: '4.0.0-rc.9', latest: '4.0.0-rc.10' },
+    })
+    const pm = mount({ entries: {} })
+    expect(await pm.run('plugin-manager.outdated')).toEqual({ ok: true, data: { ok: true, updates: { '@x/gwb-foo': { current: '1.0.0', latest: '1.1.0' } } } })
   })
 
   it('别的退出码、没启动、输出解析不了：ok false 带说明', async () => {
@@ -561,7 +587,7 @@ describe('plugin-manager.update-all', () => {
     expect(pm.shellReloads).toBe(1)
   })
 
-  it('过期清单里有内核包与 cordis：不升它们，回执 kernelManaged 列出来，note 指向 update-kernel', async () => {
+  it('pnpm 报内核包与 cordis 过期：不升它们，回执里也不提', async () => {
     fakePnpm.captureExitCode = 1
     fakePnpm.captureStdout = JSON.stringify({
       '@x/gwb-foo': { current: '1.0.0', latest: '1.1.0' },
@@ -569,34 +595,33 @@ describe('plugin-manager.update-all', () => {
       cordis: { current: '4.0.0-rc.9', latest: '4.0.0-rc.10' },
     })
     const pm = mount({ entries: { foo: '@x/gwb-foo' }, shellReload: true })
-    const result = (await pm.run('plugin-manager.update-all')) as GwbResult & { data: { updated: { pkg: string }[]; kernelManaged: unknown; note: string } }
+    expect(await pm.run('plugin-manager.update-all')).toEqual({
+      ok: true,
+      data: {
+        ok: true,
+        updated: [{ pkg: '@x/gwb-foo', from: '1.0.0', to: '1.1.0', entries: [{ id: 'foo', action: 'remounted', state: 'ACTIVE' }] }],
+        dependents: [],
+        selfDeferred: false,
+        reload: 'done',
+      },
+    })
     expect(fakePnpm.calls.map((call) => call.args)).toEqual([['outdated', '--json'], ['add', '@x/gwb-foo@1.1.0']])
-    expect(result.data.updated.map((p) => p.pkg)).toEqual(['@x/gwb-foo'])
-    expect(result.data.kernelManaged).toEqual([
-      { pkg: KERNEL_PKG, from: '0.3.0', to: '0.3.1' },
-      { pkg: 'cordis', from: '4.0.0-rc.9', to: '4.0.0-rc.10' },
-    ])
-    expect(result.data.note).toContain('plugin-manager.update-kernel')
   })
 
-  it('过期清单里只有内核包：不运行 pnpm add，也不说「全都最新」', async () => {
+  it('pnpm 只报内核包过期：不运行 pnpm add，note 说全都最新', async () => {
     fakePnpm.captureExitCode = 1
     fakePnpm.captureStdout = JSON.stringify({ [KERNEL_PKG]: { current: '0.3.0', latest: '0.3.1' } })
     const pm = mount({ entries: {} })
-    const result = (await pm.run('plugin-manager.update-all')) as GwbResult & { data: { updated: unknown[]; kernelManaged: unknown; note: string } }
+    expect(await pm.run('plugin-manager.update-all')).toEqual({ ok: true, data: { ok: true, updated: [], dependents: [], selfDeferred: false, note: '全都最新' } })
     expect(fakePnpm.calls.map((call) => call.args[0])).toEqual(['outdated'])
-    expect(result.data.updated).toEqual([])
-    expect(result.data.kernelManaged).toEqual([{ pkg: KERNEL_PKG, from: '0.3.0', to: '0.3.1' }])
-    expect(result.data.note).not.toContain('全都最新')
-    expect(result.data.note).toContain('plugin-manager.update-kernel')
   })
 
-  it('过期清单里没有内核管的包：回执里没有 kernelManaged 字段', async () => {
-    fakePnpm.captureExitCode = 1
-    fakePnpm.captureStdout = JSON.stringify({ '@x/gwb-foo': { current: '1.0.0', latest: '1.1.0' } })
-    const pm = mount({ entries: { foo: '@x/gwb-foo' }, shellReload: true })
-    const result = (await pm.run('plugin-manager.update-all')) as GwbResult & { data: Record<string, unknown> }
-    expect('kernelManaged' in result.data).toBe(false)
+  it('only 点了内核包或 cordis：直接抛错、指向 update-kernel，一次 pnpm 都不运行', async () => {
+    writeHomeDependencies({ '@x/gwb-foo': '^1.0.0', [KERNEL_PKG]: '0.3.0', cordis: '4.0.0-rc.9' })
+    const pm = mount({ entries: { foo: '@x/gwb-foo' } })
+    await expect(pm.run('plugin-manager.update-all', { only: ['@x/gwb-foo', KERNEL_PKG] })).rejects.toThrow('plugin-manager.update-kernel')
+    await expect(pm.run('plugin-manager.update-all', { only: ['cordis'] })).rejects.toThrow('only 里的 cordis 由内核决定版本')
+    expect(fakePnpm.calls).toEqual([])
   })
 })
 

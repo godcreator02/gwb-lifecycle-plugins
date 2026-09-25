@@ -9,7 +9,7 @@ description: home 里有包与条目两层，list 把两层对上；只有插件
 
 ## 包与条目两层
 
-home 里的插件分两层：**包**是 pnpm 装进 `package.json` 与 `node_modules` 的 npm 包；**条目**是 `cordis.yml` 里的一行，指向一个包，loader 按条目加载插件。一个包可以有好几条条目，各是一个实例、各存各的数据。插件管理自己、命令插件也各是 `cordis.yml` 里的一条条目，一样出现在 `list` 里。
+home 里的插件分两层：**包**是 pnpm 装进 `package.json` 与 `node_modules` 的 npm 包；**条目**是 `cordis.yml` 里的一行，指向一个包，loader 按条目加载插件。一个包可以有好几条条目，各是一个实例、各存各的数据。插件管理自己、命令插件也各是 `cordis.yml` 里的一条条目，一样出现在 `list` 里。内核包与 `cordis` 也在 home 的 `package.json` 里，但没有条目、由 `update-kernel` 管，`list` 不列它们：列出来就是两个「装了包、没有条目」的包，看着像该卸掉的，而卸掉之后 home 就启动不了。
 
 **为什么分两层**：装包是 pnpm 的事，加载是 loader 的事，pnpm 和 loader 各有自己的清单。只装包、不加条目，插件不会运行；条目指向的包被删了，条目还在。插件管理的工作就是让两层对应上，并且如实报告对不上的地方。
 

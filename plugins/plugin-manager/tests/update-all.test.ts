@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest'
 import { fiberStateOf, settleFiber } from '../src/fiber.js'
-import { assertOnlyPackagesInHome, planUpdateAll, plannedDependents } from '../src/update-all.js'
+import { assertOnlyNotKernelManaged, assertOnlyPackagesInHome, planUpdateAll, plannedDependents } from '../src/update-all.js'
 
 /**
  * 一键热升级的计划：pnpm 参数、重新加载哪些条目、按什么顺序。fixture 照 uninstall.test 的样式——store 是
@@ -57,46 +57,21 @@ describe('planUpdateAll：一次 pnpm add，精确版本', () => {
 
   it('空清单：pnpmArgs 空、packages 空、自己不在里面', () => {
     const plan = planUpdateAll({}, store, 'home:plugin-manager')
-    expect(plan).toEqual({ pnpmArgs: [], packages: [], alreadyLatest: [], kernelManaged: [] })
+    expect(plan).toEqual({ pnpmArgs: [], packages: [], alreadyLatest: [] })
   })
 })
 
-describe('planUpdateAll：内核包与 cordis 不升', () => {
+describe('assertOnlyNotKernelManaged：内核包与 cordis 热升级不了', () => {
   const KERNEL = '@godcreator/gwb-kernel-desktop'
-  const withKernelManaged = {
-    ...outdated,
-    [KERNEL]: { current: '0.3.0', latest: '0.3.1' },
-    cordis: { current: '4.0.0-rc.9', latest: '4.0.0-rc.10' },
-  }
 
-  it('过期清单里有它们：不进 pnpm 参数与 packages，列进 kernelManaged', () => {
-    const plan = planUpdateAll(withKernelManaged, store, 'home:plugin-manager')
-    expect(plan.pnpmArgs).toEqual(['add', `${COMMANDS}@0.2.2`, `${HELLO}@0.2.1`, `${MANAGER}@0.3.0`])
-    expect(plan.packages.map((p) => p.pkg)).not.toContain(KERNEL)
-    expect(plan.packages.map((p) => p.pkg)).not.toContain('cordis')
-    expect(plan.kernelManaged).toEqual([
-      { pkg: KERNEL, from: '0.3.0', to: '0.3.1' },
-      { pkg: 'cordis', from: '4.0.0-rc.9', to: '4.0.0-rc.10' },
-    ])
+  it('only 点了它们的名：抛错、说出是哪几个、指向 update-kernel', () => {
+    expect(() => assertOnlyNotKernelManaged([HELLO, KERNEL, 'cordis'])).toThrow(`only 里的 ${KERNEL}、cordis 由内核决定版本`)
+    expect(() => assertOnlyNotKernelManaged([KERNEL])).toThrow('plugin-manager.update-kernel')
   })
 
-  it('only 点了它们的名也不升，照样列进 kernelManaged、不进 alreadyLatest', () => {
-    const plan = planUpdateAll(withKernelManaged, store, 'home:plugin-manager', [KERNEL, HELLO])
-    expect(plan.pnpmArgs).toEqual(['add', `${HELLO}@0.2.1`])
-    expect(plan.kernelManaged).toEqual([{ pkg: KERNEL, from: '0.3.0', to: '0.3.1' }])
-    expect(plan.alreadyLatest).toEqual([])
-  })
-
-  it('only 没点它们：kernelManaged 是空的', () => {
-    const plan = planUpdateAll(withKernelManaged, store, 'home:plugin-manager', [HELLO])
-    expect(plan.kernelManaged).toEqual([])
-  })
-
-  it('过期清单里只有它们：pnpmArgs 空、packages 空', () => {
-    const plan = planUpdateAll({ [KERNEL]: { current: '0.3.0', latest: '0.3.1' } }, store, 'home:plugin-manager')
-    expect(plan.pnpmArgs).toEqual([])
-    expect(plan.packages).toEqual([])
-    expect(plan.kernelManaged).toEqual([{ pkg: KERNEL, from: '0.3.0', to: '0.3.1' }])
+  it('only 没点它们、不给 only：不抛', () => {
+    expect(() => assertOnlyNotKernelManaged([HELLO])).not.toThrow()
+    expect(() => assertOnlyNotKernelManaged(undefined)).not.toThrow()
   })
 })
 
