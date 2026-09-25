@@ -71,7 +71,7 @@ export function npmrcFiles(userDir: string, homeDir: string): { user: string; ho
   return { user: path.join(userDir, NPMRC), home: path.join(homeDir, NPMRC) }
 }
 
-/** 文件不在就是空文本（没加过包源时多半不存在）；在但读不了就抛错，带上路径 */
+/** 文件不在就是空文本（没配过包源时多半不存在）；在但读不了就抛错，带上路径 */
 export async function readNpmrc(file: string): Promise<string> {
   try {
     return await fs.promises.readFile(file, 'utf8')
@@ -79,11 +79,4 @@ export async function readNpmrc(file: string): Promise<string> {
     if ((err as NodeJS.ErrnoException).code === 'ENOENT') return ''
     throw new Error(`读不了 ${file}：${String(err)}`, { cause: err })
   }
-}
-
-/** 先写同目录的临时文件再改名，写到一半断电也不会留下半份 npmrc */
-export async function writeNpmrc(file: string, text: string): Promise<void> {
-  const tempFile = `${file}.gwb-tmp-${String(process.pid)}-${String(Date.now())}`
-  await fs.promises.writeFile(tempFile, text, 'utf8')
-  await fs.promises.rename(tempFile, file)
 }

@@ -1,8 +1,8 @@
 import os from 'node:os'
 import type { GwbContext } from '@godcreator/gwb-kernel-desktop'
 import { isRecord, noteOf, requireKernel, type Outcome } from './vocab.js'
-// 这几条 type import 只为引入对方的 `declare module 'cordis'`（commands 另取一个类型）；这些插件写在 peer 里，说明书标 optional，都经嵌套注入使用
-import type { GwbCommands } from '@godcreator/gwb-commands'
+// 这两条 type import 只为引入对方的 `declare module 'cordis'`；这两个插件写在 peer 里，说明书标 optional，都经嵌套注入使用
+import type {} from '@godcreator/gwb-commands'
 import type {} from '@godcreator/gwb-skills'
 import { installedPackageRealpath, npmrcFiles, readHomeDependencies, readInstalledPackageManifest } from './home.js'
 import { assertPkgName, bareId, installSpec, isPkgName, pickId } from './ids.js'
@@ -33,7 +33,7 @@ import { remountNow, remountSelfLater, type RemountedEntry } from './remount.js'
 import { KERNEL_PACKAGE } from './kernel-compat.js'
 import { CORDIS_PACKAGE, installedVersionMismatch, KERNEL_MANAGED_PACKAGES, kernelStatusInList, kernelUpgradeTargetOf, pluginsOutsideKernelRange, versionChangeOf, type VersionChange } from './kernel-upgrade.js'
 import { declaredPluginPeers, peerStatusOf } from './peers.js'
-import { addSource, listSources, removeSource, searchPlugins, type PackageSourcesDeps } from './package-sources.js'
+import { searchPlugins, type PackageSourcesDeps } from './package-sources.js'
 
 // 开发套件复用的规则：它 import 这几个，不另存一份
 export { locatePnpm } from './pnpm-location.js'
@@ -58,9 +58,6 @@ const DISABLE_COMMAND = 'plugin-manager.disable'
 const OUTDATED_COMMAND = 'plugin-manager.outdated'
 const UNINSTALL_COMMAND = 'plugin-manager.uninstall'
 const SEARCH_COMMAND = 'plugin-manager.search'
-const SOURCE_ADD_COMMAND = 'plugin-manager.source.add'
-const SOURCE_LIST_COMMAND = 'plugin-manager.source.list'
-const SOURCE_REMOVE_COMMAND = 'plugin-manager.source.remove'
 
 /**
  * 服务 `gwbPluginManager` 的值：只表示插件管理装了（别的插件 inject 它，跟着它一起加载、卸载），上面没有字段。
@@ -125,7 +122,7 @@ class PluginManager {
   private readonly homeDir: string
   /** 运行中的内核版本号，`list` 拿它和各包 peer 里内核包的范围比对 */
   private readonly kernelVersion: string
-  /** 机器级是包源路由的正本（`source.add` / `source.remove` 改它），home 级只读 */
+  /** `search` 读的两份 npmrc：机器级与 home 级，只读 */
   private readonly npmrc: { user: string; home: string }
   private readonly tree: EntryTreeLike
   /** 事先拿到的 logger：最后重新加载本插件那一步运行时，本插件的 fiber 已经卸载，ctx 上什么都不能访问 */
@@ -168,7 +165,7 @@ class PluginManager {
         commandBus.register({ name, description, usage, plugin: PKG }, (args) => this.busyGate.run(() => handler(args) as Promise<{ ok: boolean }> | { ok: boolean }))
       }
       this.registerHomeCommands(registerCommand, registerBusyGuardedCommand)
-      this.registerSourceCommands(registerCommand, commandBus)
+      this.registerSearchCommand(registerCommand)
     })
   }
 
@@ -238,51 +235,17 @@ class PluginManager {
     )
   }
 
-  /** 找插件与配包源的四条命令：不改 home，不经 BUSY 检查 */
-  private registerSourceCommands(registerCommand: RegisterCommand, commandBus: GwbCommands): void {
-    const deps: PackageSourcesDeps = {
-      userNpmrc: this.npmrc.user,
-      homeNpmrc: this.npmrc.home,
-      runCommand: (name, args) => commandBus.run(name, args),
-      log: this.log,
-    }
-
+  /** 找插件：只读两份 npmrc 与源，不改 home，不经 BUSY 检查 */
+  private registerSearchCommand(registerCommand: RegisterCommand): void {
+    const deps: PackageSourcesDeps = { userNpmrc: this.npmrc.user, homeNpmrc: this.npmrc.home }
     registerCommand(
       SEARCH_COMMAND,
       '列出全部配好的源上的插件（npm 标准检索）',
-      `无参数。从哪条源装就在哪条源搜：${SOURCE_LIST_COMMAND} 列出的两层 npmrc 里的每条源（@godcreator 在前、其余按名字排）并发查，查成的并进 packages，没查成的在 note 里点名，一条失败不影响别的；全都没查成才 ok:false。只列插件：包自己的 keywords 里有 gwb-plugin 的。回执 data { packages: [{ pkg, version?, description? }], note? }`,
+      '无参数。从哪条源装就在哪条源搜：机器级 ~/.npmrc 与 home 级 <home>/.npmrc 里的每条 scope 路由（同名 scope 用 home 级那条；@godcreator 在前、其余按名字排）并发查，查成的并进 packages，没查成的在 note 里点名，一条失败不影响别的；全都没查成才 ok:false。只列插件：包自己的 keywords 里有 gwb-plugin 的。配第三方包源不经命令：照说明书 gwb-plugin-manager 的「配第三方包源」往 ~/.npmrc 写，写完调这条核对。回执 data { packages: [{ pkg, version?, description? }], note? }',
       async (args) => {
         argsObjectOf(args ?? {}, [])
         return searchPlugins(deps)
       },
-    )
-
-    registerCommand(
-      SOURCE_ADD_COMMAND,
-      '往机器级 npmrc 写一条包源（scope 路由），装第三方插件用',
-      '已有同 scope 就原地替换。写的是 ~/.npmrc（机器级）：@godcreator 的路由本来就在那里，不许经这条命令改。参数 { scope, registry?, owner?, token? }：registry 直接给源地址；owner 走 gitea 的简便写法——拼成 <base>/api/packages/<owner>/npm/（base 取设置 gitea.base-url，取不到 http(s) 地址就回执 ok:false——装 gitea 插件配好它，或改给 registry），token 没给就取设置 gitea 分区的 token，取不到则回执 ok:false。token 行按源地址配对，同一个 token 配多条源不会重复写。回执 data { scope, registry, tokenWritten, replaced, lines（token 已遮掉）, note? }',
-      async (args) => {
-        const argsObject = argsObjectOf(args, ['scope', 'registry', 'owner', 'token'])
-        return addSource(deps, requiredString(argsObject, 'scope'), {
-          registry: optionalString(argsObject, 'registry'),
-          owner: optionalString(argsObject, 'owner'),
-          token: optionalString(argsObject, 'token'),
-        })
-      },
-    )
-
-    registerCommand(
-      SOURCE_LIST_COMMAND,
-      '列出包源：机器级与 home 级两份 npmrc 合起来看',
-      '无参数。回执 { user, home, sources: [{ scope, registry, file, token }] }——file 是出处（user = 机器级 ~/.npmrc，home = <home>/.npmrc），pnpm 把两层合起来读、home 级同名行优先；token 只报有没有，不报值',
-      async () => ({ ok: true, data: await listSources(deps) }),
-    )
-
-    registerCommand(
-      SOURCE_REMOVE_COMMAND,
-      '从机器级 npmrc 删掉一条包源',
-      '参数 { scope }。token 行没有别的 scope 再指向它时一起删，还有就留着。@godcreator 不许删；机器级没有这条时回 ok:false 说明原因（包括「它在 home 级，要手工删」）。回执 data { scope, registry? }',
-      (args) => removeSource(deps, requiredString(argsObjectOf(args, ['scope']), 'scope')),
     )
   }
 

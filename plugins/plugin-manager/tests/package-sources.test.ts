@@ -2,138 +2,30 @@ import fs from 'node:fs'
 import os from 'node:os'
 import path from 'node:path'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
-import type { GwbResult } from '@godcreator/gwb-kernel-desktop'
-import { addSource, listSources, removeSource, searchPlugins, type PackageSourcesDeps } from '../src/package-sources.js'
+import { searchPlugins, type PackageSourcesDeps } from '../src/package-sources.js'
 
 /**
- * 找插件与配包源的命令逻辑：两份 npmrc 放在临时目录里真读真写，`settings.get` 与 registry 的检索接口用假实现。
- * 真实 registry 与真实的设置插件只能实机验证。
+ * `search` 的逻辑：两份 npmrc 放在临时目录里真读，registry 的检索接口用假实现。真实 registry 只能实机验证。
  */
 
-const GITEA = 'https://git.tianshen02.online:28377'
-
 let dir: string
-let settings: Record<string, string>
 let deps: PackageSourcesDeps
 
 function writeFile(file: string, text: string): void {
   fs.writeFileSync(file, text, 'utf8')
 }
 
-function read(file: string): string {
-  return fs.readFileSync(file, 'utf8')
-}
-
 beforeEach(() => {
   dir = fs.mkdtempSync(path.join(os.tmpdir(), 'gwb-sources-test-'))
-  settings = {}
   deps = {
     userNpmrc: path.join(dir, 'user.npmrc'),
     homeNpmrc: path.join(dir, 'home.npmrc'),
-    runCommand: (name: string, args: unknown): Promise<GwbResult> => {
-      expect(name).toBe('settings.get')
-      const key = (args as { section: string; key: string }).key
-      const value = settings[key]
-      return Promise.resolve(value === undefined ? { ok: false, error: '没存' } : { ok: true, data: value })
-    },
-    log: { info: () => undefined, warn: () => undefined },
   }
 })
 
 afterEach(() => {
   vi.unstubAllGlobals()
   fs.rmSync(dir, { recursive: true, force: true })
-})
-
-describe('source.add', () => {
-  it('owner 写法：地址按设置里的 base-url 拼，token 取设置，回执里 token 已遮掉', async () => {
-    settings['base-url'] = 'https://gitea.example'
-    settings['token'] = 't-secret'
-    const got = await addSource(deps, '@j', { owner: 'J' })
-    expect(got).toEqual({
-      ok: true,
-      data: {
-        scope: '@j',
-        registry: 'https://gitea.example/api/packages/J/npm/',
-        tokenWritten: true,
-        replaced: false,
-        lines: ['@j:registry=https://gitea.example/api/packages/J/npm/', '//gitea.example/api/packages/J/npm/:_authToken=***'],
-      },
-    })
-    expect(read(deps.userNpmrc)).toContain('//gitea.example/api/packages/J/npm/:_authToken=t-secret')
-    expect(JSON.stringify(got)).not.toContain('t-secret')
-  })
-
-  it('设置里没有 base-url、或不是 http(s) 地址：ok:false，说明装 gitea 插件或改给 registry，机器级 npmrc 不动', async () => {
-    settings['token'] = 't'
-    for (const baseUrl of [undefined, 'not-a-url']) {
-      if (baseUrl === undefined) delete settings['base-url']
-      else settings['base-url'] = baseUrl
-      const got = await addSource(deps, '@j', { owner: 'J' })
-      expect(got.ok).toBe(false)
-      const error = got.ok ? '' : got.error
-      expect(error).toContain('gitea.base-url')
-      expect(error).toContain('registry')
-      expect(got).not.toHaveProperty('data')
-    }
-    expect(fs.existsSync(deps.userNpmrc)).toBe(false)
-  })
-
-  it('owner 写法取不到 token：ok:false，机器级 npmrc 不动', async () => {
-    settings['base-url'] = GITEA
-    const got = await addSource(deps, '@j', { owner: 'J' })
-    expect(got).toEqual({ ok: false, error: expect.stringContaining('gitea.token') as unknown })
-    expect(fs.existsSync(deps.userNpmrc)).toBe(false)
-  })
-
-  it('home 级有同名 scope 指向别处：写成了，note 提醒 pnpm 用的是 home 级那条', async () => {
-    writeFile(deps.homeNpmrc, '@j:registry=https://other.example/npm/\n')
-    const got = await addSource(deps, '@j', { registry: 'https://j.example/npm' })
-    expect(got.ok).toBe(true)
-    const data = got.ok ? got.data : undefined
-    expect(data?.registry).toBe('https://j.example/npm/')
-    expect(data?.note).toContain('pnpm 会用那一条')
-    expect(read(deps.homeNpmrc)).toBe('@j:registry=https://other.example/npm/\n')
-  })
-
-  it('调用方写错直接抛：@godcreator、registry 与 owner 同给或都不给、scope 形状不对', async () => {
-    await expect(addSource(deps, '@godcreator', { registry: 'https://x.example/' })).rejects.toThrow('不改它')
-    await expect(addSource(deps, '@j', { registry: 'https://x.example/', owner: 'J' })).rejects.toThrow('只给一个')
-    await expect(addSource(deps, '@j', {})).rejects.toThrow('必须给一个')
-    await expect(addSource(deps, 'j', { registry: 'https://x.example/' })).rejects.toThrow('@xxx')
-  })
-})
-
-describe('source.list', () => {
-  it('两层合起来、带出处，token 只报有没有', async () => {
-    writeFile(deps.userNpmrc, '@j:registry=https://j.example/npm/\n//j.example/npm/:_authToken=t\n')
-    writeFile(deps.homeNpmrc, '@k:registry=https://k.example/npm/\n')
-    expect(await listSources(deps)).toEqual({
-      user: deps.userNpmrc,
-      home: deps.homeNpmrc,
-      sources: [
-        { scope: '@j', registry: 'https://j.example/npm/', file: 'user', token: true },
-        { scope: '@k', registry: 'https://k.example/npm/', file: 'home', token: false },
-      ],
-    })
-  })
-})
-
-describe('source.remove', () => {
-  it('删掉机器级的路由与没人指向的 token 行', async () => {
-    writeFile(deps.userNpmrc, '@j:registry=https://j.example/npm/\n//j.example/npm/:_authToken=t\n')
-    expect(await removeSource(deps, '@j')).toEqual({ ok: true, data: { scope: '@j', registry: 'https://j.example/npm/' } })
-    expect(read(deps.userNpmrc)).toBe('')
-  })
-
-  it('只在 home 级有：ok:false，说明要手工删', async () => {
-    writeFile(deps.homeNpmrc, '@j:registry=https://j.example/npm/\n')
-    expect(await removeSource(deps, '@j')).toEqual({ ok: false, error: expect.stringContaining('手工删') as unknown })
-  })
-
-  it('@godcreator 不许删', async () => {
-    await expect(removeSource(deps, '@godcreator')).rejects.toThrow('不删它')
-  })
 })
 
 describe('search', () => {
@@ -166,6 +58,21 @@ describe('search', () => {
     expect(data?.note).toContain('@dead')
     expect(seen.find((one) => one.url.startsWith('https://j.example/'))?.auth).toBe('Bearer t-j')
     expect(seen.find((one) => one.url.startsWith('https://god.example/'))?.auth).toBeUndefined()
+  })
+
+  it('home 级 npmrc 里的 scope 也查，同名 scope 用 home 级那条的源与 token', async () => {
+    writeFile(deps.userNpmrc, '@j:registry=https://user.example/npm/\n')
+    writeFile(deps.homeNpmrc, '@j:registry=https://home.example/npm/\n//home.example/npm/:_authToken=t-home\n@k:registry=https://k.example/npm/\n')
+    const seen: { url: string; auth?: string }[] = []
+    vi.stubGlobal('fetch', (url: string, init?: { headers?: Record<string, string> }) => {
+      seen.push({ url, ...(init?.headers === undefined ? {} : { auth: init.headers['Authorization'] }) })
+      return Promise.resolve(new Response(body([])))
+    })
+
+    expect(await searchPlugins(deps)).toEqual({ ok: true, data: { packages: [] } })
+    expect(seen.some((one) => one.url.startsWith('https://user.example/'))).toBe(false)
+    expect(seen.find((one) => one.url.startsWith('https://home.example/'))?.auth).toBe('Bearer t-home')
+    expect(seen.some((one) => one.url.startsWith('https://k.example/'))).toBe(true)
   })
 
   it('全部源都没查成才 ok:false', async () => {

@@ -310,6 +310,13 @@ describe('登记的命令', () => {
     const pm = mount({ entries: {} })
     expect(() => pm.run('plugin-manager.remount')).toThrow('没有登记 plugin-manager.remount')
   })
+
+  it('source.add、source.list、source.remove 不再登记：配第三方包源照说明书手写 ~/.npmrc', () => {
+    const pm = mount({ entries: {} })
+    for (const name of ['plugin-manager.source.add', 'plugin-manager.source.list', 'plugin-manager.source.remove']) {
+      expect(() => pm.run(name), name).toThrow(`没有登记 ${name}`)
+    }
+  })
 })
 
 describe('plugin-manager.update 重新加载条目', () => {
