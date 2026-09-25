@@ -228,6 +228,37 @@ describe('artifactProblems', () => {
     expect(got).toEqual([expect.stringContaining('找不到 node 侧入口')])
   })
 
+  it('插件只有子路径导出、没有 exports["."]：照旧拒', () => {
+    const got = artifactProblems(PKG, { name: 'x', keywords: ['gwb-plugin'], exports: { './vite': './dist/vite.js' } }, true, io({ 'dist/vite.js': '' }))
+    expect(got).toEqual([expect.stringContaining('找不到 node 侧入口')])
+  })
+
+  it('库只有子路径导出：从每个 js 入口与 bin 走起查相对 import，样式等非 js 目标与通配子路径不算，包名 import 不查', () => {
+    const manifest = {
+      name: '@x/lib',
+      exports: {
+        './vite': { types: './dist/vite/index.d.ts', default: './dist/vite/index.js' },
+        './model': { types: './dist/model/index.d.ts', default: './dist/model/index.js' },
+        './styles.css': './styles.css',
+        './parts/*': './dist/parts/*.js',
+      },
+      bin: { 'x-validate': './dist/cli/validate.js' },
+    }
+    const files = {
+      'dist/vite/index.js': "import vite from 'vite'\nimport { shared } from '../shared.js'",
+      'dist/shared.js': '',
+      'dist/model/index.js': "import { gone } from './gone.js'",
+      'dist/cli/validate.js': "import { shared } from '../shared.js'",
+    }
+    expect(artifactProblems(PKG, manifest, false, io(files))).toEqual([expect.stringContaining("'./gone.js'")])
+    expect(artifactProblems(PKG, manifest, false, io({ ...files, 'dist/model/index.js': '' }))).toEqual([])
+  })
+
+  it('库的 exports、main、bin 里没有一个 js 入口：拒', () => {
+    const got = artifactProblems(PKG, { name: '@x/css-only', exports: { './styles.css': './styles.css' } }, false, io({}))
+    expect(got).toEqual([expect.stringContaining('没有一个指向 js 文件的入口')])
+  })
+
   it('浏览器侧 dist/client.js：名字只取内核包页面入口里的 importmap（从本包 node_modules 现读），别的依赖写了也不算', () => {
     const got = artifactProblems(
       PKG,

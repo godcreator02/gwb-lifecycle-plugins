@@ -85,9 +85,11 @@ peer 里内核包的检查，`^x.y.z` 写法的判定 `isCaretRange` 从插件�
 
 {/* ref file="../plugins/devkit/src/release.ts" lines="159-178" */}
 
-**产物检查**在 `src/artifact-check.ts`。哪些文件算哪一侧，照模板生成的插件包的构建约定判：node 侧是 `exports["."]` 的运行时入口（没有 `exports` 时是 `main`）顺着相对 import 走到的文件，也就是内核的 loader 按包名 import 插件时加载的那些；浏览器侧是 `dist/client.js` 顺着相对 import 走到的文件；两边都走不到的文件不查。库（没有 `gwb-plugin` 的包）只查相对 import，不查两份包名名单：库由用它的插件打包进产物，它的 import 不在 home 里按包名解析。
+**产物检查**在 `src/artifact-check.ts`。哪些文件算哪一侧，照模板生成的插件包的构建约定判：node 侧是 `exports["."]` 的运行时入口（没有 `exports` 时是 `main`）顺着相对 import 走到的文件，也就是内核的 loader 按包名 import 插件时加载的那些；浏览器侧是 `dist/client.js` 顺着相对 import 走到的文件；两边都走不到的文件不查。库（没有 `gwb-plugin` 的包）只查相对 import，不查两份包名名单：库由用它的插件打包进产物，它的 import 不在 home 里按包名解析。库可以只有子路径导出、包根没有入口，所以 node 侧从 `exports` 每个子路径指到的 js 文件走起（带 `*` 的通配子路径、`./styles.css` 这类不是 js 的目标不算；没有 `exports` 时取 `main`），外加 `bin` 里的脚本；一个 js 入口都没有才拒。插件照旧只从 `exports["."]` 走起，没有就拒：内核的 loader 按包名 import 插件。
 
-{/* ref file="../plugins/devkit/src/artifact-check.ts" lines="205-223" */}
+{/* ref file="../plugins/devkit/src/artifact-check.ts" lines="112-136" */}
+
+{/* ref file="../plugins/devkit/src/artifact-check.ts" lines="231-261" */}
 
 node 侧放行的包名：
 

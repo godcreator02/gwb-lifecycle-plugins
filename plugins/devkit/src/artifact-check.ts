@@ -109,6 +109,32 @@ export function exportTarget(manifest: Record<string, unknown>, subpath: string)
   return runtimeTarget((exported as Record<string, unknown>)[subpath])
 }
 
+/** 运行时的 js 文件；`./styles.css` 这类 exports 目标不是模块 */
+const RUNTIME_MODULE = /\.[cm]?js$/
+
+/**
+ * 库的运行时入口（相对包目录）：`exports` 每个子路径指到的 js 文件（带 `*` 的通配子路径不算），没有 `exports` 时取 `main`；
+ * 外加 `bin` 里的脚本。库可以只有子路径导出、包根没有入口
+ */
+export function libraryEntries(manifest: Record<string, unknown>): string[] {
+  const entries = new Set<string>()
+  const exported = manifest.exports
+  if (isRecord(exported) && Object.keys(exported).some((key) => key.startsWith('.'))) {
+    for (const [subpath, target] of Object.entries(exported)) {
+      if (subpath.includes('*')) continue
+      const file = runtimeTarget(target)
+      if (file !== undefined) entries.add(file)
+    }
+  } else {
+    const file = exportTarget(manifest, '.')
+    if (file !== undefined) entries.add(file)
+  }
+  const bin = manifest.bin
+  if (typeof bin === 'string') entries.add(bin)
+  else if (isRecord(bin)) for (const script of Object.values(bin)) if (typeof script === 'string') entries.add(script)
+  return [...entries].filter((file) => RUNTIME_MODULE.test(file))
+}
+
 const IMPORTMAP_SCRIPT = /<script type="importmap">([\s\S]*?)<\/script>/
 
 /** 页面入口 html 里那段 importmap 的名字；没有这段 importmap 回 undefined，JSON 不合法当场抛错 */
@@ -202,15 +228,27 @@ function browserSideBareImportProblems(pkgDir: string, browserModules: Map<strin
   return problems
 }
 
+/** node 侧从哪些入口走起：插件只有 `exports["."]`（内核的 loader 按包名 import 它），库是 `libraryEntries` */
+function nodeEntriesOf(manifest: Record<string, unknown>, plugin: boolean): { entries: string[]; problem?: string } {
+  if (plugin) {
+    const entry = exportTarget(manifest, '.')
+    if (entry === undefined) return { entries: [], problem: '清单里没有 exports["."]（或 main），找不到 node 侧入口：内核的 loader 按包名 import 插件' }
+    return { entries: [entry] }
+  }
+  const entries = libraryEntries(manifest)
+  if (entries.length === 0) return { entries, problem: '清单的 exports（没有 exports 时是 main）与 bin 里没有一个指向 js 文件的入口，查不了产物' }
+  return { entries }
+}
+
 /**
- * `plugin` 为 false（库、工具包）时只查相对 import 指向的文件在不在；
+ * `plugin` 为 false（库、工具包）时只查相对 import 指向的文件在不在，从 exports 的每个 js 入口、bin 走起；
  * 包名 import 的两份名单只管插件：库的 import 由用它的插件打包时解析，不在 home 里按包名解析
  */
 export function artifactProblems(pkgDir: string, manifest: Record<string, unknown>, plugin: boolean, io: ArtifactIo): string[] {
   const problems: string[] = []
-  const nodeEntry = exportTarget(manifest, '.')
-  if (nodeEntry === undefined) problems.push('清单里没有 exports["."]（或 main），找不到 node 侧入口')
-  const node = walkModules(pkgDir, nodeEntry === undefined ? [] : [path.resolve(pkgDir, nodeEntry)], io)
+  const nodeEntries = nodeEntriesOf(manifest, plugin)
+  if (nodeEntries.problem !== undefined) problems.push(nodeEntries.problem)
+  const node = walkModules(pkgDir, nodeEntries.entries.map((entry) => path.resolve(pkgDir, entry)), io)
   const clientFile = path.resolve(pkgDir, BROWSER_ENTRY)
   const browser = walkModules(pkgDir, io.readText(clientFile) === undefined ? [] : [clientFile], io)
 
