@@ -32,7 +32,7 @@ description: 连接插件包 package.json 的 peer（内核包的范围、用到
 
 {/* ref file="../plugins/plugin-manager/src/kernel-compat.ts" lines="24-61" */}
 
-{/* ref file="../plugins/plugin-manager/src/index.ts" lines="41-44" */}
+{/* ref file="../plugins/plugin-manager/src/index.ts" lines="40-43" */}
 
 **devkit 的发版前检查**：`devkit.release` 只查 `keywords` 含 `gwb-plugin` 的包，从插件管理 import `KERNEL_PACKAGE`、`isCaretRange`、`kernelRangeCovers`，拿 devkit 自己所在那个 home 的 `gwbKernel.version` 比，没过的回执里写建议的范围：
 
