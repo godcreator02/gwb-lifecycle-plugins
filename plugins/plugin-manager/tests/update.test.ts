@@ -50,14 +50,14 @@ const outdated = {
 }
 
 describe('planOutdatedUpdate：一次 pnpm add，精确版本', () => {
-  it('pnpm 参数是一次 add，每个包用 outdated 查到的版本号，不用 @latest 标签', () => {
+  it('pnpm add 的每一项用 outdated 查到的版本号，不用 @latest 标签', () => {
     const plan = planOutdatedUpdate(outdated, store, 'home:plugin-manager')
-    expect(plan.pnpmArgs).toEqual(['add', `${COMMANDS}@0.2.2`, `${HELLO}@0.2.1`, `${MANAGER}@0.3.0`])
+    expect(plan.addSpecs).toEqual([`${COMMANDS}@0.2.2`, `${HELLO}@0.2.1`, `${MANAGER}@0.3.0`])
   })
 
-  it('空清单：pnpmArgs 空、packages 空、自己不在里面', () => {
+  it('空清单：addSpecs 空、packages 空、自己不在里面', () => {
     const plan = planOutdatedUpdate({}, store, 'home:plugin-manager')
-    expect(plan).toEqual({ pnpmArgs: [], packages: [], alreadyLatest: [] })
+    expect(plan).toEqual({ addSpecs: [], packages: [], alreadyLatest: [] })
   })
 })
 
@@ -123,16 +123,16 @@ describe('planOutdatedUpdate：每条条目怎么处理', () => {
 })
 
 describe('planOutdatedUpdate：only 限定', () => {
-  it('只升点了名的；点了名、不在过期清单里的（已是最新）进 alreadyLatest，不进 pnpm 参数', () => {
+  it('只升点了名的；点了名、不在过期清单里的（已是最新）进 alreadyLatest，不进 addSpecs', () => {
     const plan = planOutdatedUpdate(outdated, store, 'home:plugin-manager', [HELLO, '@x/gwb-not-outdated'])
-    expect(plan.pnpmArgs).toEqual(['add', `${HELLO}@0.2.1`])
+    expect(plan.addSpecs).toEqual([`${HELLO}@0.2.1`])
     expect(plan.packages.map((p) => p.pkg)).toEqual([HELLO])
     expect(plan.alreadyLatest).toEqual(['@x/gwb-not-outdated'])
   })
 
   it('only 是空数组：什么都不升，也不是「全升」', () => {
     const plan = planOutdatedUpdate(outdated, store, 'home:plugin-manager', [])
-    expect(plan.pnpmArgs).toEqual([])
+    expect(plan.addSpecs).toEqual([])
     expect(plan.packages).toEqual([])
   })
 })

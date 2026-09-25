@@ -558,7 +558,7 @@ class PluginManager {
     }
 
     const versionChanges: VersionChangesAfterAdd = { ok: true, changes: new Map(plan.packages.map((p) => [p.pkg, { from: p.from, to: p.to }])) }
-    return this.addThenRemount(plan.pnpmArgs.slice(1), { saveExact: false, reloadPage: true }, plan.packages, homeDependencies, notes, () => Promise.resolve(versionChanges))
+    return this.addThenRemount(plan.addSpecs, { saveExact: false, reloadPage: true }, plan.packages, homeDependencies, notes, () => Promise.resolve(versionChanges))
   }
 
   /** 包名或写法不合规、包不在 home 的 dependencies 里、只给 cordis 不给内核包直接抛。一律写精确版本号：home 清单里留着 `^`，下次重装会解析到别的版本 */

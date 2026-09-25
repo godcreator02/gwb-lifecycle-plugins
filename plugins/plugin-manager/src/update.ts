@@ -36,8 +36,8 @@ export interface PlannedPackage extends PackageEntries {
 export type PlannedDependent = PackageEntries
 
 export interface OutdatedUpdatePlan {
-  /** 一次 `pnpm add` 的参数：`['add', 'a@1.2.3', …]`，精确版本（outdated 查到的 latest，不是 `@latest` 标签）；清单为空时是空数组 */
-  pnpmArgs: string[]
+  /** `pnpm add` 的每一项 `<包名>@<版本号>`，按包名排：精确版本（outdated 查到的 latest，不是 `@latest` 标签）；清单为空时是空数组 */
+  addSpecs: string[]
   /** 要升级的包，按包名排 */
   packages: PlannedPackage[]
   /** `only` 里点了名、在 home 里但不在过期清单里的包（已是最新）——回执里说明，免得人以为它升级了 */
@@ -103,7 +103,7 @@ export function planOutdatedUpdate(outdated: Readonly<OutdatedMap>, store: unkno
   }
 
   return {
-    pnpmArgs: packages.length === 0 ? [] : ['add', ...packages.map((p) => installSpec(p.pkg, p.to))],
+    addSpecs: packages.map((p) => installSpec(p.pkg, p.to)),
     packages,
     alreadyLatest,
   }
