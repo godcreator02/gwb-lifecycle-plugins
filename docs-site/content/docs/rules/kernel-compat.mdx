@@ -15,7 +15,7 @@ description: 插件在 peerDependencies 里写内核包 @godcreator/gwb-kernel-d
 
 devkit 自己的清单（peer 里另外几项是它用到的插件，见[用到的插件写 peer](/docs/rules/plugin-peers)）：
 
-{/* ref file="../plugins/devkit/package.json" lines="38-39" */}
+{/* ref file="../plugins/devkit/package.json" lines="35-42" */}
 
 ## 范围怎么算包含
 
@@ -29,7 +29,7 @@ devkit 自己的清单（peer 里另外几项是它用到的插件，见[用到�
 
 **`devkit.release` 发版前检查**：对每个要发的插件包，peer 里没写内核包、写法不是 `^x.y.z`、范围不包含运行中的内核，三种都拒，一个包都不发；拒绝理由里写着该改成的 `^<运行中的内核的 x.y.z>`。「运行中的内核」是调 `devkit.release` 的那个 home 里的内核：
 
-{/* ref file="../plugins/devkit/src/release.ts" lines="249-269" */}
+{/* ref file="../plugins/devkit/src/release.ts" lines="227-247" */}
 
 **`plugin-manager.list` 按包报**：拿插件 peer 里内核包的范围和 home 里装的内核比，不包含的按包报出来。它只报告，不阻止加载（回执怎么读见插件管理那组页面里的[同名一页](/docs/plugin-manager/kernel-compat)）。
 
@@ -47,7 +47,7 @@ devkit 自己的清单（peer 里另外几项是它用到的插件，见[用到�
 
 `devkit.scaffold` 与 `devkit.scaffold.plugin` 生成的 `package.json` 在 peer 里写内核包，范围是 `^<运行这条命令的内核版本号>`（模板占位符 `{{kernelVersion}}`；运行的是开发版内核时只取 x.y.z 三段）：新插件在同一台机器的隔离 home 里验证，用的就是这个内核。换到别的内核上验过之后再改这个范围：
 
-{/* ref file="../plugins/devkit/template/pkg/package.json.tpl" lines="32-33" */}
+{/* ref file="../plugins/devkit/template/pkg/package.json.tpl" lines="28-32" */}
 
 ## 为什么
 

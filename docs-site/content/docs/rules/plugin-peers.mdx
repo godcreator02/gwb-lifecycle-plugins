@@ -9,7 +9,7 @@ description: 插件经 ctx.inject 用别的插件的服务、或 import 它的�
 
 ## 规则
 
-**插件用到别的插件——经 `ctx.inject` 用它的服务，或 import 它的类型——就把它写进 `peerDependencies`，范围写 `^x.y.z`，下限是开发、验证时用的那一版。** 只是可选使用的（`ctx.inject([...], fn)` 局部注入、缺了只少一部分功能），在 `peerDependenciesMeta` 里标 `optional: true`。写进 peer 的插件不再另写 dev：插件仓里 pnpm 把 peer 装进 `node_modules`，类型从那里取。
+**插件用到别的插件——经 `ctx.inject` 用它的服务，或 import 它的类型——就把它写进 `peerDependencies`，范围写 `^x.y.z`，下限是开发、验证时用的那一版。** 只是可选使用的（`ctx.inject([...], fn)` 局部注入、缺了只少一部分功能），在 `peerDependenciesMeta` 里标 `optional: true`。写进 peer 的插件不另写 dev：插件仓里 pnpm 把 peer 装进 `node_modules`，类型从那里取。
 
 peer 的意思是「运行时从 home 里得到这个包」。插件的 peer 因此只有三类：按值 import 的 `cordis`、内核包 `@godcreator/gwb-kernel-desktop`（见[兼容哪个内核](/docs/rules/kernel-compat)）、用到的别的插件。库、接口定义包、构建工具不是 home 里的插件，照[依赖怎么写](/docs/rules/deps)写 dev 或 `dependencies`。
 

@@ -48,6 +48,10 @@ export function apply(ctx: GwbContext): void {
 
 {/* ref file="../plugins/plugin-manager/src/pnpm.ts" lines="67-67" */}
 
+## 谁来查
+
+没有工具检查，只靠写插件的人自己守：清理漏了、promise 没返回，加载与发版都照样成功，现象是卸载或退出之后进程、定时器还在，或者写了一半的数据丢了。
+
 ## 为什么
 
 内核退出时只等插件返回的 promise，超过 5 秒就强制退出；没返回 promise 的清理，内核不会等它，写了一半的数据就丢在那里。数据写盘做成插件、不进内核，所以每个插件自己负责把自己的写盘在卸载前写完。

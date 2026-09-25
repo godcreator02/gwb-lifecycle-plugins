@@ -39,7 +39,9 @@ description: 页面 importmap 写死在内核包的页面入口 dist/index.html 
 
 {/* ref file="../plugins/devkit/template/pkg/tests/artifact.test.ts.tpl" lines="167-200" */}
 
-## 发版前怎么查
+## 谁来查
+
+模板带的产物测试在被生成的仓里随 `pnpm check` 查浏览器侧的包名 import 与颜色类（见上一节）；手抄外置名单本身没有检查，抄错的后果由下面这道拦住。
 
 `devkit.release` 对浏览器侧产物（`dist/client.js` 顺着相对 import 走到的文件）里的每个包名 import，拿内核包页面入口里 importmap 的键比对。页面入口从包目录的 `node_modules/@godcreator/gwb-kernel-desktop/dist/index.html` 现读，读不到就拒，提示 peer 写上内核包、再 `pnpm install`（细节见[发正式版](/docs/devkit/release)）：
 
