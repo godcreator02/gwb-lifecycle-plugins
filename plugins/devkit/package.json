@@ -1,6 +1,6 @@
 {
   "name": "@godcreator/gwb-devkit",
-  "version": "0.20.0",
+  "version": "0.21.0",
   "author": {
     "name": "godcreator"
   },
@@ -23,6 +23,8 @@
   "gwb": {
     "title": "开发套件"
   },
+  "//publishConfig": "devkit.release 发到这里（团队源）；发布 token 写在用户级 ~/.npmrc",
+  "publishConfig": { "registry": "https://git.tianshen02.online:28377/api/packages/godcreator/npm/" },
   "scripts": {
     "//build": "两步：esbuild 把 node 侧打成一个 dist/index.js（外置 node 内置模块、electron、cordis 与 peer 里的包，其余打包进去），tsc 只输出类型声明",
     "build": "node build.ts && tsc -p tsconfig.json --emitDeclarationOnly",

@@ -32,7 +32,7 @@ devkit 没有任何特权：装进 home 才有它的命令，加载不成功就�
 
 ## 写插件只有一条路：打包、安装、验证
 
-每个插件都在自己的仓里开发，按 `files` 白名单打成包，再装进 home 验证：开发版打成包文件、经目标 home 的插件管理装进隔离 home，正式版发到包的发布目标（`publishConfig.registry`，没写是团队源）、再装进日常用的 home。**安装这一步本身就在验证**：`exports` 漏了一个子路径、`files` 少带了一个目录，只有装出来才会暴露；在仓里用相对路径直接加载，这些问题一个都看不到。
+每个插件都在自己的仓里开发，按 `files` 白名单打成包，再装进 home 验证：开发版打成包文件、经目标 home 的插件管理装进隔离 home，正式版发到包的发布目标（`publishConfig.registry`）、再装进日常用的 home。**安装这一步本身就在验证**：`exports` 漏了一个子路径、`files` 少带了一个目录，只有装出来才会暴露；在仓里用相对路径直接加载，这些问题一个都看不到。
 
 推出了：
 
@@ -45,15 +45,15 @@ devkit 没有任何特权：装进 home 才有它的命令，加载不成功就�
 
 ## 包名与发到哪用 npm 的标准字段
 
-包的身份就是 `package.json` 的 `name`，发到哪就是 `publishConfig.registry`，不另造配置。`devkit.scaffold` 的 `scope`、`registry` 两个参数写的就是这两个字段（缺省 `@godcreator` 与团队源）；`devkit.release` 照每个包自己的 `publishConfig.registry` 发，没写的发到团队源；开发版不经过任何源。没有团队源发布权限的开发者给自己的范围与源，就能走完建仓、改一版看一版、发正式版（[包名范围与发布目标交给开发者](/trajectory/2026-09-25-scope-and-publish-target)）。
+包的身份就是 `package.json` 的 `name`，发到哪就是 `publishConfig.registry`，不另造配置。`devkit.scaffold` 的 `scope`、`registry` 两个参数写的就是这两个字段（缺省 `@godcreator` 与团队源）；`devkit.release` 照每个包自己的 `publishConfig.registry` 发；开发版不经过任何源。没有团队源发布权限的开发者给自己的范围与源，就能走完建仓、改一版看一版、发正式版（[包名范围与发布目标交给开发者](/trajectory/2026-09-25-scope-and-publish-target)）。
 
 推出了：
 
-- **没写 `publishConfig.registry` 就是团队源**：生态里建仓早于这个字段的仓都没写，不能因此全部拦住；这是写明的缺省值，不是猜测
+- **没写 `publishConfig.registry` 就拒发**：发到哪由包自己写明，不给缺省值，也不交给机器上 `~/.npmrc` 的范围行；报错里给出团队源地址作例子（[删掉给旧仓留的两个缺省值](/trajectory/2026-09-25-drop-legacy-defaults)）
 - **发版前检查不再只认 `@godcreator`**：peer 里的插件看清单的 `keywords` 判，不看包名范围，任何范围下的插件都和源上 latest 比同一条线；只有 dev 里的库仍只查 `@godcreator` 范围下的，外部开发者自己的库不强求
 - **问哪个源交给 `~/.npmrc`**：查别的包的 latest 不指定源，按用户级 `~/.npmrc` 的范围行找源；只有「这个版本号在发布目标上有没有」指定发布目标
 
-代价：发布目标写进包清单，发出去的包清单里也带着它；外部开发者装团队的插件、团队装外部开发者的插件，都得先把对方范围的源配进 `~/.npmrc`。
+代价：每个要发的包都得写 `publishConfig.registry`，发出去的包清单里也带着它；外部开发者装团队的插件、团队装外部开发者的插件，都得先把对方范围的源配进 `~/.npmrc`。
 
 ## 开发版只进隔离 home
 
@@ -130,9 +130,9 @@ devkit 没有任何特权：装进 home 才有它的命令，加载不成功就�
 
 - **建仓与加插件用同一份插件包模板** `template/pkg/`，两种命令生成的插件包格式一致靠这个，不靠纪律
 - **模板带的产物测试与发版前检查用同一套名单**：生成的插件包在被生成的仓里 `pnpm check` 就能查出发版时会被拒的包名 import（[模板与发版前检查](/docs/seams/template-release)）
-- **旧布局仓不专门迁**，改到哪个迁哪个；`devkit.scaffold.plugin` 拒绝往旧布局仓里加插件，报错里写着怎么迁
+- **`devkit.dev` 与 `devkit.release` 的 `packages` 必给**：要装、要发的包目录由调用方列出，不给就拒；`devkit.scaffold.plugin` 只往 `pnpm-workspace.yaml` 里有 `plugins/*` 的仓里加插件（[删掉给旧仓留的两个缺省值](/trajectory/2026-09-25-drop-legacy-defaults)）
 
-代价：旧布局仓会和新布局长期并存；workspace 仓发版与 `devkit.dev` 都要给 `packages`。
+代价：不是 workspace 布局的仓用不了这几条命令，要先照模板迁成 workspace 仓。
 
 ## 借别的插件只借命令名
 

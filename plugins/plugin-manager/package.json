@@ -20,6 +20,8 @@
     "skills",
     "src"
   ],
+  "//publishConfig": "devkit.release 发到这里（团队源）；发布 token 写在用户级 ~/.npmrc",
+  "publishConfig": { "registry": "https://git.tianshen02.online:28377/api/packages/godcreator/npm/" },
   "scripts": {
     "build": "node -e \"require('fs').rmSync('dist',{recursive:true,force:true})\" && tsc -p tsconfig.build.json",
     "typecheck": "tsc --noEmit -p tsconfig.json",

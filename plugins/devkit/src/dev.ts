@@ -350,7 +350,7 @@ export interface DevInput {
   home: string
   /** 仓根。构建在这里运行 */
   repoDir: string
-  /** 要装的包目录，相对仓根。空表＝仓根自己 */
+  /** 要装的包目录，相对仓根。至少一个，命令入口 `packagesArgOf` 查过 */
   packages: string[]
   /** 刷新之后等页面上这个选择器出现才算刷回来了。不给就只等 readyState */
   waitFor?: string
@@ -441,9 +441,8 @@ async function probeTargetHome(input: DevInput, deps: DevDeps): Promise<Failure 
  * 这次的包文件在目标 home 里还不存在（同一路径覆盖写，pnpm 全部退出码 0 但装着旧代码）
  */
 function planDevPackages(input: DevInput, homeDir: string, deps: DevDeps): Failure | PlannedDevPackage[] {
-  const dirs = input.packages.length > 0 ? input.packages : ['.']
   const planned: PlannedDevPackage[] = []
-  for (const rel of dirs) {
+  for (const rel of input.packages) {
     const pkgDir = path.resolve(input.repoDir, rel)
     const manifest = parseManifest(deps.readText(path.join(pkgDir, 'package.json')))
     if (manifest === undefined) {

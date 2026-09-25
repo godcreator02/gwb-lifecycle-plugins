@@ -39,6 +39,8 @@ const HOME_NAME = 'bn-2609111200'
 /** 本插件自己所在的 home。真机上多半是 default，那时 default 那条检查先拒；这里换个名字，让「目标就是自己」那条单独测得到 */
 const OWN = 'D:/fake-homes/console-2609111100'
 const PKG = '@godcreator/gwb-fake'
+/** 插件包在仓里的目录，相对仓根 */
+const PLUGIN_DIR = 'plugins/fake'
 const PM = '@godcreator/gwb-plugin-manager'
 const KERNEL = '@godcreator/gwb-kernel-desktop'
 const PNPM = 'C:\\Users\\u\\AppData\\Local\\pnpm\\bin\\pnpm.exe'
@@ -88,7 +90,7 @@ function fake(options: FakeOptions = {}): Fake {
   const commandArgs: { command: string; args: unknown }[] = []
   let silent = 0
   const files: Record<string, string> = {
-    [path.resolve(REPO, 'package.json')]: pluginManifest(PKG),
+    [path.resolve(REPO, PLUGIN_DIR, 'package.json')]: pluginManifest(PKG),
     [path.resolve(HOME, 'package.json')]: HOME_WITH_PKG,
     [path.resolve(installedManifest(HOME, PKG))]: JSON.stringify({ name: PKG, version: '0.3.1' }),
     ...options.files,
@@ -183,7 +185,7 @@ function isOk(reply: unknown): boolean {
 }
 
 function input(over: Partial<DevInput> = {}): DevInput {
-  return { home: HOME_NAME, repoDir: REPO, packages: [], ownHome: OWN, ...over }
+  return { home: HOME_NAME, repoDir: REPO, packages: [PLUGIN_DIR], ownHome: OWN, ...over }
 }
 
 /** 一个包有一条正在运行的条目的表 */
@@ -323,7 +325,7 @@ describe('一次流程', () => {
     expect(deps.commandArgs.map((one) => one.command)).toEqual(['plugin-manager.update', 'plugin-manager.list'])
     expect(deps.commandArgs[0]?.args).toEqual({ specs: { [PKG]: devPackSpec(packFileName(PKG, DEV)) } })
     expect(deps.calls).toContain(`cdp ${HOME_NAME} reload #app`)
-    expect(out.data.shipped).toEqual([{ pkg: PKG, version: DEV, dir: path.resolve(REPO), packFile: PACK_PATH, via: 'update' }])
+    expect(out.data.shipped).toEqual([{ pkg: PKG, version: DEV, dir: path.resolve(REPO, PLUGIN_DIR), packFile: PACK_PATH, via: 'update' }])
     expect(out.data.update).toMatchObject({ ok: true, selfDeferred: false })
     expect(out.data.evidence).toMatchObject({ ok: true, installed: [{ pkg: PKG, expected: DEV, actual: DEV }] })
     // 最后一步是取证
@@ -359,7 +361,7 @@ describe('一次流程', () => {
   })
 
   it('库包（keywords 里没有 gwb-plugin）直接拒，什么都不打包', async () => {
-    const deps = fake({ files: { [path.resolve(REPO, 'package.json')]: JSON.stringify({ name: '@godcreator/gwb-lib', version: '0.1.0', files: ['dist'] }) } })
+    const deps = fake({ files: { [path.resolve(REPO, PLUGIN_DIR, 'package.json')]: JSON.stringify({ name: '@godcreator/gwb-lib', version: '0.1.0', files: ['dist'] }) } })
     const out = await runDev(input(), deps)
     expect(out).toMatchObject({ ok: false })
     if (!out.ok) expect(out.error).toContain('库打包进用它的插件')
@@ -391,7 +393,7 @@ describe('一次流程', () => {
   })
 
   it('selfDeferred：轮询 plugin-manager.list 到插件管理的条目重新答话且 active，再刷新', async () => {
-    const files = { [path.resolve(REPO, 'package.json')]: pluginManifest(PM, '0.12.0'), [path.resolve(installedManifest(HOME, PM))]: JSON.stringify({ name: PM, version: '0.12.0' }) }
+    const files = { [path.resolve(REPO, PLUGIN_DIR, 'package.json')]: pluginManifest(PM, '0.12.0'), [path.resolve(installedManifest(HOME, PM))]: JSON.stringify({ name: PM, version: '0.12.0' }) }
     const table = [{ pkg: PM, entries: [{ entryId: 'home:plugin-manager', active: true }] }]
     const deps = fake({
       files,
@@ -519,7 +521,7 @@ describe('装内核包', () => {
   })
 
   it('内核包和插件一起装：一条 update，重启一次', async () => {
-    const files = { ...kernelFiles(), [path.resolve(REPO, 'plugins/fake', 'package.json')]: pluginManifest(PKG) }
+    const files = { ...kernelFiles(), [path.resolve(REPO, PLUGIN_DIR, 'package.json')]: pluginManifest(PKG) }
     const deps = fake({ files, runningKernel: kernelDev, update: restartReceipt })
     const out = await runDev(input({ packages: [KERNEL_DIR, 'plugins/fake'] }), deps)
     expect(out.ok).toBe(true)

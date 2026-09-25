@@ -22,7 +22,7 @@ description: 写新插件、改插件、在隔离 home 里验证改动时读；�
 
 ## 改已有插件
 
-1. 仓根就是插件包的旧布局仓，先迁成 workspace 仓：插件包的文件 `git mv` 进 `plugins/<短名>/`，仓根换成 `private: true` 的 `package.json`，照 `devkit.scaffold` 生成的仓对齐
+1. 仓得是 workspace 布局：仓根是 `private: true` 的 `package.json`，`pnpm-workspace.yaml` 的 `packages` 里有 `plugins/*`，插件包在 `plugins/<短名>/`。不是的先照 `devkit.scaffold` 生成的仓迁过来——`devkit.dev`、`devkit.release` 只收 `packages` 里列出的包目录，`devkit.scaffold.plugin` 也只认这种仓
 2. 改代码，守「写插件的规矩」。加减了服务，同步改类型声明里给 `Context` 补的那几项；加减了命令、服务、说明书，同步改文档站插件页（同第一节第 4 步）
 3. 仓根 `pnpm build`、`pnpm check`
 
@@ -31,7 +31,7 @@ description: 写新插件、改插件、在隔离 home 里验证改动时读；�
 ## 改一版看一版
 
 1. 开一个隔离 home：`devkit.home.new {"short":"<插件短名或这次验什么>"}`，回执里是 home 名 `<short>-<yyMMddHHmm>`，自带内核包（运行这条命令的内核那个版本）、`cordis` 与一套基础插件。机器重启后回到已有的 home 用 `devkit.home.open {"name":"<名>"}`。回执里带着现有 home 清单，验完的旧 home 这时用 `devkit.home.rm {"name":"<名>","force":true}` 删掉
-2. `devkit.dev {"home":"<home 名>","dir":"<仓根>","packages":["plugins/<短名>"]}`。`packages` 相对仓根，只给插件与内核包的目录（库打包进用它的插件，给了直接拒），workspace 仓必须给。它把每个包打成包文件放进那个 home 的 `dev-packs`，经那个 home 的插件管理装：已装的包走 `plugin-manager.update`，还没装的插件走 `plugin-manager.install` 新建条目，不用自己建
+2. `devkit.dev {"home":"<home 名>","dir":"<仓根>","packages":["plugins/<短名>"]}`。`packages` 必给，相对仓根，只给插件与内核包的目录（库打包进用它的插件，给了直接拒）。它把每个包打成包文件放进那个 home 的 `dev-packs`，经那个 home 的插件管理装：已装的包走 `plugin-manager.update`，还没装的插件走 `plugin-manager.install` 新建条目，不用自己建
 3. 在那个 home 里调新写的命令看回执：`devkit.cdp {"args":["<home 名>","cmd","<命令名>","<JSON 参数>"]}`；界面上的效果按「在页面里取证」做
 
 **完成判据**：`devkit.dev` 回执 `ok: true`（`evidence.installed` 是这次打包的开发版号、条目 `ACTIVE`、日志新增部分没有 error）；`devkit.cdp … cmd plugin-manager.list` 里这个包的条目 `active` 为 true、版本是这次的开发版号；新命令的回执与预期一致。
@@ -54,7 +54,7 @@ description: 写新插件、改插件、在隔离 home 里验证改动时读；�
 ## 参考：约定与容易出错的地方
 
 * **是不是插件看 `keywords`**：插件写 `["gwb", "gwb-plugin"]`（模板已带），库与共享包只写 `["gwb"]`。插件管理的「可装」列表按 `gwb-plugin` 筛，不看包名范围
-* **包名与发到哪用 npm 的标准字段**：包的身份是 `package.json` 的 `name`，发到哪是 `publishConfig.registry`（没写就是团队源）。别的包名范围的插件要装进 home，那个范围的源得先配进 `~/.npmrc`（`plugin-manager.source.add`）
+* **包名与发到哪用 npm 的标准字段**：包的身份是 `package.json` 的 `name`，发到哪是 `publishConfig.registry`（每个要发的包都得写，没写 `devkit.release` 就拒发；模板已写）。别的包名范围的插件要装进 home，那个范围的源得先配进 `~/.npmrc`（`plugin-manager.source.add`）
 * **内核的接口类型从内核包的包根 `import type`**：`import type { GwbContext } from '@godcreator/gwb-kernel-desktop'`，peer 里写着内核包，不另写 dev。包根只导出类型，`isRecord`、`requireKernel` 这类无状态小函数由插件自带一份（devkit 的 `src/vocab.ts`）
 * **node 侧的测试只 import `.ts`**：node 侧的 tsc 没开 jsx
 * **`apply` 里的 async 自己 catch 并写日志**：reject 了不报错，现象是「加载了但什么都没发生」

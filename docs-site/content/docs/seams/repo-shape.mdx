@@ -15,7 +15,7 @@ description: 连接 devkit.dev、devkit.release、devkit.scaffold.plugin 与被�
 - `<仓根>/package.json`：`devkit.dev` 与 `devkit.release` 在仓根运行 `pnpm build`
 - `<仓根>/pnpm-workspace.yaml`：组装发布内容时从包目录往上找到的第一个有它的目录是仓根；`devkit.scaffold.plugin` 要求它的 `packages` 里有 `plugins/*`
 - `plugins/<短名>/`：`devkit.scaffold.plugin` 把插件包写到这里，目录必须还不存在
-- `<包>/package.json`：`files` 是产物清单，`keywords` 含 `gwb-plugin` 表示插件，node 侧入口是 `exports["."]`
+- `<包>/package.json`：`files` 是产物清单，`keywords` 含 `gwb-plugin` 表示插件，node 侧入口是 `exports["."]`，`publishConfig.registry` 是 `devkit.release` 的发布目标
 - `<包>/dist/client.js` 是浏览器侧产物入口，`<包>/node_modules/` 里装着 peer 里的包、内核包的页面入口 `dist/index.html` 给出页面 importmap 的名字，这两条只有 `devkit.release` 用
 </Diagram>
 
@@ -24,6 +24,12 @@ description: 连接 devkit.dev、devkit.release、devkit.scaffold.plugin 与被�
 **仓根能 `pnpm build`**：`devkit.dev` 与 `devkit.release` 都在调用方给的 `dir` 上运行 `pnpm build`，不在包目录里构建；失败就停：
 
 {/* ref file="../plugins/devkit/src/dev.ts" lines="629-631" */}
+
+**包目录由调用方列出**：`devkit.dev` 与 `devkit.release` 的 `packages` 必给，是非空的字符串数组，每项是相对仓根的包目录；不给或写错直接拒，不猜哪些是包：
+
+{/* has file="../plugins/devkit/tests/commands.test.ts" text="devkit.dev 与 devkit.release：packages 必给，要是非空的字符串数组，不给或写错直接拒" */}
+
+**要发的包写了 `publishConfig.registry`**：`devkit.release` 发到这个地址，没写、或写的不是 http(s) 地址就拒（见[pnpm 与包源](/docs/seams/pnpm-registry)）。
 
 **`files` 白名单就是产物清单**：构建之后，白名单里不带 `!`、不带通配的每一项都得在包目录里；组装发布内容与开发版的包文件时只复制这些，带通配的直接拒：
 
@@ -65,7 +71,7 @@ description: 连接 devkit.dev、devkit.release、devkit.scaffold.plugin 与被�
 
 devkit 保证：
 - 除了 `pnpm build` 生成的构建产物与 `devkit.scaffold.plugin` 新写的插件包，这些命令不改仓里的文件；发布内容与开发版的包文件在系统临时目录里组装
-- 假设不满足时报错并说明缺了什么，不替调用方补（不补构建、不猜包目录、不改 `files`）
+- 假设不满足时报错并说明缺了什么，不替调用方补（不补构建、不猜包目录、不改 `files`、不给发布目标缺省值）
 
 被处理的仓需要满足上面这几条，**全部靠约定**：没有一份检查把它们合在一起查。建仓模板生成的仓天然满足；其余只写在各命令的 `usage` 与说明书「gwb-devkit」「gwb-release」里。
 

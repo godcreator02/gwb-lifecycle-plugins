@@ -20,7 +20,7 @@ description: devkit.dev 一条命令把工作区的改动换进另一个 home �
 - 取证之后读回执、回到改代码，再调一次 `devkit.dev`；任何一步失败当场停，回执写明停在哪一步
 </Diagram>
 
-**只收插件与内核包。** 每个包目录的清单要读得出、`files` 里的产物都在；`keywords` 里没有 `gwb-plugin`、也不是内核包的，直接拒：库打包进用它的插件，不单独装进 home。内核包 `peerDependencies.cordis` 必须是精确版本号，home 根上的 cordis 只能照精确版本装。
+**只收插件与内核包，包目录由调用方列出。** `packages` 必给，是非空的字符串数组，每项是相对仓根的包目录，不给或写错直接拒。每个包目录的清单要读得出、`files` 里的产物都在；`keywords` 里没有 `gwb-plugin`、也不是内核包的，直接拒：库打包进用它的插件，不单独装进 home。内核包 `peerDependencies.cordis` 必须是精确版本号，home 根上的 cordis 只能照精确版本装。
 
 {/* ref file="../plugins/devkit/src/dev.ts" lines="442-478" */}
 

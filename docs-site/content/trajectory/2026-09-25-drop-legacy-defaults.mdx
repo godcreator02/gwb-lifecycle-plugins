@@ -1,0 +1,41 @@
+---
+title: devkit.release 与 devkit.dev 删掉给旧仓留的两个缺省值：包必须写 publishConfig.registry，packages 必给
+born-at: 2026-09-25T13:45
+type: choice
+parent: [2026-09-08-gwb-devkit]
+label: 删旧仓缺省值
+domain: 发版
+---
+
+pivots-from:: [包名范围与发布目标交给开发者](2026-09-25-scope-and-publish-target.md)
+pivots-from:: [只有一种仓形](2026-09-19-one-shape-workspace-always.md)
+
+## 背景
+
+两条命令各有一个只为旧仓留着的缺省值：
+
+- `devkit.release`：包的 `package.json` 没写 `publishConfig.registry` 就发到团队源。当时的理由是生态里建仓早于这个字段的仓都没写，不能因此全部拦住
+- `devkit.dev` 与 `devkit.release`：不给 `packages` 就把仓根当成插件包，对应的是仓根本身就是插件包的旧布局仓；workspace 仓本来就必须给
+
+人定：这两个缺省值都删，不考虑还没迁的下游仓。
+
+## 结论与边界
+
+devkit 0.21.0（写卡时没发）：
+
+- **没写 `publishConfig.registry` 就拒发**：报错写明在 `package.json` 里加 `"publishConfig": { "registry": "<源的地址>" }`，并给出团队源地址作例子。团队源的地址常量留着，建仓不给 `registry` 参数时仍写它
+- **`packages` 必给**：必须是非空数组、每一项是非空字符串，不给或写错直接拒，不再丢掉写错的项
+- 本仓两个包的 `package.json` 同一次补上 `publishConfig.registry`（团队源），不然本仓自己发不了
+
+按说明书 gwb-release，这两条都是命令参数由可选改必选、调用方依赖的语义变了，升 x。
+
+## 否掉的候选
+
+- **没写 `publishConfig.registry` 时交给 pnpm 按 `~/.npmrc` 的范围行找源**：那样发到哪取决于每台机器的配置，和「发到哪由包自己写明」相反
+- **不给 `packages` 时自动找 `plugins/*` 下的全部包**：发版要按依赖顺序，自动找出来的顺序得另定规则；而且一次发哪几个包应当由调用方说清
+
+## 代价与遗留
+
+- 旧布局仓（仓根就是插件包）用不了 `devkit.dev` 与 `devkit.release` 了，要先迁成 workspace 仓
+- 每个要发的包都得写 `publishConfig.registry`；生态里没写的仓，下次发版被拒，照报错补上一行
+- 下游仓都还没通知（人定这一轮不考虑下游）

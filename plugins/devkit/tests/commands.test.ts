@@ -102,15 +102,28 @@ describe('参数不对：回 ok false，带上那条命令的用法', () => {
 
   it('devkit.dev：给端口当场拒，home 名不合格也拒', async () => {
     const devkit = mountDevkit({ homeDir: tempDir('dk-home-') })
-    expect((await devkit.run('devkit.dev', { cdp: 9401, dir: 'D:\\x' })).error).toContain('这儿不收端口了，只收 home 名')
-    expect((await devkit.run('devkit.dev', { home: 'Bad' })).error).toContain('home 缺了或不是个合格的 home 名')
+    expect((await devkit.run('devkit.dev', { cdp: 9401, dir: 'D:\\x', packages: ['plugins/x'] })).error).toContain('这儿不收端口了，只收 home 名')
+    expect((await devkit.run('devkit.dev', { home: 'Bad', packages: ['plugins/x'] })).error).toContain('home 缺了或不是个合格的 home 名')
   })
 
   it('devkit.release：dir 不是绝对路径、不在，都拒', async () => {
     const devkit = mountDevkit({ homeDir: tempDir('dk-home-') })
-    expect((await devkit.run('devkit.release', { dir: 'relative' })).error).toContain('dir 要是仓根的绝对路径')
+    expect((await devkit.run('devkit.release', { dir: 'relative', packages: ['plugins/x'] })).error).toContain('dir 要是仓根的绝对路径')
     const missing = path.join(tempDir('dk-release-'), 'nope')
-    expect((await devkit.run('devkit.release', { dir: missing })).error).toBe(`${missing} 不在——dir 给的是仓根，不是包目录`)
+    expect((await devkit.run('devkit.release', { dir: missing, packages: ['plugins/x'] })).error).toBe(`${missing} 不在——dir 给的是仓根，不是包目录`)
+  })
+
+  it('devkit.dev 与 devkit.release：packages 必给，要是非空的字符串数组，不给或写错直接拒', async () => {
+    const devkit = mountDevkit({ homeDir: tempDir('dk-home-') })
+    const dir = tempDir('dk-repo-')
+    const wrongPackages: unknown[] = [undefined, [], 'plugins/x', ['plugins/x', 1], ['']]
+    for (const name of ['devkit.dev', 'devkit.release']) {
+      for (const packages of wrongPackages) {
+        const receipt = await devkit.run(name, { home: 'x-2609250000', dir, ...(packages === undefined ? {} : { packages }) })
+        expect(receipt.ok, `${name} ${JSON.stringify(packages)}`).toBe(false)
+        expect(receipt.error, `${name} ${JSON.stringify(packages)}`).toContain('packages 必给')
+      }
+    }
   })
 })
 

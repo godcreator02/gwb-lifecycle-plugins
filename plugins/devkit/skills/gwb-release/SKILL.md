@@ -44,7 +44,7 @@ description: 升版本号、改依赖版本号、发版时读。
 
 1. 在隔离 home 里验证过这一版（说明书 `gwb-devkit` 的「改一版看一版」）。插件包 peer 里内核包 `@godcreator/gwb-kernel-desktop` 的范围 `^x.y.z` 要包含验证时那个内核，不包含就改成 `^<那个内核的版本号>`
 2. 按第一节升版本号并提交，仓根 git 工作区干净
-3. `devkit.release {"dir":"<仓根>","packages":["plugins/<短名>"]}`。`packages` 相对仓根、按依赖顺序（被依赖的在前），workspace 仓必须给，例：`["packages/model","packages/engine","plugins/gwb-bn-core"]`。每个包发到它 `package.json` 的 `publishConfig.registry`，没写就是团队源；发布 token 要在用户级 `~/.npmrc` 里
+3. `devkit.release {"dir":"<仓根>","packages":["plugins/<短名>"]}`。`packages` 必给，相对仓根、按依赖顺序（被依赖的在前），例：`["packages/model","packages/engine","plugins/gwb-bn-core"]`。每个包发到它 `package.json` 的 `publishConfig.registry`，没写就拒发（团队源写 `"publishConfig": { "registry": "https://git.tianshen02.online:28377/api/packages/godcreator/npm/" }`）；发布 token 要在用户级 `~/.npmrc` 里
 4. 回执 `ok: false`：发版前检查按包列全了没过的条目，一个包都没发。逐条改完、`pnpm check`、提交，再调第 3 步
 5. 升级日常用的 default：人在插件管理窗格点「全部更新」，或调 `plugin-manager.update {"all":true}`（只升几个给 `{"only":["<包名>"]}`，装指定版本给 `{"specs":{"<包名>":"<版本或 file:路径>"}}`）。新插件第一次装用 `plugin-manager.install {"pkg":"<包名>"}`。升到 gwb-mcp 自己时连接会断，重连后再核对
 
@@ -63,7 +63,7 @@ description: 升版本号、改依赖版本号、发版时读。
 
 ### `devkit.release` 做什么
 
-依次：仓根 git 工作区干净 → 仓根 `pnpm build` → 照 `files` 白名单检查产物在不在 → 同一个版本号已在发布目标上就拒 → 发版前检查 → 在临时目录组装发布内容、发到发布目标并打 `latest`（`workspace:` 依赖写成 `^`：同一次发的写 `^新版本号`，其余写 `^<工作区里的版本号>`）。发布目标是包 `package.json` 的 `publishConfig.registry`，没写就是团队源，写了但不是 http(s) 地址就拒；它写进发布内容清单的 `publishConfig.registry`，命令行不带 `--registry`。它不改仓里任何文件，只往各包的发布目标发包、不改任何 home；「运行中的内核」指调它的那个 home 里的内核。
+依次：仓根 git 工作区干净 → 仓根 `pnpm build` → 照 `files` 白名单检查产物在不在 → 同一个版本号已在发布目标上就拒 → 发版前检查 → 在临时目录组装发布内容、发到发布目标并打 `latest`（`workspace:` 依赖写成 `^`：同一次发的写 `^新版本号`，其余写 `^<工作区里的版本号>`）。发布目标是包 `package.json` 的 `publishConfig.registry`，没写、或写的不是 http(s) 地址就拒；它写进发布内容清单的 `publishConfig.registry`，命令行不带 `--registry`。它不改仓里任何文件，只往各包的发布目标发包、不改任何 home；「运行中的内核」指调它的那个 home 里的内核。
 
 发版前检查，每个包：
 
@@ -85,13 +85,13 @@ description: 升版本号、改依赖版本号、发版时读。
 
 ### 手工发版
 
-要运行仓里 `prepublishOnly` 钩子时才手工发：在包目录 `pnpm publish --no-git-checks`，源由包清单的 `publishConfig.registry` 决定，没写就由用户级 `~/.npmrc` 的 scope 行决定，命令行不写 `--registry`。手工发版不做发版前检查；`prepublishOnly: pnpm build` 要留着，少了它会把上一版的 `dist/` 原样发出去而且不报错。
+要运行仓里 `prepublishOnly` 钩子时才手工发：在包目录 `pnpm publish --no-git-checks`，源由包清单的 `publishConfig.registry` 决定，命令行不写 `--registry`。手工发版不做发版前检查；`prepublishOnly: pnpm build` 要留着，少了它会把上一版的 `dist/` 原样发出去而且不报错。
 
 ### 机器上的两处配置
 
 都不在任何仓里，换机器或重装会丢：
 
-* **用户级 `~/.npmrc`**：`@godcreator` 的 scope 行与各个源的发布 token。发版前检查问 `@godcreator` 包的 latest 靠这一行找源，没有它就问不出、拒发。仓里不配 `.npmrc`；发到哪写在包自己的 `publishConfig.registry`（`devkit.scaffold` 的 `registry` 参数写的，没写就是团队源）
+* **用户级 `~/.npmrc`**：`@godcreator` 的 scope 行与各个源的发布 token。发版前检查问 `@godcreator` 包的 latest 靠这一行找源，没有它就问不出、拒发。仓里不配 `.npmrc`；发到哪写在每个要发的包自己的 `publishConfig.registry`，没写 `devkit.release` 就拒发（`devkit.scaffold` 生成的插件包已照它的 `registry` 参数写好，不给参数写团队源）
 * **用户级 pnpm 配置**（`pnpm config get globalconfig` 报位置）：`minimumReleaseAgeExclude` 放行 `'@godcreator/*'`。pnpm 11 起刚发的包要放一天才准装，丢了它的症状是新机器上装不上刚发的包
 
 仓与 home 的 `pnpm-workspace.yaml` 只写各自需要的项，`minimumReleaseAgeExclude` 与 `strictPeerDependencies` 都留给用户级配置与 pnpm 默认值：`pnpm-workspace.yaml` 里写了哪一项，就逐项覆盖用户级的同名项。

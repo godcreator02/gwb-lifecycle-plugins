@@ -42,17 +42,20 @@ const KERNEL_PEER = { [KERNEL_PACKAGE]: '^0.3.0' }
 
 const EXPORTS = { '.': { types: './dist/index.d.ts', default: './dist/index.js' } }
 
+/** 发布目标：每个要发的包都得写 */
+const PUBLISH_CONFIG = { registry: TEAM_REGISTRY }
+
 function manifestOf(name: string, version: string, files: string[] = ['dist']): string {
-  return JSON.stringify({ name, version, files, exports: EXPORTS })
+  return JSON.stringify({ name, version, files, exports: EXPORTS, publishConfig: PUBLISH_CONFIG })
 }
 
 function full(name: string, version: string, peerDependencies: Record<string, string>, devDependencies: Record<string, string>): string {
-  return JSON.stringify({ name, version, files: ['dist'], exports: EXPORTS, peerDependencies, devDependencies })
+  return JSON.stringify({ name, version, files: ['dist'], exports: EXPORTS, publishConfig: PUBLISH_CONFIG, peerDependencies, devDependencies })
 }
 
 /** 插件包的清单：keywords 含 gwb-plugin；gwb、其余字段给了才写 */
 function pluginManifestOf(name: string, version: string, gwb?: Record<string, unknown>, extra: Record<string, unknown> = {}): string {
-  return JSON.stringify({ name, version, files: ['dist'], exports: EXPORTS, keywords: ['gwb', 'gwb-plugin'], ...(gwb === undefined ? {} : { gwb }), ...extra })
+  return JSON.stringify({ name, version, files: ['dist'], exports: EXPORTS, publishConfig: PUBLISH_CONFIG, keywords: ['gwb', 'gwb-plugin'], ...(gwb === undefined ? {} : { gwb }), ...extra })
 }
 
 /** 别的范围下的插件：peer 里的插件不分范围，都和源上 latest 比 */
@@ -476,9 +479,9 @@ describe('发正式版', () => {
     if (!out.ok) expect(out.error).toContain('git')
   })
 
-  it('仓根不是个能发的包时说清「包目录给的是相对仓根的路径」', async () => {
+  it('包目录下没有能读的 package.json 时说清「包目录给的是相对仓根的路径」', async () => {
     const deps = fake()
-    const out = await runRelease({ repoDir: REPO, runningKernel: KERNEL, packages: [] }, deps)
+    const out = await runRelease({ repoDir: REPO, runningKernel: KERNEL, packages: ['nope'] }, deps)
     expect(out).toMatchObject({ ok: false })
     if (!out.ok) expect(out.error).toContain('相对仓根')
   })
@@ -520,11 +523,20 @@ describe('发正式版', () => {
 describe('发布目标（GWB-17）', () => {
   const LOCAL = 'http://localhost:9999/'
 
-  it('publishTargetOf：写了 publishConfig.registry 就是它；没写 publishConfig 或没写 registry 是团队源', () => {
+  it('publishTargetOf：发布目标就是 publishConfig.registry', () => {
     expect(publishTargetOf({ publishConfig: { registry: LOCAL } })).toEqual({ ok: true, registry: LOCAL })
     expect(publishTargetOf({ publishConfig: { registry: 'https://npm.example.com/api/npm' } })).toEqual({ ok: true, registry: 'https://npm.example.com/api/npm' })
-    expect(publishTargetOf({})).toEqual({ ok: true, registry: TEAM_REGISTRY })
-    expect(publishTargetOf({ publishConfig: { access: 'public' } })).toEqual({ ok: true, registry: TEAM_REGISTRY })
+  })
+
+  it('publishTargetOf：没写 publishConfig 或没写 registry：拒，报错写清要写什么、给出团队源地址作例子', () => {
+    for (const doc of [{}, { publishConfig: { access: 'public' } }]) {
+      const got = publishTargetOf(doc)
+      expect(got.ok, JSON.stringify(doc)).toBe(false)
+      if (!got.ok) {
+        expect(got.error).toContain('没写 publishConfig.registry')
+        expect(got.error).toContain(`"publishConfig": { "registry": "${TEAM_REGISTRY}" }`)
+      }
+    }
   })
 
   it('publishTargetOf：publishConfig 不是对象、registry 不是 http(s) 地址：拒，不猜', () => {
@@ -536,7 +548,7 @@ describe('发布目标（GWB-17）', () => {
     }
   })
 
-  it('每个包发到自己的发布目标：写了 publishConfig.registry 的发到它，没写的发到团队源；查「同号已在源上」问的也是它', async () => {
+  it('每个包发到自己的发布目标；查「同号已在源上」问的也是它', async () => {
     const deps = fake({
       files: {
         [path.resolve(REPO, 'a/package.json')]: JSON.stringify({ name: A, version: '0.1.0', files: ['dist'], exports: EXPORTS, publishConfig: { registry: LOCAL } }),
@@ -548,6 +560,21 @@ describe('发布目标（GWB-17）', () => {
     expect(deps.calls).toContain(`已发过? ${B}@0.2.0 → ${TEAM_REGISTRY}`)
     expect(deps.calls).toContain(`publish 0.1.0 → ${LOCAL}`)
     expect(deps.calls).toContain(`publish 0.2.0 → ${TEAM_REGISTRY}`)
+  })
+
+  it('有一个包没写 publishConfig.registry：发之前拒，一个都不发，报错里点名是哪个包', async () => {
+    const deps = fake({
+      files: {
+        [path.resolve(REPO, 'b/package.json')]: JSON.stringify({ name: B, version: '0.2.0', files: ['dist'], exports: EXPORTS }),
+      },
+    })
+    const out = await runRelease({ repoDir: REPO, runningKernel: KERNEL, packages: ['a', 'b'] }, deps)
+    expect(out.ok).toBe(false)
+    if (!out.ok) {
+      expect(out.error).toContain(B)
+      expect(out.error).toContain('没写 publishConfig.registry')
+    }
+    expect(deps.calls.some((one) => one.startsWith('publish '))).toBe(false)
   })
 
   it('publishConfig.registry 写坏了：发之前拒，一个都不发，报错里点名是哪个包', async () => {

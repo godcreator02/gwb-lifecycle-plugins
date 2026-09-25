@@ -5,7 +5,7 @@ export const TEAM_SCOPE = '@godcreator'
 
 /**
  * 团队源：gitea 上 godcreator 组织的 npm 源，与用户级 `~/.npmrc` 里 `@godcreator` 那行同一个地址。
- * 建仓不给 registry 时写进生成的 `publishConfig.registry`；包清单没写 `publishConfig.registry` 的包发到这里
+ * 建仓不给 registry 时写进生成的 `publishConfig.registry`；`devkit.release` 拒没写这个字段的包时拿它作例子
  */
 export const TEAM_REGISTRY = 'https://git.tianshen02.online:28377/api/packages/godcreator/npm/'
 

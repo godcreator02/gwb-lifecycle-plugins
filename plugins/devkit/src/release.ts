@@ -32,7 +32,7 @@ export interface ReleaseDeps {
 export interface ReleaseInput {
   /** 仓根。构建与 git 检查都在这里运行 */
   repoDir: string
-  /** 要发的包目录，相对仓根，按依赖顺序（被依赖的排前面）。空表＝仓根自己 */
+  /** 要发的包目录，相对仓根，按依赖顺序（被依赖的排前面）。至少一个，命令入口 `packagesArgOf` 查过 */
   packages: string[]
   /** 运行中的内核版本号（devkit 自己的 `gwbKernel.version`）。插件包 peer 里内核包的范围必须包含它 */
   runningKernel: string
@@ -198,16 +198,15 @@ export function ticketManifestOf(text: string | undefined): ReleaseManifest | un
   }
 }
 
-/**
- * 包发到哪个源：清单里 `publishConfig.registry` 写的那个；没写 `publishConfig`、或里面没写 `registry` 的发到团队源
- * （`TEAM_REGISTRY`，生态里建仓早于这个字段的仓都没写）。写了但不是 http(s) 地址的拒，不猜
- */
+const MISSING_PUBLISH_TARGET = `没写 publishConfig.registry:发到哪个源由包自己写明,在 package.json 里加上 "publishConfig": { "registry": "<源的地址>" }(团队源是 "publishConfig": { "registry": "${TEAM_REGISTRY}" })`
+
+/** 包发到哪个源：清单里 `publishConfig.registry` 写的那个。没写、或写的不是 http(s) 地址都拒，不猜 */
 export function publishTargetOf(doc: Record<string, unknown>): { ok: true; registry: string } | { ok: false; error: string } {
   const publishConfig = doc['publishConfig']
-  if (publishConfig === undefined) return { ok: true, registry: TEAM_REGISTRY }
+  if (publishConfig === undefined) return { ok: false, error: MISSING_PUBLISH_TARGET }
   if (!isRecord(publishConfig)) return { ok: false, error: `publishConfig 要是对象，实得 ${JSON.stringify(publishConfig)}` }
   const registry = publishConfig['registry']
-  if (registry === undefined) return { ok: true, registry: TEAM_REGISTRY }
+  if (registry === undefined) return { ok: false, error: MISSING_PUBLISH_TARGET }
   if (typeof registry !== 'string' || parseHttpUrl(registry) === undefined) {
     return { ok: false, error: `publishConfig.registry 要是 http(s) 地址，实得 ${JSON.stringify(registry)}` }
   }
@@ -403,10 +402,9 @@ function peerManifestReader(pkgDir: string, deps: ReleaseDeps): (pkg: string) =>
  * `ranges` 是同一次发的包 → `^新版本号`
  */
 async function planPackages(input: ReleaseInput, deps: ReleaseDeps): Promise<Refusal | { planned: PlannedPackage[]; ranges: Record<string, string> }> {
-  const dirs = input.packages.length > 0 ? input.packages : ['.']
   const planned: PlannedPackage[] = []
   const ranges: Record<string, string> = {}
-  for (const rel of dirs) {
+  for (const rel of input.packages) {
     const pkgDir = path.resolve(input.repoDir, rel)
     const manifest = ticketManifestOf(deps.readText(path.join(pkgDir, 'package.json')))
     if (manifest === undefined) {

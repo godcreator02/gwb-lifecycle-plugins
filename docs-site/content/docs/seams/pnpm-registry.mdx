@@ -1,6 +1,6 @@
 ---
 title: 9 pnpm 与包源
-description: 连接 devkit、插件管理与 pnpm、npm 源、两份 npmrc、gitea 插件的设置：两个插件用同一个 pnpm——用户装在两个固定位置之一的 pnpm 12，按同一套规则找、核对版本，直接启动，关掉自动补装 peer；插件管理用它改 home，devkit 用它做 build / pack / publish / view / add；正式版发到包自己的 publishConfig.registry（没写是团队源，地址写在 devkit 里）、打 latest，开发版打成包文件放进目标 home；插件管理按 scope 从两份 npmrc 找源、调 registry 的检索接口找插件、读写机器级 ~/.npmrc 的包源，owner 写法按名字调 settings.get 读 gitea 分区
+description: 连接 devkit、插件管理与 pnpm、npm 源、两份 npmrc、gitea 插件的设置：两个插件用同一个 pnpm——用户装在两个固定位置之一的 pnpm 12，按同一套规则找、核对版本，直接启动，关掉自动补装 peer；插件管理用它改 home，devkit 用它做 build / pack / publish / view / add；正式版发到包自己的 publishConfig.registry（没写就拒发；团队源的地址写在 devkit 里，建仓缺省写它）、打 latest，开发版打成包文件放进目标 home；插件管理按 scope 从两份 npmrc 找源、调 registry 的检索接口找插件、读写机器级 ~/.npmrc 的包源，owner 写法按名字调 settings.get 读 gitea 分区
 ---
 
 **本页回答**：两个插件用的是哪一个 pnpm、怎么找到它、各拿它做什么；正式版发到哪个源、哪几处指定源、哪几处靠用户的 `~/.npmrc`；开发版与正式版怎么分开；插件管理找插件、配包源时读写哪两份 npmrc、怎么决定去哪条源检索、读 gitea 插件的哪两项设置。
@@ -48,11 +48,11 @@ description: 连接 devkit、插件管理与 pnpm、npm 源、两份 npmrc、git
 
 {/* ref file="../plugins/plugin-manager/src/pnpm-path.ts" lines="7-16" */}
 
-**发布目标**：每个包发到自己 `package.json` 的 `publishConfig.registry`；没写这个字段的包发到团队源 `TEAM_REGISTRY`（生态里建仓早于这个字段的仓都没写），写了但不是 http(s) 地址就拒：
+**发布目标**：每个包发到自己 `package.json` 的 `publishConfig.registry`；没写这个字段、或写的不是 http(s) 地址就拒，报错里拿团队源 `TEAM_REGISTRY` 作例子写明要加什么。`TEAM_REGISTRY` 另一处用在建仓：不给 `registry` 参数时写进生成的插件包：
 
 {/* ref file="../plugins/devkit/src/vocab.ts" lines="6-10" */}
 
-{/* ref file="../plugins/devkit/src/release.ts" lines="201-215" */}
+{/* ref file="../plugins/devkit/src/release.ts" lines="201-214" */}
 
 发布目标写进临时目录里发布内容清单的 `publishConfig.registry`，命令行不带 `--registry`；问「这个版本号在源上有没有」时指定发布目标。pnpm 12 里 `publishConfig.registry` 盖得过 `~/.npmrc` 的范围行与命令行的 `--registry`，而 `--registry` 盖不过范围行——`pnpm view` 也一样，带范围的包名要用 `--config.<范围>:registry=` 才指定得了（实验见本仓 `probes/2609251140_pnpm-publish-config-registry/`）：
 
@@ -105,7 +105,7 @@ description: 连接 devkit、插件管理与 pnpm、npm 源、两份 npmrc、git
 - `search` 不带参数时查全部配好的 scope（`@godcreator` 在前、其余按名字排），各条源并发查，一条失败不影响别的，全都失败才 `ok: false`
 
 devkit 保证：
-- 正式版发到包的发布目标（`publishConfig.registry`，没写是 `TEAM_REGISTRY`），打 `latest`；开发版不发到任何源
+- 正式版发到包的发布目标（`publishConfig.registry`，没写就拒），打 `latest`；开发版不发到任何源
 - 同一个版本号在发布目标上已有就不发
 - 发布内容与开发版的包文件都在临时目录里组装，不改仓里的 `package.json`
 
@@ -117,7 +117,7 @@ gitea 插件需要保证的（gitea 插件仓的约定）：条目 id 是 `gitea
 
 **改 home 的是同一个 pnpm，但互斥只在插件管理里**：插件管理与 `devkit.home.new` 找到的是同一个文件；插件管理的改动经过它自己的 BUSY 检查，`devkit.dev` 装包也经目标 home 的插件管理，所以同样经过这道检查；`devkit.home.new` 不经过插件管理（那时插件管理还没装、home 还没启动），同时有别的 pnpm 写同一个 home 会丢改动（[两个 pnpm 同时改同一个 home](/trajectory/2026-09-25-concurrent-pnpm-loses-writes)）。
 
-手工发版与 `devkit.release` 都不在命令行写 `--registry`：手工发版照包清单的 `publishConfig.registry`，没写就照 `~/.npmrc` 的范围行。
+手工发版与 `devkit.release` 都不在命令行写 `--registry`，都照包清单的 `publishConfig.registry`。
 
 ## 不负责的事
 
@@ -141,7 +141,9 @@ pnpm 与源都只在实机上真正运行；单元测试覆盖命令行怎么拼
 
 {/* has file="../plugins/devkit/tests/release.test.ts" text="团队源的地址" */}
 
-{/* has file="../plugins/devkit/tests/release.test.ts" text="每个包发到自己的发布目标：写了 publishConfig.registry 的发到它，没写的发到团队源；查「同号已在源上」问的也是它" */}
+{/* has file="../plugins/devkit/tests/release.test.ts" text="每个包发到自己的发布目标；查「同号已在源上」问的也是它" */}
+
+{/* has file="../plugins/devkit/tests/release.test.ts" text="有一个包没写 publishConfig.registry：发之前拒，一个都不发，报错里点名是哪个包" */}
 
 {/* has file="../plugins/devkit/tests/node-dev-deps.test.ts" text="registryPinArgs：带范围的包名用 --config.<范围>:registry——pnpm 12 的 --registry 盖不过 .npmrc 的范围行；不带范围的用 --registry" */}
 

@@ -6,7 +6,7 @@ description: plugins/devkit/AGENTS.md 由这一页生成——每次会话都得
 # gwb-devkit
 
 开发套件，**一个普通的 gwb 插件**，源码在 `plugins/devkit/`。仓是 pnpm workspace（插件放在 `plugins/`，与基础插件仓的布局相同）：`plugins/devkit/` 是开发套件，
-`plugins/plugin-manager/` 是插件管理 `@godcreator/gwb-plugin-manager`（见下面「本仓还有插件管理」），`docs-site/` 是文档站。各包没写 `publishConfig.registry`，按缺省发到团队源（gitea 个人源，**本仓发版要给 packages 参数**），装进 home。
+`plugins/plugin-manager/` 是插件管理 `@godcreator/gwb-plugin-manager`（见下面「本仓还有插件管理」），`docs-site/` 是文档站。两个包的 `publishConfig.registry` 都写团队源（gitea 个人源），发版要给 `packages` 参数，装进 home。
 开发套件的命令分六组：建仓与加插件、测试 home、改一版看一版、发正式版、服务总览、CDP 驱动（包内命令行脚本 `bin/cdp.mjs`，经 `gwbNodeCli` 登记成 `devkit.cdp`）。
 **开发套件没有界面**：它的使用者是 agent，读的是回执。设计与机制在文档站（见下面「文档地图」），这份只写**不知道就会做错事**的硬约束。
 

@@ -21,7 +21,7 @@ description: 这个仓里反复出现的词各指什么、在哪一页定义；�
 | importmap | 页面上「包名 → 文件地址」的表，浏览器侧代码里的包名 import 靠它解析。写死在内核包的页面入口 `dist/index.html` 里，只有 react 的四个包名，别的包加不进名字 | [页面代码与 importmap](/docs/rules/importmap) |
 | 团队源 | gitea 个人源 `https://git.tianshen02.online:28377/api/packages/godcreator/npm/`，常驻，`@godcreator` 范围下的包从这里发、从这里装；scope 路由与发布 token 写在用户级 `~/.npmrc`。没有它发布权限的开发者用自己的包名范围与源 | 说明书「gwb-release」 |
 | 包名范围 | 包名 `@<范围>/<名>` 里的 `@<范围>`。团队的是 `@godcreator`；`devkit.scaffold` 的 `scope` 参数定生成的插件在哪个范围下 | [建仓与加插件](/docs/devkit/scaffold) |
-| 发布目标 | 一个包的正式版发到哪个源：它 `package.json` 的 `publishConfig.registry`，没写就是团队源。`devkit.scaffold` 的 `registry` 参数写这个字段 | [pnpm 与包源](/docs/seams/pnpm-registry) |
+| 发布目标 | 一个包的正式版发到哪个源：它 `package.json` 的 `publishConfig.registry`，没写 `devkit.release` 就拒发。`devkit.scaffold` 的 `registry` 参数写这个字段 | [pnpm 与包源](/docs/seams/pnpm-registry) |
 | 包源 | npmrc 里的一条 scope 路由加上它的凭据行：某个 scope 的包从哪个 npm 源装。第三方的包源写在机器级 `~/.npmrc`，由插件管理的 `source.*` 增删；`@godcreator` 那条是团队源，不经它改 | [找插件与配包源](/docs/plugin-manager/sources) |
 | 开发版 | 版本号形如 `<patch+1>-dev.<yyyyMMddHHmmss>` 的一次性版本，只为把此刻的改动装进一个隔离 home；打成包文件、经那个 home 的插件管理装，不发到团队源 | [改一版看一版](/docs/devkit/dev) |
 | 包文件 | `pnpm pack` 打出的 `.tgz`。开发版的包文件放在目标 home 的 `dev-packs` 目录，home 清单用 `file:./dev-packs/<包文件>` 引用它；每版一个新路径，旧的不删 | [改一版看一版](/docs/devkit/dev) |
@@ -87,4 +87,5 @@ description: 这个仓里反复出现的词各指什么、在哪一页定义；�
 | `plugin-manager.set-label` 与条目的显示名 | 插件管理 0.10.0 | 界面用插件自报的名字 |
 | 开发版发到团队源、tag `dev`；`devkit.dev` 写目标 home 的清单再 `pnpm install` | devkit 0.20.0 | 开发版打成包文件放进目标 home 的 `dev-packs`，经那个 home 的 `plugin-manager.install` / `plugin-manager.update {"specs":{…}}` 装。见[轨迹卡](/trajectory/2026-09-25-dev-via-pack-and-plugin-manager) |
 | `plugin-manager.update-all` | 插件管理 0.12.0 | 改名为 `plugin-manager.update`，参数三选一、恰好给一个：全部升级给 `{"all":true}`（不给参数直接报错），`only` 照旧，另有 `specs` 按给定写法装已装的包。见[轨迹卡](/trajectory/2026-09-25-update-takes-all-param) |
+| `devkit.dev` / `devkit.release` 不给 `packages` 就当仓根自己是插件包；包没写 `publishConfig.registry` 就发到团队源 | devkit 0.21.0 | `packages` 必给；每个要发的包写 `"publishConfig": { "registry": "<源的地址>" }`。见[轨迹卡](/trajectory/2026-09-25-drop-legacy-defaults) |
 | 清单字段 `gwb.shared`、内核包的 `./react*` 出口 | 内核 0.6.0 | 页面 importmap 写死在内核包的页面入口 `dist/index.html` 里；外置名单与发版前检查都读那段 importmap 的键。见[轨迹卡](/trajectory/2026-09-25-importmap-names-from-page-entry) |
