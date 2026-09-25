@@ -53,15 +53,6 @@ function isAlive(pid: number): boolean {
   }
 }
 
-/** 进程组里还有没有进程：`kill(-pgid, 0)` 回 ESRCH 就是组里一个都不剩 */
-function groupAlive(pgid: number): boolean {
-  try {
-    process.kill(-pgid, 0)
-    return true
-  } catch (err) {
-    return (err as NodeJS.ErrnoException).code === 'EPERM'
-  }
-}
 
 async function waitUntil(done: () => boolean, timeoutMs: number): Promise<boolean> {
   const deadline = Date.now() + timeoutMs
@@ -87,8 +78,8 @@ function runTaskkill(pid: number): Promise<{ code: number | null; output: string
   })
 }
 
-/** Windows：`taskkill /T /F` 按父子关系终止整棵树，再逐个确认它报出的每个 pid 都已退出 */
-async function killTreeOnWindows(pid: number, rootExited: () => boolean): Promise<TreeKill> {
+/** `taskkill /T /F` 按父子关系终止整棵树，再逐个确认它报出的每个 pid 都已退出。开发套件只支持 Windows */
+async function killTree(pid: number, rootExited: () => boolean): Promise<TreeKill> {
   const { code, output } = await runTaskkill(pid)
   if (code !== 0) {
     return { ok: false, error: `taskkill /T /F /PID ${String(pid)} 退出码 ${String(code)}:${output}` }
@@ -102,17 +93,6 @@ async function killTreeOnWindows(pid: number, rootExited: () => boolean): Promis
   return { ok: true, detail: `pid ${pids.join('、')}` }
 }
 
-/** 别的平台：子进程启动时自成一个进程组（detached），对整组发 SIGKILL，等组里一个都不剩 */
-async function killGroup(pid: number, rootExited: () => boolean): Promise<TreeKill> {
-  try {
-    process.kill(-pid, 'SIGKILL')
-  } catch (err) {
-    if ((err as NodeJS.ErrnoException).code !== 'ESRCH') return { ok: false, error: `给进程组 ${String(pid)} 发 SIGKILL 没成:${String(err)}` }
-  }
-  const exited = await waitUntil(() => rootExited() && !groupAlive(pid), TREE_EXIT_TIMEOUT_MS)
-  if (!exited) return { ok: false, error: `发了 SIGKILL,${String(TREE_EXIT_TIMEOUT_MS / 1000)} 秒后进程组 ${String(pid)} 里还有进程` }
-  return { ok: true, detail: `进程组 ${String(pid)}` }
-}
 
 /**
  * 前台运行到结束；超时就终止整棵进程树，确认都退出了（或确认终止失败）才回。
@@ -127,8 +107,6 @@ export function runWithTreeTimeout(plan: TreePlan, timeoutMs: number, sink: Outp
         env: plan.env,
         stdio: ['ignore', 'pipe', 'pipe'],
         windowsHide: true,
-        // 别的平台靠进程组终止整棵树；Windows 上 taskkill /T 按父子关系找，detached 在那里只会多开一个控制台
-        detached: process.platform !== 'win32',
       })
     } catch (err) {
       resolve({ kind: 'failed-to-start', error: String(err) })
@@ -148,8 +126,7 @@ export function runWithTreeTimeout(plan: TreePlan, timeoutMs: number, sink: Outp
         resolve({ kind: 'timed-out', kill: { ok: false, error: '子进程没有 pid,无从终止' } })
         return
       }
-      const kill = process.platform === 'win32' ? killTreeOnWindows(pid, () => rootExited) : killGroup(pid, () => rootExited)
-      void kill.then((outcome) => resolve({ kind: 'timed-out', kill: outcome }))
+      void killTree(pid, () => rootExited).then((outcome) => resolve({ kind: 'timed-out', kill: outcome }))
     }, timeoutMs)
     child.on('error', (err) => {
       if (settled) return

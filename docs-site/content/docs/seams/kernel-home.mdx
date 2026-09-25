@@ -19,7 +19,7 @@ description: 连接 devkit.home.* 与 cdp.mjs 和内核 exe：启动 home 用 GW
 
 {/* ref file="../plugins/devkit/src/home.ts" lines="23-27" */}
 
-**runtime.json**：内核每次启动整份重写，退出不删。devkit 读 `pid`、`startedAt`、`appDir`、`cdp`，以及插件补写的 `mcp`；内核还写了 `version`，devkit 不读。devkit 里有两份各自的解析：
+**runtime.json**：内核每次启动整份重写，退出不删。devkit 读 `pid`、`startedAt`、`cdp`，以及插件补写的 `mcp`；内核还写了 `version`，devkit 不读。devkit 里有两份各自的解析：
 
 `src/home.ts` 的 `parseRecord`：`pid` 必须是正整数、`startedAt` 必须是有限数，否则整份当没有；缺 `cdp` 不算坏。`devkit.dev` 与 `home.*` 用它，定位时还核对 pid 还活着、且那个 pid 占着记录里的端口：
 

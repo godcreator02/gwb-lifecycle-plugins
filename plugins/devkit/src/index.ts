@@ -20,7 +20,7 @@ import {
   CDP_PORT_BASE,
   CDP_PORT_TRIES,
 } from './home.js'
-import { kill, portOwner, processName, processTable } from './node-probe-deps.js'
+import { kill, portOwner, processTable } from './node-probe-deps.js'
 import { type DevDeps, type DevInput, runDev } from './dev.js'
 import { runRelease } from './release.js'
 import { servicesOf } from './services.js'
@@ -146,7 +146,6 @@ export function apply(ctx: GwbContext): void {
       spawn: makeGuiSpawn((message) => log.warn(message)),
       appSpawnPlan: makeAppSpawnPlan(),
       run: runCaptured,
-      processName,
       processTable,
       portOwner,
       kill,

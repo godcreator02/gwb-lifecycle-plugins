@@ -2,7 +2,7 @@ import path from 'node:path'
 import { INSTALL_COMMAND, KERNEL_PACKAGE, LIST_COMMAND, UPDATE_COMMAND } from '@godcreator/gwb-plugin-manager'
 import { isRecord } from './vocab.js'
 
-/** 日常用的那个 home 的名字。开发版装进它就是悄悄换了日常代码，所以当场拒 */
+/** 日常用的那个 home 的名字。开发版装进它就是悄悄换了日常代码，所以当场拒；删它要 `force` */
 export const DAILY_HOME = 'default'
 
 /** 目标 home 的日志。跟着 home 走，每个 home 的日志是分开的 */
@@ -56,12 +56,6 @@ export function devVersion(version: string, now: number): string {
 
 // ── 检查目标 ──────────────────────────────────────────────────────────────────
 
-/** `devkit.cdp <名> home` 打印的那张表。页面上的 `file://` 地址里带着 home 的绝对路径 */
-export interface HomeProbe {
-  home: string | null
-  why?: string
-}
-
 export type HomeGuard = { ok: true; home: string; name: string } | { ok: false; error: string }
 
 /** 开发套件只支持 Windows：路径一律不分大小写比较 */
@@ -71,28 +65,21 @@ export function samePath(a: string, b: string): boolean {
 }
 
 /**
- * 页面报不出 home 就停（可能不是工作台的外壳页）；点名的 home 与页面自报的对不上就停；
+ * `home` 是页面自报的 home 目录（`bin/cdp.mjs` 连上时已核对过它报得出、名字就是点名的那个）。
  * `default` 当场拒；目标是自己所在的 home 就拒（重新加载条目会把正在运行的这条命令自己停掉）
  */
-export function guardHome(probe: HomeProbe, ownHome: string, expect?: string): HomeGuard {
-  if (probe.home === null || probe.home === '') {
-    return { ok: false, error: `问不出这张页是哪个 home:${probe.why ?? '没说原因'}——它可能不是工作台的外壳页,或者这个调试端口连到了别的应用` }
-  }
-  const name = path.basename(probe.home.replace(/[\\/]+$/, ''))
-  // 记录回答「你要的是哪个」，页面回答「你连上的实际是哪个」：记录会过时、端口会被复用
-  if (expect !== undefined && expect !== name) {
-    return { ok: false, error: `你点名要 ${expect},可这个调试端口上的页面自报是 ${name}——记录过时了,或者端口给错了。没动它` }
-  }
+export function guardHome(home: string, ownHome: string): HomeGuard {
+  const name = path.basename(home.replace(/[\\/]+$/, ''))
   if (name === DAILY_HOME) {
     return { ok: false, error: `目标是 ${DAILY_HOME},这是日常那份 home,开发版不进它——换个隔离 home(devkit.home.new)再来` }
   }
-  if (samePath(probe.home, ownHome)) {
+  if (samePath(home, ownHome)) {
     return {
       ok: false,
-      error: `目标就是本插件自己所在的这个 home(${probe.home})——重新加载条目会把正在运行的这条命令自己停掉。换 devkit 自己用另一条路:发正式版,再 plugin-manager.update {"all":true}`,
+      error: `目标就是本插件自己所在的这个 home(${home})——重新加载条目会把正在运行的这条命令自己停掉。换 devkit 自己用另一条路:发正式版,再 plugin-manager.update {"all":true}`,
     }
   }
-  return { ok: true, home: probe.home, name }
+  return { ok: true, home, name }
 }
 
 // ── 包清单 ────────────────────────────────────────────────────────────────────
@@ -412,16 +399,14 @@ async function runCommandOnPage(home: string, command: string, timeoutMs: number
 
 type Failure = { ok: false; error: string; data?: unknown }
 
+/** 驱动的 `home` 动作：连上时核对页面自报的 home 就是点名的那个（核对不过退出码非零），回执里带着它的绝对路径 */
 async function probeTargetHome(input: DevInput, deps: DevDeps): Promise<Failure | { ok: true; home: string; name: string }> {
   const probe = await deps.cdp(input.home, ['home'], CDP_TIMEOUT_MS)
-  if (!probe.ok && !isRecord(probe.data)) {
-    return { ok: false, error: `连不上 ${input.home}:${probe.tail}` }
+  if (!probe.ok) return { ok: false, error: `连不上 ${input.home}:${probe.tail}` }
+  if (!isRecord(probe.data) || typeof probe.data.home !== 'string') {
+    return { ok: false, error: `${input.home} 的驱动回执里没有 home 路径:${JSON.stringify(probe.data)}` }
   }
-  return guardHome(
-    isRecord(probe.data) ? { home: typeof probe.data.home === 'string' ? probe.data.home : null, ...(typeof probe.data.why === 'string' ? { why: probe.data.why } : {}) } : { home: null },
-    input.ownHome,
-    input.home,
-  )
+  return guardHome(probe.data.home, input.ownHome)
 }
 
 /**

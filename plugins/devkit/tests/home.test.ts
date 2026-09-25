@@ -6,12 +6,10 @@ import {
   BASE_INSTALL_TIMEOUT_MS,
   BASE_PLUGINS,
   CDP_PORT_BASE,
-  DAILY_HOME,
   EXIT_POLL_MS,
   EXIT_TIMEOUT_MS,
   REMOVE_RETRY_MS,
   REMOVE_TRIES,
-  asCdpPort,
   asHomeName,
   baseInstallPlan,
   bringDownHome,
@@ -19,13 +17,10 @@ import {
   cordisInstallPlan,
   cordisVersionForKernel,
   guiChildEnv,
-  hostAppFacts,
   hostAppSpawnPlan,
   installedManifestAtVersion,
-  installedManifestFile,
   isHomeProcess,
   kernelInstallPlan,
-  kernelManifestFile,
   launchHome,
   listHomes,
   minuteStamp,
@@ -42,6 +37,7 @@ import {
   type HomeRecord,
 } from '../src/home.js'
 import { KERNEL_PACKAGE } from '@godcreator/gwb-plugin-manager'
+import { DAILY_HOME, installedManifest } from '../src/dev.js'
 
 /**
  * 启动、停止、删除 home 最不该靠手工点几遍来确认：名字重不重复、装不上时启不启动、查得出的 pid
@@ -54,7 +50,7 @@ const NAME = 'data-2609081430'
 const HOME = path.join(ROOT, NAME)
 const HOST = 'C:/apps/gwb-kernel.exe'
 const PNPM = 'C:\\Users\\u\\AppData\\Local\\pnpm\\bin\\pnpm.exe'
-const RECORD: HomeRecord = { pid: 4242, startedAt: 1_000, appDir: 'D:/fake-app' }
+const RECORD: HomeRecord = { pid: 4242, startedAt: 1_000 }
 
 /** 内核往 home 里写的运行时记录。**devkit 只读它**，所以测试里由测试自己写 */
 const write = (record: HomeRecord): string => JSON.stringify(record)
@@ -89,9 +85,6 @@ function fakeFs(
     writeText: (file, text) => {
       table.set(path.resolve(file), text)
     },
-    remove: (file) => {
-      table.delete(path.resolve(file))
-    },
     ensureDir: (dir) => {
       dirTable.set(path.resolve(dir), dirTable.get(path.resolve(dir)) ?? [])
     },
@@ -117,22 +110,20 @@ interface FakeOptions {
   fs?: HomeFs
   /** pid → 映像名。表里没有的 pid 就是「进程不在」 */
   processes?: Record<number, string>
-  /** 这些 pid 查不出（tasklist 超时或出错），跟「不在」是两回事 */
-  unknownPids?: number[]
-  /** 列整张进程表失败（tasklist 超时或出错） */
-  processTableUnknown?: boolean
+  /** 列进程表失败（tasklist 超时或出错）：查不出不是「不在」，照实抛 */
+  processTableFails?: boolean
   spawnPid?: number | undefined
   spawnFails?: boolean
-  /** 宿主命令行（argv），appSpawnPlan 的事实来源；缺省＝安装版形态（命令行上只有 exe 自己） */
-  argv?: string[]
   /** run 的答案，按顺序取；用完了重复最后一个 */
   runs?: { ok: boolean; tail: string }[]
   /** kill 的结果：默认结束成功；'gone' 是结束时进程已经不在，给一个 Error 就是它抛出 */
   kill?: 'killed' | 'gone' | Error
   /** 停成了之后进程还要被查到几次 running 才真退；Infinity＝一直不退 */
   exitAfterPolls?: number
-  /** 在 CDP 端口上监听的那个 pid；不给就是「查不出来」（那时只按映像名判断） */
+  /** 在 CDP 端口上监听的那个 pid；不给就是没人监听 */
   portOwner?: number
+  /** 查端口持有者失败（netstat 出错）：照实抛 */
+  portOwnerFails?: boolean
   execPath?: string
 }
 
@@ -147,7 +138,6 @@ function fakeDeps(options: FakeOptions = {}) {
     slept: [] as number[],
     pollsAfterKill: 0,
     processTableCalls: 0,
-    processNameCalls: 0,
   }
   const execPath = options.execPath ?? HOST
   const deps: HomeDeps = {
@@ -158,7 +148,7 @@ function fakeDeps(options: FakeOptions = {}) {
       return options.spawnPid === undefined && !('spawnPid' in options) ? 4242 : options.spawnPid
     },
     async appSpawnPlan(cdp) {
-      return hostAppSpawnPlan({ execPath, ...hostAppFacts(execPath, options.argv ?? [execPath]) }, cdp)
+      return hostAppSpawnPlan(execPath, cdp)
     },
     async run(plan, timeoutMs) {
       state.runCalls.push({ plan, timeoutMs })
@@ -166,22 +156,21 @@ function fakeDeps(options: FakeOptions = {}) {
     },
     processTable() {
       state.processTableCalls += 1
-      if (options.processTableUnknown === true) return Promise.resolve(undefined)
-      return Promise.resolve(new Map(Object.entries(options.processes ?? {}).map(([pid, name]) => [Number(pid), name])))
-    },
-    processName(pid) {
-      state.processNameCalls += 1
-      if (options.unknownPids?.includes(pid) === true) return Promise.resolve({ state: 'unknown' })
-      const name = options.processes?.[pid]
-      if (name !== undefined && state.killed.includes(pid)) {
-        // 停过的进程：再被查到 exitAfterPolls 次 running 之后才不在
-        state.pollsAfterKill += 1
-        if (state.pollsAfterKill > (options.exitAfterPolls ?? 0)) return Promise.resolve({ state: 'gone' })
+      if (options.processTableFails === true) return Promise.reject(new Error('tasklist 超时'))
+      const table = new Map<number, string>()
+      for (const [pid, name] of Object.entries(options.processes ?? {})) {
+        if (state.killed.includes(Number(pid))) {
+          // 停过的进程：再被查到 exitAfterPolls 次之后才从表里消失
+          state.pollsAfterKill += 1
+          if (state.pollsAfterKill > (options.exitAfterPolls ?? 0)) continue
+        }
+        table.set(Number(pid), name)
       }
-      return Promise.resolve(name === undefined ? { state: 'gone' } : { state: 'running', name })
+      return Promise.resolve(table)
     },
     portOwner(port) {
       state.portsAsked.push(port)
+      if (options.portOwnerFails === true) return Promise.reject(new Error('netstat 出错'))
       return Promise.resolve(options.portOwner)
     },
     kill(pid) {
@@ -222,8 +211,8 @@ function installsOnRuns(deps: HomeDeps, fs: HomeFs, kernelManifestText: string, 
   deps.run = async (plan, timeoutMs) => {
     const outcome = await run(plan, timeoutMs)
     calls += 1
-    if (calls === 1) fs.writeText(kernelManifestFile(HOME), kernelManifestText)
-    if (calls === 2) fs.writeText(installedManifestFile(HOME, 'cordis'), cordisManifestText)
+    if (calls === 1) fs.writeText(installedManifest(HOME, KERNEL_PACKAGE), kernelManifestText)
+    if (calls === 2) fs.writeText(installedManifest(HOME, 'cordis'), cordisManifestText)
     return outcome
   }
 }
@@ -262,7 +251,7 @@ describe('装进新 home 的东西：内核包、cordis 与基础插件', () => 
     expect(installedManifestAtVersion(cordisManifest(), 'cordis', '4.0.0-rc.9', HOME)).toMatchObject({ ok: true, manifest: { version: '4.0.0-rc.9' } })
     expect(installedManifestAtVersion(undefined, 'cordis', '4.0.0-rc.9', HOME)).toMatchObject({
       ok: false,
-      error: expect.stringContaining(installedManifestFile(HOME, 'cordis')),
+      error: expect.stringContaining(installedManifest(HOME, 'cordis')),
     })
     expect(installedManifestAtVersion('{ half', 'cordis', '4.0.0-rc.9', HOME)).toMatchObject({ ok: false })
     expect(installedManifestAtVersion(cordisManifest('4.0.0-rc.10'), 'cordis', '4.0.0-rc.9', HOME)).toMatchObject({
@@ -277,7 +266,7 @@ describe('装进新 home 的东西：内核包、cordis 与基础插件', () => 
 
   it('内核包清单读不到、装上的版本对不上、peer 里 cordis 没写或不是精确版本号：都拒，说清是哪一条', () => {
     const missing = cordisVersionForKernel(undefined, KERNEL_VERSION, HOME)
-    expect(missing).toMatchObject({ ok: false, error: expect.stringContaining(kernelManifestFile(HOME)) })
+    expect(missing).toMatchObject({ ok: false, error: expect.stringContaining(installedManifest(HOME, KERNEL_PACKAGE)) })
     expect(cordisVersionForKernel('{ half', KERNEL_VERSION, HOME)).toMatchObject({ ok: false })
     const otherVersion = cordisVersionForKernel(kernelManifest({ version: '0.3.1' }), KERNEL_VERSION, HOME)
     expect(otherVersion).toMatchObject({ ok: false, error: expect.stringContaining('0.3.1') })
@@ -331,7 +320,7 @@ describe('运行时记录与参数收窄', () => {
     expect(parseRecord(JSON.stringify({ ...RECORD, mcp: { port: 2870 } }))).toEqual(RECORD)
     expect(parseRecord(JSON.stringify({ ...RECORD, mcp: 'nope' }))).toEqual(RECORD)
     // 认不出的字段不影响读取，也不进记录
-    expect(parseRecord(JSON.stringify({ ...RECORD, 'command-http': { port: 2871, url: 'http://127.0.0.1:2871' }, 将来: 1 }))).toEqual(RECORD)
+    expect(parseRecord(JSON.stringify({ ...RECORD, appDir: 'D:/fake-app', 'command-http': { port: 2871, url: 'http://127.0.0.1:2871' }, 将来: 1 }))).toEqual(RECORD)
   })
 
   it('名字的收窄：内核那道正则说了算', () => {
@@ -343,38 +332,18 @@ describe('运行时记录与参数收窄', () => {
 })
 
 describe('启动计划：拉宿主自己那个 exe', () => {
-  it('安装版（exe 不叫 electron）：直起本体，不带应用路径参数', () => {
-    expect(hostAppFacts(HOST, [HOST])).toEqual({ packaged: true })
-    expect(hostAppSpawnPlan({ execPath: HOST, packaged: true }, 9400)).toEqual({
+  it('安装版（exe 不叫 electron）：直起本体，调试端口与遮挡开关放在命令行上', () => {
+    expect(hostAppSpawnPlan(HOST, 9400)).toEqual({
       command: HOST,
       args: ['--remote-debugging-port=9400', '--disable-backgrounding-occluded-windows'],
       cwd: 'C:/apps',
     })
   })
 
-  it('带调试口必带遮挡开关：窗口被盖住时 Chromium 停止产帧，取证的输入与截图会挂住或拿陈旧帧', () => {
-    expect(hostAppSpawnPlan({ execPath: HOST, packaged: true }, 9400).args).toContain(
-      '--disable-backgrounding-occluded-windows',
-    )
-  })
-
-  it('不带调试口：命令行上就没有那个开关', () => {
-    expect(hostAppSpawnPlan({ execPath: HOST, packaged: true }).args).toEqual([])
-  })
-
-  it('开发态 electron：argv[1] 是应用目录，作为参数带上', () => {
-    const facts = hostAppFacts('C:/apps/electron.exe', ['C:/apps/electron.exe', 'D:/kernel/apps/desktop'])
-    expect(facts).toEqual({ packaged: false, appPath: 'D:/kernel/apps/desktop' })
-    expect(hostAppSpawnPlan({ execPath: 'C:/apps/electron.exe', ...facts }, 9400)).toEqual({
-      command: 'C:/apps/electron.exe',
-      args: ['D:/kernel/apps/desktop', '--remote-debugging-port=9400', '--disable-backgrounding-occluded-windows'],
-      cwd: 'D:/kernel/apps/desktop',
-    })
-  })
-
-  it('开发态却读不出应用目录：拒——devkit 只从安装版起 home', () => {
-    expect(hostAppFacts('C:/apps/electron.exe', ['C:/apps/electron.exe'])).toEqual({ packaged: false })
-    expect(() => hostAppSpawnPlan({ execPath: 'C:/apps/electron.exe', packaged: false }, 9400)).toThrow(/安装版/)
+  it('宿主是 electron（从内核源码启动的开发态）：拒——devkit 只从安装版起 home', () => {
+    for (const execPath of ['C:/apps/electron.exe', 'D:/kernel/node_modules/electron/dist/Electron.exe']) {
+      expect(() => hostAppSpawnPlan(execPath, 9400), execPath).toThrow(/安装版/)
+    }
   })
 
   it('环境剥 ELECTRON_RUN_AS_NODE 与 npm_config_*，给 GWB_HOME', () => {
@@ -400,9 +369,9 @@ describe('启动计划：拉宿主自己那个 exe', () => {
 })
 
 describe('launchHome：拼宿主拉起计划、起它、落记录、看五秒', () => {
-  it('开发态 electron 上读不出应用目录：拒，一个动作都不做', async () => {
-    const { deps, state } = fakeDeps({ execPath: 'C:/apps/electron.exe', argv: ['C:/apps/electron.exe'] })
-    const outcome = await launchHome({ name: NAME, homesRoot: ROOT }, deps)
+  it('宿主是 electron（开发态）：拒，一个动作都不做', async () => {
+    const { deps, state } = fakeDeps({ execPath: 'C:/apps/electron.exe' })
+    const outcome = await launchHome({ name: NAME, homesRoot: ROOT, cdp: 9400 }, deps)
     expect(outcome.ok).toBe(false)
     if (!outcome.ok) expect(outcome.error).toContain('安装版')
     expect(state.spawned).toEqual([])
@@ -411,7 +380,7 @@ describe('launchHome：拼宿主拉起计划、起它、落记录、看五秒', 
 
   it('内核包装不上：不装 cordis 与基础插件、不启动宿主，输出的最后几行带回来', async () => {
     const { deps, state } = fakeDeps({ runs: [{ ok: false, tail: 'ERR!坏的' }] })
-    const outcome = await launchHome({ name: NAME, homesRoot: ROOT, install: { kernelVersion: KERNEL_VERSION, pnpm: PNPM } }, deps)
+    const outcome = await launchHome({ name: NAME, homesRoot: ROOT, cdp: 9400, install: { kernelVersion: KERNEL_VERSION, pnpm: PNPM } }, deps)
     expect(outcome.ok).toBe(false)
     if (!outcome.ok) {
       expect(outcome.error).toContain('ERR!坏的')
@@ -425,7 +394,7 @@ describe('launchHome：拼宿主拉起计划、起它、落记录、看五秒', 
     const fs = fakeFs({}, { [ROOT]: [] })
     const { deps, state } = fakeDeps({ fs, processes: { 4242: 'gwb-kernel.exe' } })
     installsOnRuns(deps, fs, kernelManifest())
-    const outcome = await launchHome({ name: NAME, homesRoot: ROOT, install: { kernelVersion: KERNEL_VERSION, pnpm: PNPM } }, deps)
+    const outcome = await launchHome({ name: NAME, homesRoot: ROOT, cdp: 9400, install: { kernelVersion: KERNEL_VERSION, pnpm: PNPM } }, deps)
     expect(outcome.ok).toBe(true)
     expect(state.runCalls.map((call) => call.timeoutMs)).toEqual([BASE_INSTALL_TIMEOUT_MS, BASE_INSTALL_TIMEOUT_MS, BASE_INSTALL_TIMEOUT_MS])
     expect(state.runCalls.map((call) => call.plan.cwd)).toEqual([HOME, HOME, HOME])
@@ -441,7 +410,7 @@ describe('launchHome：拼宿主拉起计划、起它、落记录、看五秒', 
     const fs = fakeFs({}, { [ROOT]: [] })
     const { deps, state } = fakeDeps({ fs, processes: { 4242: 'gwb-kernel.exe' } })
     installsOnRuns(deps, fs, kernelManifest({ peerDependencies: { cordis: '^4.0.0-rc.9' } }))
-    const outcome = await launchHome({ name: NAME, homesRoot: ROOT, install: { kernelVersion: KERNEL_VERSION, pnpm: PNPM } }, deps)
+    const outcome = await launchHome({ name: NAME, homesRoot: ROOT, cdp: 9400, install: { kernelVersion: KERNEL_VERSION, pnpm: PNPM } }, deps)
     expect(outcome.ok).toBe(false)
     if (!outcome.ok) expect(outcome.error).toContain('不是精确版本号')
     expect(state.runCalls).toHaveLength(1)
@@ -452,7 +421,7 @@ describe('launchHome：拼宿主拉起计划、起它、落记录、看五秒', 
     const fs = fakeFs({}, { [ROOT]: [] })
     const { deps, state } = fakeDeps({ fs, processes: { 4242: 'gwb-kernel.exe' } })
     installsOnRuns(deps, fs, kernelManifest({ version: '0.3.1' }))
-    const outcome = await launchHome({ name: NAME, homesRoot: ROOT, install: { kernelVersion: KERNEL_VERSION, pnpm: PNPM } }, deps)
+    const outcome = await launchHome({ name: NAME, homesRoot: ROOT, cdp: 9400, install: { kernelVersion: KERNEL_VERSION, pnpm: PNPM } }, deps)
     expect(outcome.ok).toBe(false)
     if (!outcome.ok) expect(outcome.error).toContain('home 里装上的却是 0.3.1')
     expect(state.runCalls).toHaveLength(1)
@@ -463,7 +432,7 @@ describe('launchHome：拼宿主拉起计划、起它、落记录、看五秒', 
     const fs = fakeFs({}, { [ROOT]: [] })
     const { deps, state } = fakeDeps({ fs, processes: { 4242: 'gwb-kernel.exe' } })
     installsOnRuns(deps, fs, kernelManifest(), cordisManifest('4.0.0-rc.10'))
-    const outcome = await launchHome({ name: NAME, homesRoot: ROOT, install: { kernelVersion: KERNEL_VERSION, pnpm: PNPM } }, deps)
+    const outcome = await launchHome({ name: NAME, homesRoot: ROOT, cdp: 9400, install: { kernelVersion: KERNEL_VERSION, pnpm: PNPM } }, deps)
     expect(outcome.ok).toBe(false)
     if (!outcome.ok) expect(outcome.error).toContain('home 里装上的却是 4.0.0-rc.10')
     expect(state.runCalls).toHaveLength(2)
@@ -478,7 +447,7 @@ describe('launchHome：拼宿主拉起计划、起它、落记录、看五秒', 
       const fs = fakeFs({}, { [ROOT]: [] })
       const { deps, state } = fakeDeps({ fs, runs })
       installsOnRuns(deps, fs, kernelManifest())
-      const outcome = await launchHome({ name: NAME, homesRoot: ROOT, install: { kernelVersion: KERNEL_VERSION, pnpm: PNPM } }, deps)
+      const outcome = await launchHome({ name: NAME, homesRoot: ROOT, cdp: 9400, install: { kernelVersion: KERNEL_VERSION, pnpm: PNPM } }, deps)
       expect(outcome.ok).toBe(false)
       if (!outcome.ok) expect(outcome.error).toContain('ERR!坏的')
       expect(state.runCalls).toHaveLength(runs.length)
@@ -514,7 +483,7 @@ describe('launchHome：拼宿主拉起计划、起它、落记录、看五秒', 
   it('记录没出现不算起失败，但回执要明说——那时按名字定位用不了', async () => {
     const fs = fakeFs()
     const { deps } = fakeDeps({ fs, processes: { 4242: 'electron.exe' } })
-    const outcome = await launchHome({ name: NAME, homesRoot: ROOT }, deps)
+    const outcome = await launchHome({ name: NAME, homesRoot: ROOT, cdp: 9400 }, deps)
     expect(outcome.ok).toBe(true)
     if (outcome.ok) {
       expect(outcome.record).toBeUndefined()
@@ -526,7 +495,7 @@ describe('launchHome：拼宿主拉起计划、起它、落记录、看五秒', 
     const fs = fakeFs()
     // 进程表里没有 4242：spawn 回了 pid，但那个进程转眼就退了
     const { deps, state } = fakeDeps({ fs })
-    const outcome = await launchHome({ name: NAME, homesRoot: ROOT }, deps)
+    const outcome = await launchHome({ name: NAME, homesRoot: ROOT, cdp: 9400 }, deps)
     expect(outcome.ok).toBe(false)
     if (!outcome.ok) {
       expect(outcome.error).toContain('秒退')
@@ -538,7 +507,7 @@ describe('launchHome：拼宿主拉起计划、起它、落记录、看五秒', 
   it('同一个 home 已有实例在跑:拒,不起第二个', async () => {
     const fs = fakeFs({ [recordFile(HOME)]: write(RECORD) })
     const { deps, state } = fakeDeps({ fs, processes: { 4242: 'electron.exe' } })
-    const outcome = await launchHome({ name: NAME, homesRoot: ROOT }, deps)
+    const outcome = await launchHome({ name: NAME, homesRoot: ROOT, cdp: 9400 }, deps)
     expect(outcome.ok).toBe(false)
     if (!outcome.ok) expect(outcome.error).toContain('4242')
     expect(state.spawned).toEqual([])
@@ -548,14 +517,14 @@ describe('launchHome：拼宿主拉起计划、起它、落记录、看五秒', 
     // 表里没有 999:记录里那个 pid 已经不在了
     const fs = fakeFs({ [recordFile(HOME)]: write({ ...RECORD, pid: 999 }) })
     const { deps, state } = fakeDeps({ fs, processes: { 4242: 'electron.exe' } })
-    expect((await launchHome({ name: NAME, homesRoot: ROOT }, deps)).ok).toBe(true)
+    expect((await launchHome({ name: NAME, homesRoot: ROOT, cdp: 9400 }, deps)).ok).toBe(true)
     expect(state.spawned).toHaveLength(1)
   })
 
   it('spawn 拿不到 pid：当场失败', async () => {
     const fs = fakeFs()
     const { deps } = fakeDeps({ fs, spawnFails: true })
-    expect((await launchHome({ name: NAME, homesRoot: ROOT }, deps)).ok).toBe(false)
+    expect((await launchHome({ name: NAME, homesRoot: ROOT, cdp: 9400 }, deps)).ok).toBe(false)
     expect(fs.files.has(recordFile(HOME))).toBe(false)
   })
 })
@@ -589,13 +558,12 @@ describe('listHomes：谁在跑看记录里的 pid', () => {
       ['c-2609250003', false],
     ])
     expect(state.processTableCalls).toBe(1)
-    expect(state.processNameCalls).toBe(0)
   })
 
-  it('进程表查不出：有记录的 home 一律报没在跑，不当成已退出去动它', async () => {
+  it('进程表查不出：照实抛，不把有记录的 home 报成没在跑', async () => {
     const fs = fakeFs({ [recordFile(HOME)]: write(RECORD) }, { [ROOT]: [NAME] })
-    const { deps } = fakeDeps({ fs, processes: { 4242: 'electron.exe' }, processTableUnknown: true })
-    expect(await listHomes(ROOT, deps)).toEqual([{ name: NAME, home: HOME, pid: null, running: false, cdp: null, mcp: null }])
+    const { deps } = fakeDeps({ fs, processes: { 4242: 'electron.exe' }, processTableFails: true })
+    await expect(listHomes(ROOT, deps)).rejects.toThrow(/tasklist/)
   })
 
   it('一个有记录的 home 都没有：不列进程表', async () => {
@@ -681,9 +649,14 @@ describe('resolveTarget：「我要操作哪个 home」→ 够得着它的那个
     if (!out.ok) expect(out.error).toContain('open')
   })
 
-  it('查不出那个 pid 是什么：不导出动作', async () => {
-    const { deps } = fakeDeps({ fs: fakeFs(base, dirs), unknownPids: [4242] })
-    expect((await resolveTarget(ROOT, NAME, deps)).ok).toBe(false)
+  it('进程表查不出：照实抛，不导出动作', async () => {
+    const { deps } = fakeDeps({ fs: fakeFs(base, dirs), processTableFails: true })
+    await expect(resolveTarget(ROOT, NAME, deps)).rejects.toThrow(/tasklist/)
+  })
+
+  it('查不出端口上是谁在监听：照实抛，不当成没人监听', async () => {
+    const { deps } = fakeDeps({ fs: fakeFs(base, dirs), processes: { 4242: 'electron.exe' }, portOwnerFails: true })
+    await expect(resolveTarget(ROOT, NAME, deps)).rejects.toThrow(/netstat/)
   })
 
   it('在跑但记录里没有 cdp：够不着，说清是起的时候没带开关', async () => {
@@ -753,11 +726,10 @@ describe('bringDownHome：核对映像名再杀', () => {
     expect(fs.files.has(recordFile(HOME))).toBe(true)
   })
 
-  it('查不出那个 pid 是什么：不杀、不删记录，回 ok:false', async () => {
+  it('进程表查不出：照实抛，不杀、不删记录', async () => {
     const fs = fakeFs({ [recordFile(HOME)]: write(RECORD) })
-    const { deps, state } = fakeDeps({ fs, unknownPids: [4242] })
-    const outcome = await bringDownHome(HOME, deps)
-    expect(outcome).toMatchObject({ ok: false, killed: null })
+    const { deps, state } = fakeDeps({ fs, processTableFails: true })
+    await expect(bringDownHome(HOME, deps)).rejects.toThrow(/tasklist/)
     expect(state.killed).toEqual([])
     // 当成「进程不在」把记录删了的话，那个还在运行的 home 就再也找不到了
     expect(fs.files.has(recordFile(HOME))).toBe(true)
@@ -869,12 +841,10 @@ describe('removeHome：default 守得住，跑着的要 force 才连停带删', 
     expect(fs.removed).toEqual([])
   })
 
-  it('查不出记录里的 pid 还在不在：不删', async () => {
+  it('进程表查不出：照实抛，不删', async () => {
     const fs = fakeFs({ [recordFile(HOME)]: write(RECORD) }, { [ROOT]: [NAME] })
-    const { deps } = fakeDeps({ fs, unknownPids: [4242] })
-    const outcome = await removeHome(HOME, NAME, false, deps)
-    expect(outcome.ok).toBe(false)
-    expect(outcome.note).toContain('查不出')
+    const { deps } = fakeDeps({ fs, processTableFails: true })
+    await expect(removeHome(HOME, NAME, false, deps)).rejects.toThrow(/tasklist/)
     expect(fs.removed).toEqual([])
   })
 

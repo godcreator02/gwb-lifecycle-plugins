@@ -1,24 +1,13 @@
 import path from 'node:path'
 
-/**
- * 查一个 pid 的三种答案。「查不出」不能跟「不在」混成一个：查映像名的命令会超时、会不在、会自己出错，
- * 当成「进程不在」的话，还在运行的 home 会被当成已经退出
- */
-export type ProcessProbe = { state: 'running'; name: string } | { state: 'gone' } | { state: 'unknown' }
+/** 进程表里查一个 pid 的答案。进程表查不出时不会走到这里：那时直接抛，查不出不是「不在」 */
+export type ProcessProbe = { state: 'running'; name: string } | { state: 'gone' }
 
 /** 映像名 → 可比的小写裸名：`C:\apps\Electron.exe` 与 `electron` 是同一个东西 */
 export function bareImage(value: string): string {
   return path.basename(value).toLowerCase().replace(/\.exe$/, '')
 }
 
-/** `tasklist /NH /FO CSV` 的一行 → 映像名。进程不在时它打的 `INFO: No tasks are running...` 没有引号，取不出 */
-export function parseTasklist(text: string): string | undefined {
-  for (const line of text.split('\n')) {
-    const quotedImage = /^"([^"]+)"/.exec(line.trim())
-    if (quotedImage?.[1] !== undefined) return quotedImage[1]
-  }
-  return undefined
-}
 
 /** 不加过滤的 `tasklist /NH /FO CSV` → pid 到映像名的表；前两列是 `"映像名","pid"`，认不出的行跳过 */
 export function parseTasklistTable(text: string): Map<number, string> {

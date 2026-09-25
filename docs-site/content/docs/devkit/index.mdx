@@ -168,7 +168,7 @@ peer 里内核包的检查，比对规则从插件管理的主入口 import（�
 | 目标 home 里的插件管理：`plugin-manager.install`、带 `specs` 参数的 `plugin-manager.update` 与 `plugin-manager.list`，经 CDP 调用 | `devkit.dev` 装包、新建条目、重新加载条目、取证 | `devkit.dev` 回 `ok: false`，带插件管理回执里的原因 |
 | 各 home 的 `runtime.json`（内核与 MCP 入口插件写） | 按名字查 pid 与调试端口 | 连不上那个 home，回执说停掉重开一次 |
 | home 顶层 `node_modules` 里各包的 `.d.ts` | `devkit.services` 找服务声明 | 包没带声明，它的服务就不在回执里；清单读不出直接报错 |
-| 宿主应用（`process.execPath`，日常是安装版） | `devkit.home.new` / `open` 再启动一次它 | 宿主是开发态 electron 且读不出应用目录时拒 |
+| 宿主应用（`process.execPath`，安装版） | `devkit.home.new` / `open` 再启动一次它 | 宿主是开发态 electron 时拒 |
 | 机器上的 pnpm | 构建、发布、打包开发版、往新 home 里安装、`pnpm view` 查源 | 对应的命令回 `ok: false`，带 pnpm 输出的最后几行 |
 | git | `devkit.release` 查仓根工作区干不干净 | 查不出也拒发 |
 | 各包的发布目标（`package.json` 的 `publishConfig.registry`），发布 token 写在用户级 `~/.npmrc` | 发正式版、查这个版本号发过没有；开发版不经过它 | 发版失败 |

@@ -54,7 +54,7 @@ const homeManifest = (dependencies: Record<string, string>): string => `${JSON.s
 const HOME_WITH_PKG = homeManifest({ '@godcreator/gwb-commands': '^0.4.1', [PKG]: '^0.3.1', [PM]: '^0.12.0' })
 
 interface FakeOptions {
-  /** 页面自报的 home。null＝问不出来 */
+  /** 页面自报的 home。null＝驱动连上后核对不过（不是外壳页），退出码非零 */
   home?: string | null
   /** 取证那次 `plugin-manager.list` 回的表 */
   packages?: unknown
@@ -133,7 +133,9 @@ function fake(options: FakeOptions = {}): Fake {
       calls.push(`cdp ${home} ${args.join(' ')}`)
       if (args[0] === 'home') {
         const reported = options.home === undefined ? HOME : options.home
-        return { ok: reported !== null, data: { did: 'home', home: reported, why: reported === null ? '没有带 homes 的地址' : undefined }, tail: '' }
+        // 驱动连上页面时先核对它自报的 home（assertHome），报不出就抛、退出码非零、不打印 JSON
+        if (reported === null) return { ok: false, data: undefined, tail: '这个端口上不是工作台的外壳页' }
+        return { ok: true, data: { did: 'home', home: reported }, tail: '' }
       }
       if (args[0] === 'reload' && options.failReload === 'timeout') {
         return { ok: false, data: { did: 'reload', 等到了: false, 等的是: args[1] ?? 'readyState', 最后看到: { ready: 'complete', 出来了: false } }, tail: '' }
@@ -213,28 +215,29 @@ describe('版本号与包文件名', () => {
 })
 
 describe('检查目标', () => {
-  it('问不出 home 就停——那张页可能根本不是外壳页', () => {
-    expect(guardHome({ home: null, why: '没地址' }, OWN)).toMatchObject({ ok: false })
-  })
-
+  // 页面报不出 home、自报的名字与点名的对不上，这两道由 cdp.mjs 每次连上时查（assertHome），这里只剩两道
   it('default 当场拒', () => {
-    const out = guardHome({ home: `D:/homes/${DAILY_HOME}` }, OWN)
+    const out = guardHome(`D:/homes/${DAILY_HOME}`, OWN)
     expect(out).toMatchObject({ ok: false })
     if (!out.ok) expect(out.error).toContain('日常')
   })
 
   it('目标就是自己所在的 home 也拒，指向发正式版再 update', () => {
-    const out = guardHome({ home: OWN }, OWN)
+    const out = guardHome(OWN, OWN)
     expect(out).toMatchObject({ ok: false })
     if (!out.ok) expect(out.error).toContain('plugin-manager.update {"all":true}')
   })
 
-  it('页面自报的名字和点名的不一样就拒', () => {
-    expect(guardHome({ home: HOME }, OWN, 'other-2609111200')).toMatchObject({ ok: false })
+  it('隔离 home 放行，名字取末段', () => {
+    expect(guardHome(HOME, OWN)).toMatchObject({ ok: true, home: HOME, name: HOME_NAME })
   })
 
-  it('隔离 home 放行，名字取末段', () => {
-    expect(guardHome({ home: HOME }, OWN, HOME_NAME)).toMatchObject({ ok: true, name: HOME_NAME })
+  it('cdp 连不上那张页（驱动退出码非零）：整体失败，带上驱动的输出，一步都不往下走', async () => {
+    const deps = fake({ home: null })
+    const out = await runDev(input(), deps)
+    expect(out).toMatchObject({ ok: false })
+    if (!out.ok) expect(out.error).toContain('连不上')
+    expect(deps.calls.some((one) => one.startsWith('run'))).toBe(false)
   })
 
   it('路径一律不分大小写比较', () => {

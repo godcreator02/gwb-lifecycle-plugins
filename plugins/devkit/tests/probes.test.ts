@@ -2,7 +2,6 @@ import { describe, expect, it } from 'vitest'
 import {
   bareImage,
   parseNetstat,
-  parseTasklist,
   parseTasklistTable,
 } from '../src/probes.js'
 
@@ -11,12 +10,6 @@ describe('映像名', () => {
     expect(bareImage('C:/apps/Electron.exe')).toBe('electron')
     expect(bareImage('/usr/bin/node')).toBe('node')
     expect(bareImage('node')).toBe('node')
-  })
-
-  it('tasklist 的 CSV 单行取得出映像名；「没有这个进程」那句取不出', () => {
-    expect(parseTasklist('"node.exe","14340","Console","1","123,456 K"')).toBe('node.exe')
-    expect(parseTasklist('\r\n"electron.exe","900","Console","1","9 K"\r\n')).toBe('electron.exe')
-    expect(parseTasklist('INFO: No tasks are running which match the specified criteria.')).toBeUndefined()
   })
 
   it('tasklist 的整张 CSV 表：每行取出 pid → 映像名，认不出的行跳过', () => {

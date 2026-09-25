@@ -3,9 +3,9 @@ import { chmodSync, lstatSync, mkdirSync, readdirSync, rmdirSync, unlinkSync } f
 import path from 'node:path'
 import type { RunResult } from './dev.js'
 import type { HomeDeps, HomeFs } from './home.js'
-import { hostAppFacts, hostAppSpawnPlan, RUN_TAIL_LINES } from './home.js'
+import { hostAppSpawnPlan, RUN_TAIL_LINES } from './home.js'
 import { tailLines } from '@godcreator/gwb-plugin-manager'
-import { kill, nodeFs, portOwner, processName } from './node-probe-deps.js'
+import { nodeFs } from './node-probe-deps.js'
 import { runWithTreeTimeout, timeoutNote } from './node-process-tree.js'
 
 // HomeDeps 在这台机器上的实现：读写磁盘、启动进程，没有单元测试；判断在 home.ts 里。查进程、结束进程用 node-probe-deps 的
@@ -33,14 +33,9 @@ export function makeGuiSpawn(log: (message: string) => void): HomeDeps['spawn'] 
   }
 }
 
-/** 从宿主进程的 execPath / argv 拼命令行，不 import `electron`：产物里不许有没列进依赖的包名 import */
+/** 从宿主进程自己的 exe 拼命令行，不 import `electron`：产物里不许有没列进依赖的包名 import */
 export function makeAppSpawnPlan(): HomeDeps['appSpawnPlan'] {
-  return async (cdp) => {
-    const facts = hostAppFacts(process.execPath, process.argv)
-    // argv[1] 可能是 `.` 这种相对写法，子进程的工作目录不是内核的工作目录时会指错地方，先转成绝对路径
-    const appPath = facts.appPath === undefined ? undefined : path.resolve(facts.appPath)
-    return hostAppSpawnPlan({ execPath: process.execPath, packaged: facts.packaged, appPath }, cdp)
-  }
+  return async (cdp) => hostAppSpawnPlan(process.execPath, cdp)
 }
 
 /** 前台运行一条命令到结束：stdout 与 stderr 合在一起收，超时就终止整棵进程树；只回最后几行，报错在最后 */
