@@ -64,4 +64,4 @@
 * **插件管理的 dev 暂时列着接口类型包 `@godcreator/gwb-plugin-api`**：命令总线 0.5.0 的类型声明还从它取 `GwbResult`，少了它 `commandBus.run` 的回执成了 error 类型、oxlint 不过。命令总线改成从内核包取类型之后删掉
 * **模板的窗格入口手写了外壳传入的参数形状**：`template/pkg/src/client/index.tsx.tpl` 里的 `PaneArgs` 没从外壳 `import type`。外壳发出导出窗格入口类型的正式版之后，改成从外壳取、把模板里外壳的下限升上去
 
-<!-- 来源 ../plugins/devkit/template/pkg/src/client/index.tsx.tpl · 有 interface PaneArgs { · 未确认 -->
+<!-- 来源 ../plugins/devkit/template/pkg/src/client/index.tsx.tpl · 有 interface PaneArgs { · 新鲜 -->
