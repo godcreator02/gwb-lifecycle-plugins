@@ -1,7 +1,7 @@
 # gwb-devkit
 
 开发套件，**一个普通的 gwb 插件**，源码在 `plugins/devkit/`。仓是 pnpm workspace（插件放在 `plugins/`，与基础插件仓的布局相同）：`plugins/devkit/` 是开发套件，
-`plugins/plugin-manager/` 是插件管理 `@godcreator/gwb-plugin-manager`（见下面「本仓还有插件管理」），`docs-site/` 是文档站。各包发到团队源（gitea 个人源，**本仓发版要给 packages 参数**），装进 home。
+`plugins/plugin-manager/` 是插件管理 `@godcreator/gwb-plugin-manager`（见下面「本仓还有插件管理」），`docs-site/` 是文档站。各包没写 `publishConfig.registry`，按缺省发到团队源（gitea 个人源，**本仓发版要给 packages 参数**），装进 home。
 开发套件的命令分六组：建仓与加插件、测试 home、改一版看一版、发正式版、服务总览、CDP 驱动（包内命令行脚本 `bin/cdp.mjs`，经 `gwbNodeCli` 登记成 `devkit.cdp`）。
 **开发套件没有界面**：它的使用者是 agent，读的是回执。设计与机制在文档站（见下面「文档地图」），这份只写**不知道就会做错事**的硬约束。
 
@@ -9,16 +9,16 @@
 
 文档站在 `docs-site/`，现状页在 `content/docs/`，站点地址 `/docs/...` 与文件路径一一对应：
 
-| 页      | 文件                | 讲什么                                                                     |
-| ------ | ----------------- | ----------------------------------------------------------------------- |
-| 入口     | `index.mdx`       | 接缝图：两个包与工作台、内核、别的插件之间有哪几条接缝                                             |
-| 关键设计   | `design.mdx`      | 为什么这么切分：普通插件、写插件只有打包安装验证一条路、开发版只进隔离 home、只按名字定位 home、纯逻辑与真机器分开、两个包为什么同仓 |
-| 开发     | `develop.mdx`     | 怎么装与确认、提交前的检查、在隔离 home 里验证、发版、文档站的检查与生成                                 |
-| 接缝     | `seams/`          | 每条接缝交换什么、两边各保证什么                                                        |
-| 开发套件   | `devkit/`         | 首页讲功能、10 条命令、说明书、模板、依赖、不做的事；分页讲建仓、测试 home、改一版看一版、CDP 驱动                 |
-| 插件管理   | `plugin-manager/` | 首页讲功能、接口、依赖、不做的事；分页讲各个机制                                                |
-| 写插件的规矩 | `rules/`          | 规矩总表与每条规矩的做法、由哪道检查把关                                                    |
-| 术语表    | `glossary.mdx`    | 反复出现的词、退役的词与命令                                                          |
+| 页      | 文件                | 讲什么                                                                                       |
+| ------ | ----------------- | ----------------------------------------------------------------------------------------- |
+| 入口     | `index.mdx`       | 接缝图：两个包与工作台、内核、别的插件之间有哪几条接缝                                                               |
+| 关键设计   | `design.mdx`      | 为什么这么切分：普通插件、写插件只有打包安装验证一条路、包名与发到哪用 npm 的标准字段、开发版只进隔离 home、只按名字定位 home、纯逻辑与真机器分开、两个包为什么同仓 |
+| 开发     | `develop.mdx`     | 怎么装与确认、提交前的检查、在隔离 home 里验证、发版、文档站的检查与生成                                                   |
+| 接缝     | `seams/`          | 每条接缝交换什么、两边各保证什么                                                                          |
+| 开发套件   | `devkit/`         | 首页讲功能、10 条命令、说明书、模板、依赖、不做的事；分页讲建仓、测试 home、改一版看一版、CDP 驱动                                   |
+| 插件管理   | `plugin-manager/` | 首页讲功能、接口、依赖、不做的事；分页讲各个机制                                                                  |
+| 写插件的规矩 | `rules/`          | 规矩总表与每条规矩的做法、由哪道检查把关                                                                      |
+| 术语表    | `glossary.mdx`    | 反复出现的词、退役的词与命令                                                                            |
 
 另外五区：`content/trajectory/` 轨迹卡、`content/spec/` 进行中的交接、`content/future/` 未来、`content/outputs/` 生成文件的正本、`content/feedback/` 反复做的操作的候选。
 
@@ -111,7 +111,7 @@ pnpm build          # 只构建 plugins/*：开发套件 esbuild 打包成一个
 生成仓根，`template/pkg/` 生成插件包（**唯一正本**——建仓 `devkit.scaffold` 与加插件
 `devkit.scaffold.plugin` 生成的是同一份，一个插件与多个插件的仓格式一致靠这个，不靠纪律），
 `template/site/plugin.mdx.tpl` 生成文档站现状区里的插件页（**站装好六区之后才写**：`docfirst.attach`
-只在没加过页的骨架上装得了）。插件包自带全部配置：tsconfig /
+只在没加过页的初始站点上装得了）。插件包自带全部配置：tsconfig /
 vitest / oxlint 配置全在包内，搬到哪个仓都不用改（oxlint 按工作目录找配置，所以 `.oxlintrc.json`
 放在插件包里、不放仓根）。还在用的旧布局仓（仓根就是插件）改到哪个就顺手迁哪个，不专门迁：
 插件包的文件 git mv 进 `plugins/<短名>/`，仓根换成 `private: true` 的 `package.json`，照模板生成的仓对齐。
@@ -128,7 +128,7 @@ vitest / oxlint 配置全在包内，搬到哪个仓都不用改（oxlint 按工
 和 latest 不在同一条线、范围不含 latest，新仓第一次发版就被发版前检查拦下；写了源上没有的版本，新仓 `pnpm install` 直接失败——
 改模板里的版本号之前先用 `pnpm view <包> dist-tags.latest` 查。模板的起始版本号是 0.1.0。
 
-**占位符就这七个**：`{{name}}`、`{{title}}`、`{{pkg}}`、`{{pkgName}}`、`{{cssPrefix}}`、`{{kernelVersion}}`（运行建仓命令的内核版本号的 x.y.z 三段）、`{{docsBlock}}`。
+**占位符就这八个**：`{{name}}`、`{{title}}`、`{{pkg}}`（`<scope>/gwb-<短名>`，`scope` 参数缺省 `@godcreator`）、`{{registry}}`（插件包 `publishConfig.registry` 的值，`registry` 参数缺省团队源；只收与 `new URL(x).href` 逐字相同的 http(s) 地址，所以原样写进 JSON 不用转义）、`{{pkgName}}`、`{{cssPrefix}}`、`{{kernelVersion}}`（运行建仓命令的内核版本号的 x.y.z 三段）、`{{docsBlock}}`。
 **认不出的占位符直接抛错**——给模板加了新占位符，`src/scaffold.ts` 的 `placeholders()`
 必须同时加一条，否则下一次建仓整个失败（而不是留一个 `{{typo}}` 写进别人的 package.json 里）。
 
@@ -163,14 +163,14 @@ config——写在 yml 里的那份界面看不见、agent 也不知道有它。
 
 `devkit.scaffold` 建站的那部分**经命令总线按名字转给别的插件**，本包不依赖那两个插件的任何包：
 
-1. `docs-site.create`（站点插件 `@godcreator/gwb-docs-site`）生成 fumadocs 骨架
-2. `docfirst.attach`（docfirst 插件 `@godcreator/gwb-docfirst-workflow`）在**刚生成的**骨架上装六区
+1. `docs-site.create`（站点插件 `@godcreator/gwb-docs-site`）生成 fumadocs 初始站点
+2. `docfirst.attach`（docfirst 插件 `@godcreator/gwb-docfirst-workflow`）在**刚生成的**初始站点上装六区
 
 两条都认**站目录**（`<仓>\docs-site`），不是仓根。**哪个插件没装就跳过那一步**——回执里
 说清怎么补、README 那段话跟着改，插件那部分照样写到磁盘，**不报错终止建仓**。回执里
-`docs.built`（骨架）与 `docs.attached`（六区）两个字段才是实际结果，`nextSteps` 按它俩分三种情况。
+`docs.built`（初始站点）与 `docs.attached`（六区）两个字段才是实际结果，`nextSteps` 按它俩分三种情况。
 
-`docfirst.attach` **只在还没写过内容的骨架上装得了**（它自己检查这条），所以补建的两条
+`docfirst.attach` **只在还没写过内容的初始站点上装得了**（它自己检查这条），所以补建的两条
 要连着调用。
 
 ## 改一版看一版：替换插件的工具不能运行在被替换的进程里

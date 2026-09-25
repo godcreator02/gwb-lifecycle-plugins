@@ -55,7 +55,7 @@ description: 写 gwb 插件要守的规矩一条一行：做法在哪一页、�
 | 插件的数据目录只由它自己读写 | [交互](/docs/rules/interaction) | 没有工具检查 | — |
 | 自己启动或创建的一切，卸载时清理掉，并返回 promise | [卸载清理](/docs/rules/dispose) | 没有工具检查 | — |
 | 插件包在 peer 里写内核包 `@godcreator/gwb-kernel-desktop`，范围 `^x.y.z` 包含运行中的内核 | [兼容哪个内核](/docs/rules/kernel-compat) | `devkit.release` 拒没写、写法不是 `^x.y.z`、范围不包含运行中的内核；`plugin-manager.list` 按包报范围不包含 home 里内核的插件 | — |
-| 经 `ctx.inject` 用到、或 import 了类型的别的插件写进 peer，范围 `^x.y.z`，可选使用的在 `peerDependenciesMeta` 标 `optional: true`；不再另写 dev | [用到的插件写 peer](/docs/rules/plugin-peers) | `devkit.release` 拒 peer 里的 `@godcreator` 插件写法不是 `^x.y.z`、和源上 latest 不在同一条线（0.x 比 x，≥1 比主版本号）；`plugin-manager.list` 按包报 `unmetPeers` | 用到了没写进 peer 的插件没有工具检查 |
+| 经 `ctx.inject` 用到、或 import 了类型的别的插件写进 peer，范围 `^x.y.z`，可选使用的在 `peerDependenciesMeta` 标 `optional: true`；不再另写 dev | [用到的插件写 peer](/docs/rules/plugin-peers) | `devkit.release` 拒 peer 里的 gwb 插件（不分包名范围）写法不是 `^x.y.z`、和源上 latest 不在同一条线（0.x 比 x，≥1 比主版本号）；`plugin-manager.list` 按包报 `unmetPeers` | 用到了没写进 peer 的插件没有工具检查 |
 | 0.x 里只在破坏契约时升 x，其余升 y；0.0.x 先升到 0.1.0；同一个号不重发 | 说明书 `gwb-release` | `devkit.release` 拒源上已有的号；0.0.x 与升哪一位没有工具检查 | — |
 
 ## 这个仓自己还没照做的

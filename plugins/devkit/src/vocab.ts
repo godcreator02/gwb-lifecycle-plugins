@@ -1,5 +1,25 @@
 import type { GwbContext, GwbKernelApi } from '@godcreator/gwb-kernel-desktop'
 
+/** 团队的包名范围：建仓不给 scope 时生成的包在它下面；发版前检查只查这个范围下的库在源上的 latest */
+export const TEAM_SCOPE = '@godcreator'
+
+/**
+ * 团队源：gitea 上 godcreator 组织的 npm 源，与用户级 `~/.npmrc` 里 `@godcreator` 那行同一个地址。
+ * 建仓不给 registry 时写进生成的 `publishConfig.registry`；包清单没写 `publishConfig.registry` 的包发到这里
+ */
+export const TEAM_REGISTRY = 'https://git.tianshen02.online:28377/api/packages/godcreator/npm/'
+
+/** 按 URL 解析得了、协议是 http 或 https 才回 URL，否则回 undefined */
+export function parseHttpUrl(raw: string): URL | undefined {
+  let url: URL
+  try {
+    url = new URL(raw)
+  } catch {
+    return undefined
+  }
+  return url.protocol === 'http:' || url.protocol === 'https:' ? url : undefined
+}
+
 /** 取内核服务。不要写进 `export const inject` */
 export function requireKernel(ctx: Pick<GwbContext, 'gwbKernel'>): GwbKernelApi {
   const kernel = ctx.gwbKernel

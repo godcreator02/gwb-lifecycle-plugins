@@ -1,13 +1,13 @@
 import fs from 'node:fs'
 import path from 'node:path'
 import { isMap, isScalar, isSeq, LineCounter, parseDocument, type Document } from 'yaml'
-import { versionCore } from './vocab.js'
+import { parseHttpUrl, TEAM_REGISTRY, TEAM_SCOPE, versionCore } from './vocab.js'
 
 /** 短名：kebab-case。段之间只许一个连字符、结尾不许有连字符——宽松的写法会放过 `x--`，生成的包名就一直带着它 */
 export const NAME_RE = /^[a-z][a-z0-9]*(?:-[a-z0-9]+)*$/
 
-/** 插件包名的 scope。全生态统一，不做成参数 */
-export const SCOPE = '@godcreator'
+/** npm 包名范围：`@` 加小写字母、数字与 `-._~`，不以 `.`、`_` 开头（npm 对新包名的规则） */
+export const SCOPE_RE = /^@[a-z0-9~-][a-z0-9._~-]*$/
 
 /** 模板文件的后缀，写到磁盘时去掉 */
 export const TEMPLATE_SUFFIX = '.tpl'
@@ -28,8 +28,8 @@ const PLUGIN_PAGE_TEMPLATE = `${SITE_ZONE}/plugin.mdx.tpl`
 export const PLUGINS_GLOB = 'plugins/*'
 
 /**
- * 值是调用方给的任意文本、要按所在文件的上下文编码的占位符。别的占位符的值出自 `NAME_RE` 与版本号三段，
- * 或是本包拼好的 Markdown 段落（`{{docsBlock}}`），原样替换
+ * 值是调用方给的任意文本、要按所在文件的上下文编码的占位符。别的占位符的值出自 `NAME_RE`、`SCOPE_RE`、
+ * 规范写法的 http(s) 地址与版本号三段，或是本包拼好的 Markdown 段落（`{{docsBlock}}`），原样替换
  */
 const FREE_TEXT_PLACEHOLDER = 'title'
 
@@ -49,6 +49,10 @@ export interface ScaffoldInput {
   port?: number
   /** 运行 `devkit.scaffold` 的那个内核的版本号。生成的插件包在 peer 里写内核包 `^<它的 x.y.z>` */
   kernelVersion: string
+  /** 包名范围，`@` 开头。不给是 `TEAM_SCOPE` */
+  scope?: string
+  /** 写进插件包 `publishConfig.registry` 的发布目标。不给是 `TEAM_REGISTRY` */
+  registry?: string
 }
 
 export interface ScaffoldPlan {
@@ -56,8 +60,10 @@ export interface ScaffoldPlan {
   name: string
   /** 显示名，缺省用短名 */
   title: string
-  /** 完整包名 `@godcreator/gwb-<短名>` */
+  /** 完整包名 `<scope>/gwb-<短名>` */
   pkg: string
+  /** 插件包 `publishConfig.registry` 的值 */
+  registry: string
   /** 插件名 `gwb-<短名>`——`export const name` 的值 */
   pluginName: string
   /** 转成绝对路径之后的目标目录 */
@@ -77,6 +83,10 @@ export interface ScaffoldPluginInput {
   title?: string
   /** 运行 `devkit.scaffold.plugin` 的那个内核的版本号。生成的插件包在 peer 里写内核包 `^<它的 x.y.z>` */
   kernelVersion: string
+  /** 同 `ScaffoldInput.scope` */
+  scope?: string
+  /** 同 `ScaffoldInput.registry` */
+  registry?: string
 }
 
 /** 加一个插件的计划。派生规则与 `ScaffoldPlan` 相同，dir 直接指到插件包目录 */
@@ -85,8 +95,10 @@ export interface ScaffoldPluginPlan {
   name: string
   /** 显示名，缺省用短名 */
   title: string
-  /** 完整包名 `@godcreator/gwb-<短名>` */
+  /** 完整包名 `<scope>/gwb-<短名>` */
   pkg: string
+  /** 插件包 `publishConfig.registry` 的值 */
+  registry: string
   /** 插件名 `gwb-<短名>` */
   pluginName: string
   /** workspace 仓根（转成绝对路径之后） */
@@ -123,6 +135,33 @@ function validShortName(rawName: string): string {
   return name
 }
 
+function scopeOrTeamScope(scope: string | undefined): string {
+  if (scope === undefined) return TEAM_SCOPE
+  if (!SCOPE_RE.test(scope)) {
+    throw new Error(`scope 要是 @ 开头的 npm 范围（${String(SCOPE_RE)}，如 "@someone"），实得 ${JSON.stringify(scope)}`)
+  }
+  return scope
+}
+
+/**
+ * 只收规范写法（与 `new URL(registry).href` 逐字相同）：原样写进 package.json 的 JSON 字符串里，
+ * 规范写法里没有要转义的字符。账号写在 URL 里会随包清单发出去，发布 token 写在用户级 `~/.npmrc`
+ */
+function registryOrTeamRegistry(registry: string | undefined): string {
+  if (registry === undefined) return TEAM_REGISTRY
+  const url = parseHttpUrl(registry)
+  if (url === undefined) {
+    throw new Error(`registry 要是 http(s) 地址（如 "http://localhost:4873/"），实得 ${JSON.stringify(registry)}`)
+  }
+  if (url.username !== '' || url.password !== '' || url.search !== '' || url.hash !== '') {
+    throw new Error(`registry 不许带账号、查询串或 #（发布 token 写在用户级 ~/.npmrc），实得 ${JSON.stringify(registry)}`)
+  }
+  if (url.href !== registry) {
+    throw new Error(`registry 要写成规范写法 ${JSON.stringify(url.href)}，实得 ${JSON.stringify(registry)}`)
+  }
+  return registry
+}
+
 function titleOrShortName(title: string | undefined, name: string): string {
   if (title === undefined || title.trim() === '') return name
   const trimmed = title.trim()
@@ -146,7 +185,8 @@ export function planScaffold(input: ScaffoldInput): ScaffoldPlan {
   return {
     name,
     title,
-    pkg: `${SCOPE}/gwb-${name}`,
+    pkg: `${scopeOrTeamScope(input.scope)}/gwb-${name}`,
+    registry: registryOrTeamRegistry(input.registry),
     pluginName: `gwb-${name}`,
     dir,
     docs: input.docs !== false,
@@ -207,6 +247,8 @@ function assertFrontmatter(text: string, file: string): void {
 /** 要读磁盘：repo 必须已经是 workspace 仓（`pnpm-workspace.yaml` 的 packages 里有 `plugins/*` 那条），旧布局仓报错里写清怎么迁 */
 export function planScaffoldPlugin(input: ScaffoldPluginInput): ScaffoldPluginPlan {
   const name = validShortName(input.name)
+  const pkg = `${scopeOrTeamScope(input.scope)}/gwb-${name}`
+  const registry = registryOrTeamRegistry(input.registry)
   const rawRepo = input.repo.trim()
   if (rawRepo === '') throw new Error('repo 是必给的：workspace 仓根的绝对路径（pnpm-workspace.yaml 所在的那一层）')
   const repoDir = path.resolve(rawRepo)
@@ -225,7 +267,8 @@ export function planScaffoldPlugin(input: ScaffoldPluginInput): ScaffoldPluginPl
   return {
     name,
     title: titleOrShortName(input.title, name),
-    pkg: `${SCOPE}/gwb-${name}`,
+    pkg,
+    registry,
     pluginName: `gwb-${name}`,
     repoDir,
     dir: path.join(repoDir, 'plugins', name),
@@ -276,16 +319,18 @@ interface Placeholdable {
   name: string
   title: string
   pkg: string
+  registry: string
   pluginName: string
   kernelVersion: string
 }
 
-/** 除 `{{docsBlock}}` 以外六个占位符的值。`{{docsBlock}}` 只有仓根的 README 用；加插件不建站，用不到它 */
+/** 除 `{{docsBlock}}` 以外七个占位符的值。`{{docsBlock}}` 只有仓根的 README 用；加插件不建站，用不到它 */
 function corePlaceholders(plan: Placeholdable): Record<string, string> {
   return {
     name: plan.name,
     title: plan.title,
     pkg: plan.pkg,
+    registry: plan.registry,
     pkgName: plan.pluginName,
     // 样式类前缀：短名去掉非小写字母。Tailwind 4 的 prefix() 只收 a-z，有连字符或数字时 build 才报错，check 照样全绿
     cssPrefix: plan.name.replace(/[^a-z]/g, ''),
@@ -293,7 +338,7 @@ function corePlaceholders(plan: Placeholdable): Record<string, string> {
   }
 }
 
-/** 占位符表（全套七个，建仓用）。值是原文，`{{title}}` 由 `render` 按所在文件的上下文编码 */
+/** 占位符表（全套八个，建仓用）。值是原文，`{{title}}` 由 `render` 按所在文件的上下文编码 */
 export function placeholders(plan: ScaffoldPlan): Record<string, string> {
   return { ...corePlaceholders(plan), docsBlock: docsBlock(plan) }
 }

@@ -9,10 +9,10 @@ description: 开发套件是一个普通的 gwb 插件，把「在一个新文�
 
 ## 功能
 
-- **建仓**：`devkit.scaffold` 把新插件的骨架写进一个还不存在的目录（workspace 仓，插件在 `plugins/<短名>/`），默认连文档站一起建；`devkit.scaffold.plugin` 往已有的 workspace 仓再加一个插件包——[建仓与加插件](/docs/devkit/scaffold)
+- **建仓**：`devkit.scaffold` 把新插件的初始文件写进一个还不存在的目录（workspace 仓，插件在 `plugins/<短名>/`），默认连文档站一起建；`devkit.scaffold.plugin` 往已有的 workspace 仓再加一个插件包——[建仓与加插件](/docs/devkit/scaffold)
 - **测试 home**：`devkit.home.new` 开一个装好内核包、cordis 与七个基础插件的隔离 home，`open` 重开、`list` 列出、`rm` 删除；调试端口自动选，之后只按名字找——[测试 home](/docs/devkit/home)
 - **改一版看一版**：`devkit.dev` 把工作区的改动打包成开发版的包文件放进另一个 home，经那个 home 的插件管理装进正在运行的进程并重新加载，整页刷新，最后取证——[改一版看一版](/docs/devkit/dev)
-- **发正式版**：`devkit.release` 从仓根把包按依赖顺序发到团队源，发之前检查 git 工作区、构建产物、依赖写法、插件 peer 里的内核包与别的插件，不改仓里任何文件——见下面[发正式版的检查](#发正式版的检查)
+- **发正式版**：`devkit.release` 从仓根把包按依赖顺序发到各包的发布目标（`package.json` 的 `publishConfig.registry`，没写是团队源），发之前检查 git 工作区、构建产物、依赖写法、插件 peer 里的内核包与别的插件，不改仓里任何文件——见下面[发正式版的检查](#发正式版的检查)
 - **服务总览**：`devkit.services` 从调用它的那个 home 里各包的 `.d.ts` 现读：这个 home 有哪些可以 inject 的服务、各由哪个包提供、类型定义的原文——[服务表与类型声明](/docs/seams/service-table)
 - **CDP 驱动**：`devkit.cdp`（`bin/cdp.mjs`）在隔离 home 的页面里点击、输入、截图、执行工作台命令、问页面属于哪个 home；工作台没运行时也能直接用 node 运行——[CDP 驱动](/docs/devkit/cdp)
 
@@ -28,12 +28,12 @@ description: 开发套件是一个普通的 gwb 插件，把「在一个新文�
 | --- | --- | --- |
 | `devkit.scaffold` | 建仓：渲染 `template/repo/` 与 `template/pkg/` 写进新目录，再按名字调别的插件建文档站，站装好六区后写一页插件页草稿 | [4 模板与发版前检查](/docs/seams/template-release)、[5 借用别的插件的命令](/docs/seams/borrowed-commands) |
 | `devkit.scaffold.plugin` | 往已有 workspace 仓的 `plugins/` 加一个插件包，只渲染 `template/pkg/`；仓里有装好六区的文档站时再写一页插件页草稿 | [4 模板与发版前检查](/docs/seams/template-release)、[10 被测仓的形状](/docs/seams/repo-shape) |
-| `devkit.home.new` | 开一个新的隔离 home：写 `cordis.yml`，装内核包、cordis 与基础插件，启动宿主应用，选调试端口 | [7 内核与 home](/docs/seams/kernel-home)、[9 pnpm 与团队源](/docs/seams/pnpm-registry) |
+| `devkit.home.new` | 开一个新的隔离 home：写 `cordis.yml`，装内核包、cordis 与基础插件，启动宿主应用，选调试端口 | [7 内核与 home](/docs/seams/kernel-home)、[9 pnpm 与包源](/docs/seams/pnpm-registry) |
 | `devkit.home.open` | 重开一个已有的 home | [7 内核与 home](/docs/seams/kernel-home) |
 | `devkit.home.list` | 列出全部 home、哪些在运行、各自的调试端口与 MCP 入口 | [7 内核与 home](/docs/seams/kernel-home) |
 | `devkit.home.rm` | 删一个 home；还在运行的要 `force`，先停再删 | [7 内核与 home](/docs/seams/kernel-home) |
-| `devkit.dev` | 构建、打包进目标 home、经目标 home 的插件管理装并重新加载、刷新、取证 | [2 devkit 调插件管理](/docs/seams/plugin-manager-calls)、[6 CDP](/docs/seams/cdp)、[9 pnpm 与团队源](/docs/seams/pnpm-registry) |
-| `devkit.release` | 检查后把包发成正式版（tag latest） | [3 peer 里的内核包与插件](/docs/seams/kernel-peer)、[9 pnpm 与团队源](/docs/seams/pnpm-registry)、[10 被测仓的形状](/docs/seams/repo-shape) |
+| `devkit.dev` | 构建、打包进目标 home、经目标 home 的插件管理装并重新加载、刷新、取证 | [2 devkit 调插件管理](/docs/seams/plugin-manager-calls)、[6 CDP](/docs/seams/cdp)、[9 pnpm 与包源](/docs/seams/pnpm-registry) |
+| `devkit.release` | 检查后把包发成正式版（tag latest） | [3 peer 里的内核包与插件](/docs/seams/kernel-peer)、[9 pnpm 与包源](/docs/seams/pnpm-registry)、[10 被测仓的形状](/docs/seams/repo-shape) |
 | `devkit.services` | 这个 home 有哪些可以 inject 的服务、谁提供、类型定义原文，无参数 | [11 服务表与类型声明](/docs/seams/service-table) |
 | `devkit.cdp` | 在一个 home 的页面里执行一个动作，经 `gwbNodeCli` 登记 | [6 CDP](/docs/seams/cdp) |
 
@@ -61,7 +61,9 @@ description: 开发套件是一个普通的 gwb 插件，把「在一个新文�
 
 ### 发正式版的检查
 
-`devkit.release` 依次做：仓根 git 工作区不干净就拒；仓根 `pnpm build`；按 `files` 白名单检查产物；同一个版本号已在源上就拒；发版前检查；在临时目录组装发布内容、发到 latest（`workspace:` 依赖写成 `^`：同一次发的写 `^新版本号`，其余写 `^<工作区里的版本号>`）。任何一个包没过检查，一个都不发，回执按包一次列全。它只碰团队源、不碰任何 home，所以从哪个 home 调用都可以。
+`devkit.release` 依次做：仓根 git 工作区不干净就拒；仓根 `pnpm build`；按 `files` 白名单检查产物；同一个版本号已在发布目标上就拒；发版前检查；在临时目录组装发布内容、发到各包的发布目标并打 latest（`workspace:` 依赖写成 `^`：同一次发的写 `^新版本号`，其余写 `^<工作区里的版本号>`）。任何一个包没过检查，一个都不发，回执按包一次列全。它只碰各包的发布目标、不碰任何 home，所以从哪个 home 调用都可以。
+
+发布目标是包自己 `package.json` 的 `publishConfig.registry`；没写这个字段的包发到团队源（写明的默认值：建仓早于这个字段的仓都没写），写了但不是 http(s) 地址就拒。发布目标写进临时目录里发布内容清单的 `publishConfig.registry`，命令行不带 `--registry`；为什么这么传见[pnpm 与包源](/docs/seams/pnpm-registry)。
 
 这几步的顺序与取舍各有原因：
 
@@ -74,27 +76,31 @@ description: 开发套件是一个普通的 gwb 插件，把「在一个新文�
 
 <Diagram name="dk-release" title="devkit.release 发正式版：六步依次做，任何一处没过，一个包都不发">
 - 第 1 步仓根 git 工作区干净（`git status`），不干净连构建都不运行；第 2 步仓根 `pnpm build`
-- 第 3 步按 `files` 白名单查产物都在；第 4 步查这个版本号在源上没发过
-- 第 5 步发版前检查，要发的包一起查、一次列全。每个包查三项：`@godcreator` 的 dev 范围包含源上的 latest、产物里没有空 import、相对 import 指向的文件都在；插件包另查四项：peer 只有 `cordis`、内核包与插件，peer 里的插件和源上 latest 在同一条线、包名 import 的两份名单、peer 里内核包的范围包含运行中的内核
-- 第 6 步在临时目录组装发布内容，按 `packages` 给的顺序发到 latest
+- 第 3 步按 `files` 白名单查产物都在；第 4 步查这个版本号在包的发布目标上没发过
+- 第 5 步发版前检查，要发的包一起查、一次列全。每个包查三项：`@godcreator` 范围下的 dev 范围包含源上的 latest、产物里没有空 import、相对 import 指向的文件都在；插件包另查四项：peer 只有 `cordis`、内核包与插件，peer 里的 gwb 插件（不分包名范围）和源上 latest 在同一条线、包名 import 的两份名单、peer 里内核包的范围包含运行中的内核
+- 第 6 步在临时目录组装发布内容，按 `packages` 给的顺序发到各自的发布目标、打 latest
 - 最下面那个框：任一项没过，一个包都不发，回执按包列出每一项问题
 </Diagram>
 
 发版前检查对每个要发的包查：
 
-- `@godcreator` 的 dev 依赖范围包含源上的 `dist-tags.latest`（写法认不出、问不出源上的 latest 或它不是版本号、下限比 latest 还新、latest 超出范围才拒，范围内落后放行）
+- `@godcreator` 范围下的 dev 依赖范围包含源上的 `dist-tags.latest`（写法认不出、问不出源上的 latest 或它不是版本号、下限比 latest 还新、latest 超出范围才拒，范围内落后放行）；别的包名范围下的库不查——外部开发者自己的库不强求
 - 构建产物里没有 `import {} from '…'` 这种空 import（源码写了 `import { type X }`），相对 import 指向的文件都在，产物按 JS 语法读得下去
 
 插件包（`keywords` 含 `gwb-plugin`）另查：
 
 - peer 里只有 `cordis`、内核包 `@godcreator/gwb-kernel-desktop` 与别的插件：是不是插件读包目录 `node_modules` 里它的清单，`keywords` 含 `gwb-plugin` 或同时含 `cordis` 与 `plugin` 才算；不是插件、清单读不到都拒，报错写明按「运行时谁提供」该改写成 dev 还是 `dependencies`
-- peer 里的每个 `@godcreator` 插件（内核包与 `workspace:` 除外）写法是 `^x.y.z`，并且和源上 `dist-tags.latest` 在同一条线：主版本号为 0 时只比次版本号，≥1 时只比主版本号。不在同一条线就是上游出了破坏性版本，拒绝理由里写着适配、验过之后改成的 `^<latest>`；问不出源上的 latest 也拒
+- peer 里的每个 gwb 插件——包目录 `node_modules` 里它的清单 `keywords` 含 `gwb-plugin`，不分包名范围；内核包、`workspace:` 与 cordis 官方插件除外——写法是 `^x.y.z`，并且和源上 `dist-tags.latest` 在同一条线：主版本号为 0 时只比次版本号，≥1 时只比主版本号。不在同一条线就是上游出了破坏性版本，拒绝理由里写着适配、验过之后改成的 `^<latest>`；问不出源上的 latest 也拒。问哪个源由用户级 `~/.npmrc` 的范围行决定，命令行不指定
 - node 侧产物的包名 import 只有 node 内置模块、`electron` 与本包 peer 里写了的包；浏览器侧产物只 import 页面 importmap 里的名字，也就是内核包页面入口 `dist/index.html` 里 importmap 的键
 - peer 里写了内核包，写法是 `^x.y.z`，范围包含运行中的内核（没写、写法不对、不包含都拒，拒绝理由里写着该改成的 `^<运行中的内核的 x.y.z>`）
 
 dev 范围与 peer 里的插件在不在同一条线：
 
-{/* ref file="../plugins/devkit/src/release.ts" lines="260-293" */}
+{/* ref file="../plugins/devkit/src/release.ts" lines="296-329" */}
+
+peer 里哪些包算 gwb 插件、要和源上 latest 比，读包目录 `node_modules` 里它的清单判，不看包名范围：
+
+{/* ref file="../plugins/devkit/src/release.ts" lines="224-237" */}
 
 {/* ref file="../plugins/devkit/src/release.ts" lines="204-213" */}
 
@@ -140,7 +146,7 @@ peer 里内核包的检查，比对规则从插件管理的主入口 import（�
 
 ### 模板
 
-包根的 `template/` 是给别的仓用的骨架，只有 `devkit.scaffold` 与 `devkit.scaffold.plugin` 读它：`template/repo/` 生成仓根（`package.json`、`pnpm-workspace.yaml`、`README.md`、`.gitignore`），`template/pkg/` 生成插件包（源码、测试、tsconfig、vitest、oxlint、构建脚本），`template/site/plugin.mdx.tpl` 生成文档站现状区里的插件页（功能、命令与窗格、依赖的服务、不做的事）。生成的插件包清单 peer 里是内核包与模板用到的命令总线、外壳两个插件，node 侧源码从内核包 `import type` 接口类型；浏览器侧构建的外置名单从内核包页面入口 `dist/index.html` 里的 importmap 读，样式的令牌映射从外壳 `@godcreator/gwb-shell` 取。文件一律带 `.tpl` 后缀，占位符只有 `{{name}}`、`{{title}}`、`{{pkg}}`、`{{pkgName}}`、`{{cssPrefix}}`、`{{kernelVersion}}`、`{{docsBlock}}` 七个，`{{kernelVersion}}` 填运行命令的那个 home 的内核版本号的 x.y.z 三段，生成 peer 里内核包的范围 `^x.y.z`。模板带的产物测试与发版前检查用同一套包名 import 名单（[模板与发版前检查](/docs/seams/template-release)）。模板还带一份类名前缀测试 `tests/prefix.test.ts`，当场编译样式入口、不用先构建：没带前缀却编得出规则的类、带了前缀却编不出规则的类都报；前缀排在变体后面的（`disabled:<前缀>:opacity-50`，Tailwind 不认、也不报错）单独报成「前缀要排在最前」，并写出改法：
+包根的 `template/` 是给别的仓用的初始文件，只有 `devkit.scaffold` 与 `devkit.scaffold.plugin` 读它：`template/repo/` 生成仓根（`package.json`、`pnpm-workspace.yaml`、`README.md`、`.gitignore`），`template/pkg/` 生成插件包（源码、测试、tsconfig、vitest、oxlint、构建脚本），`template/site/plugin.mdx.tpl` 生成文档站现状区里的插件页（功能、命令与窗格、依赖的服务、不做的事）。生成的插件包清单 peer 里是内核包与模板用到的命令总线、外壳两个插件，node 侧源码从内核包 `import type` 接口类型；浏览器侧构建的外置名单从内核包页面入口 `dist/index.html` 里的 importmap 读，样式的令牌映射从外壳 `@godcreator/gwb-shell` 取。文件一律带 `.tpl` 后缀，占位符只有 `{{name}}`、`{{title}}`、`{{pkg}}`、`{{registry}}`、`{{pkgName}}`、`{{cssPrefix}}`、`{{kernelVersion}}`、`{{docsBlock}}` 八个，`{{pkg}}` 是 `<scope>/gwb-<短名>`（`scope` 参数，缺省 `@godcreator`），`{{registry}}` 写进插件包的 `publishConfig.registry`（`registry` 参数，缺省团队源），`{{kernelVersion}}` 填运行命令的那个 home 的内核版本号的 x.y.z 三段，生成 peer 里内核包的范围 `^x.y.z`。模板带的产物测试与发版前检查用同一套包名 import 名单（[模板与发版前检查](/docs/seams/template-release)）。模板还带一份类名前缀测试 `tests/prefix.test.ts`，当场编译样式入口、不用先构建：没带前缀却编得出规则的类、带了前缀却编不出规则的类都报；前缀排在变体后面的（`disabled:<前缀>:opacity-50`，Tailwind 不认、也不报错）单独报成「前缀要排在最前」，并写出改法：
 
 {/* has file="../plugins/devkit/template/pkg/tests/prefix.test.ts.tpl" text="带 {{cssPrefix}}: 前缀的类名都编得出规则，前缀排在变体后面的单独报出" */}
 
@@ -161,7 +167,8 @@ peer 里内核包的检查，比对规则从插件管理的主入口 import（�
 | 宿主应用（`process.execPath`，日常是安装版） | `devkit.home.new` / `open` 再启动一次它 | 宿主是开发态 electron 且读不出应用目录时拒 |
 | 机器上的 pnpm | 构建、发布、打包开发版、往新 home 里安装、`pnpm view` 查源 | 对应的命令回 `ok: false`，带 pnpm 输出的最后几行 |
 | git | `devkit.release` 查仓根工作区干不干净 | 查不出也拒发 |
-| 团队源（gitea 个人源），scope 路由写在用户级 `~/.npmrc` | 发正式版、查已发的版本、往新 home 里装内核包、cordis 与基础插件；开发版不经过它 | 发版与安装失败 |
+| 各包的发布目标（`package.json` 的 `publishConfig.registry`），发布 token 写在用户级 `~/.npmrc` | 发正式版、查这个版本号发过没有；开发版不经过它 | 发版失败 |
+| 团队源（gitea 个人源），`@godcreator` 的 scope 路由写在用户级 `~/.npmrc` | 没写 `publishConfig.registry` 的包的发布目标、查 `@godcreator` 包的 latest、往新 home 里装内核包、cordis 与基础插件 | 发版与安装失败；机器上没有 `@godcreator` 的 scope 路由时问不出 latest，发版前检查拒 |
 | 内核包 `@godcreator/gwb-kernel-desktop` 包根导出的类型（peer 里写的就是它） | `GwbContext`、`GwbKernelApi` 的类型 | 只在编译时用 |
 
 {/* has file="../plugins/devkit/src/index.ts" text="export const inject = ['gwbCommands']" */}
@@ -189,7 +196,7 @@ peer 里内核包的检查，比对规则从插件管理的主入口 import（�
 ## 不做的事
 
 - **不画界面**：没有窗格、没有浏览器端代码，只向外壳报一个显示名；使用者是 agent，读回执
-- **不管文档站的内容**：生成骨架归站点插件 `@godcreator/gwb-docs-site`，装六区与核对文档归 docfirst 插件 `@godcreator/gwb-docfirst-workflow`；本包不依赖它们的任何包，只按命令名调用。本包只在建仓与加插件时往现状区写一页插件页草稿
+- **不管文档站的内容**：生成初始站点归站点插件 `@godcreator/gwb-docs-site`，装六区与核对文档归 docfirst 插件 `@godcreator/gwb-docfirst-workflow`；本包不依赖它们的任何包，只按命令名调用。本包只在建仓与加插件时往现状区写一页插件页草稿
 - **不自己增删 home 里的条目、不写 home 的清单**：安装与条目归插件管理 `@godcreator/gwb-plugin-manager`。`devkit.dev` 装没装过的插件时调目标 home 的 `plugin-manager.install`，由插件管理新建条目；唯一的例外是 `devkit.home.new` 在新 home 启动之前直接 `pnpm add` 装包、写好基础插件的 `cordis.yml`（那时插件管理还没装、home 还没启动）
 - **不写 `runtime.json`**：它由内核与 MCP 入口插件写，本包只读
 - **不升级日常用的 `default`**：`devkit.dev` 拒绝以 `default` 为目标，`devkit.release` 只发到源；升级 `default` 用 `plugin-manager.update {"all":true}`

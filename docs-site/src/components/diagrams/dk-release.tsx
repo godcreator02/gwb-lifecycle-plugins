@@ -12,28 +12,28 @@ const ITEMS: ChainItem[] = [
   { lines: ['1 git 工作区干净', 'git status'], mono: true },
   { lines: ['2 仓根 pnpm build'] },
   { lines: ['3 产物都在', 'files 白名单逐项'] },
-  { lines: ['4 版本号没发过', '源上已有就拒'] },
+  { lines: ['4 版本号没发过', '发布目标上已有就拒'] },
   { lines: ['5 发版前检查', '所有包一次查完'] },
-  { lines: ['6 按顺序发到 latest', '临时目录里组装'] },
+  { lines: ['6 按顺序发到发布目标', '临时目录里组装'] },
 ]
 
 const EVERY_PACKAGE = ['dev 范围含源上的 latest', '产物里没有空 import', '相对 import 的文件都在']
 const PLUGIN_ONLY = ['peer 只许三类包', 'peer 插件与 latest 同线', '包名 import 的两份名单', '内核包范围含运行中内核']
 
 const STEPS: { title: string; detail: string; active: number; refused?: boolean }[] = [
-  { title: '全貌', detail: '六步依次做，前五步任何一处没过，一个包都不发。它只碰团队源、不碰任何 home，不改仓里任何文件，从哪个 home 调用都可以。', active: -1 },
+  { title: '全貌', detail: '六步依次做，前五步任何一处没过，一个包都不发。它只碰各包的发布目标（package.json 的 publishConfig.registry，没写是团队源）、不碰任何 home，不改仓里任何文件，从哪个 home 调用都可以。', active: -1 },
   { title: '第 1 步：git 工作区干净', detail: '在仓根运行 git status --porcelain=v1，有一条改动就拒，连构建都不运行；不是 git 仓也拒。发出去的必须是提交过的状态。', active: 0 },
   { title: '第 2 步：仓根 pnpm build', detail: '在仓根构建，不在包目录：同仓的包常常用着另一个包的产物。构建失败，一个都不发。', active: 1 },
   { title: '第 3 步：产物都在', detail: '按 package.json 的 files 白名单查：不带 ! 与通配的每一项都得在包目录里。不另列一份名单，免得两份对不上。', active: 2 },
-  { title: '第 4 步：版本号没发过', detail: '同一个版本号永不重发：源上已经有这个版本号就拒。要发新的一版，先升 package.json 的版本号、提交，再调用。', active: 3 },
+  { title: '第 4 步：版本号没发过', detail: '同一个版本号永不重发：包的发布目标上已经有这个版本号就拒；publishConfig.registry 写了但不是 http(s) 地址也拒。要发新的一版，先升 package.json 的版本号、提交，再调用。', active: 3 },
   {
     title: '第 5 步：发版前检查',
-    detail: '要发的包全部一起查、问题一次列全。每个包查右边上半的三项（dev 范围一项只看 @godcreator 的包）；keywords 含 gwb-plugin 的插件包另查下半的四项。',
+    detail: '要发的包全部一起查、问题一次列全。每个包查右边上半的三项（dev 范围一项只看 @godcreator 范围下的包；peer 插件同线那项不分范围）；keywords 含 gwb-plugin 的插件包另查下半的四项。',
     active: 4,
   },
   {
     title: '第 6 步：按顺序发到 latest',
-    detail: '在系统临时目录里组装发布内容，按 packages 给的顺序发（被依赖的排前面）。workspace: 依赖写成 ^：同一次发的写 ^新版本号，其余写 ^工作区里的版本号。不运行 prepublishOnly。',
+    detail: '在系统临时目录里组装发布内容，按 packages 给的顺序发到各自的发布目标、打 latest（被依赖的排前面）；发布目标写进发布内容清单的 publishConfig.registry，命令行不带 --registry。workspace: 依赖写成 ^：同一次发的写 ^新版本号，其余写 ^工作区里的版本号。不运行 prepublishOnly。',
     active: 5,
   },
   { title: '有一项没过', detail: '任何一个包的任何一项没过，一个包都不发；回执按包列出每一项问题与该怎么改。改完提交，再调一次。', active: 6, refused: true },

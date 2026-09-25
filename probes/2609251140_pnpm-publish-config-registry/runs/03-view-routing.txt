@@ -1,0 +1,95 @@
+pnpm 12.4.2；A=http://127.0.0.1:49770/ B=http://127.0.0.1:49772/
+
+== 1 publishConfig.registry=A，范围行=B，命令行不带 --registry
+命令：pnpm publish --no-git-checks --tag latest；退出码 1
+A 收到：PUT /@gwbprobe%2fprobe-pkg
+B 收到：无
+输出最后几行：
+Error: ERR_PNPM_FAILED_TO_PUBLISH
+
+  × Failed to publish package @gwbprobe/probe-pkg@0.0.1 (status 403
+  │ Forbidden): {"error":"probe registry A refuses every publish"}
+
+== 2 不写 publishConfig，范围行=B，命令行不带 --registry
+命令：pnpm publish --no-git-checks --tag latest；退出码 1
+A 收到：无
+B 收到：PUT /@gwbprobe%2fprobe-pkg
+输出最后几行：
+Error: ERR_PNPM_FAILED_TO_PUBLISH
+
+  × Failed to publish package @gwbprobe/probe-pkg@0.0.1 (status 403
+  │ Forbidden): {"error":"probe registry B refuses every publish"}
+
+== 3 publishConfig.registry=A，范围行=B，命令行 --registry B
+命令：pnpm publish --no-git-checks --tag latest --registry http://127.0.0.1:49772/；退出码 1
+A 收到：PUT /@gwbprobe%2fprobe-pkg
+B 收到：无
+输出最后几行：
+Error: ERR_PNPM_FAILED_TO_PUBLISH
+
+  × Failed to publish package @gwbprobe/probe-pkg@0.0.1 (status 403
+  │ Forbidden): {"error":"probe registry A refuses every publish"}
+
+== 4 不写 publishConfig，范围行=B，命令行 --registry A
+命令：pnpm publish --no-git-checks --tag latest --registry http://127.0.0.1:49770/；退出码 1
+A 收到：无
+B 收到：PUT /@gwbprobe%2fprobe-pkg
+输出最后几行：
+Error: ERR_PNPM_FAILED_TO_PUBLISH
+
+  × Failed to publish package @gwbprobe/probe-pkg@0.0.1 (status 403
+  │ Forbidden): {"error":"probe registry B refuses every publish"}
+
+== 5 pnpm view 不带 --registry（范围行=B）
+命令：pnpm view @gwbprobe/probe-pkg dist-tags.latest；退出码 0
+A 收到：无
+B 收到：GET /@gwbprobe%2Fprobe-pkg
+输出最后几行：
+2.0.0
+
+== 6 pnpm view --registry A（范围行=B）
+命令：pnpm view @gwbprobe/probe-pkg dist-tags.latest --registry http://127.0.0.1:49770/；退出码 0
+A 收到：无
+B 收到：GET /@gwbprobe%2Fprobe-pkg
+输出最后几行：
+2.0.0
+
+== 7 pnpm view --@gwbprobe:registry=A（范围行=B）
+命令：pnpm view @gwbprobe/probe-pkg dist-tags.latest --@gwbprobe:registry=http://127.0.0.1:49770/；退出码 2
+A 收到：无
+B 收到：无
+输出最后几行：
+
+Usage: pnpm view <PARAMS>...
+
+For more information, try '--help'.
+
+== 8 pnpm view --config.@gwbprobe:registry=A（范围行=B）
+命令：pnpm view @gwbprobe/probe-pkg dist-tags.latest --config.@gwbprobe:registry=http://127.0.0.1:49770/；退出码 0
+A 收到：GET /@gwbprobe%2Fprobe-pkg
+B 收到：无
+输出最后几行：
+1.0.0
+
+== 9 pnpm view，环境变量 npm_config_@gwbprobe:registry=A（范围行=B）
+命令：pnpm view @gwbprobe/probe-pkg dist-tags.latest；退出码 0
+A 收到：无
+B 收到：GET /@gwbprobe%2Fprobe-pkg
+输出最后几行：
+2.0.0
+
+== 10 pnpm view，环境变量 pnpm_config_@gwbprobe:registry=A（范围行=B）
+命令：pnpm view @gwbprobe/probe-pkg dist-tags.latest；退出码 0
+A 收到：无
+B 收到：GET /@gwbprobe%2Fprobe-pkg
+输出最后几行：
+2.0.0
+
+== 11 pnpm view <包>@0.0.1 version（范围行=B，B 上只有 2.0.0）
+命令：pnpm view @gwbprobe/probe-pkg@0.0.1 version；退出码 1
+A 收到：无
+B 收到：GET /@gwbprobe%2Fprobe-pkg
+输出最后几行：
+Error: ERR_PNPM_PACKAGE_NOT_FOUND
+
+  × No matching version found for @gwbprobe/probe-pkg@0.0.1

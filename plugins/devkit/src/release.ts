@@ -1,8 +1,8 @@
 import path from 'node:path'
-import { BUILD_TIMEOUT_MS, DEFAULT_REGISTRY, literalArtifacts, pnpmPlan, type RunPlan, type RunResult } from './dev.js'
+import { BUILD_TIMEOUT_MS, PLUGIN_KEYWORD, literalArtifacts, pnpmPlan, type RunPlan, type RunResult } from './dev.js'
 import { KERNEL_PACKAGE, isCaretRange, kernelRangeCovers } from '@godcreator/gwb-plugin-manager'
 import { artifactProblems } from './artifact-check.js'
-import { isRecord, versionCore } from './vocab.js'
+import { isRecord, parseHttpUrl, TEAM_REGISTRY, TEAM_SCOPE, versionCore } from './vocab.js'
 
 /** git 工作区的状态。`dirty` 里是 porcelain 条目原文（两列状态加路径） */
 export type GitStatus = { ok: true; dirty: string[] } | { ok: false; error: string }
@@ -11,14 +11,16 @@ export interface ReleaseDeps {
   /** 前台运行一条命令到结束：成没成加输出的最后几行；超时终止整棵进程树 */
   run(plan: RunPlan, timeoutMs: number): Promise<RunResult>
   /**
-   * 发一个正式版：在临时目录组装发布内容再 publish，不改仓里的 package.json。
+   * 发一个正式版：在临时目录组装发布内容再 publish，不改仓里的 package.json。`registry` 是发布目标（`publishTargetOf`），
+   * 写进发布内容清单的 `publishConfig.registry`，命令行不带 `--registry`——pnpm 12 里命令行的 `--registry` 盖不过 `.npmrc` 的范围行，
+   * `publishConfig.registry` 两者都盖得过。
    * `ranges` 是依赖名 → 写进去的范围：同一次发的包给 `^新版本号`，其余 workspace 依赖由实现按工作区里的版本号补 `^`
    */
   publish(input: { pkgDir: string; version: string; registry: string; ranges: Record<string, string> }): Promise<{ ok: boolean; tail: string }>
-  /** 这个版本号在源上有没有。问不出来当没有（发的时候源会再拒一次，那才是准的） */
+  /** 这个版本号在 `registry` 这个源上有没有。问不出来当没有（发的时候源会再拒一次，那才是准的） */
   published(spec: string, registry: string): Promise<boolean>
-  /** 源上这个包的 `dist-tags.latest`。问不出、没发过正式版都回 undefined */
-  latest(pkg: string, registry: string): Promise<string | undefined>
+  /** 源上这个包的 `dist-tags.latest`，问哪个源由 `.npmrc` 按包名范围决定。问不出、没发过正式版都回 undefined */
+  latest(pkg: string): Promise<string | undefined>
   /** 仓根的 git 工作区干不干净。问不出（不是 git 仓、没装 git）也是一种答案：拒 */
   gitStatus(repoDir: string): Promise<GitStatus>
   readText(file: string): string | undefined
@@ -40,6 +42,8 @@ export interface ReleasedPackage {
   pkg: string
   version: string
   dir: string
+  /** 发到的源 */
+  registry: string
 }
 
 export interface ReleaseReport {
@@ -62,7 +66,7 @@ export function dirtyLines(tail: string): string[] {
     .filter((line) => /^[ MADRCU?!]{1,3}\s+\S/.test(line))
 }
 
-const SCOPE = '@godcreator/'
+const TEAM_PACKAGE_PREFIX = `${TEAM_SCOPE}/`
 const EXACT = /^\d+\.\d+\.\d+$/
 const CARET = /^\^(\d+\.\d+\.\d+)$/
 const SEMVER = /^(\d+)\.(\d+)\.(\d+)(?:-([0-9A-Za-z.-]+))?(?:\+[0-9A-Za-z.-]+)?$/
@@ -136,13 +140,13 @@ export function inCaret(floor: string, version: string): boolean {
   return compareVersions(version, floor) >= 0 && compareVersions(version, caretCeiling(floor)) < 0
 }
 
-/** 发版前检查要看的那部分清单：包自己的版本号，全部 peer（含内核包），`@godcreator/*` 的 dev，是不是插件 */
+/** 发版前检查要看的那部分清单：包自己的版本号，全部 peer（含内核包），团队范围（`TEAM_SCOPE`）下的 dev，是不是插件 */
 export interface TicketManifest {
   name: string
   version: string
-  /** peerDependencies 的全部条目，不只 `@godcreator` */
+  /** peerDependencies 的全部条目，不分范围 */
   peers: Record<string, string>
-  /** devDependencies 里的 `@godcreator` 条目 */
+  /** devDependencies 里团队范围下的条目：外部开发者自己范围下的库不查 latest */
   devs: Record<string, string>
   /** `keywords` 里有 `gwb-plugin` */
   plugin: boolean
@@ -187,11 +191,27 @@ export function ticketManifestOf(text: string | undefined): ReleaseManifest | un
     name,
     version,
     peers: trimmedStringEntriesOf(peerDependencies, () => true),
-    devs: trimmedStringEntriesOf(devDependencies, (key) => key.startsWith(SCOPE)),
+    devs: trimmedStringEntriesOf(devDependencies, (key) => key.startsWith(TEAM_PACKAGE_PREFIX)),
     plugin: Array.isArray(keywords) && keywords.includes('gwb-plugin'),
     files: Array.isArray(files) ? files.filter((one): one is string => typeof one === 'string') : [],
     doc,
   }
+}
+
+/**
+ * 包发到哪个源：清单里 `publishConfig.registry` 写的那个；没写 `publishConfig`、或里面没写 `registry` 的发到团队源
+ * （`TEAM_REGISTRY`，生态里建仓早于这个字段的仓都没写）。写了但不是 http(s) 地址的拒，不猜
+ */
+export function publishTargetOf(doc: Record<string, unknown>): { ok: true; registry: string } | { ok: false; error: string } {
+  const publishConfig = doc['publishConfig']
+  if (publishConfig === undefined) return { ok: true, registry: TEAM_REGISTRY }
+  if (!isRecord(publishConfig)) return { ok: false, error: `publishConfig 要是对象，实得 ${JSON.stringify(publishConfig)}` }
+  const registry = publishConfig['registry']
+  if (registry === undefined) return { ok: true, registry: TEAM_REGISTRY }
+  if (typeof registry !== 'string' || parseHttpUrl(registry) === undefined) {
+    return { ok: false, error: `publishConfig.registry 要是 http(s) 地址，实得 ${JSON.stringify(registry)}` }
+  }
+  return { ok: true, registry }
 }
 
 /** 包清单是不是一个插件：keywords 含 `gwb-plugin`，或者是 cordis 官方插件（keywords 同时含 `cordis` 与 `plugin`，如 `@cordisjs/plugin-timer`） */
@@ -199,6 +219,21 @@ export function isPluginManifest(manifest: unknown): boolean {
   if (!isRecord(manifest) || !Array.isArray(manifest['keywords'])) return false
   const keywords = manifest['keywords']
   return keywords.includes('gwb-plugin') || (keywords.includes('cordis') && keywords.includes('plugin'))
+}
+
+/** 包清单是不是一个 gwb 插件：keywords 含 `gwb-plugin`。cordis 官方插件不算 */
+function isGwbPluginManifest(manifest: unknown): boolean {
+  return isRecord(manifest) && Array.isArray(manifest['keywords']) && manifest['keywords'].includes(PLUGIN_KEYWORD)
+}
+
+/** peer 里要和源上 latest 比同一条线的那些：cordis、内核包、`workspace:` 以外，包目录 node_modules 里的清单是 gwb 插件的，不分范围 */
+function gwbPluginPeersOf(manifest: TicketManifest, peerManifestOf: (pkg: string) => unknown): Set<string> {
+  const peers = new Set<string>()
+  for (const [pkg, range] of Object.entries(manifest.peers)) {
+    if (pkg === 'cordis' || pkg === KERNEL_PACKAGE || range.startsWith('workspace:')) continue
+    if (isGwbPluginManifest(peerManifestOf(pkg))) peers.add(pkg)
+  }
+  return peers
 }
 
 const VERSION_CORE = /^(\d+)\.(\d+)\.(\d+)/
@@ -235,14 +270,15 @@ export function kernelPeerProblems(manifest: TicketManifest, runningKernel: stri
 }
 
 /**
- * peer 里 `@godcreator` 插件（内核包除外，它比运行中的内核）的范围要和源上 latest 在同一条线上：0.x 只看 x，≥1 只看主版本号。
- * 不在同一条线就是上游出了破坏版，先适配再升范围；`workspace:` 的不查。不是插件包的不查：库的 peer 不进 home
+ * peer 里的 gwb 插件（`gwbPluginPeers`，不分范围；内核包不在里面，它比运行中的内核）的范围要和源上 latest 在同一条线上：
+ * 0.x 只看 x，≥1 只看主版本号。不在同一条线就是上游出了破坏版，先适配再升范围；`workspace:` 的不查。
+ * 不是插件包的不查：库的 peer 不进 home
  */
-function peerLineProblems(manifest: TicketManifest, latest: Record<string, string | undefined>): string[] {
+function peerLineProblems(manifest: TicketManifest, latest: Record<string, string | undefined>, gwbPluginPeers: ReadonlySet<string>): string[] {
   if (!manifest.plugin) return []
   const problems: string[] = []
   for (const [pkg, range] of Object.entries(manifest.peers)) {
-    if (!pkg.startsWith(SCOPE) || pkg === KERNEL_PACKAGE || range.startsWith('workspace:')) continue
+    if (!gwbPluginPeers.has(pkg) || pkg === KERNEL_PACKAGE || range.startsWith('workspace:')) continue
     if (!isCaretRange(range)) {
       problems.push(`peer ${pkg} 写的是 "${range}":peer 只许写 ^x.y.z`)
       continue
@@ -258,11 +294,11 @@ function peerLineProblems(manifest: TicketManifest, latest: Record<string, strin
 }
 
 /**
- * `latest` 是各 `@godcreator` 包在源上的 `dist-tags.latest`（问不出的缺席）。拒两类：
- * dev 写法认不出下限、源上 latest 问不出或不是版本号、下限比源上 latest 还新、或 latest 已出 dev 范围（范围内落后、含相等放行）；
- * peer 里的 `@godcreator` 插件和源上 latest 不在同一条线。`workspace:` 的不查
+ * `latest` 是各上游包在源上的 `dist-tags.latest`（问不出的缺席）。拒两类：
+ * 团队范围下的 dev 写法认不出下限、源上 latest 问不出或不是版本号、下限比源上 latest 还新、或 latest 已出 dev 范围
+ * （范围内落后、含相等放行）；peer 里的 gwb 插件（`gwbPluginPeers`，不分范围）和源上 latest 不在同一条线。`workspace:` 的不查
  */
-export function checkTicket(manifest: TicketManifest, latest: Record<string, string | undefined>): Ticket {
+export function checkTicket(manifest: TicketManifest, latest: Record<string, string | undefined>, gwbPluginPeers: ReadonlySet<string>): Ticket {
   const problems: string[] = []
 
   for (const [pkg, range] of Object.entries(manifest.devs)) {
@@ -287,7 +323,7 @@ export function checkTicket(manifest: TicketManifest, latest: Record<string, str
       problems.push(`dev ${pkg} 是 "${range}",源上 latest ${latestOnRegistry}(出范围:上游出了破坏版):先适配代码,再把 dev 抬到 "^${latestOnRegistry}",跑 check`)
     }
   }
-  problems.push(...peerLineProblems(manifest, latest))
+  problems.push(...peerLineProblems(manifest, latest, gwbPluginPeers))
 
   return { pkg: `${manifest.name}@${manifest.version}`, problems }
 }
@@ -342,9 +378,30 @@ async function refusalIfTreeDirty(repoDir: string, deps: ReleaseDeps): Promise<R
 interface PlannedPackage {
   pkgDir: string
   manifest: ReleaseManifest
+  /** 发布目标：`publishTargetOf` 算出的源 */
+  registry: string
+  /** peer 里要和源上 latest 比同一条线的 gwb 插件 */
+  gwbPluginPeers: Set<string>
+  /** 读包目录 node_modules 里某个依赖的清单，读不到或不是 JSON 回 undefined */
+  peerManifestOf(pkg: string): unknown
 }
 
-/** 每个包：清单读得出、`files` 白名单里的产物都在、这个版本号源上还没有；`ranges` 是同一次发的包 → `^新版本号` */
+function peerManifestReader(pkgDir: string, deps: ReleaseDeps): (pkg: string) => unknown {
+  return (pkg) => {
+    const text = deps.readText(path.join(pkgDir, 'node_modules', ...pkg.split('/'), 'package.json'))
+    if (text === undefined) return undefined
+    try {
+      return JSON.parse(text) as unknown
+    } catch {
+      return undefined
+    }
+  }
+}
+
+/**
+ * 每个包：清单读得出、`publishConfig.registry` 认得出、`files` 白名单里的产物都在、这个版本号在它的发布目标上还没有；
+ * `ranges` 是同一次发的包 → `^新版本号`
+ */
 async function planPackages(input: ReleaseInput, deps: ReleaseDeps): Promise<Refusal | { planned: PlannedPackage[]; ranges: Record<string, string> }> {
   const dirs = input.packages.length > 0 ? input.packages : ['.']
   const planned: PlannedPackage[] = []
@@ -355,47 +412,39 @@ async function planPackages(input: ReleaseInput, deps: ReleaseDeps): Promise<Ref
     if (manifest === undefined) {
       return { ok: false, error: `${pkgDir} 下没有能读的 package.json(或缺 name/version)——包目录给的是相对仓根的路径` }
     }
+    const target = publishTargetOf(manifest.doc)
+    if (!target.ok) return { ok: false, error: `${manifest.name} 的 package.json:${target.error},一个都没发` }
     // 产物在不在照 files 白名单问，不另列一份名单
     const missing = literalArtifacts(manifest.files).filter((one) => !deps.exists(path.join(pkgDir, one)))
     if (missing.length > 0) {
       return { ok: false, error: `${manifest.name} 的产物不全,没发:${missing.join('、')} 不在。仓根 pnpm build 刚跑过还缺,多半是 files 白名单里那一项根本没人生成` }
     }
-    if (await deps.published(`${manifest.name}@${manifest.version}`, DEFAULT_REGISTRY)) {
-      return { ok: false, error: `${manifest.name}@${manifest.version} 已经在源上了——同一个号永不重发,先抬 package.json 里的号再发` }
+    if (await deps.published(`${manifest.name}@${manifest.version}`, target.registry)) {
+      return { ok: false, error: `${manifest.name}@${manifest.version} 已经在源 ${target.registry} 上了——同一个号永不重发,先抬 package.json 里的号再发` }
     }
-    planned.push({ pkgDir, manifest })
+    const peerManifestOf = peerManifestReader(pkgDir, deps)
+    planned.push({ pkgDir, manifest, registry: target.registry, gwbPluginPeers: gwbPluginPeersOf(manifest, peerManifestOf), peerManifestOf })
     ranges[manifest.name] = `^${manifest.version}`
   }
   return { planned, ranges }
 }
 
-/** 各包 `@godcreator` dev 依赖与 peer 里 `@godcreator` 插件（内核包、`workspace:` 的除外）在源上的 latest */
+/** 各包团队范围下的 dev 依赖与 peer 里的 gwb 插件（不分范围）在源上的 latest；问哪个源由 `.npmrc` 按包名范围决定 */
 async function latestOfUpstreams(planned: PlannedPackage[], deps: ReleaseDeps): Promise<Record<string, string | undefined>> {
   const upstreams = new Set<string>()
-  for (const { manifest } of planned) {
+  for (const { manifest, gwbPluginPeers } of planned) {
     for (const [pkg, range] of Object.entries(manifest.devs)) if (!range.startsWith('workspace:')) upstreams.add(pkg)
-    for (const [pkg, range] of Object.entries(manifest.peers)) {
-      if (pkg.startsWith(SCOPE) && pkg !== KERNEL_PACKAGE && !range.startsWith('workspace:')) upstreams.add(pkg)
-    }
+    for (const pkg of gwbPluginPeers) upstreams.add(pkg)
   }
   const latest: Record<string, string | undefined> = {}
-  for (const pkg of upstreams) latest[pkg] = await deps.latest(pkg, DEFAULT_REGISTRY)
+  for (const pkg of upstreams) latest[pkg] = await deps.latest(pkg)
   return latest
 }
 
 function ticketFor(plannedPackage: PlannedPackage, latest: Record<string, string | undefined>, runningKernel: string, deps: ReleaseDeps): Ticket {
-  const { pkgDir, manifest } = plannedPackage
-  const peerManifestOf = (pkg: string): unknown => {
-    const text = deps.readText(path.join(pkgDir, 'node_modules', ...pkg.split('/'), 'package.json'))
-    if (text === undefined) return undefined
-    try {
-      return JSON.parse(text) as unknown
-    } catch {
-      return undefined
-    }
-  }
+  const { pkgDir, manifest, gwbPluginPeers, peerManifestOf } = plannedPackage
   const problems = [
-    ...checkTicket(manifest, latest).problems,
+    ...checkTicket(manifest, latest, gwbPluginPeers).problems,
     ...peerProblems(manifest, peerManifestOf),
     ...kernelPeerProblems(manifest, runningKernel),
     ...artifactProblems(pkgDir, manifest.doc, manifest.plugin, deps),
@@ -407,11 +456,11 @@ function ticketFor(plannedPackage: PlannedPackage, latest: Record<string, string
 async function publishInOrder(planned: PlannedPackage[], ranges: Record<string, string>, deps: ReleaseDeps): Promise<Refusal & { data: { shipped: ReleasedPackage[] } } | ReleasedPackage[]> {
   const shipped: ReleasedPackage[] = []
   for (const plannedPackage of planned) {
-    const sent = await deps.publish({ pkgDir: plannedPackage.pkgDir, version: plannedPackage.manifest.version, registry: DEFAULT_REGISTRY, ranges })
+    const sent = await deps.publish({ pkgDir: plannedPackage.pkgDir, version: plannedPackage.manifest.version, registry: plannedPackage.registry, ranges })
     if (!sent.ok) {
       return { ok: false, error: `${plannedPackage.manifest.name}@${plannedPackage.manifest.version} 发版没成:\n${sent.tail}`, data: { shipped } }
     }
-    shipped.push({ pkg: plannedPackage.manifest.name, version: plannedPackage.manifest.version, dir: plannedPackage.pkgDir })
+    shipped.push({ pkg: plannedPackage.manifest.name, version: plannedPackage.manifest.version, dir: plannedPackage.pkgDir, registry: plannedPackage.registry })
   }
   return shipped
 }
@@ -435,7 +484,7 @@ export async function runRelease(input: ReleaseInput, deps: ReleaseDeps): Promis
   const shipped = await publishInOrder(plan.planned, plan.ranges, deps)
   if (!Array.isArray(shipped)) return shipped
 
-  const shippedList = shipped.map((one) => `${one.pkg}@${one.version}`).join('、')
+  const shippedList = shipped.map((one) => `${one.pkg}@${one.version} → ${one.registry}`).join('、')
   return {
     ok: true,
     data: {

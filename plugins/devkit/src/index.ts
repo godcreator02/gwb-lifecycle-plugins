@@ -1,7 +1,7 @@
 import fs from 'node:fs'
 import path from 'node:path'
 import type { GwbContext } from '@godcreator/gwb-kernel-desktop'
-import { isRecord, requireKernel } from './vocab.js'
+import { isRecord, requireKernel, TEAM_REGISTRY, TEAM_SCOPE } from './vocab.js'
 // 只为引入对方包里的 declare module 'cordis'：ctx 上那几个服务名的类型从那里来
 import type {} from '@godcreator/gwb-commands'
 import type {} from '@godcreator/gwb-node-cli'
@@ -39,6 +39,7 @@ import {
   renderPlugin,
   renderPluginPage,
   renderTemplate,
+  SCOPE_RE,
   writePluginPage,
   writeRepo,
 } from './scaffold.js'
@@ -58,9 +59,11 @@ const ATTACH_SITE_COMMAND = 'docfirst.attach'
 const SCAFFOLD_USAGE = [
   'devkit.scaffold 的参数：',
   // 规则从 NAME_RE 取，不在这里抄一份
-  `  name   必给，短名，kebab-case（${String(NAME_RE)}）。它派生出包名 @godcreator/gwb-<短名>、插件名 gwb-<短名>、命令名 <短名>.<动作> 的前半`,
+  `  name   必给，短名，kebab-case（${String(NAME_RE)}）。它派生出包名 <scope>/gwb-<短名>、插件名 gwb-<短名>、命令名 <短名>.<动作> 的前半`,
   '  dir    必给，目标目录的绝对路径，必须还不存在（存在就拒，不覆盖任何东西）。生成的仓只有一种布局：workspace——仓根是不发布的 private 包，插件包在 plugins/<短名>/',
   '  title  可选，显示名，缺省用 name',
+  `  scope  可选，包名范围（${String(SCOPE_RE)}），缺省 ${TEAM_SCOPE}。没有团队源发布权限的开发者给自己的范围`,
+  `  registry 可选，插件包 package.json 的 publishConfig.registry，devkit.release 发到这里。要是 http(s) 地址的规范写法（new URL(x).href 与原文相同，如 "http://localhost:4873/"），不带账号、查询串与 #；缺省是团队源 ${TEAM_REGISTRY}。发布 token 写在用户级 ~/.npmrc`,
   `  docs   可选，缺省 true——插件文件写到磁盘之后顺带建站，两步：${CREATE_SITE_COMMAND} 生成 fumadocs 骨架、${ATTACH_SITE_COMMAND} 在骨架上装六区；六区装好之后再写插件页的初稿 docs-site/content/docs/plugins/<短名>.mdx。两条都经命令总线找，没装那个插件就跳过那一步（回执里说怎么补），不算建仓失败。false 就只生成插件文件`,
   '  port   可选，文档站端口。不给由站点插件自己选（跳过别的站已占用的端口，从 4310 起找没人用的）',
   '例：{"name":"hello","dir":"D:\\\\tmp\\\\hello","title":"打个招呼"}',
@@ -71,6 +74,7 @@ const SCAFFOLD_PLUGIN_USAGE = [
   `  name   必给，短名，kebab-case（${String(NAME_RE)}）。派生规则同 devkit.scaffold`,
   '  repo   必给，workspace 仓根的绝对路径（pnpm-workspace.yaml 所在的目录）。yaml 里得有 plugins/ 那条——旧布局的仓（仓根就是插件包）先迁成 workspace 布局，报错里写着怎么迁',
   '  title  可选，显示名，缺省用 name',
+  '  scope、registry  可选，规则与缺省值同 devkit.scaffold。同一个仓里的插件一般用同一套：看仓里已有插件包 package.json 的 name 与 publishConfig.registry',
   '插件包写到 <repo>/plugins/<短名>/，必须还不存在（存在就拒，不覆盖任何东西）。仓根与 workspace 配置不碰；仓里有装好六区的文档站（docs-site/docfirst.config.mjs 在）时，再写插件页的初稿 docs-site/content/docs/plugins/<短名>.mdx（已存在就拒）。README 的插件清单由人更新（回执 nextSteps 里提醒）',
   '例：{"repo":"D:\\\\tmp\\\\hello","name":"world","title":"第二个插件"}',
 ].join('\n')
@@ -109,8 +113,9 @@ const RELEASE_USAGE = [
   '  packages  可选，要发的包目录，相对仓根，**按依赖顺序**（被依赖的排前面）。不给就是仓根自己',
   '**版本号在仓里升**：发的是 package.json 里写的版本号，同一个版本号已在源上就拒——要发新的一版，先升版本号、提交，再调用',
   '**仓根 git 工作区不干净就拒**：正式版只从提交过的状态发',
-  '**发版前检查没过就拒**（构建之后，所有包一次列全）：@godcreator 的 dev 范围包含源上 dist-tags.latest；产物里没有空 import（import { type X } 留下的）',
-  '**插件包另加**（keywords 含 gwb-plugin）：peer 里只许 cordis、内核包 @godcreator/gwb-kernel-desktop 与别的插件（包目录 node_modules 里它的清单 keywords 含 gwb-plugin，或是 cordis 官方插件），peer 里每个 @godcreator 插件和源上 dist-tags.latest 在同一条线（0.x 只看 x，≥1 只看主版本号）；node 侧产物（exports["."] 入口顺着相对 import 走到的文件）的包名 import 只有 node 内置模块、electron 与 peer 里写了的包；浏览器侧产物（dist/client.js）只 import 页面 importmap 里的名字——内核包清单 gwb.shared 的键（react 的四个），从包目录 node_modules 里装好的内核包读；peer 里写了内核包、写法是 ^x.y.z、范围包含运行中的内核（主版本号为 0 时次版本号相同，≥1 时主版本号相同，并且不低于下限）',
+  `**发到包自己的 publishConfig.registry**：没写这个字段的包发到团队源 ${TEAM_REGISTRY}；写了但不是 http(s) 地址就拒。「同号已在源上」问的也是这个源`,
+  `**发版前检查没过就拒**（构建之后，所有包一次列全）：${TEAM_SCOPE} 范围下的 dev 范围包含源上 dist-tags.latest；产物里没有空 import（import { type X } 留下的）`,
+  '**插件包另加**（keywords 含 gwb-plugin）：peer 里只许 cordis、内核包 @godcreator/gwb-kernel-desktop 与别的插件（包目录 node_modules 里它的清单 keywords 含 gwb-plugin，或是 cordis 官方插件），peer 里每个 gwb 插件（不分范围）和源上 dist-tags.latest 在同一条线（0.x 只看 x，≥1 只看主版本号；问哪个源由 ~/.npmrc 的范围行决定）；node 侧产物（exports["."] 入口顺着相对 import 走到的文件）的包名 import 只有 node 内置模块、electron 与 peer 里写了的包；浏览器侧产物（dist/client.js）只 import 页面 importmap 里的名字——内核包清单 gwb.shared 的键（react 的四个），从包目录 node_modules 里装好的内核包读；peer 里写了内核包、写法是 ^x.y.z、范围包含运行中的内核（主版本号为 0 时次版本号相同，≥1 时主版本号相同，并且不低于下限）',
   '**这条命令只发到源、不碰任何 home**，从哪个 home 调用都行；升级 default 是下一步的事，用 plugin-manager.update {"all":true}',
   '例：{"dir":"D:\\\\unitfolders\\\\evew5-gwbapps\\\\gwb-block-note","packages":["packages/model","packages/engine","packages/client","plugins/gwb-bn-core","plugins/gwb-bn-comment"]}',
 ].join('\n')
@@ -407,9 +412,9 @@ function registerReleaseCommand({ ctx, log, commands }: Wiring): void {
       {
         name: 'devkit.release',
         plugin: '@godcreator/gwb-devkit',
-        description: '发正式版到团队源（git 工作区干净→构建→验产物→发版前检查→在临时目录里组装并发布）',
+        description: '发正式版到包的 publishConfig.registry，没写就是团队源（git 工作区干净→构建→验产物→发版前检查→在临时目录里组装并发布）',
         usage:
-          '{dir 必给（仓根绝对路径）, packages?（包目录，相对仓根，按依赖顺序；不给就是仓根自己）}。一条走完：仓根 git 工作区干净（有未提交改动就拒，一个都不发）→ 仓根 pnpm build → 照 files 白名单验产物 → 同号已在源上就拒 → 发版前检查（每个要发的包：@godcreator 的 dev 范围包含源上 dist-tags.latest，workspace: 跳过，范围内落后放行；产物里没有空 import、相对 import 指向的文件都在。keywords 含 gwb-plugin 的插件包另加：peer 里只许 cordis、内核包 @godcreator/gwb-kernel-desktop 与别的插件（包目录 node_modules 里它的清单 keywords 含 gwb-plugin，或是 cordis 官方插件），peer 里每个 @godcreator 插件和源上 dist-tags.latest 在同一条线（0.x 只看 x，≥1 只看主版本号）；node 侧产物——exports["."] 的运行时入口（没有 exports 时是 main）顺着相对 import 走到的文件——的包名 import 只有 node 内置模块、electron 与 peer 里写了的包；浏览器侧产物——dist/client.js，同样顺着相对 import 走——只 import 页面 importmap 里的名字，也就是内核包清单 gwb.shared 的键，从包目录 node_modules 里装好的内核包现读；peer 里写了内核包、写法是 ^x.y.z、范围包含运行中的内核 gwbKernel.version——主版本号为 0 时次版本号相同，≥1 时主版本号相同，并且不低于下限，预发布段不看。没过就一个都不发，回执按包一次列全）→ 在临时目录里组装发布内容并发布（不改仓里任何文件；tag latest；workspace: 依赖写成 ^<工作区里那个号>，这一次同发的写成 ^新号）→ 按给定顺序发完。**版本号在仓里升**（改 package.json 并提交），同一个版本号永不重发。只发到源、不碰任何 home；升级 default 用 plugin-manager.update {"all":true}',
+          '{dir 必给（仓根绝对路径）, packages?（包目录，相对仓根，按依赖顺序；不给就是仓根自己）}。一条走完：仓根 git 工作区干净（有未提交改动就拒，一个都不发）→ 仓根 pnpm build → 照 files 白名单验产物 → 同号已在发布目标上就拒（发布目标是包自己 package.json 的 publishConfig.registry，没写就是团队源；写了但不是 http(s) 地址就拒）→ 发版前检查（每个要发的包：@godcreator 范围下的 dev 范围包含源上 dist-tags.latest，workspace: 跳过，范围内落后放行；产物里没有空 import、相对 import 指向的文件都在。keywords 含 gwb-plugin 的插件包另加：peer 里只许 cordis、内核包 @godcreator/gwb-kernel-desktop 与别的插件（包目录 node_modules 里它的清单 keywords 含 gwb-plugin，或是 cordis 官方插件），peer 里每个 gwb 插件（不分范围）和源上 dist-tags.latest 在同一条线（0.x 只看 x，≥1 只看主版本号；问哪个源由 ~/.npmrc 的范围行决定）；node 侧产物——exports["."] 的运行时入口（没有 exports 时是 main）顺着相对 import 走到的文件——的包名 import 只有 node 内置模块、electron 与 peer 里写了的包；浏览器侧产物——dist/client.js，同样顺着相对 import 走——只 import 页面 importmap 里的名字，也就是内核包清单 gwb.shared 的键，从包目录 node_modules 里装好的内核包现读；peer 里写了内核包、写法是 ^x.y.z、范围包含运行中的内核 gwbKernel.version——主版本号为 0 时次版本号相同，≥1 时主版本号相同，并且不低于下限，预发布段不看。没过就一个都不发，回执按包一次列全）→ 在临时目录里组装发布内容并发到发布目标（不改仓里任何文件；tag latest；发布内容清单的 publishConfig.registry 写发布目标，命令行不带 --registry；workspace: 依赖写成 ^<工作区里那个号>，这一次同发的写成 ^新号）→ 按给定顺序发完。**版本号在仓里升**（改 package.json 并提交），同一个版本号永不重发。只发到源、不碰任何 home；升级 default 用 plugin-manager.update {"all":true}',
       },
       async (args) => {
         if (!isRecord(args)) return { ok: false, error: `参数要是个对象。\n${RELEASE_USAGE}` }
@@ -455,6 +460,18 @@ function registerServicesCommand({ ctx, commands }: Wiring): void {
 
 // ── 建仓与加插件 ──────────────────────────────────────────────────────────────
 
+/** `scope`、`registry` 两个可选参数：给了但不是字符串就抛（格式由 `planScaffold` / `planScaffoldPlugin` 校验） */
+function publishIdentityArgsOf(args: Record<string, unknown>): { scope?: string; registry?: string } {
+  const picked: { scope?: string; registry?: string } = {}
+  for (const key of ['scope', 'registry'] as const) {
+    const value = args[key]
+    if (value === undefined) continue
+    if (typeof value !== 'string') throw new Error(`${key} 要是字符串，实得 ${JSON.stringify(value)}`)
+    picked[key] = value
+  }
+  return picked
+}
+
 /** 包内 `template/` 目录；这一版没把它带进包时是 null */
 function templateRootOrNull(requiredSubdir: string): string | null {
   const root = packageRoot()
@@ -471,7 +488,7 @@ function registerScaffoldCommand(wiring: Wiring): void {
         plugin: '@godcreator/gwb-devkit',
         description: '在一个新目录里生成一个 gwb 插件仓（默认连文档站一起建）',
         usage:
-          `{name（必给，kebab-case 短名）, dir（必给，绝对路径且必须还不存在）, title?, docs?（缺省 true）, port?}。插件的模板在本包；建站是两步，都经命令总线交出去——${CREATE_SITE_COMMAND}（站点插件）生成 fumadocs 骨架，${ATTACH_SITE_COMMAND}（docfirst 插件）在骨架上装六区；六区装好之后写插件页的初稿（回执 pluginPage）。哪个插件没装就跳过那一步、回执里说怎么补，插件文件照样写到磁盘。参数不对会把完整说明回给你`,
+          `{name（必给，kebab-case 短名）, dir（必给，绝对路径且必须还不存在）, title?, docs?（缺省 true）, port?, scope?（包名范围，缺省 ${TEAM_SCOPE}）, registry?（写进插件包 publishConfig.registry 的发布目标，缺省团队源）}。插件的模板在本包；建站是两步，都经命令总线交出去——${CREATE_SITE_COMMAND}（站点插件）生成 fumadocs 骨架，${ATTACH_SITE_COMMAND}（docfirst 插件）在骨架上装六区；六区装好之后写插件页的初稿（回执 pluginPage）。哪个插件没装就跳过那一步、回执里说怎么补，插件文件照样写到磁盘。参数不对会把完整说明回给你`,
       },
       async (args) => {
         if (!isRecord(args)) return { ok: false, error: `参数要是个对象。\n${SCAFFOLD_USAGE}` }
@@ -490,6 +507,7 @@ function registerScaffoldCommand(wiring: Wiring): void {
             ...(typeof args.title === 'string' && args.title.trim() !== '' ? { title: args.title } : {}),
             docs: canDocs,
             ...(typeof args.port === 'number' ? { port: args.port } : {}),
+            ...publishIdentityArgsOf(args),
             kernelVersion,
           })
         } catch (err) {
@@ -517,6 +535,7 @@ function registerScaffoldCommand(wiring: Wiring): void {
             repoDir: plan.dir,
             pluginDir: path.join(plan.dir, 'plugins', plan.name),
             pkg: plan.pkg,
+            registry: plan.registry,
             name: plan.name,
             title: plan.title,
             files: files.length,
@@ -542,7 +561,7 @@ function registerScaffoldPluginCommand({ ctx, log, commands }: Wiring): void {
         plugin: '@godcreator/gwb-devkit',
         description: '往已有的 workspace 仓的 plugins/ 再加一个插件包（同一份插件包模板；仓里有装好六区的文档站时顺带写插件页的初稿）',
         usage:
-          '{name 必给（kebab-case 短名，派生规则同 devkit.scaffold）, repo 必给（workspace 仓根的绝对路径——pnpm-workspace.yaml 里得有 plugins/ 那条，旧布局的仓报错里写着怎么迁）, title?}。插件包写到 <repo>/plugins/<短名>/，必须还不存在。与建仓用的是同一份插件包模板（template/pkg/）——只有一个插件和有多个插件的仓格式一致靠这个。参数不对会把完整说明回给你',
+          '{name 必给（kebab-case 短名，派生规则同 devkit.scaffold）, repo 必给（workspace 仓根的绝对路径——pnpm-workspace.yaml 里得有 plugins/ 那条，旧布局的仓报错里写着怎么迁）, title?, scope?, registry?（规则与缺省值同 devkit.scaffold）}。插件包写到 <repo>/plugins/<短名>/，必须还不存在。与建仓用的是同一份插件包模板（template/pkg/）——只有一个插件和有多个插件的仓格式一致靠这个。参数不对会把完整说明回给你',
       },
       async (args) => {
         if (!isRecord(args)) return { ok: false, error: `参数要是个对象。\n${SCAFFOLD_PLUGIN_USAGE}` }
@@ -557,6 +576,7 @@ function registerScaffoldPluginCommand({ ctx, log, commands }: Wiring): void {
             name: typeof args.name === 'string' ? args.name : '',
             repo: typeof args.repo === 'string' ? args.repo : '',
             ...(typeof args.title === 'string' && args.title.trim() !== '' ? { title: args.title } : {}),
+            ...publishIdentityArgsOf(args),
             kernelVersion,
           })
         } catch (err) {
@@ -583,6 +603,7 @@ function registerScaffoldPluginCommand({ ctx, log, commands }: Wiring): void {
             repoDir: plan.repoDir,
             pluginDir: plan.dir,
             pkg: plan.pkg,
+            registry: plan.registry,
             name: plan.name,
             title: plan.title,
             files: files.length,

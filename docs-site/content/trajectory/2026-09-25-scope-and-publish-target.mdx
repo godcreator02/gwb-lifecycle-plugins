@@ -1,0 +1,67 @@
+---
+title: 包名范围与发布目标交给开发者：用 package.json 的 name 与 publishConfig.registry
+born-at: 2026-09-25T11:40
+type: choice
+parent: [2026-09-08-gwb-devkit]
+label: 自己的范围与源
+domain: 发版
+---
+
+pivots-from:: [发正式版进 devkit](2026-09-14-release-comes-to-devkit.md)
+
+## 背景
+
+审查报告的 GWB-17（P1）：没有作者发布权限的外部开发者走不完「建仓 → 改一版看一版 → 发正式版」。报告点了三处：
+建仓生成的包名固定在 `@godcreator` 下；`devkit.dev` 开发时往作者的源发开发版；`devkit.release` 固定发到作者的源，
+命令行显式带 `--registry`。第二处在 devkit 0.20.0 已经没了（开发版打成包文件、经目标 home 的插件管理装，不经过任何源），
+剩下第一、三两处。报告还要求「生态命名与分发的约定由人定」。
+
+人定的做法：不造新机制，用 npm 的标准字段——包的身份就是 `package.json` 的 `name`，发到哪就是 `publishConfig.registry`。
+建仓与加插件两条命令加 `scope`、`registry` 两个可选参数，不给就是 `@godcreator` 与团队源；发版取包自己的
+`publishConfig.registry`，没写的包发到团队源（生态里二十多个仓都没写，不能因此全部拦住）。
+
+动手前先做了实验：pnpm 12 的 `pnpm publish` 认不认 `publishConfig.registry`，它和 `.npmrc` 的范围行、命令行 `--registry`
+谁优先；`pnpm view` 怎么指定去问哪个源。
+
+## 结论与边界
+
+实验结论（pnpm 12.4.2）：
+
+- 发包：写了 `publishConfig.registry` 就发到它，范围行与命令行的 `--registry` 都盖不过它；没写时发到范围行指的源，
+  命令行的 `--registry` 同样盖不过范围行。原来那条「命令行带 `--registry`」在这台机器上之所以发对了，是因为范围行恰好也指团队源
+- 查源：`pnpm view` 带范围的包名按范围行去问，`--registry` 盖不过范围行；`--config.<范围>:registry=<地址>` 盖得过。
+  环境变量 `npm_config_@<范围>:registry` 不生效。不带范围的包名 `--registry` 生效
+
+据此：
+
+- **发布目标写进发布内容清单**：`devkit.release` 本来就在临时目录里重写清单，把这个包的发布目标（它自己的 `publishConfig.registry`，
+  没写就是团队源）写进那份清单的 `publishConfig.registry`，命令行不再带 `--registry`。没写这个字段的包也照样发到团队源，
+  不受机器上范围行的影响
+- **只有「这个版本号在发布目标上有没有」指定源**：用 `--config.<范围>:registry=`（不带范围的包名用 `--registry`）。
+  查别的包的 latest（`@godcreator` 下的 dev 依赖、peer 里的插件）不指定源，按用户级 `~/.npmrc` 的范围行找源。
+  这台机器的 `~/.npmrc` 里 `@godcreator` 那行就是团队源，所以对现有的仓行为不变；没配这行的机器问不出 latest，发版前检查拒
+- **建仓的 `registry` 只收规范写法**：与 `new URL(x).href` 逐字相同，才能原样写进 JSON 不用转义；不带账号、查询串与 `#`，
+  发布 token 留在 `~/.npmrc`。不合规就拒，报错里写出规范写法，不替调用方改
+- **发版前检查里写死 `@godcreator` 的规则**：peer 里插件与源上 latest 比同一条线，改成对任何范围的 gwb 插件都比
+  （看包目录 `node_modules` 里它的清单 `keywords` 含 `gwb-plugin`，cordis 官方插件不比）；dev 里的库照旧只查 `@godcreator` 下的，
+  外部开发者自己的库不强求；内核包就是 `@godcreator/gwb-kernel-desktop` 这一个包，不变
+
+## 否掉的候选
+
+- **保留命令行 `--registry`、只把地址换成包自己的**：实验表明它盖不过范围行，范围行与包写的地址不一致时会悄悄发到范围行那个源
+- **不写 `publishConfig` 的包交给 pnpm 按范围行找源**：对 `@godcreator` 的包结果相同，但「没写就是团队源」就成了靠每台机器的配置，
+  不再是写在代码里的缺省值
+- **查 latest 也指定团队源**：外部开发者 peer 里写了自己范围下的插件时，去团队源问不到；交给范围行，谁的包问谁的源
+
+## 代价与遗留
+
+- 发布目标写进包清单，发出去的包清单里也带着 `publishConfig`；插件管理的 `unmetPeers` 等别处没动
+- 外部开发者装团队的插件、团队装外部开发者的插件，都得先把对方范围的源配进 `~/.npmrc`（`plugin-manager.source.add`）
+- 模板插件包清单里的 `author` 仍写 `godcreator`，`//repository` 那条注释仍以团队的 gitea 为例，没跟着 `scope` 变
+
+## 依据
+
+`probes/2609251140_pnpm-publish-config-registry/`：`runs/04-all-cases.txt` 是全部 13 个用例（本机两个假源、`PUT` 一律回 403，
+没有真的发出任何包）。改完之后又用真的 pnpm 跑了一次 `releaseDepsWith` 的 `publish` 与 `published`，对着本机一个回 403 的假源：
+`PUT` 落在假源上、请求体里的 `publishConfig.registry` 是假源的地址，查同号的 `GET` 也落在假源上（一次性测试，没有入库，无物证）。
+改动前的 commit 是 `307829f`。

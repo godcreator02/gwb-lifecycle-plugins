@@ -2,7 +2,7 @@ import fs from 'node:fs'
 import os from 'node:os'
 import path from 'node:path'
 import { afterEach, describe, expect, it } from 'vitest'
-import { distManifest, workspaceRootOf, workspaceVersions } from '../src/node-dev-deps.js'
+import { distManifest, registryPinArgs, withPublishRegistry, workspaceRootOf, workspaceVersions } from '../src/node-dev-deps.js'
 
 /**
  * `node-dev-deps.ts` 的其余部分是读写磁盘、启动进程，不进单元测试；`distManifest` 与 `workspaceRootOf` 不是：
@@ -81,6 +81,24 @@ describe('分发清单', () => {
     )
     expect(out.peerDependencies?.['@godcreator/gwb-sibling']).toBe('^0.3.9')
     expect(out.peerDependencies?.['@godcreator/gwb-plugin-api']).toBe('>=0.1.0')
+  })
+})
+
+describe('发布目标写进发布内容的清单，查源时钉住那个源（GWB-17）', () => {
+  const LOCAL = 'http://localhost:9999/'
+
+  it('withPublishRegistry：publishConfig.registry 换成发布目标，publishConfig 的别的字段原样；入参那份不改', () => {
+    const source = { ...MANIFEST, publishConfig: { access: 'public', registry: 'https://old.example.com/' } }
+    const out = withPublishRegistry(source, LOCAL)
+    expect(out.publishConfig).toEqual({ access: 'public', registry: LOCAL })
+    expect(source.publishConfig.registry).toBe('https://old.example.com/')
+    expect(withPublishRegistry(MANIFEST, LOCAL).publishConfig).toEqual({ registry: LOCAL })
+  })
+
+  it('registryPinArgs：带范围的包名用 --config.<范围>:registry——pnpm 12 的 --registry 盖不过 .npmrc 的范围行；不带范围的用 --registry', () => {
+    expect(registryPinArgs('@someone/gwb-x@0.1.0', LOCAL)).toEqual([`--config.@someone:registry=${LOCAL}`])
+    expect(registryPinArgs('@someone/gwb-x', LOCAL)).toEqual([`--config.@someone:registry=${LOCAL}`])
+    expect(registryPinArgs('gwb-x@0.1.0', LOCAL)).toEqual(['--registry', LOCAL])
   })
 })
 

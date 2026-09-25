@@ -16,7 +16,7 @@ type Flow = 'edit-dev' | 'dev-ask' | 'dev-build' | 'build-pack' | 'pack-packs' |
 const STEPS: { title: string; detail: string; lit: Part[]; flows: Flow[]; back?: boolean }[] = [
   {
     title: '全貌',
-    detail: '改完代码调一次 devkit.dev {home, dir, packages}，依次做下去，任何一步失败当场停，回执写明停在哪一步。右列的页面操作都经 bin/cdp.mjs 子进程，按 home 名连过去。开发版不进团队源。',
+    detail: '改完代码调一次 devkit.dev {home, dir, packages}，依次做下去，任何一步失败当场停，回执写明停在哪一步。右列的页面操作都经 bin/cdp.mjs 子进程，按 home 名连过去。开发版不进任何 npm 源。',
     lit: [],
     flows: [],
   },

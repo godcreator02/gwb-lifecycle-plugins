@@ -13,6 +13,8 @@
     "title": "{{title}}"
   },
   "keywords": ["gwb", "gwb-plugin"],
+  "//publishConfig": "devkit.release 发到这里（建仓时的 registry 参数，不给是团队源）；发布 token 写在用户级 ~/.npmrc",
+  "publishConfig": { "registry": "{{registry}}" },
   "//repository": "发到 gitea 后补上这一条：{ type: git, url: https://git.tianshen02.online:28377/godcreator/<仓>.git }——gitea 发布时读它把包关联到仓（2026-09-18 实测：整个包关联到仓，仓与包不在同一个 owner 下也关联得上）",
   "scripts": {
     "//build": "三步：node 侧 tsc、浏览器侧 esbuild（内核包页面 importmap 里的包名不打包，由页面提供）、样式 tailwindcss 按类名前缀输出",

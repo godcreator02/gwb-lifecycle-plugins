@@ -12,7 +12,6 @@ import {
   PKG_ZONE,
   PLUGINS_GLOB,
   REPO_ZONE,
-  SCOPE,
   SITE_ZONE,
   jsonStringContent,
   jsxTextContent,
@@ -36,6 +35,7 @@ import {
   writePluginPage,
   writeRepo,
 } from '../src/scaffold.js'
+import { TEAM_REGISTRY, TEAM_SCOPE } from '../src/vocab.js'
 import { KERNEL_PACKAGE, declaredKernelRange, isCaretRange, kernelRangeCovers } from '@godcreator/gwb-plugin-manager'
 
 /**
@@ -79,7 +79,7 @@ describe('planScaffold：校验与派生', () => {
   it('短名派生出包名与插件名，title 缺省用短名', () => {
     const plan = planScaffold({ name: 'hello-world', dir: 'D:\\tmp\\x', kernelVersion: KERNEL })
     expect(plan.name).toBe('hello-world')
-    expect(plan.pkg).toBe(`${SCOPE}/gwb-hello-world`)
+    expect(plan.pkg).toBe(`${TEAM_SCOPE}/gwb-hello-world`)
     expect(plan.pluginName).toBe('gwb-hello-world')
     expect(plan.title).toBe('hello-world')
   })
@@ -118,7 +118,7 @@ describe('planScaffoldPlugin：往薄壳仓加件', () => {
   it('派生同一套身份，dir 直指 <repo>/plugins/<短名>', () => {
     const repo = fakeWorkspace()
     const plan = planScaffoldPlugin({ name: 'world', repo, title: '第二件', kernelVersion: KERNEL })
-    expect(plan.pkg).toBe(`${SCOPE}/gwb-world`)
+    expect(plan.pkg).toBe(`${TEAM_SCOPE}/gwb-world`)
     expect(plan.pluginName).toBe('gwb-world')
     expect(plan.repoDir).toBe(repo)
     expect(plan.dir).toBe(path.join(repo, 'plugins', 'world'))
@@ -136,6 +136,79 @@ describe('planScaffoldPlugin：往薄壳仓加件', () => {
       expect(() => planScaffoldPlugin({ name: bad, repo: fakeWorkspace(), kernelVersion: KERNEL })).toThrow(/kebab-case/)
     }
     expect(() => planScaffoldPlugin({ name: 'x', repo: '   ', kernelVersion: KERNEL })).toThrow(/repo/)
+  })
+})
+
+describe('包名范围与发布目标（GWB-17）', () => {
+  const SOMEONE = '@someone'
+  const LOCAL = 'http://localhost:9999/'
+
+  /** 生成的插件包清单：建仓时在 plugins/<短名>/，加插件时在插件包根 */
+  function manifestOf(files: Array<{ rel: string; text: string }>, rel: string): { name: string; publishConfig?: { registry?: unknown } } {
+    return JSON.parse(files.find((f) => f.rel === rel)?.text ?? '') as { name: string; publishConfig?: { registry?: unknown } }
+  }
+
+  it('不给 scope、registry：包名在团队范围下，publishConfig.registry 写团队源', () => {
+    const plan = planScaffold({ name: 'hello', dir: 'D:\\tmp\\x', kernelVersion: KERNEL })
+    expect(plan.pkg).toBe(`${TEAM_SCOPE}/gwb-hello`)
+    expect(plan.registry).toBe(TEAM_REGISTRY)
+    const manifest = manifestOf(renderTemplate(TEMPLATE_ROOT, plan), 'plugins/hello/package.json')
+    expect(manifest.publishConfig?.registry).toBe(TEAM_REGISTRY)
+  })
+
+  it('给了 scope、registry：包名 <scope>/gwb-<短名>，publishConfig.registry 是给的地址；建仓与加插件一样', () => {
+    const plan = planScaffold({ name: 'hello', dir: 'D:\\tmp\\x', scope: SOMEONE, registry: LOCAL, kernelVersion: KERNEL })
+    expect(plan.pkg).toBe('@someone/gwb-hello')
+    const fromScaffold = manifestOf(renderTemplate(TEMPLATE_ROOT, plan), 'plugins/hello/package.json')
+    expect(fromScaffold).toMatchObject({ name: '@someone/gwb-hello', publishConfig: { registry: LOCAL } })
+
+    const second = planScaffoldPlugin({ name: 'world', repo: fakeWorkspace(), scope: SOMEONE, registry: LOCAL, kernelVersion: KERNEL })
+    expect(second.pkg).toBe('@someone/gwb-world')
+    expect(second.registry).toBe(LOCAL)
+    expect(manifestOf(renderPlugin(TEMPLATE_ROOT, second), 'package.json')).toMatchObject({ name: '@someone/gwb-world', publishConfig: { registry: LOCAL } })
+  })
+
+  it('插件页、README、回执里的包名跟着 scope 走；内核包与模板用到的两个插件仍是团队范围', () => {
+    const plan = planScaffold({ name: 'hello', dir: 'D:\\tmp\\x', scope: SOMEONE, registry: LOCAL, kernelVersion: KERNEL })
+    const files = renderTemplate(TEMPLATE_ROOT, plan)
+    expect(files.find((f) => f.rel === 'README.md')?.text).toContain('`@someone/gwb-hello`')
+    expect(renderPluginPage(TEMPLATE_ROOT, plan).text).toContain('@someone/gwb-hello')
+    expect(nextSteps(plan).join('\n')).toContain('"pkg":"@someone/gwb-hello"')
+    const manifest = JSON.parse(files.find((f) => f.rel === 'plugins/hello/package.json')?.text ?? '') as { peerDependencies: Record<string, string> }
+    expect(Object.keys(manifest.peerDependencies).sort()).toEqual([KERNEL_PACKAGE, `${TEAM_SCOPE}/gwb-commands`, `${TEAM_SCOPE}/gwb-shell`].sort())
+  })
+
+  it('scope 不是 @ 开头的合法 npm 范围：拒，报错里带原文，不修正', () => {
+    for (const bad of ['someone', '@', '@Someone', '@.x', '@_x', '@x/y', ' @x', '@x ', '@中文', '']) {
+      expect(() => planScaffold({ name: 'x', dir: 'D:\\tmp\\x', scope: bad, kernelVersion: KERNEL }), JSON.stringify(bad)).toThrow(
+        `scope 要是 @ 开头的 npm 范围`,
+      )
+      expect(() => planScaffoldPlugin({ name: 'x', repo: fakeWorkspace(), scope: bad, kernelVersion: KERNEL }), JSON.stringify(bad)).toThrow(/scope/)
+    }
+    for (const good of ['@someone', '@a1', '@my-org', '@x.y', '@x_y']) {
+      expect(planScaffold({ name: 'x', dir: 'D:\\tmp\\x', scope: good, kernelVersion: KERNEL }).pkg).toBe(`${good}/gwb-x`)
+    }
+  })
+
+  it('registry 不是 http(s) 地址、不是规范写法、带账号或查询串：拒，报错里带原文，不修正', () => {
+    const rejected: Array<[string, RegExp]> = [
+      ['', /registry 要是 http\(s\) 地址/],
+      ['localhost:9999', /registry 要是 http\(s\) 地址/],
+      ['not a url', /registry 要是 http\(s\) 地址/],
+      ['ftp://host/', /registry 要是 http\(s\) 地址/],
+      ['http://localhost:9999', /规范写法 "http:\/\/localhost:9999\/"/],
+      ['HTTP://Host/npm/', /规范写法 "http:\/\/host\/npm\/"/],
+      ['http://user:pass@host/', /不许带账号、查询串或 #/],
+      ['http://host/?a=1', /不许带账号、查询串或 #/],
+      ['http://host/#x', /不许带账号、查询串或 #/],
+    ]
+    for (const [bad, why] of rejected) {
+      expect(() => planScaffold({ name: 'x', dir: 'D:\\tmp\\x', registry: bad, kernelVersion: KERNEL }), JSON.stringify(bad)).toThrow(why)
+      expect(() => planScaffoldPlugin({ name: 'x', repo: fakeWorkspace(), registry: bad, kernelVersion: KERNEL }), JSON.stringify(bad)).toThrow(why)
+    }
+    for (const good of ['http://localhost:9999/', 'https://npm.example.com/api/packages/me/npm/']) {
+      expect(planScaffold({ name: 'x', dir: 'D:\\tmp\\x', registry: good, kernelVersion: KERNEL }).registry).toBe(good)
+    }
   })
 })
 

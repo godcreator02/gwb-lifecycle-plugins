@@ -145,13 +145,29 @@ export function distManifest(
   return distributed
 }
 
+/** 发布内容清单的 `publishConfig.registry` 换成发布目标，`publishConfig` 的别的字段原样；`pnpm publish` 按它发 */
+export function withPublishRegistry(manifest: DistManifest, registry: string): DistManifest {
+  const publishConfig = typeof manifest.publishConfig === 'object' && manifest.publishConfig !== null ? manifest.publishConfig : {}
+  return { ...manifest, publishConfig: { ...publishConfig, registry } }
+}
+
+/**
+ * `pnpm view` 钉住去问哪个源的参数。带范围的包名要用 `--config.<范围>:registry=`：pnpm 12 里 `--registry` 盖不过
+ * `.npmrc` 的范围行（probes/2609251140_pnpm-publish-config-registry）
+ */
+export function registryPinArgs(spec: string, registry: string): string[] {
+  const scope = /^(@[^/]+)\//.exec(spec)?.[1]
+  return scope === undefined ? ['--registry', registry] : [`--config.${scope}:registry=${registry}`]
+}
+
 /**
  * 在临时目录组装发布内容（`files` 白名单里的东西、README、改写后的清单），交给 `action` 在那个目录里发布或打包，
  * 做完删掉临时目录；仓里的 package.json 一个字都不改。`deps` 是同一次发的包的依赖写法（正式版给 `^新版本号`，开发版不给）。
+ * `publishRegistry` 只有正式版给：写进清单的 `publishConfig.registry`。
  * `action` 超时、进程树没终止掉时临时目录不删：它派生的 pnpm 可能还在读
  */
 async function withStagedDistribution(
-  input: { pkgDir: string; version: string; deps: Record<string, string> },
+  input: { pkgDir: string; version: string; deps: Record<string, string>; publishRegistry?: string },
   action: (stage: string) => Promise<RunResult>,
 ): Promise<RunResult> {
   let manifest: DistManifest
@@ -191,10 +207,9 @@ async function withStagedDistribution(
     }
     const readme = [path.join(input.pkgDir, 'README.md'), path.join(repoDir, 'README.md')].find((one) => fs.existsSync(one))
     if (readme !== undefined) fs.copyFileSync(readme, path.join(stage, 'README.md'))
-    fs.writeFileSync(
-      path.join(stage, 'package.json'),
-      JSON.stringify(distManifest(manifest, input.version, input.deps, workspaceVersions(repoDir)), null, 2) + '\n',
-    )
+    const distributed = distManifest(manifest, input.version, input.deps, workspaceVersions(repoDir))
+    const staged = input.publishRegistry === undefined ? distributed : withPublishRegistry(distributed, input.publishRegistry)
+    fs.writeFileSync(path.join(stage, 'package.json'), JSON.stringify(staged, null, 2) + '\n')
     const done = await action(stage)
     if (done.timedOut !== 'kill-failed') return done
     stageMayStillBeRead = true
@@ -213,10 +228,11 @@ async function withStagedDistribution(
   }
 }
 
-/** 组装好的发布内容发到源，标 latest */
+/** 组装好的发布内容发到 `registry`（写在发布内容清单的 `publishConfig.registry` 里），标 latest */
 async function publishStaged(input: { pkgDir: string; version: string; registry: string; ranges: Record<string, string>; pnpm: string }): Promise<RunResult> {
-  const sent = await withStagedDistribution({ pkgDir: input.pkgDir, version: input.version, deps: input.ranges }, (stage) =>
-    runCaptured(pnpmPlan(['publish', '--no-git-checks', '--tag', 'latest', '--registry', input.registry], stage, input.pnpm), PUBLISH_TIMEOUT_MS),
+  const staging = { pkgDir: input.pkgDir, version: input.version, deps: input.ranges, publishRegistry: input.registry }
+  const sent = await withStagedDistribution(staging, (stage) =>
+    runCaptured(pnpmPlan(['publish', '--no-git-checks', '--tag', 'latest'], stage, input.pnpm), PUBLISH_TIMEOUT_MS),
   )
   if (sent.timedOut !== 'kill-failed') return sent
   return { ...sent, tail: `${sent.tail}\n这一版可能照样发出去了——过一会儿用 pnpm view 查源上有没有这个号` }
@@ -300,11 +316,11 @@ export const releaseDepsWith = (pnpm: string): ReleaseDeps => ({
   run: (plan: RunPlan, timeoutMs: number) => runCaptured(plan, timeoutMs),
   publish: (input) => publishStaged({ ...input, pnpm }),
   published: async (spec, registry) => {
-    const seen = await runCaptured(pnpmPlan(['view', spec, 'version', '--registry', registry], os.tmpdir(), pnpm), 60_000)
+    const seen = await runCaptured(pnpmPlan(['view', spec, 'version', ...registryPinArgs(spec, registry)], os.tmpdir(), pnpm), 60_000)
     return seen.ok
   },
-  latest: async (pkg, registry) => {
-    const seen = await runCaptured(pnpmPlan(['view', pkg, 'dist-tags.latest', '--registry', registry], os.tmpdir(), pnpm), 60_000)
+  latest: async (pkg) => {
+    const seen = await runCaptured(pnpmPlan(['view', pkg, 'dist-tags.latest'], os.tmpdir(), pnpm), 60_000)
     if (!seen.ok) return undefined
     const lines = seen.tail.split(/\r?\n/).map((line) => line.trim())
     return lines.reverse().find((line) => /^\d+\.\d+\.\d+(?:-[0-9A-Za-z.-]+)?$/.test(line))

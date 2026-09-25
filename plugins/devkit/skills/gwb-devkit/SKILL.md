@@ -9,7 +9,7 @@ description: 写新插件、改插件、在隔离 home 里验证改动时读；�
 
 1. 调 `devkit.services`：看这个 home 有哪些可以 inject 的服务、各由哪个包提供、类型定义原文（方法签名与文档注释）。要用的能力已经有了就直接用它：peer 里写上提供方，`import type` 它的类型，`ctx.inject` 取用
 2. 带界面的插件，先读外壳的说明书 `skill.read {"name":"gwb-shell"}`
-3. 建仓：`devkit.scaffold {"name":"<kebab 短名>","dir":"<还不存在的绝对路径>","title":"<显示名>"}`；往已有的 workspace 仓再加一个插件用 `devkit.scaffold.plugin {"repo":"<仓根>","name":"<短名>"}`。照回执里的 `nextSteps` 做完（`docs.built` / `docs.attached` 是文档站实际建成没有）
+3. 建仓：`devkit.scaffold {"name":"<kebab 短名>","dir":"<还不存在的绝对路径>","title":"<显示名>"}`；往已有的 workspace 仓再加一个插件用 `devkit.scaffold.plugin {"repo":"<仓根>","name":"<短名>"}`。照回执里的 `nextSteps` 做完（`docs.built` / `docs.attached` 是文档站实际建成没有）。没有团队源（`@godcreator`）发布权限就两条都加 `"scope":"@<你的范围>","registry":"<你的源的地址，如 http://localhost:4873/>"`：包名成了 `<scope>/gwb-<短名>`，`registry` 写进插件包的 `publishConfig.registry`，`devkit.release` 发到那里；发布 token 写在用户级 `~/.npmrc`。同一个仓里的插件用同一套
 4. 把模板改成真插件，每一处都守「写插件的规矩」：
    * `src/index.ts`：模板的 `<短名>.ping` 与窗格 `main` 换成真正的命令与窗格。命令照模板那条的写法登记：`name`、`description`、`usage` 都是非空字符串，`description` 一句话说做什么，参数形状写进 `usage`，无参数写「无参数」；`plugin` 可以不写（命令总线 0.5.0 起从调用方取），写了必须等于自己的完整包名。命令总线 0.5.0 起缺字段或 `plugin` 不对就在登记时抛错，插件加载失败
    * `tests/`：不启动进程、不开窗口就能测的逻辑抽成纯函数来测；真要启动子进程的用例打 `slow` 标签。模板带的 `tests/prefix.test.ts`（类名前缀）与 `tests/artifact.test.ts`（构建产物）不用改。`prefix.test.ts` 报「前缀要排在最前」时照它写的改法改：前缀排在所有变体前面（`<前缀>:disabled:opacity-50`），写反了 Tailwind 不报错、只是一条规则都不出
@@ -53,7 +53,8 @@ description: 写新插件、改插件、在隔离 home 里验证改动时读；�
 
 ## 参考：约定与容易出错的地方
 
-* **是不是插件看 `keywords`**：插件写 `["gwb", "gwb-plugin"]`（模板已带），库与共享包只写 `["gwb"]`。插件管理的「可装」列表按 `gwb-plugin` 筛
+* **是不是插件看 `keywords`**：插件写 `["gwb", "gwb-plugin"]`（模板已带），库与共享包只写 `["gwb"]`。插件管理的「可装」列表按 `gwb-plugin` 筛，不看包名范围
+* **包名与发到哪用 npm 的标准字段**：包的身份是 `package.json` 的 `name`，发到哪是 `publishConfig.registry`（没写就是团队源）。别的包名范围的插件要装进 home，那个范围的源得先配进 `~/.npmrc`（`plugin-manager.source.add`）
 * **内核的接口类型从内核包的包根 `import type`**：`import type { GwbContext } from '@godcreator/gwb-kernel-desktop'`，peer 里写着内核包，不另写 dev。包根只导出类型，`isRecord`、`requireKernel` 这类无状态小函数由插件自带一份（devkit 的 `src/vocab.ts`）
 * **node 侧的测试只 import `.ts`**：node 侧的 tsc 没开 jsx
 * **`apply` 里的 async 自己 catch 并写日志**：reject 了不报错，现象是「加载了但什么都没发生」
@@ -63,6 +64,6 @@ description: 写新插件、改插件、在隔离 home 里验证改动时读；�
 * **页面 importmap 里只有 react 的四个包名**，写死在内核包的页面入口 `dist/index.html` 里，别的包加不进名字：别的依赖一律打包进浏览器侧产物；模板的 `build.ts` 从那段 importmap 读外置名单，不手抄
 * **验证的必须是这一版**：改了内核（页面 importmap 里的 react 也由它提供）同样用 `devkit.dev`：`dir` 给内核仓根、`packages` 给 `["apps/desktop"]`，它把内核开发版连同内核要的 `cordis` 装进隔离 home，再重启那个 home（主进程里的内核换不掉），回执 `kernel.version` 就是页面上运行的内核版本；没装过内核开发版的隔离 home 里运行的是 `devkit.home.new` 装进去的内核包
 * **日志**：`%APPDATA%\gwb-kernel\homes\<home 名>\gwb.log`，内核、插件、页面三方的日志都在这一个文件里；哪些条目在运行看 `plugin-manager.list` 的 `active`
-* **一个隔离 home 同一时间只给一个会话用**：`short` 各起各的，不拿别的会话开的 home 来验。`devkit.dev` 经那个 home 的插件管理装包，同时来的第二个改动回 `BUSY`
+* **一个隔离 home 同一时间只给一个会话用**：每个会话用自己的 `short`，不拿别的会话开的 home 来验。`devkit.dev` 经那个 home 的插件管理装包，同时来的第二个改动回 `BUSY`
 * **home 里的包只通过安装来换**：`devkit.dev` 每次换一个新的开发版号、打一个新的包文件再装。覆盖 `node_modules` 里的 `dist/` 会改到 pnpm 全局存储里的同一份文件，node 侧也换不掉
 * **别动隔离 home 里的 `dev-packs` 目录**：home 清单引用着那里的包文件，删了之后这个 home 里的 `pnpm add`（插件管理的安装与升级）全部失败；覆盖写同一个包文件，pnpm 照样装着旧代码

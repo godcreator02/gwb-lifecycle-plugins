@@ -1,6 +1,6 @@
 ---
 title: 关键设计
-description: devkit 仓为什么这么切分——devkit 是普通插件、写插件只有打包安装验证一条路、开发版只进隔离 home、只按名字定位 home、纯逻辑与真机器操作分开、devkit 与插件管理同仓、借别的插件只借命令名；各自推出了什么、放弃了什么
+description: devkit 仓为什么这么切分——devkit 是普通插件、写插件只有打包安装验证一条路、包名与发到哪用 npm 的标准字段、开发版只进隔离 home、只按名字定位 home、纯逻辑与真机器操作分开、devkit 与插件管理同仓、借别的插件只借命令名；各自推出了什么、放弃了什么
 ---
 
 **本页回答**：devkit 仓里的两个包为什么是现在这个形状；每条设计推出了什么、代价是什么；哪些事刻意不做。每个包的功能与接口见各自的首页：[开发套件](/docs/devkit)、[插件管理](/docs/plugin-manager)。
@@ -32,16 +32,28 @@ devkit 没有任何特权：装进 home 才有它的命令，加载不成功就�
 
 ## 写插件只有一条路：打包、安装、验证
 
-每个插件都在自己的仓里开发，按 `files` 白名单打成包，再装进 home 验证：开发版打成包文件、经目标 home 的插件管理装进隔离 home，正式版发到团队源、再装进日常用的 home。**安装这一步本身就在验证**：`exports` 漏了一个子路径、`files` 少带了一个目录，只有装出来才会暴露；在仓里用相对路径直接加载，这些问题一个都看不到。
+每个插件都在自己的仓里开发，按 `files` 白名单打成包，再装进 home 验证：开发版打成包文件、经目标 home 的插件管理装进隔离 home，正式版发到包的发布目标（`publishConfig.registry`，没写是团队源）、再装进日常用的 home。**安装这一步本身就在验证**：`exports` 漏了一个子路径、`files` 少带了一个目录，只有装出来才会暴露；在仓里用相对路径直接加载，这些问题一个都看不到。
 
 推出了：
 
 - **改一版看一版也换版本号**：`devkit.dev` 每次打一个开发版的包文件（`<patch+1>-dev.<到秒的时间>`），放进目标 home 的 `dev-packs` 目录，经那个 home 的插件管理装。包文件的路径变了，pnpm 虚拟存储里的目录才变，重新加载时 Node 才会重新执行新代码；覆盖 home 里 `node_modules` 下的文件会改坏 pnpm 全局存储里的原件（[改一版看一版进 devkit](/trajectory/2026-09-11-dev-loop-comes-to-devkit)、[开发版打成包文件、经插件管理装](/trajectory/2026-09-25-dev-via-pack-and-plugin-manager)）
 - **包文件每版一个新路径、只增不删**：新包文件覆盖写到同一个路径，pnpm 退出码 0 却装着旧代码；home 清单还引用着的包文件一删，这个 home 里之后的 `pnpm add` 全部失败（[pnpm 在 home 里对包文件的表现](/trajectory/2026-09-25-dev-install-via-file-tgz)）
-- **正式版只从提交过的状态发**：版本号在仓里改、随提交走；`devkit.release` 在 git 工作区不干净、同一个版本号已在源上、发版前检查没过时一概不发，也不改仓里任何文件（[发正式版进 devkit](/trajectory/2026-09-14-release-comes-to-devkit)）
+- **正式版只从提交过的状态发**：版本号在仓里改、随提交走；`devkit.release` 在 git 工作区不干净、同一个版本号已在发布目标上、发版前检查没过时一概不发，也不改仓里任何文件（[发正式版进 devkit](/trajectory/2026-09-14-release-comes-to-devkit)）
 - **最后一步是核对**：`devkit.dev` 回「成功」之前，要确认装上的是这次的版本号、条目在运行、日志新增部分里没有 error
 
 代价：一次改一版看一版大约一分钟，比直接覆盖文件慢；隔离 home 的 `dev-packs` 与 pnpm 存储里会积攒开发版，前者随隔离 home 一起删，存储要定期清理。
+
+## 包名与发到哪用 npm 的标准字段
+
+包的身份就是 `package.json` 的 `name`，发到哪就是 `publishConfig.registry`，不另造配置。`devkit.scaffold` 的 `scope`、`registry` 两个参数写的就是这两个字段（缺省 `@godcreator` 与团队源）；`devkit.release` 照每个包自己的 `publishConfig.registry` 发，没写的发到团队源；开发版不经过任何源。没有团队源发布权限的开发者给自己的范围与源，就能走完建仓、改一版看一版、发正式版（[包名范围与发布目标交给开发者](/trajectory/2026-09-25-scope-and-publish-target)）。
+
+推出了：
+
+- **没写 `publishConfig.registry` 就是团队源**：生态里建仓早于这个字段的仓都没写，不能因此全部拦住；这是写明的缺省值，不是猜测
+- **发版前检查不再只认 `@godcreator`**：peer 里的插件看清单的 `keywords` 判，不看包名范围，任何范围下的插件都和源上 latest 比同一条线；只有 dev 里的库仍只查 `@godcreator` 范围下的，外部开发者自己的库不强求
+- **问哪个源交给 `~/.npmrc`**：查别的包的 latest 不指定源，按用户级 `~/.npmrc` 的范围行找源；只有「这个版本号在发布目标上有没有」指定发布目标
+
+代价：发布目标写进包清单，发出去的包清单里也带着它；外部开发者装团队的插件、团队装外部开发者的插件，都得先把对方范围的源配进 `~/.npmrc`。
 
 ## 开发版只进隔离 home
 
@@ -69,7 +81,7 @@ devkit 没有任何特权：装进 home 才有它的命令，加载不成功就�
 
 判据只有一句：**这段逻辑能不能不启动进程、不开窗口、只给输入看输出。**
 
-能的部分是纯逻辑：时序、检查、命名、版本号、「查不出算不算不在」「装上的是不是这次打包的版本」「插件声明的内核范围包不包含运行中的内核」「一个包的 `.d.ts` 给 cordis 补了哪些服务」这些判断都在这里，测试用假的依赖把整条流程运行完。不能的部分在四个 `node-*-deps.ts` 与 `node-process-tree.ts` 里，只负责在真机器上拿到答案：启动进程、超时终止整棵进程树、查进程表、查端口被谁占着、读写磁盘、连 CDP、问团队源。这一层不做判断，也不进单元测试；唯一的例外是超时终止整棵进程树，它用真的子进程测（孙进程真的没了，假实现证明不了）。
+能的部分是纯逻辑：时序、检查、命名、版本号、「查不出算不算不在」「装上的是不是这次打包的版本」「插件声明的内核范围包不包含运行中的内核」「一个包的 `.d.ts` 给 cordis 补了哪些服务」这些判断都在这里，测试用假的依赖把整条流程运行完。不能的部分在四个 `node-*-deps.ts` 与 `node-process-tree.ts` 里，只负责在真机器上拿到答案：启动进程、超时终止整棵进程树、查进程表、查端口被谁占着、读写磁盘、连 CDP、问 npm 源。这一层不做判断，也不进单元测试；唯一的例外是超时终止整棵进程树，它用真的子进程测（孙进程真的没了，假实现证明不了）。
 
 两边靠显式接口隔开：`HomeDeps`、`DevDeps`、`ReleaseDeps` 三个接口由纯逻辑定义，运行时传 `node-*-deps.ts` 的实现，测试时传假实现。依赖方向是单向的：真机器那一层认识纯逻辑，纯逻辑不认识它。
 
@@ -88,7 +100,7 @@ devkit 没有任何特权：装进 home 才有它的命令，加载不成功就�
 | 服务总览 | `src/services.ts` | `src/node-services-deps.ts` | [服务表与类型声明](/docs/seams/service-table) |
 | 前台运行命令 | — | `src/node-process-tree.ts`：启动子进程，超时终止整棵进程树并确认退出；devkit 在前台启动的 pnpm、git 与 CDP 驱动都经它 | [改一版看一版](/docs/devkit/dev) |
 | 进程与端口探测 | `src/probes.ts` | `src/node-probe-deps.ts`（只有 Windows 的 `tasklist` 与 `netstat`） | [测试 home](/docs/devkit/home) |
-| 小工具 | `src/vocab.ts`：`isRecord` 与 `requireKernel`（内核包只导出类型，这两个函数由插件自带） | — | — |
+| 小工具 | `src/vocab.ts`：`isRecord` 与 `requireKernel`（内核包只导出类型，这两个函数由插件自带）、团队范围与团队源两个常量、`parseHttpUrl` | — | — |
 | CDP 驱动 | `bin/cdp.mjs` 里算文件位置的几个函数 | `bin/cdp.mjs` 其余部分 | [CDP 驱动](/docs/devkit/cdp) |
 | 命令登记 | — | `src/index.ts`：登记命令、检查参数、组装回执 | — |
 
@@ -124,7 +136,7 @@ devkit 没有任何特权：装进 home 才有它的命令，加载不成功就�
 
 ## 借别的插件只借命令名
 
-建仓要生成文档站骨架、装六区，这两件事归站点插件与 docfirst 插件。devkit 不依赖这两个插件的任何包，只在命令总线上按名字找 `docs-site.create`、`docfirst.attach`，每次现查、不缓存（插件是热加载的，装一个新插件之后答案当场就变）。找不到就跳过那一步，不让建仓失败。
+建仓要生成文档站的初始站点、装六区，这两件事归站点插件与 docfirst 插件。devkit 不依赖这两个插件的任何包，只在命令总线上按名字找 `docs-site.create`、`docfirst.attach`，每次现查、不缓存（插件是热加载的，装一个新插件之后答案当场就变）。找不到就跳过那一步，不让建仓失败。
 
 {/* has file="../plugins/devkit/src/index.ts" text="const CREATE_SITE_COMMAND = 'docs-site.create'" */}
 

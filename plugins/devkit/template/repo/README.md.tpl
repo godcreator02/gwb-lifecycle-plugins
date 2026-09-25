@@ -5,7 +5,8 @@
 仓是 pnpm workspace：**仓根是一个不发布的 private 包，自己没有代码**（`pnpm build` / `pnpm check` 都递归到各成员包），
 插件放在 `plugins/{{name}}/`。加第二个插件用 `devkit.scaffold.plugin {"repo":"<仓根>","name":"<短名>"}`，它在
 `plugins/` 下再建一个插件包；不是插件的包（插件共用的库之类）放在 `packages/`，需要时再加。
-包发到团队源（gitea 个人源），装进 home。**`@godcreator` 对应哪个源写在用户级 `~/.npmrc`**（`@godcreator:registry`），本仓不写 `.npmrc`。
+包发到插件包 `package.json` 里 `publishConfig.registry` 写的源（建仓时的 `registry` 参数，不给是团队源），装进 home。
+发布 token、各个包名范围从哪个源装（`@<范围>:registry=`）写在用户级 `~/.npmrc`，本仓不写 `.npmrc`。
 
 ## 插件包的结构（`plugins/{{name}}/`，配置都在包内）
 

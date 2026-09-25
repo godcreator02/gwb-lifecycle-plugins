@@ -2,9 +2,6 @@ import path from 'node:path'
 import { INSTALL_COMMAND, KERNEL_PACKAGE, LIST_COMMAND, UPDATE_COMMAND } from '@godcreator/gwb-plugin-manager'
 import { isRecord } from './vocab.js'
 
-/** 团队源：gitea 上 godcreator 组织的 npm registry，与用户级 `~/.npmrc` 里 `@godcreator` 那行同一个地址。只有发正式版用它 */
-export const DEFAULT_REGISTRY = 'https://git.tianshen02.online:28377/api/packages/godcreator/npm/'
-
 /** 日常用的那个 home 的名字。开发版装进它就是悄悄换了日常代码，所以当场拒 */
 export const DAILY_HOME = 'default'
 

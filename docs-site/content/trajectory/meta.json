@@ -37,6 +37,7 @@
     "2026-09-25-prefix-after-variant-guard",
     "2026-09-25-scaffold-title-by-context",
     "2026-09-25-runner-tree-kill",
-    "2026-09-25-cdp-default-read-only"
+    "2026-09-25-cdp-default-read-only",
+    "2026-09-25-scope-and-publish-target"
   ]
 }
