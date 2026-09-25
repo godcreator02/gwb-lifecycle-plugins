@@ -60,7 +60,7 @@ description: 插件管理是唯一写 home 的插件——装卸包、增删启�
 
 ### 主入口给 devkit 的导出
 
-包主入口除了插件本身（`name`、`apply`），只导出 devkit 复用的几样——找 pnpm 的 `locatePnpm`、在 home 里启动 pnpm 用的环境 `homePnpmEnv`（见 [pnpm](/docs/plugin-manager/pnpm#参数环境与读回什么)）、内核包名 `KERNEL_PACKAGE`、peer 范围的判定 `isCaretRange` 与 `kernelRangeCovers`、取输出最后几行的 `tailLines`，以及 `devkit.dev` 调的三条命令名 `LIST_COMMAND`、`INSTALL_COMMAND`、`UPDATE_COMMAND`。devkit 在 peer 里写了插件管理，直接 import 这几样，规则只有这一份；devkit 构建时把 peer 里的包留在外面，运行时用的是 home 里装着的那一版插件管理。回执类型不导出，调用方照命令的 `usage` 读回执。devkit 怎么用这几样见接缝页 [devkit 调插件管理](/docs/seams/plugin-manager-calls)。
+包主入口除了插件本身（`name`、`apply`），只导出 devkit 复用的几样——找 pnpm 的 `locatePnpm`、在 home 里启动 pnpm 用的环境 `homePnpmEnv`（见 [pnpm](/docs/plugin-manager/pnpm#参数环境与读回什么)）、内核包名 `KERNEL_PACKAGE`、peer 范围的判定 `isCaretRange` 与 `kernelRangeCovers`（devkit 眼下只用前者，后者 `list` 自己也用）、取输出最后几行的 `tailLines`，以及 `devkit.dev` 调的三条命令名 `LIST_COMMAND`、`INSTALL_COMMAND`、`UPDATE_COMMAND`。devkit 在 peer 里写了插件管理，直接 import 这几样，规则只有这一份；devkit 构建时把 peer 里的包留在外面，运行时用的是 home 里装着的那一版插件管理。回执类型不导出，调用方照命令的 `usage` 读回执。devkit 怎么用这几样见接缝页 [devkit 调插件管理](/docs/seams/plugin-manager-calls)。
 
 {/* ref file="../plugins/plugin-manager/src/index.ts" lines="40-43" */}
 

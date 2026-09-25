@@ -1,11 +1,11 @@
 ---
 title: 内核兼容性
-description: 插件在 peerDependencies 里给内核包 @godcreator/gwb-kernel-desktop 写 ^x.y.z；list 只给插件报，范围不包含正在运行的内核就在 unmetPeers 里列内核包一项，只报告不拦加载；比对规则只有 src/kernel-compat.ts 一份，devkit.release 的发版前检查用的也是它
+description: 插件在 peerDependencies 里给内核包 @godcreator/gwb-kernel-desktop 写 ^x.y.z；list 只给插件报，范围不包含正在运行的内核就在 unmetPeers 里列内核包一项，只报告不拦加载；比对规则只有 src/kernel-compat.ts 一份，devkit.release 的发版前检查用它判写法是不是 ^x.y.z、不对照内核
 ---
 
 # 内核兼容性
 
-**本页回答**：插件怎么声明兼容哪些内核；`^x.y.z` 包不包含一个版本怎么判；`list` 怎么报范围不包含当前内核的插件、为什么只看插件；为什么只报告、不拦加载；还有谁用同一条规则。
+**本页回答**：插件怎么声明兼容哪些内核；`^x.y.z` 包不包含一个版本怎么判；`list` 怎么报范围不包含当前内核的插件、为什么只看插件；为什么只报告、不拦加载；发版前检查查什么。
 
 ## 插件在 peer 里写内核包的范围
 
@@ -61,12 +61,12 @@ description: 插件在 peerDependencies 里给内核包 @godcreator/gwb-kernel-d
 
 `unmetPeers` 里有内核包的插件照常加载、照常能装能升，插件管理不拦它。范围不包含当前内核不等于不能用，大多数插件换一个次版本的内核照样能运行；拦下来反而让人没法先试一试。这一项的用处是出了问题时先怀疑它；要保证发出去的插件都写对了范围，在发版时检查，而不是在装的时候拦。升内核重启之后，范围不包含新内核的插件由同一个 `list` 报出来（见[升内核](/docs/plugin-manager/kernel-upgrade)）。
 
-## 还有谁用同一条规则
+## 发版前检查只查写法
 
-`devkit.release` 构建之后、发第一个包之前，检查每个插件包 peer 里内核包的范围：必须写了、是 `^x.y.z`、并且包含运行中的内核；有一个不对就一个都不发。不是插件的包不查。
+`devkit.release` 构建之后、发第一个包之前，检查每个插件包 peer 里内核包的范围：必须写了、是 `^x.y.z`；有一个不对就一个都不发。它不拿范围对照哪个内核——那样能不能发版要看从哪个 home 调。不是插件的包不查。范围包不包含正在运行的内核，只由 `list` 在 home 里报。
 
-比对规则只写在插件管理的 `src/kernel-compat.ts` 里，经包主入口导出 `KERNEL_PACKAGE`、`isCaretRange`、`kernelRangeCovers`（见[主入口给 devkit 的导出](/docs/plugin-manager#主入口给-devkit-的导出)）。devkit 的发版前检查直接 import 它们，所以改了这里的规则，`devkit.release` 的检查跟着变；改签名或 devkit 依赖的行为是破坏性变更（见[什么算破坏性变更](/docs/plugin-manager#什么算破坏性变更)）。两边怎么对上见接缝页 [peer 里的内核包与插件](/docs/seams/kernel-peer)。
+比对规则只写在插件管理的 `src/kernel-compat.ts` 里，经包主入口导出 `KERNEL_PACKAGE`、`isCaretRange`、`kernelRangeCovers`（见[主入口给 devkit 的导出](/docs/plugin-manager#主入口给-devkit-的导出)）。devkit 的发版前检查 import 其中的 `KERNEL_PACKAGE` 与 `isCaretRange`，所以改了「只许 `^x.y.z`」这条规则，`devkit.release` 的检查跟着变；改签名或 devkit 依赖的行为是破坏性变更（见[什么算破坏性变更](/docs/plugin-manager#什么算破坏性变更)）。两边怎么对上见接缝页 [peer 里的内核包与插件](/docs/seams/kernel-peer)。
 
 {/* ref file="../plugins/plugin-manager/src/kernel-compat.ts" lines="1-3" */}
 
-{/* has file="../plugins/devkit/src/release.ts" text="import { KERNEL_PACKAGE, isCaretRange, kernelRangeCovers } from '@godcreator/gwb-plugin-manager'" */}
+{/* has file="../plugins/devkit/src/release.ts" text="import { KERNEL_PACKAGE, isCaretRange } from '@godcreator/gwb-plugin-manager'" */}
