@@ -32,7 +32,7 @@ description: devkit.release 从仓根按依赖顺序把包发到各包的发布�
 
 发布目标是包自己 `package.json` 的 `publishConfig.registry`；没写、或写的不是 http(s) 地址就拒，报错写明要加什么、给出团队源地址作例子：
 
-{/* ref file="../plugins/devkit/src/release.ts" lines="115-128" */}
+{/* ref file="../plugins/devkit/src/release.ts" lines="118-131" */}
 
 它写进临时目录里发布内容清单的 `publishConfig.registry`，命令行不带 `--registry`；「同号已在源上」也问这个源。为什么这么传见 [pnpm 与包源](/docs/seams/pnpm-registry)。
 
@@ -49,9 +49,9 @@ description: devkit.release 从仓根按依赖顺序把包发到各包的发布�
 
 一次发版的输入、回执，以及每个包只解析一次的清单与它的检查结论：
 
-{/* ref file="../plugins/devkit/src/release.ts" lines="32-56" */}
+{/* ref file="../plugins/devkit/src/release.ts" lines="35-59" */}
 
-{/* ref file="../plugins/devkit/src/release.ts" lines="67-98" */}
+{/* ref file="../plugins/devkit/src/release.ts" lines="70-101" */}
 
 `TicketManifest` 只取发版前检查要看的那部分：全部 peer（含内核包）、是不是插件（`keywords` 含 `gwb-plugin`）。`Ticket.problems` 非空就拒，所有包的 `Ticket` 拼成一段回执，按包分组。
 
@@ -71,7 +71,7 @@ description: devkit.release 从仓根按依赖顺序把包发到各包的发布�
 
 peer 里的插件在不在同一条线：
 
-{/* ref file="../plugins/devkit/src/release.ts" lines="184-206" */}
+{/* ref file="../plugins/devkit/src/release.ts" lines="180-202" */}
 
 peer 里哪些包算 gwb 插件、要和源上 latest 比，读包目录 `node_modules` 里它的清单判，不看包名范围；同一条线怎么算：
 
@@ -83,7 +83,7 @@ peer 里只许哪几类包：
 
 peer 里内核包的检查，`^x.y.z` 写法的判定 `isCaretRange` 从插件管理的主入口 import（见 [peer 里的内核包与插件](/docs/seams/kernel-peer)）：
 
-{/* ref file="../plugins/devkit/src/release.ts" lines="163-182" */}
+{/* ref file="../plugins/devkit/src/release.ts" lines="159-178" */}
 
 **产物检查**在 `src/artifact-check.ts`。哪些文件算哪一侧，照模板生成的插件包的构建约定判：node 侧是 `exports["."]` 的运行时入口（没有 `exports` 时是 `main`）顺着相对 import 走到的文件，也就是内核的 loader 按包名 import 插件时加载的那些；浏览器侧是 `dist/client.js` 顺着相对 import 走到的文件；两边都走不到的文件不查。库（没有 `gwb-plugin` 的包）只查相对 import，不查两份包名名单：库由用它的插件打包进产物，它的 import 不在 home 里按包名解析。
 
@@ -91,13 +91,13 @@ peer 里内核包的检查，`^x.y.z` 写法的判定 `isCaretRange` 从插件�
 
 node 侧放行的包名：
 
-{/* ref file="../plugins/devkit/src/artifact-check.ts" lines="84-93" */}
+{/* ref file="../plugins/devkit/src/artifact-check.ts" lines="78-87" */}
 
 浏览器侧放行的名字只取内核包页面入口里那段 importmap 的键。页面入口从包目录的 `node_modules/@godcreator/gwb-kernel-desktop/dist/index.html` 现读（插件 peer 里写了内核包，pnpm 把它链接在那里）；读不到（提示 peer 写上内核包、再 `pnpm install`）、没有这段 importmap 都拒，别的依赖的清单不看：
 
-{/* ref file="../plugins/devkit/src/artifact-check.ts" lines="118-126" */}
+{/* ref file="../plugins/devkit/src/artifact-check.ts" lines="112-120" */}
 
-{/* ref file="../plugins/devkit/src/artifact-check.ts" lines="240-257" */}
+{/* ref file="../plugins/devkit/src/artifact-check.ts" lines="225-242" */}
 
 产物里的 import 用 es-module-lexer 按 JS 语法找：记静态的 `import … from`、`export … from`、`import '<名>'`，以及参数是单个字符串字面量的 `import()`；字符串、模板字面量、正则、注释里写着的 `import(…)` 都不算，压成一行的产物照样认；参数不是单个字符串字面量的 `import(x)` 不查。一份产物读不下去就拒，回执里写出文件与行列号。es-module-lexer 用 wasm 版、同步初始化，写在 dev、随本包的构建打进产物。取舍见轨迹卡[发版前检查按语法找 import](/trajectory/2026-09-25-scan-imports-by-syntax)：
 
