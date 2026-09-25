@@ -1,6 +1,6 @@
 ---
 title: 10 被测仓的形状
-description: 连接 devkit.dev、devkit.release、devkit.scaffold.plugin 与被它们处理的插件仓：仓根有 build 脚本、files 白名单里的产物构建后都在、插件包 keywords 含 gwb-plugin、产物的两侧入口是 exports["."] 与 dist/client.js、peer 里的包装在包目录的 node_modules、pnpm-workspace.yaml 有 plugins/ 那一行、发正式版时 git 工作区干净——都靠约定
+description: 连接 devkit.dev、devkit.release、devkit.scaffold.plugin 与被它们处理的插件仓：仓根有 build 脚本、files 白名单里的产物构建后都在、插件包 keywords 含 gwb-plugin、产物的两侧入口是 exports["."] 与 dist/client.js、peer 里的包装在包目录的 node_modules、pnpm-workspace.yaml 的 packages 里有 plugins/*、发正式版时 git 工作区干净——都靠约定
 ---
 
 **本页回答**：devkit 的几条命令对传给它的仓做了哪些假设；每条假设在哪几处代码里用到；不满足时各自怎样。
@@ -13,7 +13,7 @@ description: 连接 devkit.dev、devkit.release、devkit.scaffold.plugin 与被�
 <Diagram name="seam-repo-shape" title="被处理的仓要满足的约定，按目录树排；右边是依赖这条约定的命令">
 - `<仓根>/.git`：`devkit.release` 要求工作区干净，不是 git 仓也拒
 - `<仓根>/package.json`：`devkit.dev` 与 `devkit.release` 在仓根运行 `pnpm build`
-- `<仓根>/pnpm-workspace.yaml`：组装发布内容时从包目录往上找到的第一个有它的目录是仓根；`devkit.scaffold.plugin` 要求它有 `plugins/` 那一行
+- `<仓根>/pnpm-workspace.yaml`：组装发布内容时从包目录往上找到的第一个有它的目录是仓根；`devkit.scaffold.plugin` 要求它的 `packages` 里有 `plugins/*`
 - `plugins/<短名>/`：`devkit.scaffold.plugin` 把插件包写到这里，目录必须还不存在
 - `<包>/package.json`：`files` 是产物清单，`keywords` 含 `gwb-plugin` 表示插件，node 侧入口是 `exports["."]`
 - `<包>/dist/client.js` 是浏览器侧产物入口，`<包>/node_modules/` 里装着 peer 里的包、内核包的页面入口 `dist/index.html` 给出页面 importmap 的名字，这两条只有 `devkit.release` 用
@@ -53,9 +53,9 @@ description: 连接 devkit.dev、devkit.release、devkit.scaffold.plugin 与被�
 
 {/* ref file="../plugins/devkit/src/node-dev-deps.ts" lines="111-120" */}
 
-**`pnpm-workspace.yaml` 有 `plugins/` 那一行**：`devkit.scaffold.plugin` 只往这样的仓里加插件，仓根就是插件包的旧布局仓直接拒，报错里写着怎么迁：
+**`pnpm-workspace.yaml` 的 `packages` 里有 `plugins/*`**：`devkit.scaffold.plugin` 只往这样的仓里加插件，仓根就是插件包的旧布局仓直接拒，报错里写着怎么迁。`packages` 按 YAML 读，带不带引号、块列表还是流式列表都认；读不懂的写法报出是第几行，不当成「没有这一条」：
 
-{/* ref file="../plugins/devkit/src/scaffold.ts" lines="146-153" */}
+{/* ref file="../plugins/devkit/src/scaffold.ts" lines="167-175" */}
 
 **git 工作区干净**：`devkit.release` 在构建之前运行 `git status --porcelain=v1`，有一条改动就一个都不发；不是 git 仓也拒。`devkit.dev` 不查：
 
@@ -87,7 +87,9 @@ devkit 保证：
 
 {/* has file="../plugins/devkit/tests/artifact-check.test.ts" text="浏览器侧：内核包的页面入口读不到就报，不猜" */}
 
-{/* has file="../plugins/devkit/tests/scaffold.test.ts" text="repo 不在、yaml 不在（老裸根单件仓）、yaml 没有 plugins/ 那条，三种都拒，话里带路" */}
+{/* has file="../plugins/devkit/tests/scaffold.test.ts" text="repo 不在、yaml 不在（仓根就是插件的旧布局仓）、yaml 的 packages 里没有 plugins/*，三种都拒，报错里写怎么迁" */}
+
+{/* has file="../plugins/devkit/tests/scaffold.test.ts" text="加插件认 pnpm-workspace.yaml 里各种写法的 plugins/*（GWB-27）" */}
 
 {/* has file="../plugins/devkit/tests/node-dev-deps.test.ts" text="开发版打包不给同一次的写法：workspace: 换成 ^<工作区里的版本号>；工作区里没有就 ^0.0.0" */}
 

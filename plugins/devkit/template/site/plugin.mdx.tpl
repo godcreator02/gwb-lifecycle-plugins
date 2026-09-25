@@ -1,5 +1,5 @@
 ---
-title: {{title}}
+title: "{{title}}"
 description: 插件 {{pkgName}}（包 {{pkg}}）的功能、接口、依赖与不做的事
 ---
 

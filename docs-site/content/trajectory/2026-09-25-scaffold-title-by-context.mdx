@@ -1,0 +1,45 @@
+---
+title: 建仓的 title 按所在文件编码、生成的结构化文件写磁盘前读一遍，workspace 的 packages 改按 YAML 读
+born-at: 2026-09-25T10:30
+type: choice
+parent: [2026-09-19-one-shape-workspace-always]
+label: title 编码
+domain: 模板
+---
+
+## 背景
+
+审查报告投来两条（GWB-25、GWB-27），总控台 09-14 又投来两条小的。
+
+GWB-25：`devkit.scaffold` 的模板替换是纯字符串替换。title 写成 `他说"你好"`，生成的插件包 `package.json` 解析不了，而 `writeRepo` 照样把整套文件写下去，留下一个 install 不了的仓。同一个 title 还进了 TS 的单引号字符串、TSX 的 JSX 文本、README 的一级标题、插件页的 frontmatter 与表格，每一处要转义的字符都不一样。
+
+GWB-27：`devkit.scaffold.plugin` 用正则 `^\s*-\s+plugins\/` 判断 `pnpm-workspace.yaml`，`packages: ['plugins/*', 'packages/*']` 与 `- 'plugins/*'` 这类合法写法被当成旧布局仓拒掉。
+
+09-14 的一条说 `devkit.scaffold` 的 `dir` 必须写真反斜杠、正斜杠不行；另一条说模板测试里无参调用 handler 类型不过，要把 harness 的参数写成 `(args?: unknown)`。
+
+## 结论与边界
+
+- **title 按所在文件编码，每类文件只许写在一种位置**：`.json` 在双引号里（JSON 字符串编码），`.ts` 在单引号里，`.tsx` 在 JSX 文本里（`& < > { }` 写成数字字符引用），`.md` / `.mdx` 在正文里（有语法含义的 ASCII 标点加反斜杠），frontmatter 里写在双引号里、按 JSON 字符串编码。别的类型的文件里出现 `{{title}}` 直接抛错。只有 title 编码，别的占位符的值出自短名、版本号或本包拼好的段落，原样替换
+- **title 只收一行**：夹着换行、制表符、行分隔符就拒。它要进窗格标题、Markdown 一级标题与表格的一格，这几处都放不下换行
+- **渲染完、写磁盘之前把生成的结构化文件读一遍**：JSON 整份 `JSON.parse`，YAML 与 frontmatter 读顶层，读不懂就抛，这时目标目录还不存在
+- **`pnpm-workspace.yaml` 的 `packages` 按 YAML 读**，要求里面有 `plugins/*` 这一条；带不带引号、块列表还是流式列表都认，读不懂的写法报出第几行，不当成「没有这一条」
+- **回执与 README 里给的命令参数改用 `JSON.stringify` 生成**：原来直接把 Windows 路径拼进 `{"dir":"D:\..."}`，照抄就是坏的 JSON
+- **`dir` / `repo` 的斜杠不用改代码**：两处入口本来就经 `path.resolve`，`D:/a/b` 与 `D:\a\b` 得到同一个路径；补了测试。09-14 那次失败在 JSON 这一层：调用方把 `D:\unitfolders` 原样写进 JSON 正文，`\u` 是坏的 Unicode 转义（`Bad Unicode escape`），`D:\tmp\hello` 里的 `\h` 同样解析不了——命令根本没收到参数。加上前一条，devkit 自己给出的例子也不再是坏的 JSON
+- **harness 的参数类型没有可改的地方**：当前模板的 `tests/` 只有类名前缀与构建产物两份测试，没有调用 handler 的 harness。09-14 说的那份是 0.7.0 加进 `template/tests/plugin.test.ts.tpl` 的，0.11.0 随守卫一起移出模板、进了 `gwb-repo-kit`，repo-kit 后来整个退役（见 [repo-kit 退役](2026-09-24-repo-kit-retires.md)）。当前模板新生成的仓 typecheck 全过，由下面的探针验过
+
+## 否掉的候选
+
+- **用 yaml 库读 `pnpm-workspace.yaml`**：插件运行时只能 import node 内置模块与 peer 里的包，发版前检查会拒；devkit 用 tsc 直接出 `dist/`，不打包，带不进去。为这一处给 devkit 加一个打包步骤，改动比问题大。改成本包自己读顶层键与标量、列表（`src/workspace-yaml.ts`），yaml 库只进 devDependencies，测试拿它对照同一份文字的结果
+- **整份 JSON 用结构化生成（先 `JSON.parse` 模板再填值）**：模板的 `package.json` 里有 `//` 开头的说明键和固定的键序，结构化生成要另写一套保序与格式化；按上下文编码加上写磁盘前解析一遍，已经保证了生成的是合法 JSON、值与原文相同
+- **title 在 TSX 里写成字符串字面量 `{'…'}`**：模板带的类名前缀测试会把浏览器侧所有字符串字面量切成 token 问 Tailwind，title 里有 `block`、`grid` 这类词就误报成漏了前缀。JSX 文本不进那份检查
+- **title 里的换行编码掉（比如 Markdown 里换成 `<br />`）**：窗格标题与 `package.json` 的 `gwb.title` 是一行显示名，编码掉换行只是把一个没有意义的输入变得看起来能用
+
+## 代价
+
+- 模板作者要记住 title 只能写在每类文件的那一种位置。写在别的位置（比如 `.ts` 的双引号或注释里）运行时查不出来，要靠 `tests/scaffold.test.ts` 用带特殊字符的 title 真编译、真执行生成的文件
+- `src/workspace-yaml.ts` 不是完整的 YAML 解析器：锚点、标签、YAML 特有的转义（`\x41` 这类）都报「读不懂」。`pnpm-workspace.yaml` 里用了这些写法的仓加不了插件，要把写法改简单
+- devDependencies 多了 yaml、esbuild、@mdx-js/mdx、remark-gfm 四个包，只给测试用
+
+## 依据
+
+探针 `probes/2609251020_scaffold-hostile-title/`：基线（纯字符串替换）同一个 title 进插件包的 `package.json` 模板后 `JSON.parse` 报 `Expected ',' or '}' after property value`；改之后生成的仓 install / build / check 全过，`dir` 用正斜杠写，计划里是反斜杠的绝对路径（`runs/01-hostile-title.txt`）。harness 那一条的出处是提交 27540aa（加入 `template/tests/plugin.test.ts.tpl`）与 1889268（移出模板、进 repo-kit）。

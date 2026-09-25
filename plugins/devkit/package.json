@@ -46,13 +46,17 @@
     "@godcreator/gwb-shell": { "optional": true },
     "@godcreator/gwb-skills": { "optional": true }
   },
+  "//devDependencies": "esbuild 是构建工具（build.ts 打包），测试里也拿它编译建仓生成的 TS/TSX；yaml、@mdx-js/mdx、remark-gfm 只给测试用：拿真的解析器与编译器核对建仓生成的 YAML、Markdown/MDX（文档站渲染 MDX 带 GFM 表格）；插件运行时不 import 它们",
   "devDependencies": {
+    "@mdx-js/mdx": "^3.1.1",
     "@types/node": "^24.0.0",
     "cordis": "4.0.0-rc.10",
     "es-module-lexer": "^2.3.2",
     "esbuild": "^0.28.2",
+    "remark-gfm": "^4.0.1",
     "typescript": "^7.0.2",
-    "vitest": "^4.1.10"
+    "vitest": "^4.1.10",
+    "yaml": "^2.9.1"
   },
   "repository": {
     "type": "git",

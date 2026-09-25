@@ -16,7 +16,7 @@ interface Row {
 const ROWS: Row[] = [
   { path: '<仓根>/.git', depth: 0, note: 'git 工作区干净才发；不是 git 仓也拒', users: 'release' },
   { path: '<仓根>/package.json', depth: 0, note: '仓根能 pnpm build，不在包目录构建', users: 'dev release' },
-  { path: '<仓根>/pnpm-workspace.yaml', depth: 0, note: '发布时从包目录往上找仓根；加插件要有 plugins/', users: 'dev release 加插件' },
+  { path: '<仓根>/pnpm-workspace.yaml', depth: 0, note: '发布时从包目录往上找仓根；加插件要 packages 里有 plugins/*', users: 'dev release 加插件' },
   { path: 'plugins/<短名>/', depth: 1, note: '加插件写到这里，必须还不存在', users: '加插件' },
   { path: '<包>/package.json', depth: 1, note: 'files 是产物清单，keywords 含 gwb-plugin 是插件', users: 'dev release' },
   { path: '<包>/dist/client.js', depth: 1, note: '浏览器侧产物入口；node 侧是 exports["."]', users: 'release' },

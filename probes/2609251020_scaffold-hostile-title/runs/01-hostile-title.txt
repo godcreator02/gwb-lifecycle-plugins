@@ -1,0 +1,48 @@
+基线（纯字符串替换）：package.json 解析失败——Expected ',' or '}' after property value in JSON at position 96 (line 5 column 22)
+给的 dir：D:/unitfolders/s28bv-gwbbase/gwb-devkit-wt-scaffold/probes/2609251020_scaffold-hostile-title/gen/hostile
+计划里的 dir：D:\unitfolders\s28bv-gwbbase\gwb-devkit-wt-scaffold\probes\2609251020_scaffold-hostile-title\gen\hostile
+铺好了 16 个文件
+gwb.title 读回来与原文相同：true
+插件页 frontmatter 第二行：title: "他说\"你好\" 'q' \\ {x} <b>粗</b> & | # * _ ` ~ [l](u) ${y} */"
+README 第一行：# 他说"你好" 'q' \\ \{x\} \<b\>粗\</b\> \& \| \# \* \_ \` \~ \[l\](u) $\{y\} \*/
+
+== pnpm install ==
+
+Scope: all 2 workspace projects
+Packages are hard linked from the content-addressable store to the virtual store.
+  Content-addressable store is at: D:\.pnpm-store\v11
+  Virtual store is at:             node_modules/.pnpm
+Progress: resolved 31, reused 98, downloaded 0, added 17
+Packages: +98
+++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++
+Progress: resolved 98, reused 98, downloaded 0, added 98, done
+[WARN] Issues with peer dependencies found. Run "pnpm peers check" to list them.
+Done in 2s using pnpm v12.4.2
+
+== pnpm build ==
+
+$ pnpm -r --filter "./plugins/*" build
+$ tsc -p tsconfig.build.json && node build.ts && tailwindcss -i src/client/styles.css -o dist/style.css
+[probe-hostile] dist/client.js ← src/client/index.tsx
+≈ tailwindcss v4.3.3
+
+Done in 76ms
+
+== pnpm check ==
+
+$ pnpm -r --no-bail check
+$ pnpm run typecheck && pnpm run lint && pnpm run test
+$ tsc --noEmit -p tsconfig.json && tsc --noEmit -p src/client/tsconfig.json
+$ oxlint . --deny-warnings
+$ vitest run --passWithNoTests --tags-filter=!slow
+
+ RUN  v4.1.11 D:/unitfolders/s28bv-gwbbase/gwb-devkit-wt-scaffold/probes/2609251020_scaffold-hostile-title/gen/hostile/plugins/probe-hostile
+
+
+ Test Files  2 passed (2)
+      Tests  10 passed (10)
+   Start at  10:08:51
+   Duration  936ms (transform 41ms, setup 0ms, import 271ms, tests 71ms, environment 0ms)
+
+
+全部过。

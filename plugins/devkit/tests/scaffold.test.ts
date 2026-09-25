@@ -3,14 +3,22 @@ import os from 'node:os'
 import path from 'node:path'
 import { fileURLToPath } from 'node:url'
 import { afterEach, describe, expect, it } from 'vitest'
+import { evaluate } from '@mdx-js/mdx'
+import { transform } from 'esbuild'
+import remarkGfm from 'remark-gfm'
+import YAML from 'yaml'
 import {
   NAME_RE,
   PKG_ZONE,
+  PLUGINS_GLOB,
   REPO_ZONE,
   SCOPE,
   SITE_ZONE,
+  jsonStringContent,
+  jsxTextContent,
   landRel,
   listTemplateFiles,
+  markdownTextContent,
   nextSteps,
   nextStepsPlugin,
   packageRoot,
@@ -24,6 +32,7 @@ import {
   renderPluginPage,
   renderTemplate,
   targetRel,
+  tsSingleQuotedContent,
   writePluginPage,
   writeRepo,
 } from '../src/scaffold.js'
@@ -116,7 +125,7 @@ describe('planScaffoldPlugin：往薄壳仓加件', () => {
     expect(plan.title).toBe('第二件')
   })
 
-  it('repo 不在、yaml 不在（老裸根单件仓）、yaml 没有 plugins/ 那条，三种都拒，话里带路', () => {
+  it('repo 不在、yaml 不在（仓根就是插件的旧布局仓）、yaml 的 packages 里没有 plugins/*，三种都拒，报错里写怎么迁', () => {
     expect(() => planScaffoldPlugin({ name: 'x', repo: path.join(sandbox(), 'nope'), kernelVersion: KERNEL })).toThrow(/不在/)
     const bare = path.join(sandbox(), 'bare')
     fs.mkdirSync(bare, { recursive: true })
@@ -220,11 +229,21 @@ describe('render：占位符', () => {
   const values = { name: 'hello', title: '打招呼', pkg: '@godcreator/gwb-hello', pkgName: 'gwb-hello' }
 
   it('认得的键替换掉', () => {
-    expect(render('{{name}} / {{title}} / {{name}}', values)).toBe('hello / 打招呼 / hello')
+    expect(render('{{name}} / {{title}} / {{name}}', values, 'README.md')).toBe('hello / 打招呼 / hello')
   })
 
   it('认不出的占位符当场抛——留着它会一路活到别人的 package.json 里', () => {
-    expect(() => render('{{typo}}', values)).toThrow(/typo/)
+    expect(() => render('{{typo}}', values, 'README.md')).toThrow(/typo/)
+  })
+
+  it('没定义 title 怎么编码的文件类型里出现 {{title}}，当场抛并说是哪个文件', () => {
+    expect(() => render('.a { content: "{{title}}" }', values, 'src/client/styles.css')).toThrow(/styles\.css.*title/)
+    // 别的占位符的值出自短名与版本号，不需要编码，出现在哪种文件里都行
+    expect(render('.{{name}} {}', values, 'src/client/styles.css')).toBe('.hello {}')
+  })
+
+  it('值里带着占位符的样子也不会被再替换一次', () => {
+    expect(render('{{title}}', { ...values, title: '{{name}}' }, 'x.ts')).toBe('{{name}}')
   })
 })
 
@@ -531,5 +550,273 @@ describe('packageRoot：向上找', () => {
     fs.writeFileSync(path.join(dir, 'package.json'), '{}\n', 'utf8')
     fs.mkdirSync(path.join(dir, 'dist'), { recursive: true })
     expect(packageRoot(path.join(dir, 'dist'))).toBe(dir)
+  })
+})
+
+/**
+ * 一行里凑齐各种上下文的特殊字符：JSON 与 TS 的引号和反斜杠，MDX 的花括号与尖括号，Markdown 的强调、链接、
+ * 表格竖线与标题井号，模板串插值、块注释收尾，以及长得像占位符的一段
+ */
+const HOSTILE_TITLE = `他说"你好" 'q' \\ {x} {{name}} <b>粗</b> & | # * _ \` ~ [l](u) \${y} */ &amp;`
+
+/** 假元素：MDX 与 JSX 编译出来的调用都落到这个形状上 */
+interface FakeElement {
+  type: unknown
+  props: Record<string, unknown>
+}
+
+function isFakeElement(node: unknown): node is FakeElement {
+  return typeof node === 'object' && node !== null && 'type' in node && 'props' in node
+}
+
+/** 一棵假元素树里的全部文字，按出现顺序拼起来 */
+function textOf(node: unknown): string {
+  if (typeof node === 'string') return node
+  if (Array.isArray(node)) return node.map(textOf).join('')
+  if (isFakeElement(node)) return textOf(node.props['children'])
+  return ''
+}
+
+/** 一棵假元素树里 type 为 `tag` 的元素 */
+function elementsOf(node: unknown, tag: string): FakeElement[] {
+  if (Array.isArray(node)) return node.flatMap((child) => elementsOf(child, tag))
+  if (!isFakeElement(node)) return []
+  return [...(node.type === tag ? [node] : []), ...elementsOf(node.props['children'], tag)]
+}
+
+/** 用 MDX 编译器真编一次（`format: 'md'` 按纯 Markdown 读），回渲染出来的假元素树 */
+async function renderMarkdown(text: string, format: 'md' | 'mdx'): Promise<unknown> {
+  const jsx = (type: unknown, props: Record<string, unknown>): FakeElement => ({ type, props })
+  const module = await evaluate(text, { format, jsx, jsxs: jsx, Fragment: 'fragment', remarkPlugins: [remarkGfm] })
+  return (module.default as (props: object) => unknown)({})
+}
+
+/** 插件页拆成 frontmatter（YAML）与正文，跟文档站读它的方式一样 */
+function splitPage(text: string): { front: unknown; body: string } {
+  const match = /^---\r?\n([\s\S]*?)\r?\n---\r?\n([\s\S]*)$/.exec(text)
+  if (match === null) throw new Error('插件页开头没有 frontmatter')
+  return { front: YAML.parse(match[1] ?? ''), body: match[2] ?? '' }
+}
+
+/** 用 esbuild 把生成的 TS / TSX 编成 CommonJS 再执行，回它的导出。语法不对 esbuild 当场报错 */
+async function loadGenerated(
+  source: string,
+  loader: 'ts' | 'tsx',
+  modules: Record<string, unknown>,
+): Promise<Record<string, unknown>> {
+  const { code } = await transform(source, {
+    loader,
+    format: 'cjs',
+    jsx: 'transform',
+    jsxFactory: 'h',
+    jsxFragment: 'Fragment',
+    define: { 'import.meta.url': '"file:///D:/x/dist/index.js"' },
+  })
+  const module = { exports: {} as Record<string, unknown> }
+  const requireStub = (spec: string): unknown => {
+    if (!(spec in modules)) throw new Error(`生成的代码在运行时 require 了 ${spec}`)
+    return modules[spec]
+  }
+  const h = (type: unknown, props: Record<string, unknown> | null, ...children: unknown[]): FakeElement => ({
+    type,
+    props: { ...props, children },
+  })
+  new Function('module', 'exports', 'require', 'h', 'Fragment', code)(module, module.exports, requireStub, h, 'fragment')
+  return module.exports
+}
+
+describe('title 按所在文件的上下文编码（GWB-25）', () => {
+  it('四种编码各自解得回原文：JSON 与 TS 单引号字符串连换行都放得下', () => {
+    for (const value of [HOSTILE_TITLE, '第一行\n第二行\r\u2028\u2029']) {
+      expect(JSON.parse(`"${jsonStringContent(value)}"`)).toBe(value)
+      expect(new Function(`return '${tsSingleQuotedContent(value)}'`)()).toBe(value)
+    }
+  })
+
+  it('JSX 文本编码：真编一遍 <h1>，文字原样', async () => {
+    const exports = await loadGenerated(`export const el = <h1>${jsxTextContent(HOSTILE_TITLE)}</h1>`, 'tsx', {})
+    expect(textOf(exports['el'])).toBe(HOSTILE_TITLE)
+  })
+
+  it('Markdown 文字编码：标题与 GFM 表格的一格里都原样，表格还是三列', async () => {
+    for (const format of ['md', 'mdx'] as const) {
+      const tree = await renderMarkdown(
+        `# ${markdownTextContent(HOSTILE_TITLE)}\n\n| a | b | c |\n| --- | --- | --- |\n| 1 | ${markdownTextContent(HOSTILE_TITLE)} | 3 |\n`,
+        format,
+      )
+      expect(textOf(elementsOf(tree, 'h1'))).toBe(HOSTILE_TITLE)
+      const cells = elementsOf(elementsOf(tree, 'tbody'), 'td')
+      expect(cells.map(textOf)).toEqual(['1', HOSTILE_TITLE, '3'])
+    }
+  })
+
+  it('title 只有一行：换行、制表符、行分隔符都拒，报错里带原文', () => {
+    // 两头的空白（含换行）照旧削掉，夹在中间的才拒
+    for (const bad of ['一行\n两行', '有\t制表符', '行\u2028分隔', '回\r车']) {
+      expect(() => planScaffold({ name: 'x', dir: 'D:\\tmp\\x', title: bad, kernelVersion: KERNEL })).toThrow(/title/)
+      expect(() => planScaffoldPlugin({ name: 'x', repo: fakeWorkspace(), title: bad, kernelVersion: KERNEL })).toThrow(/title/)
+    }
+  })
+
+  describe('整套模板用这个 title 渲染一遍', () => {
+    const plan = planScaffold({ name: 'hello', dir: 'D:\\tmp\\x', title: HOSTILE_TITLE, docs: false, kernelVersion: KERNEL })
+    const files = renderTemplate(TEMPLATE_ROOT, plan)
+    const textOfFile = (rel: string): string => {
+      const file = files.find((f) => f.rel === rel)
+      if (file === undefined) throw new Error(`没有生成 ${rel}`)
+      return file.text
+    }
+
+    it('每一份 JSON 都解析得了，title 原样落在 gwb.title 与 description 开头', () => {
+      for (const file of files.filter((f) => f.rel.endsWith('.json'))) expect(() => JSON.parse(file.text), file.rel).not.toThrow()
+      const manifest = JSON.parse(textOfFile('plugins/hello/package.json')) as { gwb: { title: string }; description: string }
+      expect(manifest.gwb.title).toBe(HOSTILE_TITLE)
+      expect(manifest.description.startsWith(`${HOSTILE_TITLE}：`)).toBe(true)
+      const shell = JSON.parse(textOfFile('package.json')) as { description: string }
+      expect(shell.description.startsWith(`${HOSTILE_TITLE} 的 pnpm workspace`)).toBe(true)
+    })
+
+    it('pnpm-workspace.yaml 用 yaml 库读得出 plugins/*', () => {
+      expect((YAML.parse(textOfFile('pnpm-workspace.yaml')) as { packages: string[] }).packages).toContain(PLUGINS_GLOB)
+    })
+
+    it('node 侧入口真执行一次：窗格标题与加载日志里是原样的 title', async () => {
+      const exports = await loadGenerated(textOfFile('plugins/hello/src/index.ts'), 'ts', {})
+      const logs: string[] = []
+      const panes: Array<{ title: string }> = []
+      const ctx = {
+        logger: () => ({ info: (message: string) => logs.push(message) }),
+        gwbShell: { registerPane: (pane: { title: string }) => panes.push(pane) },
+        gwbCommands: { register: () => () => {} },
+        effect: (fn: () => unknown) => fn(),
+      }
+      ;(exports['apply'] as (c: typeof ctx) => void)(ctx)
+      expect(panes.map((p) => p.title)).toEqual([HOSTILE_TITLE])
+      expect(logs).toEqual([`${HOSTILE_TITLE} 已加载`])
+    })
+
+    it('浏览器侧窗格真渲染一次：<h1> 的文字是「你好，」加原样的 title', async () => {
+      let rendered: unknown
+      const exports = await loadGenerated(textOfFile('plugins/hello/src/client/index.tsx'), 'tsx', {
+        react: { useState: (initial: unknown) => [initial, () => {}] },
+        'react-dom/client': { createRoot: () => ({ render: (el: unknown) => (rendered = el), unmount: () => {} }) },
+      })
+      ;(exports['mountPane'] as (args: unknown, container: unknown) => unknown)({ pane: { id: 'main', instance: '1' } }, {})
+      if (!isFakeElement(rendered)) throw new Error('mountPane 没有渲染任何东西')
+      const tree = (rendered.type as () => unknown)()
+      expect(textOf(elementsOf(tree, 'h1'))).toBe(`你好，${HOSTILE_TITLE}`)
+    })
+
+    it('README 按 Markdown 渲染：一级标题就是原样的 title；不建站那段里的命令参数是合法 JSON', async () => {
+      const readme = textOfFile('README.md')
+      const tree = await renderMarkdown(readme, 'md')
+      expect(textOf(elementsOf(tree, 'h1')[0])).toBe(HOSTILE_TITLE)
+      expect(readme).toContain(`docs-site.create ${JSON.stringify({ dir: path.join(plan.dir, 'docs-site'), title: HOSTILE_TITLE })}`)
+    })
+
+    it('插件页：frontmatter 的 title 原样，正文按 MDX 编得过，表格那格原样、还是三列', async () => {
+      const { front, body } = splitPage(renderPluginPage(TEMPLATE_ROOT, plan).text)
+      expect((front as { title: string }).title).toBe(HOSTILE_TITLE)
+      const tree = await renderMarkdown(body, 'mdx')
+      const paneRow = elementsOf(tree, 'tr').find((row) => textOf(row).includes('标题「'))
+      expect(elementsOf(paneRow, 'td').map(textOf)).toEqual(['窗格', 'main', `标题「${HOSTILE_TITLE}」`])
+    })
+
+    it('加插件用的是同一套编码', () => {
+      const plugin = renderPlugin(TEMPLATE_ROOT, planScaffoldPlugin({ name: 'world', repo: fakeWorkspace(), title: HOSTILE_TITLE, kernelVersion: KERNEL }))
+      const manifest = JSON.parse(plugin.find((f) => f.rel === 'package.json')?.text ?? '') as { gwb: { title: string } }
+      expect(manifest.gwb.title).toBe(HOSTILE_TITLE)
+    })
+  })
+
+  describe('生成的结构化文件解析不过就拒，一个文件都不写', () => {
+    /** 临时目录里搭一份模板：仓根部分一份 JSON、插件包部分一份 */
+    function fakeTemplate(files: Record<string, string>): string {
+      const root = path.join(sandbox(), 'template')
+      for (const [rel, text] of Object.entries(files)) {
+        fs.mkdirSync(path.dirname(path.join(root, rel)), { recursive: true })
+        fs.writeFileSync(path.join(root, rel), text, 'utf8')
+      }
+      return root
+    }
+
+    it('JSON 坏了：renderTemplate 抛错、点名是哪个文件；这时目标目录还不存在', () => {
+      const root = fakeTemplate({ 'repo/package.json.tpl': '{"name": {{name}}}\n', 'pkg/package.json.tpl': '{}\n' })
+      const dir = path.join(sandbox(), 'repo')
+      expect(() => renderTemplate(root, planScaffold({ name: 'x', dir, kernelVersion: KERNEL }))).toThrow(/package\.json.*JSON/)
+      expect(fs.existsSync(dir)).toBe(false)
+    })
+
+    it('YAML 坏了：同样在渲染时就抛', () => {
+      const root = fakeTemplate({ "repo/pnpm-workspace.yaml.tpl": "packages: ['plugins/*'\n", 'pkg/package.json.tpl': '{}\n' })
+      expect(() => renderTemplate(root, planScaffold({ name: 'x', dir: 'D:\\tmp\\x', kernelVersion: KERNEL }))).toThrow(/pnpm-workspace\.yaml/)
+    })
+
+    it('加插件：插件包里的 JSON 坏了也在渲染时抛', () => {
+      const root = fakeTemplate({ 'pkg/package.json.tpl': '{"a": 1,}\n' })
+      expect(() => renderPlugin(root, planScaffoldPlugin({ name: 'x', repo: fakeWorkspace(), kernelVersion: KERNEL }))).toThrow(/package\.json/)
+    })
+  })
+})
+
+describe('加插件认 pnpm-workspace.yaml 里各种写法的 plugins/*（GWB-27）', () => {
+  const accepted: Array<[string, string]> = [
+    ['流式列表带引号', "packages: ['plugins/*', 'packages/*']\n"],
+    ['块列表单引号', "packages:\n  - 'plugins/*'\n"],
+    ['块列表双引号', 'packages:\n  - "plugins/*"\n'],
+    ['块列表不带引号', 'packages:\n  - plugins/*\n  - docs-site\n'],
+    ['流式列表不带引号', 'packages: [packages/*, plugins/*]\n'],
+  ]
+  for (const [label, yaml] of accepted) {
+    it(`${label}：收`, () => {
+      const repo = fakeWorkspace(yaml)
+      expect(planScaffoldPlugin({ name: 'w', repo, kernelVersion: KERNEL }).dir).toBe(path.join(repo, 'plugins', 'w'))
+    })
+  }
+
+  it('没有 plugins/* 这一条就拒，报错里写出读到的是哪几条', () => {
+    for (const yaml of ["packages: ['packages/*', 'docs-site']\n", 'packages:\n  - plugin/*\n']) {
+      expect(() => planScaffoldPlugin({ name: 'w', repo: fakeWorkspace(yaml), kernelVersion: KERNEL })).toThrow(/plugins\/\*.*读到的是/)
+    }
+  })
+
+  it('yaml 读不懂就把读不懂的那一行报出来，不当成「没有 plugins/*」', () => {
+    expect(() => planScaffoldPlugin({ name: 'w', repo: fakeWorkspace("packages: ['plugins/*'\n"), kernelVersion: KERNEL })).toThrow(/第 1 行/)
+  })
+
+  it('建仓生成的仓，加插件认得出', () => {
+    const repoDir = path.join(sandbox(), 'repo')
+    writeRepo(repoDir, renderTemplate(TEMPLATE_ROOT, planScaffold({ name: 'hello', dir: repoDir, kernelVersion: KERNEL })))
+    expect(() => planScaffoldPlugin({ name: 'world', repo: repoDir, kernelVersion: KERNEL })).not.toThrow()
+  })
+})
+
+describe('路径参数正斜杠、反斜杠都认（09-14 反馈）', () => {
+  it('planScaffold：D:/a/b 与 D:\\a\\b 归一成同一个绝对路径', () => {
+    const forward = planScaffold({ name: 'x', dir: 'D:/tmp/gwb/x', kernelVersion: KERNEL }).dir
+    const backward = planScaffold({ name: 'x', dir: 'D:\\tmp\\gwb\\x', kernelVersion: KERNEL }).dir
+    expect(forward).toBe('D:\\tmp\\gwb\\x')
+    expect(backward).toBe(forward)
+  })
+
+  it('planScaffoldPlugin：repo 用正斜杠写，认得出仓、插件包目录落在同一处', () => {
+    const repo = fakeWorkspace()
+    const plan = planScaffoldPlugin({ name: 'w', repo: repo.replaceAll('\\', '/'), kernelVersion: KERNEL })
+    expect(plan.repoDir).toBe(repo)
+    expect(plan.dir).toBe(path.join(repo, 'plugins', 'w'))
+  })
+
+  it('回执与 README 里给的命令参数是合法 JSON：Windows 路径的反斜杠转义过，照抄就能用', () => {
+    const plan = planScaffold({ name: 'x', dir: 'D:\\tmp\\x', title: '他说"你好"', docs: false, kernelVersion: KERNEL })
+    const siteDir = path.join(plan.dir, 'docs-site')
+    const create = `docs-site.create ${JSON.stringify({ dir: siteDir, title: plan.title })}`
+    expect(placeholders(plan).docsBlock).toContain(create)
+    expect(nextSteps(plan).join('\n')).toContain(create)
+    for (const step of [...nextSteps(plan), ...nextStepsPlugin(planScaffoldPlugin({ name: 'w', repo: fakeWorkspace(), kernelVersion: KERNEL }), null)]) {
+      // 回执里凡是 `命令名 {…}` 的写法，花括号那一段都要是合法 JSON（`<名>` 这种要人替换的占位只出现在字符串里）
+      for (const match of step.matchAll(/[a-z-]+(?:\.[a-z-]+)+ (\{[^{}]*(?:\[[^\]]*\])?[^{}]*\})/g)) {
+        expect(() => JSON.parse(match[1] ?? ''), `${step}\n里的 ${match[1] ?? ''}`).not.toThrow()
+      }
+    }
   })
 })

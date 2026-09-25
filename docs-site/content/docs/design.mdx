@@ -81,7 +81,7 @@ devkit 没有任何特权：装进 home 才有它的命令，加载不成功就�
 
 | 模块 | 纯逻辑 | 真机器操作 | 细节 |
 | --- | --- | --- | --- |
-| 建仓 | `src/scaffold.ts` | 同一个文件，直接读写磁盘 | [建仓与加插件](/docs/devkit/scaffold) |
+| 建仓 | `src/scaffold.ts`，读 YAML 的部分在 `src/workspace-yaml.ts` | `src/scaffold.ts` 本身，直接读写磁盘 | [建仓与加插件](/docs/devkit/scaffold) |
 | 测试 home | `src/home.ts` | `src/node-home-deps.ts` | [测试 home](/docs/devkit/home) |
 | 改一版看一版 | `src/dev.ts` | `src/node-dev-deps.ts` | [改一版看一版](/docs/devkit/dev) |
 | 发正式版 | `src/release.ts`、`src/artifact-check.ts`（内核范围的比对规则从插件管理 import，产物里的 import 用 es-module-lexer 按 JS 语法找） | `src/node-dev-deps.ts` | [开发套件](/docs/devkit#发正式版的检查) |

@@ -21,7 +21,7 @@ const ITEMS: ChainItem[] = [
 const STEPS: { title: string; detail: string; active: number }[] = [
   { title: '全貌', detail: '前三格是开发套件自己的代码；第 4、5 格是别的插件的命令，经命令总线按名字调用，哪个插件没装就跳过那一格，建仓不算失败。', active: -1 },
   { title: '第 1 步：算计划', detail: '校验短名，派生包名 @godcreator/gwb-<短名>、插件名 gwb-<短名>；peer 里内核包的范围取运行中内核版本号的 x.y.z 三段。只算、不碰磁盘，参数不对把整份用法放进报错。', active: 0 },
-  { title: '第 2 步：在内存里渲染', detail: '整套模板（还有插件页）先渲染成内存里的文件表；认不出的占位符当场抛错，这时磁盘上还什么都没写。', active: 1 },
+  { title: '第 2 步：在内存里渲染', detail: '整套模板（还有插件页）先渲染成内存里的文件表，title 按所在文件编码；认不出的占位符、读不懂的 JSON / YAML / frontmatter 当场抛错，这时磁盘上还什么都没写。', active: 1 },
   { title: '第 3 步：写磁盘', detail: '目标目录必须还不存在，存在就拒、不覆盖。仓根写 package.json、pnpm-workspace.yaml、README.md、.gitignore，插件包写到 plugins/<短名>/。', active: 2 },
   { title: '第 4 步：生成站点骨架', detail: '经命令总线调站点插件的 docs-site.create，目录是 <仓>/docs-site。成功时回执的 docs.built 是 true；站点插件没装就停在这里，回执说怎么补。', active: 3 },
   { title: '第 5 步：装六区', detail: '紧接着调 docfirst 插件的 docfirst.attach。它只在刚生成、没加过页的骨架上装得了，所以两步连着调用，中间不插别的事。成功时 docs.attached 是 true。', active: 4 },
