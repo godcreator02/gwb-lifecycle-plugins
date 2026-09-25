@@ -97,9 +97,9 @@ node 侧放行的包名：
 
 浏览器侧放行的名字只取内核包页面入口里那段 importmap 的键。页面入口从包目录的 `node_modules/@godcreator/gwb-kernel-desktop/dist/index.html` 现读（插件 peer 里写了内核包，pnpm 把它链接在那里）；读不到（提示 peer 写上内核包、再 `pnpm install`）、没有这段 importmap 都拒，别的依赖的清单不看：
 
-{/* ref file="../plugins/devkit/src/artifact-check.ts" lines="112-120" */}
+{/* ref file="../plugins/devkit/src/artifact-check.ts" lines="138-146" */}
 
-{/* ref file="../plugins/devkit/src/artifact-check.ts" lines="225-242" */}
+{/* ref file="../plugins/devkit/src/artifact-check.ts" lines="263-280" */}
 
 产物里的 import 用 es-module-lexer 按 JS 语法找：记静态的 `import … from`、`export … from`、`import '<名>'`，以及参数是单个字符串字面量的 `import()`；字符串、模板字面量、正则、注释里写着的 `import(…)` 都不算，压成一行的产物照样认；参数不是单个字符串字面量的 `import(x)` 不查。一份产物读不下去就拒，回执里写出文件与行列号。es-module-lexer 用 wasm 版、同步初始化，写在 dev、随本包的构建打进产物。取舍见轨迹卡[发版前检查按语法找 import](/trajectory/2026-09-25-scan-imports-by-syntax)：
 

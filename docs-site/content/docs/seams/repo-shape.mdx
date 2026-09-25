@@ -49,7 +49,7 @@ description: 连接 devkit.dev、devkit.release、devkit.scaffold.plugin 与被�
 
 **peer 里的包装在包目录的 `node_modules` 里**：发版前检查读 `<包目录>/node_modules/<包>/package.json` 判断 peer 里的包是不是插件，读不到就拒并提示先 `pnpm install`；浏览器侧产物有包名 import 时，页面 importmap 里的名字从 `<包目录>/node_modules/@godcreator/gwb-kernel-desktop/dist/index.html` 里那段 importmap 现读（插件 peer 里写了内核包，pnpm 把它链接在那里），读不到同样拒，提示 peer 写上内核包、再 `pnpm install`：
 
-{/* ref file="../plugins/devkit/src/artifact-check.ts" lines="225-242" */}
+{/* ref file="../plugins/devkit/src/artifact-check.ts" lines="263-280" */}
 
 **成员放在哪**：组装发布内容时找 `workspace:` 依赖的版本，从仓根往下扫两层，不认目录名；找不到那个包、或扫到读不懂的 `package.json`，直接报错：
 
