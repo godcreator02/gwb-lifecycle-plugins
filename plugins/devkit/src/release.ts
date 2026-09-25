@@ -1,13 +1,5 @@
 import path from 'node:path'
-import {
-  BUILD_TIMEOUT_MS,
-  DEFAULT_REGISTRY,
-  type Manifest,
-  literalArtifacts,
-  parseManifest,
-  pnpmPlan,
-  type RunPlan,
-} from './dev.js'
+import { BUILD_TIMEOUT_MS, DEFAULT_REGISTRY, literalArtifacts, pnpmPlan, type RunPlan } from './dev.js'
 import { KERNEL_PACKAGE, isCaretRange, kernelRangeCovers } from '@godcreator/gwb-plugin-manager'
 import { artifactProblems } from './artifact-check.js'
 import { isRecord, versionCore } from './vocab.js'
@@ -175,8 +167,16 @@ function trimmedStringEntriesOf(table: unknown, keep: (key: string) => boolean):
   return entries
 }
 
-/** 读不懂回 undefined（那种包在前面的检查就拦下了） */
-export function ticketManifestOf(text: string | undefined): TicketManifest | undefined {
+/** 一次发版里一个包的清单只解析这一次：发版前检查、产物检查、发布顺序都用它 */
+export interface ReleaseManifest extends TicketManifest {
+  /** `files` 白名单里的字符串条目；没写 `files` 是空表 */
+  files: string[]
+  /** 解析出的整份清单，产物检查从里面读 `exports` */
+  doc: Record<string, unknown>
+}
+
+/** 不是 JSON 对象、缺 name 或 version（空串也算缺）回 undefined：那不是一个能发的包 */
+export function ticketManifestOf(text: string | undefined): ReleaseManifest | undefined {
   if (text === undefined) return undefined
   let doc: unknown
   try {
@@ -184,15 +184,17 @@ export function ticketManifestOf(text: string | undefined): TicketManifest | und
   } catch {
     return undefined
   }
-  if (typeof doc !== 'object' || doc === null) return undefined
-  const { name, version, peerDependencies, devDependencies, keywords } = doc as Record<string, unknown>
-  if (typeof name !== 'string' || typeof version !== 'string') return undefined
+  if (!isRecord(doc)) return undefined
+  const { name, version, files, peerDependencies, devDependencies, keywords } = doc
+  if (typeof name !== 'string' || name === '' || typeof version !== 'string' || version === '') return undefined
   return {
     name,
     version,
     peers: trimmedStringEntriesOf(peerDependencies, () => true),
     devs: trimmedStringEntriesOf(devDependencies, (key) => key.startsWith(SCOPE)),
     plugin: Array.isArray(keywords) && keywords.includes('gwb-plugin'),
+    files: Array.isArray(files) ? files.filter((one): one is string => typeof one === 'string') : [],
+    doc,
   }
 }
 
@@ -339,7 +341,7 @@ async function refusalIfTreeDirty(repoDir: string, deps: ReleaseDeps): Promise<R
 
 interface PlannedPackage {
   pkgDir: string
-  manifest: Manifest
+  manifest: ReleaseManifest
 }
 
 /** 每个包：清单读得出、`files` 白名单里的产物都在、这个版本号源上还没有；`ranges` 是同一次发的包 → `^新版本号` */
@@ -349,12 +351,12 @@ async function planPackages(input: ReleaseInput, deps: ReleaseDeps): Promise<Ref
   const ranges: Record<string, string> = {}
   for (const rel of dirs) {
     const pkgDir = path.resolve(input.repoDir, rel)
-    const manifest = parseManifest(deps.readText(path.join(pkgDir, 'package.json')))
+    const manifest = ticketManifestOf(deps.readText(path.join(pkgDir, 'package.json')))
     if (manifest === undefined) {
       return { ok: false, error: `${pkgDir} 下没有能读的 package.json(或缺 name/version)——包目录给的是相对仓根的路径` }
     }
     // 产物在不在照 files 白名单问，不另列一份名单
-    const missing = literalArtifacts(manifest.files ?? []).filter((one) => !deps.exists(path.join(pkgDir, one)))
+    const missing = literalArtifacts(manifest.files).filter((one) => !deps.exists(path.join(pkgDir, one)))
     if (missing.length > 0) {
       return { ok: false, error: `${manifest.name} 的产物不全,没发:${missing.join('、')} 不在。仓根 pnpm build 刚跑过还缺,多半是 files 白名单里那一项根本没人生成` }
     }
@@ -367,31 +369,12 @@ async function planPackages(input: ReleaseInput, deps: ReleaseDeps): Promise<Ref
   return { planned, ranges }
 }
 
-interface CheckedPackage {
-  pkgDir: string
-  text: string
-  ticket: TicketManifest
-}
-
-function readTicketManifests(planned: PlannedPackage[], deps: ReleaseDeps): Refusal | CheckedPackage[] {
-  const checked: CheckedPackage[] = []
-  for (const plannedPackage of planned) {
-    const text = deps.readText(path.join(plannedPackage.pkgDir, 'package.json'))
-    const ticket = ticketManifestOf(text)
-    if (text === undefined || ticket === undefined) {
-      return { ok: false, error: `${plannedPackage.manifest.name} 的 package.json 在构建之后读不出来了,一个都没发` }
-    }
-    checked.push({ pkgDir: plannedPackage.pkgDir, text, ticket })
-  }
-  return checked
-}
-
 /** 各包 `@godcreator` dev 依赖与 peer 里 `@godcreator` 插件（内核包、`workspace:` 的除外）在源上的 latest */
-async function latestOfUpstreams(checked: CheckedPackage[], deps: ReleaseDeps): Promise<Record<string, string | undefined>> {
+async function latestOfUpstreams(planned: PlannedPackage[], deps: ReleaseDeps): Promise<Record<string, string | undefined>> {
   const upstreams = new Set<string>()
-  for (const { ticket } of checked) {
-    for (const [pkg, range] of Object.entries(ticket.devs)) if (!range.startsWith('workspace:')) upstreams.add(pkg)
-    for (const [pkg, range] of Object.entries(ticket.peers)) {
+  for (const { manifest } of planned) {
+    for (const [pkg, range] of Object.entries(manifest.devs)) if (!range.startsWith('workspace:')) upstreams.add(pkg)
+    for (const [pkg, range] of Object.entries(manifest.peers)) {
       if (pkg.startsWith(SCOPE) && pkg !== KERNEL_PACKAGE && !range.startsWith('workspace:')) upstreams.add(pkg)
     }
   }
@@ -400,10 +383,8 @@ async function latestOfUpstreams(checked: CheckedPackage[], deps: ReleaseDeps): 
   return latest
 }
 
-function ticketFor(checkedPackage: CheckedPackage, latest: Record<string, string | undefined>, runningKernel: string, deps: ReleaseDeps): Ticket {
-  const { pkgDir, text, ticket } = checkedPackage
-  const parsed: unknown = JSON.parse(text)
-  const doc = isRecord(parsed) ? parsed : {}
+function ticketFor(plannedPackage: PlannedPackage, latest: Record<string, string | undefined>, runningKernel: string, deps: ReleaseDeps): Ticket {
+  const { pkgDir, manifest } = plannedPackage
   const peerManifestOf = (pkg: string): unknown => {
     const text = deps.readText(path.join(pkgDir, 'node_modules', ...pkg.split('/'), 'package.json'))
     if (text === undefined) return undefined
@@ -414,12 +395,12 @@ function ticketFor(checkedPackage: CheckedPackage, latest: Record<string, string
     }
   }
   const problems = [
-    ...checkTicket(ticket, latest).problems,
-    ...peerProblems(ticket, peerManifestOf),
-    ...kernelPeerProblems(ticket, runningKernel),
-    ...artifactProblems(pkgDir, doc, ticket.plugin, deps),
+    ...checkTicket(manifest, latest).problems,
+    ...peerProblems(manifest, peerManifestOf),
+    ...kernelPeerProblems(manifest, runningKernel),
+    ...artifactProblems(pkgDir, manifest.doc, manifest.plugin, deps),
   ]
-  return { pkg: `${ticket.name}@${ticket.version}`, problems }
+  return { pkg: `${manifest.name}@${manifest.version}`, problems }
 }
 
 /** 按给的顺序发：被依赖的先发，不然装的时候源上还没有它 */
@@ -447,10 +428,8 @@ export async function runRelease(input: ReleaseInput, deps: ReleaseDeps): Promis
   const plan = await planPackages(input, deps)
   if ('ok' in plan) return plan
 
-  const checked = readTicketManifests(plan.planned, deps)
-  if ('ok' in checked) return checked
-  const latest = await latestOfUpstreams(checked, deps)
-  const tickets = checked.map((checkedPackage) => ticketFor(checkedPackage, latest, input.runningKernel, deps))
+  const latest = await latestOfUpstreams(plan.planned, deps)
+  const tickets = plan.planned.map((plannedPackage) => ticketFor(plannedPackage, latest, input.runningKernel, deps))
   if (tickets.some((ticket) => ticket.problems.length > 0)) return { ok: false, error: ticketRefusal(tickets) }
 
   const shipped = await publishInOrder(plan.planned, plan.ranges, deps)
