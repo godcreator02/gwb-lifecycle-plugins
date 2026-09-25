@@ -36,7 +36,7 @@ description: 连接插件包 package.json 的 peer（内核包的范围、用到
 
 **devkit 这边**：`devkit.release` 只查 `keywords` 含 `gwb-plugin` 的包，从插件管理 import `KERNEL_PACKAGE`、`isCaretRange`、`kernelRangeCovers`，拿 devkit 自己所在那个 home 的 `gwbKernel.version` 比：
 
-{/* ref file="../plugins/devkit/src/release.ts" lines="215-235" */}
+{/* ref file="../plugins/devkit/src/release.ts" lines="250-270" */}
 
 **插件管理这边**：`list` 从 home 的 `node_modules` 读每个包的 `package.json`，拿插件管理所在那个 home 的 `gwbKernel.version` 比：
 
@@ -46,7 +46,7 @@ description: 连接插件包 package.json 的 peer（内核包的范围、用到
 
 **peer 里的别的插件**：`"<插件包名>": "^x.y.z"`，可选使用的在 `peerDependenciesMeta` 标 `optional: true`（规矩见[用到的插件写 peer](/docs/rules/plugin-peers)）。两边问的不是同一件事：devkit 在发版时问「上游有没有出破坏性版本」，拿范围下限和源上 latest 比在不在同一条线；插件管理在 home 里问「装着的这一版在不在范围里」，拿范围和装着的版本比，用的就是内核范围那条规则的同一个函数 `caretRangeCovers`（内核范围的 `kernelRangeCovers` 只在它外面多一层「内核版本号不合法就抛错」）。
 
-{/* ref file="../plugins/devkit/src/release.ts" lines="204-213" */}
+{/* ref file="../plugins/devkit/src/release.ts" lines="239-248" */}
 
 {/* ref file="../plugins/devkit/src/release.ts" lines="272-294" */}
 
@@ -62,13 +62,13 @@ devkit 保证：插件包 peer 里的内核包没写、不是 `^x.y.z`、不包�
 
 **是不是插件的判法两边各有一份，规则不同**：插件管理的 `isPluginManifest` 只认 `keywords` 含 `gwb-plugin`，用来决定要不要看这个包的内核范围（cordis 官方插件没有内核范围）；devkit 发版前检查判「peer 里能不能写它」的 `isPluginManifest` 另外认 cordis 官方插件（`keywords` 同时含 `cordis` 与 `plugin`），因为 peer 里写 cordis 官方插件是合法的；判「要不要和源上 latest 比同一条线」的只认 `gwb-plugin`，cordis 官方插件不比。
 
-{/* ref file="../plugins/devkit/src/release.ts" lines="197-202" */}
+{/* ref file="../plugins/devkit/src/release.ts" lines="217-222" */}
 
 插件管理的 `loader.test.ts` 还把 loader、include、cordis 三个 `devDependencies` 的版本与它 peer 里内核包下限那个内核对齐，见[条目树 loader](/docs/seams/entry-tree)。
 
 建仓模板的 `template/pkg/package.json.tpl` 在 peer 里写内核包，值是 `^{{kernelVersion}}`：`devkit.scaffold` 与 `devkit.scaffold.plugin` 填入运行命令的那个 home 的内核版本号（只取 x.y.z），所以新仓在同一个内核上 `devkit.release` 时过得了这一项检查（见[模板与发版前检查](/docs/seams/template-release)）。模板的 peer 里还写着它用到的命令总线与外壳，版本号跟着源走。
 
-{/* ref file="../plugins/devkit/template/pkg/package.json.tpl" lines="30-34" */}
+{/* ref file="../plugins/devkit/template/pkg/package.json.tpl" lines="32-36" */}
 
 ## 不负责的事
 

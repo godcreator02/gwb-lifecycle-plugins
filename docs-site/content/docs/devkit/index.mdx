@@ -102,17 +102,17 @@ peer 里哪些包算 gwb 插件、要和源上 latest 比，读包目录 `node_m
 
 {/* ref file="../plugins/devkit/src/release.ts" lines="224-237" */}
 
-{/* ref file="../plugins/devkit/src/release.ts" lines="204-213" */}
+{/* ref file="../plugins/devkit/src/release.ts" lines="239-248" */}
 
 peer 里只许哪几类包，是不是插件怎么判：
 
-{/* ref file="../plugins/devkit/src/release.ts" lines="295-316" */}
+{/* ref file="../plugins/devkit/src/release.ts" lines="331-352" */}
 
-{/* ref file="../plugins/devkit/src/release.ts" lines="197-202" */}
+{/* ref file="../plugins/devkit/src/release.ts" lines="217-222" */}
 
 peer 里内核包的检查，比对规则从插件管理的主入口 import（见[peer 里的内核包与插件](/docs/seams/kernel-peer)）：
 
-{/* ref file="../plugins/devkit/src/release.ts" lines="215-235" */}
+{/* ref file="../plugins/devkit/src/release.ts" lines="250-270" */}
 
 构建产物检查在 `src/artifact-check.ts`。哪些文件算 node 侧、哪些算浏览器侧，照模板生成的插件包的构建约定判断：node 侧是 `exports["."]` 的运行时入口（没有 `exports` 时是 `main`）加上顺着相对 import 走得到的文件，也就是内核的 loader 按包名 import 插件时加载的那些；浏览器侧是 `dist/client.js`（模板的 `build.ts` 用 esbuild 以 `platform: 'browser'` 输出的文件），同样顺着相对 import 走；两边都走不到的文件不查。node 侧放行的包名是 node 内置模块、`electron` 与本包 peer 里写了的包——peer 已被上面几条限定为 `cordis`、内核包与插件，都是 home 里装着、按包名解析得到的。页面 importmap 里的名字只取内核包页面入口里那段 importmap 的键：页面入口当场从包目录的 `node_modules/@godcreator/gwb-kernel-desktop/dist/index.html` 读（插件 peer 里写了内核包，pnpm 把它链接在那里），取 `<script type="importmap">` 里 `imports` 的键；读不到、没有这段 importmap 都拒，提示 peer 写上内核包 `^0.6.0` 起，别的依赖的清单不看：
 
