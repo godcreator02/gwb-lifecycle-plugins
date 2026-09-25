@@ -19,13 +19,9 @@ description: 只通过服务和命令，不 import 别的插件；共享代码�
 - **按名字调命令，不 import 提供方的常量**：import 进来就把提供方变成了运行时依赖
 - **数据目录归它的主人**：插件的数据目录只由它自己读写；别的插件要那份数据，调它的命令。几个插件共同约定的文件（比如单元的 `unit.json`）归定义它的那个插件，读的一方按它发布的契约读
 
-插件管理读 gitea 插件的设置，只写命令名：
+**例外：同一个仓里一起开发、一起发版的两个插件**。devkit 要用插件管理的几条规则——找 pnpm、在 home 里启动 pnpm 用的环境、peer 里内核包的写法对不对——它把插件管理写进 peer，从插件管理的主入口按值 import 这几个纯函数，规则只存一份。代价是 import 会加载插件管理的整个主入口模块、devkit 离了插件管理加载不了；两个包同仓，改导出的函数时一个提交改两边。发版前检查不拦这种 import：node 侧放行 peer 里写了的包，写进 peer 的插件也在其中，所以别的插件照样只能靠这条规矩自己守：
 
-{/* ref file="../plugins/plugin-manager/src/package-sources.ts" lines="254-254" */}
-
-**例外：同一个仓里一起开发、一起发版的两个插件**。devkit 要用插件管理的几条规则——找 pnpm、peer 里内核包的范围包不包含某个内核——它把插件管理写进 peer，从插件管理的主入口按值 import 这几个纯函数，规则只存一份。代价是 import 会加载插件管理的整个主入口模块、devkit 离了插件管理加载不了；两个包同仓，改导出的函数时一个提交改两边。发版前检查不拦这种 import：node 侧放行 peer 里写了的包，写进 peer 的插件也在其中，所以别的插件照样只能靠这条规矩自己守：
-
-{/* ref file="../plugins/plugin-manager/src/index.ts" lines="41-44" */}
+{/* ref file="../plugins/plugin-manager/src/index.ts" lines="38-41" */}
 
 {/* ref file="../plugins/devkit/src/release.ts" lines="3-3" */}
 
@@ -62,7 +58,7 @@ export function apply(ctx: GwbContext): void {
 
 插件管理导出它服务的类型，并给 cordis 的 `Context` 补上这一项，inject 它的插件 `import type` 取：
 
-{/* ref file="../plugins/plugin-manager/src/index.ts" lines="840-844" */}
+{/* ref file="../plugins/plugin-manager/src/index.ts" lines="682-686" */}
 
 它的命令回执类型不从主入口导出：插件管理窗格与 devkit 都不 import 它们，照各命令的 `usage` 读回执（见轨迹卡[插件管理 0.13.0](/trajectory/2026-09-25-kernel-via-specs-caller-reloads)）。
 

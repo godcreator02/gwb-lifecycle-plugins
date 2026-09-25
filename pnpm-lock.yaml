@@ -81,9 +81,6 @@ importers:
         specifier: ^0.4.5
         version: 0.4.5(@godcreator/gwb-kernel-desktop@0.7.0(cordis@4.0.0-rc.10))(cordis@4.0.0-rc.10)
     devDependencies:
-      '@mdx-js/mdx':
-        specifier: ^3.1.1
-        version: 3.1.1
       '@types/node':
         specifier: ^24.0.0
         version: 24.13.4
@@ -96,9 +93,6 @@ importers:
       esbuild:
         specifier: ^0.28.2
         version: 0.28.2
-      remark-gfm:
-        specifier: ^4.0.1
-        version: 4.0.1
       typescript:
         specifier: ^7.0.2
         version: 7.0.2

@@ -33,9 +33,9 @@ export function apply(ctx: GwbContext): void {
 
 有写盘队列的插件，清理函数返回「待写的数据写完」的 promise，而不是清掉等待写盘的定时器——清掉定时器等于丢掉这次写盘。
 
-只需要断开引用、没有异步工作的清理，返回一个普通函数就够了。插件管理在可选的设置插件消失时断开对它的引用：
+只需要断开引用、没有异步工作的清理，返回一个普通函数就够了。插件管理登记说明书时，清理函数就是登记返回的注销函数：
 
-{/* ref file="../plugins/plugin-manager/src/index.ts" lines="190-198" */}
+{/* ref file="../plugins/plugin-manager/src/index.ts" lines="146-151" */}
 
 ## 例外
 

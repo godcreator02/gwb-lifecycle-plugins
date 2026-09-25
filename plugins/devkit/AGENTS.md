@@ -35,13 +35,13 @@
 ## 硬约束
 
 * **开发套件产物开头那个 `require` 别删**：`build.ts` 用 `createRequire` 造的，打包进来的 yaml 靠它；删了 vitest 照样全绿，只有 `tests/built-artifact.test.ts` 会失败
-* **模板**：`template/pkg/` 是插件包的唯一正本，建仓与加插件都用它；`template/` 下每个文件带 `.tpl`、都要声明属于哪一部分；加占位符同时改 `src/scaffold.ts` 的 `placeholders()`；`{{title}}` 每类文件只许写在一种位置，改模板后运行 `tests/scaffold.test.ts`；改模板里 `@godcreator` 包的版本号之前先 `pnpm view <包> dist-tags.latest`。细节见 `devkit/scaffold.mdx`
-* **建站是两步，都不是本包的命令**：`devkit.scaffold` 经命令总线按名字调 `docs-site.create`、`docfirst.attach`（都认站目录，不是仓根），哪个插件没装就跳过、不让建仓失败；本包不依赖这两个插件的任何包
+* **模板**：`template/pkg/` 是插件包的唯一正本，建仓与加插件都用它；`template/` 下每个文件带 `.tpl`、都要声明属于 `repo/` 还是 `pkg/`；加占位符同时改 `src/scaffold.ts` 的 `placeholders()`，占位符的值只能是短名、包名、规范写法的地址、版本号这类不用转义的东西，要显示名的地方用短名；改模板后运行 `tests/scaffold.test.ts`；改模板里 `@godcreator` 包的版本号之前先 `pnpm view <包> dist-tags.latest`。细节见 `devkit/scaffold.mdx`
+* **建仓与加插件只写插件的文件**：不建文档站、不写文档页、不调别的插件的命令
 * **没有设置项**；将来要加一律用 `gwbSettings.define`，不读 `cordis.yml` 的 `config`
 * **每条命令的参数形状写进 `usage`**，无参数写「无参数」
 * **改一版看一版**（`devkit.dev`，机制见 `devkit/dev.mdx`）：
   * 目标是 `default` 或开发套件自己所在的 home，直接拒
-  * 装包与重新加载只经目标 home 的插件管理：已装的包合成一条 `plugin-manager.update {"specs":{…}}`，不拆成 `remount` / `disable` / `enable`
+  * 装包与重新加载只经目标 home 的插件管理：已装的包合成一条 `plugin-manager.update {"specs":{…}}`，不拆成 `disable` / `enable`
   * `<home>/runtime.json` 只读不写
   * 定位 home 只按名字：`devkit.dev` 与 `bin/cdp.mjs` 都不收端口，不许加「给个端口就连」的另一条路
   * 不许把产物覆盖进 home 的 `node_modules`；包文件放 `<目标 home>\dev-packs\`，路径每版不同、已存在就拒、旧的一个都不删

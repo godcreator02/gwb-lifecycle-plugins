@@ -18,7 +18,7 @@ function Pane(): ReactElement {
   const [count, setCount] = useState(0)
   return (
     <div className="{{cssPrefix}}:h-full {{cssPrefix}}:space-y-4 {{cssPrefix}}:p-8">
-      <h1 className="{{cssPrefix}}:text-2xl {{cssPrefix}}:font-semibold">你好，{{title}}</h1>
+      <h1 className="{{cssPrefix}}:text-2xl {{cssPrefix}}:font-semibold">你好，{{name}}</h1>
       <p className="{{cssPrefix}}:text-sm {{cssPrefix}}:text-muted-foreground">
         模板窗格。按钮只改本地状态；命令 {{name}}.ping 在 node 侧，经命令总线调用。
       </p>

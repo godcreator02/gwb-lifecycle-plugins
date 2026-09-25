@@ -7,7 +7,7 @@ description: 连接建仓模板 template/ 与 devkit.release 的发版前检查�
 
 ## 连接的模块
 
-- 建仓模板（`plugins/devkit/template/`）：`repo/` 生成仓根，`pkg/` 生成 `plugins/<短名>/`，`site/plugin.mdx.tpl` 生成文档站现状区的插件页；由 `src/scaffold.ts` 渲染，`devkit.scaffold` 与 `devkit.scaffold.plugin` 共用 `pkg/` 与插件页
+- 建仓模板（`plugins/devkit/template/`）：`repo/` 生成仓根，`pkg/` 生成 `plugins/<短名>/`；由 `src/scaffold.ts` 渲染，`devkit.scaffold` 与 `devkit.scaffold.plugin` 共用 `pkg/`
 - 发版前检查（`src/release.ts`、`src/artifact-check.ts`）：`devkit.release` 构建之后、发第一个包之前运行
 - 生成出来的插件包自带的产物测试 `tests/artifact.test.ts`（模板里是 `template/pkg/tests/artifact.test.ts.tpl`）：在被生成的仓里随 `pnpm check` 运行
 

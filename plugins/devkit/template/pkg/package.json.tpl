@@ -2,7 +2,7 @@
   "name": "{{pkg}}",
   "version": "0.1.0",
   "author": {"name": "godcreator"},
-  "description": "{{title}}：devkit 生成的模板插件，一个窗格与一条 ping 命令（改成真插件时换成一句话说它做什么）",
+  "description": "{{name}}：devkit 生成的模板插件，一个窗格与一条 ping 命令（改成真插件时换成一句话说它做什么）",
   "type": "module",
   "exports": {
     ".": { "types": "./dist/index.d.ts", "default": "./dist/index.js" },

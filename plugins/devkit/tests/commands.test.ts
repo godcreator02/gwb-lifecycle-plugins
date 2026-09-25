@@ -122,7 +122,10 @@ describe('参数不对：回 ok false，带上那条命令的用法', () => {
       ['devkit.dev', { home: 'x', dir: 'D:\\x', packages: ['plugins/x'], cdp: 9401 }, 'devkit.dev 的参数'],
       ['devkit.release', { dir: 'D:\\x', packages: ['plugins/x'], tag: 'next' }, 'devkit.release 的参数'],
       ['devkit.scaffold', { name: 'x', dir: 'D:\\x', port: 4321 }, 'devkit.scaffold 的参数'],
+      ['devkit.scaffold', { name: 'x', dir: 'D:\\x', title: '打招呼' }, 'devkit.scaffold 的参数'],
+      ['devkit.scaffold', { name: 'x', dir: 'D:\\x', docs: false }, 'devkit.scaffold 的参数'],
       ['devkit.scaffold.plugin', { name: 'x', repo: 'D:\\x', docs: false }, 'devkit.scaffold.plugin 的参数'],
+      ['devkit.scaffold.plugin', { name: 'x', repo: 'D:\\x', title: '打招呼' }, 'devkit.scaffold.plugin 的参数'],
     ]
     for (const [name, args, usageHeader] of calls) {
       const unknownKey = Object.keys(args).at(-1) ?? ''
@@ -161,68 +164,42 @@ function writeWorkspaceRepo(repoDir: string): void {
 }
 
 describe('devkit.scaffold 与 devkit.scaffold.plugin', () => {
-  it('docs false、没装站点插件：插件文件照写，回执说没建站', async () => {
-    const dir = path.join(tempDir('dk-scaffold-'), 'hello')
-    const devkit = mountDevkit({ homeDir: tempDir('dk-home-') })
-    const receipt = await devkit.run('devkit.scaffold', { name: 'hello', dir, docs: false })
-    expect(receipt.ok).toBe(true)
-    const data = receipt.data as { repoDir: string; pluginDir: string; pkg: string; files: number; docs: { built: boolean; attached: boolean; note: string }; pluginPage: string | null }
-    expect(data.repoDir).toBe(dir)
-    expect(data.pluginDir).toBe(path.join(dir, 'plugins', 'hello'))
-    expect(data.pkg).toBe('@godcreator/gwb-hello')
-    expect(data.files).toBeGreaterThan(0)
-    expect(data.docs).toMatchObject({ built: false, attached: false })
-    expect(data.docs.note).toContain('没建站')
-    expect(data.pluginPage).toBeNull()
-    expect(fs.existsSync(path.join(dir, 'plugins', 'hello', 'package.json'))).toBe(true)
-  })
-
-  it('有 docs-site.create、没有 docfirst.attach：骨架生成了、六区没装，回执说要立刻补', async () => {
-    const dir = path.join(tempDir('dk-scaffold-'), 'hello')
-    const devkit = mountDevkit({ homeDir: tempDir('dk-home-'), busCommands: { 'docs-site.create': () => ({ ok: true, data: { port: 4321 } }) } })
-    const receipt = await devkit.run('devkit.scaffold', { name: 'hello', dir })
-    const data = receipt.data as { docs: { built: boolean; attached: boolean; port?: number; note: string }; nextSteps: string[] }
-    expect(data.docs).toMatchObject({ built: true, attached: false, port: 4321 })
-    expect(data.docs.note).toContain('六区没装')
-    // 成功了的那条命令的原始回执不带：只有失败时才要看它
-    expect(data.docs).not.toHaveProperty('create')
-    expect(devkit.busCalls).toEqual([{ name: 'docs-site.create', args: { dir: path.join(dir, 'docs-site'), title: 'hello' } }])
-    expect(data.nextSteps.join('\n')).toContain('docfirst.attach')
-    expect(data.nextSteps.join('\n')).toContain('4321')
-  })
-
-  it('两步都成：回执只报建成与端口，不带两条命令的原始回执', async () => {
+  it('建仓：插件文件写到磁盘，回执只报仓与插件包；不建文档站，也不调别的插件的命令', async () => {
     const dir = path.join(tempDir('dk-scaffold-'), 'hello')
     const devkit = mountDevkit({
       homeDir: tempDir('dk-home-'),
       busCommands: { 'docs-site.create': () => ({ ok: true, data: { port: 4321 } }), 'docfirst.attach': () => ({ ok: true, data: {} }) },
     })
-    const data = (await devkit.run('devkit.scaffold', { name: 'hello', dir })).data as { docs: Record<string, unknown> }
-    expect(Object.keys(data.docs).sort()).toEqual(['attached', 'built', 'note', 'port'])
-  })
-
-  it('骨架没铺成：带上 docs-site.create 的原始回执', async () => {
-    const dir = path.join(tempDir('dk-scaffold-'), 'hello')
-    const failed = { ok: false, error: '端口全被占了' }
-    const devkit = mountDevkit({ homeDir: tempDir('dk-home-'), busCommands: { 'docs-site.create': () => failed } })
-    const data = (await devkit.run('devkit.scaffold', { name: 'hello', dir })).data as { docs: Record<string, unknown> }
-    expect(data.docs).toMatchObject({ built: false, attached: false, create: failed })
+    const receipt = await devkit.run('devkit.scaffold', { name: 'hello', dir })
+    expect(receipt.ok).toBe(true)
+    const data = receipt.data as Record<string, unknown>
+    expect(Object.keys(data).sort()).toEqual(['files', 'name', 'nextSteps', 'pkg', 'pluginDir', 'registry', 'repoDir'])
+    expect(data).toMatchObject({ repoDir: dir, pluginDir: path.join(dir, 'plugins', 'hello'), pkg: '@godcreator/gwb-hello', name: 'hello' })
+    expect(data['files']).toBeGreaterThan(0)
+    expect(fs.existsSync(path.join(dir, 'plugins', 'hello', 'package.json'))).toBe(true)
+    expect(fs.existsSync(path.join(dir, 'docs-site'))).toBe(false)
+    expect(devkit.busCalls).toEqual([])
   })
 
   it('目标目录已经存在：建仓没成，不覆盖', async () => {
     const dir = tempDir('dk-scaffold-')
     const devkit = mountDevkit({ homeDir: tempDir('dk-home-') })
-    expect((await devkit.run('devkit.scaffold', { name: 'hello', dir, docs: false })).error).toContain('建仓没成')
+    expect((await devkit.run('devkit.scaffold', { name: 'hello', dir })).error).toContain('建仓没成')
   })
 
-  it('scaffold.plugin：往 workspace 仓的 plugins/ 加一个插件包', async () => {
+  it('scaffold.plugin：往 workspace 仓的 plugins/ 加一个插件包；仓里有文档站也不往里写插件页', async () => {
     const repoDir = path.join(tempDir('dk-repo-'), 'repo')
     writeWorkspaceRepo(repoDir)
+    fs.mkdirSync(path.join(repoDir, 'docs-site', 'content', 'docs'), { recursive: true })
+    fs.writeFileSync(path.join(repoDir, 'docs-site', 'docfirst.config.mjs'), 'export default {}\n')
     const devkit = mountDevkit({ homeDir: tempDir('dk-home-') })
     const receipt = await devkit.run('devkit.scaffold.plugin', { repo: repoDir, name: 'world' })
     expect(receipt.ok).toBe(true)
-    expect(receipt.data).toMatchObject({ repoDir, pluginDir: path.join(repoDir, 'plugins', 'world'), pkg: '@godcreator/gwb-world', name: 'world', pluginPage: null })
+    const data = receipt.data as Record<string, unknown>
+    expect(Object.keys(data).sort()).toEqual(['files', 'name', 'nextSteps', 'pkg', 'pluginDir', 'registry', 'repoDir'])
+    expect(data).toMatchObject({ repoDir, pluginDir: path.join(repoDir, 'plugins', 'world'), pkg: '@godcreator/gwb-world', name: 'world' })
     expect(fs.existsSync(path.join(repoDir, 'plugins', 'world', 'src', 'index.ts'))).toBe(true)
-    expect((await devkit.run('devkit.scaffold.plugin', { repo: repoDir, name: 'world' })).error).toContain('加件没成')
+    expect(fs.existsSync(path.join(repoDir, 'docs-site', 'content', 'docs', 'plugins'))).toBe(false)
+    expect((await devkit.run('devkit.scaffold.plugin', { repo: repoDir, name: 'world' })).error).toContain('加插件没成')
   })
 })

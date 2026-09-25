@@ -23,11 +23,11 @@ export function apply(ctx: GwbContext): void {
   const commands = ctx.gwbCommands
   // inject 已保证两个服务都在，这一行只为把可选类型收窄
   if (shell === undefined || commands === undefined) return
-  log.info('{{title}} 已加载')
+  log.info('{{name}} 已加载')
 
   // 外壳继承 cordis 的 Service：本插件卸载时，窗格自动注销。
   // 地址按 import.meta.url 算，内核不认识任何包名
-  shell.registerPane({ id: 'main', title: '{{title}}', client: CLIENT_URL, style: STYLE_URL })
+  shell.registerPane({ id: 'main', title: '{{name}}', client: CLIENT_URL, style: STYLE_URL })
 
   // 命令是插件向页面和 agent 提供能力的方式。命令总线继承 cordis 的 Service：本插件卸载时，命令自动注销
   commands.register(

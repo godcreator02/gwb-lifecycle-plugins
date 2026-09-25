@@ -1,6 +1,6 @@
 ---
 title: 关键设计
-description: gwb-lifecycle-plugins 仓里错了难改的几条决定——devkit 是普通插件、写插件只有打包安装验证一条路、包名与发到哪用 npm 的标准字段、开发版只进隔离 home、只按名字定位 home、查不出就报错、纯逻辑与真机器操作分开、两个包同仓、模板是唯一正本、借别的插件只借命令名；各自推出了什么、代价是什么
+description: gwb-lifecycle-plugins 仓里错了难改的几条决定——devkit 是普通插件、写插件只有打包安装验证一条路、包名与发到哪用 npm 的标准字段、开发版只进隔离 home、只按名字定位 home、查不出就报错、纯逻辑与真机器操作分开、两个包同仓、模板是唯一正本；各自推出了什么、代价是什么
 ---
 
 **本页回答**：`gwb-lifecycle-plugins` 仓里哪些决定错了难改、为什么这么定；每条推出了什么、代价是什么；哪些事刻意不做。只写错了难改的：命令怎么用、每一步的细节在各包的页与说明书里。每个包的功能与接口见[开发套件](/docs/devkit)、[插件管理](/docs/plugin-manager)。
@@ -120,16 +120,6 @@ devkit 没有任何特权：装进 home 才有它的命令，和别的插件一�
 
 代价：不是 workspace 布局的仓用不了这几条命令，要先照模板迁。
 
-## 借别的插件只借命令名
-
-建仓要生成文档站的初始站点、装六区，这两件事归站点插件与 docfirst 插件。devkit 不依赖这两个插件的任何包，只在命令总线上按名字找 `docs-site.create`、`docfirst.attach`，每次现查、不缓存（插件是热加载的，装一个新插件之后答案当场就变）。找不到就跳过那一步，不让建仓失败。
-
-{/* has file="../plugins/devkit/src/index.ts" text="const CREATE_SITE_COMMAND = 'docs-site.create'" */}
-
-{/* has file="../plugins/devkit/src/index.ts" text="const ATTACH_SITE_COMMAND = 'docfirst.attach'" */}
-
-代价：命令名改了不会在编译时发现，只会在建仓的回执里看到「没装」。
-
 ## 刻意不做
 
 - **不收端口**：见「只按名字定位一个 home」
@@ -137,5 +127,6 @@ devkit 没有任何特权：装进 home 才有它的命令，和别的插件一�
 - **不构建内核**：启动 home 用宿主自己那个安装版应用；改内核源码的验证走内核仓自己的流程
 - **不做设置项**：一项都不需要；将来要加用 `gwbSettings.define`，不读 `cordis.yml` 条目上的 `config`——写在 yml 里的那份界面看不见、agent 也不知道
 - **不自动清理**：现有的 home 由 `devkit.home.list` 列出，删哪个由调用方决定
+- **不建文档站**：建仓与加插件只写插件的文件，文档站由站点插件与 docfirst 插件自己的命令建
 - **不巡检别的仓**：依赖写法、peer 与产物在各仓发版时由 `devkit.release` 查
 - **不留没人用的命令与参数**：退役的名字与现在怎么做，列在[术语表](/docs/glossary#退役的命令与参数)

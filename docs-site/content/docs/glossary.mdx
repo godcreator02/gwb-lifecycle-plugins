@@ -22,10 +22,10 @@ description: 这个仓里反复出现的词各指什么、在哪一页定义；�
 | 团队源 | gitea 个人源 `https://git.tianshen02.online:28377/api/packages/godcreator/npm/`，常驻，`@godcreator` 范围下的包从这里发、从这里装；scope 路由与发布 token 写在用户级 `~/.npmrc`。没有它发布权限的开发者用自己的包名范围与源 | 说明书「gwb-release」 |
 | 包名范围 | 包名 `@<范围>/<名>` 里的 `@<范围>`。团队的是 `@godcreator`；`devkit.scaffold` 的 `scope` 参数定生成的插件在哪个范围下 | [建仓与加插件](/docs/devkit/scaffold) |
 | 发布目标 | 一个包的正式版发到哪个源：它 `package.json` 的 `publishConfig.registry`，没写 `devkit.release` 就拒发。`devkit.scaffold` 的 `registry` 参数写这个字段 | [pnpm 与包源](/docs/seams/pnpm-registry) |
-| 包源 | npmrc 里的一条 scope 路由加上它的凭据行：某个 scope 的包从哪个 npm 源装。第三方的包源写在机器级 `~/.npmrc`，由插件管理的 `source.*` 增删；`@godcreator` 那条是团队源，不经它改 | [找插件与配包源](/docs/plugin-manager/sources) |
+| 包源 | npmrc 里的一条 scope 路由加上它的凭据行：某个 scope 的包从哪个 npm 源装。第三方的包源由 agent 照说明书 `gwb-plugin-manager` 手写进机器级 `~/.npmrc`，插件管理只读不写；`@godcreator` 那条是团队源 | [找插件](/docs/plugin-manager/sources) |
 | 开发版 | 版本号形如 `<patch+1>-dev.<yyyyMMddHHmmss>` 的一次性版本，只为把此刻的改动装进一个隔离 home；打成包文件、经那个 home 的插件管理装，不发到团队源 | [改一版看一版](/docs/devkit/dev) |
 | 包文件 | `pnpm pack` 打出的 `.tgz`。开发版的包文件放在目标 home 的 `dev-packs` 目录，home 清单用 `file:./dev-packs/<包文件>` 引用它；每版一个新路径，旧的不删 | [改一版看一版](/docs/devkit/dev) |
-| 重新加载（remount） | 把一条条目停用再启用，让它重新 import。换了版本号才真的换得了代码；由插件管理在目标进程里做：单条用 `plugin-manager.remount`，`plugin-manager.update` 装完在同一条命令里做 | [改一版看一版](/docs/devkit/dev) |
+| 重新加载（remount） | 把一条条目停用再启用，让它重新 import。换了版本号才真的换得了代码；由插件管理在目标进程里做：`plugin-manager.update` 装完在同一条命令里做，手动重新加载一条是先 `disable` 再 `enable` | [改一版看一版](/docs/devkit/dev) |
 | 取证 | 换完之后确认「它真的在运行」：装上的是这次的版本号、条目是 `ACTIVE`、日志新增部分里没有 error。加载了不算 | [改一版看一版](/docs/devkit/dev) |
 | 调试端口 | 内核启动时用 `--remote-debugging-port` 打开的 Chromium 调试入口。从外面操作一个正在运行的页面全靠它，但**它不用来指定 home**：指定 home 用名字，端口是查出来的 | [CDP 驱动](/docs/devkit/cdp) |
 | 运行时记录 | 每个 home 里的 `runtime.json`：pid、启动时间、内核版本、调试端口、MCP 入口地址。内核与 MCP 入口插件写，别的只读 | [测试 home](/docs/devkit/home) |
@@ -34,7 +34,7 @@ description: 这个仓里反复出现的词各指什么、在哪一页定义；�
 | 交叉核对 | 连上页面之后，拿页面自己报的 home 名跟要找的那个对一次。记录回答「要的是哪个」，页面回答「连上的实际是哪个」 | [CDP 驱动](/docs/devkit/cdp) |
 | 命令总线 | 命令插件提供的服务 `gwbCommands`：插件在上面登记命令，界面、命令行、agent 调的是同一批命令 | 基础插件仓文档站 |
 | 说明书 | 随包发布、由说明书插件登记给 agent 的 `SKILL.md`，经 `skill.read` 读。内容跟着它描述的代码一起发版 | [开发套件](/docs/devkit#说明书) |
-| 建仓 | `devkit.scaffold` 把新插件的初始文件写进一个新目录，插件文件与文档站分两部分完成 | [建仓与加插件](/docs/devkit/scaffold) |
+| 建仓 | `devkit.scaffold` 把新插件的初始文件写进一个新目录，只写插件的文件，不建文档站 | [建仓与加插件](/docs/devkit/scaffold) |
 | workspace 仓 | 仓根是不发布的 private 包，插件在 `plugins/<短名>/`、别的包在 `packages/`。模板只生成这一种布局 | [建仓与加插件](/docs/devkit/scaffold) |
 | 发版前检查 | `devkit.release` 构建之后、发第一个包之前查的那几条：peer 只写 `cordis`、内核包与插件、peer 里的插件和源上 latest 在同一条线、构建产物里的包名 import 与空 import、peer 里内核包的写法；dev 依赖不查。代码里的函数与类型名用 ticket（`Ticket`、`ticketRefusal`） | [发正式版](/docs/devkit/release) |
 | peer | 插件 `package.json` 的 `peerDependencies`：运行时从 home 里得到的包——按值 import 的 `cordis`、内核包、用到的别的插件。node 侧构建产物只能按包名 import 这里写了的包。可选使用的插件在 `peerDependenciesMeta` 标 `optional`。`plugin-manager.list` 报没满足的（`unmetPeers`），只报告不拦 | [用到的插件写 peer](/docs/rules/plugin-peers) |
@@ -80,7 +80,7 @@ description: 这个仓里反复出现的词各指什么、在哪一页定义；�
 | `devkit.cdp-eval` | 0.4.0 | `eval` 是 `devkit.cdp` 的一个动作 |
 | `devkit.livedoc` | 0.3.0 | 核对、确认、生成都在仓里运行：`cd <仓>\docs-site` 之后 `pnpm doc` / `pnpm doc:confirm` / `pnpm doc:render` |
 | 清单字段 `gwb.requires`；`plugin-manager.list` 回执的 `requires`、`unmetRequires`、`requiresInvalid` | 插件管理 0.9.0、devkit 0.18.15 | 用到的别的插件写进 `peerDependencies`（`^x.y.z`，可选的标 `optional`），`list` 看 `unmetPeers`。见[轨迹卡](/trajectory/2026-09-24-plugins-peer-each-other) |
-| `plugin-sources.search` / `add` / `list` / `remove`、说明书 `gwb-plugin-sources` | `gwb-plugin-sources` 0.1.0 之后不再发 | 并回插件管理：`plugin-manager.search`、`plugin-manager.source.add` / `list` / `remove`，参数与回执不变；说明书读 `gwb-plugin-manager`。见[轨迹卡](/trajectory/2026-09-24-plugin-sources-back-to-plugin-manager) |
+| `plugin-sources.search` / `add` / `list` / `remove`、说明书 `gwb-plugin-sources` | `gwb-plugin-sources` 0.1.0 之后不再发 | 并回插件管理：检索用 `plugin-manager.search`；配第三方包源照说明书 `gwb-plugin-manager` 的「配第三方包源」手写 `~/.npmrc`。见[轨迹卡](/trajectory/2026-09-24-plugin-sources-back-to-plugin-manager) |
 | `devkit.capabilities`、`devkit.audit-structure`、`devkit.audit-deps` | 0.19.0 | 能用的服务看提供方插件的类型声明，import 入口与类型看包的 `package.json` 与 `.d.ts`；依赖写法与产物在发版时由 `devkit.release` 查；布局照模板迁。见[轨迹卡](/trajectory/2026-09-25-drop-unused-machinery) |
 | 清单字段 `gwb.provides`；发版前检查的类型检查（`tsc --skipLibCheck false`）、拒 0.0.x、拒内核包以外写 `gwb.shared`、`reminders` 字段 | 0.19.0 | 服务的用法写在类型声明的文档注释里，用的一方读提供方的 `.d.ts`；别的几项不再查 |
 | `plugin-manager.set-label` 与条目的显示名 | 插件管理 0.10.0 | 界面用插件自报的名字 |
@@ -90,9 +90,11 @@ description: 这个仓里反复出现的词各指什么、在哪一页定义；�
 | 清单字段 `gwb.shared`、内核包的 `./react*` 出口 | 内核 0.6.0 | 页面 importmap 写死在内核包的页面入口 `dist/index.html` 里；外置名单与发版前检查都读那段 importmap 的键。见[轨迹卡](/trajectory/2026-09-25-importmap-names-from-page-entry) |
 | `plugin-manager.update-kernel` | 插件管理 0.13.0 | 内核包写进 `plugin-manager.update {"specs":{"@godcreator/gwb-kernel-desktop":"<版本号、latest 或 file:路径>"}}`，可以连同别的包；`cordis` 由插件管理照装上的内核包对齐，`specs` 里不写。见[轨迹卡](/trajectory/2026-09-25-kernel-via-specs-caller-reloads) |
 | `update` 回执的 `reload`；插件管理升级完自己调 `shell.reload` | 插件管理 0.13.0 | 调用方拿到成功回执后自己调 `shell.reload` |
-| 插件管理回执 `data` 里的 `ok` / `error` / `tail`；`search` 的 `scope` 参数与回执每行的 `keywords`；`uninstall` 回执的 `removedEntries`；`add-entry` 的 `config`；`transfer-owner` 回执的 `data` / `settings` | 插件管理 0.13.0 | 只看外层 `ok`，失败原因与 pnpm 输出的最后几行都在外层 `error`；`search` 一律查全部源；`transfer-owner` 缺数据插件或设置插件直接报错 |
-| 插件管理主入口的 `caretRangeCovers`、`declaredKernelRange`、回执类型与 `list` / `install` / `update` 以外的命令名常量 | 插件管理 0.13.0 | devkit 用 `isCaretRange`、`kernelRangeCovers`；回执照命令的 `usage` 读 |
-| `devkit.scaffold` 的 `port` 参数；建仓回执 `nextSteps` 里复述的整套流程；建仓成功时 `docs` 里 `create` / `attach` 两条命令的原始回执；`devkit.services` 回执的 `declaredAlsoBy` | devkit 0.22.0 | 端口由站点插件自己选，看回执 `docs.port`；流程读说明书 `gwb-devkit` 的「新写一个插件」；原始回执只在那条命令失败时带；`devkit.services` 整条命令在 0.23.0 删掉。见[轨迹卡](/trajectory/2026-09-25-devkit-no-fallbacks) |
+| 插件管理回执 `data` 里的 `ok` / `error` / `tail`；`search` 的 `scope` 参数与回执每行的 `keywords`；`uninstall` 回执的 `removedEntries`；`add-entry` 的 `config` | 插件管理 0.13.0 | 只看外层 `ok`，失败原因与 pnpm 输出的最后几行都在外层 `error`；`search` 一律查全部源 |
+| 插件管理主入口的 `caretRangeCovers`、`declaredKernelRange`、回执类型与 `list` / `install` / `update` 以外的命令名常量 | 插件管理 0.13.0 | devkit 只用 `isCaretRange`；回执照命令的 `usage` 读 |
+| `devkit.scaffold` 的 `port` 参数；建仓回执 `nextSteps` 里复述的整套流程；建仓成功时 `docs` 里 `create` / `attach` 两条命令的原始回执；`devkit.services` 回执的 `declaredAlsoBy` | devkit 0.22.0 | 端口由站点插件自己选（建仓在 0.23.0 起不再建站）；流程读说明书 `gwb-devkit` 的「新写一个插件」；原始回执只在那条命令失败时带；`devkit.services` 整条命令在 0.23.0 删掉。见[轨迹卡](/trajectory/2026-09-25-devkit-no-fallbacks) |
 | devkit 命令里认不出的参数键被忽略；`devkit.cdp` 的 `--mod` 写错的键名被忽略 | devkit 0.22.0 | 一律报错并说出是哪个键 |
 | 包清单字段 `gwb.title`；插件模板的 `slow` 测试标签与 `test:all` 脚本 | devkit 0.22.0 | 显示名写在插件代码里（窗格标题、外壳的 `describeSelf`）；测试不分快慢，`pnpm test` 全部运行 |
 | `devkit.services`；说明书 `fresh-eyes`；`devkit.home.new` 回执的 `homes`；发版前检查的「`@godcreator` 下 dev 的范围包含源上 latest」与「peer 里内核包的范围包含运行中的内核」 | devkit 0.23.0 | 能用的服务看提供方插件的类型声明（它导出的类型、给 cordis 的 `Context` 补的项）；现有的 home 用 `devkit.home.list` 列出；dev 依赖只要装得上；内核包的范围只查写法 `^x.y.z`，包不包含验证时那个内核由人在隔离 home 验过之后改。见[轨迹卡](/trajectory/2026-09-25-devkit-drops-rarely-used) |
+| `devkit.scaffold` 的 `docs` 与 `title` 参数、回执的 `docs`、`pluginPage` 与 `title`；`devkit.scaffold.plugin` 的 `title` 参数、回执的 `pluginPage` 与 `title`；建仓与加插件写的插件页草稿、模板占位符 `{{title}}` 与 `{{docsBlock}}` | devkit 0.23.0 | 建仓只写插件的文件，要文档站照站点插件与 docfirst 插件的说明书自己建、插件页自己写；模板里要显示名的地方用短名，要中文名自己改生成的文件。见[轨迹卡](/trajectory/2026-09-25-devkit-drops-rarely-used) |
+| `plugin-manager.transfer-owner`、`plugin-manager.remount`、`plugin-manager.source.add` / `list` / `remove`；`add-entry` 的 `id` 参数；`list` 回执的 `kernelRange` / `kernelUntested`；`update` 回执的 `pluginsOutsideRange`；主入口的 `kernelRangeCovers` | 插件管理 0.14.0 | 手动重新加载一条先 `disable` 再 `enable`；配第三方包源照说明书 `gwb-plugin-manager` 手写 `~/.npmrc`；条目 id 由插件管理按包名取、重名加后缀；内核包对不上并进 `list` 的 `unmetPeers`。见[轨迹卡](/trajectory/2026-09-25-plugin-manager-drops-unused-commands) |

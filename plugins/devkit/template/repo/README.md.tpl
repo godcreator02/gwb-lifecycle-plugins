@@ -1,4 +1,4 @@
-# {{title}}
+# {{name}}
 
 `{{pkg}}` —— gwb 插件，由 devkit 的建仓模板生成。插件名 `{{pkgName}}`，命令名前缀 `{{name}}`。
 
@@ -33,8 +33,6 @@ pnpm install
 pnpm build          # 递归构建 plugins/*：pnpm -r --filter "./plugins/*"（tsc、esbuild、tailwindcss 三步）
 pnpm check          # 递归检查：typecheck（node 侧 + 浏览器侧）+ oxlint + vitest；产物测试读 dist/，没构建时整组跳过，所以先 build
 ```
-
-{{docsBlock}}
 
 ## 验收
 

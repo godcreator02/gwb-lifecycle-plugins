@@ -41,7 +41,7 @@ function Badge({ x, y, n, byConvention }: { x: number; y: number; n: number; byC
 
 export function SeamMap() {
   return (
-    <svg viewBox="0 0 760 600" role="img" aria-label="gwb-lifecycle-plugins 仓的两个包与十条接缝">
+    <svg viewBox="0 0 760 600" role="img" aria-label="gwb-lifecycle-plugins 仓的两个包与九条接缝">
       <Package x={20} y={80} w={520} h={370} />
       <PackageLabel x={528} y={98} name="本仓" path="gwb-lifecycle-plugins" anchor="end" />
       <Package x={40} y={120} w={300} h={310} />
@@ -51,14 +51,12 @@ export function SeamMap() {
       <SeamLine d="M326,214 H360" />
       <SeamLine d="M326,260 H440 V240" byConvention />
       <SeamLine d="M189,380 V260 H196" byConvention />
-      <SeamLine d="M117,150 V60" byConvention />
       <SeamLine d="M326,306 H550 V352 H570" byConvention />
       <SeamLine d="M326,160 H345 V112 H570" byConvention />
       <SeamLine d="M520,212 H570" />
       <SeamLine d="M520,232 H560 V282 H570" />
       <SeamLine d="M300,430 V510" byConvention />
 
-      <Box x={20} y={20} w={170} h={40} lines={['别的插件的命令', 'docs-site · docfirst']} />
       <Box x={230} y={20} w={200} h={40} lines={['工作台服务', 'gwbCommands · gwbNodeCli · gwbSkills']} />
 
       <Box x={52} y={150} w={130} h={36} lines={['建仓', 'scaffold']} tone="a" mono />
@@ -81,7 +79,6 @@ export function SeamMap() {
       <Badge x={343} y={214} n={2} />
       <Badge x={400} y={260} n={3} byConvention />
       <Badge x={189} y={352} n={4} byConvention />
-      <Badge x={117} y={95} n={5} byConvention />
       <Badge x={440} y={306} n={6} byConvention />
       <Badge x={455} y={112} n={7} byConvention />
       <Badge x={545} y={212} n={8} />

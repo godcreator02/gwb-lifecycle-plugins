@@ -9,7 +9,7 @@ description: 开发套件是一个普通的 gwb 插件，把「在一个新文�
 
 ## 功能
 
-- **建仓**：`devkit.scaffold` 把新插件的初始文件写进一个还不存在的目录（workspace 仓，插件在 `plugins/<短名>/`），默认连文档站一起建；`devkit.scaffold.plugin` 往已有的 workspace 仓再加一个插件包——[建仓与加插件](/docs/devkit/scaffold)
+- **建仓**：`devkit.scaffold` 把新插件的初始文件写进一个还不存在的目录（workspace 仓，插件在 `plugins/<短名>/`），不建文档站；`devkit.scaffold.plugin` 往已有的 workspace 仓再加一个插件包——[建仓与加插件](/docs/devkit/scaffold)
 - **测试 home**：`devkit.home.new` 开一个装好内核包、`cordis` 与七个基础插件的隔离 home，`open` 重开、`list` 列出、`rm` 删除；调试端口自动选，之后只按名字找——[测试 home](/docs/devkit/home)
 - **改一版看一版**：`devkit.dev` 把工作区的改动打包成开发版的包文件放进另一个 home，经那个 home 的插件管理装进正在运行的进程并重新加载，整页刷新，最后取证——[改一版看一版](/docs/devkit/dev)
 - **发正式版**：`devkit.release` 从仓根把包按依赖顺序发到各包的发布目标（`package.json` 的 `publishConfig.registry`），发之前检查 git 工作区、构建产物、依赖写法、插件 peer 里的内核包与别的插件，不改仓里任何文件——[发正式版](/docs/devkit/release)
@@ -23,12 +23,12 @@ description: 开发套件是一个普通的 gwb 插件，把「在一个新文�
 
 都登记在命令总线上，`plugin` 写包名 `@godcreator/gwb-devkit`；参数形状写在每条命令的 `usage` 里，agent 经 MCP 入口的 `search {"plugin":"@godcreator/gwb-devkit"}` 看得到。参数给错时回执带完整用法；**认不出的参数键直接拒**，报出是哪几个键：
 
-{/* ref file="../plugins/devkit/src/index.ts" lines="346-358" */}
+{/* ref file="../plugins/devkit/src/index.ts" lines="330-342" */}
 
 | 命令 | 做什么 | 接缝 |
 | --- | --- | --- |
-| `devkit.scaffold` | 建仓：渲染 `template/repo/` 与 `template/pkg/` 写进新目录，再按名字调别的插件建文档站，站装好六区后写一页插件页草稿 | [4 模板与发版前检查](/docs/seams/template-release)、[5 借用别的插件的命令](/docs/seams/borrowed-commands) |
-| `devkit.scaffold.plugin` | 往已有 workspace 仓的 `plugins/` 加一个插件包，只渲染 `template/pkg/`；仓里有装好六区的文档站时再写一页插件页草稿 | [4 模板与发版前检查](/docs/seams/template-release)、[10 被测仓的形状](/docs/seams/repo-shape) |
+| `devkit.scaffold` | 建仓：渲染 `template/repo/` 与 `template/pkg/` 写进新目录，不建文档站 | [4 模板与发版前检查](/docs/seams/template-release) |
+| `devkit.scaffold.plugin` | 往已有 workspace 仓的 `plugins/` 加一个插件包，只渲染 `template/pkg/`，仓根与文档站都不碰 | [4 模板与发版前检查](/docs/seams/template-release)、[10 被测仓的形状](/docs/seams/repo-shape) |
 | `devkit.home.new` | 开一个新的隔离 home：写 `cordis.yml`，装内核包、`cordis` 与基础插件，启动宿主应用，选调试端口 | [7 内核与 home](/docs/seams/kernel-home)、[9 pnpm 与包源](/docs/seams/pnpm-registry) |
 | `devkit.home.open` | 重开一个已有的 home | [7 内核与 home](/docs/seams/kernel-home) |
 | `devkit.home.list` | 列出全部 home、哪些在运行、各自的调试端口与 MCP 入口 | [7 内核与 home](/docs/seams/kernel-home) |
@@ -59,7 +59,7 @@ description: 开发套件是一个普通的 gwb 插件，把「在一个新文�
 
 加载完成时往 `<home>\gwb.log` 写一行「开发套件就绪」，列出此刻命令总线上 `plugin` 是本包的全部命令：有这一行说明 `apply` 执行完了。`devkit.cdp` 在不在取决于 node 命令行插件有没有加载，所以名单每次当场向命令总线查询，不另存一份：
 
-{/* ref file="../plugins/devkit/src/index.ts" lines="699-708" */}
+{/* ref file="../plugins/devkit/src/index.ts" lines="562-571" */}
 
 ### 说明书
 
@@ -74,19 +74,18 @@ description: 开发套件是一个普通的 gwb 插件，把「在一个新文�
 
 ### 模板
 
-包根的 `template/` 是给别的仓用的初始文件，只有 `devkit.scaffold` 与 `devkit.scaffold.plugin` 读它：`template/repo/` 生成仓根，`template/pkg/` 生成插件包，`template/site/plugin.mdx.tpl` 生成文档站现状区里的插件页。模板分几部分、有哪些占位符、改模板要守什么，见[建仓与加插件](/docs/devkit/scaffold)；模板带的产物测试与发版前检查用同一套包名 import 名单，见 [4 模板与发版前检查](/docs/seams/template-release)。
+包根的 `template/` 是给别的仓用的初始文件，只有 `devkit.scaffold` 与 `devkit.scaffold.plugin` 读它：`template/repo/` 生成仓根，`template/pkg/` 生成插件包。模板分几部分、有哪些占位符、改模板要守什么，见[建仓与加插件](/docs/devkit/scaffold)；模板带的产物测试与发版前检查用同一套包名 import 名单，见 [4 模板与发版前检查](/docs/seams/template-release)。
 
 ## 依赖
 
 | 依赖 | 用来做什么 | 缺了会怎样 |
 | --- | --- | --- |
-| 命令插件的服务 `gwbCommands`（`@godcreator/gwb-commands`，写在 `export const inject`，peer 必需） | 登记 8 条命令；按名字查找并调用别的插件的命令 | 插件不加载：cordis 等到这个服务出现才调用 `apply`；`apply` 里取不到它就抛错。这是唯一的必需服务 |
+| 命令插件的服务 `gwbCommands`（`@godcreator/gwb-commands`，写在 `export const inject`，peer 必需） | 登记 8 条命令；就绪日志列出此刻总线上本包的命令 | 插件不加载：cordis 等到这个服务出现才调用 `apply`；`apply` 里取不到它就抛错。这是唯一的必需服务 |
 | 插件管理包 `@godcreator/gwb-plugin-manager` 主入口导出的函数（peer 必需） | 找 pnpm 的 `locatePnpm`、在 home 里启动 pnpm 用的环境 `homePnpmEnv`、内核包名与 peer 范围的判定、取输出最后几行的 `tailLines`，以及 `devkit.dev` 调的三条命令的名字 `LIST_COMMAND`、`INSTALL_COMMAND`、`UPDATE_COMMAND` | 模块 import 不到，插件加载失败 |
 | 内核服务 `gwbKernel` 的 `dataDir` 与 `version`（用 `requireKernel` 取，不写进 `inject`） | `dataDir` 是本插件自己所在的 home：`devkit.dev` 拒绝以它为目标（home 根目录不从它推，按 `%APPDATA%\gwb-kernel\homes` 算）；`version` 是建仓与加插件时新包 peer 里内核包范围的下限、`devkit.home.new` 装进新 home 的内核包版本 | 用到它的命令抛错「ctx.gwbKernel 不在」 |
 | 外壳插件的服务 `gwbShell`（局部注入） | `describeSelf` 报显示名「开发套件」与图标 | 插件清单里没有显示名，别的不受影响 |
 | node 命令行插件的服务 `gwbNodeCli`（局部注入） | 把 `bin/cdp.mjs` 登记成 `devkit.cdp` | 没有 `devkit.cdp` 命令；`devkit.dev` 不受影响，它自己启动 `bin/cdp.mjs` 子进程 |
 | 说明书插件的服务 `gwbSkills`（局部注入） | 登记 `skills/` 下两份说明书 | agent 读不到这两份说明书，命令照常 |
-| 站点插件的 `docs-site.create`、docfirst 插件的 `docfirst.attach`（按命令名查找） | `devkit.scaffold` 建文档站的两步 | 插件的文件照样写到磁盘，跳过建站，回执写明怎么补 |
 | 目标 home 里的插件管理：`plugin-manager.install`、带 `specs` 参数的 `plugin-manager.update` 与 `plugin-manager.list`，经 CDP 调用 | `devkit.dev` 装包、新建条目、重新加载条目、取证 | `devkit.dev` 回 `ok: false`，带插件管理回执里的原因 |
 | 各 home 的 `runtime.json`（内核与 MCP 入口插件写） | 按名字查 pid 与调试端口 | 连不上那个 home，回执说停掉重开一次 |
 | 宿主应用（`process.execPath`，安装版） | `devkit.home.new` / `open` 再启动一次它 | 宿主是开发态 electron 时拒 |
@@ -112,7 +111,7 @@ description: 开发套件是一个普通的 gwb 插件，把「在一个新文�
 ## 不做的事
 
 - **不画界面**：没有窗格、没有浏览器侧代码，只向外壳报一个显示名；使用者是 agent，读回执
-- **不管文档站的内容**：生成初始站点归站点插件 `@godcreator/gwb-docs-site`，装六区与核对文档归 docfirst 插件 `@godcreator/gwb-docfirst-workflow`；本包不依赖它们的任何包，只按命令名调用。本包只在建仓与加插件时往现状区写一页插件页草稿
+- **不建文档站、不写文档页**：建仓与加插件只写插件的文件；生成初始站点归站点插件 `@godcreator/gwb-docs-site`，装六区与核对文档归 docfirst 插件 `@godcreator/gwb-docfirst-workflow`，本包不调它们的命令
 - **不自己增删 home 里的条目、不写 home 的清单**：安装与条目归插件管理。`devkit.dev` 装没装过的插件时调目标 home 的 `plugin-manager.install`，由插件管理新建条目；唯一的例外是 `devkit.home.new` 在新 home 启动之前直接 `pnpm add` 装包、写好基础插件的 `cordis.yml`（那时插件管理还没装、home 还没启动）
 - **不写 `runtime.json`**：它由内核与 MCP 入口插件写，本包只读
 - **不升级日常用的 `default`**：`devkit.dev` 拒绝以 `default` 为目标，`devkit.release` 只发到源；升级 `default` 用插件管理

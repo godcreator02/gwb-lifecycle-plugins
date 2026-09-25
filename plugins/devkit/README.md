@@ -6,7 +6,7 @@
 
 god 工作台的开发套件，本身就是**一个普通的插件**：装进 home 才有它的命令，加载不了就什么都没有。它自己也照它教给别人的做法发布：发到团队源、装进 home。
 
-它把「在一个新文件夹里开发一个新插件」这条路上的每一步都做成一个能被 agent 调用的命令：建仓、往仓里加插件、测试 home 的开与删、改一版看一版、发正式版、列出这个 home 里可以 inject 的服务，外加随包发布的写插件说明书与发版规则。**仓的布局只有一种**：pnpm workspace，插件放在 `plugins/<短名>/`，一个插件与多个插件的仓格式相同。
+它把「在一个新文件夹里开发一个新插件」这条路上的每一步都做成一个能被 agent 调用的命令：建仓、往仓里加插件、测试 home 的开与删、改一版看一版、发正式版，外加随包发布的写插件说明书与发版规则。**仓的布局只有一种**：pnpm workspace，插件放在 `plugins/<短名>/`，一个插件与多个插件的仓格式相同。
 
 **使用者是 agent，所以它没有界面**：全部结果都在回执里。工作台没启动的时候，还有一个包内命令行脚本可用——`bin/cdp.mjs` 在一个页面里操作。
 
@@ -22,7 +22,7 @@ plugin-manager.install {"pkg":"@godcreator/gwb-devkit"}
 
 这个仓叫 `gwb-lifecycle-plugins`，是 pnpm workspace，开发套件在 `plugins/devkit/`，旁边还有一个包：
 
-* `plugins/plugin-manager/`：插件管理 `@godcreator/gwb-plugin-manager`，home 里的一个普通插件，单独发版。两个包互相依赖的地方多（`devkit.dev` 经插件管理装开发版，peer 范围的比对规则只在插件管理里写一份、开发套件 import 它），放在一个仓里，改这些地方一个提交就能改两边；细节见文档站「关键设计」
+* `plugins/plugin-manager/`：插件管理 `@godcreator/gwb-plugin-manager`，home 里的一个普通插件，单独发版。两个包互相依赖的地方多（`devkit.dev` 经插件管理装开发版，peer 写法的判定与在 home 里启动 pnpm 的环境只在插件管理里写一份、开发套件 import 它），放在一个仓里，改这些地方一个提交就能改两边；细节见文档站「关键设计」
 
 ## 文档
 

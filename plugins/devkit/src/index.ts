@@ -33,12 +33,9 @@ import {
   packageRoot,
   planScaffold,
   planScaffoldPlugin,
-  pluginPageTarget,
   renderPlugin,
-  renderPluginPage,
   renderTemplate,
   SCOPE_RE,
-  writePluginPage,
   writeRepo,
 } from './scaffold.js'
 import { homesRootOf } from '../bin/cdp.mjs'
@@ -46,11 +43,6 @@ import { homesRootOf } from '../bin/cdp.mjs'
 export const name = 'gwb-devkit'
 export const inject = ['gwbCommands']
 
-/** 生成 fumadocs 骨架的命令，站点插件 `@godcreator/gwb-docs-site` 提供。本包不依赖它，只在命令总线上按名字找 */
-const CREATE_SITE_COMMAND = 'docs-site.create'
-
-/** 在骨架上装六区的命令，docfirst 插件 `@godcreator/gwb-docfirst-workflow` 提供。只在刚生成的骨架上装得了 */
-const ATTACH_SITE_COMMAND = 'docfirst.attach'
 
 // 下面几段参数说明在参数不对时连同报错一起回
 
@@ -59,21 +51,19 @@ const SCAFFOLD_USAGE = [
   // 规则从 NAME_RE 取，不在这里抄一份
   `  name   必给，短名，kebab-case（${String(NAME_RE)}）。它派生出包名 <scope>/gwb-<短名>、插件名 gwb-<短名>、命令名 <短名>.<动作> 的前半`,
   '  dir    必给，目标目录的绝对路径，必须还不存在（存在就拒，不覆盖任何东西）。生成的仓只有一种布局：workspace——仓根是不发布的 private 包，插件包在 plugins/<短名>/',
-  '  title  可选，显示名，缺省用 name',
   `  scope  可选，包名范围（${String(SCOPE_RE)}），缺省 ${TEAM_SCOPE}。没有团队源发布权限的开发者给自己的范围`,
   `  registry 可选，插件包 package.json 的 publishConfig.registry，devkit.release 发到这里。要是 http(s) 地址的规范写法（new URL(x).href 与原文相同，如 "http://localhost:4873/"），不带账号、查询串与 #；缺省是团队源 ${TEAM_REGISTRY}。发布 token 写在用户级 ~/.npmrc`,
-  `  docs   可选，缺省 true——插件文件写到磁盘之后顺带建站，两步：${CREATE_SITE_COMMAND} 生成 fumadocs 骨架（端口由站点插件自己选，回执 docs.port 报出）、${ATTACH_SITE_COMMAND} 在骨架上装六区；六区装好之后再写插件页的初稿 docs-site/content/docs/plugins/<短名>.mdx。两条都经命令总线找，没装那个插件就跳过那一步（回执里说怎么补），不算建仓失败。false 就只生成插件文件`,
-  '例：{"name":"hello","dir":"D:\\\\tmp\\\\hello","title":"打个招呼"}',
+  '模板里要显示名的地方（README 标题、description、窗格标题）都用短名，要改自己改生成的文件。不建文档站',
+  '例：{"name":"hello","dir":"D:\\\\tmp\\\\hello"}',
 ].join('\n')
 
 const SCAFFOLD_PLUGIN_USAGE = [
   'devkit.scaffold.plugin 的参数：',
   `  name   必给，短名，kebab-case（${String(NAME_RE)}）。派生规则同 devkit.scaffold`,
   '  repo   必给，workspace 仓根的绝对路径（pnpm-workspace.yaml 所在的目录）。yaml 里得有 plugins/ 那条，没有就拒',
-  '  title  可选，显示名，缺省用 name',
   '  scope、registry  可选，规则与缺省值同 devkit.scaffold。同一个仓里的插件一般用同一套：看仓里已有插件包 package.json 的 name 与 publishConfig.registry',
-  '插件包写到 <repo>/plugins/<短名>/，必须还不存在（存在就拒，不覆盖任何东西）。仓根与 workspace 配置不碰；仓里有装好六区的文档站（docs-site/docfirst.config.mjs 在）时，再写插件页的初稿 docs-site/content/docs/plugins/<短名>.mdx（已存在就拒）。README 的插件清单由人更新（回执 nextSteps 里提醒）',
-  '例：{"repo":"D:\\\\tmp\\\\hello","name":"world","title":"第二个插件"}',
+  '插件包写到 <repo>/plugins/<短名>/，必须还不存在（存在就拒，不覆盖任何东西）。仓根、workspace 配置与文档站都不碰。README 的插件清单由人更新（回执 nextSteps 里提醒）',
+  '例：{"repo":"D:\\\\tmp\\\\hello","name":"world"}',
 ].join('\n')
 
 const HOME_USAGE = [
@@ -125,8 +115,6 @@ interface Wiring {
   ctx: GwbContext
   log: Logger
   commands: CommandBus
-  /** 命令总线上此刻有没有这条命令。每次现问、不缓存：插件是热加载的，装一个新插件答案当场就变 */
-  hasCommand(command: string): boolean
   homeDeps: HomeDeps
 }
 
@@ -138,7 +126,6 @@ export function apply(ctx: GwbContext): void {
     ctx,
     log,
     commands: bus,
-    hasCommand: (command) => bus.list().some((entry) => entry.name === command),
     homeDeps: {
       fs: homeFs,
       spawn: makeGuiSpawn((message) => log.warn(message)),
@@ -465,52 +452,38 @@ function templateRoot(): string {
   return path.join(packageRoot(import.meta.dirname), 'template')
 }
 
-function registerScaffoldCommand(wiring: Wiring): void {
-  const { ctx, log, commands, hasCommand } = wiring
+function registerScaffoldCommand({ ctx, log, commands }: Wiring): void {
   commands.register(
     {
       name: 'devkit.scaffold',
       plugin: '@godcreator/gwb-devkit',
-      description: '在一个新目录里生成一个 gwb 插件仓（默认连文档站一起建）',
+      description: '在一个新目录里生成一个 gwb 插件仓（workspace 布局，插件在 plugins/<短名>/）',
       usage:
-        `{name（必给，kebab-case 短名）, dir（必给，绝对路径且必须还不存在）, title?, docs?（缺省 true）, scope?（包名范围，缺省 ${TEAM_SCOPE}）, registry?（写进插件包 publishConfig.registry 的发布目标，缺省团队源）}。插件的模板在本包；建站是两步，都经命令总线交出去——${CREATE_SITE_COMMAND}（站点插件）生成 fumadocs 骨架，${ATTACH_SITE_COMMAND}（docfirst 插件）在骨架上装六区；六区装好之后写插件页的初稿（回执 pluginPage）。哪个插件没装就跳过那一步、回执里说怎么补，插件文件照样写到磁盘。参数不对会把完整说明回给你`,
+        `{name（必给，kebab-case 短名）, dir（必给，绝对路径且必须还不存在）, scope?（包名范围，缺省 ${TEAM_SCOPE}）, registry?（写进插件包 publishConfig.registry 的发布目标，缺省团队源）}。插件的模板在本包；要显示名的地方用短名；不建文档站。回执 { repoDir, pluginDir, pkg, registry, name, files, nextSteps }。参数不对会把完整说明回给你`,
     },
-    async (args) => {
+    (args) => {
       if (!isRecord(args)) return { ok: false, error: `参数要是个对象。\n${SCAFFOLD_USAGE}` }
-      const unknownKeys = unknownKeysRefusal(args, ['name', 'dir', 'title', 'docs', 'scope', 'registry'], SCAFFOLD_USAGE)
+      const unknownKeys = unknownKeysRefusal(args, ['name', 'dir', 'scope', 'registry'], SCAFFOLD_USAGE)
       if (unknownKeys !== undefined) return unknownKeys
-      // 想不想建站与建不建得成是两件事：站点插件没装时 README 里那段话也得跟着改，所以在渲染之前定下来
-      const canDocs = args.docs !== false && hasCommand(CREATE_SITE_COMMAND)
-      const kernelVersion = requireKernel(ctx).version
       let plan
       try {
         plan = planScaffold({
           name: typeof args.name === 'string' ? args.name : '',
           dir: typeof args.dir === 'string' ? args.dir : '',
-          ...(typeof args.title === 'string' && args.title.trim() !== '' ? { title: args.title } : {}),
-          docs: canDocs,
           ...publishIdentityArgsOf(args),
-          kernelVersion,
+          kernelVersion: requireKernel(ctx).version,
         })
       } catch (err) {
         return { ok: false, error: `${err instanceof Error ? err.message : String(err)}\n\n${SCAFFOLD_USAGE}` }
       }
       let files
-      let page
       try {
         files = renderTemplate(templateRoot(), plan)
-        page = renderPluginPage(templateRoot(), plan)
         writeRepo(plan.dir, files)
       } catch (err) {
         return { ok: false, error: `建仓没成：${err instanceof Error ? err.message : String(err)}` }
       }
       log.info(`devkit.scaffold：${plan.pkg} → ${path.join(plan.dir, 'plugins', plan.name)}（${files.length} 个文件）`)
-
-      // 插件文件已经在磁盘上，站没建成不算建仓失败，回执里说清楚
-      const docs = await buildDocsSite(wiring, plan)
-      // 插件页只能在六区装好之后写：attach 只在没加过页的骨架上装得了
-      const pluginPage = pluginPageTarget(plan.dir, plan.name)
-      if (pluginPage !== null) writePluginPage(pluginPage, page)
       return {
         ok: true,
         data: {
@@ -519,11 +492,8 @@ function registerScaffoldCommand(wiring: Wiring): void {
           pkg: plan.pkg,
           registry: plan.registry,
           name: plan.name,
-          title: plan.title,
           files: files.length,
-          docs,
-          pluginPage,
-          nextSteps: nextSteps(plan, docs),
+          nextSteps: nextSteps(plan),
         },
       }
     },
@@ -535,40 +505,31 @@ function registerScaffoldPluginCommand({ ctx, log, commands }: Wiring): void {
     {
       name: 'devkit.scaffold.plugin',
       plugin: '@godcreator/gwb-devkit',
-      description: '往已有的 workspace 仓的 plugins/ 再加一个插件包（同一份插件包模板；仓里有装好六区的文档站时顺带写插件页的初稿）',
+      description: '往已有的 workspace 仓的 plugins/ 再加一个插件包（与建仓同一份插件包模板）',
       usage:
-        '{name 必给（kebab-case 短名，派生规则同 devkit.scaffold）, repo 必给（workspace 仓根的绝对路径——pnpm-workspace.yaml 里得有 plugins/ 那条，没有就拒）, title?, scope?, registry?（规则与缺省值同 devkit.scaffold）}。插件包写到 <repo>/plugins/<短名>/，必须还不存在。与建仓用的是同一份插件包模板（template/pkg/）——只有一个插件和有多个插件的仓格式一致靠这个。参数不对会把完整说明回给你',
+        '{name 必给（kebab-case 短名，派生规则同 devkit.scaffold）, repo 必给（workspace 仓根的绝对路径——pnpm-workspace.yaml 里得有 plugins/ 那条，没有就拒）, scope?, registry?（规则与缺省值同 devkit.scaffold）}。插件包写到 <repo>/plugins/<短名>/，必须还不存在；仓根、workspace 配置与文档站都不碰。与建仓用的是同一份插件包模板（template/pkg/）——只有一个插件和有多个插件的仓格式一致靠这个。回执 { repoDir, pluginDir, pkg, registry, name, files, nextSteps }。参数不对会把完整说明回给你',
     },
-    async (args) => {
+    (args) => {
       if (!isRecord(args)) return { ok: false, error: `参数要是个对象。\n${SCAFFOLD_PLUGIN_USAGE}` }
-      const unknownKeys = unknownKeysRefusal(args, ['name', 'repo', 'title', 'scope', 'registry'], SCAFFOLD_PLUGIN_USAGE)
+      const unknownKeys = unknownKeysRefusal(args, ['name', 'repo', 'scope', 'registry'], SCAFFOLD_PLUGIN_USAGE)
       if (unknownKeys !== undefined) return unknownKeys
-      const kernelVersion = requireKernel(ctx).version
       let plan
       try {
         plan = planScaffoldPlugin({
           name: typeof args.name === 'string' ? args.name : '',
           repo: typeof args.repo === 'string' ? args.repo : '',
-          ...(typeof args.title === 'string' && args.title.trim() !== '' ? { title: args.title } : {}),
           ...publishIdentityArgsOf(args),
-          kernelVersion,
+          kernelVersion: requireKernel(ctx).version,
         })
       } catch (err) {
         return { ok: false, error: `${err instanceof Error ? err.message : String(err)}\n\n${SCAFFOLD_PLUGIN_USAGE}` }
       }
-      // 插件页也要还不存在，在写任何文件之前查
-      const pluginPage = pluginPageTarget(plan.repoDir, plan.name)
-      if (pluginPage !== null && fs.existsSync(pluginPage)) {
-        return { ok: false, error: `加件没成：插件页已经存在，不覆盖：${pluginPage}` }
-      }
       let files
       try {
         files = renderPlugin(templateRoot(), plan)
-        const page = renderPluginPage(templateRoot(), plan)
         writeRepo(plan.dir, files)
-        if (pluginPage !== null) writePluginPage(pluginPage, page)
       } catch (err) {
-        return { ok: false, error: `加件没成：${err instanceof Error ? err.message : String(err)}` }
+        return { ok: false, error: `加插件没成：${err instanceof Error ? err.message : String(err)}` }
       }
       log.info(`devkit.scaffold.plugin：${plan.pkg} → ${plan.dir}（${files.length} 个文件）`)
       return {
@@ -579,89 +540,13 @@ function registerScaffoldPluginCommand({ ctx, log, commands }: Wiring): void {
           pkg: plan.pkg,
           registry: plan.registry,
           name: plan.name,
-          title: plan.title,
           files: files.length,
-          pluginPage,
-          nextSteps: nextStepsPlugin(plan, pluginPage),
+          nextSteps: nextStepsPlugin(plan),
         },
       }
     },
   )
 }
-
-/** 建站那部分的回执 */
-interface DocsOutcome {
-  /** 骨架生成了没有（`docs-site.create` 成没成） */
-  built: boolean
-  /** 六区装了没有（`docfirst.attach` 成没成）。骨架都没生成时一定是 false */
-  attached: boolean
-  /** 站端口。站点插件选的，生成成功才有 */
-  port?: number
-  note: string
-  /** 失败的那条命令的原始回执：`docs-site.create` 没成带 `create`，`docfirst.attach` 没成带 `attach`；成了的不带 */
-  create?: unknown
-  attach?: unknown
-}
-
-/**
- * 两步都按名字经命令总线交给别的插件：站点插件生成骨架（端口它自己选，从回执里取），docfirst 插件在刚生成的骨架上装六区。
- * 哪一步的插件没装就停在那里、说清怎么补；两条命令都认站目录（`<仓>/docs-site`），不是仓根
- */
-async function buildDocsSite({ log, commands, hasCommand }: Wiring, plan: { dir: string; title: string; docs: boolean }): Promise<DocsOutcome> {
-  const siteDir = path.join(plan.dir, 'docs-site')
-  const attachHint = `${ATTACH_SITE_COMMAND} {"dir":"${siteDir}"}`
-  if (!plan.docs) {
-    return {
-      built: false,
-      attached: false,
-      note: hasCommand(CREATE_SITE_COMMAND)
-        ? '没建站：调用时给了 docs: false'
-        : `没建站：这个 home 没装站点插件（命令总线上没有 ${CREATE_SITE_COMMAND}）。插件文件已经写到磁盘上——装上 @godcreator/gwb-docs-site（plugin-manager.install）之后自己补两步：${CREATE_SITE_COMMAND} {"dir":"${siteDir}","title":"${plan.title}"} 生成骨架，再 ${attachHint} 装六区`,
-    }
-  }
-  const created = await commands.run(CREATE_SITE_COMMAND, { dir: siteDir, title: plan.title })
-  if (!created.ok) {
-    log.warn(`devkit.scaffold 生成站的骨架没成：${created.error ?? '没说原因'}`)
-    return {
-      built: false,
-      attached: false,
-      note: `骨架没生成（${CREATE_SITE_COMMAND}：${created.error ?? '没说原因'}）。插件文件已经写到磁盘上，README 里讲站的那段话是按「要建」写的——补建一次，或者把那段改掉`,
-      create: created,
-    }
-  }
-  const rawPort = isRecord(created.data) ? created.data.port : undefined
-  const port = typeof rawPort === 'number' && Number.isInteger(rawPort) ? rawPort : undefined
-  log.info(`devkit.scaffold：fumadocs 骨架生成好了 → ${siteDir}`)
-
-  // 这时正是刚生成骨架、中间没人改过文件的时刻，attach 装得了
-  if (!hasCommand(ATTACH_SITE_COMMAND)) {
-    return {
-      built: true,
-      attached: false,
-      ...(port === undefined ? {} : { port }),
-      note: `骨架生成好了，六区没装：这个 home 没装 docfirst 插件（命令总线上没有 ${ATTACH_SITE_COMMAND}）。装上 @godcreator/gwb-docfirst-workflow 之后**立刻**运行 ${attachHint}——它只在还没写过内容的骨架上装得了，往里写过东西就得人工接线`,
-    }
-  }
-  const attached = await commands.run(ATTACH_SITE_COMMAND, { dir: siteDir, title: plan.title })
-  if (!attached.ok) {
-    log.warn(`devkit.scaffold 装六区没成：${attached.error ?? '没说原因'}`)
-    return {
-      built: true,
-      attached: false,
-      ...(port === undefined ? {} : { port }),
-      note: `骨架生成好了，六区没装成（${ATTACH_SITE_COMMAND}：${attached.error ?? '没说原因'}）。站只有骨架，pnpm doc 那几条还不在——补一次 ${attachHint}`,
-      attach: attached,
-    }
-  }
-  log.info(`devkit.scaffold：六区装好了 → ${siteDir}`)
-  return {
-    built: true,
-    attached: true,
-    ...(port === undefined ? {} : { port }),
-    note: '站建好了（骨架 + 六区，两步）。依赖没装——去 docs-site 里 pnpm install',
-  }
-}
-
 // ── 说明书与就绪日志 ──────────────────────────────────────────────────────────
 
 /**
