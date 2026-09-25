@@ -20,7 +20,7 @@ description: 连接插件管理与 cordis 的 loader、include：插件管理从
 
 **读**：`store` 是一张不分层的表，键是不带前缀的 id；每一项读 `id`（完整 entryId）、`options.name`（包名）、`options.group`、`disabled`、`fiber.state`：
 
-{/* ref file="../plugins/plugin-manager/src/inventory.ts" lines="61-84" */}
+{/* ref file="../plugins/plugin-manager/src/inventory.ts" lines="60-83" */}
 
 **状态值与等待**：cordis 的 `FiberState` 是 `const enum`，运行时拿不到，插件管理照抄一份名字表；重新加载时用 `fiber.await()` 等旧实例卸载完、新实例加载完：
 
@@ -37,7 +37,7 @@ description: 连接插件管理与 cordis 的 loader、include：插件管理从
 - 调用条目树之后不读回 `cordis.yml` 核对，以内存里的条目树为准
 - `devDependencies` 里 loader、include、cordis 的版本与它 peer 里内核包下限那个内核用的一致
 
-{/* ref file="../plugins/plugin-manager/package.json" lines="32-33" */}
+{/* ref file="../plugins/plugin-manager/package.json" lines="31-32" */}
 
 {/* ref file="../plugins/plugin-manager/package.json" lines="39-43" */}
 
