@@ -1,6 +1,6 @@
 import fs from 'node:fs'
 import { describe, expect, it } from 'vitest'
-import { describeAddFailure, describePnpm, spawnPlan, tailLines } from '../src/pnpm.js'
+import { describeAddFailure, describePnpm, homePnpmEnv, spawnPlan, tailLines } from '../src/pnpm.js'
 
 const EXE = 'C:\\Users\\u\\AppData\\Local\\pnpm\\bin\\pnpm.exe'
 
@@ -11,24 +11,27 @@ describe('不自带 pnpm', () => {
   })
 })
 
-describe('怎么启动', () => {
+describe('在 home 里启动 pnpm 用的环境', () => {
   const env = { PATH: 'x', ELECTRON_RUN_AS_NODE: '1', HOME: 'h' }
 
-  it('直接启动可执行文件，环境原样传下去，去掉 ELECTRON_RUN_AS_NODE、关掉自动补装 peer', () => {
-    expect(spawnPlan(EXE, ['outdated', '--json'], env)).toEqual({
-      command: EXE,
-      args: ['outdated', '--json'],
-      env: { PATH: 'x', HOME: 'h', pnpm_config_auto_install_peers: 'false' },
-    })
+  it('原样传下去，去掉 ELECTRON_RUN_AS_NODE、关掉自动补装 peer', () => {
+    expect(homePnpmEnv(env)).toEqual({ PATH: 'x', HOME: 'h', pnpm_config_auto_install_peers: 'false' })
   })
 
   it('调用方环境里自动补装 peer 是开着的也照样关掉', () => {
-    expect(spawnPlan(EXE, [], { pnpm_config_auto_install_peers: 'true' }).env).toEqual({ pnpm_config_auto_install_peers: 'false' })
+    expect(homePnpmEnv({ pnpm_config_auto_install_peers: 'true' })).toEqual({ pnpm_config_auto_install_peers: 'false' })
   })
 
   it('不改调用方给的环境', () => {
-    spawnPlan(EXE, [], env)
+    homePnpmEnv(env)
     expect(env).toEqual({ PATH: 'x', ELECTRON_RUN_AS_NODE: '1', HOME: 'h' })
+  })
+})
+
+describe('怎么启动', () => {
+  it('直接启动可执行文件，环境用 homePnpmEnv 算出的那份', () => {
+    const env = { PATH: 'x', ELECTRON_RUN_AS_NODE: '1', HOME: 'h' }
+    expect(spawnPlan(EXE, ['outdated', '--json'], env)).toEqual({ command: EXE, args: ['outdated', '--json'], env: homePnpmEnv(env) })
   })
 
   it('日志那句带版本与路径', () => {

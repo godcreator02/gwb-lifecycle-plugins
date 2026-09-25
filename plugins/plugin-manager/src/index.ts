@@ -40,7 +40,7 @@ import { addSource, listSources, removeSource, searchPlugins, type PackageSource
 // 开发套件复用的规则：它 import 这几个，不另存一份
 export { locatePnpm } from './pnpm-location.js'
 export { isCaretRange, KERNEL_PACKAGE, kernelRangeCovers } from './kernel-compat.js'
-export { tailLines } from './pnpm.js'
+export { homePnpmEnv, tailLines } from './pnpm.js'
 
 const NAME = 'gwb-plugin-manager'
 
