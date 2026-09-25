@@ -3,7 +3,7 @@ title: 5 借用别的插件的命令
 description: 连接 devkit 与两个不在本仓的插件：建仓调 docs-site.create 与 docfirst.attach，只按命令名在命令总线上查，查不到就跳过，参数与回执靠约定
 ---
 
-**本页回答**：devkit 调了哪几条别人的命令、传什么、读回执里的哪个字段；命令不在时怎么办；这些约定写在哪。
+**本页回答**：devkit 调了哪几条别人的命令、传什么、读回执里的哪个字段；命令不在时怎么办；两边各保证什么、这些约定写在哪。
 
 ## 连接的模块
 
@@ -22,7 +22,7 @@ description: 连接 devkit 与两个不在本仓的插件：建仓调 docs-site.
 
 {/* ref file="../plugins/devkit/src/index.ts" lines="667-677" */}
 
-插件管理不调外壳的 `shell.reload`：升级完的整页重新加载由调用方做（见[热升级](/docs/plugin-manager/upgrade#一次热升级依次发生什么)）。插件管理的 `source.add` 按名字调设置插件的 `settings.get`，读 gitea 插件分区里的地址与 token；它只为配包源服务，写在[9 pnpm 与包源](/docs/seams/pnpm-registry)。
+同仓的插件管理也按名字借一条命令：`source.add` 调设置插件的 `settings.get`，读 gitea 插件分区里的地址与 token，它只为配包源服务，写在 [9 pnpm 与包源](/docs/seams/pnpm-registry)。
 
 ## 约定
 
@@ -39,7 +39,11 @@ devkit 保证：
 
 ## 测试
 
-没有测试用真实的命令总线运行这几次调用。能测到的是命令不在时回执里给的补建步骤：
+没有测试连真的站点插件与 docfirst 插件。`tests/commands.test.ts` 在假上下文上调 `devkit.scaffold`，假命令总线上有或没有这两条命令、成或不成，看回执：没装站点插件时插件文件照写、回执说没建站；只有 `docs-site.create` 时说要立刻补 `docfirst.attach`；两步都成时只报建成与端口、不带原始回执；骨架没生成时带上 `docs-site.create` 的原始回执：
+
+{/* has file="../plugins/devkit/tests/commands.test.ts" text="两步都成：回执只报建成与端口，不带两条命令的原始回执" */}
+
+`tests/scaffold.test.ts` 测回执里给的补建步骤：
 
 {/* has file="../plugins/devkit/tests/scaffold.test.ts" text="骨架都没铺：给两步补建，并说装完写哪一页" */}
 

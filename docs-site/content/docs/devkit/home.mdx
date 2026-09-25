@@ -45,11 +45,11 @@ home 在 `%APPDATA%\gwb-kernel\homes\<名>\`。打开哪一个由环境变量 `G
 
 两个端口按记录如实报，**不因为「进程看起来不在了」就去掉**：一个过时的端口正是人要看到的线索。
 
-名字的形状不是本包定的：
+home 名只收 kebab-case：
 
 {/* ref file="../plugins/devkit/src/home.ts" lines="7-8" */}
 
-比内核那条规则更严没有意义，名字最终由内核决定收不收。
+内核对 `GWB_HOME` 不做形状检查，只看带不带路径分隔符（见[内核与 home](/docs/seams/kernel-home)），所以这条正则比内核严：别的途径建出来的、名字不是 kebab-case 的 home，devkit 的命令都认不出。
 
 ## 提供的接口
 

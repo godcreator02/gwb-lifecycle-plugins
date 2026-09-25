@@ -3,7 +3,7 @@ title: 10 被测仓的形状
 description: 连接 devkit.dev、devkit.release、devkit.scaffold.plugin 与被它们处理的插件仓：仓根有 build 脚本、files 白名单里的产物构建后都在、插件包 keywords 含 gwb-plugin、产物的两侧入口是 exports["."] 与 dist/client.js、peer 里的包装在包目录的 node_modules、pnpm-workspace.yaml 的 packages 里有 plugins/*、发正式版时 git 工作区干净——都靠约定
 ---
 
-**本页回答**：devkit 的几条命令对传给它的仓做了哪些假设；每条假设在哪几处代码里用到；不满足时各自怎样。
+**本页回答**：devkit 的几条命令对传给它的仓做了哪些假设；每条假设在哪几处代码里用到；不满足时各自怎样；devkit 与被处理的仓各保证什么。
 
 ## 连接的模块
 

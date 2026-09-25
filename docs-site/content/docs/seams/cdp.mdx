@@ -3,7 +3,7 @@ title: 6 CDP 驱动 cdp.mjs
 description: 连接 devkit（经 gwbNodeCli 登记、dev.ts 启动子进程）、bin/cdp.mjs 与工作台页面；接口是命令行参数的形状、stdout 上一张 JSON 的键、退出码、页面上的 window.gwb.command，以及按页面 file:// 地址反推 home——全部靠约定
 ---
 
-**本页回答**：`bin/cdp.mjs` 收什么参数、输出什么、退出码什么意思；devkit 从它的输出里读哪几个字段；它对工作台页面假设了什么。
+**本页回答**：`bin/cdp.mjs` 收什么参数、输出什么、退出码什么意思；devkit 从它的输出里读哪几个字段；它对工作台页面假设了什么；这几方各保证什么。脚本内部怎么把选择器换算成点、为什么零依赖，见 [CDP 驱动](/docs/devkit/cdp)。
 
 ## 连接的模块
 
@@ -35,7 +35,7 @@ devkit 这边：登记命令时 `entry` 指向这个文件（见[工作台服务
 
 {/* ref file="../plugins/devkit/src/node-dev-deps.ts" lines="45-59" */}
 
-**页面**：`cmd` 在页面里调 `window.gwb.command(名字, 参数)`；页面上没有这个函数就回 `{ ok: false }`。连上之后先核对 home：收集页面上 `script[src]`、`link[href]` 与 importmap 里的 `file:///` 地址（内核包页面入口里的 importmap 写的是相对地址，这一项收集不到东西，home 路径来自外壳插入的样式表），截出 `/homes/<名>/` 那一段，要求只有一个 home、且名字等于第一个参数：
+**页面**：`cmd` 在页面里调 `window.gwb.command(名字, 参数)`；页面上没有这个函数就回 `{ ok: false }`。连上之后先核对 home：收集页面上 `script[src]` 与 `link[href]` 里的 `file:///` 地址（home 路径实际来自外壳插入的样式表），截出 `/homes/<名>/` 那一段，要求只有一个 home、且名字等于第一个参数：
 
 {/* ref file="../plugins/devkit/bin/cdp.mjs" lines="399-419" */}
 

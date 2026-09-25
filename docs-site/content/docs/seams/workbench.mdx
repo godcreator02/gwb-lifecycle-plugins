@@ -71,6 +71,6 @@ devkit 的就绪日志从 `list()` 里筛出 `plugin` 等于包名 `@godcreator/
 
 ## 测试
 
-两个插件都没有测试把 `apply` 运行在真实的服务上。插件管理的 `tests/commands.test.ts` 在假的上下文上运行 `apply`、按命令名调登记下来的处理函数；devkit 的 `tests/ready-log.test.ts` 用假的命令总线运行 `apply`，检查就绪日志列出的命令数等于登记时 `plugin` 写本包包名的命令数：
+两个插件都没有测试把 `apply` 运行在真实的服务上。两边的 `tests/commands.test.ts` 都在假的上下文上运行 `apply`、按命令名调登记下来的处理函数（devkit 那份另测命令总线不在时 `apply` 抛错）；devkit 的 `tests/ready-log.test.ts` 用假的命令总线运行 `apply`，检查就绪日志列出的命令数等于登记时 `plugin` 写本包包名的命令数：
 
 {/* has file="../plugins/devkit/tests/ready-log.test.ts" text="列出总线上 plugin 是本包包名的全部命令" */}
