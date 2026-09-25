@@ -169,7 +169,7 @@
     "../plugins/plugin-manager/src/vocab.ts:16-17": {
       "kind": "git",
       "blob": "0ff124331907bd2a2b55a48b97e7bb9c9218a7ab",
-      "commit": "b3f721c142462808cd8a4aaa3fa4a9aff7a70895",
+      "commit": "83541bc21fe425f49eec2b195176f142cdce8040",
       "lines": [
         16,
         17
@@ -182,7 +182,7 @@
     "../plugins/plugin-manager/src/index.ts:51-60": {
       "kind": "git",
       "blob": "22810c890bc5b9321e698c5e3f1998b9e7d3b5e6",
-      "commit": "b3f721c142462808cd8a4aaa3fa4a9aff7a70895",
+      "commit": "83541bc21fe425f49eec2b195176f142cdce8040",
       "lines": [
         51,
         60
@@ -192,7 +192,7 @@
     "../plugins/plugin-manager/src/index.ts:658-667": {
       "kind": "git",
       "blob": "22810c890bc5b9321e698c5e3f1998b9e7d3b5e6",
-      "commit": "b3f721c142462808cd8a4aaa3fa4a9aff7a70895",
+      "commit": "83541bc21fe425f49eec2b195176f142cdce8040",
       "lines": [
         658,
         667
@@ -202,7 +202,7 @@
     "../plugins/plugin-manager/src/index.ts:62-68": {
       "kind": "git",
       "blob": "22810c890bc5b9321e698c5e3f1998b9e7d3b5e6",
-      "commit": "b3f721c142462808cd8a4aaa3fa4a9aff7a70895",
+      "commit": "83541bc21fe425f49eec2b195176f142cdce8040",
       "lines": [
         62,
         68
@@ -212,7 +212,7 @@
     "../plugins/plugin-manager/src/index.ts:108-115": {
       "kind": "git",
       "blob": "22810c890bc5b9321e698c5e3f1998b9e7d3b5e6",
-      "commit": "b3f721c142462808cd8a4aaa3fa4a9aff7a70895",
+      "commit": "83541bc21fe425f49eec2b195176f142cdce8040",
       "lines": [
         108,
         115
@@ -222,7 +222,7 @@
     "../plugins/plugin-manager/src/index.ts:38-41": {
       "kind": "git",
       "blob": "22810c890bc5b9321e698c5e3f1998b9e7d3b5e6",
-      "commit": "b3f721c142462808cd8a4aaa3fa4a9aff7a70895",
+      "commit": "83541bc21fe425f49eec2b195176f142cdce8040",
       "lines": [
         38,
         41
@@ -232,7 +232,7 @@
     "../plugins/plugin-manager/src/index.ts:51-53": {
       "kind": "git",
       "blob": "22810c890bc5b9321e698c5e3f1998b9e7d3b5e6",
-      "commit": "b3f721c142462808cd8a4aaa3fa4a9aff7a70895",
+      "commit": "83541bc21fe425f49eec2b195176f142cdce8040",
       "lines": [
         51,
         53
@@ -242,22 +242,12 @@
     "../plugins/plugin-manager/src/index.ts:146-151": {
       "kind": "git",
       "blob": "22810c890bc5b9321e698c5e3f1998b9e7d3b5e6",
-      "commit": "b3f721c142462808cd8a4aaa3fa4a9aff7a70895",
+      "commit": "83541bc21fe425f49eec2b195176f142cdce8040",
       "lines": [
         146,
         151
       ],
       "hash": "397f310fcf69f243cb4835ae69c62470328994d7bc0ab5f2c13ad18e09f266d7"
-    },
-    "../plugins/plugin-manager/package.json:31-38": {
-      "kind": "git",
-      "blob": "5bdd3384f371ab64ddc01ac6d638efae412559ac",
-      "commit": "b3f721c142462808cd8a4aaa3fa4a9aff7a70895",
-      "lines": [
-        31,
-        38
-      ],
-      "hash": "f7896b5951509fad7f9b75b559ac9a0e84c41176d316753744c768efd85d0f16"
     }
   },
   "content/docs/plugin-manager/install.mdx": {
@@ -1023,13 +1013,14 @@
         "release.ts",
         "scaffold.ts",
         "style-check.ts",
-        "vocab.ts"
+        "vocab.ts",
+        "wiring-check.ts"
       ]
     },
     "../plugins/devkit/src/node-probe-deps.ts:31-39": {
       "kind": "git",
       "blob": "be2ca89c7fc7f7ccd2657a004c1f23eb20941996",
-      "commit": "15440880739d0fe311259f29c75d86d61eed6089",
+      "commit": "83541bc21fe425f49eec2b195176f142cdce8040",
       "lines": [
         31,
         39
@@ -1617,47 +1608,14 @@
     "has ../plugins/devkit/src/index.ts \"scoped.gwbSkills.register(new URL('../skills/', import.meta.url))\"": {
       "kind": "has"
     },
-    "has ../plugins/devkit/src/index.ts \"export const inject = ['gwbCommands']\"": {
+    "has ../plugins/devkit/src/index.ts \"function unknownKeysRefusal(args: Record<string, unknown>, known: readonly string[], usage: string)\"": {
       "kind": "has"
     },
-    "has ../plugins/devkit/src/index.ts \"ctx.inject(['gwbShell']\"": {
+    "has ../plugins/devkit/src/index.ts \"不认识参数\"": {
       "kind": "has"
     },
-    "has ../plugins/devkit/src/index.ts \"ctx.inject(['gwbNodeCli']\"": {
+    "has ../plugins/devkit/src/index.ts \".filter((entry) => entry.plugin === '@godcreator/gwb-devkit')\"": {
       "kind": "has"
-    },
-    "has ../plugins/devkit/src/index.ts \"ctx.inject(['gwbSkills']\"": {
-      "kind": "has"
-    },
-    "../plugins/devkit/package.json:31-43": {
-      "kind": "git",
-      "blob": "b8e42d564031107dacbf5da3ed8ffe950e249379",
-      "commit": "e789cabdc5b1b7b70886ddf5d4370a2bc7e570fe",
-      "lines": [
-        31,
-        43
-      ],
-      "hash": "32fbfb866764a0a36cb083e9f75d8ed0035b3f66814533483d11dadcf90827c3"
-    },
-    "../plugins/devkit/src/index.ts:330-342": {
-      "kind": "git",
-      "blob": "c4f7988561f52dfe0d83d140cd160f26e36ab8aa",
-      "commit": "e789cabdc5b1b7b70886ddf5d4370a2bc7e570fe",
-      "lines": [
-        330,
-        342
-      ],
-      "hash": "8c1d1c6f1c17bc613ecb97c1e3aaf540a61ec61cc203d8f4f5ac033fbd668ae4"
-    },
-    "../plugins/devkit/src/index.ts:562-571": {
-      "kind": "git",
-      "blob": "c4f7988561f52dfe0d83d140cd160f26e36ab8aa",
-      "commit": "e789cabdc5b1b7b70886ddf5d4370a2bc7e570fe",
-      "lines": [
-        562,
-        571
-      ],
-      "hash": "71ec6c38c9cc178e192df56aff8bcae78fbc60ce4c9360c5cb828400dbfb80c6"
     }
   },
   "content/docs/devkit/scaffold.mdx": {
@@ -2490,73 +2448,13 @@
     }
   },
   "content/docs/seams/workbench.mdx": {
-    "../plugins/devkit/src/index.ts:5-9": {
-      "kind": "git",
-      "blob": "c4f7988561f52dfe0d83d140cd160f26e36ab8aa",
-      "commit": "133b6f28674a829a7e6affa2a207852522905600",
-      "lines": [
-        5,
-        9
-      ],
-      "hash": "6d314b8d969d478907c293ef3dc5c226098b0b35f4b0f532011caa5a1f78f89b"
-    },
     "has ../plugins/devkit/tests/ready-log.test.ts \"列出总线上 plugin 是本包包名的全部命令\"": {
       "kind": "has"
-    },
-    "../plugins/devkit/src/index.ts:43-44": {
-      "kind": "git",
-      "blob": "c4f7988561f52dfe0d83d140cd160f26e36ab8aa",
-      "commit": "133b6f28674a829a7e6affa2a207852522905600",
-      "lines": [
-        43,
-        44
-      ],
-      "hash": "208126b10bcf069b2db01d6187e80e6444e72a4c0871c20653698eda96ee37cd"
-    },
-    "../plugins/devkit/src/index.ts:269-277": {
-      "kind": "git",
-      "blob": "c4f7988561f52dfe0d83d140cd160f26e36ab8aa",
-      "commit": "133b6f28674a829a7e6affa2a207852522905600",
-      "lines": [
-        269,
-        277
-      ],
-      "hash": "e2ef2dc0cfe174f1cf75d141780c80ce3730ac23d26bf1099a43251f2a2af724"
-    },
-    "../plugins/devkit/src/index.ts:287-302": {
-      "kind": "git",
-      "blob": "c4f7988561f52dfe0d83d140cd160f26e36ab8aa",
-      "commit": "133b6f28674a829a7e6affa2a207852522905600",
-      "lines": [
-        287,
-        302
-      ],
-      "hash": "3ead481664fb04dd91a6e7f75e9cb5bf74f6723f7ec1b5b8963eb349ac1f5acd"
-    },
-    "../plugins/devkit/src/index.ts:552-560": {
-      "kind": "git",
-      "blob": "c4f7988561f52dfe0d83d140cd160f26e36ab8aa",
-      "commit": "133b6f28674a829a7e6affa2a207852522905600",
-      "lines": [
-        552,
-        560
-      ],
-      "hash": "1d2ba33fa8120de7fc76102bad4932b59edfa09aafc3ca53029685264e0f4891"
-    },
-    "../plugins/devkit/src/index.ts:280-285": {
-      "kind": "git",
-      "blob": "c4f7988561f52dfe0d83d140cd160f26e36ab8aa",
-      "commit": "133b6f28674a829a7e6affa2a207852522905600",
-      "lines": [
-        280,
-        285
-      ],
-      "hash": "e9c59b75a6ad056cd300e045c92d4717dba5df5aeb6d6005b445e41912b1ce29"
     },
     "../plugins/plugin-manager/src/index.ts:62-68": {
       "kind": "git",
       "blob": "22810c890bc5b9321e698c5e3f1998b9e7d3b5e6",
-      "commit": "133b6f28674a829a7e6affa2a207852522905600",
+      "commit": "83541bc21fe425f49eec2b195176f142cdce8040",
       "lines": [
         62,
         68
@@ -2566,22 +2464,36 @@
     "../plugins/plugin-manager/src/index.ts:110-115": {
       "kind": "git",
       "blob": "22810c890bc5b9321e698c5e3f1998b9e7d3b5e6",
-      "commit": "133b6f28674a829a7e6affa2a207852522905600",
+      "commit": "83541bc21fe425f49eec2b195176f142cdce8040",
       "lines": [
         110,
         115
       ],
       "hash": "e4cfa73e85025abf178dd7ca0a5359369492b141a1686c1f93f5cf595eb34e97"
     },
-    "../plugins/devkit/src/index.ts:562-571": {
-      "kind": "git",
-      "blob": "c4f7988561f52dfe0d83d140cd160f26e36ab8aa",
-      "commit": "133b6f28674a829a7e6affa2a207852522905600",
-      "lines": [
-        562,
-        571
-      ],
-      "hash": "71ec6c38c9cc178e192df56aff8bcae78fbc60ce4c9360c5cb828400dbfb80c6"
+    "has ../plugins/devkit/src/index.ts \"export const inject = ['gwbCommands']\"": {
+      "kind": "has"
+    },
+    "has ../plugins/devkit/src/index.ts \"plugin: '@godcreator/gwb-devkit',\"": {
+      "kind": "has"
+    },
+    "has ../plugins/devkit/src/index.ts \"scoped.gwbNodeCli.register({\"": {
+      "kind": "has"
+    },
+    "has ../plugins/devkit/src/index.ts \"entry: CDP_ENTRY,\"": {
+      "kind": "has"
+    },
+    "has ../plugins/devkit/src/index.ts \"scoped.effect(() => scoped.gwbSkills.register(new URL('../skills/', import.meta.url)))\"": {
+      "kind": "has"
+    },
+    "has ../plugins/devkit/src/index.ts \"scoped.gwbShell.describeSelf({ title: '开发套件', icon: 'wrench' })\"": {
+      "kind": "has"
+    },
+    "has ../plugins/devkit/src/index.ts \"import type {} from '@godcreator/gwb-commands'\"": {
+      "kind": "has"
+    },
+    "has ../plugins/devkit/src/index.ts \".filter((entry) => entry.plugin === '@godcreator/gwb-devkit')\"": {
+      "kind": "has"
     }
   },
   "content/docs/plugin-manager/sources.mdx": {
@@ -3003,90 +2915,10 @@
     "has ../plugins/devkit/tests/release.test.ts \"dev 依赖不查：落后于源上 latest、出了范围、写法不是 ^ 都照常发\"": {
       "kind": "has"
     },
-    "../plugins/devkit/src/release.ts:340-369": {
-      "kind": "git",
-      "blob": "f7c5bcd462bf38d587d49b0855154575fdfdfa10",
-      "commit": "fb2448d866ba79de3c7d69f4d6250a0ba24b844f",
-      "lines": [
-        340,
-        369
-      ],
-      "hash": "e6e9b021c4394aa2a970a11febb07db2090e18c399a2f87bab9255c3883b1af9"
-    },
-    "../plugins/devkit/src/release.ts:118-131": {
-      "kind": "git",
-      "blob": "f7c5bcd462bf38d587d49b0855154575fdfdfa10",
-      "commit": "fb2448d866ba79de3c7d69f4d6250a0ba24b844f",
-      "lines": [
-        118,
-        131
-      ],
-      "hash": "eea1577f56fb7983e67e49b811eeb865a30df0c90716a19fd115a0ca0951e8ad"
-    },
-    "../plugins/devkit/src/release.ts:35-59": {
-      "kind": "git",
-      "blob": "f7c5bcd462bf38d587d49b0855154575fdfdfa10",
-      "commit": "fb2448d866ba79de3c7d69f4d6250a0ba24b844f",
-      "lines": [
-        35,
-        59
-      ],
-      "hash": "1a33927e7a14443427d8d1fe81f707a30b68b1a0ed21eaaeaaba470e82367193"
-    },
-    "../plugins/devkit/src/release.ts:70-101": {
-      "kind": "git",
-      "blob": "f7c5bcd462bf38d587d49b0855154575fdfdfa10",
-      "commit": "fb2448d866ba79de3c7d69f4d6250a0ba24b844f",
-      "lines": [
-        70,
-        101
-      ],
-      "hash": "b20d45fbda001521c7cc61ae3341cc0aa10e6c8f60418aafba47a7895b931f98"
-    },
-    "../plugins/devkit/src/release.ts:180-202": {
-      "kind": "git",
-      "blob": "f7c5bcd462bf38d587d49b0855154575fdfdfa10",
-      "commit": "fb2448d866ba79de3c7d69f4d6250a0ba24b844f",
-      "lines": [
-        180,
-        202
-      ],
-      "hash": "93c4dc712a0232fc6752a9b7c5005053b555fefeaa89dc6ff32868e4d9f4a28a"
-    },
-    "../plugins/devkit/src/release.ts:133-157": {
-      "kind": "git",
-      "blob": "f7c5bcd462bf38d587d49b0855154575fdfdfa10",
-      "commit": "fb2448d866ba79de3c7d69f4d6250a0ba24b844f",
-      "lines": [
-        133,
-        157
-      ],
-      "hash": "1e25157f38484876bf117456410c9d71d532ef42c0b24f178ba840f83c79810d"
-    },
-    "../plugins/devkit/src/release.ts:204-225": {
-      "kind": "git",
-      "blob": "f7c5bcd462bf38d587d49b0855154575fdfdfa10",
-      "commit": "fb2448d866ba79de3c7d69f4d6250a0ba24b844f",
-      "lines": [
-        204,
-        225
-      ],
-      "hash": "648048a3b01891b796d38ac4f3f715a5717fdb42589a14f1ed773879ca28b2b0"
-    },
-    "../plugins/devkit/src/release.ts:159-178": {
-      "kind": "git",
-      "blob": "f7c5bcd462bf38d587d49b0855154575fdfdfa10",
-      "commit": "fb2448d866ba79de3c7d69f4d6250a0ba24b844f",
-      "lines": [
-        159,
-        178
-      ],
-      "hash": "2a769b92b5b708377123fd40955e1ed983a997517d2c0c42898ff823e9526387"
-    },
     "../plugins/devkit/src/artifact-check.ts:78-87": {
       "kind": "git",
       "blob": "c2881acba8e8369d1316059f05393f1b462cb79d",
-      "commit": "fb2448d866ba79de3c7d69f4d6250a0ba24b844f",
+      "commit": "83541bc21fe425f49eec2b195176f142cdce8040",
       "lines": [
         78,
         87
@@ -3096,7 +2928,7 @@
     "../plugins/devkit/src/artifact-check.ts:30-63": {
       "kind": "git",
       "blob": "c2881acba8e8369d1316059f05393f1b462cb79d",
-      "commit": "fb2448d866ba79de3c7d69f4d6250a0ba24b844f",
+      "commit": "83541bc21fe425f49eec2b195176f142cdce8040",
       "lines": [
         30,
         63
@@ -3106,37 +2938,17 @@
     "../plugins/devkit/src/style-check.ts:432-454": {
       "kind": "git",
       "blob": "db7285a9e73186ce8e073fd71c012e67b372c712",
-      "commit": "fb2448d866ba79de3c7d69f4d6250a0ba24b844f",
+      "commit": "83541bc21fe425f49eec2b195176f142cdce8040",
       "lines": [
         432,
         454
       ],
       "hash": "ce55917380584f002a8df1008ca40492d3b007d04a795adacbc1e056dc074226"
     },
-    "../plugins/devkit/src/node-dev-deps.ts:280-303": {
-      "kind": "git",
-      "blob": "b000a057d8a31b30c846a202862c07bb16e36efe",
-      "commit": "fb2448d866ba79de3c7d69f4d6250a0ba24b844f",
-      "lines": [
-        280,
-        303
-      ],
-      "hash": "91a20bc5ad40cd57b173f84b3e980d3beba740f470d5a5f855473da5481013fe"
-    },
-    "../plugins/devkit/src/release.ts:11-33": {
-      "kind": "git",
-      "blob": "f7c5bcd462bf38d587d49b0855154575fdfdfa10",
-      "commit": "fb2448d866ba79de3c7d69f4d6250a0ba24b844f",
-      "lines": [
-        11,
-        33
-      ],
-      "hash": "cfda60f92cf1c6013c2eb38a2ec7e1af0f390ea62ac67bd42e58d760bb5e6c48"
-    },
     "../plugins/devkit/src/artifact-check.ts:112-136": {
       "kind": "git",
       "blob": "c2881acba8e8369d1316059f05393f1b462cb79d",
-      "commit": "fb2448d866ba79de3c7d69f4d6250a0ba24b844f",
+      "commit": "83541bc21fe425f49eec2b195176f142cdce8040",
       "lines": [
         112,
         136
@@ -3146,7 +2958,7 @@
     "../plugins/devkit/src/artifact-check.ts:231-261": {
       "kind": "git",
       "blob": "c2881acba8e8369d1316059f05393f1b462cb79d",
-      "commit": "fb2448d866ba79de3c7d69f4d6250a0ba24b844f",
+      "commit": "83541bc21fe425f49eec2b195176f142cdce8040",
       "lines": [
         231,
         261
@@ -3156,7 +2968,7 @@
     "../plugins/devkit/src/artifact-check.ts:138-146": {
       "kind": "git",
       "blob": "c2881acba8e8369d1316059f05393f1b462cb79d",
-      "commit": "fb2448d866ba79de3c7d69f4d6250a0ba24b844f",
+      "commit": "83541bc21fe425f49eec2b195176f142cdce8040",
       "lines": [
         138,
         146
@@ -3166,12 +2978,124 @@
     "../plugins/devkit/src/artifact-check.ts:263-280": {
       "kind": "git",
       "blob": "c2881acba8e8369d1316059f05393f1b462cb79d",
-      "commit": "fb2448d866ba79de3c7d69f4d6250a0ba24b844f",
+      "commit": "83541bc21fe425f49eec2b195176f142cdce8040",
       "lines": [
         263,
         280
       ],
       "hash": "7e7b5d0544aa73a9d8e6813dbb1c6b93bd4c519807ed8826c21db8a61fddaf18"
+    },
+    "../plugins/devkit/src/release.ts:343-372": {
+      "kind": "git",
+      "blob": "cf95a093af6cccc1e1d9122013dd00b337c5cf56",
+      "commit": "83541bc21fe425f49eec2b195176f142cdce8040",
+      "lines": [
+        343,
+        372
+      ],
+      "hash": "901b7771b278795e59aff1b4459d50cdefd4aa919f0c421dec897971e92c359b"
+    },
+    "../plugins/devkit/src/release.ts:120-133": {
+      "kind": "git",
+      "blob": "cf95a093af6cccc1e1d9122013dd00b337c5cf56",
+      "commit": "83541bc21fe425f49eec2b195176f142cdce8040",
+      "lines": [
+        120,
+        133
+      ],
+      "hash": "eea1577f56fb7983e67e49b811eeb865a30df0c90716a19fd115a0ca0951e8ad"
+    },
+    "../plugins/devkit/src/release.ts:37-61": {
+      "kind": "git",
+      "blob": "cf95a093af6cccc1e1d9122013dd00b337c5cf56",
+      "commit": "83541bc21fe425f49eec2b195176f142cdce8040",
+      "lines": [
+        37,
+        61
+      ],
+      "hash": "1a33927e7a14443427d8d1fe81f707a30b68b1a0ed21eaaeaaba470e82367193"
+    },
+    "../plugins/devkit/src/release.ts:72-103": {
+      "kind": "git",
+      "blob": "cf95a093af6cccc1e1d9122013dd00b337c5cf56",
+      "commit": "83541bc21fe425f49eec2b195176f142cdce8040",
+      "lines": [
+        72,
+        103
+      ],
+      "hash": "b20d45fbda001521c7cc61ae3341cc0aa10e6c8f60418aafba47a7895b931f98"
+    },
+    "../plugins/devkit/src/release.ts:182-204": {
+      "kind": "git",
+      "blob": "cf95a093af6cccc1e1d9122013dd00b337c5cf56",
+      "commit": "83541bc21fe425f49eec2b195176f142cdce8040",
+      "lines": [
+        182,
+        204
+      ],
+      "hash": "93c4dc712a0232fc6752a9b7c5005053b555fefeaa89dc6ff32868e4d9f4a28a"
+    },
+    "../plugins/devkit/src/release.ts:135-159": {
+      "kind": "git",
+      "blob": "cf95a093af6cccc1e1d9122013dd00b337c5cf56",
+      "commit": "83541bc21fe425f49eec2b195176f142cdce8040",
+      "lines": [
+        135,
+        159
+      ],
+      "hash": "1e25157f38484876bf117456410c9d71d532ef42c0b24f178ba840f83c79810d"
+    },
+    "../plugins/devkit/src/release.ts:206-227": {
+      "kind": "git",
+      "blob": "cf95a093af6cccc1e1d9122013dd00b337c5cf56",
+      "commit": "83541bc21fe425f49eec2b195176f142cdce8040",
+      "lines": [
+        206,
+        227
+      ],
+      "hash": "648048a3b01891b796d38ac4f3f715a5717fdb42589a14f1ed773879ca28b2b0"
+    },
+    "../plugins/devkit/src/release.ts:161-180": {
+      "kind": "git",
+      "blob": "cf95a093af6cccc1e1d9122013dd00b337c5cf56",
+      "commit": "83541bc21fe425f49eec2b195176f142cdce8040",
+      "lines": [
+        161,
+        180
+      ],
+      "hash": "2a769b92b5b708377123fd40955e1ed983a997517d2c0c42898ff823e9526387"
+    },
+    "../plugins/devkit/src/node-dev-deps.ts:296-319": {
+      "kind": "git",
+      "blob": "45ca83174ec6a642f9dfab8dd30b3fe2cb04a9f4",
+      "commit": "83541bc21fe425f49eec2b195176f142cdce8040",
+      "lines": [
+        296,
+        319
+      ],
+      "hash": "91a20bc5ad40cd57b173f84b3e980d3beba740f470d5a5f855473da5481013fe"
+    },
+    "has ../plugins/devkit/src/wiring-check.ts \"export function sourceWiringOf(source: string): SourceWiring\"": {
+      "kind": "has"
+    },
+    "has ../plugins/devkit/src/wiring-check.ts \"export function contextServicesOf(dts: string): string[]\"": {
+      "kind": "has"
+    },
+    "has ../plugins/devkit/src/wiring-check.ts \"function providersOf(service: string, candidates: readonly KnownPackage[], io: Pick<WiringCheckIo, 'readText' | 'filesUnder'>): KnownPackage[]\"": {
+      "kind": "has"
+    },
+    "has ../plugins/devkit/src/wiring-check.ts \"function providedByCyclicSibling(service: string, input: WiringCheckInput, io: WiringCheckIo): boolean\"": {
+      "kind": "has"
+    },
+    "../plugins/devkit/src/release.ts:12-35": {
+      "kind": "git",
+      "blob": "cf95a093af6cccc1e1d9122013dd00b337c5cf56",
+      "commit": "83541bc21fe425f49eec2b195176f142cdce8040",
+      "lines": [
+        12,
+        35
+      ],
+      "hash": "f38c0a365ce9cda29a567b260dcb71ef82debbae14f58e4a333bfde0a74299a3"
     }
   },
   "content/docs/plugin-manager/busy.mdx": {
@@ -3292,6 +3216,241 @@
         103
       ],
       "hash": "d04d345861d4cf6fa037f79acc10563623bbe4a35f92282d9055d53a9792ccb0"
+    }
+  },
+  "content/docs/wiring.mdx": {
+    "has ../plugins/devkit/src/index.ts \"name: 'devkit.scaffold',\"": {
+      "kind": "has"
+    },
+    "has ../plugins/devkit/src/index.ts \"name: 'devkit.scaffold.plugin',\"": {
+      "kind": "has"
+    },
+    "has ../plugins/devkit/src/index.ts \"name: 'devkit.home.new',\"": {
+      "kind": "has"
+    },
+    "has ../plugins/devkit/src/index.ts \"name: 'devkit.home.open',\"": {
+      "kind": "has"
+    },
+    "has ../plugins/devkit/src/index.ts \"name: 'devkit.home.list',\"": {
+      "kind": "has"
+    },
+    "has ../plugins/devkit/src/index.ts \"name: 'devkit.home.rm',\"": {
+      "kind": "has"
+    },
+    "has ../plugins/devkit/src/index.ts \"name: 'devkit.dev',\"": {
+      "kind": "has"
+    },
+    "has ../plugins/devkit/src/index.ts \"name: 'devkit.release',\"": {
+      "kind": "has"
+    },
+    "has ../plugins/devkit/src/index.ts \"name: 'devkit.cdp',\"": {
+      "kind": "has"
+    },
+    "has ../plugins/devkit/src/index.ts \"scoped.gwbShell.describeSelf({ title: '开发套件', icon: 'wrench' })\"": {
+      "kind": "has"
+    },
+    "has ../plugins/devkit/src/index.ts \"export const inject = ['gwbCommands']\"": {
+      "kind": "has"
+    },
+    "has ../plugins/devkit/src/index.ts \"ctx.inject(['gwbShell'], (scoped) => {\"": {
+      "kind": "has"
+    },
+    "has ../plugins/devkit/src/index.ts \"ctx.inject(['gwbNodeCli'], (scoped) => {\"": {
+      "kind": "has"
+    },
+    "has ../plugins/devkit/src/index.ts \"ctx.inject(['gwbSkills'], (scoped) => {\"": {
+      "kind": "has"
+    },
+    "has ../plugins/devkit/src/index.ts \"scoped.gwbSkills.register(new URL('../skills/', import.meta.url))\"": {
+      "kind": "has"
+    },
+    "has ../plugins/devkit/src/index.ts \"kernelVersion: requireKernel(ctx).version\"": {
+      "kind": "has"
+    },
+    "has ../plugins/devkit/src/index.ts \"ownHome: requireKernel(ctx).dataDir\"": {
+      "kind": "has"
+    },
+    "has ../plugins/devkit/src/scaffold.ts \"shell: installedVersionInHome(homeDir, SHELL_PACKAGE),\"": {
+      "kind": "has"
+    },
+    "has ../plugins/devkit/src/index.ts \"外壳在开发套件的 peer 里是可选的，home 里没装外壳（或命令总线）时这条命令报错、什么都不写\"": {
+      "kind": "has"
+    },
+    "has ../plugins/devkit/package.json \"\\\"@godcreator/gwb-kernel-desktop\\\": \\\"^0.7.0\\\"\"": {
+      "kind": "has"
+    },
+    "has ../plugins/devkit/package.json \"\\\"@godcreator/gwb-commands\\\": \\\"^0.5.0\\\"\"": {
+      "kind": "has"
+    },
+    "has ../plugins/devkit/package.json \"\\\"@godcreator/gwb-plugin-manager\\\": \\\"workspace:^\\\"\"": {
+      "kind": "has"
+    },
+    "has ../plugins/devkit/package.json \"\\\"@godcreator/gwb-node-cli\\\": { \\\"optional\\\": true }\"": {
+      "kind": "has"
+    },
+    "has ../plugins/devkit/package.json \"\\\"@godcreator/gwb-shell\\\": { \\\"optional\\\": true }\"": {
+      "kind": "has"
+    },
+    "has ../plugins/devkit/package.json \"\\\"@godcreator/gwb-skills\\\": { \\\"optional\\\": true }\"": {
+      "kind": "has"
+    },
+    "has ../plugins/devkit/src/dev.ts \"import { INSTALL_COMMAND, KERNEL_PACKAGE, LIST_COMMAND, UPDATE_COMMAND } from '@godcreator/gwb-plugin-manager'\"": {
+      "kind": "has"
+    },
+    "has ../plugins/devkit/src/home.ts \"import { KERNEL_PACKAGE, homePnpmEnv } from '@godcreator/gwb-plugin-manager'\"": {
+      "kind": "has"
+    },
+    "has ../plugins/devkit/src/index.ts \"import { locatePnpm } from '@godcreator/gwb-plugin-manager'\"": {
+      "kind": "has"
+    },
+    "has ../plugins/devkit/src/release.ts \"import { KERNEL_PACKAGE, isCaretRange } from '@godcreator/gwb-plugin-manager'\"": {
+      "kind": "has"
+    },
+    "has ../plugins/devkit/src/node-dev-deps.ts \"import { tailLines } from '@godcreator/gwb-plugin-manager'\"": {
+      "kind": "has"
+    },
+    "has ../plugins/devkit/src/dev.ts \"runCommandOnPage(home, UPDATE_COMMAND, PLUGIN_MANAGER_TIMEOUT_MS, deps, { specs })\"": {
+      "kind": "has"
+    },
+    "has ../plugins/devkit/src/dev.ts \"runCommandOnPage(home, INSTALL_COMMAND, PLUGIN_MANAGER_TIMEOUT_MS, deps, one)\"": {
+      "kind": "has"
+    },
+    "has ../plugins/devkit/src/dev.ts \"export const SHELL_ENV_COMMAND = 'shell.env'\"": {
+      "kind": "has"
+    },
+    "has ../plugins/devkit/src/home.ts \"export const RECORD_FILE = 'runtime.json'\"": {
+      "kind": "has"
+    },
+    "has ../plugins/devkit/src/dev.ts \"export const LOG_FILE = 'gwb.log'\"": {
+      "kind": "has"
+    },
+    "has ../plugins/devkit/src/dev.ts \"export const HOME_MANIFEST = 'package.json'\"": {
+      "kind": "has"
+    },
+    "has ../plugins/devkit/src/dev.ts \"export const DEV_PACKS_DIR = 'dev-packs'\"": {
+      "kind": "has"
+    },
+    "has ../plugins/devkit/src/home.ts \"deps.fs.writeText(path.join(home, 'cordis.yml'), baseYaml())\"": {
+      "kind": "has"
+    },
+    "has ../plugins/devkit/src/home.ts \"childEnv.GWB_HOME = name\"": {
+      "kind": "has"
+    },
+    "has ../plugins/devkit/src/artifact-check.ts \"path.join(pkgDir, 'node_modules', ...KERNEL_PACKAGE.split('/'), 'dist', 'index.html')\"": {
+      "kind": "has"
+    },
+    "has ../plugins/devkit/src/style-check.ts \"const SHELL_THEME_REFERENCE = './theme.reference.css'\"": {
+      "kind": "has"
+    },
+    "has ../plugins/devkit/src/wiring-check.ts \"export const WIRING_PAGE = 'docs-site/content/docs/wiring.mdx'\"": {
+      "kind": "has"
+    },
+    "has ../plugins/plugin-manager/src/index.ts \"ctx.effect(() => ctx.provide('gwbPluginManager', PRESENCE))\"": {
+      "kind": "has"
+    },
+    "has ../plugins/plugin-manager/src/index.ts \"export type PluginManagerPresence = Record<string, never>\"": {
+      "kind": "has"
+    },
+    "has ../plugins/plugin-manager/src/index.ts \"gwbPluginManager: PluginManagerPresence\"": {
+      "kind": "has"
+    },
+    "has ../plugins/plugin-manager/src/index.ts \"export const LIST_COMMAND = 'plugin-manager.list'\"": {
+      "kind": "has"
+    },
+    "has ../plugins/plugin-manager/src/index.ts \"export const INSTALL_COMMAND = 'plugin-manager.install'\"": {
+      "kind": "has"
+    },
+    "has ../plugins/plugin-manager/src/index.ts \"export const UPDATE_COMMAND = 'plugin-manager.update'\"": {
+      "kind": "has"
+    },
+    "has ../plugins/plugin-manager/src/index.ts \"const ADD_ENTRY_COMMAND = 'plugin-manager.add-entry'\"": {
+      "kind": "has"
+    },
+    "has ../plugins/plugin-manager/src/index.ts \"const REMOVE_ENTRY_COMMAND = 'plugin-manager.remove-entry'\"": {
+      "kind": "has"
+    },
+    "has ../plugins/plugin-manager/src/index.ts \"const ENABLE_COMMAND = 'plugin-manager.enable'\"": {
+      "kind": "has"
+    },
+    "has ../plugins/plugin-manager/src/index.ts \"const DISABLE_COMMAND = 'plugin-manager.disable'\"": {
+      "kind": "has"
+    },
+    "has ../plugins/plugin-manager/src/index.ts \"const OUTDATED_COMMAND = 'plugin-manager.outdated'\"": {
+      "kind": "has"
+    },
+    "has ../plugins/plugin-manager/src/index.ts \"const UNINSTALL_COMMAND = 'plugin-manager.uninstall'\"": {
+      "kind": "has"
+    },
+    "has ../plugins/plugin-manager/src/index.ts \"const SEARCH_COMMAND = 'plugin-manager.search'\"": {
+      "kind": "has"
+    },
+    "has ../plugins/plugin-manager/src/index.ts \"export { locatePnpm } from './pnpm-location.js'\"": {
+      "kind": "has"
+    },
+    "has ../plugins/plugin-manager/src/index.ts \"export { isCaretRange, KERNEL_PACKAGE } from './kernel-compat.js'\"": {
+      "kind": "has"
+    },
+    "has ../plugins/plugin-manager/src/index.ts \"export { homePnpmEnv, tailLines } from './pnpm.js'\"": {
+      "kind": "has"
+    },
+    "has ../plugins/plugin-manager/src/index.ts \"this.ctx.inject(['gwbCommands'], (ctx) => {\"": {
+      "kind": "has"
+    },
+    "has ../plugins/plugin-manager/src/index.ts \"this.ctx.inject(['gwbSkills'], (ctx) => {\"": {
+      "kind": "has"
+    },
+    "has ../plugins/plugin-manager/src/index.ts \"const kernel = requireKernel(ctx)\"": {
+      "kind": "has"
+    },
+    "has ../plugins/plugin-manager/package.json \"\\\"@godcreator/gwb-kernel-desktop\\\": \\\"^0.7.0\\\"\"": {
+      "kind": "has"
+    },
+    "has ../plugins/plugin-manager/package.json \"\\\"@godcreator/gwb-commands\\\": \\\"^0.5.1\\\"\"": {
+      "kind": "has"
+    },
+    "has ../plugins/plugin-manager/package.json \"\\\"@godcreator/gwb-skills\\\": { \\\"optional\\\": true }\"": {
+      "kind": "has"
+    },
+    "has ../plugins/plugin-manager/src/tree.ts \"const loaderTree: EntryTree | undefined = ctx.fiber.entry?.parent.tree\"": {
+      "kind": "has"
+    },
+    "has ../plugins/plugin-manager/src/fiber.ts \"export const FIBER_STATE = ['PENDING', 'LOADING', 'ACTIVE', 'FAILED', 'DISPOSED', 'UNLOADING'] as const\"": {
+      "kind": "has"
+    },
+    "has ../plugins/plugin-manager/src/pnpm.ts \"pnpm_config_auto_install_peers: 'false'\"": {
+      "kind": "has"
+    },
+    "has ../plugins/plugin-manager/src/home.ts \"const MANIFEST = 'package.json'\"": {
+      "kind": "has"
+    },
+    "has ../plugins/plugin-manager/src/home.ts \"return await fs.promises.realpath(link)\"": {
+      "kind": "has"
+    },
+    "has ../plugins/plugin-manager/src/home.ts \"const NPMRC = '.npmrc'\"": {
+      "kind": "has"
+    },
+    "has ../plugins/plugin-manager/src/registry.ts \"-/v1/search?text=\"": {
+      "kind": "has"
+    }
+  },
+  "content/docs/rules/wiring.mdx": {
+    "has ../plugins/devkit/src/wiring-check.ts \"export const WIRING_PAGE = 'docs-site/content/docs/wiring.mdx'\"": {
+      "kind": "has"
+    },
+    "has ../plugins/devkit/src/wiring-check.ts \"export function wiringProblems(input: WiringCheckInput, io: WiringCheckIo): string[]\"": {
+      "kind": "has"
+    },
+    "has ../plugins/devkit/src/release.ts \"...(manifest.plugin ? wiringProblems(\"": {
+      "kind": "has"
+    },
+    "has ../plugins/devkit/tests/wiring-check.test.ts \"局部注入、提供方是同工作区里 peer 写了本包的插件（写 peer 会成环）：放行；必需注入不放行\"": {
+      "kind": "has"
+    },
+    "has ../plugins/devkit/tests/wiring-check.test.ts \"像注入又读不出服务名的逐处报：变量参数、对象形式、拼出来的数组、叫 inject 的变量、对象字面量里值是数组的 inject 键、不经 . 直接调用\"": {
+      "kind": "has"
+    },
+    "has ../plugins/devkit/tests/wiring-check.test.ts \"不是注入的不管：属性读取、类型里的 inject 成员与方法声明\"": {
+      "kind": "has"
     }
   }
 }

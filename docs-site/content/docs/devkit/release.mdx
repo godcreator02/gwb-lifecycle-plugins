@@ -11,7 +11,7 @@ description: devkit.release 从仓根按依赖顺序把包发到各包的发布�
 
 收仓根 `dir` 与要发的包目录 `packages`（必给，非空数组，相对仓根，按依赖顺序），依次做六步：
 
-{/* ref file="../plugins/devkit/src/release.ts" lines="340-369" */}
+{/* ref file="../plugins/devkit/src/release.ts" lines="343-372" */}
 
 <Diagram name="dk-release" title="devkit.release 发正式版：六步依次做，任何一处没过，一个包都不发">
 - 第 1 步仓根 git 工作区干净（`git status --porcelain=v1`），不干净或问不出连构建都不运行；第 2 步仓根 `pnpm build`
@@ -32,7 +32,7 @@ description: devkit.release 从仓根按依赖顺序把包发到各包的发布�
 
 发布目标是包自己 `package.json` 的 `publishConfig.registry`；没写、或写的不是 http(s) 地址就拒，报错写明要加什么、给出团队源地址作例子：
 
-{/* ref file="../plugins/devkit/src/release.ts" lines="118-131" */}
+{/* ref file="../plugins/devkit/src/release.ts" lines="120-133" */}
 
 它写进临时目录里发布内容清单的 `publishConfig.registry`，命令行不带 `--registry`；「同号已在源上」也问这个源。为什么这么传见 [pnpm 与包源](/docs/seams/pnpm-registry)。
 
@@ -49,9 +49,9 @@ description: devkit.release 从仓根按依赖顺序把包发到各包的发布�
 
 一次发版的输入、回执，以及每个包只解析一次的清单与它的检查结论：
 
-{/* ref file="../plugins/devkit/src/release.ts" lines="35-59" */}
+{/* ref file="../plugins/devkit/src/release.ts" lines="37-61" */}
 
-{/* ref file="../plugins/devkit/src/release.ts" lines="70-101" */}
+{/* ref file="../plugins/devkit/src/release.ts" lines="72-103" */}
 
 `TicketManifest` 只取发版前检查要看的那部分：全部 peer（含内核包）、是不是插件（`keywords` 含 `gwb-plugin`）。`Ticket.problems` 非空就拒，所有包的 `Ticket` 拼成一段回执，按包分组。
 
@@ -73,19 +73,19 @@ description: devkit.release 从仓根按依赖顺序把包发到各包的发布�
 
 peer 里的插件在不在同一条线：
 
-{/* ref file="../plugins/devkit/src/release.ts" lines="180-202" */}
+{/* ref file="../plugins/devkit/src/release.ts" lines="182-204" */}
 
 peer 里哪些包算 gwb 插件、要和源上 latest 比，读包目录 `node_modules` 里它的清单判，不看包名范围；同一条线怎么算：
 
-{/* ref file="../plugins/devkit/src/release.ts" lines="133-157" */}
+{/* ref file="../plugins/devkit/src/release.ts" lines="135-159" */}
 
 peer 里只许哪几类包：
 
-{/* ref file="../plugins/devkit/src/release.ts" lines="204-225" */}
+{/* ref file="../plugins/devkit/src/release.ts" lines="206-227" */}
 
 peer 里内核包的检查，`^x.y.z` 写法的判定 `isCaretRange` 从插件管理的主入口 import（见 [peer 里的内核包与插件](/docs/seams/kernel-peer)）：
 
-{/* ref file="../plugins/devkit/src/release.ts" lines="159-178" */}
+{/* ref file="../plugins/devkit/src/release.ts" lines="161-180" */}
 
 **产物检查**在 `src/artifact-check.ts`。哪些文件算哪一侧，照模板生成的插件包的构建约定判：node 侧是 `exports["."]` 的运行时入口（没有 `exports` 时是 `main`）顺着相对 import 走到的文件，也就是内核的 loader 按包名 import 插件时加载的那些；浏览器侧是 `dist/client.js` 顺着相对 import 走到的文件；两边都走不到的文件不查。库（没有 `gwb-plugin` 的包）只查相对 import，不查两份包名名单：库由用它的插件打包进产物，它的 import 不在 home 里按包名解析。库可以只有子路径导出、包根没有入口，所以 node 侧从 `exports` 每个子路径指到的 js 文件走起（带 `*` 的通配子路径、`./styles.css` 这类不是 js 的目标不算；没有 `exports` 时取 `main`），外加 `bin` 里的脚本；一个 js 入口都没有才拒。插件照旧只从 `exports["."]` 走起，没有就拒：内核的 loader 按包名 import 插件。
 
@@ -117,7 +117,7 @@ node 侧放行的包名：
 
 源码层要用 Tailwind 编译。devkit 不自带 Tailwind：被检查的包 dev 里有 `@tailwindcss/cli`（构建样式本来就要它），从它在 pnpm 虚拟存储里的真实目录解析旁边的 `@tailwindcss/node`，和构建用的是同一个版本；找不到就拒，写明原因：
 
-{/* ref file="../plugins/devkit/src/node-dev-deps.ts" lines="280-303" */}
+{/* ref file="../plugins/devkit/src/node-dev-deps.ts" lines="296-319" */}
 
 **注入与 wiring 页**在 `src/wiring-check.ts`，只查插件包。先把 `src/` 下每份源码（`.d.ts` 除外）的注释、字符串与模板字面量的内容、正则字面量换成空格，再找 `inject` 标识符：`export const inject = [...]`、`static inject = [...]` 算必需注入，`<上下文>.inject([...], fn)` 算局部注入，数组里只认字符串字面量；像注入又读不出服务名的写法报出文件与行号。服务的提供方从 peer 与 dev 里的插件判：读包目录 `node_modules` 里它的类型入口，看给 cordis `Context` 补了哪些名字，几个都补了就只认运行时代码里提供它的那个。放行的几种（`gwbKernel`、本包自己提供的、提供方不是 gwb 插件的、同工作区里写 peer 会成环的）与认不出的写法见规矩页[插件之间怎么连写成一页](/docs/rules/wiring)：
 
@@ -135,7 +135,7 @@ node 侧放行的包名：
 
 ## 依赖的接口
 
-{/* ref file="../plugins/devkit/src/release.ts" lines="11-33" */}
+{/* ref file="../plugins/devkit/src/release.ts" lines="12-35" */}
 
 | 接口 | 用来做什么 | 生产实现 | 测试实现 |
 | --- | --- | --- | --- |
