@@ -48,6 +48,11 @@ export const inject = ['gwbCommands']
 
 // 下面几段参数说明在参数不对时连同报错一起回
 
+/** 建仓与加插件共用：模板 peer 里的版本号从哪来，外壳没装时为什么会失败 */
+const SCAFFOLD_PEER_VERSIONS_NOTE =
+  '模板插件 peer 里的内核包取正在运行的内核版本，命令总线与外壳读运行这条命令的 home 里 node_modules/@godcreator/gwb-commands 与 node_modules/@godcreator/gwb-shell 的 package.json 取版本号。' +
+  '外壳在开发套件的 peer 里是可选的，home 里没装外壳（或命令总线）时这条命令报错、什么都不写：先在这个 home 里装上外壳'
+
 const SCAFFOLD_USAGE = [
   'devkit.scaffold 的参数：',
   // 规则从 NAME_RE 取，不在这里抄一份
@@ -56,6 +61,7 @@ const SCAFFOLD_USAGE = [
   `  scope  可选，包名范围（${String(SCOPE_RE)}），缺省 ${TEAM_SCOPE}。没有团队源发布权限的开发者给自己的范围`,
   `  registry 可选，插件包 package.json 的 publishConfig.registry，devkit.release 发到这里。要是 http(s) 地址的规范写法（new URL(x).href 与原文相同，如 "http://localhost:4873/"），不带账号、查询串与 #；缺省是团队源 ${TEAM_REGISTRY}。发布 token 写在用户级 ~/.npmrc`,
   '模板里要显示名的地方（README 标题、description、窗格标题）都用短名，要改自己改生成的文件。不建文档站',
+  SCAFFOLD_PEER_VERSIONS_NOTE,
   '例：{"name":"hello","dir":"D:\\\\tmp\\\\hello"}',
 ].join('\n')
 
@@ -86,6 +92,13 @@ const STYLE_CHECK_SUMMARY =
   '颜色类（text-/bg-/border-/from-/via-/to-/divide-）只用主题令牌（外壳 theme.reference.css 与本插件样式入口声明的 --color-<名>）；样式入口所在目录下 .tsx 字符串里的类名：前缀排在最前、带前缀的编得出规则、' +
   '不带前缀却编得出规则的报「漏了前缀」。编译用包自己 dev 里 @tailwindcss/cli 旁边的 @tailwindcss/node，找不到就报'
 
+/** 插件包的注入与 wiring 页两项检查查什么：devkit.release 的两份 usage 共用这一句 */
+const WIRING_CHECK_SUMMARY =
+  '注入与 peer 一致——扫 src/ 下源码（.d.ts 除外）里的 export const inject = [...]、static inject = [...]（必需）与 <上下文>.inject([...], fn)（局部注入），数组里只认字符串字面量，像注入又读不出服务名的写法直接拒；' +
+  '服务由谁提供看 peer 与 dev 里插件的类型入口（exports["."] 的 types）给 cordis Context 补的名字，几个都补了就只认运行时代码里 super(<上下文>, \'<名>\') 或 .provide(\'<名>\') 提供它的那个；' +
+  '必需注入的提供方写在 peer 且不标 optional，局部注入的提供方写在 peer（标不标 optional 都行）；gwbKernel、本包自己提供的、提供方不是 gwb 插件的不查；局部注入的提供方是同工作区里 peer 写了本包的插件（写 peer 会成环）时放行。' +
+  'wiring 页写全——仓根 docs-site/content/docs/wiring.mdx 在，注入的服务名（gwbKernel 除外）与本包 super(<上下文>, \'<名>\') / .provide(\'<名>\') 提供的服务名都在页面里整词出现'
+
 const DEV_USAGE = [
   'devkit.dev 的参数：',
   '  home      必给，目标 home 名。**这里不收端口**：端口从那个 home 的 runtime.json 里查，同时确认它还在运行',
@@ -112,7 +125,8 @@ const RELEASE_USAGE = [
   `**发到包自己的 publishConfig.registry**：没写这个字段、或写的不是 http(s) 地址就拒（团队源是 ${TEAM_REGISTRY}）。「同号已在源上」问的也是这个源`,
   '**发版前检查没过就拒**（构建之后，所有包一次列全）：产物里相对 import 指向的文件都在；dev 依赖不查',
   `**带界面的插件包另加样式检查**（构建后有 dist/style.css 才查）：${STYLE_CHECK_SUMMARY}`,
-  '**插件包另加**（keywords 含 gwb-plugin）：peer 里只许 cordis、内核包 @godcreator/gwb-kernel-desktop 与别的插件（包目录 node_modules 里它的清单 keywords 含 gwb-plugin），peer 里每个 gwb 插件（不分范围）和源上 dist-tags.latest 在同一条线（0.x 只看 x，≥1 只看主版本号；问哪个源由 ~/.npmrc 的范围行决定）；node 侧产物（exports["."] 入口顺着相对 import 走到的文件）的包名 import 只有 node 内置模块、electron 与 peer 里写了的包；浏览器侧产物（dist/client.js）只 import 页面 importmap 里的名字——内核包页面入口 dist/index.html 里那段 importmap 的键（react 的四个），从包目录 node_modules 里装好的内核包读；peer 里写了内核包、写法是 ^x.y.z（范围包不包含哪个内核不查，验证之后由人改）',
+  '**插件包另加**（keywords 含 gwb-plugin）：peer 里只许 cordis、内核包 @godcreator/gwb-kernel-desktop 与别的插件（包目录 node_modules 里它的清单 keywords 含 gwb-plugin），peer 里每个 gwb 插件（不分范围）和源上 dist-tags.latest 在同一条线（0.x 只看 x，≥1 只看主版本号；问哪个源由 ~/.npmrc 的范围行决定）；node 侧产物（exports["."] 入口顺着相对 import 走到的文件）的包名 import 只有 node 内置模块、electron 与 peer 里写了的包；浏览器侧产物（dist/client.js）只 import 页面 importmap 里的名字——内核包页面入口 dist/index.html 里那段 importmap 的键（react 的四个），从包目录 node_modules 里装好的内核包读；peer 里写了内核包、写法是 ^x.y.z（范围包不包含哪个内核不查，验证之后由人改）；' +
+    WIRING_CHECK_SUMMARY,
   '**这条命令只发到源、不碰任何 home**，从哪个 home 调用都行；升级 default 是下一步的事，用 plugin-manager.update {"all":true}',
   '例：{"dir":"D:\\\\unitfolders\\\\evew5-gwbapps\\\\gwb-block-note","packages":["packages/model","packages/engine","packages/client","plugins/gwb-bn-core","plugins/gwb-bn-comment"]}',
 ].join('\n')
@@ -415,7 +429,9 @@ function registerReleaseCommand({ log, commands }: Wiring): void {
       plugin: '@godcreator/gwb-devkit',
       description: '发正式版到包的 publishConfig.registry（git 工作区干净→构建→验产物→发版前检查→在临时目录里组装并发布）',
       usage:
-        '{dir 必给（仓根绝对路径）, packages 必给（包目录的非空数组，相对仓根，按依赖顺序）}。一条走完：仓根 git 工作区干净（有未提交改动就拒，一个都不发）→ 仓根 pnpm build → 照 files 白名单验产物 → 同号已在发布目标上就拒（发布目标是包自己 package.json 的 publishConfig.registry；没写、或写的不是 http(s) 地址就拒）→ 发版前检查（每个要发的包：产物里相对 import 指向的文件都在；dev 依赖不查。keywords 含 gwb-plugin 的插件包另加：peer 里只许 cordis、内核包 @godcreator/gwb-kernel-desktop 与别的插件（包目录 node_modules 里它的清单 keywords 含 gwb-plugin），peer 里每个 gwb 插件（不分范围）和源上 dist-tags.latest 在同一条线（0.x 只看 x，≥1 只看主版本号；问哪个源由 ~/.npmrc 的范围行决定）；node 侧产物——exports["."] 的运行时入口（没有 exports 时是 main）顺着相对 import 走到的文件——的包名 import 只有 node 内置模块、electron 与 peer 里写了的包；浏览器侧产物——dist/client.js，同样顺着相对 import 走——只 import 页面 importmap 里的名字，也就是内核包页面入口 dist/index.html 里那段 importmap 的键，从包目录 node_modules 里装好的内核包现读；peer 里写了内核包、写法是 ^x.y.z，范围包不包含哪个内核不查；构建后有 dist/style.css 的插件包再做样式检查：' +
+        '{dir 必给（仓根绝对路径）, packages 必给（包目录的非空数组，相对仓根，按依赖顺序）}。一条走完：仓根 git 工作区干净（有未提交改动就拒，一个都不发）→ 仓根 pnpm build → 照 files 白名单验产物 → 同号已在发布目标上就拒（发布目标是包自己 package.json 的 publishConfig.registry；没写、或写的不是 http(s) 地址就拒）→ 发版前检查（每个要发的包：产物里相对 import 指向的文件都在；dev 依赖不查。keywords 含 gwb-plugin 的插件包另加：peer 里只许 cordis、内核包 @godcreator/gwb-kernel-desktop 与别的插件（包目录 node_modules 里它的清单 keywords 含 gwb-plugin），peer 里每个 gwb 插件（不分范围）和源上 dist-tags.latest 在同一条线（0.x 只看 x，≥1 只看主版本号；问哪个源由 ~/.npmrc 的范围行决定）；node 侧产物——exports["."] 的运行时入口（没有 exports 时是 main）顺着相对 import 走到的文件——的包名 import 只有 node 内置模块、electron 与 peer 里写了的包；浏览器侧产物——dist/client.js，同样顺着相对 import 走——只 import 页面 importmap 里的名字，也就是内核包页面入口 dist/index.html 里那段 importmap 的键，从包目录 node_modules 里装好的内核包现读；peer 里写了内核包、写法是 ^x.y.z，范围包不包含哪个内核不查；' +
+        WIRING_CHECK_SUMMARY +
+        '；构建后有 dist/style.css 的插件包再做样式检查：' +
         STYLE_CHECK_SUMMARY +
         '。没过就一个都不发，回执按包一次列全）→ 在临时目录里组装发布内容并发到发布目标（不改仓里任何文件；tag latest；发布内容清单的 publishConfig.registry 写发布目标，命令行不带 --registry；workspace: 依赖写成 ^<工作区里那个号>，这一次同发的写成 ^新号）→ 按给定顺序发完。**版本号在仓里升**（改 package.json 并提交），同一个版本号永不重发。只发到源、不碰任何 home；升级 default 用 plugin-manager.update {"all":true}',
     },
@@ -476,7 +492,7 @@ function registerScaffoldCommand({ ctx, log, commands }: Wiring): void {
       plugin: '@godcreator/gwb-devkit',
       description: '在一个新目录里生成一个 gwb 插件仓（workspace 布局，插件在 plugins/<短名>/）',
       usage:
-        `{name（必给，kebab-case 短名）, dir（必给，绝对路径且必须还不存在）, scope?（包名范围，缺省 ${TEAM_SCOPE}）, registry?（写进插件包 publishConfig.registry 的发布目标，缺省团队源）}。插件的模板在本包；要显示名的地方用短名；不建文档站。回执 { repoDir, pluginDir, pkg, registry, name, files, nextSteps }。参数不对会把完整说明回给你`,
+        `{name（必给，kebab-case 短名）, dir（必给，绝对路径且必须还不存在）, scope?（包名范围，缺省 ${TEAM_SCOPE}）, registry?（写进插件包 publishConfig.registry 的发布目标，缺省团队源）}。插件的模板在本包；要显示名的地方用短名；不建文档站。${SCAFFOLD_PEER_VERSIONS_NOTE}。回执 { repoDir, pluginDir, pkg, registry, name, files, nextSteps }。参数不对会把完整说明回给你`,
     },
     (args) => {
       if (!isRecord(args)) return { ok: false, error: `参数要是个对象。\n${SCAFFOLD_USAGE}` }
@@ -524,7 +540,9 @@ function registerScaffoldPluginCommand({ ctx, log, commands }: Wiring): void {
       plugin: '@godcreator/gwb-devkit',
       description: '往已有的 workspace 仓的 plugins/ 再加一个插件包（与建仓同一份插件包模板）',
       usage:
-        '{name 必给（kebab-case 短名，派生规则同 devkit.scaffold）, repo 必给（workspace 仓根的绝对路径——pnpm-workspace.yaml 里得有 plugins/ 那条，没有就拒）, scope?, registry?（规则与缺省值同 devkit.scaffold）}。插件包写到 <repo>/plugins/<短名>/，必须还不存在；仓根、workspace 配置与文档站都不碰。与建仓用的是同一份插件包模板（template/pkg/）——只有一个插件和有多个插件的仓格式一致靠这个。回执 { repoDir, pluginDir, pkg, registry, name, files, nextSteps }。参数不对会把完整说明回给你',
+        '{name 必给（kebab-case 短名，派生规则同 devkit.scaffold）, repo 必给（workspace 仓根的绝对路径——pnpm-workspace.yaml 里得有 plugins/ 那条，没有就拒）, scope?, registry?（规则与缺省值同 devkit.scaffold）}。插件包写到 <repo>/plugins/<短名>/，必须还不存在；仓根、workspace 配置与文档站都不碰。与建仓用的是同一份插件包模板（template/pkg/）——只有一个插件和有多个插件的仓格式一致靠这个。' +
+        SCAFFOLD_PEER_VERSIONS_NOTE +
+        '。回执 { repoDir, pluginDir, pkg, registry, name, files, nextSteps }。参数不对会把完整说明回给你',
     },
     (args) => {
       if (!isRecord(args)) return { ok: false, error: `参数要是个对象。\n${SCAFFOLD_PLUGIN_USAGE}` }

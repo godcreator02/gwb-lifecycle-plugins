@@ -16,7 +16,7 @@ description: devkit.release 从仓根按依赖顺序把包发到各包的发布�
 <Diagram name="dk-release" title="devkit.release 发正式版：六步依次做，任何一处没过，一个包都不发">
 - 第 1 步仓根 git 工作区干净（`git status --porcelain=v1`），不干净或问不出连构建都不运行；第 2 步仓根 `pnpm build`
 - 第 3 步每个包：清单读得出、`publishConfig.registry` 认得出、`files` 白名单里的产物都在；第 4 步这个版本号在包的发布目标上还没有
-- 第 5 步发版前检查，要发的包一起查、一次列全：peer 只有 `cordis`、内核包与插件、peer 里的插件和源上 latest 在同一条线、peer 里内核包的写法、产物里的 import、带界面插件的样式；dev 依赖不查
+- 第 5 步发版前检查，要发的包一起查、一次列全：peer 只有 `cordis`、内核包与插件、peer 里的插件和源上 latest 在同一条线、peer 里内核包的写法、产物里的 import、带界面插件的样式、插件注入的服务与 peer 对不对得上、仓的 wiring 页写没写全；dev 依赖不查
 - 第 6 步在临时目录组装发布内容，按 `packages` 给的顺序发到各自的发布目标、打 latest
 - 最下面那个框：任一项没过，一个包都不发，回执按包列出每一项问题
 </Diagram>
@@ -61,13 +61,15 @@ description: devkit.release 从仓根按依赖顺序把包发到各包的发布�
 
 - 产物里的 import：相对 import 指向的文件都在，产物按 JS 语法读得下去
 
-**插件包**（`keywords` 含 `gwb-plugin`）另查五项：
+**插件包**（`keywords` 含 `gwb-plugin`）另查七项：
 
 - peer 里只有 `cordis`、内核包 `@godcreator/gwb-kernel-desktop` 与别的插件。是不是插件读包目录 `node_modules` 里它的清单，`keywords` 含 `gwb-plugin` 才算。不是插件、清单读不到都拒，报错写明按「运行时谁提供」该改写成 dev 还是 `dependencies`
 - peer 里的每个插件（不分包名范围；内核包、`workspace:` 除外）写法是 `^x.y.z`，并且和源上 latest 在同一条线：主版本号为 0 时只比次版本号，≥1 时只比主版本号。不在同一条线说明上游出了破坏性版本；问不出 latest 也拒
 - node 侧产物的包名 import 只有 node 内置模块、`electron` 与本包 peer 里写了的包；浏览器侧产物只 import 页面 importmap 里的名字
 - peer 里写了内核包，写法是 `^x.y.z`；拒绝理由里写着改成 `^<验证时那个内核的版本号>`。范围包不包含哪个内核不查：对照调用它的那个 home 里的内核，能不能发版就取决于从哪个 home 调。范围由人在隔离 home 里验过之后改（说明书 `gwb-release` 第三节第 1 步）
 - 带界面的插件（构建后有 `dist/style.css`）过样式检查，和 `devkit.dev` 构建之后查的是同一套，见下面「样式检查」
+- 注入与 peer 一致：`src/` 下源码注入的每个服务，提供方写在 peer 里，必需注入的不标 `optional`；注入写法认不出就拒
+- wiring 页写全：仓根 `docs-site/content/docs/wiring.mdx` 在，注入与提供的服务名都在页里出现。这两项怎么扫、怎么判见下面「注入与 wiring 页」
 
 peer 里的插件在不在同一条线：
 
@@ -117,6 +119,18 @@ node 侧放行的包名：
 
 {/* ref file="../plugins/devkit/src/node-dev-deps.ts" lines="280-303" */}
 
+**注入与 wiring 页**在 `src/wiring-check.ts`，只查插件包。先把 `src/` 下每份源码（`.d.ts` 除外）的注释、字符串与模板字面量的内容、正则字面量换成空格，再找 `inject` 标识符：`export const inject = [...]`、`static inject = [...]` 算必需注入，`<上下文>.inject([...], fn)` 算局部注入，数组里只认字符串字面量；像注入又读不出服务名的写法报出文件与行号。服务的提供方从 peer 与 dev 里的插件判：读包目录 `node_modules` 里它的类型入口，看给 cordis `Context` 补了哪些名字，几个都补了就只认运行时代码里提供它的那个。放行的几种（`gwbKernel`、本包自己提供的、提供方不是 gwb 插件的、同工作区里写 peer 会成环的）与认不出的写法见规矩页[插件之间怎么连写成一页](/docs/rules/wiring)：
+
+{/* has file="../plugins/devkit/src/wiring-check.ts" text="export function sourceWiringOf(source: string): SourceWiring" */}
+
+{/* has file="../plugins/devkit/src/wiring-check.ts" text="export function contextServicesOf(dts: string): string[]" */}
+
+{/* has file="../plugins/devkit/src/wiring-check.ts" text="function providersOf(service: string, candidates: readonly KnownPackage[], io: Pick<WiringCheckIo, 'readText' | 'filesUnder'>): KnownPackage[]" */}
+
+{/* has file="../plugins/devkit/src/wiring-check.ts" text="function providedByCyclicSibling(service: string, input: WiringCheckInput, io: WiringCheckIo): boolean" */}
+
+工作区里有哪些包目录由 `ReleaseDeps.workspacePackageDirs` 给（仓根往下两层里有 `package.json` 的目录），只在判「写 peer 会成环」时用。
+
 这些规矩本身、谁来查，见[写插件的规矩](/docs/rules)。
 
 ## 依赖的接口
@@ -131,7 +145,8 @@ node 侧放行的包名：
 | `latest` | peer 里的 gwb 插件在源上的 `dist-tags.latest`（dev 依赖不问） | `pnpm view <包> dist-tags.latest`，不指定源；失败回 `undefined`，由检查报「问不出」 | 一张 latest 表，可以缺项 |
 | `publish` | 在临时目录组装发布内容并发出、打 latest | `node-dev-deps.ts` 的组装（与开发版打包共用），最后 `pnpm publish --no-git-checks --tag latest` | 记下发了什么、写进去的依赖范围，可以让某一个失败 |
 | `readText` / `exists` | 读清单、查产物、读 peer 的清单与内核包页面入口 | `node:fs` | 内存里的文件表 |
-| `filesUnder` / `tailwindOf` | 样式检查：列出样式入口与 `.tsx`；从被检查包的 `@tailwindcss/cli` 旁边找 Tailwind 编译器 | `node-dev-deps.ts` 里的同名函数 | 内存里的文件表、假编译器 |
+| `filesUnder` / `tailwindOf` | 样式检查：列出样式入口与 `.tsx`；从被检查包的 `@tailwindcss/cli` 旁边找 Tailwind 编译器。注入检查也用 `filesUnder` 列 `src/` 下的源码与提供方的运行时代码 | `node-dev-deps.ts` 里的同名函数 | 内存里的文件表、假编译器 |
+| `workspacePackageDirs` | 注入检查判「写 peer 会成环」：工作区里别的插件包在哪 | `node-dev-deps.ts` 里的同名函数，仓根往下扫两层 | 给定的目录表 |
 | `pnpm` | 上面几条启动的 pnpm | 命令开头在两个固定位置找到并核对过版本的那个 | 一个假路径 |
 
 组装发布内容时 `workspace:` 依赖写成 `^`：同一次发的写 `^新版本号`，其余写 `^<工作区里的版本号>`（从仓根往下扫两层找，找不到直接报错）；peer 里不写同一次发的准确版本号。细节见[被测仓的形状](/docs/seams/repo-shape)。
@@ -144,16 +159,16 @@ node 侧放行的包名：
 
 {/* has file="../plugins/devkit/tests/release.test.ts" text="dev 依赖不查：落后于源上 latest、出了范围、写法不是 ^ 都照常发" */}
 
-`tests/artifact-check.test.ts` 给一张假文件表测产物检查：两侧入口怎么认、压成一行的各种写法都找到、字符串与注释里的 `import(…)` 不算、页面入口读不到就报。`tests/style-check.test.ts` 给假文件表与假编译器测样式检查：样式入口认不出、类选择器不带前缀、fallback 写死、调色板、前缀排在变体后面、带前缀编不出、漏了前缀各报什么；拿真实 Tailwind 的核对在 baseui、外壳、dsh、块笔记核心四个真实包上做过（块笔记核心没过，见它仓里的 feedback）。`tests/node-dev-deps.test.ts` 测组装发布内容的纯函数：发布用清单怎么改写、`workspace:` 找不到就抛、`pnpm view` 的结果怎么判。
+`tests/artifact-check.test.ts` 给一张假文件表测产物检查：两侧入口怎么认、压成一行的各种写法都找到、字符串与注释里的 `import(…)` 不算、页面入口读不到就报。`tests/style-check.test.ts` 给假文件表与假编译器测样式检查：样式入口认不出、类选择器不带前缀、fallback 写死、调色板、前缀排在变体后面、带前缀编不出、漏了前缀各报什么；拿真实 Tailwind 的核对在 baseui、外壳、dsh、块笔记核心四个真实包上做过（块笔记核心没过，见它仓里的 feedback）。`tests/wiring-check.test.ts` 给假文件表测注入与 wiring 页：三种注入写法与类型参数、认不出的写法逐处报、不是注入的属性读取与类型成员不管、类型入口里补的名字怎么读、几个声明方时按运行时代码判、只写在 dev、必需注入标了 optional、写 peer 会成环时放行、页面缺哪些名字。`tests/node-dev-deps.test.ts` 测组装发布内容的纯函数：发布用清单怎么改写、`workspace:` 找不到就抛、`pnpm view` 的结果怎么判。
 
 {/* has file="../plugins/devkit/tests/artifact-check.test.ts" text="压成一行的各种写法：静态 import、副作用 import、import * as、export from、export *、export * as、动态 import 都找到" */}
 
 ## 代码地图
 
-**在哪**：流程与版本号规则在 `src/release.ts`，产物检查在 `src/artifact-check.ts`，真机器操作（git、pnpm、组装临时目录）在 `src/node-dev-deps.ts`，命令登记与参数校验在 `src/index.ts` 的 `registerReleaseCommand`。
+**在哪**：流程与版本号规则在 `src/release.ts`，产物检查在 `src/artifact-check.ts`，注入与 wiring 页在 `src/wiring-check.ts`，真机器操作（git、pnpm、组装临时目录）在 `src/node-dev-deps.ts`，命令登记与参数校验在 `src/index.ts` 的 `registerReleaseCommand`。
 
 **先读** `runRelease`：六步的顺序在这一个函数里。
 
-**读序**：`runRelease` → `planPackages`（每个包的清单、发布目标、产物、同号）→ `ticketFor`（一个包的全部检查）→ `peerLineProblems` / `peerProblems` / `kernelPeerProblems` / `artifactProblems` → `ReleaseDeps`（哪些是注入的）。
+**读序**：`runRelease` → `planPackages`（每个包的清单、发布目标、产物、同号）→ `ticketFor`（一个包的全部检查）→ `peerLineProblems` / `peerProblems` / `kernelPeerProblems` / `artifactProblems` / `wiringProblems` → `ReleaseDeps`（哪些是注入的）。
 
 **可跳过**：`sameReleaseLine`、`dirtyLines` 这几个小函数，形状简单、有测试守着；`node-dev-deps.ts` 里复制文件、写临时清单的那几十行是 npm 打包的细节。

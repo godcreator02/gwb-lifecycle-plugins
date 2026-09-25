@@ -3,6 +3,7 @@ import { BUILD_TIMEOUT_MS, PLUGIN_KEYWORD, literalArtifacts, pnpmPlan, type RunP
 import { KERNEL_PACKAGE, isCaretRange } from '@godcreator/gwb-plugin-manager'
 import { artifactProblems } from './artifact-check.js'
 import { styleProblems, type StyleCheckIo } from './style-check.js'
+import { wiringProblems, type WiringCheckIo } from './wiring-check.js'
 import { isRecord, packageManifestOf, parseHttpUrl, TEAM_REGISTRY } from './vocab.js'
 
 /** git 工作区的状态。`dirty` 里是 porcelain 条目原文（两列状态加路径） */
@@ -28,6 +29,7 @@ export interface ReleaseDeps {
   exists(target: string): boolean
   filesUnder: StyleCheckIo['filesUnder']
   tailwindOf: StyleCheckIo['tailwindOf']
+  workspacePackageDirs: WiringCheckIo['workspacePackageDirs']
   /** pnpm 的可执行文件：命令开头 `locatePnpm` 找到并核对过版本的那个 */
   pnpm: string
 }
@@ -312,7 +314,7 @@ async function latestOfUpstreams(planned: PlannedPackage[], deps: ReleaseDeps): 
   return latest
 }
 
-async function ticketFor(plannedPackage: PlannedPackage, latest: Record<string, string | undefined>, deps: ReleaseDeps): Promise<Ticket> {
+async function ticketFor(repoDir: string, plannedPackage: PlannedPackage, latest: Record<string, string | undefined>, deps: ReleaseDeps): Promise<Ticket> {
   const { pkgDir, manifest, gwbPluginPeers, peerManifestOf } = plannedPackage
   const problems = [
     ...peerLineProblems(manifest, latest, gwbPluginPeers),
@@ -320,6 +322,7 @@ async function ticketFor(plannedPackage: PlannedPackage, latest: Record<string, 
     ...kernelPeerProblems(manifest),
     ...artifactProblems(pkgDir, manifest.doc, manifest.plugin, deps),
     ...(await styleProblems(pkgDir, manifest, deps)),
+    ...(manifest.plugin ? wiringProblems({ pkgDir, repoDir, manifest: { ...manifest.doc, name: manifest.name } }, deps) : []),
   ]
   return { pkg: `${manifest.name}@${manifest.version}`, problems }
 }
@@ -351,7 +354,7 @@ export async function runRelease(input: ReleaseInput, deps: ReleaseDeps): Promis
 
   const latest = await latestOfUpstreams(plan.planned, deps)
   const tickets: Ticket[] = []
-  for (const plannedPackage of plan.planned) tickets.push(await ticketFor(plannedPackage, latest, deps))
+  for (const plannedPackage of plan.planned) tickets.push(await ticketFor(input.repoDir, plannedPackage, latest, deps))
   if (tickets.some((ticket) => ticket.problems.length > 0)) return { ok: false, error: ticketRefusal(tickets) }
 
   const shipped = await publishInOrder(plan.planned, plan.ranges, deps)

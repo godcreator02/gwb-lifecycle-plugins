@@ -101,6 +101,22 @@ export function workspaceVersions(repoDir: string, depth = 2): Map<string, strin
   return versionsByName
 }
 
+/** 工作区里的包目录：仓根往下两层里有 package.json 的目录，跳过的目录与 `workspaceVersions` 相同 */
+export function workspacePackageDirs(repoDir: string, depth = 2): string[] {
+  const dirs: string[] = []
+  const walk = (dir: string, levelsLeft: number): void => {
+    if (fs.existsSync(path.join(dir, 'package.json'))) dirs.push(dir)
+    if (levelsLeft <= 0) return
+    for (const child of fs.readdirSync(dir, { withFileTypes: true })) {
+      if (!child.isDirectory()) continue
+      if (child.name.startsWith('.') || child.name === 'node_modules' || child.name === 'dist') continue
+      walk(path.join(dir, child.name), levelsLeft - 1)
+    }
+  }
+  walk(repoDir, depth)
+  return dirs
+}
+
 /** 从包目录往上第一个有 `pnpm-workspace.yaml` 的目录：包在 `plugins/<名>/` 时，它依赖的库可能在 `packages/` 下 */
 export function workspaceRootOf(pkgDir: string): string {
   let dir = path.resolve(pkgDir)
@@ -359,5 +375,6 @@ export const releaseDepsWith = (pnpm: string): ReleaseDeps => ({
   exists: nodeFs.exists,
   filesUnder,
   tailwindOf,
+  workspacePackageDirs: (repoDir) => workspacePackageDirs(repoDir),
   pnpm,
 })

@@ -17,7 +17,7 @@ description: 写新插件、改插件、在隔离 home 里验证改动时读；�
    - 不要界面的插件：照生成的 README 里那张清单删掉浏览器侧的文件、脚本与依赖
    - `package.json`：peer 里内核包 `@godcreator/gwb-kernel-desktop` 的范围 `^x.y.z` 要包含验证时用的内核（模板写的是运行建仓命令的那个 home 里的内核）；用到的别的插件（经 `ctx.inject` 用它的服务、import 它的类型）写进 peer，范围 `^x.y.z`，不另写 dev：写在 `export const inject` 里的是普通 peer，只在 `ctx.inject([...], fn)` 里用的在 `peerDependenciesMeta` 标 `optional: true`。模板已写命令总线与外壳，下限是建仓那个 home 里装着的版本；不用外壳就删掉那一项；`description` 改成一句话说这个插件做什么；有了 `skills/` 目录就把 `skills` 加进 `files`
    - 提供服务：在源码里给 cordis 的 `Context` 补上这一项（`declare module 'cordis' { interface Context { gwbExample: GwbExample } }`），`GwbExample` 定义在本包里、写文档注释说清怎么用；用它的插件从你发布的 `.d.ts` 读到这些。模板不输出 `.d.ts`，提供服务时加上三处：包里加 `tsconfig.build.json`（`"extends": "./tsconfig.json"`，`compilerOptions` 写 `"noEmit": false, "declaration": true, "emitDeclarationOnly": true, "outDir": "dist", "rootDir": "src"`，`"include": ["src/index.ts"]`）；`build` 脚本在 `node build.ts` 之后加 `tsc -p tsconfig.build.json`；`exports["."]` 改成 `{ "types": "./dist/index.d.ts", "default": "./dist/index.js" }`
-   - 仓里有文档站的，在它的现状区写这个插件的页：功能、接口、依赖、不做的事四节
+   - 仓里有文档站的，在它的现状区写这个插件的页：功能、接口、依赖、不做的事四节；依赖写进 `docs/wiring.mdx`「插件之间怎么连」里这个插件那一节（提供、注入、按名字调用与约定通道三张表，钉码按内容钉），插件页的依赖一节只链过去。`devkit.release` 发版前查这一页在、源码注入与提供的服务名都写到了，格式见规矩总表里链到的 `/docs/rules/wiring`
 5. 仓根 `pnpm build`，再 `pnpm check`
 
 **完成判据**：仓根 `pnpm check` 全绿。接着做「改一版看一版」。
@@ -25,7 +25,7 @@ description: 写新插件、改插件、在隔离 home 里验证改动时读；�
 ## 改已有插件
 
 1. 仓得是 workspace 布局：仓根是 `private: true` 的 `package.json`，`pnpm-workspace.yaml` 的 `packages` 里有 `plugins/*`，插件包在 `plugins/<短名>/`。不是的先照 `devkit.scaffold` 生成的仓迁过来——`devkit.dev`、`devkit.release` 只收 `packages` 里列出的包目录，`devkit.scaffold.plugin` 也只认这种仓
-2. 改代码，守「写插件的规矩」。加减了服务，同步改类型声明里给 `Context` 补的那几项；加减了命令、服务、说明书，仓里有文档站的同步改那个插件的页（同第一节第 4 步）
+2. 改代码，守「写插件的规矩」。加减了服务，同步改类型声明里给 `Context` 补的那几项；加减了命令、服务、说明书、注入，仓里有文档站的同步改那个插件的页与 `docs/wiring.mdx`（同第一节第 4 步）
 3. 仓根 `pnpm build`、`pnpm check`
 
 **完成判据**：`pnpm check` 全绿。接着做「改一版看一版」。

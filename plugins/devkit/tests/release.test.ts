@@ -219,6 +219,7 @@ function fake(options: FakeOptions = {}): ReleaseDeps & { calls: string[]; range
     [path.resolve(REPO, 'b/package.json')]: manifestOf(B, '0.2.0'),
     [path.resolve(REPO, 'a/dist/index.js')]: "import path from 'node:path';\n",
     [path.resolve(REPO, 'b/dist/index.js')]: "import path from 'node:path';\n",
+    [path.resolve(REPO, 'docs-site/content/docs/wiring.mdx')]: '# 插件之间怎么连\n',
     ...options.files,
   }
   return {
@@ -228,6 +229,7 @@ function fake(options: FakeOptions = {}): ReleaseDeps & { calls: string[]; range
     readText: (file) => files[path.resolve(file)],
     exists: (target) => path.resolve(target) in files || target.endsWith('dist'),
     filesUnder: (dir) => Object.keys(files).filter((file) => file.startsWith(path.resolve(dir) + path.sep)),
+    workspacePackageDirs: () => [],
     async tailwindOf(pkgDir) {
       calls.push(`tailwind @${pkgDir}`)
       // 假编译器：带前缀的 flex 编得出规则，别的都编不出
@@ -400,6 +402,26 @@ describe('发正式版', () => {
     const right = fake({ latest: { [SHELL]: '0.13.9' }, files: { [path.resolve(REPO, 'a/package.json')]: pluginA, ...shellManifest } })
     const shipped = await runRelease({ repoDir: REPO, packages: ['a'] }, right)
     expect(shipped.ok).toBe(true)
+  })
+
+  it('插件包注入的服务提供方没写 peer、wiring 页没写到它：构建之后、发之前拒，两条都列出；库不查', async () => {
+    const commandsDir = 'a/node_modules/@godcreator/gwb-commands'
+    const deps = fake({
+      files: {
+        [path.resolve(REPO, 'a/package.json')]: pluginManifestOf(A, '0.1.0', undefined, { peerDependencies: KERNEL_PEER, devDependencies: { '@godcreator/gwb-commands': '^0.5.0' } }),
+        [path.resolve(REPO, 'a/src/index.ts')]: "export const inject = ['gwbCommands']\n",
+        [path.resolve(REPO, commandsDir, 'package.json')]: JSON.stringify({ name: '@godcreator/gwb-commands', keywords: ['gwb-plugin'], exports: EXPORTS }),
+        [path.resolve(REPO, commandsDir, 'dist/index.d.ts')]: "declare module 'cordis' {\n  interface Context {\n    gwbCommands?: GwbCommands\n  }\n}\n",
+        [path.resolve(REPO, 'b/src/index.ts')]: "export const inject = ['gwbCommands']\n",
+      },
+    })
+    const out = await runRelease({ repoDir: REPO, packages: ['a', 'b'] }, deps)
+    expect(out.ok).toBe(false)
+    if (out.ok) return
+    expect(out.error).toContain('1 个包 2 条')
+    expect(out.error).toContain('gwbCommands（src/index.ts:1，必需注入） 由 @godcreator/gwb-commands 提供，它不在 peerDependencies 里')
+    expect(out.error).toContain('没写到 gwbCommands')
+    expect(deps.calls.some((one) => one.startsWith('publish'))).toBe(false)
   })
 
   it('插件包 peer 里的内核包写成 ^x.y.z 就照常发：范围不对照调用它的那个 home 里的内核', async () => {
