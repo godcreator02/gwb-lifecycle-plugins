@@ -17,3 +17,18 @@ docfirst: none
 约 2 秒，default 自己走了一遍正常退出（default 的 `gwb.log` 里 `17:07:46.709Z info kernel 清理完成，退出`）。原因没查清：值得看一下
 `home.new` 启动的子进程和 default 的生命周期有没有绑在一起。弄清之前，停这种实例用 `devkit.home.rm {"name":"<名>","force":true}`，别直接结束进程。
 
+## 2026-09-25 库只有子路径导出、没有 `exports["."]` 时，`devkit.release` 拒发
+
+来源：协作站框架仓 `D:\unitfolders\qrx1l-collab-site\collab-site`（发 `@godcreator/collab-site@0.1.0`）。
+
+`devkit.release {"dir":"D:\\unitfolders\\qrx1l-collab-site\\collab-site","packages":["."]}` 的回执：
+「@godcreator/collab-site@0.1.0：清单里没有 exports["."]（或 main），找不到 node 侧入口」，一个都没发。
+这个包不是插件（`keywords` 里没有 `gwb-plugin`），只有子路径导出：`./vite`、`./client`、`./ui`、`./annotate`、`./model`、`./model/node`、`./styles.css`，
+包根本来就没有入口。
+
+出在 `plugins/devkit/src/artifact-check.ts` 的 `artifactProblems`：不管是不是插件，都先要 `exports["."]`；而函数说明写的是库「只查相对 import 指向的文件在不在」。
+测试里「找不到 node 侧入口：拒」只用插件测过。
+
+期望：插件照旧要 `exports["."]`；库从 `exports` 里每个指向 `.js` 的入口（没有 `exports` 时用 `main`）出发，顺着相对 import 查文件在不在，一个入口都没有才拒。
+修好发版后告诉协作站框架仓那边，它在等这个发第一个正式版。
+
