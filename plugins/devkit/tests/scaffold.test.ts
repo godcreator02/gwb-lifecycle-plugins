@@ -36,7 +36,7 @@ import {
   writeRepo,
 } from '../src/scaffold.js'
 import { TEAM_REGISTRY, TEAM_SCOPE } from '../src/vocab.js'
-import { KERNEL_PACKAGE, declaredKernelRange, isCaretRange, kernelRangeCovers } from '@godcreator/gwb-plugin-manager'
+import { KERNEL_PACKAGE, isCaretRange, kernelRangeCovers } from '@godcreator/gwb-plugin-manager'
 
 /**
  * 建仓与加插件的纯逻辑。**写磁盘的那几条真的写临时目录**——`writeRepo` 做的就是往磁盘上写文件，
@@ -57,6 +57,12 @@ function sandbox(): string {
 afterEach(() => {
   for (const dir of sandboxes.splice(0)) fs.rmSync(dir, { recursive: true, force: true })
 })
+
+/** 生成的包清单里 peer 写的内核包范围；没写是 undefined */
+function kernelPeerOf(manifestText: string | undefined): string | undefined {
+  const manifest = JSON.parse(manifestText ?? '') as { peerDependencies?: Record<string, string> }
+  return manifest.peerDependencies?.[KERNEL_PACKAGE]
+}
 
 /** 临时目录里搭一个 workspace 仓（pnpm-workspace.yaml 带 plugins/ 那条） */
 function fakeWorkspace(yaml = 'packages:\n  - plugins/*\n'): string {
@@ -411,8 +417,7 @@ describe('包内 template/：两区', () => {
       fromScaffold.find((f) => f.rel === 'plugins/hello/package.json')?.text,
       fromPlugin.find((f) => f.rel === 'package.json')?.text,
     ]) {
-      const manifest: unknown = JSON.parse(manifestText ?? '')
-      const range = declaredKernelRange(manifest)
+      const range = kernelPeerOf(manifestText)
       expect(range).toBe(`^${KERNEL}`)
       expect(isCaretRange(range ?? '')).toBe(true)
       expect(kernelRangeCovers(range, KERNEL)).toBe(true)
@@ -421,8 +426,7 @@ describe('包内 template/：两区', () => {
 
   it('运行建仓命令的是开发版内核：peer 里的内核包范围只取 x.y.z 三段', () => {
     const files = renderPlugin(TEMPLATE_ROOT, planScaffoldPlugin({ name: 'world', repo: fakeWorkspace(), kernelVersion: '0.3.1-dev.202609241500' }))
-    const manifest: unknown = JSON.parse(files.find((f) => f.rel === 'package.json')?.text ?? '')
-    expect(declaredKernelRange(manifest)).toBe('^0.3.1')
+    expect(kernelPeerOf(files.find((f) => f.rel === 'package.json')?.text)).toBe('^0.3.1')
   })
 
   it('生成的清单按「依赖怎么写」：peer 里有内核包与用到的两个插件；cordis 只在 node 侧按值 import 了 cordis 时才写', () => {

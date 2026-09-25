@@ -13,11 +13,11 @@ description: 连接 devkit 与插件管理：devkit 从插件管理的主入口 
 
 ## 接口
 
-**一、`devkit.dev` 经 CDP 调三条命令。** devkit 运行在另一个 home 里，调用经 `bin/cdp.mjs` 的 `cmd` 动作发到目标页面的 `window.gwb.command`（通道见 [CDP 驱动 cdp.mjs](/docs/seams/cdp)）。devkit 先把每个包打成包文件放进目标 home 的 `dev-packs/`，再只读目标 home 的 `package.json`：已在 `dependencies` 里的包合成一条 `plugin-manager.update {"specs":{"<包>":"file:./dev-packs/<包文件>"}}`（有内核包时连同它 peer 里 cordis 的精确版本号），不在的插件逐个 `plugin-manager.install {"pkg","spec"}`：
+**一、`devkit.dev` 经 CDP 调三条命令。** devkit 运行在另一个 home 里，调用经 `bin/cdp.mjs` 的 `cmd` 动作发到目标页面的 `window.gwb.command`（通道见 [CDP 驱动 cdp.mjs](/docs/seams/cdp)）。devkit 先把每个包打成包文件放进目标 home 的 `dev-packs/`，再只读目标 home 的 `package.json`：已在 `dependencies` 里的包合成一条 `plugin-manager.update {"specs":{"<包>":"file:./dev-packs/<包文件>"}}`（内核包也在里面，`cordis` 不放：插件管理照装上的内核包 peer 自己对齐），不在的插件逐个 `plugin-manager.install {"pkg","spec"}`：
 
 {/* ref file="../plugins/devkit/src/dev.ts" lines="244-266" */}
 
-`install` 回 `{ ok, pkg, entryId }`，devkit 把 `entryId` 记进回执。`update` 回 `ok: false` 时 devkit 整体失败、带上回执里的 `error`；回执 `restartRequired: true` 时 devkit 重启目标 home（装了内核包而没有这个字段也判失败）；回执 `selfDeferred: true` 时 devkit 从 `updated` 与 `dependents` 里找出 `action` 是 `deferred` 的条目属于哪些包，每 500 毫秒轮询一次 `plugin-manager.list`，60 秒内等到这些包的条目全都 `active: true`：
+回执只有外层一层 `ok`：`install` 的 `data` 是 `{ pkg, entryId }`，devkit 把 `entryId` 记进回执。`update` 回 `ok: false` 时 devkit 整体失败、带上回执里的 `error`；回执 `restartRequired: true` 时 devkit 重启目标 home（装了内核包而没有这个字段也判失败）；回执 `selfDeferred: true` 时 devkit 从 `updated` 与 `dependents` 里找出 `action` 是 `deferred` 的条目属于哪些包，每 500 毫秒轮询一次 `plugin-manager.list`，60 秒内等到这些包的条目全都 `active: true`：
 
 {/* ref file="../plugins/devkit/src/dev.ts" lines="570-601" */}
 
@@ -47,7 +47,7 @@ description: 连接 devkit 与插件管理：devkit 从插件管理的主入口 
 
 {/* ref file="../plugins/devkit/src/home.ts" lines="368-395" */}
 
-**三、devkit 从插件管理的主入口 import 几个函数与三条命令的名字。** 找 pnpm 的 `locatePnpm`、内核包名 `KERNEL_PACKAGE`、peer 范围的判定 `isCaretRange` / `kernelRangeCovers` / `declaredKernelRange`、取输出最后几行的 `tailLines`，规则只有插件管理里这一份；`devkit.dev` 调的命令名 `LIST_COMMAND`、`INSTALL_COMMAND`、`UPDATE_COMMAND` 也从这里取。devkit 的 peer 里写着插件管理（仓里写 `workspace:^`，`devkit.release` 发版时写成 `^<插件管理的版本号>`），home 里 pnpm 把它解析到装着的那一份：
+**三、devkit 从插件管理的主入口 import 几个函数与三条命令的名字。** 找 pnpm 的 `locatePnpm`、内核包名 `KERNEL_PACKAGE`、peer 范围的判定 `isCaretRange` / `kernelRangeCovers`、取输出最后几行的 `tailLines`，规则只有插件管理里这一份；`devkit.dev` 调的命令名 `LIST_COMMAND`、`INSTALL_COMMAND`、`UPDATE_COMMAND` 也从这里取。devkit 的 peer 里写着插件管理（仓里写 `workspace:^`，`devkit.release` 发版时写成 `^<插件管理的版本号>`），home 里 pnpm 把它解析到装着的那一份：
 
 {/* ref file="../plugins/plugin-manager/src/index.ts" lines="50-52" */}
 

@@ -20,7 +20,7 @@ description: devkit.dev 一条命令把工作区的改动换进另一个 home �
 - 取证之后读回执、回到改代码，再调一次 `devkit.dev`；任何一步失败当场停，回执写明停在哪一步
 </Diagram>
 
-**只收插件与内核包，包目录由调用方列出。** `packages` 必给，是非空的字符串数组，每项是相对仓根的包目录，不给或写错直接拒。每个包目录的清单要读得出、`files` 里的产物都在；`keywords` 里没有 `gwb-plugin`、也不是内核包的，直接拒：库打包进用它的插件，不单独装进 home。内核包 `peerDependencies.cordis` 必须是精确版本号，home 根上的 cordis 只能照精确版本装。
+**只收插件与内核包，包目录由调用方列出。** `packages` 必给，是非空的字符串数组，每项是相对仓根的包目录，不给或写错直接拒。每个包目录的清单要读得出、`files` 里的产物都在；`keywords` 里没有 `gwb-plugin`、也不是内核包的，直接拒：库打包进用它的插件，不单独装进 home。
 
 {/* ref file="../plugins/devkit/src/dev.ts" lines="438-473" */}
 
@@ -54,7 +54,7 @@ description: devkit.dev 一条命令把工作区的改动换进另一个 home �
 
 **不走覆盖 `dist` 的捷径。** home 里 `node_modules` 下的文件是硬链接到 pnpm 全局存储的，覆盖写改的是共享的那份文件，存储里那份从此变成开发构建——之后这台机器上任何人装那个版本拿到的都是它，而且不报错。给 import 地址加时间戳是另一条路：每加载一次就在内存里多留一份模块、回收不掉，每次大约是插件 `dist` 体积的两倍。两条都不如换一个新版本号。
 
-**装了内核包时，整页刷新换成重启目标 home。** 内核包 `@godcreator/gwb-kernel-desktop` 装在 home 里，由启动器在进程启动时加载，主进程里运行着的内核换不掉。内核包 peer 里 cordis 的精确版本号和内核包放进同一条 `update`，插件管理装完不重新加载任何条目，回执带 `restartRequired: true`。这边停掉目标 home 的进程、用同一个 home 再启动，然后轮询 `shell.env`，直到回执里的 `versions.kernel` 就是这次打包的版本号；报出的是别的版本号当场判失败——那说明启动器加载的不是 home 里装上的那份。装了内核包而回执里没有 `restartRequired` 也判失败。取证照常做。
+**装了内核包时，整页刷新换成重启目标 home。** 内核包 `@godcreator/gwb-kernel-desktop` 装在 home 里，由启动器在进程启动时加载，主进程里运行着的内核换不掉。内核包和别的包放进同一条 `update`，`specs` 里不放 `cordis`：插件管理装完内核包，自己读它 peer 里 `cordis` 的精确版本号再装那一版，不重新加载任何条目，回执带 `restartRequired: true`。这边停掉目标 home 的进程、用同一个 home 再启动，然后轮询 `shell.env`，直到回执里的 `versions.kernel` 就是这次打包的版本号；报出的是别的版本号当场判失败——那说明启动器加载的不是 home 里装上的那份。装了内核包而回执里没有 `restartRequired` 也判失败。取证照常做。
 
 {/* ref file="../plugins/devkit/src/dev.ts" lines="547-568" */}
 
@@ -120,7 +120,7 @@ description: devkit.dev 一条命令把工作区的改动换进另一个 home �
 
 ## 怎么单独测
 
-注入一套假的 `DevDeps`，整个流程在测试里跑完，不必真的打包、真的开 home。假实现要能模拟的是边界情况：目标是 `default`、目标就是自己所在的 home、构建失败、库包（被拒）、这次的包文件路径已经存在（被拒，旧包文件原样留着）、打包失败、已装的包走一条 `update` 而没装的插件走 `install`、`install` 失败、`update` 回执 `ok: false`（错误原样传出、不刷新）、`selfDeferred`（轮询到插件管理回来；回不来要超时判失败）、刷新带不带 `waitFor`、刷新没等到页面回来或驱动退出码非零、条目没在运行、日志新增部分里有 error、装上的版本号不是这次的。装内核包那条路另测：内核包和 cordis 放进同一条 `update`、回执 `restartRequired` 时重启而不刷新、内核包不在目标 home 里（被拒）、peer 里的 cordis 写成范围（被拒）、回执里没有 `restartRequired`、重启失败、重启后页面报的内核版本不对（当场判失败，不接着等）、`shell.env` 一直报不出内核版本（到点判失败）。分哪个包走 `update`、哪个走 `install` 是纯函数 `pluginManagerCallsFor`，单测直接给清单。超时终止整棵树用真的子进程测：父进程再派生一个不接管道的孙进程，超时之后孙进程也必须没了（`tests/process-tree.test.ts`）。
+注入一套假的 `DevDeps`，整个流程在测试里跑完，不必真的打包、真的开 home。假实现要能模拟的是边界情况：目标是 `default`、目标就是自己所在的 home、构建失败、库包（被拒）、这次的包文件路径已经存在（被拒，旧包文件原样留着）、打包失败、已装的包走一条 `update` 而没装的插件走 `install`、`install` 失败、`update` 回执 `ok: false`（错误原样传出、不刷新）、`selfDeferred`（轮询到插件管理回来；回不来要超时判失败）、刷新带不带 `waitFor`、刷新没等到页面回来或驱动退出码非零、条目没在运行、日志新增部分里有 error、装上的版本号不是这次的。装内核包那条路另测：内核包放进同一条 `update`、`specs` 里没有 `cordis`、回执 `restartRequired` 时重启而不刷新、内核包不在目标 home 里（被拒）、回执里没有 `restartRequired`、重启失败、重启后页面报的内核版本不对（当场判失败，不接着等）、`shell.env` 一直报不出内核版本（到点判失败）。分哪个包走 `update`、哪个走 `install` 是纯函数 `pluginManagerCallsFor`，单测直接给清单。超时终止整棵树用真的子进程测：父进程再派生一个不接管道的孙进程，超时之后孙进程也必须没了（`tests/process-tree.test.ts`）。
 
 检查目标的那几道是这条流程上最该测的：它们决定拒不拒，而一旦判错，代价是开发版进了日常用的 home、这条命令把正在运行的自己停掉，或者这次改动装进了另一个隔离 home。
 

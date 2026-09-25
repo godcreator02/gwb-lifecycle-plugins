@@ -145,7 +145,7 @@ function fake(options: FakeOptions = {}): Fake {
       commandArgs.push({ command, args: commandArg })
       if (command === 'plugin-manager.install') {
         const one = commandArg as { pkg: string; spec: string }
-        const reply = options.install?.(one) ?? { ok: true, data: { ok: true, pkg: one.pkg, entryId: 'home:fake' } }
+        const reply = options.install?.(one) ?? { ok: true, data: { pkg: one.pkg, entryId: 'home:fake' } }
         if (isOk(reply)) landInstalled(one.pkg)
         return receipt(reply)
       }
@@ -155,7 +155,7 @@ function fake(options: FakeOptions = {}): Fake {
         const pkgs = Object.keys(specs)
         const reply = options.update?.(specs) ?? {
           ok: true,
-          data: { ok: true, updated: pkgs.map((pkg) => ({ pkg, to: packed.get(pkg), entries: [{ id: 'fake', action: 'remounted', state: 'ACTIVE' }] })), dependents: [], selfDeferred: false },
+          data: { updated: pkgs.map((pkg) => ({ pkg, to: packed.get(pkg), entries: [{ id: 'fake', action: 'remounted', state: 'ACTIVE' }] })), dependents: [], selfDeferred: false },
         }
         if (isOk(reply)) pkgs.forEach(landInstalled)
         return receipt(reply)
@@ -286,13 +286,13 @@ describe('交给插件管理的两种调用', () => {
     })
   })
 
-  it('内核包连同 peer 里 cordis 的精确版本号放进同一条 update', () => {
-    const out = pluginManagerCallsFor([plannedOf(KERNEL, { peerCordis: '4.0.0-rc.10' })], { [KERNEL]: '0.5.0', cordis: '4.0.0-rc.9' })
-    expect(out.ok && out.calls.specs).toEqual({ [KERNEL]: 'file:./dev-packs/godcreator-gwb-kernel-desktop-0.1.1-dev.1.tgz', cordis: '4.0.0-rc.10' })
+  it('内核包放进 update 的 specs，specs 里不放 cordis：cordis 由插件管理照内核包 peer 自己对齐', () => {
+    const out = pluginManagerCallsFor([plannedOf(KERNEL)], { [KERNEL]: '0.5.0', cordis: '4.0.0-rc.9' })
+    expect(out.ok && out.calls.specs).toEqual({ [KERNEL]: 'file:./dev-packs/godcreator-gwb-kernel-desktop-0.1.1-dev.1.tgz' })
   })
 
   it('内核包不在目标 home 里直接拒', () => {
-    expect(pluginManagerCallsFor([plannedOf(KERNEL, { peerCordis: '4.0.0-rc.10' })], {})).toMatchObject({ ok: false })
+    expect(pluginManagerCallsFor([plannedOf(KERNEL)], {})).toMatchObject({ ok: false })
   })
 })
 
@@ -326,7 +326,7 @@ describe('一次流程', () => {
     expect(deps.commandArgs[0]?.args).toEqual({ specs: { [PKG]: devPackSpec(packFileName(PKG, DEV)) } })
     expect(deps.calls).toContain(`cdp ${HOME_NAME} reload #app`)
     expect(out.data.shipped).toEqual([{ pkg: PKG, version: DEV, dir: path.resolve(REPO, PLUGIN_DIR), packFile: PACK_PATH, via: 'update' }])
-    expect(out.data.update).toMatchObject({ ok: true, selfDeferred: false })
+    expect(out.data.update).toMatchObject({ selfDeferred: false })
     expect(out.data.evidence).toMatchObject({ ok: true, installed: [{ pkg: PKG, expected: DEV, actual: DEV }] })
     // 最后一步是取证
     expect(deps.calls.at(-1)).toContain('plugin-manager.list')
@@ -385,7 +385,7 @@ describe('一次流程', () => {
   })
 
   it('update 回执 ok:false：整体失败，带上回执里的 error，不刷新', async () => {
-    const deps = fake({ update: () => ({ ok: false, error: 'pnpm add 失败。一条条目都没动', data: { ok: false, updated: [], dependents: [], selfDeferred: false } }) })
+    const deps = fake({ update: () => ({ ok: false, error: 'pnpm add 失败。一条条目都没动' }) })
     const out = await runDev(input(), deps)
     expect(out).toMatchObject({ ok: false })
     if (!out.ok) expect(out.error).toContain('pnpm add 失败。一条条目都没动')
@@ -399,7 +399,7 @@ describe('一次流程', () => {
       files,
       packages: table,
       silentLists: 3,
-      update: (specs) => ({ ok: true, data: { ok: true, updated: [{ pkg: PM, to: specs[PM], entries: [{ id: 'plugin-manager', action: 'deferred', state: 'ACTIVE' }] }], dependents: [], selfDeferred: true } }),
+      update: (specs) => ({ ok: true, data: { updated: [{ pkg: PM, to: specs[PM], entries: [{ id: 'plugin-manager', action: 'deferred', state: 'ACTIVE' }] }], dependents: [], selfDeferred: true } }),
     })
     const out = await runDev(input(), deps)
     expect(out).toMatchObject({ ok: true })
@@ -411,7 +411,7 @@ describe('一次流程', () => {
   it('selfDeferred 之后插件管理一直没回来：到点 ok:false，说清卡在哪，不刷新', async () => {
     const deps = fake({
       silentLists: Number.MAX_SAFE_INTEGER,
-      update: () => ({ ok: true, data: { ok: true, updated: [], dependents: [{ pkg: PM, entries: [{ id: 'plugin-manager', action: 'deferred', state: 'ACTIVE' }] }], selfDeferred: true } }),
+      update: () => ({ ok: true, data: { updated: [], dependents: [{ pkg: PM, entries: [{ id: 'plugin-manager', action: 'deferred', state: 'ACTIVE' }] }], selfDeferred: true } }),
     })
     const out = await runDev(input(), deps)
     expect(out).toMatchObject({ ok: false })
@@ -505,15 +505,15 @@ describe('装内核包', () => {
   const kernelDev = devVersion('0.5.0', NOW)
   const restartReceipt = (specs: Record<string, string>): unknown => ({
     ok: true,
-    data: { ok: true, updated: Object.keys(specs).map((pkg) => ({ pkg, to: '?', entries: [] })), dependents: [], selfDeferred: false, restartRequired: true },
+    data: { updated: Object.keys(specs).map((pkg) => ({ pkg, to: '?', entries: [] })), dependents: [], selfDeferred: false, restartRequired: true, pluginsOutsideRange: [] },
   })
 
-  it('内核包连同 cordis 放进同一条 update；回执 restartRequired 就重启目标 home，不刷新，页面报出的就是这次的版本号', async () => {
+  it('内核包放进一条 update（不带 cordis）；回执 restartRequired 就重启目标 home，不刷新，页面报出的就是这次的版本号', async () => {
     const deps = fake({ files: kernelFiles(), runningKernel: kernelDev, update: restartReceipt })
     const out = await runDev(input({ packages: [KERNEL_DIR] }), deps)
     expect(out.ok).toBe(true)
     if (!out.ok) return
-    expect(deps.commandArgs[0]?.args).toEqual({ specs: { [KERNEL]: devPackSpec(packFileName(KERNEL, kernelDev)), cordis: '4.0.0-rc.10' } })
+    expect(deps.commandArgs[0]?.args).toEqual({ specs: { [KERNEL]: devPackSpec(packFileName(KERNEL, kernelDev)) } })
     expect(out.data.kernel).toEqual({ version: kernelDev, restart: '已停 pid 1;启动了(pid 2)' })
     expect(out.data).not.toHaveProperty('reload')
     expect(deps.calls).toContain(`restart ${HOME_NAME}`)
@@ -534,14 +534,6 @@ describe('装内核包', () => {
     const out = await runDev(input({ packages: [KERNEL_DIR] }), deps)
     expect(out).toMatchObject({ ok: false })
     if (!out.ok) expect(out.error).toContain('没有内核包')
-    expect(deps.calls.some((one) => one.startsWith('pack'))).toBe(false)
-  })
-
-  it('内核包 peer 里的 cordis 写的是范围：什么都不打包', async () => {
-    const deps = fake({ files: kernelFiles('^4.0.0-rc.10') })
-    const out = await runDev(input({ packages: [KERNEL_DIR] }), deps)
-    expect(out).toMatchObject({ ok: false })
-    if (!out.ok) expect(out.error).toContain('不是精确版本号')
     expect(deps.calls.some((one) => one.startsWith('pack'))).toBe(false)
   })
 

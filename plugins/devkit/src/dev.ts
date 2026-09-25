@@ -22,9 +22,6 @@ export const PLUGIN_MANAGER_TIMEOUT_MS = 600_000
 /** 取证时日志新增部分里最多回几行 */
 export const LOG_TAIL_LINES = 40
 
-/** 内核包 peer 里的 cordis 装在 home 根上，与内核包在同一次 plugin-manager.update 里装 */
-export const CORDIS_PACKAGE = 'cordis'
-
 /** 插件包的标记：`keywords` 里有它 */
 export const PLUGIN_KEYWORD = 'gwb-plugin'
 
@@ -106,12 +103,7 @@ export interface Manifest {
   files?: string[]
   /** `keywords` 里有 `gwb-plugin` */
   plugin: boolean
-  /** `peerDependencies.cordis`。只有内核包用得上：home 根上的 cordis 照它装 */
-  peerCordis?: string
 }
-
-/** home 根上的 cordis 只能照精确版本装，内核包 peer 里写范围就没法定下装哪个 */
-const EXACT_VERSION = /^\d+\.\d+\.\d+(?:-[0-9A-Za-z.-]+)?$/
 
 /** `files` 里必须真在磁盘上的产物。否定式（`!py/**\/__pycache__`）与通配不算：拿去查存在必然「不在」 */
 export function literalArtifacts(files: readonly string[]): string[] {
@@ -128,16 +120,14 @@ export function parseManifest(text: string | undefined): Manifest | undefined {
     return undefined
   }
   if (!isRecord(doc)) return undefined
-  const { name, version, files, keywords, peerDependencies } = doc
+  const { name, version, files, keywords } = doc
   if (typeof name !== 'string' || name === '') return undefined
   if (typeof version !== 'string' || version === '') return undefined
-  const peerCordis = isRecord(peerDependencies) ? peerDependencies[CORDIS_PACKAGE] : undefined
   return {
     name,
     version,
     ...(Array.isArray(files) ? { files: files.filter((one): one is string => typeof one === 'string') } : {}),
     plugin: Array.isArray(keywords) && keywords.includes(PLUGIN_KEYWORD),
-    ...(typeof peerCordis === 'string' ? { peerCordis } : {}),
   }
 }
 
@@ -242,7 +232,7 @@ export interface PluginManagerCalls {
 }
 
 /**
- * 已在 dependencies 里的走 `plugin-manager.update {specs}`（内核包连同它 peer 里 cordis 的精确版本号）；
+ * 已在 dependencies 里的走 `plugin-manager.update {specs}`（内核包也走这条；cordis 由插件管理照装上的内核包 peer 自己对齐，specs 里不放）；
  * 不在的插件走 `plugin-manager.install`（新建一条条目）；内核包不在目标 home 里直接拒
  */
 export function pluginManagerCallsFor(
@@ -255,7 +245,6 @@ export function pluginManagerCallsFor(
     const spec = devPackSpec(one.packFile)
     if (homeDependencies[one.manifest.name] !== undefined) {
       specs[one.manifest.name] = spec
-      if (one.manifest.name === KERNEL_PACKAGE && one.manifest.peerCordis !== undefined) specs[CORDIS_PACKAGE] = one.manifest.peerCordis
     } else if (one.manifest.name === KERNEL_PACKAGE) {
       return { ok: false, error: `目标 home 的 dependencies 里没有内核包 ${KERNEL_PACKAGE}——内核没装进这个 home,开发版的内核包换不进去。用 devkit.home.new 开的 home 都装着它` }
     } else {
@@ -436,7 +425,7 @@ async function probeTargetHome(input: DevInput, deps: DevDeps): Promise<Failure 
 }
 
 /**
- * 每个包：清单读得出、`files` 里的产物都在、是插件或内核包、内核包 peer 里的 cordis 是精确版本号、
+ * 每个包：清单读得出、`files` 里的产物都在、是插件或内核包、
  * 这次的包文件在目标 home 里还不存在（同一路径覆盖写，pnpm 全部退出码 0 但装着旧代码）
  */
 function planDevPackages(input: DevInput, homeDir: string, deps: DevDeps): Failure | PlannedDevPackage[] {
@@ -454,12 +443,6 @@ function planDevPackages(input: DevInput, homeDir: string, deps: DevDeps): Failu
     const isKernel = manifest.name === KERNEL_PACKAGE
     if (!isKernel && !manifest.plugin) {
       return { ok: false, error: `${manifest.name} 的 keywords 里没有 ${PLUGIN_KEYWORD},不是插件也不是内核包:库打包进用它的插件,不单独装进 home。packages 里只给插件与内核包的目录` }
-    }
-    if (isKernel && (manifest.peerCordis === undefined || !EXACT_VERSION.test(manifest.peerCordis))) {
-      return {
-        ok: false,
-        error: `内核包的 peerDependencies.cordis 是 ${JSON.stringify(manifest.peerCordis ?? null)},不是精确版本号:home 根上的 cordis 只能照精确版本装(${path.join(pkgDir, 'package.json')})`,
-      }
     }
     const version = devVersion(manifest.version, deps.now())
     const packFile = packFileName(manifest.name, version)
