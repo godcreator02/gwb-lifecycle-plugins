@@ -26,7 +26,7 @@ description: 连接插件包 package.json 的 peer（内核包的范围、用到
 
 **peer 里的内核包**：`"@godcreator/gwb-kernel-desktop": "^x.y.z"`，下限是验证时那个内核的版本号。devkit 自己的清单也这样写：
 
-{/* ref file="../plugins/devkit/package.json" lines="35-36" */}
+{/* ref file="../plugins/devkit/package.json" lines="31-32" */}
 
 **内核范围的比对规则**：范围要写成 `^x.y.z`；主版本号为 0 时次版本号相同，≥1 时主版本号相同，并且不低于下限；只比 x.y.z 三段，同一条线上的开发版内核算在范围内；没写、写的不是 `^x.y.z` 都算不包含；内核版本号不合法直接抛错。规则写在插件管理的 `src/kernel-compat.ts`，经主入口导出：
 
@@ -66,7 +66,7 @@ devkit 保证：插件包 peer 里的内核包没写、不是 `^x.y.z`、不包�
 
 建仓模板的 `template/pkg/package.json.tpl` 在 peer 里写内核包，值是 `^{{kernelVersion}}`：`devkit.scaffold` 与 `devkit.scaffold.plugin` 填入运行命令的那个 home 的内核版本号（只取 x.y.z），所以新仓在同一个内核上 `devkit.release` 时过得了这一项检查（见[模板与发版前检查](/docs/seams/template-release)）。模板的 peer 里还写着它用到的命令总线与外壳，版本号写死在模板里，改之前先照源上的 latest。
 
-{/* ref file="../plugins/devkit/template/pkg/package.json.tpl" lines="28-32" */}
+{/* ref file="../plugins/devkit/template/pkg/package.json.tpl" lines="23-27" */}
 
 ## 不负责的事
 

@@ -13,7 +13,7 @@ description: 开发套件是一个普通的 gwb 插件，把「在一个新文�
 - **测试 home**：`devkit.home.new` 开一个装好内核包、`cordis` 与七个基础插件的隔离 home，`open` 重开、`list` 列出、`rm` 删除；调试端口自动选，之后只按名字找——[测试 home](/docs/devkit/home)
 - **改一版看一版**：`devkit.dev` 把工作区的改动打包成开发版的包文件放进另一个 home，经那个 home 的插件管理装进正在运行的进程并重新加载，整页刷新，最后取证——[改一版看一版](/docs/devkit/dev)
 - **发正式版**：`devkit.release` 从仓根把包按依赖顺序发到各包的发布目标（`package.json` 的 `publishConfig.registry`），发之前检查 git 工作区、构建产物、依赖写法、插件 peer 里的内核包与别的插件，不改仓里任何文件——[发正式版](/docs/devkit/release)
-- **服务总览**：`devkit.services` 从调用它的那个 home 里各包的 `.d.ts` 现读：这个 home 有哪些可以 inject 的服务、各由哪个包提供、类型定义的原文——[服务表与类型声明](/docs/seams/service-table)
+- **服务总览**：`devkit.services` 从调用它的那个 home 里各包的 `.d.ts` 当场读出：这个 home 有哪些可以 inject 的服务、各由哪个包提供、类型定义的原文——[服务表与类型声明](/docs/seams/service-table)
 - **CDP 驱动**：`devkit.cdp`（`bin/cdp.mjs`）在隔离 home 的页面里点击、输入、截图、执行工作台命令、问页面属于哪个 home；工作台没运行时也能直接用 node 运行——[CDP 驱动](/docs/devkit/cdp)
 
 ## 接口
@@ -61,7 +61,7 @@ description: 开发套件是一个普通的 gwb 插件，把「在一个新文�
 
 `devkit.cdp` 是 `bin/cdp.mjs` 登记出来的：经 `gwbNodeCli` 登记的脚本自动成为同名命令，回执带 stdout、stderr 与退出码。工作台没运行时可以直接 `node <包根>/bin/cdp.mjs <home 名> <动作>`。
 
-加载完成时往 `<home>\gwb.log` 写一行「开发套件就绪」，列出此刻命令总线上 `plugin` 是本包的全部命令：有这一行说明 `apply` 执行完了。`devkit.cdp` 在不在取决于 node 命令行插件有没有加载，所以名单现问命令总线，不抄一份：
+加载完成时往 `<home>\gwb.log` 写一行「开发套件就绪」，列出此刻命令总线上 `plugin` 是本包的全部命令：有这一行说明 `apply` 执行完了。`devkit.cdp` 在不在取决于 node 命令行插件有没有加载，所以名单每次当场向命令总线查询，不另存一份：
 
 {/* ref file="../plugins/devkit/src/index.ts" lines="699-708" */}
 
@@ -111,7 +111,7 @@ description: 开发套件是一个普通的 gwb 插件，把「在一个新文�
 
 {/* has file="../plugins/devkit/src/index.ts" text="ctx.inject(['gwbSkills']" */}
 
-{/* ref file="../plugins/devkit/package.json" lines="35-47" */}
+{/* ref file="../plugins/devkit/package.json" lines="31-43" */}
 
 外壳、node 命令行、说明书三个服务用 `ctx.inject([...], fn)` 局部注入：缺哪个，只有那一部分停在等待状态，主插件照常加载。这三个插件在 peer 里标 `optional`，命令插件、插件管理与内核包是必需的 peer（见[用到的插件写 peer](/docs/rules/plugin-peers)）。服务怎么提供和使用的规矩见 [cordis 服务怎么提供和使用](/docs/rules/services)。运行时自己用的库（yaml、es-module-lexer）写 dev、由构建打包进 `dist/index.js`，构建怎么做见[开发](/docs/develop#提交前的检查)。
 

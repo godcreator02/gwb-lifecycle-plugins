@@ -9,13 +9,13 @@ description: 插件在 peerDependencies 里写内核包 @godcreator/gwb-kernel-d
 
 ## 规则
 
-**插件包在 `peerDependencies` 里写内核包 `@godcreator/gwb-kernel-desktop`，范围写 `^x.y.z`，x.y.z 是验证这个插件时所用的内核版本。** 运行中的内核落在这个范围里，插件才发得出去。只查插件包（`keywords` 里有 `gwb-plugin`），库和工具包不写。
+**插件包在 `peerDependencies` 里写内核包 `@godcreator/gwb-kernel-desktop`，范围写 `^x.y.z`，x.y.z 是验证这个插件时所用的内核版本。** 运行中的内核在这个范围里，插件才发得出去。只查插件包（`keywords` 里有 `gwb-plugin`），库和工具包不写。
 
 内核包和 `cordis` 一样装在每个 home 的根上（安装包只带启动器，启动器从 home 里加载内核），所以兼容性用标准的 peer 写：pnpm 把它解析到 home 里装着的那一份，安装时顺带比一次范围（只警告）。插件运行时不 import 内核包，只从它的包根 `import type` 接口类型（`GwbContext` 等），编译后不留 import；这条 peer 声明兼容哪些内核，也让 pnpm 把内核包装进插件的 `node_modules`，类型检查、构建脚本与发版前检查都从那里读它。
 
 devkit 自己的清单（peer 里另外几项是它用到的插件，见[用到的插件写 peer](/docs/rules/plugin-peers)）：
 
-{/* ref file="../plugins/devkit/package.json" lines="35-42" */}
+{/* ref file="../plugins/devkit/package.json" lines="31-38" */}
 
 ## 范围怎么算包含
 
@@ -47,7 +47,7 @@ devkit 自己的清单（peer 里另外几项是它用到的插件，见[用到�
 
 `devkit.scaffold` 与 `devkit.scaffold.plugin` 生成的 `package.json` 在 peer 里写内核包，范围是 `^<运行这条命令的内核版本号>`（模板占位符 `{{kernelVersion}}`；运行的是开发版内核时只取 x.y.z 三段）：新插件在同一台机器的隔离 home 里验证，用的就是这个内核。换到别的内核上验过之后再改这个范围：
 
-{/* ref file="../plugins/devkit/template/pkg/package.json.tpl" lines="28-32" */}
+{/* ref file="../plugins/devkit/template/pkg/package.json.tpl" lines="23-27" */}
 
 ## 为什么
 

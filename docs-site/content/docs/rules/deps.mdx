@@ -76,7 +76,7 @@ export function apply(ctx: Context) {
 
 插件管理不按值 import `cordis`（它的服务用 `ctx.provide` 提供一个普通对象），所以 peer 里没有 `cordis`。peer 里是内核包与它用到的四个插件：命令总线必需（命令都登记在它上面），数据、设置、说明书三个插件经局部注入可选使用，标 `optional`。它运行的 pnpm 是用户装在机器上的外部程序，照上表最后一行不声明，用的时候在两个固定位置检测它在不在（见[插件管理的 pnpm](/docs/plugin-manager/pnpm)），所以没有 `dependencies`；`cordis`、loader、include 在 dev。dev 里暂时还有接口类型包 `@godcreator/gwb-plugin-api`：命令总线 0.5.0 的类型声明还从它取 `GwbResult`，命令总线改成从内核包取类型之后删掉：
 
-{/* ref file="../plugins/plugin-manager/package.json" lines="34-58" */}
+{/* ref file="../plugins/plugin-manager/package.json" lines="32-54" */}
 
 它对内核包和别的插件都只 import 类型，构建产物里这几句整句消失：
 
@@ -86,7 +86,7 @@ export function apply(ctx: Context) {
 
 `devkit.scaffold` 生成的插件在 node 侧只 `import type`，构建产物里没有 `cordis`，所以 peer 里没有 `cordis`，`cordis` 写在 dev；peer 里是内核包和模板用到的两个插件——命令总线 `gwb-commands`（登记命令）与外壳 `gwb-shell`（注册窗格、样式令牌），`GwbContext` 从 peer 里的内核包 `import type`：
 
-{/* ref file="../plugins/devkit/template/pkg/package.json.tpl" lines="27-33" */}
+{/* ref file="../plugins/devkit/template/pkg/package.json.tpl" lines="23-44" */}
 
 模板带的产物测试按上面两份名单查构建产物：node 侧放行 node 内置模块、`electron` 与自己清单 peer 里写了的包；浏览器侧只放行内核包页面入口 `dist/index.html` 里 importmap 的键：
 
