@@ -5,7 +5,7 @@ description: outdated 查过期包；update 的参数三选一（all 升全部�
 
 # 热升级
 
-**本页回答**：怎么查出哪些包有新版本；`update` 的三种参数各做什么、`specs` 装完怎么核对；为什么升级与重新加载必须在同一条命令里；装之前定什么、装之后怎么定下要重新加载的包（真实目录变了的都重新加载，没点名的包为什么也会变）；一次热升级从头到尾依次发生什么、整页重新加载由谁做。`specs` 里有内核包时走另一套，见[升内核](/docs/plugin-manager/kernel-upgrade)；重新加载一条条目的时序见[重新加载一条条目](/docs/plugin-manager/remount)。
+**本页回答**：怎么查出哪些包有新版本；`update` 的三种参数各做什么、`specs` 装完怎么核对；为什么升级与重新加载必须在同一条命令里；装之前定什么、装之后怎么定下要重新加载的包（真实目录变了的都重新加载，没点名的包为什么也会变）；一次热升级从头到尾依次发生什么、整页重新加载由谁做。`specs` 里有内核包时走另一套，见[升内核](/docs/plugin-manager/kernel-upgrade)；重新加载一条条目的时序见[重新加载条目](/docs/plugin-manager/remount)。
 
 热升级管 home 里除内核包与 `cordis` 之外的全部包，插件管理自己和命令插件也在其中：它们各是一条条目，和别的插件一样升级。
 
@@ -156,7 +156,7 @@ description: outdated 查过期包；update 的参数三选一（all 升全部�
 - 调用方拿到回执后自己调外壳的 `shell.reload` 整页重新加载，窗格拿到新版本的页面代码
 </Diagram>
 
-**插件管理自己在回执之后**：升级的包或跟着重新加载的包里有插件管理自己时，它那条条目在回执发出之后才重新加载，回执 `selfDeferred` 是 `true`，那条条目的 `action` 是 `deferred`。在命令里停用自己，回执就发不出去了，理由与做法同[重新加载插件管理自己](/docs/plugin-manager/remount#目标是插件管理自己先回执后重新加载)。
+**插件管理自己在回执之后**：升级的包或跟着重新加载的包里有插件管理自己时，它那条条目在回执发出之后才重新加载，回执 `selfDeferred` 是 `true`，那条条目的 `action` 是 `deferred`。在命令里停用自己，回执就发不出去了，理由与做法见[重新加载条目](/docs/plugin-manager/remount#插件管理自己先回执后重新加载)。
 
 {/* ref file="../plugins/plugin-manager/src/index.ts" lines="575-603" */}
 

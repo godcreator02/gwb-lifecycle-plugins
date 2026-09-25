@@ -68,7 +68,7 @@ devkit 保证：
 
 - 目标 home 是 `default` 或 devkit 自己所在的 home，都不动手
 - 只读目标 home 的 `package.json`，在目标 home 里只写 `dev-packs/` 下的新包文件：每版一个新路径，已存在就拒，旧的不删
-- 已装的包只发一条 `update`，不另发 `remount`、`disable`、`enable`
+- 已装的包只发一条 `update`，不另发 `disable`、`enable`
 - 装上的版本号不是这次打包的就回 `ok: false`
 
 **第一处靠约定**：devkit 不 import 插件管理的回执类型（插件管理也不导出），也拿不到插件管理的服务（它经 CDP 调用），回执里用到的几个字段在 `dev.ts` 里手写解析。第三处有类型检查：插件管理改了导出函数或命令名常量，devkit 的 `pnpm check` 当场报错。

@@ -1,0 +1,45 @@
+---
+title: 插件管理 0.14.0：删 transfer-owner、remount、source.* 与选 id 读归属那一套，内核范围并进 unmetPeers
+born-at: 2026-09-25T21:30
+type: choice
+parent: [2026-09-08-gwb-devkit]
+label: 插件管理删多余命令
+domain: 插件管理
+---
+
+## 背景
+
+插件管理 0.13.2 对外有 15 条命令。人逐条看了谁在用：插件管理窗格（界面插件 baseui）与 devkit 只调 `list`、`install`、`uninstall`、`add-entry`、`remove-entry`、`enable`、`disable`、`outdated`、`update`、`search`；`transfer-owner`、`remount`、`source.add` / `list` / `remove` 两个调用方都不用。`list` 回执里内核兼容另有一对字段 `kernelRange`、`kernelUntested`，和 `unmetPeers` 是同一种判断——「peer 写的范围包不包含眼下那一版」——窗格却要读两处才能标黄。选条目 id 时还要读数据插件与设置插件的归属记录，为此插件管理注入了这两个插件，peer 里也写着它们。
+
+本卡的调用情况是人翻代码与窗格得出的，无物证。
+
+## 结论与边界
+
+人定删，插件管理 0.13.2 → 0.14.0（破坏性，写卡时还没发）。
+
+删掉的：
+
+- **`transfer-owner` 与选 id 读归属那一套**：条目 id 的规则不变（包名去掉 scope 与 `gwb-` 前缀转 kebab-case），条目树上重名照旧加 `-2` 后缀——不同源上的同名插件靠它共存。选 id 不再读数据插件与设置插件的归属记录，插件管理不再注入 `gwbData` / `gwbSettings`，peer 里这两项删掉。卸载后另一个同名包拿到同一个 id、读到前一个包留下的数据时，由数据插件与设置插件自己的归属检查报错，插件管理不管
+- **`add-entry` 的 `id` 参数**：只收 `{ pkg }`，id 一律自动生成；手动 id 不存在了，也就不用再判断它归谁
+- **`remount`**：`update` 内部照旧逐条重新加载、插件管理自己那条推迟到回执之后；手动重新加载一条用 `disable` 再 `enable`
+- **`source.add` / `list` / `remove`**：配第三方包源改由说明书 `gwb-plugin-manager` 教 agent 往 `~/.npmrc` 手写两行，写完调 `search` 核对。`search` 照旧读两份 npmrc，插件管理不再写 npmrc，也不再经 `settings.get` 读 gitea 插件的设置
+- **`list` 的 `kernelRange`、`kernelUntested` 与 `update` 升内核回执的 `pluginsOutsideRange`**：内核包并进 `unmetPeers`，拿插件 peer 里内核包的范围对照正在运行的内核，不包含就列 `{ pkg, range, installed: <运行中的内核版本> }`。升内核后要看哪些插件范围不包含新内核，重启后读 `list`
+
+留下的：数据插件与设置插件的服务方法 `owners()`、`transferOwner()` 这次不删，等它们本来要升 x 时一起删（那两个插件在基础插件仓）。
+
+边界：`remount` 删了以后，命令插件、MCP 入口、插件管理自己没有手动重新加载的办法——`disable` 一返回就发不出 `enable`，只能经 `update` 换版本时重新加载。人判断这几个插件手动重新加载的需求不值得多留一条命令。
+
+pivots-from:: [两个插件删掉用不上的机制](2026-09-25-drop-unused-machinery.md)
+pivots-from:: [重挂是目标进程里的一条命令](2026-09-17-remount-is-one-command.md)
+pivots-from:: [升内核并进 specs](2026-09-25-kernel-via-specs-caller-reloads.md)
+supersedes:: [找插件与配包源并回插件管理](2026-09-24-plugin-sources-back-to-plugin-manager.md)
+
+## 否掉的候选
+
+- **改条目 id 的生成规则**：人定 id 规则不变。id 是数据目录与设置分区的名字，改规则等于让已装插件换 id、读不到原来的数据；同名靠 `-2` 后缀已经能共存
+
+## 代价与遗留
+
+下游要跟：界面插件 baseui 的插件管理窗格改读 `unmetPeers`（含内核包那一项）；devkit 的 `devkit.home.new` 改 import 插件管理新导出的 `homePnpmEnv`；peer 或 dev 里写了插件管理的别的仓在收件页记了「要跟插件管理 0.14」。
+
+基础插件仓里数据插件与设置插件报错文字还指向 `plugin-manager.transfer-owner`，要等它们下一次改时去掉。

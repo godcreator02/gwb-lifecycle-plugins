@@ -1,6 +1,6 @@
 ---
 title: gwb-plugin-manager · 插件管理
-description: 插件管理是唯一写 home 的插件——装卸包、增删启停与重新加载条目、查新版本与热升级（内核包也经 update 的 specs 换）、报告 peer 里的内核范围与别的插件满没满足、在配好的 npm 源上找插件、增删机器级 ~/.npmrc 的包源；本页讲功能、对外的 15 条命令与服务、依赖什么、哪些事不归它管，细节在同目录的机制页
+description: 插件管理是唯一写 home 的插件——装卸包、增删启停条目、查新版本与热升级（换了版本的条目在同一条命令里重新加载，内核包也经 update 的 specs 换）、报告 peer 里的内核包与别的插件满没满足、在配好的 npm 源上找插件；本页讲功能、对外的 10 条命令与服务、依赖什么、哪些事不归它管，细节在同目录的机制页
 ---
 
 # 插件管理
@@ -14,42 +14,37 @@ description: 插件管理是唯一写 home 的插件——装卸包、增删启�
 它管 home 里的两层东西：pnpm 装进来的**包**，和 `cordis.yml` 里指向包的**条目**。只装包、不加条目，插件不会运行；插件管理是唯一写这两层的插件，让两层对得上，并如实报告对不上的地方。
 
 - **列出 home 里的包与条目**：每个包下面是它的条目，带启停、是否在运行；内核包与 `cordis` 不列，见 [home 的包与条目](/docs/plugin-manager/home)
-- **报告每个插件兼容哪些内核**：`list` 的每个包带 `kernelRange` 与 `kernelUntested`，只报告、不拦加载，见[内核兼容性](/docs/plugin-manager/kernel-compat)
-- **报告每个插件 peer 里的别的插件满没满足**：`list` 的每个包带 `unmetPeers`，只报告、不拦加载，见 [peer 满没满足](/docs/plugin-manager/peers)
+- **报告每个插件 peer 里的包满没满足**：`list` 的每个包带 `unmetPeers`，内核包对照正在运行的内核、别的插件对照 home 里装着的版本，只报告、不拦加载，见 [peer 满没满足](/docs/plugin-manager/peers)与[内核兼容性](/docs/plugin-manager/kernel-compat)
 - **装一个还没装的包并加一条条目**：一条命令做完，home 的 `package.json` 照 pnpm 默认写 `^` 范围，只等条目写入、不等加载；包已装就报错。**卸载**先删全部条目、再卸包，数据与设置留在磁盘上。见[安装与卸载](/docs/plugin-manager/install)
 - **加删条目、启用或停用一条条目**：条目只经 loader 的条目树改，见 [home 的包与条目](/docs/plugin-manager/home#条目只经-loader-的条目树)
-- **重新加载一条条目**：停用 → 等旧的卸载完 → 启用 → 等新的加载完，一条命令做完，见[重新加载一条条目](/docs/plugin-manager/remount)
-- **选条目 id、转归属**：沿用本包留在磁盘上的旧 id，避开别的包的数据与设置；插件改了包名时把一个 id 的数据与设置转给新包，见 [id 与归属](/docs/plugin-manager/ids)
-- **查新版本、热升级**：全部过期包、点名的几个过期包、或按给定写法装已装的包，三种恰好选一种；升级与重新加载在同一条命令里，真实目录变了的别的包一起重新加载；不重启、不整页重新加载，见[热升级](/docs/plugin-manager/upgrade)
+- **选条目 id**：包名去掉 scope 与 `gwb-` 前缀，条目树上重名加 `-2`、`-3` 后缀，不同源上的同名插件靠它共存，见[条目 id](/docs/plugin-manager/ids)
+- **查新版本、热升级**：全部过期包、点名的几个过期包、或按给定写法装已装的包，三种恰好选一种；升级与重新加载在同一条命令里（停用 → 等旧的卸载完 → 启用 → 等新的加载完，见[重新加载条目](/docs/plugin-manager/remount)），真实目录变了的别的包一起重新加载；不重启、不整页重新加载，见[热升级](/docs/plugin-manager/upgrade)
 - **升内核**：内核包写进 `update` 的 `specs`，装完照内核包 peer 里写的版本对齐 home 根上的 `cordis`；不重新加载任何条目，重启由人决定，见[升内核](/docs/plugin-manager/kernel-upgrade)
-- **同一时刻只允许一个改动**：安装、卸载、升级、重新加载重入时回 BUSY，同一个 home 里同一时刻最多一个写 home 的 pnpm，见[同一时刻只允许一个改动](/docs/plugin-manager/busy)
+- **同一时刻只允许一个改动**：安装、卸载、升级重入时回 BUSY，同一个 home 里同一时刻最多一个写 home 的 pnpm，见[同一时刻只允许一个改动](/docs/plugin-manager/busy)
 - **只用两个固定位置的 pnpm 12**：第一个存在的作数、核对版本，直接启动、不设超时，见 [pnpm](/docs/plugin-manager/pnpm)
-- **找可装的插件、配第三方包源**：在配好的每条 npm 源上检索，是不是插件只看包清单 `keywords` 里的 `gwb-plugin`；往机器级 `~/.npmrc` 增删 scope 路由与凭据，`@godcreator` 不改不删，这几条不改 home、不经 BUSY，见[找插件与配包源](/docs/plugin-manager/sources)
+- **找可装的插件**：在机器级 `~/.npmrc` 与 home 级 `<home>/.npmrc` 配好的每条 npm 源上检索，是不是插件只看包清单 `keywords` 里的 `gwb-plugin`；只读 npmrc、不改 home、不经 BUSY。第三方包源由说明书教 agent 手写 `~/.npmrc`，见[找插件](/docs/plugin-manager/sources)
 
 ## 接口
 
 别的模块经下面这几样使用插件管理。
 
-### 15 条命令
+### 10 条命令
 
 插件管理对外只有命令，都登记在命令总线上，`plugin` 写包名；页面、agent、别的插件调的是同一批命令。每条命令的参数与回执写在它登记时的 `usage` 里，agent 经 MCP 入口的 `search` 读到的就是它；怎么组合着用见说明书 [gwb-plugin-manager](/outputs/skills/gwb-plugin-manager)。
 
 | 命令（前缀 `plugin-manager.`） | 做什么 | 细节 |
 | --- | --- | --- |
-| `list` | 列出包与条目，带内核兼容与 peer 报告 | [home 的包与条目](/docs/plugin-manager/home) |
+| `list` | 列出包与条目，带 peer 报告（含内核包） | [home 的包与条目](/docs/plugin-manager/home) |
 | `install` / `uninstall` | 装一个还没装的包并加一条条目 / 删全部条目再卸包（经 BUSY 检查） | [安装与卸载](/docs/plugin-manager/install) |
-| `add-entry` / `remove-entry` | 给已装的包加一条条目 / 删一条条目、留着包 | [home 的包与条目](/docs/plugin-manager/home)、[id 与归属](/docs/plugin-manager/ids) |
-| `enable` / `disable` | 启用 / 停用一条条目 | [home 的包与条目](/docs/plugin-manager/home) |
-| `remount` | 重新加载一条条目（经 BUSY 检查） | [重新加载一条条目](/docs/plugin-manager/remount) |
-| `transfer-owner` | 把一个 id 的数据与设置转给另一个包 | [id 与归属](/docs/plugin-manager/ids) |
+| `add-entry` / `remove-entry` | 给已装的包加一条条目（只收 `{ pkg }`，id 自动生成）/ 删一条条目、留着包 | [home 的包与条目](/docs/plugin-manager/home)、[条目 id](/docs/plugin-manager/ids) |
+| `enable` / `disable` | 启用 / 停用一条条目；手动重新加载一条就先停用再启用 | [home 的包与条目](/docs/plugin-manager/home)、[重新加载条目](/docs/plugin-manager/remount#手动重新加载一条条目) |
 | `outdated` / `update` | 查新版本 / 升级已装的包，内核包也经 `update` 的 `specs`（`update` 经 BUSY 检查） | [热升级](/docs/plugin-manager/upgrade)、[升内核](/docs/plugin-manager/kernel-upgrade) |
-| `search` | 在配好的全部源上找插件 | [找插件与配包源](/docs/plugin-manager/sources) |
-| `source.add` / `source.list` / `source.remove` | 增、列、删包源 | [找插件与配包源](/docs/plugin-manager/sources) |
+| `search` | 在配好的全部源上找插件 | [找插件](/docs/plugin-manager/sources) |
 
 {/* ref file="../plugins/plugin-manager/src/index.ts" lines="53-67" */}
 
-- **回执只有一层 `ok`**：成功时 `data` 是结果本身，里面没有第二层 `ok`；执行中的失败（找不到 pnpm、pnpm 失败、条目写不进去）回 `{ ok: false, error }`，pnpm 输出的最后几行拼在 `error` 末尾。失败时还带结构化字段的只有两处：`remount` 失败带 `data: { id, action: "failed", state }`，`update` 装上了内核包而 `cordis` 没对齐时带 `data: { kernel }`。为什么只留一层见轨迹卡[升内核并进 specs](/trajectory/2026-09-25-kernel-via-specs-caller-reloads)
-- **调用方写错直接报错**：参数不是对象、有认不出的键、缺字段、包名或 id 不合规、条目不存在，处理函数直接抛错，不猜、不忽略；命令总线把抛出的错误转成 `{ ok: false, error }`
+- **回执只有一层 `ok`**：成功时 `data` 是结果本身，里面没有第二层 `ok`；执行中的失败（找不到 pnpm、pnpm 失败、条目写不进去）回 `{ ok: false, error }`，pnpm 输出的最后几行拼在 `error` 末尾。失败时还带结构化字段的只有一处：`update` 装上了内核包而 `cordis` 没对齐时带 `data: { kernel }`。为什么只留一层见轨迹卡[升内核并进 specs](/trajectory/2026-09-25-kernel-via-specs-caller-reloads)
+- **调用方写错直接报错**：参数不是对象、有认不出的键、缺字段、包名不合规、条目不存在，处理函数直接抛错，不猜、不忽略；命令总线把抛出的错误转成 `{ ok: false, error }`
 
 {/* ref file="../plugins/plugin-manager/src/vocab.ts" lines="16-17" */}
 
@@ -87,23 +82,20 @@ description: 插件管理是唯一写 home 的插件——装卸包、增删启�
 
 | 依赖 | 用来做什么 | 缺了会怎样 |
 | --- | --- | --- |
-| 内核服务 `gwbKernel` 的 `dataDir` 与 `version` | home 目录（pnpm 的工作目录、`package.json` 所在的目录）；运行中的内核版本号，和各插件 peer 里内核包的范围比 | 构造时报错「ctx.gwbKernel 不在」，插件管理不加载；内核版本号不合法时 `list` 报错 |
+| 内核服务 `gwbKernel` 的 `dataDir` 与 `version` | home 目录（pnpm 的工作目录、`package.json` 所在的目录）；运行中的内核版本号，`list` 拿它和各插件 peer 里内核包的范围比 | 构造时报错「ctx.gwbKernel 不在」，插件管理不加载；内核版本号不合法时 `list` 报错 |
 | loader 的条目树：`store`、`create`、`update`、`remove`（从 `ctx.fiber.entry.parent.tree` 取） | 读条目、加删条目、启用停用、重新加载 | 构造时报错：取不到条目树（插件管理不是经 `cordis.yml` 的条目加载的）；loader 的签名变了由类型检查发现 |
 | cordis：`provide`、`effect`、`inject`、`logger`，条目 fiber 的状态与 `await()` | 提供服务、局部注入、卸载时撤销、写日志、判断条目加载到哪一步、重新加载时等卸载与加载做完 | 由内核提供，不会缺；cordis 的状态名变了，`list` 的 `active` 与重新加载的等待会判断错，由状态名对照测试拦住 |
-| 命令总线 `gwbCommands`（`@godcreator/gwb-commands`，局部注入） | 登记 15 条命令；`source.add` 的 `owner` 写法按名字调 `settings.get` | 命令登记不上，插件管理没有调用方式；服务照常提供 |
-| 数据插件 `gwbData`（`@godcreator/gwb-data`，局部注入）的 `owners` / `transferOwner` | 读和转数据目录的归属记录 | 选 id 时看不到数据目录的归属；`transfer-owner` 报错 |
-| 设置插件 `gwbSettings`（`@godcreator/gwb-settings`，局部注入）的 `owners` / `transferOwner` | 读和转设置分区的归属记录 | 选 id 时看不到设置的归属；`transfer-owner` 报错 |
+| 命令总线 `gwbCommands`（`@godcreator/gwb-commands`，局部注入） | 登记 10 条命令 | 命令登记不上，插件管理没有调用方式；服务照常提供 |
 | 说明书插件 `gwbSkills`（`@godcreator/gwb-skills`，局部注入） | 登记自带的说明书 | 没有说明书，插件管理照常加载 |
 | 用户装的 pnpm 12（`%LOCALAPPDATA%\pnpm\bin\pnpm.exe` 或 `%APPDATA%\npm\node_modules\pnpm\pnpm.exe`，不低于 12.4.2） | `add`、`remove`、`outdated --json` | 要运行 pnpm 的命令回 `ok: false`，原因里写明检查了哪两个位置、该怎么装；`list`、启停条目不受影响 |
 | home 的 `package.json` | 装了哪些包、各自写的版本 | 读不了、不是 JSON、形状不对都抛错，报错带清单路径 |
 | home 的 `node_modules/<包名>` 指向的真实目录 | `update` 在 `pnpm add` 之前与之后各读一次，找出跟着换了目录的包 | 读不到当没装；在但读不了，`update` 报错并带上路径 |
-| 装在 home 里的每个包自己的 `package.json` | `keywords`、`peerDependencies` 与 `peerDependenciesMeta`、`version`：内核兼容与 peer 报告；`update` 前后的版本号；升内核时读内核包 peer 里的 `cordis` | 文件不在就当不是插件、peer 里的包算没装；在但读不了或不是合法 JSON，`list` 与 `update` 报错并带上文件路径；内核包 peer 里的 `cordis` 不是精确版本号时不装 `cordis`、回 `ok: false`；`specs` 装完读不到某个包的 `version`，回 `ok: false`、一条条目都不动 |
-| 机器级 `~/.npmrc` 与 home 级 `<home>/.npmrc` | 按 scope 找源地址与 token；`source.add` / `source.remove` 改机器级那份 | 文件不在当空文本；在但读不了，命令报错并带上路径 |
+| 装在 home 里的每个包自己的 `package.json` | `keywords`、`peerDependencies` 与 `peerDependenciesMeta`、`version`：peer 报告；`update` 前后的版本号；升内核时读内核包 peer 里的 `cordis` | 文件不在就当不是插件、peer 里的包算没装；在但读不了或不是合法 JSON，`list` 与 `update` 报错并带上文件路径；内核包 peer 里的 `cordis` 不是精确版本号时不装 `cordis`、回 `ok: false`；`specs` 装完读不到某个包的 `version`，回 `ok: false`、一条条目都不动 |
+| 机器级 `~/.npmrc` 与 home 级 `<home>/.npmrc` | `search` 按 scope 找源地址与 token，只读 | 文件不在当空文本；在但读不了，`search` 报错并带上路径 |
 | 各条 npm 源的检索接口 `GET <源>/-/v1/search`（网络） | `search` 检索可装的插件 | 这条源在回执 `note` 里点名，别的源照常；全部没查成时 `search` 回 `ok: false` |
-| gitea 插件的设置：`gitea` 分区的 `base-url` 与 `token`，经 `settings.get` 按名字读 | `source.add` 的 `owner` 写法拼源地址、取 token | 取不到 http(s) 的 `base-url`、或没显式给 token 又取不到 `token`，`source.add` 回 `ok: false` |
 | 内核包 `@godcreator/gwb-kernel-desktop` 包根导出的类型 | `GwbContext`、`GwbResult`、`GwbKernelApi` 的类型 | 只有类型，形状改坏了类型检查失败 |
 
-插件管理不写 `export const inject`：命令、数据、设置、说明书四个插件都用 `ctx.inject` 局部注入，缺了只少一部分功能，插件管理照常加载。这四个插件写在 peer 里，命令总线必需，另外三个标 `optional`（见[依赖怎么写](/docs/rules/deps#例子插件管理的清单)）；cordis、loader、include 写在 `devDependencies`；内核与这四个插件的类型都从 peer 里的包 `import type`，构建产物里没有它们的 import。
+插件管理不写 `export const inject`：命令、说明书两个插件都用 `ctx.inject` 局部注入，缺了只少一部分功能，插件管理照常加载。这两个插件写在 peer 里，命令总线必需，说明书插件标 `optional`（见[依赖怎么写](/docs/rules/deps#例子插件管理的清单)）；数据插件、设置插件不在 peer 里，插件管理不用它们；cordis、loader、include 写在 `devDependencies`；内核与这两个插件的类型都从 peer 里的包 `import type`，构建产物里没有它们的 import。
 
 {/* ref file="../plugins/plugin-manager/package.json" lines="32-43" */}
 
@@ -114,11 +106,11 @@ description: 插件管理是唯一写 home 的插件——装卸包、增删启�
 - **不分调用方**：插件管理窗格、经 MCP 入口的 agent、经 CDP 调命令的 `devkit.dev` 调的是同一条命令；它不知道 devkit 的 `dev-packs/` 目录，只照 `file:` 写法交给 pnpm
 - **不画界面**：插件管理窗格在界面平台仓的 `gwb-baseui`，它经命令调用插件管理
 - **不管条目加载成没成功**：条目由 loader 加载，成没成功看 `list` 的 `active`，原因在 `gwb.log`；插件之间的依赖齐不齐也不管，缺服务的插件由 cordis 停在等待
-- **不拦范围不包含当前内核、peer 没满足的插件，也不替它装或升级 peer 里的插件**：`kernelUntested` 与 `unmetPeers` 只报告；发版前拒绝 peer 没写对的包是 `devkit.release` 的事
+- **不拦范围不包含当前内核、peer 没满足的插件，也不替它装或升级 peer 里的插件**：`unmetPeers` 只报告；发版前拒绝 peer 没写对的包是 `devkit.release` 的事
 - **不替插件装 peer、库**：插件自己把库打包进去；peer 里的插件由人装，pnpm 的自动补装也关掉了，理由见[安装与卸载](/docs/plugin-manager/install#home-里只有插件内核包与-cordis)
-- **不删数据与设置**：卸载包、删条目都不动它们，内容归数据插件与设置插件管；插件管理只读、只转它们的归属记录
+- **不管数据与设置**：卸载包、删条目都不动它们，内容与归属记录归数据插件与设置插件管；插件管理选 id 不读归属记录，同名包读到别人留下的数据时由那两个插件报错
 - **不重启工作台、不整页重新加载**：换了内核包只在回执里说要重启，重启由人决定；界面要换成新代码，由调用方拿到回执后自己调 `shell.reload`
 - **不管进程外的 pnpm**：`devkit.home.new`、人手工运行的 pnpm 不经 BUSY，和插件管理的改动同时写 home 会丢改动
 - **不替人装 pnpm，也不找 PATH 上的 pnpm**：两个固定位置都没有、或版本不对，就报错说明该怎么装
-- **不看环境变量或 pnpm 全局配置里指定的源**：找源地址只读两份 npmrc；不写 home 级 `.npmrc`，不改不删 `@godcreator` 的路由
+- **不写 npmrc，不看环境变量或 pnpm 全局配置里指定的源**：找源地址只读两份 npmrc；第三方包源由 agent 照说明书手写 `~/.npmrc`
 - **不猜承载 `cordis.yml` 的条目叫什么**：条目树从自己那条条目的上一层取

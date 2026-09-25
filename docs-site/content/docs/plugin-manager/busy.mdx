@@ -1,15 +1,15 @@
 ---
 title: 同一时刻只允许一个改动
-description: install、uninstall、update、remount 四条命令在最外层经过同一道 BUSY 检查，已有一个在运行时重入的直接回 BUSY、不排队；所以插件管理在一个 home 里同一时刻最多一个写 home 的 pnpm；管不到的三处写明
+description: install、uninstall、update 三条命令在最外层经过同一道 BUSY 检查，已有一个在运行时重入的直接回 BUSY、不排队；所以插件管理在一个 home 里同一时刻最多一个写 home 的 pnpm；管不到的三处写明
 ---
 
 # 同一时刻只允许一个改动
 
 **本页回答**：哪几条命令经过 BUSY 检查、重入时回什么；为什么要这道检查、为什么不排队；它管不到哪几处。
 
-## 四条改动命令经过 BUSY
+## 三条改动命令经过 BUSY
 
-`install`、`uninstall`、`update`、`remount` 登记时包在同一道检查里。已经有一个在运行时，重入的直接回 `{ ok: false, error: "BUSY…" }`，不执行、不排队；运行中抛错也会释放标志。一个内核进程只服务一个 home，进程内的一个标志就够。插件管理对外只有命令，没有绕开这道检查的调用方式。
+`install`、`uninstall`、`update` 登记时包在同一道检查里。已经有一个在运行时，重入的直接回 `{ ok: false, error: "BUSY…" }`，不执行、不排队；运行中抛错也会释放标志。一个内核进程只服务一个 home，进程内的一个标志就够。插件管理对外只有命令，没有绕开这道检查的调用方式。
 
 {/* ref file="../plugins/plugin-manager/src/busy.ts" lines="1-17" */}
 
@@ -28,7 +28,7 @@ description: install、uninstall、update、remount 四条命令在最外层经�
 
 ## 为什么要，为什么不排队
 
-写 home 的 pnpm 都在这四条命令里运行（见[包：只经 applyToHome](/docs/plugin-manager/home#包只经-applytohome)），而两个写 home 的 pnpm 同时运行会丢改动：在和真 home 布局相同的临时 home 里，`pnpm add x` 与 `pnpm add y` 同时运行 5 轮，每轮清单与锁文件都只剩一个包；`pnpm add` 与 `pnpm remove` 同时运行 5 轮，每轮添加的那个包都丢了；两个 pnpm 都退出码 0、没有警告。`pnpm outdated --json` 不写文件，和 `pnpm add` 同时运行 5 轮，`add` 的结果都对，所以只读的 `outdated` 与找插件、配包源的四条命令不经过 BUSY（实验见轨迹卡[两个 pnpm 同时改同一个 home](/trajectory/2026-09-25-concurrent-pnpm-loses-writes)）。
+写 home 的 pnpm 都在这三条命令里运行（见[包：只经 applyToHome](/docs/plugin-manager/home#包只经-applytohome)），而两个写 home 的 pnpm 同时运行会丢改动：在和真 home 布局相同的临时 home 里，`pnpm add x` 与 `pnpm add y` 同时运行 5 轮，每轮清单与锁文件都只剩一个包；`pnpm add` 与 `pnpm remove` 同时运行 5 轮，每轮添加的那个包都丢了；两个 pnpm 都退出码 0、没有警告。`pnpm outdated --json` 不写文件，和 `pnpm add` 同时运行 5 轮，`add` 的结果都对，所以只读的 `outdated` 与找插件的 `search` 不经过 BUSY（实验见轨迹卡[两个 pnpm 同时改同一个 home](/trajectory/2026-09-25-concurrent-pnpm-loses-writes)）。
 
 一次安装、一次热升级也不止一次 pnpm，还要改条目树、重新加载插件，中间插进另一个改动，状态就乱了。
 
@@ -36,6 +36,6 @@ description: install、uninstall、update、remount 四条命令在最外层经�
 
 ## 管不到的三处
 
-- **条目命令不经过 BUSY**：`add-entry`、`remove-entry`、`enable`、`disable`、`transfer-owner` 不经过检查，`update` 正在重新加载某条条目时，别人可以同时停用或删掉它
-- **插件管理重新加载自己的那段空档**：`update` 或 `remount` 重新加载插件管理自己时，先发回执、释放标志，下一个宏任务才动手（见[重新加载一条条目](/docs/plugin-manager/remount#目标是插件管理自己先回执后重新加载)）；这中间进来的改动命令能通过检查，可能运行到一半插件管理就被停用；重新加载出来的新实例标志是新的
+- **条目命令不经过 BUSY**：`add-entry`、`remove-entry`、`enable`、`disable` 不经过检查，`update` 正在重新加载某条条目时，别人可以同时停用或删掉它
+- **插件管理重新加载自己的那段空档**：`update` 重新加载插件管理自己时，先发回执、释放标志，下一个宏任务才动手（见[重新加载条目](/docs/plugin-manager/remount#插件管理自己先回执后重新加载)）；这中间进来的改动命令能通过检查，可能运行到一半插件管理就被停用；重新加载出来的新实例标志是新的
 - **插件管理进程外的 pnpm**：`devkit.home.new`（新 home 启动之前）、人在终端里手工运行的 pnpm，和插件管理的改动同时写同一个 home 时照样会丢改动。一个隔离 home 同一时间只给一个会话用，这条靠约定，不加锁（[隔离 home 靠约定](/trajectory/2026-09-25-isolated-home-by-convention)）

@@ -1,11 +1,11 @@
 ---
 title: 内核兼容性
-description: 插件在 peerDependencies 里给内核包 @godcreator/gwb-kernel-desktop 写 ^x.y.z；list 只给插件报 kernelRange 与 kernelUntested，范围不包含运行中的内核就标，只报告不拦加载；比对规则只有 src/kernel-compat.ts 一份，升内核时的 pluginsOutsideRange 与 devkit.release 的发版前检查用的都是它
+description: 插件在 peerDependencies 里给内核包 @godcreator/gwb-kernel-desktop 写 ^x.y.z；list 只给插件报，范围不包含正在运行的内核就在 unmetPeers 里列内核包一项，只报告不拦加载；比对规则只有 src/kernel-compat.ts 一份，devkit.release 的发版前检查用的也是它
 ---
 
 # 内核兼容性
 
-**本页回答**：插件怎么声明兼容哪些内核；`^x.y.z` 包不包含一个版本怎么判；`list` 回执里的 `kernelRange` 与 `kernelUntested` 怎么算、为什么只标插件；为什么只报告、不拦加载；还有谁用同一条规则。
+**本页回答**：插件怎么声明兼容哪些内核；`^x.y.z` 包不包含一个版本怎么判；`list` 怎么报范围不包含当前内核的插件、为什么只看插件；为什么只报告、不拦加载；还有谁用同一条规则。
 
 ## 插件在 peer 里写内核包的范围
 
@@ -29,32 +29,29 @@ description: 插件在 peerDependencies 里给内核包 @godcreator/gwb-kernel-d
 
 {/* has file="../plugins/plugin-manager/tests/kernel-compat.test.ts" text="预发布段不看：开发版内核按它的 x.y.z 比" */}
 
-{/* has file="../plugins/plugin-manager/tests/kernel-compat.test.ts" text="运行中的内核版本号不合法直接抛错" */}
+{/* has file="../plugins/plugin-manager/tests/kernel-compat.test.ts" text="范围没写、不是 ^x.y.z：不包含；内核版本号不合法直接抛错" */}
 
-## list 回执里的两个字段
+## list 在 unmetPeers 里报内核包
 
-`list` 给每个包读它装在 home 里的 `package.json`，回执里带两个字段：
+`list` 给每个包读它装在 home 里的 `package.json`。插件 peer 里写了内核包、范围不包含**正在运行的内核**（内核服务 `gwbKernel` 的 `version`）时，这个包的 `unmetPeers` 列一项 `{ pkg: "@godcreator/gwb-kernel-desktop", range, installed: <运行中的内核版本> }`；范围写的不是 `^x.y.z` 也列，`range` 原样照抄。home 的 `node_modules` 里装着的内核包版本不参与判断：换了内核包、还没重启时，运行的仍是旧内核。内核包与别的 peer 是同一种判断——「peer 写的范围包不包含眼下那一版」，所以报在同一个字段里，别的 peer 怎么报见 [peer 满没满足](/docs/plugin-manager/peers)。
 
-- `kernelRange`：`peerDependencies` 里内核包范围的原值；没写或不是字符串时没有这个字段
-- `kernelUntested`：范围不包含运行中的内核就是 `true`，包括没写、写的不是 `^x.y.z`
+**只看插件**：`keywords` 里有 `gwb-plugin` 的包才比；peer 里没写内核包的插件不列这一项（发版前检查会拒它，见下）。库、第三方 cordis 插件（如 `@cordisjs/plugin-timer`）、清单读不到的包都不该声明兼容哪个内核，`unmetPeers` 一律为空——不然窗格里这些包都标黄，真正没适配当前内核的插件反而看不出来。内核包与 `cordis` 自己不在 `list` 里。
 
-**只标插件**：`keywords` 里有 `gwb-plugin`、又不是内核包与 `cordis` 自己的包才比。库、第三方 cordis 插件（如 `@cordisjs/plugin-timer`）、内核包与 `cordis`、清单读不到的包都不该声明兼容哪个内核，一律 `kernelUntested: false`、不带 `kernelRange`——不然窗格里这些包都显示「内核未测过」，真正没适配当前内核的插件反而看不出来。
+{/* ref file="../plugins/plugin-manager/src/kernel-upgrade.ts" lines="54-59" */}
 
-{/* ref file="../plugins/plugin-manager/src/kernel-upgrade.ts" lines="54-68" */}
+{/* ref file="../plugins/plugin-manager/src/peers.ts" lines="58-77" */}
 
-{/* ref file="../plugins/plugin-manager/src/kernel-compat.ts" lines="63-76" */}
-
-**读包清单**：按包名（含 scope）从 home 的 `node_modules` 读。文件不在（条目指向一个没装的包，或 pnpm 装到一半）就当不是插件、不标；文件在但读不了、或不是合法 JSON，`list` 直接报错并带上文件路径——那是 home 坏了，不该当成「范围不包含」报出来了事。
+**读包清单**：按包名（含 scope）从 home 的 `node_modules` 读。文件不在（条目指向一个没装的包，或 pnpm 装到一半）就当不是插件、不列；文件在但读不了、或不是合法 JSON，`list` 直接报错并带上文件路径——那是 home 坏了，不该当成「范围不包含」报出来了事。
 
 {/* ref file="../plugins/plugin-manager/src/home.ts" lines="36-51" */}
 
-{/* has file="../plugins/plugin-manager/tests/kernel-compat.test.ts" text="写了但不包含运行中的内核：带 kernelRange，kernelUntested 是 true" */}
+{/* has file="../plugins/plugin-manager/tests/peers.test.ts" text="内核包对照正在运行的内核：范围不包含就列一项，installed 是运行中的内核版本" */}
 
-{/* has file="../plugins/plugin-manager/tests/kernel-compat.test.ts" text="没写：没有 kernelRange 字段，kernelUntested 是 true" */}
+{/* has file="../plugins/plugin-manager/tests/peers.test.ts" text="内核包的范围不是 ^x.y.z 也列；home 的 node_modules 里装着的内核版本不参与判断" */}
 
-{/* has file="../plugins/plugin-manager/tests/kernel-compat.test.ts" text="写的不是 ^x.y.z：原样带出，kernelUntested 是 true" */}
+{/* has file="../plugins/plugin-manager/tests/peers.test.ts" text="peer 里没写内核包的插件不列内核这一项；cordis 不在这里报" */}
 
-{/* has file="../plugins/plugin-manager/tests/kernel-upgrade.test.ts" text="不是插件的包不标" */}
+{/* has file="../plugins/plugin-manager/tests/commands.test.ts" text="插件 peer 里内核包的范围不包含正在运行的内核：unmetPeers 列一项，installed 是运行中的内核版本（home 里装着的内核包版本不算）" */}
 
 {/* has file="../plugins/plugin-manager/tests/home.test.ts" text="包不在 node_modules 里时是 undefined" */}
 
@@ -62,12 +59,11 @@ description: 插件在 peerDependencies 里给内核包 @godcreator/gwb-kernel-d
 
 ## 只报告，不拦加载
 
-`kernelUntested` 是 `true` 的插件照常加载、照常能装能升，插件管理不拦它。范围不包含当前内核不等于不能用，大多数插件换一个次版本的内核照样能运行；拦下来反而让人没法先试一试。这个字段的用处是出了问题时先怀疑它；要保证发出去的插件都写对了范围，在发版时检查，而不是在装的时候拦。
+`unmetPeers` 里有内核包的插件照常加载、照常能装能升，插件管理不拦它。范围不包含当前内核不等于不能用，大多数插件换一个次版本的内核照样能运行；拦下来反而让人没法先试一试。这一项的用处是出了问题时先怀疑它；要保证发出去的插件都写对了范围，在发版时检查，而不是在装的时候拦。升内核重启之后，范围不包含新内核的插件由同一个 `list` 报出来（见[升内核](/docs/plugin-manager/kernel-upgrade)）。
 
 ## 还有谁用同一条规则
 
-- **升内核**：`update` 的 `specs` 里有内核包时，装完新内核列出范围不包含新内核（或没写范围）的插件，放在回执的 `pluginsOutsideRange` 里，用的就是算 `kernelUntested` 的那个函数，同样只报告，见[升内核](/docs/plugin-manager/kernel-upgrade#回执多出的两个字段)
-- **`devkit.release`**：构建之后、发第一个包之前，检查每个插件包 peer 里内核包的范围：必须写了、是 `^x.y.z`、并且包含运行中的内核；有一个不对就一个都不发。不是插件的包不查
+`devkit.release` 构建之后、发第一个包之前，检查每个插件包 peer 里内核包的范围：必须写了、是 `^x.y.z`、并且包含运行中的内核；有一个不对就一个都不发。不是插件的包不查。
 
 比对规则只写在插件管理的 `src/kernel-compat.ts` 里，经包主入口导出 `KERNEL_PACKAGE`、`isCaretRange`、`kernelRangeCovers`（见[主入口给 devkit 的导出](/docs/plugin-manager#主入口给-devkit-的导出)）。devkit 的发版前检查直接 import 它们，所以改了这里的规则，`devkit.release` 的检查跟着变；改签名或 devkit 依赖的行为是破坏性变更（见[什么算破坏性变更](/docs/plugin-manager#什么算破坏性变更)）。两边怎么对上见接缝页 [peer 里的内核包与插件](/docs/seams/kernel-peer)。
 

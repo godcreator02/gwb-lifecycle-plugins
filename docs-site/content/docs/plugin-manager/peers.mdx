@@ -1,6 +1,6 @@
 ---
 title: peer 满没满足
-description: 插件在 peerDependencies 里写它用到的别的插件的 ^x.y.z；list 按包报 unmetPeers，只看插件 peer 里内核包与 cordis 以外的包，optional 的没装不算，只报告不拦加载；插件管理启动的 pnpm 不自动补装缺的 peer
+description: 插件在 peerDependencies 里写内核包与它用到的别的插件的 ^x.y.z；list 按包报 unmetPeers，只看插件 peer 里 cordis 以外的包，内核包对照正在运行的内核、别的包对照 home 里装着的版本，optional 的没装不算，只报告不拦加载；插件管理启动的 pnpm 不自动补装缺的 peer
 ---
 
 # peer 满没满足
@@ -11,8 +11,9 @@ description: 插件在 peerDependencies 里写它用到的别的插件的 ^x.y.z
 
 插件包在 `peerDependencies` 里写它用到的别的插件，范围 `^x.y.z`，意思是运行时 home 里那个插件装的版本在这个范围里；只是可选使用的在 `peerDependenciesMeta` 标 `optional: true`。`list` 回执里每个包都带 `unmetPeers`，每条是 `{ pkg, range, installed? }`：
 
-- 只看插件（`keywords` 含 `gwb-plugin`）peer 里内核包与 `cordis` 以外的包；内核包由 `kernelRange` / `kernelUntested` 报（见[内核兼容性](/docs/plugin-manager/kernel-compat)），`cordis` 由插件管理在升内核时对齐（见[升内核](/docs/plugin-manager/kernel-upgrade)）
-- 没装：列进来，没有 `installed` 字段；optional 的没装不算
+- 只看插件（`keywords` 含 `gwb-plugin`）peer 里 `cordis` 以外的包；`cordis` 由插件管理在升内核时对齐（见[升内核](/docs/plugin-manager/kernel-upgrade)）
+- 内核包 `@godcreator/gwb-kernel-desktop`：对照正在运行的内核，范围不包含就列进来，`installed` 是运行中的内核版本（见[内核兼容性](/docs/plugin-manager/kernel-compat)）；peer 里没写内核包就不列这一项
+- 别的包没装：列进来，没有 `installed` 字段；optional 的没装不算
 - 装着但版本不在范围里：列进来，带 `installed`；optional 的也一样
 - 范围不是 `^x.y.z`：`range` 原样照抄，算没满足
 - 不是插件的包、清单读不到的包、全都满足时是空数组
@@ -26,11 +27,11 @@ description: 插件在 peerDependencies 里写它用到的别的插件的 ^x.y.z
 
 {/* ref file="../plugins/plugin-manager/src/peers.ts" lines="41-69" */}
 
-比法与内核包范围是同一个函数 `caretRangeCovers`：主版本号为 0 时次版本号相同，≥1 时主版本号相同，并且不低于 x.y.z；只比 x.y.z 三段，装的是同一条线上的开发版也算在范围里。
+内核包与别的包用同一个比法 `caretRangeCovers`（内核包经 `kernelRangeCovers`，运行中的内核版本号不合法就报错）：主版本号为 0 时次版本号相同，≥1 时主版本号相同，并且不低于 x.y.z；只比 x.y.z 三段，装的是同一条线上的开发版也算在范围里。
 
 {/* ref file="../plugins/plugin-manager/src/kernel-compat.ts" lines="34-46" */}
 
-**装着的版本从哪读**：home 的 `node_modules/<包名>/package.json` 在就算装了，版本取它的 `version`。`list` 本来就读 home 的 dependencies 与条目里每个包的清单；插件 peer 里点名了别的包时再补读一次。不合包名规则的键（比如 `../escape`）不拿去拼路径，按没装报。
+**装着的版本从哪读**：home 的 `node_modules/<包名>/package.json` 在就算装了，版本取它的 `version`。`list` 本来就读 home 的 dependencies 与条目里每个包的清单；插件 peer 里点名了别的包时再补读一次，内核包不读。不合包名规则的键（比如 `../escape`）不拿去拼路径，按没装报。
 
 {/* ref file="../plugins/plugin-manager/src/index.ts" lines="366-382" */}
 
@@ -38,7 +39,9 @@ description: 插件在 peerDependencies 里写它用到的别的插件的 ^x.y.z
 
 {/* has file="../plugins/plugin-manager/tests/peers.test.ts" text="可选的 peer：没装不算，装着但不在范围里照样算" */}
 
-{/* has file="../plugins/plugin-manager/tests/peers.test.ts" text="内核包与 cordis 不在这里报（内核包看 kernelRange / kernelUntested）" */}
+{/* has file="../plugins/plugin-manager/tests/peers.test.ts" text="去掉 cordis，内核包与别的包原样照抄，按清单里的先后" */}
+
+{/* has file="../plugins/plugin-manager/tests/peers.test.ts" text="内核包对照正在运行的内核：范围不包含就列一项，installed 是运行中的内核版本" */}
 
 {/* has file="../plugins/plugin-manager/tests/peers.test.ts" text="不是插件的包、清单读不到的包：空数组" */}
 

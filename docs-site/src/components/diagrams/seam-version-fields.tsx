@@ -28,7 +28,7 @@ export function SeamVersionFields() {
       </Note>
       <Box x={212} y={152} w={176} h={62} lines={['内核范围含不含', '插件管理所在 home', '的 gwbKernel']} size={13.5} />
       <Box x={212} y={224} w={176} h={62} lines={['比装着的版本', 'node_modules/<包>', '/package.json']} size={13.5} />
-      <Box x={212} y={316} w={176} h={62} lines={['只报告，照常加载', 'kernelUntested', 'unmetPeers']} size={13.5} />
+      <Box x={212} y={316} w={176} h={62} lines={['只报告，照常加载', 'unmetPeers', '（含内核包那一项）']} size={13.5} />
       <Arrow from={[300, 286]} to={[300, 316]} />
 
       <Box x={10} y={424} w={380} h={62} lines={['内核范围的比对规则只有一份', '插件管理的 kernel-compat.ts', 'devkit 从插件管理的主入口 import']} dashed size={13.5} />

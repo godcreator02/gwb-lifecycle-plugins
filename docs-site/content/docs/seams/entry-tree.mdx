@@ -46,7 +46,7 @@ loader、include、cordis 需要保证的：`entry.parent.tree` 这条取法、�
 ## 不负责的事
 
 - 插件管理不决定 home 的布局、条目树的结构、包名怎么解析，这些归内核
-- loader 的条目树不知道插件管理的 BUSY 检查；那道检查只挡插件管理自己的四条改动命令（见[同一时刻只允许一个改动](/docs/plugin-manager/busy)）
+- loader 的条目树不知道插件管理的 BUSY 检查；那道检查只挡插件管理自己的三条改动命令（见[同一时刻只允许一个改动](/docs/plugin-manager/busy)）
 - devkit 不碰运行中的条目树：`devkit.dev` 经 CDP 调目标 home 的 `plugin-manager.update` / `install`（见 [devkit 调插件管理](/docs/seams/plugin-manager-calls)）；`devkit.home.new` 在内核启动之前直接写新 home 的 `cordis.yml`，那时还没有条目树
 
 ## 测试

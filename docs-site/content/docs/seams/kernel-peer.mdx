@@ -1,6 +1,6 @@
 ---
 title: 3 peer 里的内核包与插件
-description: 连接插件包 package.json 的 peer（内核包的范围、用到的别的插件的范围）与读它们的两处：devkit.release 发版前拒、plugin-manager.list 在 home 里只报告 kernelUntested 与 unmetPeers；内核范围的比对规则只有一份，在插件管理的 src/kernel-compat.ts，devkit 从插件管理的主入口 import
+description: 连接插件包 package.json 的 peer（内核包的范围、用到的别的插件的范围）与读它们的两处：devkit.release 发版前拒、plugin-manager.list 在 home 里只报告 unmetPeers（内核包那一项对照正在运行的内核）；内核范围的比对规则只有一份，在插件管理的 src/kernel-compat.ts，devkit 从插件管理的主入口 import
 ---
 
 **本页回答**：插件在哪里声明兼容哪个内核、用到哪些别的插件；谁读、拿什么比；内核范围的比对规则放在哪、devkit 怎么用到它；devkit 与插件管理各保证什么。
@@ -9,7 +9,7 @@ description: 连接插件包 package.json 的 peer（内核包的范围、用到
 
 - 插件包的 `package.json`：`peerDependencies` 里写内核包 `@godcreator/gwb-kernel-desktop` 的范围，声明兼容哪些内核；再写用到的别的插件的范围，可选使用的在 `peerDependenciesMeta` 标 `optional`
 - devkit 的 `devkit.release`（`plugins/devkit/src/release.ts`）：发版前检查
-- 插件管理的 `plugin-manager.list`（`plugins/plugin-manager/src/index.ts`、`src/kernel-compat.ts`、`src/kernel-upgrade.ts`、`src/peers.ts`）：按包报 `kernelRange`、`kernelUntested`、`unmetPeers`；`src/kernel-compat.ts` 的比对规则经主入口导出给 devkit
+- 插件管理的 `plugin-manager.list`（`plugins/plugin-manager/src/index.ts`、`src/kernel-compat.ts`、`src/kernel-upgrade.ts`、`src/peers.ts`）：按包报 `unmetPeers`，内核包与别的插件都在里面；`src/kernel-compat.ts` 的比对规则经主入口导出给 devkit
 - 内核：内核服务 `gwbKernel` 的 `version`；内核包和插件一样装在 home 里
 - npm 源：`devkit.release` 问 peer 里每个 gwb 插件的 `dist-tags.latest`，去哪个源问由用户级 `~/.npmrc` 的 scope 路由决定
 - home 里装的别的插件：被 peer 点名的包，插件管理读它在 `node_modules` 里的 `package.json` 取 `version`
@@ -17,7 +17,7 @@ description: 连接插件包 package.json 的 peer（内核包的范围、用到
 <Diagram name="seam-version-fields" title="peer 里两类声明，两处读：devkit.release 在发版时拒，plugin-manager.list 在 home 里只报告">
 - 插件包的 `package.json` 的 peer 里写内核包的范围与用到的别的插件的范围
 - `devkit.release` 发版时只查插件包：peer 内核包的范围要写成 `^x.y.z`、包含 devkit 所在 home 的 `gwbKernel.version`；peer 里只许 `cordis`、内核包与插件，每个 gwb 插件的 `^x.y.z` 要和源上 latest 在同一条线（0.x 比 x，≥1 比主版本号）；没过就一个都不发，回执写改成什么
-- `plugin-manager.list` 每次列出时对每个包：是插件（keywords 含 `gwb-plugin`，内核包与 `cordis` 除外）才拿 peer 内核包的范围和插件管理所在 home 的 `gwbKernel.version` 比；peer 里别的插件拿 home 里 `node_modules/<包>/package.json` 的版本比；报 `kernelUntested` 与 `unmetPeers`，只报告、照常加载
+- `plugin-manager.list` 每次列出时对每个包：是插件（keywords 含 `gwb-plugin`，内核包与 `cordis` 除外）才拿 peer 内核包的范围和插件管理所在 home 的 `gwbKernel.version` 比；peer 里别的插件拿 home 里 `node_modules/<包>/package.json` 的版本比；没满足的都列进 `unmetPeers`，只报告、照常加载
 - 内核范围的比对规则只有一份，在插件管理的 `kernel-compat.ts`；devkit 从插件管理的主入口 import 它（devkit 的 peer 里写着插件管理）
 - 内核不读 peer；两处比的可以是不同的 home
 </Diagram>
@@ -38,13 +38,13 @@ description: 连接插件包 package.json 的 peer（内核包的范围、用到
 
 {/* ref file="../plugins/devkit/src/release.ts" lines="227-247" */}
 
-**插件管理的 `list`**： 从 home 的 `node_modules` 读每个包的 `package.json`，只给插件标，拿插件管理所在那个 home 的 `gwbKernel.version` 比（见[内核兼容性](/docs/plugin-manager/kernel-compat)）：
+**插件管理的 `list`**：从 home 的 `node_modules` 读每个包的 `package.json`，只看插件，拿插件管理所在那个 home 正在运行的内核（`gwbKernel.version`）比，范围不包含就在 `unmetPeers` 里列 `{ pkg: "@godcreator/gwb-kernel-desktop", range, installed: <运行中的内核版本> }`（见[内核兼容性](/docs/plugin-manager/kernel-compat)）：
 
-{/* ref file="../plugins/plugin-manager/src/kernel-upgrade.ts" lines="54-68" */}
+{/* ref file="../plugins/plugin-manager/src/kernel-upgrade.ts" lines="54-59" */}
 
-{/* ref file="../plugins/plugin-manager/src/kernel-compat.ts" lines="63-76" */}
+{/* ref file="../plugins/plugin-manager/src/peers.ts" lines="58-77" */}
 
-**peer 里的别的插件**：`"<插件包名>": "^x.y.z"`，可选使用的在 `peerDependenciesMeta` 标 `optional: true`（规矩见[用到的插件写 peer](/docs/rules/plugin-peers)）。devkit 与插件管理问的不是同一件事：devkit 在发版时问「上游有没有出破坏性版本」，拿范围下限和源上 latest 比在不在同一条线；插件管理在 home 里问「装着的这一版在不在范围里」，拿范围和装着的版本比，用的是 `caretRangeCovers`（插件管理内部的函数；主入口导出给 devkit 的 `kernelRangeCovers` 只在它外面多一层「内核版本号不合法就抛错」，见[peer 满没满足](/docs/plugin-manager/peers)）。
+**peer 里的别的插件**：`"<插件包名>": "^x.y.z"`，可选使用的在 `peerDependenciesMeta` 标 `optional: true`（规矩见[用到的插件写 peer](/docs/rules/plugin-peers)）。devkit 与插件管理问的不是同一件事：devkit 在发版时问「上游有没有出破坏性版本」，拿范围下限和源上 latest 比在不在同一条线；插件管理在 home 里问「装着的这一版在不在范围里」，拿范围和装着的版本比，用的是 `caretRangeCovers`（插件管理内部的函数；主入口导出给 devkit 的 `kernelRangeCovers` 只在它外面多一层「内核版本号不合法就抛错」，`list` 比内核包时用的就是它，见 [peer 满没满足](/docs/plugin-manager/peers)）。
 
 {/* ref file="../plugins/devkit/src/release.ts" lines="216-225" */}
 
@@ -58,7 +58,7 @@ description: 连接插件包 package.json 的 peer（内核包的范围、用到
 
 devkit 保证：插件包 peer 里的内核包没写、不是 `^x.y.z`、不包含当前内核，一个包都不发，回执里写改成什么；peer 里有插件以外的包、gwb 插件不是 `^x.y.z` 或和源上 latest 不在同一条线，同样一个包都不发。不是插件的包不查。
 
-插件管理保证：`kernelUntested` 与 `unmetPeers` 只报告，不拦加载、不拦安装，也不替插件装或升级它 peer 里的插件；经主入口导出的比对规则是纯函数，改了它，devkit 的发版前检查跟着变，改名字、签名或行为是破坏性变更（见[什么算破坏性变更](/docs/plugin-manager#什么算破坏性变更)）。
+插件管理保证：`unmetPeers` 只报告，不拦加载、不拦安装，也不替插件装或升级它 peer 里的插件；经主入口导出的比对规则是纯函数，改了它，devkit 的发版前检查跟着变，改名字、签名或行为是破坏性变更（见[什么算破坏性变更](/docs/plugin-manager#什么算破坏性变更)）。
 
 **是不是插件的判法插件管理与 devkit 各有一份，规则不同**：插件管理的 `isPluginManifest` 只认 `keywords` 含 `gwb-plugin`，用来决定要不要看这个包的内核范围与 peer（cordis 官方插件没有内核范围）；devkit 发版前检查判「peer 里能不能写它」的 `isPluginManifest` 另外认 cordis 官方插件（`keywords` 同时含 `cordis` 与 `plugin`），因为 peer 里写 cordis 官方插件是合法的；判「要不要和源上 latest 比同一条线」的只认 `gwb-plugin`。
 
@@ -77,8 +77,8 @@ devkit 保证：插件包 peer 里的内核包没写、不是 `^x.y.z`、不包�
 
 ## 测试
 
-比对规则与 `list` 的两组字段由插件管理的单元测试覆盖，发版前检查的拒绝由 devkit 的 `release.test.ts` 覆盖。
+比对规则与 `list` 的 `unmetPeers` 由插件管理的单元测试覆盖，发版前检查的拒绝由 devkit 的 `release.test.ts` 覆盖。
 
-{/* has file="../plugins/plugin-manager/tests/kernel-compat.test.ts" text="写了但不包含运行中的内核：带 kernelRange，kernelUntested 是 true" */}
+{/* has file="../plugins/plugin-manager/tests/peers.test.ts" text="内核包对照正在运行的内核：范围不包含就列一项，installed 是运行中的内核版本" */}
 
 {/* has file="../plugins/devkit/tests/release.test.ts" text="插件包 peer 里的内核包不对：构建之后、发之前拒，一个都不发，每个包的问题一次列全" */}

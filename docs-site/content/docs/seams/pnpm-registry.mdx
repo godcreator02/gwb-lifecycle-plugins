@@ -1,17 +1,16 @@
 ---
 title: 9 pnpm 与包源
-description: 连接 devkit、插件管理与 pnpm、npm 源、两份 npmrc、gitea 插件的设置：两个插件用同一个 pnpm——用户装在两个固定位置之一的 pnpm 12，按插件管理里那一份规则找、核对版本，直接启动；在 home 里运行时关掉自动补装 peer；插件管理用它改 home，devkit 用它做 build / pack / publish / view / add；正式版发到包自己的 publishConfig.registry、打 latest，开发版打成包文件放进目标 home；插件管理按 scope 从两份 npmrc 找源、调 registry 的检索接口找插件、读写机器级 ~/.npmrc 的包源，owner 写法按名字调 settings.get 读 gitea 分区
+description: 连接 devkit、插件管理与 pnpm、npm 源、两份 npmrc：两个插件用同一个 pnpm——用户装在两个固定位置之一的 pnpm 12，按插件管理里那一份规则找、核对版本，直接启动；在 home 里运行时关掉自动补装 peer；插件管理用它改 home，devkit 用它做 build / pack / publish / view / add；正式版发到包自己的 publishConfig.registry、打 latest，开发版打成包文件放进目标 home；插件管理按 scope 从两份 npmrc 找源、调 registry 的检索接口找插件，只读 npmrc；第三方包源由 agent 照说明书手写 ~/.npmrc
 ---
 
-**本页回答**：两个插件用的是哪一个 pnpm、怎么找到它、各拿它做什么；在 home 里运行 pnpm 时为什么关掉自动补装 peer；正式版发到哪个源、哪几处指定源、哪几处靠用户的 `~/.npmrc`；开发版与正式版怎么分开；插件管理找插件、配包源时读写哪两份 npmrc、怎么决定去哪条源检索、读 gitea 插件的哪两项设置。
+**本页回答**：两个插件用的是哪一个 pnpm、怎么找到它、各拿它做什么；在 home 里运行 pnpm 时为什么关掉自动补装 peer；正式版发到哪个源、哪几处指定源、哪几处靠用户的 `~/.npmrc`；开发版与正式版怎么分开；插件管理找插件时读哪两份 npmrc、怎么决定去哪条源检索；第三方包源谁来配。
 
 ## 连接的模块
 
-- 插件管理：`plugins/plugin-manager/src/pnpm-location.ts`（找 pnpm）、`src/pnpm.ts`（启动 pnpm）；找插件与配包源在 `src/package-sources.ts`、`src/sources.ts`、`src/search.ts`、`src/registry.ts`、`src/home.ts`
+- 插件管理：`plugins/plugin-manager/src/pnpm-location.ts`（找 pnpm）、`src/pnpm.ts`（启动 pnpm）；找插件在 `src/package-sources.ts`、`src/sources.ts`、`src/search.ts`、`src/registry.ts`、`src/home.ts`
 - devkit：`plugins/devkit/src/dev.ts`、`src/release.ts`、`src/home.ts`、`src/node-dev-deps.ts`；找 pnpm 用插件管理主入口导出的 `locatePnpm`
 - 用户装的 pnpm 12 可执行文件；团队源（gitea 上 `godcreator` 组织的 npm 源）与第三方包源；npmjs、Verdaccio、gitea 都实现的 npm registry 检索接口
-- 两份 npmrc：机器级 `~/.npmrc`（插件管理的 `source.add` / `source.remove` 改它）与 home 级 `<home>/.npmrc`（只读）；pnpm 安装时读的是同一批配置行
-- gitea 插件（gitea 插件仓 gwb-gitea）的设置：`gitea` 分区的 `base-url` 与 `token`，经设置插件的命令 `settings.get` 读
+- 两份 npmrc：机器级 `~/.npmrc`（agent 照说明书 `gwb-plugin-manager` 往里写第三方包源）与 home 级 `<home>/.npmrc`；插件管理两份都只读，pnpm 安装时读的是同一批配置行
 
 ## 接口
 
@@ -64,9 +63,9 @@ description: 连接 devkit、插件管理与 pnpm、npm 源、两份 npmrc、git
 
 {/* ref file="../plugins/devkit/src/dev.ts" lines="45-56" */}
 
-**插件管理找插件：按 scope 找源、调检索接口**。`plugin-manager.search` 每条源的地址照 pnpm 读两份 npmrc 的优先级找：先找 `@scope:registry=`，再找 `registry=`，每一种都是 home 级优先于机器级，都没有就是 npm 官方源（插件管理的做法见[找插件与配包源](/docs/plugin-manager/sources)）：
+**插件管理找插件：按 scope 找源、调检索接口**。`plugin-manager.search` 每条源的地址照 pnpm 读两份 npmrc 的优先级找：先找 `@scope:registry=`，再找 `registry=`，每一种都是 home 级优先于机器级，都没有就是 npm 官方源（插件管理的做法见[找插件](/docs/plugin-manager/sources)）：
 
-{/* ref file="../plugins/plugin-manager/src/sources.ts" lines="107-117" */}
+{/* ref file="../plugins/plugin-manager/src/sources.ts" lines="68-78" */}
 
 这套规则写在 `sources.ts` 与 pnpm 的 npmrc 语义两处：pnpm 改了读取优先级，这里查到的源会和实际安装用的源不一样。每条源发 `GET <registry>/-/v1/search?text=<scope>&size=250`，这条源有凭据就带 `Authorization: Bearer`，最多等 10 秒；是不是插件只看包清单 `keywords` 里有没有 `gwb-plugin`：
 
@@ -76,21 +75,17 @@ description: 连接 devkit、插件管理与 pnpm、npm 源、两份 npmrc、git
 
 这个关键词写在 `search.ts` 与每个插件包的 `package.json` 两处：插件包忘了写，就不会出现在「可装」列表里。
 
-**插件管理配包源：读写两份 npmrc**。只认 scope 路由、凭据、全局源三种行，其余行原样保留；凭据行按源地址配对，不按 scope。`source.add` / `source.remove` 只写机器级那份，写入先写临时文件再改名：
+**插件管理只读两份 npmrc**。只认 scope 路由、凭据、全局源三种行，其余行跳过；凭据行按源地址配对，不按 scope：
 
 {/* ref file="../plugins/plugin-manager/src/sources.ts" lines="1-5" */}
 
-{/* ref file="../plugins/plugin-manager/src/home.ts" lines="67-89" */}
+{/* ref file="../plugins/plugin-manager/src/home.ts" lines="67-82" */}
 
-`@godcreator` 是生态自己的 scope，`source.add` 与 `source.remove` 都拒绝改它：
+`@godcreator` 是生态自己的 scope，`search` 总是第一个查它：
 
-{/* ref file="../plugins/plugin-manager/src/sources.ts" lines="34-35" */}
+{/* ref file="../plugins/plugin-manager/src/sources.ts" lines="26-27" */}
 
-**按名字读 gitea 插件的设置**：`source.add` 用 `owner` 写法时，经命令总线调 `settings.get { section: 'gitea', key: 'base-url' }` 与 `{ section: 'gitea', key: 'token' }`：
-
-{/* ref file="../plugins/plugin-manager/src/package-sources.ts" lines="249-267" */}
-
-分区名 `gitea` 是 gitea 插件条目的 id，两个设置名写在 gitea 插件仓里。插件管理不另存一份 gitea 地址：gitea 插件的条目 id 不叫 `gitea`、改了设置名、或没配 `base-url`，`owner` 写法都回 `ok: false`，要么配好设置，要么改给 `registry`；token 取不到时同样回 `ok: false`。
+**第三方包源由 agent 手写 `~/.npmrc`**：说明书 `gwb-plugin-manager` 的「配第三方包源」写清加哪两行（`@<scope>:registry=<地址>`，私有源另加 `//<主机>/<路径>/:_authToken=<token>`，token 由人给），`@godcreator` 那行不动，写完调 `plugin-manager.search` 核对。
 
 ## 约定
 
@@ -99,10 +94,8 @@ devkit 与插件管理都保证：在 home 里启动 pnpm 时带 `pnpm_config_au
 插件管理保证：
 
 - 会写 home 的 pnpm 只在经过 BUSY 检查的命令里运行，同一时刻最多一个；只读的 `pnpm outdated` 不经过 BUSY
-- `source.add` / `source.remove` 只改机器级 `~/.npmrc`，home 级只读；`@godcreator` 的路由与凭据不改不删
-- `source.add` 同一个 scope 已有就原地替换；换源、删源时，旧源的凭据行只在没有别的 scope 还指向它时才删；写完重读一遍，读不到写进去的行就回 `ok: false`
-- 回执与日志里不带 token：写进去的行里 token 换成 `***`，`source.list` 只报有没有 token
-- home 级有同名 scope 指向别的地址时，`source.add` 的回执 `note` 里提醒 pnpm 用的是 home 级那条
+- 两份 npmrc 只读不写
+- 回执与日志里不带 token
 - `search` 不带参数，查全部配好的 scope（`@godcreator` 在前、其余按名字排），各条源并发查，一条失败不影响别的，全都失败才 `ok: false`
 
 devkit 保证：
@@ -115,8 +108,6 @@ devkit 保证：
 
 插件包需要保证的：`package.json` 的 `keywords` 里写 `gwb-plugin`；库不写。
 
-gitea 插件需要保证的（gitea 插件仓的约定）：条目 id 是 `gitea`，设置名是 `base-url` 与 `token`。
-
 **改 home 的是同一个 pnpm，但互斥只在插件管理里**：插件管理与 `devkit.home.new` 找到的是同一个文件；插件管理的改动经过它自己的 BUSY 检查，`devkit.dev` 装包也经目标 home 的插件管理，所以同样经过这道检查；`devkit.home.new` 不经过插件管理（那时插件管理还没装、home 还没启动），同时有别的 pnpm 写同一个 home 会丢改动（见[同一时刻只允许一个改动](/docs/plugin-manager/busy)）。
 
 手工发版与 `devkit.release` 都不在命令行写 `--registry`，都照包清单的 `publishConfig.registry`。
@@ -124,14 +115,13 @@ gitea 插件需要保证的（gitea 插件仓的约定）：条目 id 是 `gitea
 ## 不负责的事
 
 - devkit 与插件管理都不安装、不升级 pnpm 本身；要求的 pnpm 版本写在插件管理里，换版本就是发一版插件管理
-- devkit 不配置 `~/.npmrc` 与 token；包源的配置归插件管理的 `source.*`
-- 插件管理不看环境变量或 pnpm 全局配置里指定的源，只看两份 npmrc；不写 home 级 `.npmrc`，那里的行要手工改
-- gitea 插件不知道插件管理在读它的设置
+- devkit 与插件管理都不写 `~/.npmrc` 与 token；第三方包源由 agent 照说明书 `gwb-plugin-manager` 手写
+- 插件管理不看环境变量或 pnpm 全局配置里指定的源，只看两份 npmrc
 - `devkit.release` 不运行包里的 `prepublishOnly`：发布内容来自临时目录，那里没有 `scripts`
 
 ## 测试
 
-devkit 与插件管理的单元测试只覆盖命令行怎么拼、用哪一份 pnpm、源地址是哪个，以及 npmrc 的解析与改写、检索响应的解析；真的 pnpm、真实 registry、gitea 插件的设置与机器级 `~/.npmrc` 只能实机验证。
+devkit 与插件管理的单元测试只覆盖命令行怎么拼、用哪一份 pnpm、源地址是哪个，以及 npmrc 的解析、检索响应的解析；真的 pnpm、真实 registry 与机器级 `~/.npmrc` 只能实机验证。
 
 {/* has file="../plugins/devkit/tests/dev.test.ts" text="在 home 里运行的 pnpm 不自动补装缺的 peer：带上关掉它的环境变量" */}
 

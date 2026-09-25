@@ -1,15 +1,15 @@
 ---
-title: 重新加载一条条目
-description: 停用 → 等旧的卸载完 → 启用 → 等新的加载完，一条命令做完；这段代码只持有条目树与 logger，被重新加载的条目连带卸掉谁都不影响它做完；目标是插件管理自己时先回执、后动手；热升级重新加载每条条目用的也是这一套
+title: 重新加载条目
+description: update 装完包后逐条重新加载条目：停用 → 等旧的卸载完 → 启用 → 等新的加载完，在同一条 await 链里做完；这段代码只持有条目树与 logger，被重新加载的条目连带卸掉谁都不影响它做完；插件管理自己那条先回执、后动手；手动重新加载一条用 disable 再 enable
 ---
 
-# 重新加载一条条目
+# 重新加载条目
 
-**本页回答**：重新加载一条条目按什么顺序做、为什么要等旧的卸载完；回执里的 `action` 与 `state` 各是什么；为什么要用 `remount` 一条命令，而不是 `disable` 加 `enable`；目标是插件管理自己时怎么办。热升级装完包后重新加载每条条目，用的也是这一套（见[热升级](/docs/plugin-manager/upgrade)）。
+**本页回答**：`update` 装完包后怎么重新加载一条条目、为什么要等旧的卸载完；回执里每条条目的 `action` 与 `state` 各是什么；为什么停用与启用要在同一条 `await` 链里做完；插件管理自己那条怎么办；人或 agent 要手动重新加载一条条目时怎么做。`update` 什么时候重新加载哪些条目见[热升级](/docs/plugin-manager/upgrade)。
 
 ## 停用 → 等旧的卸载完 → 启用
 
-重新加载一条条目 = 停用 → 等旧实例卸载完 → 启用 → 等新实例加载完，返回新实例的状态。启用时 loader 重新 import 包名，内核按真实路径解析——包换了版本，路径就换了，拿到的就是新版本；条目在 `cordis.yml` 里的位置与 id 都不变。原本停用的条目，重新加载后是启用的。
+重新加载一条条目 = 停用 → 等旧实例卸载完 → 启用 → 等新实例加载完，返回新实例的状态。启用时 loader 重新 import 包名，内核按真实路径解析——包换了版本，路径就换了，拿到的就是新版本；条目在 `cordis.yml` 里的位置与 id 都不变。
 
 要等是因为 loader 停用条目时调 `fiber.dispose()` 但不等它结束，而插件提供的服务是在卸载过程中才撤销的。停用后马上启用，新实例启动时旧实例的服务可能还在，cordis 报「service has been registered」：
 
@@ -26,42 +26,44 @@ description: 停用 → 等旧的卸载完 → 启用 → 等新的加载完，�
 
 {/* has file="../plugins/plugin-manager/tests/remount.test.ts" text="停用再启用，回 remounted 和重新加载后的状态" */}
 
-{/* has file="../plugins/plugin-manager/tests/remount.test.ts" text="原本停用的条目：最后是启用的" */}
-
 {/* has file="../plugins/plugin-manager/tests/update.test.ts" text="永远不结束的 await：到了时限就继续" */}
 
 {/* has file="../plugins/plugin-manager/tests/loader.test.ts" text="停用再启用会重新加载，最后是 ACTIVE" */}
 
 ## 回执：action 与 state
 
-`remount` 的回执 `data` 是 `{ id, action, state }`。`action` 是 `remounted`（在这条命令里做完）、`deferred`（目标是插件管理自己，见下）或 `failed`（操作条目树时抛错，`state` 里是那句错误，外层 `ok` 是 `false`）；热升级里还有 `skipped`（本来就停用，保持停用）。`state` 是 cordis 的 fiber 状态名，`ACTIVE` 才算加载成功；cordis 的状态是 `const enum`，运行时拿不到，插件管理照抄一份名字表，由测试核对。
+`update` 回执里每条条目是 `{ id, action, state }`。`action` 是 `remounted`（在这条命令里做完）、`skipped`（本来就停用，保持停用）、`deferred`（插件管理自己那条，见下）或 `failed`（操作条目树时抛错，`state` 里是那句错误；别的条目照常处理，外层 `ok` 仍是 `true`）。`state` 是 cordis 的 fiber 状态名，`ACTIVE` 才算加载成功；cordis 的状态是 `const enum`，运行时拿不到，插件管理照抄一份名字表，由测试核对。
 
-{/* ref file="../plugins/plugin-manager/src/index.ts" lines="267-276" */}
+{/* ref file="../plugins/plugin-manager/src/remount.ts" lines="8-19" */}
 
 {/* ref file="../plugins/plugin-manager/src/fiber.ts" lines="3-16" */}
 
 {/* has file="../plugins/plugin-manager/tests/fiber-state.test.ts" text="名字表与 cordis 声明的成员按数字顺序完全相同" */}
 
-{/* has file="../plugins/plugin-manager/tests/commands.test.ts" text="动条目树时抛错：ok false，data 里 action 是 failed" */}
-
-## 用 remount 一条命令，不用 disable 加 enable
-
-停用和启用之间不能隔着第二条命令。被停用的插件可能正是调用方发命令要经过的那一个：目标是命令插件时，`disable` 一返回命令表就没了，`enable` 调不进去；目标是 MCP 入口（`gwb-mcp`）时，连接就断了。`remount` 在插件管理自己的 `await` 链里做完两步，这条链只持有条目树与 logger，不经任何 ctx；被重新加载的条目卸载时连带卸掉谁，都不影响它把启用做完。
-
-{/* has file="../plugins/plugin-manager/tests/remount.test.ts" text="命令插件停用时全部命令都撤掉（包括 remount），这条 await 链照样做完，条目回到启用" */}
-
 {/* has file="../plugins/plugin-manager/tests/remount.test.ts" text="动条目树时抛了：回 failed，state 里是那句错" */}
 
+{/* has file="../plugins/plugin-manager/tests/commands.test.ts" text="动条目树时抛错：这条条目记为 failed，别的照常" */}
+
+## 停用与启用在同一条 await 链里
+
+停用和启用之间不能隔着第二条命令。被停用的插件可能正是调用方发命令要经过的那一个：目标是命令插件时，停用一返回命令表就没了，下一条命令调不进去；目标是 MCP 入口（`gwb-mcp`）时，连接就断了。`update` 在插件管理自己的 `await` 链里做完两步，这条链只持有条目树与 logger，不经任何 ctx；被重新加载的条目卸载时连带卸掉谁，都不影响它把启用做完。
+
+{/* has file="../plugins/plugin-manager/tests/remount.test.ts" text="目标是命令插件：停用时全部命令都撤掉（包括正在运行的这条），这条 await 链照样做完，条目回到启用" */}
+
+## 插件管理自己：先回执、后重新加载
+
+`update` 要重新加载的条目里有插件管理自己那条时，那条的 `action` 是 `deferred`，`state` 是动手前的状态，回执 `selfDeferred` 是 `true`；回执发出后，下一个宏任务才重新加载。不会有第二份回执，调用方之后用 `plugin-manager.list` 核对 `active`。在命令处理函数里停用自己，这条 `await` 链随插件管理的实例一起卸载，回执永远到不了调用方，所以先回执、再动手。
+
+排到下一个宏任务的那段代码只持有条目树、id 与事先拿到的 logger——那时插件管理原来的实例已经卸载，ctx 上的东西都不能用。`devkit.dev` 收到 `selfDeferred: true` 就轮询 `plugin-manager.list`，等插件管理的条目回到 `active`（见接缝页 [devkit 调插件管理](/docs/seams/plugin-manager-calls)）。
+
+{/* ref file="../plugins/plugin-manager/src/remount.ts" lines="60-71" */}
+
+{/* has file="../plugins/plugin-manager/tests/remount.test.ts" text="当下什么都不动；下一个宏任务才停用再启用" */}
+
+## 手动重新加载一条条目
+
+插件管理没有单独的重新加载命令：换了版本的条目由 `update` 在同一条命令里重新加载，手动重新加载一条就先 `disable` 再 `enable`。两条命令之间隔着一次调用，所以只对调用方发命令不经过的插件这样做。
+
 <Note>
-**别用 disable 加 enable 两条命令代替重新加载**：目标是调用方发命令要经过的插件时，条目会停在停用状态，调用方没法再发命令把它启用回来，只能换一条调用途径（比如插件管理窗格）或手工改 `cordis.yml` 再重启。
+**命令插件、MCP 入口、插件管理自己别用 disable 加 enable**：停用它们以后，调用方发不出下一条命令，条目停在停用状态，只能换一条调用途径（比如插件管理窗格）或手工改 `cordis.yml` 再重启。这几个插件换版本经 `update`，重新加载在它的 `await` 链里做完。
 </Note>
-
-## 目标是插件管理自己：先回执、后重新加载
-
-`remount` 的目标是插件管理自己那条条目时，回执的 `action` 是 `deferred`，`state` 是动手前的状态；回执发出后，下一个宏任务才重新加载。不会有第二份回执，调用方之后用 `plugin-manager.list` 核对 `active`。在命令处理函数里停用自己，这条 `await` 链随插件管理的实例一起卸载，回执永远到不了调用方，所以先回执、再动手。
-
-排到下一个宏任务的那段代码只持有条目树、id 与事先拿到的 logger——那时插件管理原来的实例已经卸载，ctx 上的东西都不能用。`update` 装的包里有插件管理自己时也这样处理，回执 `selfDeferred: true`；`devkit.dev` 收到它就轮询 `plugin-manager.list`，等插件管理的条目回到 `active`（见接缝页 [devkit 调插件管理](/docs/seams/plugin-manager-calls)）。
-
-{/* ref file="../plugins/plugin-manager/src/remount.ts" lines="60-87" */}
-
-{/* has file="../plugins/plugin-manager/tests/remount.test.ts" text="先回 deferred（动手前的状态），什么都没动；下一个宏任务才重新加载" */}
