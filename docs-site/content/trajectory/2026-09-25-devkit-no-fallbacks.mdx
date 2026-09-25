@@ -1,0 +1,45 @@
+---
+title: devkit 0.22 删兜底与没人用的分支：查不出就报错、认不出的参数就拒、流程只写在说明书里
+born-at: 2026-09-25T15:30
+type: choice
+parent: [2026-09-08-gwb-devkit]
+label: 删兜底
+domain: 开发循环
+---
+
+## 背景
+
+插件管理这一轮做成 0.13.0（破坏性：`update` 的 `specs` 里不再收 `cordis`，由插件管理照内核包的 peer 自己对齐；回执只剩外层一层 `ok`；主入口删掉 `declaredKernelRange` 等导出），devkit 必须跟。人借这次破坏性版本，把 devkit 里剩下的「以防万一」一并清掉，列了 27 条，都照做。清单分四类：
+
+- **「查不出」当成「没有」**：进程表查不出时有记录的 home 报成没在运行；`netstat` 失败当成没人监听端口；读不了日志回空串、日志大小回 0；`pnpm view` 失败当成这个版本没发过；工作区里读不懂的 `package.json` 当它不在、`workspace:` 依赖找不到就写 `^0.0.0`；开发版号的底版本不合法就补零
+- **只为测试或从没走到的分支**：几个只有测试给过的可选参数（`cdp?`、`name?`、`expect?`、`site?`、`from`）；开发态 electron 从 `argv` 取应用目录那条启动路；非 Windows 的进程组终止；`cordis.yml` 已存在就不写（`home.new` 的目录总是新建的）；「源上的 latest 不是版本号」（`latest` 本来就按版本号的样子挑）；两个预发布号逐段比较（dev 的下限只收正式号）；`HomeFs.remove`；`runtime.json` 的 `appDir`（内核 0.7 已删）
+- **回执里没人读的东西与重复的流程**：`devkit.services` 的 `declaredAlsoBy`；建仓成功时也带着的 `docs-site.create` / `docfirst.attach` 原始回执；建仓回执 `nextSteps` 里复述的整套流程（其中两句已经过期：「回执说没有条目可重新加载」「经 devkit.cdp 手工 plugin-manager.install 建条目」——`devkit.dev` 早已自己 `install`）；包清单的 `gwb.title`；模板里的 `slow` 标签、`test:all`、`.oxlintrc` 替仓根忽略的两行
+- **同一件事写了几份**：`DAILY_HOME`、精确版本号的正则（四份）、装上的包清单路径、包清单解析、`readText`、git 改动行的过滤；`guardHome` 与 `cdp.mjs` 的 `assertHome` 都核对「页面报不报得出 home、名字对不对得上」；查进程有单查 pid 与列整张表两套
+
+## 结论与边界
+
+原则一句话：**认不出的就拒、查不出的就报错，只在系统边界上校验，一个判断只写一份。**
+
+- 查进程只列整张进程表，`tasklist`、`netstat` 失败直接抛；命令总线把抛出的错误转成失败回执，调用方读到的是那条命令真正的失败原因，而不是「没在运行」「没人监听」这种错的结论
+- 每条 devkit 命令都拒认不出的参数键并报出是哪个，取代 `devkit.dev` 只特判 `cdp` 那一条；`devkit.scaffold` 删 `port` 参数，端口只从站点插件的回执取；`cdp.mjs` 的 `--mod` 写错键名报错
+- 建仓回执只写这次特有的（仓与插件包在哪、站建到哪一步与端口），流程指向说明书 `gwb-devkit`：流程只写在一处，回执不会再过期
+- 页面核对只留在 `cdp.mjs`：它每次连上都核对，`guardHome` 只剩拒 `default` 与拒自己所在的 home
+- 宿主不是安装版直接拒，开发套件只支持 Windows，这两条都不再留另一条路
+- 生成文件读不读得懂由测试对本包的模板核对，运行时不再读一遍：模板只有本包这一份
+- `pnpm view` 只把 pnpm 报的 `ERR_PNPM_PACKAGE_NOT_FOUND`、`ERR_PNPM_FETCH_404` 当「没发过」，退出码 0 是「发过」，别的失败抛出（写卡时对团队源实测三种输出，无物证文件）
+
+未来区的「明确不做」一并复审：「不做正式发版」早在[发正式版进 devkit](2026-09-14-release-comes-to-devkit.md)时就推翻了，页面一直没改；「不进程内 import 任何 CLI，一律经 `gwbNodeCli`」与现状不符——devkit 命令内部运行 pnpm、git 与 `cdp.mjs` 是自己启动子进程、超时终止整棵进程树（[那张卡](2026-09-25-runner-tree-kill.md)），因为这几步要退出码、最后几行输出与「整棵树确认都退出了」，`gwbNodeCli` 的回执给不了；对外的命令行工具（`cdp.mjs`）仍经 `gwbNodeCli` 登记成命令。两条都改成现状。
+
+pivots-from:: [两个插件删掉用不上的机制](2026-09-25-drop-unused-machinery.md)
+pivots-from:: [发正式版进 devkit](2026-09-14-release-comes-to-devkit.md)
+
+## 否掉的候选
+
+- **只删分支、保留那几个可选参数**：参数在，下一个调用方就会不给它，走到的正是已经删掉的那条路
+- **`guardHome` 留着前两道当第二层保险**：两处核对同一件事，改一处忘一处时两处说法不同；`cdp.mjs` 每一步都连、每一步都核对，它是唯一必经的地方
+
+## 代价与遗留
+
+破坏性：devkit 0.22.0。删了命令参数（`devkit.scaffold` 的 `port`）、回执字段（`declaredAlsoBy`、成功时的 `create` / `attach`）、改了 `nextSteps` 的内容，认不出的参数从「忽略」变成「拒」；peer 或 dev 写了 devkit 的下游要跟。提交：33f1103、1b95cde、f664ba2、dc0aee0、ce7985a、bcfa52b、cea887a。
+
+进程表查不出时，列出 home、按名字定位、停止、删除都直接失败，不再给一个「可能不对」的结果；`tasklist` 在这台机器上偶尔卡住时，这几条命令会跟着失败，要人重试。
