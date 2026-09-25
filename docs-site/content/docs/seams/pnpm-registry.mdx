@@ -57,7 +57,7 @@ description: 连接 devkit、插件管理与 pnpm、npm 源、两份 npmrc：两
 
 {/* ref file="../plugins/devkit/src/node-dev-deps.ts" lines="166-179" */}
 
-问别的包（团队范围下的 dev 依赖、peer 里的插件）的 `dist-tags.latest` 不指定源，由 `~/.npmrc` 按包名范围决定去哪问。
+问 peer 里各个插件的 `dist-tags.latest` 不指定源，由 `~/.npmrc` 按包名范围决定去哪问。
 
 **开发版不进源**：开发版的版本号是 `<patch+1>-dev.<yyyyMMddHHmmss>`，打成包文件放进目标 home 的 `dev-packs`，经那个 home 的插件管理装；正式版发 `package.json` 里的版本号，打 `latest`：
 
@@ -104,7 +104,7 @@ devkit 保证：
 - 同一个版本号在发布目标上已有就不发
 - 发布内容与开发版的包文件都在临时目录里组装，不改仓里的 `package.json`
 
-团队源需要保证的：`dist-tags.latest` 是正式最新版。源地址与 `~/.npmrc` 里 `@godcreator` 那一行一致**靠约定**：`vocab.ts` 的注释写着两者同一个地址，没有代码核对。发版前检查问 `@godcreator` 包的 latest 靠那一行路由，机器上没有它就问不出、发版前检查拒。
+团队源需要保证的：`dist-tags.latest` 是正式最新版。源地址与 `~/.npmrc` 里 `@godcreator` 那一行一致**靠约定**：`vocab.ts` 的注释写着两者同一个地址，没有代码核对。发版前检查问 peer 里各个插件的 latest 靠 npmrc 按包名范围路由，`@godcreator` 的插件靠那一行，机器上没有它就问不出、发版前检查拒。
 
 插件包需要保证的：`package.json` 的 `keywords` 里写 `gwb-plugin`；库不写。
 
@@ -123,6 +123,6 @@ devkit 保证：
 
 devkit 与插件管理的单元测试只覆盖命令行怎么拼、用哪一份 pnpm、源地址是哪个，以及 npmrc 的解析、检索响应的解析；真的 pnpm、真实 registry 与机器级 `~/.npmrc` 只能实机验证。
 
-{/* has file="../plugins/devkit/tests/dev.test.ts" text="在 home 里运行的 pnpm 不自动补装缺的 peer：带上关掉它的环境变量" */}
+{/* has file="../plugins/devkit/tests/home.test.ts" text="三条 pnpm add 的环境都由插件管理的 homePnpmEnv 从宿主环境算出：不自动补装 peer，不带 ELECTRON_RUN_AS_NODE" */}
 
 {/* has file="../plugins/plugin-manager/tests/sources.test.ts" text="home 级同名 scope 优先于机器级" */}
