@@ -83,7 +83,7 @@ description: 开发套件是一个普通的 gwb 插件，把「在一个新文�
 发版前检查对每个要发的包查：
 
 - `@godcreator` 的 dev 依赖范围包含源上的 `dist-tags.latest`（写法认不出、问不出源上的 latest 或它不是版本号、下限比 latest 还新、latest 超出范围才拒，范围内落后放行）
-- 构建产物里没有 `import {} from '…'` 这种空 import（源码写了 `import { type X }`），相对 import 指向的文件都在，产物按 JS 词法读得下去
+- 构建产物里没有 `import {} from '…'` 这种空 import（源码写了 `import { type X }`），相对 import 指向的文件都在，产物按 JS 语法读得下去
 
 插件包（`keywords` 含 `gwb-plugin`）另查：
 
@@ -118,11 +118,11 @@ peer 里内核包的检查，比对规则从插件管理的主入口 import（�
 
 {/* ref file="../plugins/devkit/src/artifact-check.ts" lines="205-222" */}
 
-产物里的 import 按 JS 词法找（`src/import-scan.ts`），不按行：记静态的 `import … from`、`export … from`、`import '<名>'`，以及参数是字符串字面量的 `import()`；字符串、模板字面量的文字段、正则字面量、注释里写着的 `import(…)` 都不算，压成一行的产物照样认。参数不是字符串字面量的 `import(x)` 不查。一份产物按词法读不下去（字符串、模板、正则、块注释没闭合，括号不配对）就拒，回执里写出是哪个文件、第几行第几列。正则与除号按前一个词区分，没有用解析器库，取舍见轨迹卡[发版前检查按词法找 import](/trajectory/2026-09-25-scan-imports-by-syntax)：
+产物里的 import 用 es-module-lexer 按 JS 语法找，不按行：记静态的 `import … from`、`export … from`、`import '<名>'`，以及参数是单个字符串字面量的 `import()`；字符串、模板字面量的文字段、正则字面量、注释里写着的 `import(…)` 都不算，压成一行的产物照样认。参数不是单个字符串字面量的 `import(x)`、`` import(`t`) `` 不查。一份产物读不下去（字符串、模板、正则没闭合，括号不配对）就拒，回执里写出是哪个文件、第几行第几列。es-module-lexer 用的是 wasm 版，同步初始化（`initSync`），`artifactProblems` 保持同步；它写在 dev、随本包的构建打进产物。取舍见轨迹卡[发版前检查按语法找 import](/trajectory/2026-09-25-scan-imports-by-syntax)：
 
-{/* ref file="../plugins/devkit/src/import-scan.ts" lines="9-16" */}
+{/* ref file="../plugins/devkit/src/artifact-check.ts" lines="33-69" */}
 
-{/* has file="../plugins/devkit/tests/import-scan.test.ts" text="压成一行的产物：静态 import、副作用 import、export from、export *、动态 import 都找到" */}
+{/* has file="../plugins/devkit/tests/artifact-check.test.ts" text="压成一行的各种写法：静态 import、副作用 import、import * as、export from、export *、export * as、动态 import 都找到" */}
 
 库（没有 `gwb-plugin` 的包）只查 dev 范围、空 import 与相对 import，不查 peer 和包名 import 的两份名单：库由用它的插件打包进产物，它的 peer 与 import 不在 home 里按包名解析。规矩本身见[依赖怎么写](/docs/rules/deps)与[页面代码与 importmap](/docs/rules/importmap)；peer 里内核包范围的比对规则见[兼容哪个内核](/docs/rules/kernel-compat)；用到的插件什么时候写进 peer、插件管理怎么报，见[用到的插件写 peer](/docs/rules/plugin-peers)。
 

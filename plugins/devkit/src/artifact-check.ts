@@ -1,7 +1,7 @@
 import { builtinModules } from 'node:module'
 import path from 'node:path'
 import { KERNEL_PACKAGE } from '@godcreator/gwb-plugin-manager'
-import { scanModuleImports } from './import-scan.js'
+import { initSync, parse, type ImportSpecifier } from 'es-module-lexer'
 import { isRecord } from './vocab.js'
 
 // 纯函数：读文件只经调用方给的 readText，测试里给一张假文件表
@@ -27,17 +27,52 @@ function isUrl(spec: string): boolean {
   return URL_SCHEME.test(spec) && !spec.startsWith('node:')
 }
 
-/** 按语法找（见 `scanModuleImports`），读不下去就抛错 */
+const EMPTY_IMPORT_STATEMENT = /^(?:import|export)\s*\{\s*\}\s*from\s*['"]/
+const SINGLE_STRING_LITERAL = /^(['"])[\s\S]*\1$/
+
+/**
+ * 按 JS 语法找（es-module-lexer）：字符串、模板、正则、注释里的 `import(…)` 不算，压成一行照样认。
+ * 记静态 import / `export … from`，以及参数是单个字符串字面量的 `import()`；`import(x)`、`import(\`t\`)` 不记。
+ * 读不下去就抛错，错误信息是出错的行列号
+ */
 export function importsOf(code: string): ModuleImports {
   const bare = new Set<string>()
   const relative = new Set<string>()
   const empty = new Set<string>()
-  for (const { specifier, empty: isEmpty } of scanModuleImports(code)) {
-    if (isEmpty) empty.add(specifier)
-    if (isRelative(specifier)) relative.add(specifier)
-    else if (!isUrl(specifier)) bare.add(specifier)
+  for (const specifier of lexedImports(code)) {
+    if (specifier.empty) empty.add(specifier.name)
+    if (isRelative(specifier.name)) relative.add(specifier.name)
+    else if (!isUrl(specifier.name)) bare.add(specifier.name)
   }
   return { bare: [...bare], relative: [...relative], empty: [...empty] }
+}
+
+function lexedImports(code: string): { name: string; empty: boolean }[] {
+  // 没初始化时 parse 不抛错，而是返回一个 Promise；initSync 重复调用直接返回
+  initSync()
+  let found: readonly ImportSpecifier[]
+  try {
+    found = parse(code)[0]
+  } catch (err) {
+    const at = (err as { idx?: unknown }).idx
+    if (typeof at !== 'number') throw err
+    const { line, column } = lineColumnOf(code, at)
+    throw new Error(`第 ${String(line)} 行第 ${String(column)} 列`, { cause: err })
+  }
+  const lexed: { name: string; empty: boolean }[] = []
+  for (const one of found) {
+    if (one.d === -2 || one.n === undefined) continue
+    if (one.d === -1) lexed.push({ name: one.n, empty: EMPTY_IMPORT_STATEMENT.test(code.slice(one.ss, one.se)) })
+    else if (SINGLE_STRING_LITERAL.test(code.slice(one.s, one.e))) lexed.push({ name: one.n, empty: false })
+  }
+  return lexed
+}
+
+/** 行列号都从 1 数 */
+function lineColumnOf(code: string, offset: number): { line: number; column: number } {
+  const before = code.slice(0, offset)
+  const lineStart = before.lastIndexOf('\n') + 1
+  return { line: before.split('\n').length, column: offset - lineStart + 1 }
 }
 
 /** `@scope/name/sub` → `@scope/name`；`name/sub` → `name` */

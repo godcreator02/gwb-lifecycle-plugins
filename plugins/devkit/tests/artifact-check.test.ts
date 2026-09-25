@@ -55,6 +55,82 @@ describe('importsOf：产物里的 import 分三种', () => {
     expect(got.relative).toEqual(['./side.js'])
     expect(got.empty).toEqual(['@godcreator/gwb-commands'])
   })
+
+  it('压成一行的各种写法：静态 import、副作用 import、import * as、export from、export *、export * as、动态 import 都找到', () => {
+    const code =
+      'import{jsx as e}from"react/jsx-runtime";import"./side.js";import*as n from"node:path";' +
+      'export{a as b}from"@godcreator/x/sub";export*from"./re.js";export*as ns from"y";' +
+      'var s=1;const t=await import("lazy");export{s};'
+    const got = importsOf(code)
+    expect(got.bare.sort()).toEqual(['@godcreator/x/sub', 'lazy', 'node:path', 'react/jsx-runtime', 'y'])
+    expect(got.relative.sort()).toEqual(['./re.js', './side.js'])
+    expect(got.empty).toEqual([])
+  })
+
+  it('打包进来的代码生成器：字符串里的 import( 与 ) 连成一段像 import("…") 的文字，不算', () => {
+    const code = 'function g(e,n){e.write("import("),e.write(JSON.stringify(n)),e.write(")")}' + "function h(e){e.write('import('),e.write('\")'),e.write(')')}"
+    expect(importsOf(code)).toEqual({ bare: [], relative: [], empty: [] })
+  })
+
+  it('模板字面量的文字段不算，插值里的真实动态 import 算', () => {
+    const code = 'const a=`import("fake") ${x+`import("nested")`} tail`;const b=`${await import("real")}`;'
+    expect(importsOf(code).bare).toEqual(['real'])
+  })
+
+  it('正则字面量里的不算，正则里的引号也不会让后面的代码错位', () => {
+    const code = 'const r=/import\\("x"\\)/g;if(/["\'`]/.test(s))await import("after-regex");const c=/[/]import("in-class")/;'
+    expect(importsOf(code).bare).toEqual(['after-regex'])
+  })
+
+  it('除号不当成正则：a/b 之后的动态 import 照样找到', () => {
+    const code = 'x=a/b;await import("after-division");y=c/d;z=(e)/f/g;w=h[0]/i;v=j++/k;await import("after-increment")/1'
+    expect(importsOf(code).bare.sort()).toEqual(['after-division', 'after-increment'])
+  })
+
+  it('右括号之后：if(…) 之后是正则，普通表达式的 ) 之后是除号', () => {
+    // 第二句里 (d)/import("x")/e 是两个除号，中间那个 import("x") 是真的动态 import
+    expect(importsOf('if(a)/import("in-regex")/.test(b);c=(d)/import("x")/e;').bare).toEqual(['x'])
+  })
+
+  it('注释里的不算：块注释、行注释、压成一行里的块注释', () => {
+    const code = ['/**', " * 示例：import('not-real')", " * import x from 'also-not'", ' */', "// import('line-comment')", 'a();/* import("inline") */b();'].join('\n')
+    expect(importsOf(code)).toEqual({ bare: [], relative: [], empty: [] })
+  })
+
+  it('参数不是单个字符串字面量的 import() 不记（import(x)、拼接、模板字面量）；import.meta、属性名 import、对象键 import 都不是 import', () => {
+    const code = 'import(x);import("a"+b);import(`t`);const u=import.meta.url;obj.import("no");o?.import("no2");const m={import:"no3",export:"no4"};class K{import(){return 1}}'
+    expect(importsOf(code)).toEqual({ bare: [], relative: [], empty: [] })
+  })
+
+  it('动态 import 带第二个参数（import attributes）照样算', () => {
+    expect(importsOf('const j=await import("./data.json",{with:{type:"json"}});').relative).toEqual(['./data.json'])
+  })
+
+  it('空 import：import {} from / export {} from 标 empty，export {} 不是 import', () => {
+    const code = "import{}from\"@godcreator/gwb-commands\";import {\n} from 'a';export {} from 'type-only';export {};import {x} from 'b'"
+    const got = importsOf(code)
+    expect(got.empty.sort()).toEqual(['@godcreator/gwb-commands', 'a', 'type-only'])
+    expect(got.bare.sort()).toEqual(['@godcreator/gwb-commands', 'a', 'b', 'type-only'])
+  })
+
+  it('import 的名字是字符串（export { "a-b" as c } from）：取 from 后面那个', () => {
+    expect(importsOf('export{"a-b"as c}from"m";import{"x y"as z}from"n";').bare.sort()).toEqual(['m', 'n'])
+  })
+
+  it('开头的 #! 行跳过', () => {
+    expect(importsOf('#!/usr/bin/env node\nimport fs from "node:fs";').bare).toEqual(['node:fs'])
+  })
+
+  it('读不下去就抛错并写明行列号：字符串、模板、正则没闭合，多出来的 }', () => {
+    expect(() => importsOf('const a="abc')).toThrow('第 1 行第 13 列')
+    expect(() => importsOf('const a=`abc')).toThrow('第 1 行第 13 列')
+    expect(() => importsOf('const a=/abc')).toThrow('第 1 行第 13 列')
+    expect(() => importsOf('a();\nb();}')).toThrow('第 2 行第 5 列')
+  })
+
+  it('块注释没闭合不算读不下去：注释一直延到文件尾，里面的 import 不记', () => {
+    expect(importsOf('import "./before.js";/* import("inside")')).toEqual({ bare: [], relative: ['./before.js'], empty: [] })
+  })
 })
 
 describe('名单判定', () => {
@@ -204,7 +280,7 @@ describe('artifactProblems', () => {
 
   it('产物按语法读不下去：拒，写明哪个文件、第几行第几列', () => {
     const got = artifactProblems(PKG, plugin(), true, io({ 'dist/index.js': 'const a="abc\n' }))
-    expect(got).toEqual([expect.stringMatching(/dist\/index\.js.*第 1 行第 9 列.*字符串没有闭合/)])
+    expect(got).toEqual([expect.stringMatching(/dist\/index\.js 按 JS 语法读不下去.*第 1 行第 13 列/)])
   })
 
   it('没有浏览器侧（没有 dist/client.js）：不读内核包', () => {

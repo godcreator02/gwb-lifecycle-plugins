@@ -87,6 +87,9 @@ importers:
       cordis:
         specifier: 4.0.0-rc.10
         version: 4.0.0-rc.10(@cordisjs/plugin-include@1.1.0)(@cordisjs/plugin-loader@1.0.0-rc.7)
+      es-module-lexer:
+        specifier: ^2.3.2
+        version: 2.3.2
       esbuild:
         specifier: ^0.28.2
         version: 0.28.2

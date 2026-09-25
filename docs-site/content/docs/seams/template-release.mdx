@@ -41,7 +41,7 @@ description: 连接建仓模板 template/ 与 devkit.release 的发版前检查�
 
 - 模板不保证生成的仓能直接 `devkit.release`：dev 依赖的范围过不过得了检查，要看发版那时源上的 latest；peer 里的两个插件要和那时源上的 latest 在同一条线
 - 产物测试不查 dev 范围、peer 写法与内核范围，这几项只在发版前检查里查
-- 两边找 import 的写法不同：发版前检查按 JS 词法找，产物测试只认顶格的静态 import（模板的 `build.ts` 不压行，外置的包名 import 由 esbuild 放在文件开头）。产物压成一行、或有动态 import 的仓，产物测试查不全，要等发版前检查
+- 两边找 import 的写法不同：发版前检查用 es-module-lexer 按 JS 语法找，产物测试只认顶格的静态 import（模板的 `build.ts` 不压行，外置的包名 import 由 esbuild 放在文件开头）。产物压成一行、或有动态 import 的仓，产物测试查不全，要等发版前检查
 - 模板的起始版本号是 0.1.0；升哪一位照说明书 `gwb-release`
 
 ## 测试
