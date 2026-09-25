@@ -274,7 +274,7 @@ export function baseInstallPlan(home: string, pnpm: string): RunPlan {
 export const BASE_INSTALL_TIMEOUT_MS = 300_000
 
 
-/** 装进 home 的包清单：读得出、版本是要装的那个才回清单，否则回拒绝理由 */
+/** 装进 home 的包清单：读得出、版本是要装的那个才回清单，否则回拒绝理由。不用 `packageManifestOf`：这里要说清是哪一步不对（读不到、不是 JSON、版本对不上） */
 export function installedManifestAtVersion(
   manifestText: string | undefined,
   pkg: string,

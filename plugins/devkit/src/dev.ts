@@ -1,6 +1,6 @@
 import path from 'node:path'
 import { INSTALL_COMMAND, KERNEL_PACKAGE, LIST_COMMAND, UPDATE_COMMAND } from '@godcreator/gwb-plugin-manager'
-import { isRecord, VERSION } from './vocab.js'
+import { isRecord, packageManifestOf, VERSION } from './vocab.js'
 
 /** 日常用的那个 home 的名字。开发版装进它就是悄悄换了日常代码，所以当场拒；删它要 `force` */
 export const DAILY_HOME = 'default'
@@ -100,17 +100,9 @@ export function literalArtifacts(files: readonly string[]): string[] {
 
 /** 缺 name/version 就不是个能装的包 */
 export function parseManifest(text: string | undefined): Manifest | undefined {
-  if (text === undefined) return undefined
-  let doc: unknown
-  try {
-    doc = JSON.parse(text)
-  } catch {
-    return undefined
-  }
-  if (!isRecord(doc)) return undefined
+  const doc = packageManifestOf(text)
+  if (doc === undefined) return undefined
   const { name, version, files, keywords } = doc
-  if (typeof name !== 'string' || name === '') return undefined
-  if (typeof version !== 'string' || version === '') return undefined
   return {
     name,
     version,

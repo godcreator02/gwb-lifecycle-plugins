@@ -2,7 +2,7 @@ import path from 'node:path'
 import { BUILD_TIMEOUT_MS, PLUGIN_KEYWORD, literalArtifacts, pnpmPlan, type RunPlan, type RunResult } from './dev.js'
 import { KERNEL_PACKAGE, isCaretRange, kernelRangeCovers } from '@godcreator/gwb-plugin-manager'
 import { artifactProblems } from './artifact-check.js'
-import { isRecord, parseHttpUrl, TEAM_REGISTRY, TEAM_SCOPE, VERSION, versionCore } from './vocab.js'
+import { isRecord, packageManifestOf, parseHttpUrl, TEAM_REGISTRY, TEAM_SCOPE, VERSION, versionCore } from './vocab.js'
 
 /** git 工作区的状态。`dirty` 里是 porcelain 条目原文（两列状态加路径） */
 export type GitStatus = { ok: true; dirty: string[] } | { ok: false; error: string }
@@ -57,7 +57,7 @@ export type ReleaseOutcome =
   | { ok: true; data: ReleaseReport }
   | { ok: false; error: string; data?: { shipped: ReleasedPackage[] } }
 
-/** git status 输出里算作改动的那些行 */
+/** git status 输出里算作改动的那些行。stdout 与 stderr 合在一起收时也认得出：按 porcelain 条目的样子认 */
 export function dirtyLines(tail: string): string[] {
   return tail
     .split(/\r?\n/)
@@ -162,16 +162,9 @@ export interface ReleaseManifest extends TicketManifest {
 
 /** 不是 JSON 对象、缺 name 或 version（空串也算缺）回 undefined：那不是一个能发的包 */
 export function ticketManifestOf(text: string | undefined): ReleaseManifest | undefined {
-  if (text === undefined) return undefined
-  let doc: unknown
-  try {
-    doc = JSON.parse(text)
-  } catch {
-    return undefined
-  }
-  if (!isRecord(doc)) return undefined
+  const doc = packageManifestOf(text)
+  if (doc === undefined) return undefined
   const { name, version, files, peerDependencies, devDependencies, keywords } = doc
-  if (typeof name !== 'string' || name === '' || typeof version !== 'string' || version === '') return undefined
   return {
     name,
     version,

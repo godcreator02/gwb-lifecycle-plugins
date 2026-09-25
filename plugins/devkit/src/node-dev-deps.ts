@@ -4,8 +4,9 @@ import path from 'node:path'
 import { fileURLToPath } from 'node:url'
 import { tailLines } from '@godcreator/gwb-plugin-manager'
 import { PACK_TIMEOUT_MS, PUBLISH_TIMEOUT_MS, pnpmPlan, type DevDeps, type RunPlan, type RunResult } from './dev.js'
-import type { ReleaseDeps } from './release.js'
+import { dirtyLines, type ReleaseDeps } from './release.js'
 import { removeTree, runCaptured } from './node-home-deps.js'
+import { nodeFs } from './node-probe-deps.js'
 import { VERSION } from './vocab.js'
 import { runWithTreeTimeout, timeoutNote } from './node-process-tree.js'
 
@@ -264,16 +265,8 @@ export const devDepsWith = (pnpm: string): Omit<DevDeps, 'restartHome'> => ({
   run: (plan: RunPlan, timeoutMs: number) => runCaptured(plan, timeoutMs),
   cdp: runCdp,
   pack: (input) => packStaged({ ...input, pnpm }),
-  readText(file) {
-    try {
-      return fs.readFileSync(file, 'utf8')
-    } catch {
-      return undefined
-    }
-  },
-  exists(target) {
-    return fs.existsSync(target)
-  },
+  readText: nodeFs.readText,
+  exists: nodeFs.exists,
   size(file) {
     return fs.statSync(file).size
   },
@@ -298,18 +291,11 @@ export const devDepsWith = (pnpm: string): Omit<DevDeps, 'restartHome'> => ({
 /** git status 的上限。卡住说明 git 本身出了问题 */
 const GIT_TIMEOUT_MS = 30_000
 
-/**
- * git 是 exe，直接启动。runCaptured 回的是 stdout 与 stderr 合在一起的最后几行，
- * 所以按 porcelain 条目的样子认改动：safe.directory 警告之类不算，不然一句无害的警告就让发版永远不成
- */
+/** git 是 exe，直接启动。runCaptured 回的是 stdout 与 stderr 合在一起的最后几行，改动由 `dirtyLines` 按 porcelain 条目的样子认 */
 async function gitStatusOf(repoDir: string): Promise<{ ok: true; dirty: string[] } | { ok: false; error: string }> {
   const out = await runCaptured({ command: 'git', args: ['status', '--porcelain=v1'], cwd: repoDir }, GIT_TIMEOUT_MS)
   if (!out.ok) return { ok: false, error: out.tail === '' ? 'git status 没成(git 不在?)' : out.tail }
-  const dirty = out.tail
-    .split(/\r?\n/)
-    .map((line) => line.trimEnd())
-    .filter((line) => /^[ MADRCU?!]{1,3}\s+\S/.test(line))
-  return { ok: true, dirty }
+  return { ok: true, dirty: dirtyLines(out.tail) }
 }
 
 /** 发正式版在这台机器上的实现。`pnpm` 是命令开头找到的那个；组装发布内容与开发版的打包共用 withStagedDistribution */
@@ -325,15 +311,7 @@ export const releaseDepsWith = (pnpm: string): ReleaseDeps => ({
     return lines.reverse().find((line) => VERSION.test(line))
   },
   gitStatus: gitStatusOf,
-  readText(file) {
-    try {
-      return fs.readFileSync(file, 'utf8')
-    } catch {
-      return undefined
-    }
-  },
-  exists(target) {
-    return fs.existsSync(target)
-  },
+  readText: nodeFs.readText,
+  exists: nodeFs.exists,
   pnpm,
 })

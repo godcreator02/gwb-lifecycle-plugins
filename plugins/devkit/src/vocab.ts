@@ -40,3 +40,18 @@ export function versionCore(version: string): string {
 export function isRecord(value: unknown): value is Record<string, unknown> {
   return typeof value === 'object' && value !== null && !Array.isArray(value)
 }
+
+/** 一个能装、能发的包的清单：读得出、是 JSON 对象、`name` 与 `version` 都是非空字符串；不是回 undefined */
+export function packageManifestOf(text: string | undefined): (Record<string, unknown> & { name: string; version: string }) | undefined {
+  if (text === undefined) return undefined
+  let doc: unknown
+  try {
+    doc = JSON.parse(text)
+  } catch {
+    return undefined
+  }
+  if (!isRecord(doc)) return undefined
+  const { name, version } = doc
+  if (typeof name !== 'string' || name === '' || typeof version !== 'string' || version === '') return undefined
+  return { ...doc, name, version }
+}
