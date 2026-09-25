@@ -162,9 +162,9 @@ export interface EntryView {
   active: boolean
 }
 
-/** `plugin-manager.list` 回执 `{ packages: [...] }` 里这个包的全部条目：同一个包可能有两条条目 */
+/** `plugin-manager.list` 回执的 `data` 是包的数组，取这个包的全部条目：同一个包可能有两条条目 */
 export function entriesOf(data: unknown, pkg: string): EntryView[] {
-  const packages = isRecord(data) && Array.isArray(data.packages) ? data.packages : []
+  const packages = Array.isArray(data) ? data : []
   for (const packageView of packages) {
     if (!isRecord(packageView) || packageView.pkg !== pkg) continue
     const entries = Array.isArray(packageView.entries) ? packageView.entries : []
@@ -695,7 +695,10 @@ export async function collect(
   const entries: Evidence['entries'] = []
   const dead: string[] = []
   for (const one of shipped) {
-    for (const entry of entriesOf(listed.data, one.pkg)) {
+    const entriesOfPackage = entriesOf(listed.data, one.pkg)
+    // 内核包本来就没有条目；插件在条目表里一条都没有，就是装上了却没在运行
+    if (listed.ok && entriesOfPackage.length === 0 && one.pkg !== KERNEL_PACKAGE) dead.push(`${one.pkg}(条目表里没有它)`)
+    for (const entry of entriesOfPackage) {
       entries.push({ pkg: one.pkg, entryId: entry.entryId, active: entry.active })
       if (!entry.active) dead.push(`${entry.entryId}(${one.pkg})`)
     }

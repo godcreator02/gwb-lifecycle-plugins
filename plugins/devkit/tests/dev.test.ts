@@ -167,7 +167,7 @@ function fake(options: FakeOptions = {}): Fake {
           silent -= 1
           return { ok: false, data: { 回执: { ok: false, error: '没有这条命令：plugin-manager.list' } }, tail: '' }
         }
-        return receipt({ ok: true, data: { packages: options.packages ?? ONE_ENTRY } })
+        return receipt({ ok: true, data: options.packages ?? ONE_ENTRY })
       }
       return receipt({ ok: true, data: {} })
     },
@@ -255,12 +255,13 @@ describe('清单与条目', () => {
 
   it('一个包有两条条目，两条都要报', () => {
     const table = [{ pkg: PKG, entries: [{ entryId: 'home:a', active: true }, { entryId: 'home:a-2', active: false }] }]
-    expect(entriesOf({ packages: table }, PKG)).toHaveLength(2)
+    expect(entriesOf(table, PKG)).toHaveLength(2)
   })
 
-  it('只认 { packages } 形状，裸数组不认', () => {
-    expect(entriesOf(ONE_ENTRY, PKG)).toEqual([])
-    expect(entriesOf({ packages: ONE_ENTRY }, '@godcreator/别的')).toEqual([])
+  it('list 回执的 data 是包的数组；不是数组、或表里没有这个包，都是空表', () => {
+    expect(entriesOf(ONE_ENTRY, PKG)).toEqual([{ entryId: 'home:fake', active: true }])
+    expect(entriesOf({ packages: ONE_ENTRY }, PKG)).toEqual([])
+    expect(entriesOf(ONE_ENTRY, '@godcreator/别的')).toEqual([])
   })
 })
 
@@ -450,6 +451,12 @@ describe('取证', () => {
     const out = await runDev(input(), fake({ packages: [{ pkg: PKG, entries: [{ entryId: 'home:fake', active: false }] }] }))
     expect(out).toMatchObject({ ok: false })
     if (!out.ok) expect(out.error).toContain('没加载成功')
+  })
+
+  it('装的插件在条目表里一条都没有：判失败，点名那个包', async () => {
+    const out = await runDev(input(), fake({ packages: [{ pkg: '@godcreator/别的', entries: [{ entryId: 'home:other', active: true }] }] }))
+    expect(out).toMatchObject({ ok: false })
+    if (!out.ok) expect(out.error).toContain(`${PKG}(条目表里没有它)`)
   })
 
   it('日志新增部分里有 error 也判失败', async () => {
