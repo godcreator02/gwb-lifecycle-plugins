@@ -35,11 +35,11 @@ description: 连接 devkit.dev、devkit.release、devkit.scaffold.plugin 与被�
 
 {/* ref file="../plugins/devkit/src/dev.ts" lines="97-100" */}
 
-{/* ref file="../plugins/devkit/src/node-dev-deps.ts" lines="201-207" */}
+{/* ref file="../plugins/devkit/src/node-dev-deps.ts" lines="217-223" */}
 
 **`keywords` 含 `gwb-plugin` 表示插件**：`devkit.release` 只对它查 peer（含 peer 里内核包的范围）与构建产物里包名 import 的两份名单；`devkit.dev` 只收插件与内核包，别的包（库）直接拒：
 
-{/* ref file="../plugins/devkit/src/release.ts" lines="112-112" */}
+{/* ref file="../plugins/devkit/src/release.ts" lines="114-114" */}
 
 {/* ref file="../plugins/devkit/src/dev.ts" lines="415-418" */}
 
@@ -57,7 +57,7 @@ description: 连接 devkit.dev、devkit.release、devkit.scaffold.plugin 与被�
 
 这里的「仓根」是从包目录往上找到的第一个有 `pnpm-workspace.yaml` 的目录；一路找到盘根都没有就报错，这个包不发：
 
-{/* ref file="../plugins/devkit/src/node-dev-deps.ts" lines="104-113" */}
+{/* ref file="../plugins/devkit/src/node-dev-deps.ts" lines="120-129" */}
 
 **`pnpm-workspace.yaml` 的 `packages` 里有 `plugins/*`**：`devkit.scaffold.plugin` 只往这样的仓里加插件，别的一概拒。`packages` 按 YAML 读，带不带引号、块列表还是流式列表都认；读不懂的写法报出是第几行，不当成「没有这一条」：
 
@@ -65,7 +65,7 @@ description: 连接 devkit.dev、devkit.release、devkit.scaffold.plugin 与被�
 
 **git 工作区干净**：`devkit.release` 在构建之前运行 `git status --porcelain=v1`，有一条改动就一个都不发；不是 git 仓也拒。`devkit.dev` 不查：
 
-{/* ref file="../plugins/devkit/src/release.ts" lines="240-249" */}
+{/* ref file="../plugins/devkit/src/release.ts" lines="242-251" */}
 
 ## 约定
 

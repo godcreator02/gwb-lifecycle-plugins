@@ -19,7 +19,7 @@ description: 连接 devkit（经 gwbNodeCli 登记、dev.ts 启动子进程）�
 
 devkit 这边：登记命令时 `entry` 指向这个文件（见[工作台服务](/docs/seams/workbench)），调用方传 `{"args":[…]}`；`devkit.dev` 自己启动子进程，用宿主的 `process.execPath` 加 `ELECTRON_RUN_AS_NODE=1`，工作目录是系统临时目录：
 
-{/* ref file="../plugins/devkit/src/node-dev-deps.ts" lines="23-44" */}
+{/* ref file="../plugins/devkit/src/node-dev-deps.ts" lines="25-46" */}
 
 **stdout**：成功时输出一张缩进两格的 JSON，固定有 `page`、`在哪个home`、`did`，其余按动作不同。`devkit.dev` 读其中三种：`home` 动作的 `home`（页面报不出 home 或名字对不上时驱动在连上那一刻就退出码非零，不会走到打印），`cmd` 动作的 `回执`（页面上那条命令的原始回执），`reload` 动作的 `等到了`、`等的是`、`最后看到`（没等到就整体失败）：
 
@@ -27,13 +27,13 @@ devkit 这边：登记命令时 `entry` 指向这个文件（见[工作台服务
 
 {/* ref file="../plugins/devkit/bin/cdp.mjs" lines="536-552" */}
 
-{/* ref file="../plugins/devkit/src/dev.ts" lines="373-385" */}
+{/* ref file="../plugins/devkit/src/dev.ts" lines="367-379" */}
 
-{/* ref file="../plugins/devkit/src/dev.ts" lines="564-575" */}
+{/* ref file="../plugins/devkit/src/dev.ts" lines="574-585" */}
 
 **退出码**：0 是成功。1 有三种：`cmd` 的回执不是 `ok: true`、`reload` 等超时、点不中目标（这三种 stdout 上照样有 JSON）；此外参数错、动作不在分类表里、连不上、home 对不上、在 `default` 上做写动作都是直接抛错，Node 以 1 退出，stdout 上没有 JSON，原因在 stderr。devkit 两样都看：退出码决定 `ok`，JSON 解析不了就是 `undefined`；等不回来就在超时后终止这个子进程的整棵进程树、确认退出了再回：
 
-{/* ref file="../plugins/devkit/src/node-dev-deps.ts" lines="45-59" */}
+{/* ref file="../plugins/devkit/src/node-dev-deps.ts" lines="47-61" */}
 
 **页面**：`cmd` 在页面里调 `window.gwb.command(名字, 参数)`；页面上没有这个函数就回 `{ ok: false }`。连上之后先核对 home：收集页面上 `script[src]` 与 `link[href]` 里的 `file:///` 地址（home 路径实际来自外壳插入的样式表），截出 `/homes/<名>/` 那一段，要求只有一个 home、且名字等于第一个参数：
 

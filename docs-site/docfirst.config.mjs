@@ -10,8 +10,8 @@
  * trajectory 指轨迹卡目录：check 顺带校验轨迹卡（卡是 .mdx，六个字段一个都没有的页不算卡）。
  *
  * 生成文件写到各自的插件目录。`plugins/devkit/`：AGENTS、CLAUDE、README，外加随包发布的说明书
- * `skills/gwb-devkit/SKILL.md`（写插件手册）与它的三份附件 `references/`、`skills/gwb-release/SKILL.md`
- * （发版规则）。附件 `references/rules.md` 的正本是现状区的规矩总表 `content/docs/rules/index.mdx`：
+ * `skills/gwb-devkit/SKILL.md`（写插件手册）与它的两份附件 `references/`、`skills/gwb-release/SKILL.md`
+ * （版本号规则）。附件 `references/rules.md` 的正本是现状区的规矩总表 `content/docs/rules/index.mdx`：
  * 同一页既是站上的现状页、也生成随包发布的附件，不另写一份副本。`plugins/plugin-manager/`：说明书 `skills/gwb-plugin-manager/SKILL.md`。
  * SKILL.md 要保留 frontmatter 的 `name` 与 `description`（gwb-skills 登记说明书时读它们），
  * 所以目标写成对象形式；附件经 `skill.read {name, file}` 读，不带 frontmatter。
@@ -34,7 +34,6 @@ export default {
       { to: '../plugins/devkit/skills/gwb-devkit/SKILL.md', frontmatter: ['name', 'description'] },
     ],
     'content/outputs/skills/gwb-devkit-evidence.mdx': ['../plugins/devkit/skills/gwb-devkit/references/evidence.md'],
-    'content/outputs/skills/gwb-devkit-ui.mdx': ['../plugins/devkit/skills/gwb-devkit/references/ui.md'],
     'content/docs/rules/index.mdx': ['../plugins/devkit/skills/gwb-devkit/references/rules.md'],
     'content/outputs/skills/gwb-release.mdx': [
       { to: '../plugins/devkit/skills/gwb-release/SKILL.md', frontmatter: ['name', 'description'] },

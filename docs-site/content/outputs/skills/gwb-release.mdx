@@ -1,12 +1,12 @@
 ---
-title: 发版规则（SKILL 正本）
+title: 版本号规则（SKILL 正本）
 name: gwb-release
-description: 升版本号、改依赖版本号、发版时读。
+description: 升版本号、改依赖版本号、发破坏性版本时读。
 ---
 
-# gwb 发版规则
+# gwb 版本号规则
 
-全生态一套。插件在隔离 home 里的验证步骤在说明书 `gwb-devkit`。
+全生态一套。发版的操作步骤在说明书 `gwb-devkit` 的「发版」。
 
 ## 一、升哪一位
 
@@ -16,7 +16,7 @@ description: 升版本号、改依赖版本号、发版时读。
    - **磁盘上的数据格式**变了：data 文档、设置项的键与值的格式、布局文件里存的 id
    - 调用方依赖着的**语义**变了（比如 `ok: true` 意味着什么）
 2. 定升哪一位：
-   - 破坏了契约 → 升 x（0.8.3 → 0.9.0），发版时加做第四节的两步
+   - 破坏了契约 → 升 x（0.8.3 → 0.9.0），发版时加做第三节的两步
    - 加功能、加命令、加可选参数、回执加字段、修 bug、改说明书、改内部实现 → 升 y（0.8.3 → 0.8.4）。这些都明确是补丁版本
    - 只有改动属于上面的契约清单、又判断不了算不算破坏时，才按破坏升 x
 3. 改 `package.json` 的 `version` 并提交。同一个版本号永不重发
@@ -33,64 +33,18 @@ description: 升版本号、改依赖版本号、发版时读。
 上游发版时下游一个数字都不动，由下游在自己发版时决定跟不跟。
 
 1. 确定要不要跟：
-   - 自己发版时，`devkit.release` 拿插件包 peer 里的每个插件（不分包名范围）和源上 `dist-tags.latest` 比在不在同一条线（0.x 比 x，≥1 比主版本号）：同一条线放行，一个数字都不动；不在同一条线（上游出了破坏性版本）必须跟。dev 依赖不查：落后于 latest、甚至出了范围都照样发，只要 `pnpm install` 装得上——dev 只在构建与类型检查时用，不影响运行
-   - 要用上游的新东西：下限升到带那个东西的版本。上游是别的插件（经 `ctx.inject` 用它的服务、import 它的类型）的，它写在 peer 里，改的就是 peer 的下限；home 里装的版本不够新时 `plugin-manager.list` 的 `unmetPeers` 会报出来（规矩见 gwb-devkit 附件 `references/rules.md` 的「用到的插件写 peer」）
-2. 改写法：`@godcreator` 的库、接口定义包写在 dev，`^<源上已经发了的版本>`（精确号也合法）；用到的别的插件写在 peer，只许 `^<源上已经发了的版本>`，只在 `ctx.inject([...], fn)` 里用的在 `peerDependenciesMeta` 标 `optional: true`；同仓的包写 `workspace:*`，`devkit.release` 发版时写成 `^<版本>`。插件包 peer 里的内核包 `@godcreator/gwb-kernel-desktop` 写 `^<验证时那个内核的版本号>`（见第三节第 1 步）。依赖写进 peer、dev 还是 `dependencies`，照 gwb-devkit 附件 `references/rules.md` 的「依赖怎么写」
+   - 上游出了破坏性版本（peer 里的插件和源上 latest 不在同一条线）必须跟：`devkit.release` 会拒发，拒绝理由里写着怎么改。dev 依赖不查，`pnpm install` 装得上就行
+   - 要用上游的新东西：把下限升到带那个东西的版本
+2. 写法照规矩总表的「依赖怎么写」「用到的插件写 peer」（说明书 `gwb-devkit` 的附件 `references/rules.md`）：peer 与 dev 都写 `^<源上已经发了的版本>`，同仓的包写 `workspace:*`
 3. 要跟的先适配代码，再 `pnpm install`、`pnpm check`
 
 **完成判据**：`pnpm install` 成功（下限写了源上没有的版本会在这里失败）；`pnpm check` 全绿。
 
-## 三、发正式版
+## 三、发破坏性版本多做的两步
 
-1. 在隔离 home 里验证过这一版（说明书 `gwb-devkit` 的「改一版看一版」）。插件包 peer 里内核包 `@godcreator/gwb-kernel-desktop` 的范围 `^x.y.z` 要包含验证时那个内核，不包含就改成 `^<那个内核的版本号>`
-2. 按第一节升版本号并提交，仓根 git 工作区干净
-3. `devkit.release {"dir":"<仓根>","packages":["plugins/<短名>"]}`。`packages` 必给，相对仓根、按依赖顺序（被依赖的在前），例：`["packages/model","packages/engine","plugins/gwb-bn-core"]`。每个包发到它 `package.json` 的 `publishConfig.registry`，没写就拒发（团队源写 `"publishConfig": { "registry": "https://git.tianshen02.online:28377/api/packages/godcreator/npm/" }`）；发布 token 要在用户级 `~/.npmrc` 里。发到 gitea 的包在 `package.json` 写上 `"repository": { "type": "git", "url": "https://git.tianshen02.online:28377/<owner>/<仓名>.git" }`：gitea 靠它把包关联到仓，仓与包不在同一个 owner 下也能关联
-4. 回执 `ok: false`：发版前检查按包列全了没过的条目，一个包都没发。逐条改完、`pnpm check`、提交，再调第 3 步
-5. 升级日常用的 default：人在插件管理窗格点「全部更新」，或调 `plugin-manager.update {"all":true}`（只升几个给 `{"only":["<包名>"]}`，装指定版本给 `{"specs":{"<包名>":"<版本或 file:路径>"}}`）。新插件第一次装用 `plugin-manager.install {"pkg":"<包名>"}`。插件管理不整页重新加载：经 MCP 升级的，拿到成功回执后调一次 `shell.reload` 让界面换成新代码（细节见说明书 `gwb-plugin-manager`）。升到 gwb-mcp 自己时连接会断，重连后再核对
-
-**完成判据**：`devkit.release` 回执 `ok: true`，`shipped` 里是这次的包、版本与发到的源（`registry`）；default 的 `plugin-manager.list` 里这个包的版本是刚发的正式版、条目 `active` 为 true；再调一次 `index`，看得到这个包的命令与说明书。
-
-## 四、发破坏性版本多做的两步
-
-1. **发之前**：在容器根下各仓的 `package.json` 里搜这个包名（仓在哪用 `unit-folder.list` 查），找出 dev 或 peer 里写了它的下游（peer 里写了它的，下次发版会被发版前检查拒；dev 里写了它的，要用新版时再跟），往每个下游仓文档站 feedback 区的 `inbox.mdx` 写一条「要跟 X 0.9」
-2. **发之后**：升 default 之前先让下游跟上，或用 `plugin-manager.update {"only":[…]}` 只升别的。插件的 peer 写了它用到的插件：升级之后 `plugin-manager.list` 的 `unmetPeers` 会报出 peer 范围不包含新版本的下游，`plugin-manager.update` 会把 peer 写了被升级包的插件一起重新加载，但不阻止它们和出了范围的上游一起运行。改了名字（命令名、说明书名、术语）的，再查两遍：
+1. **发之前**：在容器根下各仓的 `package.json` 里搜这个包名（仓在哪用 `unit-folder.list` 查），找出 dev 或 peer 里写了它的下游：peer 里写了它的，下次发版会被发版前检查拒；dev 里写了它的，要用新版时再跟。给每个下游仓投一条反馈「要跟 X 0.9」：写一个文件 `<下游仓的站>/content/future/inbox/<日期>-<来源>-<标题>.mdx`，在那个仓里只提交这一个文件（写法见说明书 `docfirst-docs` 的「给别的仓投反馈」）；还没迁到这种结构的旧站，写进 `content/feedback/inbox.mdx`
+2. **发之后**：升 default 之前先让下游跟上，或用 `plugin-manager.update {"only":[…]}` 只升别的。升上去以后，peer 范围不包含新版本的下游由 `plugin-manager.list` 的 `unmetPeers` 报出，它们照常加载、不被拦下。改了名字（命令名、说明书名、术语）的，再查两遍：
    - 拿旧名字搜 MCP 入口的 instructions、各仓 AGENTS 里讲命令的段落、所有随包说明书的描述
    - 文档里点名的每个说明书名与命令名，拿 `skill.list` 与 `index` 再查一遍，指向不存在的就改
 
-**完成判据**：每个下游仓的 `inbox.mdx` 里都有这一条；default 升级后 `plugin-manager.list` 里所有条目 `active` 为 true；旧名字在上面几处搜不到。
-
-## 参考
-
-### `devkit.release` 做什么
-
-依次：仓根 git 工作区干净 → 仓根 `pnpm build` → 照 `files` 白名单检查产物在不在 → 同一个版本号已在发布目标上就拒（问不出有没有也拒） → 发版前检查 → 在临时目录组装发布内容、发到发布目标并打 `latest`（`workspace:` 依赖写成 `^`：同一次发的写 `^新版本号`，其余写 `^<工作区里的版本号>`）。发布目标是包 `package.json` 的 `publishConfig.registry`，没写、或写的不是 http(s) 地址就拒；它写进发布内容清单的 `publishConfig.registry`，命令行不带 `--registry`。它不改仓里任何文件，只往各包的发布目标发包、不改任何 home，从哪个 home 调结果都一样。dev 依赖不查。
-
-发版前检查，每个包：
-
-| 检什么 | 没过 |
-| --- | --- |
-| 构建产物里相对 import 指向的文件不在。插件从 `exports["."]` 走起（没有就拒）；库从 `exports` 每个子路径的 js 入口（没有 `exports` 时是 `main`）与 `bin` 走起，一个都没有才拒 | 拒 |
-| 构建产物按 JS 语法读不下去（字符串、模板、正则没闭合，括号不配对）。import 按 JS 语法找：字符串、模板字面量、正则、注释里写着的 `import(…)` 不算，压成一行的产物照样认 | 拒，写明文件与行列号 |
-
-插件包（`keywords` 含 `gwb-plugin`）另查：
-
-| 检什么 | 没过 |
-| --- | --- |
-| peer 里有 `cordis`、内核包 `@godcreator/gwb-kernel-desktop`、插件以外的包（是不是插件读包目录 `node_modules` 里它的清单，`keywords` 含 `gwb-plugin` 才算；读不到也拒） | 拒，写明按「运行时谁提供」改写成 dev 还是 `dependencies`；读不到时先在仓根 `pnpm install` |
-| peer 里的 gwb 插件（清单 `keywords` 含 `gwb-plugin`，不分包名范围；内核包、`workspace:` 除外；问哪个源由 `~/.npmrc` 的范围行决定）写法不是 `^x.y.z`、问不出源上的 latest、或和源上 latest 不在同一条线（主版本号为 0 时比次版本号，≥1 时比主版本号） | 拒：先适配代码、在隔离 home 验过，再把 peer 改成 `^<latest>` |
-| node 侧产物（`exports["."]` 入口顺着相对 import 走到的文件）的包名 import 不是 node 内置模块、`electron`、本包 peer 里写了的包 | 拒：用到的插件写进 peer，自用的库打包进产物 |
-| 浏览器侧产物（`dist/client.js` 顺着相对 import 走到的文件）的包名 import 不在页面 importmap 里——名字是内核包页面入口 `dist/index.html` 里那段 importmap 的键，从包目录 `node_modules` 里装好的内核包读 | 拒；内核包的页面入口读不到（包目录 `node_modules` 里没装内核包，提示 peer 写上它、再 `pnpm install`）、里面没有 importmap 也拒 |
-| peer 里没写内核包 `@godcreator/gwb-kernel-desktop`，或写法不是 `^x.y.z`。范围包不包含哪个内核不查，照第三节第 1 步由人改 | 拒，写明改成 `^<验证时那个内核的版本号>` |
-| 带界面的插件（构建后有 `dist/style.css`）的样式检查：类选择器前缀、前缀排在变体前面、颜色只用主题令牌、`var()` 的 fallback 不写死值；和 `devkit.dev` 构建之后查的是同一套 | 拒，逐条写明怎么改 |
-| 注入与 peer 一致：`src/` 下源码注入的每个服务（`export const inject`、`static inject` 是必需，`<上下文>.inject([...], fn)` 是局部注入，数组里只认字符串字面量），提供方（peer 与 dev 里的插件，看类型入口给 cordis `Context` 补的名字）写在 peer 里，必需注入的不标 `optional`。`gwbKernel`、本包自己提供的、提供方不是 gwb 插件的、局部注入且写 peer 会和同工作区的提供方成环的不查 | 拒，写明服务名、源码位置、提供方与该怎么写 peer；注入写法认不出也拒，写明文件与行号 |
-
-发版只走 `devkit.release`，不手工 `pnpm publish`：手工发不做发版前检查，也不先构建。
-
-### 机器上的两处配置
-
-都不在任何仓里，换机器或重装会丢：
-
-- **用户级 `~/.npmrc`**：`@godcreator` 的 scope 行与各个源的发布 token。发版前检查问 peer 里 `@godcreator` 插件的 latest 靠这一行找源，没有它就问不出、拒发。仓里不配 `.npmrc`；发到哪写在每个要发的包自己的 `publishConfig.registry`，没写 `devkit.release` 就拒发（`devkit.scaffold` 生成的插件包已照它的 `registry` 参数写好，不给参数写团队源）
-- **用户级 pnpm 配置**（`pnpm config get globalconfig` 报位置）：`minimumReleaseAgeExclude` 放行 `'@godcreator/*'`。pnpm 11 起刚发的包要放一天才准装，丢了它的症状是新机器上装不上刚发的包
-
-仓与 home 的 `pnpm-workspace.yaml` 只写各自需要的项，`minimumReleaseAgeExclude` 与 `strictPeerDependencies` 都留给用户级配置与 pnpm 默认值：`pnpm-workspace.yaml` 里写了哪一项，就逐项覆盖用户级的同名项。
+**完成判据**：每个下游仓都收到了这一条；default 升级后 `plugin-manager.list` 里所有条目 `active` 为 true；旧名字在上面几处搜不到。

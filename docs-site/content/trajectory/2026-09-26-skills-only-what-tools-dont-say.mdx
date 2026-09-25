@@ -1,0 +1,38 @@
+---
+title: 说明书只写工具不会告诉你的，发版步骤挪进 gwb-devkit
+born-at: 2026-09-26T12:00
+type: choice
+parent: [2026-09-25-rules-only-checked-ones]
+label: 说明书收敛
+domain: devkit
+---
+
+## 背景
+
+人让大幅收敛本仓的几份说明书。三份说明书加两份附件约 350 行，逐段对照命令 usage、规矩总表与回执之后，多出来的内容有四类：
+
+- `gwb-release` 的「参考」一节把 `devkit.release` 做哪几步、发版前检查那张表整个抄了一遍；usage 里有原文，没过时回执按包列全并写明怎么改
+- 写 peer 的规矩写了四遍：`gwb-devkit` 新写插件第 4 步、`gwb-release` 改依赖版本号的写法、规矩总表、发版前检查表
+- `gwb-devkit` 的「参考」一节和规矩总表逐字重复两条（`apply` 里的 async、重新加载只重跑 `apply`），另有几条是 `devkit.release` 本来就会拒的
+- `gwb-plugin-manager` 的回执字段、peer 范围怎么比、失败回执的格式，`list` 与 `update` 的 usage 里都写全了
+
+另有一处写错：`gwb-release` 的破坏性版本那一步还让往下游 `feedback` 区的 `inbox.mdx` 写，本机跨仓反馈已经改成投进下游站的 `content/future/inbox/`。
+
+## 结论与边界
+
+- 说明书只写三样：步骤、完成判据、没有工具会报出来的坑。命令的参数、回执、拒绝条件只写在 usage；回执或报错里会写明怎么改的，说明书不预先列。这条写进本仓 AGENTS 的硬约束
+- `gwb-release` 只管版本号：升哪一位、改依赖版本号、发破坏性版本多做的两步。发正式版的操作步骤与机器上的两处配置挪进 `gwb-devkit` 的「发版」，和「改一版看一版」接在一起。全局规矩要求每次升版本号前都读 `gwb-release`，它越短，每次读的成本越低
+- 附件 `references/ui.md` 删掉：整份只有一句「去读 `gwb-shell`」，主文件第 2 步已经这么说。`references/evidence.md` 留着瘦身：外壳的说明书 `gwb-shell` 点名引用它
+- 说明书之间互相引用的小节名不变（「新写一个插件」「改已有插件」「改一版看一版」「在页面里取证」「发破坏性版本多做的两步」「升级插件」），别的仓与建仓回执按名字指过来
+- 改说明书、删一个只起指路作用的附件，按 `gwb-release` 升 y
+
+## 否掉的候选
+
+- **三份说明书只删重复、不重新划分**：发版步骤留在 `gwb-release`，它就还是全文最长的一份，每次升版本号都得读一遍发版流程
+- **`evidence.md` 并进主文件**：要去外壳仓改 `gwb-shell` 的引用，换来的只是少一个文件
+- **顺手瘦命令 usage**：`devkit.dev` 等几条 usage 本身也长，但说明书收敛以后 usage 成了唯一的正本，混进同一次改动很难审
+
+## 代价与遗留
+
+- agent 第一次用一条命令时要多调一次 `search` 看 usage，说明书里不再有参数与回执的细节
+- 别的仓 AGENTS 里还写着「升版本号、发版读 gwb-release」：`gwb-release` 第一句就指到 `gwb-devkit` 的「发版」，不逐个去改

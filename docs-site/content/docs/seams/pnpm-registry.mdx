@@ -35,15 +35,15 @@ description: 连接 devkit、插件管理与 pnpm、npm 源、两份 npmrc：两
 
 `devkit.dev` 不在目标 home 里启动 pnpm：装包是目标 home 的插件管理在它自己的进程里运行的 `pnpm add`（见 [devkit 调插件管理](/docs/seams/plugin-manager-calls)）。
 
-{/* ref file="../plugins/devkit/src/dev.ts" lines="268-271" */}
+{/* ref file="../plugins/devkit/src/dev.ts" lines="269-272" */}
 
-{/* ref file="../plugins/devkit/src/node-dev-deps.ts" lines="242-261" */}
+{/* ref file="../plugins/devkit/src/node-dev-deps.ts" lines="260-279" */}
 
-{/* ref file="../plugins/devkit/src/node-dev-deps.ts" lines="301-312" */}
+{/* ref file="../plugins/devkit/src/node-dev-deps.ts" lines="361-372" */}
 
 **在 home 里运行的 pnpm 都关掉自动补装 peer**：启动 pnpm 时环境变量原样传下去，加一项 `pnpm_config_auto_install_peers=false`（插件管理另去掉 `ELECTRON_RUN_AS_NODE`）。插件管理的 pnpm 都在 home 里运行；devkit 只在 `home.new` 的三次 `pnpm add` 带它，在插件仓里的 build 与临时目录里的 pack、publish、view 不带——插件仓里开发要靠自动补装把 peer 里的内核包与插件装进 `node_modules`，带上它 pnpm 会按新配置重装、把这些 peer 拿掉，构建时找不到类型。插件的 peer 写了别的插件、home 里没装那个插件时，pnpm 默认把它装进 `node_modules/.pnpm` 且不提示，不写进 home 的 `package.json`、没有条目，插件管理也不认它。命令行参数 `--config.auto-install-peers=false` 会被 pnpm 忽略，只有环境变量或 home 的 `pnpm-workspace.yaml` 关得掉（实验见本仓 `probes/2609242300_peer-between-plugins/`）：
 
-{/* ref file="../plugins/devkit/src/dev.ts" lines="264-267" */}
+{/* ref file="../plugins/devkit/src/dev.ts" lines="265-268" */}
 
 {/* ref file="../plugins/plugin-manager/src/pnpm.ts" lines="10-23" */}
 
@@ -51,17 +51,17 @@ description: 连接 devkit、插件管理与 pnpm、npm 源、两份 npmrc：两
 
 {/* ref file="../plugins/devkit/src/vocab.ts" lines="6-10" */}
 
-{/* ref file="../plugins/devkit/src/release.ts" lines="115-128" */}
+{/* ref file="../plugins/devkit/src/release.ts" lines="120-133" */}
 
 发布目标写进临时目录里发布内容清单的 `publishConfig.registry`，命令行不带 `--registry`；问「这个版本号在源上有没有」时指定发布目标。pnpm 12 里 `publishConfig.registry` 盖得过 `~/.npmrc` 的 scope 路由与命令行的 `--registry`，而 `--registry` 盖不过 scope 路由——`pnpm view` 也一样，带范围的包名要用 `--config.<范围>:registry=` 才指定得了（实验见本仓 `probes/2609251140_pnpm-publish-config-registry/`）：
 
-{/* ref file="../plugins/devkit/src/node-dev-deps.ts" lines="166-179" */}
+{/* ref file="../plugins/devkit/src/node-dev-deps.ts" lines="184-197" */}
 
 问 peer 里各个插件的 `dist-tags.latest` 不指定源，由 `~/.npmrc` 按包名范围决定去哪问。
 
 **开发版不进源**：开发版的版本号是 `<patch+1>-dev.<yyyyMMddHHmmss>`，打成包文件放进目标 home 的 `dev-packs`，经那个 home 的插件管理装；正式版发 `package.json` 里的版本号，打 `latest`：
 
-{/* ref file="../plugins/devkit/src/dev.ts" lines="45-56" */}
+{/* ref file="../plugins/devkit/src/dev.ts" lines="46-57" */}
 
 **插件管理找插件：按 scope 找源、调检索接口**。`plugin-manager.search` 每条源的地址照 pnpm 读两份 npmrc 的优先级找：先找 `@scope:registry=`，再找 `registry=`，每一种都是 home 级优先于机器级，都没有就是 npm 官方源（插件管理的做法见[找插件](/docs/plugin-manager/sources)）：
 

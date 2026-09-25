@@ -3,7 +3,7 @@ title: CDP 驱动
 description: bin/cdp.mjs（登记成 devkit.cdp）在一个工作台页面里操作：发浏览器层的真实输入、截图、执行工作台命令、问页面属于哪个 home；零依赖单文件，工作台没运行时也能直接用
 ---
 
-**本页回答**：`bin/cdp.mjs` 管到哪里为止、它为什么是零依赖的纯 JS 单文件、为什么不跟本包别的代码共用任何东西，以及它怎么测。在页面里取证的用法（动作怎么写、两条取证规矩）在说明书 `gwb-devkit` 的附件 `references/evidence.md`，本页不复述。
+**本页回答**：`bin/cdp.mjs` 管到哪里为止、它为什么是零依赖的纯 JS 单文件、为什么不跟本包别的代码共用任何东西，以及它怎么测。在页面里取证的用法：动作怎么写在 `devkit.cdp` 的 `usage`，取证规矩在说明书 `gwb-devkit` 的附件 `references/evidence.md`，本页不复述。
 
 ## 管什么
 
@@ -67,7 +67,7 @@ description: bin/cdp.mjs（登记成 devkit.cdp）在一个工作台页面里操
 - 工作台运行时经命令总线调用，`devkit.cdp {"args":["<home 名>","<动作>",…]}`，经 `gwbNodeCli` 登记，回执自带 stdout 与退出码
 - 工作台没运行时直接 `node <包根>/bin/cdp.mjs <home 名> <动作>`
 
-{/* ref file="../plugins/devkit/src/index.ts" lines="303-318" */}
+{/* ref file="../plugins/devkit/src/index.ts" lines="310-325" */}
 
 <Diagram name="dk-cdp" title="一次 CDP 驱动的运行：两个入口，同一个脚本，五步">
 - 两个入口：工作台运行时调 `devkit.cdp`（由 `gwbNodeCli` 登记，启动 node 子进程），工作台没运行时直接 `node bin/cdp.mjs`

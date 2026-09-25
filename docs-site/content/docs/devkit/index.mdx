@@ -69,8 +69,10 @@ description: 开发套件是一个普通的 gwb 插件，把「在一个新文�
 
 | 说明书 | 管什么 | 正本 |
 | --- | --- | --- |
-| `gwb-devkit` | 新写插件、改插件、改一版看一版、在页面里取证；附件 `references/rules.md` 是规矩总表，`references/evidence.md` 讲在页面里取证，`references/ui.md` 只指向外壳的说明书 `gwb-shell` | [gwb-devkit](/outputs/skills/gwb-devkit)、[附件 evidence](/outputs/skills/gwb-devkit-evidence)；规矩总表就是[写插件的规矩](/docs/rules)这一页 |
-| `gwb-release` | 全生态的发版规则：升哪一位、改依赖版本号、发正式版、发破坏性版本多做的两步 | [gwb-release](/outputs/skills/gwb-release) |
+| `gwb-devkit` | 新写插件、改插件、改一版看一版、在页面里取证、发版；附件 `references/rules.md` 是规矩总表，`references/evidence.md` 讲在页面里取证 | [gwb-devkit](/outputs/skills/gwb-devkit)、[附件 evidence](/outputs/skills/gwb-devkit-evidence)；规矩总表就是[写插件的规矩](/docs/rules)这一页 |
+| `gwb-release` | 全生态的版本号规则：升哪一位、改依赖版本号、发破坏性版本多做的两步 | [gwb-release](/outputs/skills/gwb-release) |
+
+说明书只写步骤、完成判据和工具不会报出来的坑；命令的参数、回执、拒绝条件写在命令的 `usage` 里，说明书不重复。
 
 {/* has file="../plugins/devkit/src/index.ts" text="scoped.gwbSkills.register(new URL('../skills/', import.meta.url))" */}
 

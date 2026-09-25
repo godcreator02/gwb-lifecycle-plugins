@@ -23,7 +23,7 @@ description: plugins/devkit/AGENTS.md 由这一页生成——每次会话都得
 | `rules/` | 写插件的规矩总表 |
 | `glossary.mdx` | 术语、退役的词与命令 |
 
-文档怎么写、六区、confirm 与提交的先后读 skill「docfirst-docs」；写插件、在隔离 home 里验证读「gwb-devkit」；升版本号、发版读「gwb-release」。
+文档怎么写、六区、confirm 与提交的先后读 skill「docfirst-docs」；写插件、在隔离 home 里验证、发版读「gwb-devkit」；升版本号、改依赖版本号读「gwb-release」。
 
 ## 怎么跑
 
@@ -44,6 +44,7 @@ description: plugins/devkit/AGENTS.md 由这一页生成——每次会话都得
 - **建仓与加插件只写插件的文件**：不建文档站、不写文档页、不调别的插件的命令
 - **没有设置项**；将来要加一律用 `gwbSettings.define`，不读 `cordis.yml` 的 `config`
 - **每条命令的参数形状写进 `usage`**，无参数写「无参数」
+- **说明书只写步骤、完成判据和工具不会报出来的坑**：命令的参数、回执、拒绝条件只写在 `usage`；回执或报错里会写明怎么改的，说明书不预先列
 - **改一版看一版**（`devkit.dev`，机制见 `devkit/dev.mdx`）：
   - 目标是 `default` 或开发套件自己所在的 home，直接拒
   - 装包与重新加载只经目标 home 的插件管理：已装的包合成一条 `plugin-manager.update {"specs":{…}}`，不拆成 `disable` / `enable`

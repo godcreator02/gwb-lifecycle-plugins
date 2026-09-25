@@ -25,7 +25,7 @@ description: 连接 devkit.home.*、devkit.dev 的定位与 cdp.mjs 和内核 ex
 
 {/* ref file="../plugins/devkit/src/home.ts" lines="62-83" */}
 
-{/* ref file="../plugins/devkit/src/home.ts" lines="487-514" */}
+{/* ref file="../plugins/devkit/src/home.ts" lines="490-517" */}
 
 `bin/cdp.mjs` 的 `portOf`：只取 `cdp`，要求是 1–65535 的整数，不看 `pid`：
 
@@ -39,7 +39,7 @@ description: 连接 devkit.home.*、devkit.dev 的定位与 cdp.mjs 和内核 ex
 
 **gwb.log**：`devkit.dev` 在装包之前记下日志文件的长度，最后只读新增的部分，按每行空白分隔的第二段判断级别，`error` 算失败、`warn` 另报。行格式 `<ISO 时间> <级别> <名字> <正文>` 由内核定：
 
-{/* ref file="../plugins/devkit/src/dev.ts" lines="239-252" */}
+{/* ref file="../plugins/devkit/src/dev.ts" lines="240-253" */}
 
 **home 名**：devkit 的命令只收 kebab-case 的 home 名：
 
