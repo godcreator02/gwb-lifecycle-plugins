@@ -1,0 +1,129 @@
+源上 @probe/r 与 @probe/a 的 latest 都是 0.2.0
+
+##### 6a 只有从源装的 @probe/r ^0.1.0（对照）
+
+===== home q6-registry-only
+
+### cwd=q6-registry-only
+> pnpm install
+Progress: resolved 0, reused 1, downloaded 0, added 0
+Packages are hard linked from the content-addressable store to the virtual store.
+  Content-addressable store is at: C:\Users\godamericatb14\AppData\Local\Temp\gwb-probe-2609250930\store\v11
+  Virtual store is at:             node_modules/.pnpm
+Packages: +1
++
+Progress: resolved 1, reused 1, downloaded 0, added 1, done
+
+dependencies:
++ @probe/r 0.1.0
+
+Done in 101ms using pnpm v12.4.2
+exit=0
+
+### cwd=q6-registry-only
+> pnpm outdated --json
+{
+  "@probe/r": {
+    "current": "0.1.0",
+    "latest": "0.2.0",
+    "wanted": "0.1.0",
+    "isDeprecated": false,
+    "dependencyType": "dependencies"
+  }
+}
+exit=1
+
+##### 6b @probe/r ^0.1.0 + @probe/a 用 file: tgz 装（0.1.1-dev.1）
+
+===== home q6-mixed
+
+### cwd=q6-mixed
+> pnpm install
+Progress: resolved 0, reused 1, downloaded 0, added 0
+Packages are hard linked from the content-addressable store to the virtual store.
+  Content-addressable store is at: C:\Users\godamericatb14\AppData\Local\Temp\gwb-probe-2609250930\store\v11
+  Virtual store is at:             node_modules/.pnpm
+Packages: +1
++
+Progress: resolved 1, reused 1, downloaded 0, added 1, done
+
+dependencies:
++ @probe/r 0.1.0
+
+Done in 89ms using pnpm v12.4.2
+exit=0
+
+### cwd=q6-mixed
+> pnpm add @probe/a@file:C:\Users\godamericatb14\AppData\Local\Temp\gwb-probe-2609250930\homes\q6-mixed\dev-packs\probe-a-0.1.1-dev.1.tgz
+✓ Lockfile passes supply-chain policies (verified 244ms ago)
+Packages: +1
++
+Progress: resolved 1, reused 1, downloaded 0, added 1, done
+
+dependencies:
++ @probe/a 0.1.1-dev.1
+
+Done in 309ms using pnpm v12.4.2
+exit=0
+
+### cwd=q6-mixed
+> pnpm outdated --json
+{
+  "@probe/r": {
+    "current": "0.1.0",
+    "latest": "0.2.0",
+    "wanted": "0.1.0",
+    "isDeprecated": false,
+    "dependencyType": "dependencies"
+  }
+}
+exit=1
+
+### cwd=q6-mixed
+> pnpm outdated
+┌──────────┬─────────┬────────┐
+│ Package  │ Current │ Latest │
+├──────────┼─────────┼────────┤
+│ @probe/r │ 0.1.0   │ 0.2.0  │
+└──────────┴─────────┴────────┘
+exit=1
+
+##### 6d 同一个 home，删掉 a 的 tgz 之后
+
+### cwd=q6-mixed
+> pnpm outdated --json
+{
+  "@probe/r": {
+    "current": "0.1.0",
+    "latest": "0.2.0",
+    "wanted": "0.1.0",
+    "isDeprecated": false,
+    "dependencyType": "dependencies"
+  }
+}
+exit=1
+
+##### 6c 只有 file: tgz 装的 @probe/a
+
+===== home q6-file-only
+
+### cwd=q6-file-only
+> pnpm add @probe/a@file:C:\Users\godamericatb14\AppData\Local\Temp\gwb-probe-2609250930\homes\q6-file-only\dev-packs\probe-a-0.1.1-dev.1.tgz
+Progress: resolved 1, reused 0, downloaded 0, added 0
+Packages are hard linked from the content-addressable store to the virtual store.
+  Content-addressable store is at: C:\Users\godamericatb14\AppData\Local\Temp\gwb-probe-2609250930\store\v11
+  Virtual store is at:             node_modules/.pnpm
+Packages: +1
++
+Progress: resolved 1, reused 1, downloaded 0, added 1, done
+
+dependencies:
++ @probe/a 0.1.1-dev.1
+
+Done in 96ms using pnpm v12.4.2
+exit=0
+
+### cwd=q6-file-only
+> pnpm outdated --json
+{}
+exit=0

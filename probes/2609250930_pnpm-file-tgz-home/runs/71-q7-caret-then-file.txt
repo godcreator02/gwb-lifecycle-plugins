@@ -1,0 +1,182 @@
+
+##### 7a 清单写 ^0.1.0（plugin-manager.install 写出来的样子）
+
+===== home q7-caret
+
+### cwd=q7-caret
+> pnpm install
+Progress: resolved 0, reused 1, downloaded 0, added 0
+Packages are hard linked from the content-addressable store to the virtual store.
+  Content-addressable store is at: C:\Users\godamericatb14\AppData\Local\Temp\gwb-probe-2609250930\store\v11
+  Virtual store is at:             node_modules/.pnpm
+Packages: +2
+++
+Progress: resolved 2, reused 2, downloaded 0, added 2, done
+
+dependencies:
++ @probe/a 0.1.0
++ @probe/r 0.1.0
+
+Done in 84ms using pnpm v12.4.2
+exit=0
+
+--- inspect：pnpm install 之后
+@probe/a  清单=^0.1.0  .pnpm 目录=@probe+a@0.1.0  version=0.1.0  marker=registry-0.1.0
+.pnpm 下的 @probe 目录（2 个）：
+  @probe+a@0.1.0
+  @probe+r@0.1.0
+
+### cwd=q7-caret
+> pnpm add @probe/a@file:C:\Users\godamericatb14\AppData\Local\Temp\gwb-probe-2609250930\homes\q7-caret\dev-packs\probe-a-0.1.1-dev.1.tgz
+✓ Lockfile passes supply-chain policies (verified 326ms ago)
+Packages: +1 -1
++-
+Progress: resolved 1, reused 1, downloaded 0, added 1, done
+
+dependencies:
+- @probe/a 0.1.0
++ @probe/a 0.1.1-dev.1
+
+Done in 107ms using pnpm v12.4.2
+exit=0
+
+--- package.json（add file: 之后）
+{
+  "name": "gwb-home",
+  "private": true,
+  "dependencies": {
+    "@probe/a": "file:C:\\Users\\godamericatb14\\AppData\\Local\\Temp\\gwb-probe-2609250930\\homes\\q7-caret\\dev-packs\\probe-a-0.1.1-dev.1.tgz",
+    "@probe/r": "^0.1.0"
+  }
+}
+
+--- pnpm-lock.yaml（add file: 之后）
+lockfileVersion: '9.0'
+
+settings:
+  autoInstallPeers: false
+  excludeLinksFromLockfile: false
+
+importers:
+
+  .:
+    dependencies:
+      '@probe/a':
+        specifier: file:C:\Users\godamericatb14\AppData\Local\Temp\gwb-probe-2609250930\homes\q7-caret\dev-packs\probe-a-0.1.1-dev.1.tgz
+        version: file:dev-packs/probe-a-0.1.1-dev.1.tgz
+      '@probe/r':
+        specifier: ^0.1.0
+        version: 0.1.0
+
+packages:
+
+  '@probe/a@file:dev-packs/probe-a-0.1.1-dev.1.tgz':
+    resolution: {integrity: sha512-edhdROBVAbmCifr+9eOhzat4nEjF4KOQSj2DTXT2GRVcghplyvLJeX9/In4Sb7UGLdXQsfZ0CZfZoax3tdg+ww==, tarball: file:dev-packs/probe-a-0.1.1-dev.1.tgz}
+    version: 0.1.1-dev.1
+
+  '@probe/r@0.1.0':
+    resolution: {integrity: sha512-DoQKBlLTLH+3VZ4iVYWpu1QLCqcn+ihDpTzDZ8BSon025uV3D+PAchJaV+LSgS1OUTYJpmHZXMZ/Clh6xSHs0g==, tarball: http://127.0.0.1:50231/@probe/r/-/probe-r-0.1.0.tgz}
+
+snapshots:
+
+  '@probe/a@file:dev-packs/probe-a-0.1.1-dev.1.tgz': {}
+
+  '@probe/r@0.1.0': {}
+
+--- inspect：add file: 之后
+@probe/a  清单=file:C:\Users\godamericatb14\AppData\Local\Temp\gwb-probe-2609250930\homes\q7-caret\dev-packs\probe-a-0.1.1-dev.1.tgz  .pnpm 目录=@probe+a@file+dev-packs+probe-a-0.1.1-dev.1.tgz  version=0.1.1-dev.1  marker=one
+.pnpm 下的 @probe 目录（3 个）：
+  @probe+a@0.1.0
+  @probe+a@file+dev-packs+probe-a-0.1.1-dev.1.tgz
+  @probe+r@0.1.0
+
+##### 7b 清单写准确号 0.1.0（现在 devkit.dev 写死准确号之后的样子）
+
+===== home q7-exact
+
+### cwd=q7-exact
+> pnpm install
+Progress: resolved 0, reused 1, downloaded 0, added 0
+Packages are hard linked from the content-addressable store to the virtual store.
+  Content-addressable store is at: C:\Users\godamericatb14\AppData\Local\Temp\gwb-probe-2609250930\store\v11
+  Virtual store is at:             node_modules/.pnpm
+Packages: +2
+++
+Progress: resolved 2, reused 2, downloaded 0, added 2, done
+
+dependencies:
++ @probe/a 0.1.0
++ @probe/r 0.1.0
+
+Done in 86ms using pnpm v12.4.2
+exit=0
+
+--- inspect：pnpm install 之后
+@probe/a  清单=0.1.0  .pnpm 目录=@probe+a@0.1.0  version=0.1.0  marker=registry-0.1.0
+.pnpm 下的 @probe 目录（2 个）：
+  @probe+a@0.1.0
+  @probe+r@0.1.0
+
+### cwd=q7-exact
+> pnpm add @probe/a@file:C:\Users\godamericatb14\AppData\Local\Temp\gwb-probe-2609250930\homes\q7-exact\dev-packs\probe-a-0.1.1-dev.1.tgz
+✓ Lockfile passes supply-chain policies (verified 625ms ago)
+Packages: +1 -1
++-
+Progress: resolved 1, reused 1, downloaded 0, added 1, done
+
+dependencies:
+- @probe/a 0.1.0
++ @probe/a 0.1.1-dev.1
+
+Done in 95ms using pnpm v12.4.2
+exit=0
+
+--- package.json（add file: 之后）
+{
+  "name": "gwb-home",
+  "private": true,
+  "dependencies": {
+    "@probe/a": "file:C:\\Users\\godamericatb14\\AppData\\Local\\Temp\\gwb-probe-2609250930\\homes\\q7-exact\\dev-packs\\probe-a-0.1.1-dev.1.tgz",
+    "@probe/r": "^0.1.0"
+  }
+}
+
+--- pnpm-lock.yaml（add file: 之后）
+lockfileVersion: '9.0'
+
+settings:
+  autoInstallPeers: false
+  excludeLinksFromLockfile: false
+
+importers:
+
+  .:
+    dependencies:
+      '@probe/a':
+        specifier: file:C:\Users\godamericatb14\AppData\Local\Temp\gwb-probe-2609250930\homes\q7-exact\dev-packs\probe-a-0.1.1-dev.1.tgz
+        version: file:dev-packs/probe-a-0.1.1-dev.1.tgz
+      '@probe/r':
+        specifier: ^0.1.0
+        version: 0.1.0
+
+packages:
+
+  '@probe/a@file:dev-packs/probe-a-0.1.1-dev.1.tgz':
+    resolution: {integrity: sha512-edhdROBVAbmCifr+9eOhzat4nEjF4KOQSj2DTXT2GRVcghplyvLJeX9/In4Sb7UGLdXQsfZ0CZfZoax3tdg+ww==, tarball: file:dev-packs/probe-a-0.1.1-dev.1.tgz}
+    version: 0.1.1-dev.1
+
+  '@probe/r@0.1.0':
+    resolution: {integrity: sha512-DoQKBlLTLH+3VZ4iVYWpu1QLCqcn+ihDpTzDZ8BSon025uV3D+PAchJaV+LSgS1OUTYJpmHZXMZ/Clh6xSHs0g==, tarball: http://127.0.0.1:50231/@probe/r/-/probe-r-0.1.0.tgz}
+
+snapshots:
+
+  '@probe/a@file:dev-packs/probe-a-0.1.1-dev.1.tgz': {}
+
+  '@probe/r@0.1.0': {}
+
+--- inspect：add file: 之后
+@probe/a  清单=file:C:\Users\godamericatb14\AppData\Local\Temp\gwb-probe-2609250930\homes\q7-exact\dev-packs\probe-a-0.1.1-dev.1.tgz  .pnpm 目录=@probe+a@file+dev-packs+probe-a-0.1.1-dev.1.tgz  version=0.1.1-dev.1  marker=one
+.pnpm 下的 @probe 目录（3 个）：
+  @probe+a@0.1.0
+  @probe+a@file+dev-packs+probe-a-0.1.1-dev.1.tgz
+  @probe+r@0.1.0

@@ -1,0 +1,332 @@
+
+##### 1a tgz 在 home 的 dev-packs 下，反斜杠绝对路径
+
+===== home q1-tgz-in-home
+
+### cwd=q1-tgz-in-home
+> pnpm install
+Progress: resolved 0, reused 0, downloaded 1, added 0
+Packages are hard linked from the content-addressable store to the virtual store.
+  Content-addressable store is at: C:\Users\godamericatb14\AppData\Local\Temp\gwb-probe-2609250930\store\v11
+  Virtual store is at:             node_modules/.pnpm
+Packages: +1
++
+Progress: resolved 1, reused 0, downloaded 1, added 1, done
+
+dependencies:
++ @probe/r 0.1.0
+
+Done in 182ms using pnpm v12.4.2
+exit=0
+
+### cwd=q1-tgz-in-home
+> pnpm add @probe/a@file:C:\Users\godamericatb14\AppData\Local\Temp\gwb-probe-2609250930\homes\q1-tgz-in-home\dev-packs\probe-a-0.1.1-dev.1.tgz
+✓ Lockfile passes supply-chain policies (verified 204ms ago)
+Packages: +1
++
+Progress: resolved 1, reused 0, downloaded 1, added 1, done
+
+dependencies:
++ @probe/a 0.1.1-dev.1
+
+Done in 100ms using pnpm v12.4.2
+exit=0
+
+--- package.json（add 之后）
+{
+  "name": "gwb-home",
+  "private": true,
+  "dependencies": {
+    "@probe/a": "file:C:\\Users\\godamericatb14\\AppData\\Local\\Temp\\gwb-probe-2609250930\\homes\\q1-tgz-in-home\\dev-packs\\probe-a-0.1.1-dev.1.tgz",
+    "@probe/r": "^0.1.0"
+  }
+}
+
+--- pnpm-lock.yaml（add 之后）
+lockfileVersion: '9.0'
+
+settings:
+  autoInstallPeers: false
+  excludeLinksFromLockfile: false
+
+importers:
+
+  .:
+    dependencies:
+      '@probe/a':
+        specifier: file:C:\Users\godamericatb14\AppData\Local\Temp\gwb-probe-2609250930\homes\q1-tgz-in-home\dev-packs\probe-a-0.1.1-dev.1.tgz
+        version: file:dev-packs/probe-a-0.1.1-dev.1.tgz
+      '@probe/r':
+        specifier: ^0.1.0
+        version: 0.1.0
+
+packages:
+
+  '@probe/a@file:dev-packs/probe-a-0.1.1-dev.1.tgz':
+    resolution: {integrity: sha512-edhdROBVAbmCifr+9eOhzat4nEjF4KOQSj2DTXT2GRVcghplyvLJeX9/In4Sb7UGLdXQsfZ0CZfZoax3tdg+ww==, tarball: file:dev-packs/probe-a-0.1.1-dev.1.tgz}
+    version: 0.1.1-dev.1
+
+  '@probe/r@0.1.0':
+    resolution: {integrity: sha512-DoQKBlLTLH+3VZ4iVYWpu1QLCqcn+ihDpTzDZ8BSon025uV3D+PAchJaV+LSgS1OUTYJpmHZXMZ/Clh6xSHs0g==, tarball: http://127.0.0.1:50231/@probe/r/-/probe-r-0.1.0.tgz}
+
+snapshots:
+
+  '@probe/a@file:dev-packs/probe-a-0.1.1-dev.1.tgz': {}
+
+  '@probe/r@0.1.0': {}
+
+--- inspect：add 之后
+@probe/a  清单=file:C:\Users\godamericatb14\AppData\Local\Temp\gwb-probe-2609250930\homes\q1-tgz-in-home\dev-packs\probe-a-0.1.1-dev.1.tgz  .pnpm 目录=@probe+a@file+dev-packs+probe-a-0.1.1-dev.1.tgz  version=0.1.1-dev.1  marker=one
+@probe/r  清单=^0.1.0  .pnpm 目录=@probe+r@0.1.0  version=0.1.0  marker=registry-0.1.0
+.pnpm 下的 @probe 目录（2 个）：
+  @probe+a@file+dev-packs+probe-a-0.1.1-dev.1.tgz
+  @probe+r@0.1.0
+
+##### 1b tgz 在 home 之外，反斜杠绝对路径
+
+===== home q1-tgz-outside-home
+
+### cwd=q1-tgz-outside-home
+> pnpm install
+Progress: resolved 0, reused 1, downloaded 0, added 0
+Packages are hard linked from the content-addressable store to the virtual store.
+  Content-addressable store is at: C:\Users\godamericatb14\AppData\Local\Temp\gwb-probe-2609250930\store\v11
+  Virtual store is at:             node_modules/.pnpm
+Packages: +1
++
+Progress: resolved 1, reused 1, downloaded 0, added 1, done
+
+dependencies:
++ @probe/r 0.1.0
+
+Done in 94ms using pnpm v12.4.2
+exit=0
+
+### cwd=q1-tgz-outside-home
+> pnpm add @probe/a@file:C:\Users\godamericatb14\AppData\Local\Temp\gwb-probe-2609250930\vendor\q1-tgz-outside-home\probe-a-0.1.1-dev.1.tgz
+✓ Lockfile passes supply-chain policies (verified 205ms ago)
+Packages: +1
++
+Progress: resolved 1, reused 0, downloaded 1, added 1, done
+
+dependencies:
++ @probe/a 0.1.1-dev.1
+
+Done in 89ms using pnpm v12.4.2
+exit=0
+
+--- package.json（add 之后）
+{
+  "name": "gwb-home",
+  "private": true,
+  "dependencies": {
+    "@probe/a": "file:C:\\Users\\godamericatb14\\AppData\\Local\\Temp\\gwb-probe-2609250930\\vendor\\q1-tgz-outside-home\\probe-a-0.1.1-dev.1.tgz",
+    "@probe/r": "^0.1.0"
+  }
+}
+
+--- pnpm-lock.yaml（add 之后）
+lockfileVersion: '9.0'
+
+settings:
+  autoInstallPeers: false
+  excludeLinksFromLockfile: false
+
+importers:
+
+  .:
+    dependencies:
+      '@probe/a':
+        specifier: file:C:\Users\godamericatb14\AppData\Local\Temp\gwb-probe-2609250930\vendor\q1-tgz-outside-home\probe-a-0.1.1-dev.1.tgz
+        version: file:../../vendor/q1-tgz-outside-home/probe-a-0.1.1-dev.1.tgz
+      '@probe/r':
+        specifier: ^0.1.0
+        version: 0.1.0
+
+packages:
+
+  '@probe/a@file:../../vendor/q1-tgz-outside-home/probe-a-0.1.1-dev.1.tgz':
+    resolution: {integrity: sha512-edhdROBVAbmCifr+9eOhzat4nEjF4KOQSj2DTXT2GRVcghplyvLJeX9/In4Sb7UGLdXQsfZ0CZfZoax3tdg+ww==, tarball: file:../../vendor/q1-tgz-outside-home/probe-a-0.1.1-dev.1.tgz}
+    version: 0.1.1-dev.1
+
+  '@probe/r@0.1.0':
+    resolution: {integrity: sha512-DoQKBlLTLH+3VZ4iVYWpu1QLCqcn+ihDpTzDZ8BSon025uV3D+PAchJaV+LSgS1OUTYJpmHZXMZ/Clh6xSHs0g==, tarball: http://127.0.0.1:50231/@probe/r/-/probe-r-0.1.0.tgz}
+
+snapshots:
+
+  '@probe/a@file:../../vendor/q1-tgz-outside-home/probe-a-0.1.1-dev.1.tgz': {}
+
+  '@probe/r@0.1.0': {}
+
+--- inspect：add 之后
+@probe/a  清单=file:C:\Users\godamericatb14\AppData\Local\Temp\gwb-probe-2609250930\vendor\q1-tgz-outside-home\probe-a-0.1.1-dev.1.tgz  .pnpm 目录=@probe+a@file+..+..+vendor+_3fd5bbd044fa85ccb945ee2d5e791a13  version=0.1.1-dev.1  marker=one
+@probe/r  清单=^0.1.0  .pnpm 目录=@probe+r@0.1.0  version=0.1.0  marker=registry-0.1.0
+.pnpm 下的 @probe 目录（2 个）：
+  @probe+a@file+..+..+vendor+_3fd5bbd044fa85ccb945ee2d5e791a13
+  @probe+r@0.1.0
+
+##### 1c tgz 在 home 的 dev-packs 下，正斜杠绝对路径
+
+===== home q1-tgz-in-home-slash
+
+### cwd=q1-tgz-in-home-slash
+> pnpm install
+Progress: resolved 0, reused 1, downloaded 0, added 0
+Packages are hard linked from the content-addressable store to the virtual store.
+  Content-addressable store is at: C:\Users\godamericatb14\AppData\Local\Temp\gwb-probe-2609250930\store\v11
+  Virtual store is at:             node_modules/.pnpm
+Packages: +1
++
+Progress: resolved 1, reused 1, downloaded 0, added 1, done
+
+dependencies:
++ @probe/r 0.1.0
+
+Done in 99ms using pnpm v12.4.2
+exit=0
+
+### cwd=q1-tgz-in-home-slash
+> pnpm add @probe/a@file:C:/Users/godamericatb14/AppData/Local/Temp/gwb-probe-2609250930/homes/q1-tgz-in-home-slash/dev-packs/probe-a-0.1.1-dev.1.tgz
+✓ Lockfile passes supply-chain policies (verified 229ms ago)
+Packages: +1
++
+Progress: resolved 1, reused 1, downloaded 0, added 1, done
+
+dependencies:
++ @probe/a 0.1.1-dev.1
+
+Done in 108ms using pnpm v12.4.2
+exit=0
+
+--- package.json（add 之后）
+{
+  "name": "gwb-home",
+  "private": true,
+  "dependencies": {
+    "@probe/a": "file:C:/Users/godamericatb14/AppData/Local/Temp/gwb-probe-2609250930/homes/q1-tgz-in-home-slash/dev-packs/probe-a-0.1.1-dev.1.tgz",
+    "@probe/r": "^0.1.0"
+  }
+}
+
+--- pnpm-lock.yaml（add 之后）
+lockfileVersion: '9.0'
+
+settings:
+  autoInstallPeers: false
+  excludeLinksFromLockfile: false
+
+importers:
+
+  .:
+    dependencies:
+      '@probe/a':
+        specifier: file:C:/Users/godamericatb14/AppData/Local/Temp/gwb-probe-2609250930/homes/q1-tgz-in-home-slash/dev-packs/probe-a-0.1.1-dev.1.tgz
+        version: file:dev-packs/probe-a-0.1.1-dev.1.tgz
+      '@probe/r':
+        specifier: ^0.1.0
+        version: 0.1.0
+
+packages:
+
+  '@probe/a@file:dev-packs/probe-a-0.1.1-dev.1.tgz':
+    resolution: {integrity: sha512-edhdROBVAbmCifr+9eOhzat4nEjF4KOQSj2DTXT2GRVcghplyvLJeX9/In4Sb7UGLdXQsfZ0CZfZoax3tdg+ww==, tarball: file:dev-packs/probe-a-0.1.1-dev.1.tgz}
+    version: 0.1.1-dev.1
+
+  '@probe/r@0.1.0':
+    resolution: {integrity: sha512-DoQKBlLTLH+3VZ4iVYWpu1QLCqcn+ihDpTzDZ8BSon025uV3D+PAchJaV+LSgS1OUTYJpmHZXMZ/Clh6xSHs0g==, tarball: http://127.0.0.1:50231/@probe/r/-/probe-r-0.1.0.tgz}
+
+snapshots:
+
+  '@probe/a@file:dev-packs/probe-a-0.1.1-dev.1.tgz': {}
+
+  '@probe/r@0.1.0': {}
+
+--- inspect：add 之后
+@probe/a  清单=file:C:/Users/godamericatb14/AppData/Local/Temp/gwb-probe-2609250930/homes/q1-tgz-in-home-slash/dev-packs/probe-a-0.1.1-dev.1.tgz  .pnpm 目录=@probe+a@file+dev-packs+probe-a-0.1.1-dev.1.tgz  version=0.1.1-dev.1  marker=one
+@probe/r  清单=^0.1.0  .pnpm 目录=@probe+r@0.1.0  version=0.1.0  marker=registry-0.1.0
+.pnpm 下的 @probe 目录（2 个）：
+  @probe+a@file+dev-packs+probe-a-0.1.1-dev.1.tgz
+  @probe+r@0.1.0
+
+##### 1d tgz 在 home 的 dev-packs 下，给相对 home 的路径 ./dev-packs/…
+
+===== home q1-tgz-in-home-relative
+
+### cwd=q1-tgz-in-home-relative
+> pnpm install
+Progress: resolved 0, reused 1, downloaded 0, added 0
+Packages are hard linked from the content-addressable store to the virtual store.
+  Content-addressable store is at: C:\Users\godamericatb14\AppData\Local\Temp\gwb-probe-2609250930\store\v11
+  Virtual store is at:             node_modules/.pnpm
+Packages: +1
++
+Progress: resolved 1, reused 1, downloaded 0, added 1, done
+
+dependencies:
++ @probe/r 0.1.0
+
+Done in 93ms using pnpm v12.4.2
+exit=0
+
+### cwd=q1-tgz-in-home-relative
+> pnpm add @probe/a@file:./dev-packs/probe-a-0.1.1-dev.1.tgz
+✓ Lockfile passes supply-chain policies (verified 220ms ago)
+Packages: +1
++
+Progress: resolved 1, reused 1, downloaded 0, added 1, done
+
+dependencies:
++ @probe/a 0.1.1-dev.1
+
+Done in 107ms using pnpm v12.4.2
+exit=0
+
+--- package.json（add 之后）
+{
+  "name": "gwb-home",
+  "private": true,
+  "dependencies": {
+    "@probe/a": "file:./dev-packs/probe-a-0.1.1-dev.1.tgz",
+    "@probe/r": "^0.1.0"
+  }
+}
+
+--- pnpm-lock.yaml（add 之后）
+lockfileVersion: '9.0'
+
+settings:
+  autoInstallPeers: false
+  excludeLinksFromLockfile: false
+
+importers:
+
+  .:
+    dependencies:
+      '@probe/a':
+        specifier: file:./dev-packs/probe-a-0.1.1-dev.1.tgz
+        version: file:dev-packs/probe-a-0.1.1-dev.1.tgz
+      '@probe/r':
+        specifier: ^0.1.0
+        version: 0.1.0
+
+packages:
+
+  '@probe/a@file:dev-packs/probe-a-0.1.1-dev.1.tgz':
+    resolution: {integrity: sha512-edhdROBVAbmCifr+9eOhzat4nEjF4KOQSj2DTXT2GRVcghplyvLJeX9/In4Sb7UGLdXQsfZ0CZfZoax3tdg+ww==, tarball: file:dev-packs/probe-a-0.1.1-dev.1.tgz}
+    version: 0.1.1-dev.1
+
+  '@probe/r@0.1.0':
+    resolution: {integrity: sha512-DoQKBlLTLH+3VZ4iVYWpu1QLCqcn+ihDpTzDZ8BSon025uV3D+PAchJaV+LSgS1OUTYJpmHZXMZ/Clh6xSHs0g==, tarball: http://127.0.0.1:50231/@probe/r/-/probe-r-0.1.0.tgz}
+
+snapshots:
+
+  '@probe/a@file:dev-packs/probe-a-0.1.1-dev.1.tgz': {}
+
+  '@probe/r@0.1.0': {}
+
+--- inspect：add 之后
+@probe/a  清单=file:./dev-packs/probe-a-0.1.1-dev.1.tgz  .pnpm 目录=@probe+a@file+dev-packs+probe-a-0.1.1-dev.1.tgz  version=0.1.1-dev.1  marker=one
+@probe/r  清单=^0.1.0  .pnpm 目录=@probe+r@0.1.0  version=0.1.0  marker=registry-0.1.0
+.pnpm 下的 @probe 目录（2 个）：
+  @probe+a@file+dev-packs+probe-a-0.1.1-dev.1.tgz
+  @probe+r@0.1.0

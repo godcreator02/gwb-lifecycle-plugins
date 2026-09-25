@@ -1,0 +1,45 @@
+---
+title: 开发版改用 pnpm pack 出 tgz、在 home 里 pnpm add file: 装，实测可行，前提是每版 tgz 路径不同且清单引用的 tgz 不删
+born-at: 2026-09-25T09:42
+type: evidence
+parent: [2026-09-08-gwb-devkit]
+label: tgz 装开发版
+domain: 开发循环
+---
+
+## 背景
+
+`devkit.dev` 装开发版的做法是先发到团队源，再在目标 home 的清单里写准确版本号、`pnpm install`（来历见[开发版装进 home 是清单写准确号再装](2026-09-17-dev-install-pins-exact.md)）。
+计划换成不经过团队源：在临时目录里把版本号改成 `<patch+1>-dev.<时间戳>`，`pnpm pack` 出 tgz 存到目标 home 目录下，
+再在 home 里 `pnpm add <包>@file:<tgz 绝对路径>`。改之前要知道 pnpm 12 在 home 里对 file: tgz 的七个行为：清单与锁文件怎么记、
+换 tgz 后真实目录变不变、peer 写了它的插件变不变、tgz 删了之后还能不能再装别的、一次装两个行不行、`pnpm outdated` 怎么报、
+原来以 `^` 装着时清单怎么改。
+
+## 结论与边界
+
+清单照原样写 `file:` 加传入的路径（绝对路径就是绝对路径，也可以传 `./dev-packs/…` 这样相对 home 的路径），锁文件记相对 home 的路径和 tgz 的 integrity，
+不会写成 `^`。原来清单里是 `^0.1.0` 或准确号 `0.1.0` 时，`pnpm add` 把整条换成 file:，装上的就是 tgz 里的版本，不存在给版本号时沿用 `^` 的问题。
+一次 `pnpm add` 同时给两个 file: tgz 可以，peer 写了另一个的那个包解析到同一次装进来的那份，参数顺序不影响结果。
+
+`.pnpm` 下的目录名由 tgz 的路径决定、不看内容。版本号不同（文件名跟着不同），或版本号相同但放在另一个路径，真实目录都会换，新起的进程加载到新代码；
+新 tgz 覆盖写到同一路径时，`pnpm add` 回「锁文件已是最新」，`pnpm install --force` 也不换，全部退出码 0，装着的仍是旧内容，读版本号核对也看不出来。
+a 换 tgz 时，peer 写了 a 的插件不论自己是 file: 装的还是从源按版本号装的，真实目录都跟着换，所以「装前装后比真实目录」能把它们找出来。
+
+清单还引用着的 tgz 一旦删掉，这个 home 里之后任何 `pnpm add`（装 file: 包、从源装别的插件、升级 a 逼 peer 写了它的 file: 包换目录）都退出码 1，
+报那个 tgz 不存在；只按锁文件装的 `pnpm install`、`--frozen-lockfile`、删掉 `node_modules` 重装都还成功，因为内容在存储里。清单已换成新 tgz 之后，
+不再被引用的旧 tgz 删掉没有影响。`pnpm outdated --json` 完全不列 file: 依赖：只有 file: 依赖时输出 `{}`、退出码 0，和从源装的插件混在一起时只列后者。
+从 file: 回到源上的版本要写明版本号，`pnpm add <包>` 不带版本号是退出码 0 的空操作。file: 装的包满足不了任何 peer 范围，每次安装一行 peer 警告，
+`pnpm peers check` 退出码 1。
+
+所以计划成立，条件是四条：每一版的 tgz 路径必须不同（版本号带时间戳、用 `pnpm pack` 的默认文件名就满足）；清单还引用的 tgz 不能删；
+跟着重新加载的插件照装前装后的真实目录找；接受 file: 包带来的 peer 警告。
+
+边界：只测了 pnpm 12.4.2、Windows、home 不带 `pnpm-workspace.yaml`、存储在临时目录；没有在真的隔离 home 里用 `devkit.dev` 跑过，
+也没有测 `pnpm store prune` 之后删掉 tgz 的 home 还能不能 `pnpm install`。据此怎么改 `devkit.dev` 还没定。
+
+## 依据
+
+`probes/2609250930_pnpm-file-tgz-home/`：`runs/11-q1-spec-and-lock.txt`（清单与锁文件的写法）、`runs/21-q2-version-changes.txt`、`runs/22-q2-same-version-other-file.txt`、
+`runs/23-q2-same-version-same-file.txt`（真实目录随路径变、同路径覆盖写不生效）、`runs/31-q3-dependent-realpath.txt`（peer 写了 a 的插件换目录）、
+`runs/41-q4-tgz-deleted.txt`、`runs/42-q4-tgz-deleted-peer-moves.txt`（删 tgz 后 `pnpm add` 失败）、`runs/51-q5-two-tgz-one-add.txt`、`runs/61-q6-outdated.txt`、
+`runs/71-q7-caret-then-file.txt`、`runs/81-extra-back-to-registry.txt`；pnpm 12.4.2，Windows 11，gwb-devkit `e71d842`。

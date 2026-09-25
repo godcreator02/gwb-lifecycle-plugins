@@ -1,0 +1,91 @@
+##### 2c 版本号相同（0.1.1-dev.4）、内容不同（marker four-old / four-new），新 tgz 覆盖写到同一个路径
+
+===== home q2-same-version-same-file
+
+### cwd=q2-same-version-same-file
+> pnpm install
+Progress: resolved 0, reused 1, downloaded 0, added 0
+Packages are hard linked from the content-addressable store to the virtual store.
+  Content-addressable store is at: C:\Users\godamericatb14\AppData\Local\Temp\gwb-probe-2609250930\store\v11
+  Virtual store is at:             node_modules/.pnpm
+Packages: +1
++
+Progress: resolved 1, reused 1, downloaded 0, added 1, done
+
+dependencies:
++ @probe/r 0.1.0
+
+Done in 157ms using pnpm v12.4.2
+exit=0
+
+### cwd=q2-same-version-same-file
+> pnpm add @probe/a@file:C:\Users\godamericatb14\AppData\Local\Temp\gwb-probe-2609250930\homes\q2-same-version-same-file\dev-packs\probe-a-0.1.1-dev.4.tgz
+✓ Lockfile passes supply-chain policies (verified 368ms ago)
+Packages: +1
++
+Progress: resolved 1, reused 0, downloaded 1, added 1, done
+
+dependencies:
++ @probe/a 0.1.1-dev.4
+
+Done in 123ms using pnpm v12.4.2
+exit=0
+
+--- inspect：装旧 tgz 之后
+@probe/a  清单=file:C:\Users\godamericatb14\AppData\Local\Temp\gwb-probe-2609250930\homes\q2-same-version-same-file\dev-packs\probe-a-0.1.1-dev.4.tgz  .pnpm 目录=@probe+a@file+dev-packs+probe-a-0.1.1-dev.4.tgz  version=0.1.1-dev.4  marker=four-old
+.pnpm 下的 @probe 目录（2 个）：
+  @probe+a@file+dev-packs+probe-a-0.1.1-dev.4.tgz
+  @probe+r@0.1.0
+
+（同一路径的 tgz 已换成 marker four-new 的内容）
+
+### cwd=q2-same-version-same-file
+> pnpm add @probe/a@file:C:\Users\godamericatb14\AppData\Local\Temp\gwb-probe-2609250930\homes\q2-same-version-same-file\dev-packs\probe-a-0.1.1-dev.4.tgz
+✓ Lockfile passes supply-chain policies (verified 652ms ago)
+Lockfile is up to date, resolution step is skipped
+Done in 33ms using pnpm v12.4.2
+exit=0
+
+--- inspect：pnpm add @probe/a@file:C:\Users\godamericatb14\AppData\Local\Temp\gwb-probe-2609250930\homes\q2-same-version-same-file\dev-packs\probe-a-0.1.1-dev.4.tgz 之后
+@probe/a  清单=file:C:\Users\godamericatb14\AppData\Local\Temp\gwb-probe-2609250930\homes\q2-same-version-same-file\dev-packs\probe-a-0.1.1-dev.4.tgz  .pnpm 目录=@probe+a@file+dev-packs+probe-a-0.1.1-dev.4.tgz  version=0.1.1-dev.4  marker=four-old
+.pnpm 下的 @probe 目录（2 个）：
+  @probe+a@file+dev-packs+probe-a-0.1.1-dev.4.tgz
+  @probe+r@0.1.0
+@probe/a（与装旧 tgz 时比） 真实目录 前：@probe+a@file+dev-packs+probe-a-0.1.1-dev.4.tgz
+@probe/a（与装旧 tgz 时比） 真实目录 后：@probe+a@file+dev-packs+probe-a-0.1.1-dev.4.tgz
+@probe/a（与装旧 tgz 时比） 真实目录变了：False；旧目录还在磁盘上：True
+
+### cwd=q2-same-version-same-file
+> pnpm install
+✓ Lockfile passes supply-chain policies (verified 1s ago)
+Lockfile is up to date, resolution step is skipped
+Done in 18ms using pnpm v12.4.2
+exit=0
+
+--- inspect：pnpm install 之后
+@probe/a  清单=file:C:\Users\godamericatb14\AppData\Local\Temp\gwb-probe-2609250930\homes\q2-same-version-same-file\dev-packs\probe-a-0.1.1-dev.4.tgz  .pnpm 目录=@probe+a@file+dev-packs+probe-a-0.1.1-dev.4.tgz  version=0.1.1-dev.4  marker=four-old
+.pnpm 下的 @probe 目录（2 个）：
+  @probe+a@file+dev-packs+probe-a-0.1.1-dev.4.tgz
+  @probe+r@0.1.0
+@probe/a（与装旧 tgz 时比） 真实目录 前：@probe+a@file+dev-packs+probe-a-0.1.1-dev.4.tgz
+@probe/a（与装旧 tgz 时比） 真实目录 后：@probe+a@file+dev-packs+probe-a-0.1.1-dev.4.tgz
+@probe/a（与装旧 tgz 时比） 真实目录变了：False；旧目录还在磁盘上：True
+
+### cwd=q2-same-version-same-file
+> pnpm install --force
+✓ Lockfile passes supply-chain policies (verified 1s ago)
+Lockfile is up to date, resolution step is skipped
+Packages: +2
+++
+Progress: resolved 2, reused 2, downloaded 0, added 2, done
+Done in 138ms using pnpm v12.4.2
+exit=0
+
+--- inspect：pnpm install --force 之后
+@probe/a  清单=file:C:\Users\godamericatb14\AppData\Local\Temp\gwb-probe-2609250930\homes\q2-same-version-same-file\dev-packs\probe-a-0.1.1-dev.4.tgz  .pnpm 目录=@probe+a@file+dev-packs+probe-a-0.1.1-dev.4.tgz  version=0.1.1-dev.4  marker=four-old
+.pnpm 下的 @probe 目录（2 个）：
+  @probe+a@file+dev-packs+probe-a-0.1.1-dev.4.tgz
+  @probe+r@0.1.0
+@probe/a（与装旧 tgz 时比） 真实目录 前：@probe+a@file+dev-packs+probe-a-0.1.1-dev.4.tgz
+@probe/a（与装旧 tgz 时比） 真实目录 后：@probe+a@file+dev-packs+probe-a-0.1.1-dev.4.tgz
+@probe/a（与装旧 tgz 时比） 真实目录变了：False；旧目录还在磁盘上：True

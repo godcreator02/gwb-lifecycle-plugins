@@ -1,0 +1,529 @@
+
+##### 不删（对照）；之后运行 pnpm add @probe/c@file:C:\Users\godamericatb14\AppData\Local\Temp\gwb-probe-2609250930\vendor\probe-c-0.1.0.tgz
+
+===== home q4-keep-add-c
+
+### cwd=q4-keep-add-c
+> pnpm install
+Progress: resolved 0, reused 1, downloaded 0, added 0
+Packages are hard linked from the content-addressable store to the virtual store.
+  Content-addressable store is at: C:\Users\godamericatb14\AppData\Local\Temp\gwb-probe-2609250930\store\v11
+  Virtual store is at:             node_modules/.pnpm
+Packages: +1
++
+Progress: resolved 1, reused 1, downloaded 0, added 1, done
+
+dependencies:
++ @probe/r 0.1.0
+
+Done in 232ms using pnpm v12.4.2
+exit=0
+
+### cwd=q4-keep-add-c
+> pnpm add @probe/a@file:C:\Users\godamericatb14\AppData\Local\Temp\gwb-probe-2609250930\homes\q4-keep-add-c\dev-packs\probe-a-0.1.1-dev.1.tgz
+✓ Lockfile passes supply-chain policies (verified 561ms ago)
+Packages: +1
++
+Progress: resolved 1, reused 1, downloaded 0, added 1, done
+
+dependencies:
++ @probe/a 0.1.1-dev.1
+
+Done in 269ms using pnpm v12.4.2
+exit=0
+
+### cwd=q4-keep-add-c
+> pnpm add @probe/c@file:C:\Users\godamericatb14\AppData\Local\Temp\gwb-probe-2609250930\vendor\probe-c-0.1.0.tgz
+✓ Lockfile passes supply-chain policies (verified 300ms ago)
+Packages: +1
++
+Progress: resolved 1, reused 0, downloaded 1, added 1, done
+
+dependencies:
++ @probe/c 0.1.0
+
+Done in 162ms using pnpm v12.4.2
+exit=0
+
+--- inspect：不删（对照）、pnpm add @probe/c@file:C:\Users\godamericatb14\AppData\Local\Temp\gwb-probe-2609250930\vendor\probe-c-0.1.0.tgz 之后
+@probe/a  清单=file:C:\Users\godamericatb14\AppData\Local\Temp\gwb-probe-2609250930\homes\q4-keep-add-c\dev-packs\probe-a-0.1.1-dev.1.tgz  .pnpm 目录=@probe+a@file+dev-packs+probe-a-0.1.1-dev.1.tgz  version=0.1.1-dev.1  marker=one
+@probe/c  清单=file:C:\Users\godamericatb14\AppData\Local\Temp\gwb-probe-2609250930\vendor\probe-c-0.1.0.tgz  .pnpm 目录=@probe+c@file+..+..+vendor+probe-c-0.1.0.tgz  version=0.1.0  marker=c
+@probe/r  清单=^0.1.0  .pnpm 目录=@probe+r@0.1.0  version=0.1.0  marker=registry-0.1.0
+.pnpm 下的 @probe 目录（3 个）：
+  @probe+a@file+dev-packs+probe-a-0.1.1-dev.1.tgz
+  @probe+c@file+..+..+vendor+probe-c-0.1.0.tgz
+  @probe+r@0.1.0
+
+##### 不删（对照）；之后运行 pnpm install
+
+===== home q4-keep-install
+
+### cwd=q4-keep-install
+> pnpm install
+Progress: resolved 0, reused 1, downloaded 0, added 0
+Packages are hard linked from the content-addressable store to the virtual store.
+  Content-addressable store is at: C:\Users\godamericatb14\AppData\Local\Temp\gwb-probe-2609250930\store\v11
+  Virtual store is at:             node_modules/.pnpm
+Packages: +1
++
+Progress: resolved 1, reused 1, downloaded 0, added 1, done
+
+dependencies:
++ @probe/r 0.1.0
+
+Done in 151ms using pnpm v12.4.2
+exit=0
+
+### cwd=q4-keep-install
+> pnpm add @probe/a@file:C:\Users\godamericatb14\AppData\Local\Temp\gwb-probe-2609250930\homes\q4-keep-install\dev-packs\probe-a-0.1.1-dev.1.tgz
+✓ Lockfile passes supply-chain policies (verified 506ms ago)
+Packages: +1
++
+Progress: resolved 1, reused 1, downloaded 0, added 1, done
+
+dependencies:
++ @probe/a 0.1.1-dev.1
+
+Done in 149ms using pnpm v12.4.2
+exit=0
+
+### cwd=q4-keep-install
+> pnpm install
+Already up to date
+Done in 9ms using pnpm v12.4.2
+exit=0
+
+--- inspect：不删（对照）、pnpm install 之后
+@probe/a  清单=file:C:\Users\godamericatb14\AppData\Local\Temp\gwb-probe-2609250930\homes\q4-keep-install\dev-packs\probe-a-0.1.1-dev.1.tgz  .pnpm 目录=@probe+a@file+dev-packs+probe-a-0.1.1-dev.1.tgz  version=0.1.1-dev.1  marker=one
+@probe/c  清单=（清单里没有）  node_modules 里没有
+@probe/r  清单=^0.1.0  .pnpm 目录=@probe+r@0.1.0  version=0.1.0  marker=registry-0.1.0
+.pnpm 下的 @probe 目录（2 个）：
+  @probe+a@file+dev-packs+probe-a-0.1.1-dev.1.tgz
+  @probe+r@0.1.0
+
+##### 不删（对照）；之后运行 pnpm add @probe/r@0.2.0
+
+===== home q4-keep-add-r
+
+### cwd=q4-keep-add-r
+> pnpm install
+Progress: resolved 0, reused 1, downloaded 0, added 0
+Packages are hard linked from the content-addressable store to the virtual store.
+  Content-addressable store is at: C:\Users\godamericatb14\AppData\Local\Temp\gwb-probe-2609250930\store\v11
+  Virtual store is at:             node_modules/.pnpm
+Packages: +1
++
+Progress: resolved 1, reused 1, downloaded 0, added 1, done
+
+dependencies:
++ @probe/r 0.1.0
+
+Done in 454ms using pnpm v12.4.2
+exit=0
+
+### cwd=q4-keep-add-r
+> pnpm add @probe/a@file:C:\Users\godamericatb14\AppData\Local\Temp\gwb-probe-2609250930\homes\q4-keep-add-r\dev-packs\probe-a-0.1.1-dev.1.tgz
+✓ Lockfile passes supply-chain policies (verified 822ms ago)
+Packages: +1
++
+Progress: resolved 1, reused 1, downloaded 0, added 1, done
+
+dependencies:
++ @probe/a 0.1.1-dev.1
+
+Done in 425ms using pnpm v12.4.2
+exit=0
+
+### cwd=q4-keep-add-r
+> pnpm add @probe/r@0.2.0
+✓ Lockfile passes supply-chain policies (verified 347ms ago)
+Packages: +1 -1
++-
+Progress: resolved 1, reused 0, downloaded 1, added 1, done
+
+dependencies:
+- @probe/r 0.1.0
++ @probe/r 0.2.0
+
+Done in 645ms using pnpm v12.4.2
+exit=0
+
+--- inspect：不删（对照）、pnpm add @probe/r@0.2.0 之后
+@probe/a  清单=file:C:\Users\godamericatb14\AppData\Local\Temp\gwb-probe-2609250930\homes\q4-keep-add-r\dev-packs\probe-a-0.1.1-dev.1.tgz  .pnpm 目录=@probe+a@file+dev-packs+probe-a-0.1.1-dev.1.tgz  version=0.1.1-dev.1  marker=one
+@probe/c  清单=（清单里没有）  node_modules 里没有
+@probe/r  清单=^0.2.0  .pnpm 目录=@probe+r@0.2.0  version=0.2.0  marker=registry-0.2.0
+.pnpm 下的 @probe 目录（3 个）：
+  @probe+a@file+dev-packs+probe-a-0.1.1-dev.1.tgz
+  @probe+r@0.1.0
+  @probe+r@0.2.0
+
+##### 不删（对照）；之后运行 pnpm install --frozen-lockfile
+
+===== home q4-keep-frozen
+
+### cwd=q4-keep-frozen
+> pnpm install
+Progress: resolved 0, reused 1, downloaded 0, added 0
+Packages are hard linked from the content-addressable store to the virtual store.
+  Content-addressable store is at: C:\Users\godamericatb14\AppData\Local\Temp\gwb-probe-2609250930\store\v11
+  Virtual store is at:             node_modules/.pnpm
+Packages: +1
++
+Progress: resolved 1, reused 1, downloaded 0, added 1, done
+
+dependencies:
++ @probe/r 0.1.0
+
+Done in 339ms using pnpm v12.4.2
+exit=0
+
+### cwd=q4-keep-frozen
+> pnpm add @probe/a@file:C:\Users\godamericatb14\AppData\Local\Temp\gwb-probe-2609250930\homes\q4-keep-frozen\dev-packs\probe-a-0.1.1-dev.1.tgz
+✓ Lockfile passes supply-chain policies (verified 522ms ago)
+Packages: +1
++
+Progress: resolved 1, reused 1, downloaded 0, added 1, done
+
+dependencies:
++ @probe/a 0.1.1-dev.1
+
+Done in 126ms using pnpm v12.4.2
+exit=0
+
+### cwd=q4-keep-frozen
+> pnpm install --frozen-lockfile
+✓ Lockfile passes supply-chain policies (verified 161ms ago)
+Lockfile is up to date, resolution step is skipped
+Done in 22ms using pnpm v12.4.2
+exit=0
+
+--- inspect：不删（对照）、pnpm install --frozen-lockfile 之后
+@probe/a  清单=file:C:\Users\godamericatb14\AppData\Local\Temp\gwb-probe-2609250930\homes\q4-keep-frozen\dev-packs\probe-a-0.1.1-dev.1.tgz  .pnpm 目录=@probe+a@file+dev-packs+probe-a-0.1.1-dev.1.tgz  version=0.1.1-dev.1  marker=one
+@probe/c  清单=（清单里没有）  node_modules 里没有
+@probe/r  清单=^0.1.0  .pnpm 目录=@probe+r@0.1.0  version=0.1.0  marker=registry-0.1.0
+.pnpm 下的 @probe 目录（2 个）：
+  @probe+a@file+dev-packs+probe-a-0.1.1-dev.1.tgz
+  @probe+r@0.1.0
+
+##### 不删（对照）；之后运行 pnpm install（先删掉整个 node_modules）
+
+===== home q4-keep-no-modules
+
+### cwd=q4-keep-no-modules
+> pnpm install
+Progress: resolved 0, reused 1, downloaded 0, added 0
+Packages are hard linked from the content-addressable store to the virtual store.
+  Content-addressable store is at: C:\Users\godamericatb14\AppData\Local\Temp\gwb-probe-2609250930\store\v11
+  Virtual store is at:             node_modules/.pnpm
+Packages: +1
++
+Progress: resolved 1, reused 1, downloaded 0, added 1, done
+
+dependencies:
++ @probe/r 0.1.0
+
+Done in 332ms using pnpm v12.4.2
+exit=0
+
+### cwd=q4-keep-no-modules
+> pnpm add @probe/a@file:C:\Users\godamericatb14\AppData\Local\Temp\gwb-probe-2609250930\homes\q4-keep-no-modules\dev-packs\probe-a-0.1.1-dev.1.tgz
+✓ Lockfile passes supply-chain policies (verified 232ms ago)
+Packages: +1
++
+Progress: resolved 1, reused 1, downloaded 0, added 1, done
+
+dependencies:
++ @probe/a 0.1.1-dev.1
+
+Done in 110ms using pnpm v12.4.2
+exit=0
+（已删 node_modules）
+
+### cwd=q4-keep-no-modules
+> pnpm install
+✓ Lockfile passes supply-chain policies (verified 164ms ago)
+Lockfile is up to date, resolution step is skipped
+Packages are hard linked from the content-addressable store to the virtual store.
+  Content-addressable store is at: C:\Users\godamericatb14\AppData\Local\Temp\gwb-probe-2609250930\store\v11
+  Virtual store is at:             node_modules/.pnpm
+Packages: +2
+++
+Progress: resolved 2, reused 2, downloaded 0, added 2, done
+
+dependencies:
++ @probe/a 0.1.1-dev.1
++ @probe/r 0.1.0
+
+Done in 87ms using pnpm v12.4.2
+exit=0
+
+--- inspect：不删（对照）、pnpm install 之后
+@probe/a  清单=file:C:\Users\godamericatb14\AppData\Local\Temp\gwb-probe-2609250930\homes\q4-keep-no-modules\dev-packs\probe-a-0.1.1-dev.1.tgz  .pnpm 目录=@probe+a@file+dev-packs+probe-a-0.1.1-dev.1.tgz  version=0.1.1-dev.1  marker=one
+@probe/c  清单=（清单里没有）  node_modules 里没有
+@probe/r  清单=^0.1.0  .pnpm 目录=@probe+r@0.1.0  version=0.1.0  marker=registry-0.1.0
+.pnpm 下的 @probe 目录（2 个）：
+  @probe+a@file+dev-packs+probe-a-0.1.1-dev.1.tgz
+  @probe+r@0.1.0
+
+##### 删掉 tgz；之后运行 pnpm add @probe/c@file:C:\Users\godamericatb14\AppData\Local\Temp\gwb-probe-2609250930\vendor\probe-c-0.1.0.tgz
+
+===== home q4-del-add-c
+
+### cwd=q4-del-add-c
+> pnpm install
+Progress: resolved 0, reused 1, downloaded 0, added 0
+Packages are hard linked from the content-addressable store to the virtual store.
+  Content-addressable store is at: C:\Users\godamericatb14\AppData\Local\Temp\gwb-probe-2609250930\store\v11
+  Virtual store is at:             node_modules/.pnpm
+Packages: +1
++
+Progress: resolved 1, reused 1, downloaded 0, added 1, done
+
+dependencies:
++ @probe/r 0.1.0
+
+Done in 123ms using pnpm v12.4.2
+exit=0
+
+### cwd=q4-del-add-c
+> pnpm add @probe/a@file:C:\Users\godamericatb14\AppData\Local\Temp\gwb-probe-2609250930\homes\q4-del-add-c\dev-packs\probe-a-0.1.1-dev.1.tgz
+✓ Lockfile passes supply-chain policies (verified 485ms ago)
+Packages: +1
++
+Progress: resolved 1, reused 1, downloaded 0, added 1, done
+
+dependencies:
++ @probe/a 0.1.1-dev.1
+
+Done in 110ms using pnpm v12.4.2
+exit=0
+（已删 C:\Users\godamericatb14\AppData\Local\Temp\gwb-probe-2609250930\homes\q4-del-add-c\dev-packs\probe-a-0.1.1-dev.1.tgz）
+
+### cwd=q4-del-add-c
+> pnpm add @probe/c@file:C:\Users\godamericatb14\AppData\Local\Temp\gwb-probe-2609250930\vendor\probe-c-0.1.0.tgz
+✓ Lockfile passes supply-chain policies (verified 190ms ago)
+Error:   × adding a new package
+  ╰─▶ Failed to resolve dependency tree: Failed to resolve dependency: Could
+      not install from "C:/Users/godamericatb14/AppData/Local/Temp/gwb-probe-
+      2609250930/homes/q4-del-add-c/dev-packs/probe-a-0.1.1-dev.1.tgz" as it
+      does not exist.
+exit=1
+
+--- inspect：删掉 tgz、pnpm add @probe/c@file:C:\Users\godamericatb14\AppData\Local\Temp\gwb-probe-2609250930\vendor\probe-c-0.1.0.tgz 之后
+@probe/a  清单=file:C:\Users\godamericatb14\AppData\Local\Temp\gwb-probe-2609250930\homes\q4-del-add-c\dev-packs\probe-a-0.1.1-dev.1.tgz  .pnpm 目录=@probe+a@file+dev-packs+probe-a-0.1.1-dev.1.tgz  version=0.1.1-dev.1  marker=one
+@probe/c  清单=（清单里没有）  node_modules 里没有
+@probe/r  清单=^0.1.0  .pnpm 目录=@probe+r@0.1.0  version=0.1.0  marker=registry-0.1.0
+.pnpm 下的 @probe 目录（2 个）：
+  @probe+a@file+dev-packs+probe-a-0.1.1-dev.1.tgz
+  @probe+r@0.1.0
+
+##### 删掉 tgz；之后运行 pnpm install
+
+===== home q4-del-install
+
+### cwd=q4-del-install
+> pnpm install
+Progress: resolved 0, reused 1, downloaded 0, added 0
+Packages are hard linked from the content-addressable store to the virtual store.
+  Content-addressable store is at: C:\Users\godamericatb14\AppData\Local\Temp\gwb-probe-2609250930\store\v11
+  Virtual store is at:             node_modules/.pnpm
+Packages: +1
++
+Progress: resolved 1, reused 1, downloaded 0, added 1, done
+
+dependencies:
++ @probe/r 0.1.0
+
+Done in 118ms using pnpm v12.4.2
+exit=0
+
+### cwd=q4-del-install
+> pnpm add @probe/a@file:C:\Users\godamericatb14\AppData\Local\Temp\gwb-probe-2609250930\homes\q4-del-install\dev-packs\probe-a-0.1.1-dev.1.tgz
+✓ Lockfile passes supply-chain policies (verified 255ms ago)
+Packages: +1
++
+Progress: resolved 1, reused 1, downloaded 0, added 1, done
+
+dependencies:
++ @probe/a 0.1.1-dev.1
+
+Done in 94ms using pnpm v12.4.2
+exit=0
+（已删 C:\Users\godamericatb14\AppData\Local\Temp\gwb-probe-2609250930\homes\q4-del-install\dev-packs\probe-a-0.1.1-dev.1.tgz）
+
+### cwd=q4-del-install
+> pnpm install
+✓ Lockfile passes supply-chain policies (verified 313ms ago)
+Lockfile is up to date, resolution step is skipped
+Done in 15ms using pnpm v12.4.2
+exit=0
+
+--- inspect：删掉 tgz、pnpm install 之后
+@probe/a  清单=file:C:\Users\godamericatb14\AppData\Local\Temp\gwb-probe-2609250930\homes\q4-del-install\dev-packs\probe-a-0.1.1-dev.1.tgz  .pnpm 目录=@probe+a@file+dev-packs+probe-a-0.1.1-dev.1.tgz  version=0.1.1-dev.1  marker=one
+@probe/c  清单=（清单里没有）  node_modules 里没有
+@probe/r  清单=^0.1.0  .pnpm 目录=@probe+r@0.1.0  version=0.1.0  marker=registry-0.1.0
+.pnpm 下的 @probe 目录（2 个）：
+  @probe+a@file+dev-packs+probe-a-0.1.1-dev.1.tgz
+  @probe+r@0.1.0
+
+##### 删掉 tgz；之后运行 pnpm add @probe/r@0.2.0
+
+===== home q4-del-add-r
+
+### cwd=q4-del-add-r
+> pnpm install
+Progress: resolved 0, reused 1, downloaded 0, added 0
+Packages are hard linked from the content-addressable store to the virtual store.
+  Content-addressable store is at: C:\Users\godamericatb14\AppData\Local\Temp\gwb-probe-2609250930\store\v11
+  Virtual store is at:             node_modules/.pnpm
+Packages: +1
++
+Progress: resolved 1, reused 1, downloaded 0, added 1, done
+
+dependencies:
++ @probe/r 0.1.0
+
+Done in 101ms using pnpm v12.4.2
+exit=0
+
+### cwd=q4-del-add-r
+> pnpm add @probe/a@file:C:\Users\godamericatb14\AppData\Local\Temp\gwb-probe-2609250930\homes\q4-del-add-r\dev-packs\probe-a-0.1.1-dev.1.tgz
+✓ Lockfile passes supply-chain policies (verified 584ms ago)
+Packages: +1
++
+Progress: resolved 1, reused 1, downloaded 0, added 1, done
+
+dependencies:
++ @probe/a 0.1.1-dev.1
+
+Done in 113ms using pnpm v12.4.2
+exit=0
+（已删 C:\Users\godamericatb14\AppData\Local\Temp\gwb-probe-2609250930\homes\q4-del-add-r\dev-packs\probe-a-0.1.1-dev.1.tgz）
+
+### cwd=q4-del-add-r
+> pnpm add @probe/r@0.2.0
+✓ Lockfile passes supply-chain policies (verified 146ms ago)
+Error:   × adding a new package
+  ╰─▶ Failed to resolve dependency tree: Failed to resolve dependency: Could
+      not install from "C:/Users/godamericatb14/AppData/Local/Temp/gwb-probe-
+      2609250930/homes/q4-del-add-r/dev-packs/probe-a-0.1.1-dev.1.tgz" as it
+      does not exist.
+exit=1
+
+--- inspect：删掉 tgz、pnpm add @probe/r@0.2.0 之后
+@probe/a  清单=file:C:\Users\godamericatb14\AppData\Local\Temp\gwb-probe-2609250930\homes\q4-del-add-r\dev-packs\probe-a-0.1.1-dev.1.tgz  .pnpm 目录=@probe+a@file+dev-packs+probe-a-0.1.1-dev.1.tgz  version=0.1.1-dev.1  marker=one
+@probe/c  清单=（清单里没有）  node_modules 里没有
+@probe/r  清单=^0.1.0  .pnpm 目录=@probe+r@0.1.0  version=0.1.0  marker=registry-0.1.0
+.pnpm 下的 @probe 目录（2 个）：
+  @probe+a@file+dev-packs+probe-a-0.1.1-dev.1.tgz
+  @probe+r@0.1.0
+
+##### 删掉 tgz；之后运行 pnpm install --frozen-lockfile
+
+===== home q4-del-frozen
+
+### cwd=q4-del-frozen
+> pnpm install
+Progress: resolved 0, reused 1, downloaded 0, added 0
+Packages are hard linked from the content-addressable store to the virtual store.
+  Content-addressable store is at: C:\Users\godamericatb14\AppData\Local\Temp\gwb-probe-2609250930\store\v11
+  Virtual store is at:             node_modules/.pnpm
+Packages: +1
++
+Progress: resolved 1, reused 1, downloaded 0, added 1, done
+
+dependencies:
++ @probe/r 0.1.0
+
+Done in 81ms using pnpm v12.4.2
+exit=0
+
+### cwd=q4-del-frozen
+> pnpm add @probe/a@file:C:\Users\godamericatb14\AppData\Local\Temp\gwb-probe-2609250930\homes\q4-del-frozen\dev-packs\probe-a-0.1.1-dev.1.tgz
+✓ Lockfile passes supply-chain policies (verified 235ms ago)
+Packages: +1
++
+Progress: resolved 1, reused 1, downloaded 0, added 1, done
+
+dependencies:
++ @probe/a 0.1.1-dev.1
+
+Done in 90ms using pnpm v12.4.2
+exit=0
+（已删 C:\Users\godamericatb14\AppData\Local\Temp\gwb-probe-2609250930\homes\q4-del-frozen\dev-packs\probe-a-0.1.1-dev.1.tgz）
+
+### cwd=q4-del-frozen
+> pnpm install --frozen-lockfile
+✓ Lockfile passes supply-chain policies (verified 145ms ago)
+Lockfile is up to date, resolution step is skipped
+Done in 17ms using pnpm v12.4.2
+exit=0
+
+--- inspect：删掉 tgz、pnpm install --frozen-lockfile 之后
+@probe/a  清单=file:C:\Users\godamericatb14\AppData\Local\Temp\gwb-probe-2609250930\homes\q4-del-frozen\dev-packs\probe-a-0.1.1-dev.1.tgz  .pnpm 目录=@probe+a@file+dev-packs+probe-a-0.1.1-dev.1.tgz  version=0.1.1-dev.1  marker=one
+@probe/c  清单=（清单里没有）  node_modules 里没有
+@probe/r  清单=^0.1.0  .pnpm 目录=@probe+r@0.1.0  version=0.1.0  marker=registry-0.1.0
+.pnpm 下的 @probe 目录（2 个）：
+  @probe+a@file+dev-packs+probe-a-0.1.1-dev.1.tgz
+  @probe+r@0.1.0
+
+##### 删掉 tgz；之后运行 pnpm install（先删掉整个 node_modules）
+
+===== home q4-del-no-modules
+
+### cwd=q4-del-no-modules
+> pnpm install
+Progress: resolved 0, reused 1, downloaded 0, added 0
+Packages are hard linked from the content-addressable store to the virtual store.
+  Content-addressable store is at: C:\Users\godamericatb14\AppData\Local\Temp\gwb-probe-2609250930\store\v11
+  Virtual store is at:             node_modules/.pnpm
+Packages: +1
++
+Progress: resolved 1, reused 1, downloaded 0, added 1, done
+
+dependencies:
++ @probe/r 0.1.0
+
+Done in 85ms using pnpm v12.4.2
+exit=0
+
+### cwd=q4-del-no-modules
+> pnpm add @probe/a@file:C:\Users\godamericatb14\AppData\Local\Temp\gwb-probe-2609250930\homes\q4-del-no-modules\dev-packs\probe-a-0.1.1-dev.1.tgz
+✓ Lockfile passes supply-chain policies (verified 474ms ago)
+Packages: +1
++
+Progress: resolved 1, reused 1, downloaded 0, added 1, done
+
+dependencies:
++ @probe/a 0.1.1-dev.1
+
+Done in 94ms using pnpm v12.4.2
+exit=0
+（已删 C:\Users\godamericatb14\AppData\Local\Temp\gwb-probe-2609250930\homes\q4-del-no-modules\dev-packs\probe-a-0.1.1-dev.1.tgz）
+（已删 node_modules）
+
+### cwd=q4-del-no-modules
+> pnpm install
+✓ Lockfile passes supply-chain policies (verified 168ms ago)
+Lockfile is up to date, resolution step is skipped
+Packages are hard linked from the content-addressable store to the virtual store.
+  Content-addressable store is at: C:\Users\godamericatb14\AppData\Local\Temp\gwb-probe-2609250930\store\v11
+  Virtual store is at:             node_modules/.pnpm
+Packages: +2
+++
+Progress: resolved 2, reused 2, downloaded 0, added 2, done
+
+dependencies:
++ @probe/a 0.1.1-dev.1
++ @probe/r 0.1.0
+
+Done in 85ms using pnpm v12.4.2
+exit=0
+
+--- inspect：删掉 tgz、pnpm install 之后
+@probe/a  清单=file:C:\Users\godamericatb14\AppData\Local\Temp\gwb-probe-2609250930\homes\q4-del-no-modules\dev-packs\probe-a-0.1.1-dev.1.tgz  .pnpm 目录=@probe+a@file+dev-packs+probe-a-0.1.1-dev.1.tgz  version=0.1.1-dev.1  marker=one
+@probe/c  清单=（清单里没有）  node_modules 里没有
+@probe/r  清单=^0.1.0  .pnpm 目录=@probe+r@0.1.0  version=0.1.0  marker=registry-0.1.0
+.pnpm 下的 @probe 目录（2 个）：
+  @probe+a@file+dev-packs+probe-a-0.1.1-dev.1.tgz
+  @probe+r@0.1.0

@@ -1,0 +1,232 @@
+##### b = @probe/b 0.1.0，file: tgz 装（peer @probe/a ^0.1.0）；rb = @probe/rb 0.1.0，从本机只读源按版本号装（peer 同样写 @probe/a ^0.1.0）
+
+===== home q3-dependent
+
+### cwd=q3-dependent
+> pnpm install
+Progress: resolved 0, reused 1, downloaded 0, added 0
+Packages are hard linked from the content-addressable store to the virtual store.
+  Content-addressable store is at: C:\Users\godamericatb14\AppData\Local\Temp\gwb-probe-2609250930\store\v11
+  Virtual store is at:             node_modules/.pnpm
+Packages: +1
++
+Progress: resolved 1, reused 1, downloaded 0, added 1, done
+
+dependencies:
++ @probe/r 0.1.0
+
+Done in 90ms using pnpm v12.4.2
+exit=0
+
+### cwd=q3-dependent
+> pnpm add @probe/a@file:C:\Users\godamericatb14\AppData\Local\Temp\gwb-probe-2609250930\homes\q3-dependent\dev-packs\probe-a-0.1.1-dev.1.tgz
+✓ Lockfile passes supply-chain policies (verified 588ms ago)
+Packages: +1
++
+Progress: resolved 1, reused 1, downloaded 0, added 1, done
+
+dependencies:
++ @probe/a 0.1.1-dev.1
+
+Done in 92ms using pnpm v12.4.2
+exit=0
+
+### cwd=q3-dependent
+> pnpm add @probe/b@file:C:\Users\godamericatb14\AppData\Local\Temp\gwb-probe-2609250930\homes\q3-dependent\dev-packs\probe-b-0.1.0.tgz
+✓ Lockfile passes supply-chain policies (verified 121ms ago)
+Packages: +1
++
+Progress: resolved 1, reused 0, downloaded 1, added 1, done
+[WARN] Issues with peer dependencies found. Run "pnpm peers check" to list them.
+
+dependencies:
++ @probe/b 0.1.0
+
+Done in 99ms using pnpm v12.4.2
+exit=0
+
+### cwd=q3-dependent
+> pnpm add @probe/rb@0.1.0
+✓ Lockfile passes supply-chain policies (verified 140ms ago)
+Packages: +1
++
+Progress: resolved 1, reused 0, downloaded 1, added 1, done
+[WARN] Issues with peer dependencies found. Run "pnpm peers check" to list them.
+
+dependencies:
++ @probe/rb 0.1.0
+
+Done in 127ms using pnpm v12.4.2
+exit=0
+
+--- inspect：a=tgz1、b、rb 装完
+@probe/a  清单=file:C:\Users\godamericatb14\AppData\Local\Temp\gwb-probe-2609250930\homes\q3-dependent\dev-packs\probe-a-0.1.1-dev.1.tgz  .pnpm 目录=@probe+a@file+dev-packs+probe-a-0.1.1-dev.1.tgz  version=0.1.1-dev.1  marker=one
+@probe/b  清单=file:C:\Users\godamericatb14\AppData\Local\Temp\gwb-probe-2609250930\homes\q3-dependent\dev-packs\probe-b-0.1.0.tgz  .pnpm 目录=@probe+b@file+dev-packs+pro_57134097039e2d3f24ebb091efd92d51  version=0.1.0  marker=b
+  peer @probe/a（^0.1.0）从它解析到 .pnpm 目录=@probe+a@file+dev-packs+probe-a-0.1.1-dev.1.tgz  version=0.1.1-dev.1  marker=one
+@probe/rb  清单=0.1.0  .pnpm 目录=@probe+rb@0.1.0_@probe+a@fi_94043a19af79a2083a801e4eb3b9540e  version=0.1.0  marker=registry-0.1.0
+  peer @probe/a（^0.1.0）从它解析到 .pnpm 目录=@probe+a@file+dev-packs+probe-a-0.1.1-dev.1.tgz  version=0.1.1-dev.1  marker=one
+.pnpm 下的 @probe 目录（4 个）：
+  @probe+a@file+dev-packs+probe-a-0.1.1-dev.1.tgz
+  @probe+b@file+dev-packs+pro_57134097039e2d3f24ebb091efd92d51
+  @probe+r@0.1.0
+  @probe+rb@0.1.0_@probe+a@fi_94043a19af79a2083a801e4eb3b9540e
+
+### cwd=q3-dependent
+> pnpm peers check
+Issues with peer dependencies found
+
+✕ unmet peer @probe/a
+  Installed: file:dev-packs/probe-a-0.1.1-dev.1.tgz
+  Wanted:
+    ^0.1.0:
+      @probe/b@0.1.0
+      @probe/rb@0.1.0
+exit=1
+
+### cwd=q3-dependent
+> pnpm add @probe/a@file:C:\Users\godamericatb14\AppData\Local\Temp\gwb-probe-2609250930\homes\q3-dependent\dev-packs\probe-a-0.1.1-dev.2.tgz
+✓ Lockfile passes supply-chain policies (verified 899ms ago)
+Packages: +3 -3
++++---
+Progress: resolved 3, reused 3, downloaded 0, added 3, done
+[WARN] Issues with peer dependencies found. Run "pnpm peers check" to list them.
+
+dependencies:
+- @probe/a file:dev-packs/probe-a-0.1.1-dev.1.tgz
++ @probe/a 0.1.1-dev.2
+- @probe/b file:dev-packs/probe-b-0.1.0.tgz(@probe/a@file:dev-packs/probe-a-0.1.1-dev.1.tgz)
++ @probe/b 0.1.0
+
+Done in 110ms using pnpm v12.4.2
+exit=0
+
+--- inspect：a 换成 tgz2（0.1.1-dev.2）之后
+@probe/a  清单=file:C:\Users\godamericatb14\AppData\Local\Temp\gwb-probe-2609250930\homes\q3-dependent\dev-packs\probe-a-0.1.1-dev.2.tgz  .pnpm 目录=@probe+a@file+dev-packs+probe-a-0.1.1-dev.2.tgz  version=0.1.1-dev.2  marker=two
+@probe/b  清单=file:C:\Users\godamericatb14\AppData\Local\Temp\gwb-probe-2609250930\homes\q3-dependent\dev-packs\probe-b-0.1.0.tgz  .pnpm 目录=@probe+b@file+dev-packs+pro_cf9db8cbaeb07733fc4ffe75cedc35e8  version=0.1.0  marker=b
+  peer @probe/a（^0.1.0）从它解析到 .pnpm 目录=@probe+a@file+dev-packs+probe-a-0.1.1-dev.2.tgz  version=0.1.1-dev.2  marker=two
+@probe/rb  清单=0.1.0  .pnpm 目录=@probe+rb@0.1.0_@probe+a@fi_c313527e28172236a4b0d6eeec835fcd  version=0.1.0  marker=registry-0.1.0
+  peer @probe/a（^0.1.0）从它解析到 .pnpm 目录=@probe+a@file+dev-packs+probe-a-0.1.1-dev.2.tgz  version=0.1.1-dev.2  marker=two
+.pnpm 下的 @probe 目录（7 个）：
+  @probe+a@file+dev-packs+probe-a-0.1.1-dev.1.tgz
+  @probe+a@file+dev-packs+probe-a-0.1.1-dev.2.tgz
+  @probe+b@file+dev-packs+pro_57134097039e2d3f24ebb091efd92d51
+  @probe+b@file+dev-packs+pro_cf9db8cbaeb07733fc4ffe75cedc35e8
+  @probe+r@0.1.0
+  @probe+rb@0.1.0_@probe+a@fi_94043a19af79a2083a801e4eb3b9540e
+  @probe+rb@0.1.0_@probe+a@fi_c313527e28172236a4b0d6eeec835fcd
+
+@probe/a 真实目录 前：@probe+a@file+dev-packs+probe-a-0.1.1-dev.1.tgz
+@probe/a 真实目录 后：@probe+a@file+dev-packs+probe-a-0.1.1-dev.2.tgz
+@probe/a 真实目录变了：True；旧目录还在磁盘上：True
+@probe/b 真实目录 前：@probe+b@file+dev-packs+pro_57134097039e2d3f24ebb091efd92d51
+@probe/b 真实目录 后：@probe+b@file+dev-packs+pro_cf9db8cbaeb07733fc4ffe75cedc35e8
+@probe/b 真实目录变了：True；旧目录还在磁盘上：True
+@probe/rb 真实目录 前：@probe+rb@0.1.0_@probe+a@fi_94043a19af79a2083a801e4eb3b9540e
+@probe/rb 真实目录 后：@probe+rb@0.1.0_@probe+a@fi_c313527e28172236a4b0d6eeec835fcd
+@probe/rb 真实目录变了：True；旧目录还在磁盘上：True
+
+##### 再把 a 换成同版本号（0.1.1-dev.2）、放在另一个路径的 tgz
+
+### cwd=q3-dependent
+> pnpm add @probe/a@file:C:\Users\godamericatb14\AppData\Local\Temp\gwb-probe-2609250930\homes\q3-dependent\dev-packs\other\probe-a-0.1.1-dev.2.tgz
+✓ Lockfile passes supply-chain policies (verified 724ms ago)
+Packages: +3 -3
++++---
+Progress: resolved 3, reused 2, downloaded 1, added 3, done
+[WARN] Issues with peer dependencies found. Run "pnpm peers check" to list them.
+
+dependencies:
+- @probe/a file:dev-packs/probe-a-0.1.1-dev.2.tgz
++ @probe/a 0.1.1-dev.2
+- @probe/b file:dev-packs/probe-b-0.1.0.tgz(@probe/a@file:dev-packs/probe-a-0.1.1-dev.2.tgz)
++ @probe/b 0.1.0
+
+Done in 114ms using pnpm v12.4.2
+exit=0
+
+--- inspect：a 换成另一路径的同版本 tgz 之后
+@probe/a  清单=file:C:\Users\godamericatb14\AppData\Local\Temp\gwb-probe-2609250930\homes\q3-dependent\dev-packs\other\probe-a-0.1.1-dev.2.tgz  .pnpm 目录=@probe+a@file+dev-packs+other+probe-a-0.1.1-dev.2.tgz  version=0.1.1-dev.2  marker=two-other-file
+@probe/b  清单=file:C:\Users\godamericatb14\AppData\Local\Temp\gwb-probe-2609250930\homes\q3-dependent\dev-packs\probe-b-0.1.0.tgz  .pnpm 目录=@probe+b@file+dev-packs+pro_bd761eeb97196467aae4caaa416276f2  version=0.1.0  marker=b
+  peer @probe/a（^0.1.0）从它解析到 .pnpm 目录=@probe+a@file+dev-packs+other+probe-a-0.1.1-dev.2.tgz  version=0.1.1-dev.2  marker=two-other-file
+@probe/rb  清单=0.1.0  .pnpm 目录=@probe+rb@0.1.0_@probe+a@fi_a87b1150138b211a108610e07dffc83c  version=0.1.0  marker=registry-0.1.0
+  peer @probe/a（^0.1.0）从它解析到 .pnpm 目录=@probe+a@file+dev-packs+other+probe-a-0.1.1-dev.2.tgz  version=0.1.1-dev.2  marker=two-other-file
+.pnpm 下的 @probe 目录（10 个）：
+  @probe+a@file+dev-packs+other+probe-a-0.1.1-dev.2.tgz
+  @probe+a@file+dev-packs+probe-a-0.1.1-dev.1.tgz
+  @probe+a@file+dev-packs+probe-a-0.1.1-dev.2.tgz
+  @probe+b@file+dev-packs+pro_57134097039e2d3f24ebb091efd92d51
+  @probe+b@file+dev-packs+pro_bd761eeb97196467aae4caaa416276f2
+  @probe+b@file+dev-packs+pro_cf9db8cbaeb07733fc4ffe75cedc35e8
+  @probe+r@0.1.0
+  @probe+rb@0.1.0_@probe+a@fi_94043a19af79a2083a801e4eb3b9540e
+  @probe+rb@0.1.0_@probe+a@fi_a87b1150138b211a108610e07dffc83c
+  @probe+rb@0.1.0_@probe+a@fi_c313527e28172236a4b0d6eeec835fcd
+
+@probe/a 真实目录 前：@probe+a@file+dev-packs+probe-a-0.1.1-dev.2.tgz
+@probe/a 真实目录 后：@probe+a@file+dev-packs+other+probe-a-0.1.1-dev.2.tgz
+@probe/a 真实目录变了：True；旧目录还在磁盘上：True
+@probe/b 真实目录 前：@probe+b@file+dev-packs+pro_cf9db8cbaeb07733fc4ffe75cedc35e8
+@probe/b 真实目录 后：@probe+b@file+dev-packs+pro_bd761eeb97196467aae4caaa416276f2
+@probe/b 真实目录变了：True；旧目录还在磁盘上：True
+@probe/rb 真实目录 前：@probe+rb@0.1.0_@probe+a@fi_c313527e28172236a4b0d6eeec835fcd
+@probe/rb 真实目录 后：@probe+rb@0.1.0_@probe+a@fi_a87b1150138b211a108610e07dffc83c
+@probe/rb 真实目录变了：True；旧目录还在磁盘上：True
+
+--- pnpm-lock.yaml（全部做完之后）
+lockfileVersion: '9.0'
+
+settings:
+  autoInstallPeers: false
+  excludeLinksFromLockfile: false
+
+importers:
+
+  .:
+    dependencies:
+      '@probe/a':
+        specifier: file:C:\Users\godamericatb14\AppData\Local\Temp\gwb-probe-2609250930\homes\q3-dependent\dev-packs\other\probe-a-0.1.1-dev.2.tgz
+        version: file:dev-packs/other/probe-a-0.1.1-dev.2.tgz
+      '@probe/b':
+        specifier: file:C:\Users\godamericatb14\AppData\Local\Temp\gwb-probe-2609250930\homes\q3-dependent\dev-packs\probe-b-0.1.0.tgz
+        version: file:dev-packs/probe-b-0.1.0.tgz(@probe/a@file:dev-packs/other/probe-a-0.1.1-dev.2.tgz)
+      '@probe/r':
+        specifier: ^0.1.0
+        version: 0.1.0
+      '@probe/rb':
+        specifier: 0.1.0
+        version: 0.1.0(@probe/a@file:dev-packs/other/probe-a-0.1.1-dev.2.tgz)
+
+packages:
+
+  '@probe/a@file:dev-packs/other/probe-a-0.1.1-dev.2.tgz':
+    resolution: {integrity: sha512-ERP3XcwRgJxpNd31Gk2A7/IWWibaAVKQPs8YfoZ99lUf/NNZt6glASq14H8GcjoUR6IwiV5yjoIrPspiolEV+w==, tarball: file:dev-packs/other/probe-a-0.1.1-dev.2.tgz}
+    version: 0.1.1-dev.2
+
+  '@probe/b@file:dev-packs/probe-b-0.1.0.tgz':
+    resolution: {integrity: sha512-ERcsfp+MK8Zcc4Y6SdocN6zL+yo7aRrKb28QDWga6E64crMuq+G5EINujqGGKsLmicwI+PoafgRyOxjtLbUg0A==, tarball: file:dev-packs/probe-b-0.1.0.tgz}
+    version: 0.1.0
+    peerDependencies:
+      '@probe/a': ^0.1.0
+
+  '@probe/r@0.1.0':
+    resolution: {integrity: sha512-DoQKBlLTLH+3VZ4iVYWpu1QLCqcn+ihDpTzDZ8BSon025uV3D+PAchJaV+LSgS1OUTYJpmHZXMZ/Clh6xSHs0g==, tarball: http://127.0.0.1:50231/@probe/r/-/probe-r-0.1.0.tgz}
+
+  '@probe/rb@0.1.0':
+    resolution: {integrity: sha512-NL2DE/q+044HwzDySrKscZqo9hNdYv4qIPporh22WKd4X+I/kA3YaVd+vNUjUHU45zxvBHPa6C+EIkyzR3gFIw==, tarball: http://127.0.0.1:50231/@probe/rb/-/probe-rb-0.1.0.tgz}
+    version: 0.1.0
+    peerDependencies:
+      '@probe/a': ^0.1.0
+
+snapshots:
+
+  '@probe/a@file:dev-packs/other/probe-a-0.1.1-dev.2.tgz': {}
+
+  '@probe/b@file:dev-packs/probe-b-0.1.0.tgz(@probe/a@file:dev-packs/other/probe-a-0.1.1-dev.2.tgz)':
+    dependencies:
+      '@probe/a': file:dev-packs/other/probe-a-0.1.1-dev.2.tgz
+
+  '@probe/r@0.1.0': {}
+
+  '@probe/rb@0.1.0(@probe/a@file:dev-packs/other/probe-a-0.1.1-dev.2.tgz)':
+    dependencies:
+      '@probe/a': file:dev-packs/other/probe-a-0.1.1-dev.2.tgz

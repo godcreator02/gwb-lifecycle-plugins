@@ -1,0 +1,110 @@
+
+##### 5a 参数顺序 a、b
+
+===== home q5-a-then-b
+
+### cwd=q5-a-then-b
+> pnpm install
+Progress: resolved 0, reused 1, downloaded 0, added 0
+Packages are hard linked from the content-addressable store to the virtual store.
+  Content-addressable store is at: C:\Users\godamericatb14\AppData\Local\Temp\gwb-probe-2609250930\store\v11
+  Virtual store is at:             node_modules/.pnpm
+Packages: +1
++
+Progress: resolved 1, reused 1, downloaded 0, added 1, done
+
+dependencies:
++ @probe/r 0.1.0
+
+Done in 133ms using pnpm v12.4.2
+exit=0
+
+### cwd=q5-a-then-b
+> pnpm add @probe/a@file:C:\Users\godamericatb14\AppData\Local\Temp\gwb-probe-2609250930\homes\q5-a-then-b\dev-packs\probe-a-0.1.1-dev.1.tgz @probe/b@file:C:\Users\godamericatb14\AppData\Local\Temp\gwb-probe-2609250930\homes\q5-a-then-b\dev-packs\probe-b-0.1.1-dev.1.tgz
+✓ Lockfile passes supply-chain policies (verified 615ms ago)
+Packages: +2
+++
+Progress: resolved 2, reused 2, downloaded 0, added 2, done
+[WARN] Issues with peer dependencies found. Run "pnpm peers check" to list them.
+
+dependencies:
++ @probe/a 0.1.1-dev.1
++ @probe/b 0.1.1-dev.1
+
+Done in 204ms using pnpm v12.4.2
+exit=0
+
+--- package.json（add 之后）
+{
+  "name": "gwb-home",
+  "private": true,
+  "dependencies": {
+    "@probe/a": "file:C:\\Users\\godamericatb14\\AppData\\Local\\Temp\\gwb-probe-2609250930\\homes\\q5-a-then-b\\dev-packs\\probe-a-0.1.1-dev.1.tgz",
+    "@probe/b": "file:C:\\Users\\godamericatb14\\AppData\\Local\\Temp\\gwb-probe-2609250930\\homes\\q5-a-then-b\\dev-packs\\probe-b-0.1.1-dev.1.tgz",
+    "@probe/r": "^0.1.0"
+  }
+}
+
+--- inspect：add 之后
+@probe/a  清单=file:C:\Users\godamericatb14\AppData\Local\Temp\gwb-probe-2609250930\homes\q5-a-then-b\dev-packs\probe-a-0.1.1-dev.1.tgz  .pnpm 目录=@probe+a@file+dev-packs+probe-a-0.1.1-dev.1.tgz  version=0.1.1-dev.1  marker=one
+@probe/b  清单=file:C:\Users\godamericatb14\AppData\Local\Temp\gwb-probe-2609250930\homes\q5-a-then-b\dev-packs\probe-b-0.1.1-dev.1.tgz  .pnpm 目录=@probe+b@file+dev-packs+pro_e264e1b03a9854a4b0ab14ad88c5df4d  version=0.1.1-dev.1  marker=b
+  peer @probe/a（^0.1.0）从它解析到 .pnpm 目录=@probe+a@file+dev-packs+probe-a-0.1.1-dev.1.tgz  version=0.1.1-dev.1  marker=one
+.pnpm 下的 @probe 目录（3 个）：
+  @probe+a@file+dev-packs+probe-a-0.1.1-dev.1.tgz
+  @probe+b@file+dev-packs+pro_e264e1b03a9854a4b0ab14ad88c5df4d
+  @probe+r@0.1.0
+
+##### 5b 参数顺序 b、a
+
+===== home q5-b-then-a
+
+### cwd=q5-b-then-a
+> pnpm install
+Progress: resolved 0, reused 1, downloaded 0, added 0
+Packages are hard linked from the content-addressable store to the virtual store.
+  Content-addressable store is at: C:\Users\godamericatb14\AppData\Local\Temp\gwb-probe-2609250930\store\v11
+  Virtual store is at:             node_modules/.pnpm
+Packages: +1
++
+Progress: resolved 1, reused 1, downloaded 0, added 1, done
+
+dependencies:
++ @probe/r 0.1.0
+
+Done in 408ms using pnpm v12.4.2
+exit=0
+
+### cwd=q5-b-then-a
+> pnpm add @probe/b@file:C:\Users\godamericatb14\AppData\Local\Temp\gwb-probe-2609250930\homes\q5-b-then-a\dev-packs\probe-b-0.1.1-dev.1.tgz @probe/a@file:C:\Users\godamericatb14\AppData\Local\Temp\gwb-probe-2609250930\homes\q5-b-then-a\dev-packs\probe-a-0.1.1-dev.1.tgz
+✓ Lockfile passes supply-chain policies (verified 398ms ago)
+Packages: +2
+++
+Progress: resolved 2, reused 2, downloaded 0, added 2, done
+[WARN] Issues with peer dependencies found. Run "pnpm peers check" to list them.
+
+dependencies:
++ @probe/a 0.1.1-dev.1
++ @probe/b 0.1.1-dev.1
+
+Done in 109ms using pnpm v12.4.2
+exit=0
+
+--- package.json（add 之后）
+{
+  "name": "gwb-home",
+  "private": true,
+  "dependencies": {
+    "@probe/a": "file:C:\\Users\\godamericatb14\\AppData\\Local\\Temp\\gwb-probe-2609250930\\homes\\q5-b-then-a\\dev-packs\\probe-a-0.1.1-dev.1.tgz",
+    "@probe/b": "file:C:\\Users\\godamericatb14\\AppData\\Local\\Temp\\gwb-probe-2609250930\\homes\\q5-b-then-a\\dev-packs\\probe-b-0.1.1-dev.1.tgz",
+    "@probe/r": "^0.1.0"
+  }
+}
+
+--- inspect：add 之后
+@probe/a  清单=file:C:\Users\godamericatb14\AppData\Local\Temp\gwb-probe-2609250930\homes\q5-b-then-a\dev-packs\probe-a-0.1.1-dev.1.tgz  .pnpm 目录=@probe+a@file+dev-packs+probe-a-0.1.1-dev.1.tgz  version=0.1.1-dev.1  marker=one
+@probe/b  清单=file:C:\Users\godamericatb14\AppData\Local\Temp\gwb-probe-2609250930\homes\q5-b-then-a\dev-packs\probe-b-0.1.1-dev.1.tgz  .pnpm 目录=@probe+b@file+dev-packs+pro_e264e1b03a9854a4b0ab14ad88c5df4d  version=0.1.1-dev.1  marker=b
+  peer @probe/a（^0.1.0）从它解析到 .pnpm 目录=@probe+a@file+dev-packs+probe-a-0.1.1-dev.1.tgz  version=0.1.1-dev.1  marker=one
+.pnpm 下的 @probe 目录（3 个）：
+  @probe+a@file+dev-packs+probe-a-0.1.1-dev.1.tgz
+  @probe+b@file+dev-packs+pro_e264e1b03a9854a4b0ab14ad88c5df4d
+  @probe+r@0.1.0

@@ -1,0 +1,98 @@
+##### 2a 版本号不同：tgz1 = 0.1.1-dev.1（marker one），tgz2 = 0.1.1-dev.2（marker two），文件名各不相同
+
+===== home q2-version-changes
+
+### cwd=q2-version-changes
+> pnpm install
+Progress: resolved 0, reused 1, downloaded 0, added 0
+Packages are hard linked from the content-addressable store to the virtual store.
+  Content-addressable store is at: C:\Users\godamericatb14\AppData\Local\Temp\gwb-probe-2609250930\store\v11
+  Virtual store is at:             node_modules/.pnpm
+Packages: +1
++
+Progress: resolved 1, reused 1, downloaded 0, added 1, done
+
+dependencies:
++ @probe/r 0.1.0
+
+Done in 92ms using pnpm v12.4.2
+exit=0
+
+### cwd=q2-version-changes
+> pnpm add @probe/a@file:C:\Users\godamericatb14\AppData\Local\Temp\gwb-probe-2609250930\homes\q2-version-changes\dev-packs\probe-a-0.1.1-dev.1.tgz
+✓ Lockfile passes supply-chain policies (verified 388ms ago)
+Packages: +1
++
+Progress: resolved 1, reused 1, downloaded 0, added 1, done
+
+dependencies:
++ @probe/a 0.1.1-dev.1
+
+Done in 112ms using pnpm v12.4.2
+exit=0
+
+--- inspect：装 tgz1 之后
+@probe/a  清单=file:C:\Users\godamericatb14\AppData\Local\Temp\gwb-probe-2609250930\homes\q2-version-changes\dev-packs\probe-a-0.1.1-dev.1.tgz  .pnpm 目录=@probe+a@file+dev-packs+probe-a-0.1.1-dev.1.tgz  version=0.1.1-dev.1  marker=one
+.pnpm 下的 @probe 目录（2 个）：
+  @probe+a@file+dev-packs+probe-a-0.1.1-dev.1.tgz
+  @probe+r@0.1.0
+
+### cwd=q2-version-changes
+> pnpm add @probe/a@file:C:\Users\godamericatb14\AppData\Local\Temp\gwb-probe-2609250930\homes\q2-version-changes\dev-packs\probe-a-0.1.1-dev.2.tgz
+✓ Lockfile passes supply-chain policies (verified 448ms ago)
+Packages: +1 -1
++-
+Progress: resolved 1, reused 0, downloaded 1, added 1, done
+
+dependencies:
+- @probe/a file:dev-packs/probe-a-0.1.1-dev.1.tgz
++ @probe/a 0.1.1-dev.2
+
+Done in 104ms using pnpm v12.4.2
+exit=0
+
+--- inspect：装 tgz2 之后
+@probe/a  清单=file:C:\Users\godamericatb14\AppData\Local\Temp\gwb-probe-2609250930\homes\q2-version-changes\dev-packs\probe-a-0.1.1-dev.2.tgz  .pnpm 目录=@probe+a@file+dev-packs+probe-a-0.1.1-dev.2.tgz  version=0.1.1-dev.2  marker=two
+.pnpm 下的 @probe 目录（3 个）：
+  @probe+a@file+dev-packs+probe-a-0.1.1-dev.1.tgz
+  @probe+a@file+dev-packs+probe-a-0.1.1-dev.2.tgz
+  @probe+r@0.1.0
+
+--- package.json（装 tgz2 之后）
+{
+  "name": "gwb-home",
+  "private": true,
+  "dependencies": {
+    "@probe/a": "file:C:\\Users\\godamericatb14\\AppData\\Local\\Temp\\gwb-probe-2609250930\\homes\\q2-version-changes\\dev-packs\\probe-a-0.1.1-dev.2.tgz",
+    "@probe/r": "^0.1.0"
+  }
+}
+
+@probe/a 真实目录 前：@probe+a@file+dev-packs+probe-a-0.1.1-dev.1.tgz
+@probe/a 真实目录 后：@probe+a@file+dev-packs+probe-a-0.1.1-dev.2.tgz
+@probe/a 真实目录变了：True；旧目录还在磁盘上：True
+
+##### 2a 续：清单已换成 tgz2，删掉不再被引用的 tgz1，再 pnpm add 另一个包
+（已删 C:\Users\godamericatb14\AppData\Local\Temp\gwb-probe-2609250930\homes\q2-version-changes\dev-packs\probe-a-0.1.1-dev.1.tgz）
+
+### cwd=q2-version-changes
+> pnpm add @probe/c@file:C:\Users\godamericatb14\AppData\Local\Temp\gwb-probe-2609250930\vendor\q2\probe-c-0.1.0.tgz
+✓ Lockfile passes supply-chain policies (verified 601ms ago)
+Packages: +1
++
+Progress: resolved 1, reused 0, downloaded 1, added 1, done
+
+dependencies:
++ @probe/c 0.1.0
+
+Done in 99ms using pnpm v12.4.2
+exit=0
+
+--- inspect：删掉 tgz1、add c 之后
+@probe/a  清单=file:C:\Users\godamericatb14\AppData\Local\Temp\gwb-probe-2609250930\homes\q2-version-changes\dev-packs\probe-a-0.1.1-dev.2.tgz  .pnpm 目录=@probe+a@file+dev-packs+probe-a-0.1.1-dev.2.tgz  version=0.1.1-dev.2  marker=two
+@probe/c  清单=file:C:\Users\godamericatb14\AppData\Local\Temp\gwb-probe-2609250930\vendor\q2\probe-c-0.1.0.tgz  .pnpm 目录=@probe+c@file+..+..+vendor+q2+probe-c-0.1.0.tgz  version=0.1.0  marker=c
+.pnpm 下的 @probe 目录（4 个）：
+  @probe+a@file+dev-packs+probe-a-0.1.1-dev.1.tgz
+  @probe+a@file+dev-packs+probe-a-0.1.1-dev.2.tgz
+  @probe+c@file+..+..+vendor+q2+probe-c-0.1.0.tgz
+  @probe+r@0.1.0

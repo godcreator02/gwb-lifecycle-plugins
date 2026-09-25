@@ -1,0 +1,120 @@
+
+##### 8a pnpm add @probe/a（不带版本）
+
+===== home q8-add-bare
+
+### cwd=q8-add-bare
+> pnpm install
+Progress: resolved 0, reused 1, downloaded 0, added 0
+Packages are hard linked from the content-addressable store to the virtual store.
+  Content-addressable store is at: C:\Users\godamericatb14\AppData\Local\Temp\gwb-probe-2609250930\store\v11
+  Virtual store is at:             node_modules/.pnpm
+Packages: +1
++
+Progress: resolved 1, reused 1, downloaded 0, added 1, done
+
+dependencies:
++ @probe/r 0.1.0
+
+Done in 146ms using pnpm v12.4.2
+exit=0
+
+### cwd=q8-add-bare
+> pnpm add @probe/a@file:C:\Users\godamericatb14\AppData\Local\Temp\gwb-probe-2609250930\homes\q8-add-bare\dev-packs\probe-a-0.1.1-dev.1.tgz
+✓ Lockfile passes supply-chain policies (verified 283ms ago)
+Packages: +1
++
+Progress: resolved 1, reused 1, downloaded 0, added 1, done
+
+dependencies:
++ @probe/a 0.1.1-dev.1
+
+Done in 102ms using pnpm v12.4.2
+exit=0
+
+### cwd=q8-add-bare
+> pnpm add @probe/a
+✓ Lockfile passes supply-chain policies (verified 121ms ago)
+Lockfile is up to date, resolution step is skipped
+Done in 19ms using pnpm v12.4.2
+exit=0
+
+--- package.json（pnpm add @probe/a 之后）
+{
+  "name": "gwb-home",
+  "private": true,
+  "dependencies": {
+    "@probe/a": "file:C:\\Users\\godamericatb14\\AppData\\Local\\Temp\\gwb-probe-2609250930\\homes\\q8-add-bare\\dev-packs\\probe-a-0.1.1-dev.1.tgz",
+    "@probe/r": "^0.1.0"
+  }
+}
+
+--- inspect：pnpm add @probe/a 之后
+@probe/a  清单=file:C:\Users\godamericatb14\AppData\Local\Temp\gwb-probe-2609250930\homes\q8-add-bare\dev-packs\probe-a-0.1.1-dev.1.tgz  .pnpm 目录=@probe+a@file+dev-packs+probe-a-0.1.1-dev.1.tgz  version=0.1.1-dev.1  marker=one
+.pnpm 下的 @probe 目录（2 个）：
+  @probe+a@file+dev-packs+probe-a-0.1.1-dev.1.tgz
+  @probe+r@0.1.0
+
+##### 8b pnpm add @probe/a@0.2.0
+
+===== home q8-add-version
+
+### cwd=q8-add-version
+> pnpm install
+Progress: resolved 0, reused 1, downloaded 0, added 0
+Packages are hard linked from the content-addressable store to the virtual store.
+  Content-addressable store is at: C:\Users\godamericatb14\AppData\Local\Temp\gwb-probe-2609250930\store\v11
+  Virtual store is at:             node_modules/.pnpm
+Packages: +1
++
+Progress: resolved 1, reused 1, downloaded 0, added 1, done
+
+dependencies:
++ @probe/r 0.1.0
+
+Done in 91ms using pnpm v12.4.2
+exit=0
+
+### cwd=q8-add-version
+> pnpm add @probe/a@file:C:\Users\godamericatb14\AppData\Local\Temp\gwb-probe-2609250930\homes\q8-add-version\dev-packs\probe-a-0.1.1-dev.1.tgz
+✓ Lockfile passes supply-chain policies (verified 231ms ago)
+Packages: +1
++
+Progress: resolved 1, reused 1, downloaded 0, added 1, done
+
+dependencies:
++ @probe/a 0.1.1-dev.1
+
+Done in 98ms using pnpm v12.4.2
+exit=0
+
+### cwd=q8-add-version
+> pnpm add @probe/a@0.2.0
+✓ Lockfile passes supply-chain policies (verified 120ms ago)
+Packages: +1 -1
++-
+Progress: resolved 1, reused 1, downloaded 0, added 1, done
+
+dependencies:
+- @probe/a file:dev-packs/probe-a-0.1.1-dev.1.tgz
++ @probe/a 0.2.0
+
+Done in 246ms using pnpm v12.4.2
+exit=0
+
+--- package.json（pnpm add @probe/a@0.2.0 之后）
+{
+  "name": "gwb-home",
+  "private": true,
+  "dependencies": {
+    "@probe/a": "0.2.0",
+    "@probe/r": "^0.1.0"
+  }
+}
+
+--- inspect：pnpm add @probe/a@0.2.0 之后
+@probe/a  清单=0.2.0  .pnpm 目录=@probe+a@0.2.0  version=0.2.0  marker=registry-0.2.0
+.pnpm 下的 @probe 目录（3 个）：
+  @probe+a@0.2.0
+  @probe+a@file+dev-packs+probe-a-0.1.1-dev.1.tgz
+  @probe+r@0.1.0

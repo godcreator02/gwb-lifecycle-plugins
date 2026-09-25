@@ -1,0 +1,63 @@
+##### 2b 版本号相同（0.1.1-dev.3）、内容不同（marker three-x / three-y），两个 tgz 放在不同路径
+
+===== home q2-same-version-other-file
+
+### cwd=q2-same-version-other-file
+> pnpm install
+Progress: resolved 0, reused 1, downloaded 0, added 0
+Packages are hard linked from the content-addressable store to the virtual store.
+  Content-addressable store is at: C:\Users\godamericatb14\AppData\Local\Temp\gwb-probe-2609250930\store\v11
+  Virtual store is at:             node_modules/.pnpm
+Packages: +1
++
+Progress: resolved 1, reused 1, downloaded 0, added 1, done
+
+dependencies:
++ @probe/r 0.1.0
+
+Done in 106ms using pnpm v12.4.2
+exit=0
+
+### cwd=q2-same-version-other-file
+> pnpm add @probe/a@file:C:\Users\godamericatb14\AppData\Local\Temp\gwb-probe-2609250930\homes\q2-same-version-other-file\dev-packs\x\probe-a-0.1.1-dev.3.tgz
+✓ Lockfile passes supply-chain policies (verified 389ms ago)
+Packages: +1
++
+Progress: resolved 1, reused 0, downloaded 1, added 1, done
+
+dependencies:
++ @probe/a 0.1.1-dev.3
+
+Done in 102ms using pnpm v12.4.2
+exit=0
+
+--- inspect：装 x 之后
+@probe/a  清单=file:C:\Users\godamericatb14\AppData\Local\Temp\gwb-probe-2609250930\homes\q2-same-version-other-file\dev-packs\x\probe-a-0.1.1-dev.3.tgz  .pnpm 目录=@probe+a@file+dev-packs+x+probe-a-0.1.1-dev.3.tgz  version=0.1.1-dev.3  marker=three-x
+.pnpm 下的 @probe 目录（2 个）：
+  @probe+a@file+dev-packs+x+probe-a-0.1.1-dev.3.tgz
+  @probe+r@0.1.0
+
+### cwd=q2-same-version-other-file
+> pnpm add @probe/a@file:C:\Users\godamericatb14\AppData\Local\Temp\gwb-probe-2609250930\homes\q2-same-version-other-file\dev-packs\y\probe-a-0.1.1-dev.3.tgz
+✓ Lockfile passes supply-chain policies (verified 344ms ago)
+Packages: +1 -1
++-
+Progress: resolved 1, reused 0, downloaded 1, added 1, done
+
+dependencies:
+- @probe/a file:dev-packs/x/probe-a-0.1.1-dev.3.tgz
++ @probe/a 0.1.1-dev.3
+
+Done in 108ms using pnpm v12.4.2
+exit=0
+
+--- inspect：装 y 之后
+@probe/a  清单=file:C:\Users\godamericatb14\AppData\Local\Temp\gwb-probe-2609250930\homes\q2-same-version-other-file\dev-packs\y\probe-a-0.1.1-dev.3.tgz  .pnpm 目录=@probe+a@file+dev-packs+y+probe-a-0.1.1-dev.3.tgz  version=0.1.1-dev.3  marker=three-y
+.pnpm 下的 @probe 目录（3 个）：
+  @probe+a@file+dev-packs+x+probe-a-0.1.1-dev.3.tgz
+  @probe+a@file+dev-packs+y+probe-a-0.1.1-dev.3.tgz
+  @probe+r@0.1.0
+
+@probe/a 真实目录 前：@probe+a@file+dev-packs+x+probe-a-0.1.1-dev.3.tgz
+@probe/a 真实目录 后：@probe+a@file+dev-packs+y+probe-a-0.1.1-dev.3.tgz
+@probe/a 真实目录变了：True；旧目录还在磁盘上：True

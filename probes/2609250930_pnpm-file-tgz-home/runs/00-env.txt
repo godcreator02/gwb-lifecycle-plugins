@@ -1,0 +1,5 @@
+date=2026-09-25 09:39  pnpm=12.4.2（C:\Users\godamericatb14\AppData\Roaming\npm\node_modules\pnpm\pnpm.exe）  node=v24.14.1  os=Microsoft Windows NT 10.0.26200.0
+gwb-devkit commit: e71d842 devkit 0.19.1：跟插件管理 0.11.0 同批发，peer 里的插件管理（workspace:^）发版时写成 ^0.11.0
+work=C:\Users\godamericatb14\AppData\Local\Temp\gwb-probe-2609250930
+环境变量：pnpm_config_auto_install_peers=false  pnpm_config_cache_dir=C:\Users\godamericatb14\AppData\Local\Temp\gwb-probe-2609250930\cache  pnpm_config_store_dir=C:\Users\godamericatb14\AppData\Local\Temp\gwb-probe-2609250930\store
+本机只读源：http://127.0.0.1:50231（每个 home 的 .npmrc 写 registry=http://127.0.0.1:50231/）；源上有：@probe/a@0.1.0, @probe/a@0.2.0, @probe/r@0.1.0, @probe/r@0.2.0, @probe/rb@0.1.0

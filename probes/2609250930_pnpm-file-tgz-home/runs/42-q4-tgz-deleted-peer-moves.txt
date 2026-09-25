@@ -1,0 +1,135 @@
+##### b 用 file: tgz 装、peer 写 @probe/a；a 从源装 0.1.0。删掉 b 的 tgz 后把 a 升到 0.2.0，b 要换目录，看 pnpm 还要不要 b 的 tgz
+
+##### 不删（对照）
+
+===== home q4-peer-keep
+
+### cwd=q4-peer-keep
+> pnpm install
+Progress: resolved 0, reused 0, downloaded 1, added 0
+Packages are hard linked from the content-addressable store to the virtual store.
+  Content-addressable store is at: C:\Users\godamericatb14\AppData\Local\Temp\gwb-probe-2609250930\store\v11
+  Virtual store is at:             node_modules/.pnpm
+Packages: +1
++
+Progress: resolved 1, reused 0, downloaded 1, added 1, done
+
+dependencies:
++ @probe/a 0.1.0
+
+Done in 99ms using pnpm v12.4.2
+exit=0
+
+### cwd=q4-peer-keep
+> pnpm add @probe/b@file:C:\Users\godamericatb14\AppData\Local\Temp\gwb-probe-2609250930\homes\q4-peer-keep\dev-packs\probe-b-0.1.1-dev.1.tgz
+✓ Lockfile passes supply-chain policies (verified 242ms ago)
+Packages: +1
++
+Progress: resolved 1, reused 0, downloaded 1, added 1, done
+
+dependencies:
++ @probe/b 0.1.1-dev.1
+
+Done in 102ms using pnpm v12.4.2
+exit=0
+
+--- inspect：装完
+@probe/a  清单=0.1.0  .pnpm 目录=@probe+a@0.1.0  version=0.1.0  marker=registry-0.1.0
+@probe/b  清单=file:C:\Users\godamericatb14\AppData\Local\Temp\gwb-probe-2609250930\homes\q4-peer-keep\dev-packs\probe-b-0.1.1-dev.1.tgz  .pnpm 目录=@probe+b@file+dev-packs+pro_8d2a60f87ec79277ffba4c33b462dcb9  version=0.1.1-dev.1  marker=b
+  peer @probe/a（^0.1.0）从它解析到 .pnpm 目录=@probe+a@0.1.0  version=0.1.0  marker=registry-0.1.0
+.pnpm 下的 @probe 目录（2 个）：
+  @probe+a@0.1.0
+  @probe+b@file+dev-packs+pro_8d2a60f87ec79277ffba4c33b462dcb9
+
+### cwd=q4-peer-keep
+> pnpm add @probe/a@0.2.0
+✓ Lockfile passes supply-chain policies (verified 340ms ago)
+Packages: +2 -2
+++--
+Progress: resolved 2, reused 1, downloaded 1, added 2, done
+[WARN] Issues with peer dependencies found. Run "pnpm peers check" to list them.
+
+dependencies:
+- @probe/a 0.1.0
++ @probe/a 0.2.0
+- @probe/b file:dev-packs/probe-b-0.1.1-dev.1.tgz(@probe/a@0.1.0)
++ @probe/b 0.1.1-dev.1
+
+Done in 101ms using pnpm v12.4.2
+exit=0
+
+--- inspect：不删（对照）、a 升到 0.2.0 之后
+@probe/a  清单=0.2.0  .pnpm 目录=@probe+a@0.2.0  version=0.2.0  marker=registry-0.2.0
+@probe/b  清单=file:C:\Users\godamericatb14\AppData\Local\Temp\gwb-probe-2609250930\homes\q4-peer-keep\dev-packs\probe-b-0.1.1-dev.1.tgz  .pnpm 目录=@probe+b@file+dev-packs+pro_c9412a04291537ebf67675f60aa3f0e7  version=0.1.1-dev.1  marker=b
+  peer @probe/a（^0.1.0）从它解析到 .pnpm 目录=@probe+a@0.2.0  version=0.2.0  marker=registry-0.2.0
+.pnpm 下的 @probe 目录（4 个）：
+  @probe+a@0.1.0
+  @probe+a@0.2.0
+  @probe+b@file+dev-packs+pro_8d2a60f87ec79277ffba4c33b462dcb9
+  @probe+b@file+dev-packs+pro_c9412a04291537ebf67675f60aa3f0e7
+@probe/b 真实目录 前：@probe+b@file+dev-packs+pro_8d2a60f87ec79277ffba4c33b462dcb9
+@probe/b 真实目录 后：@probe+b@file+dev-packs+pro_c9412a04291537ebf67675f60aa3f0e7
+@probe/b 真实目录变了：True；旧目录还在磁盘上：True
+
+##### 删掉 b 的 tgz
+
+===== home q4-peer-del
+
+### cwd=q4-peer-del
+> pnpm install
+Progress: resolved 0, reused 1, downloaded 0, added 0
+Packages are hard linked from the content-addressable store to the virtual store.
+  Content-addressable store is at: C:\Users\godamericatb14\AppData\Local\Temp\gwb-probe-2609250930\store\v11
+  Virtual store is at:             node_modules/.pnpm
+Packages: +1
++
+Progress: resolved 1, reused 1, downloaded 0, added 1, done
+
+dependencies:
++ @probe/a 0.1.0
+
+Done in 85ms using pnpm v12.4.2
+exit=0
+
+### cwd=q4-peer-del
+> pnpm add @probe/b@file:C:\Users\godamericatb14\AppData\Local\Temp\gwb-probe-2609250930\homes\q4-peer-del\dev-packs\probe-b-0.1.1-dev.1.tgz
+✓ Lockfile passes supply-chain policies (verified 224ms ago)
+Packages: +1
++
+Progress: resolved 1, reused 1, downloaded 0, added 1, done
+
+dependencies:
++ @probe/b 0.1.1-dev.1
+
+Done in 98ms using pnpm v12.4.2
+exit=0
+
+--- inspect：装完
+@probe/a  清单=0.1.0  .pnpm 目录=@probe+a@0.1.0  version=0.1.0  marker=registry-0.1.0
+@probe/b  清单=file:C:\Users\godamericatb14\AppData\Local\Temp\gwb-probe-2609250930\homes\q4-peer-del\dev-packs\probe-b-0.1.1-dev.1.tgz  .pnpm 目录=@probe+b@file+dev-packs+pro_8d2a60f87ec79277ffba4c33b462dcb9  version=0.1.1-dev.1  marker=b
+  peer @probe/a（^0.1.0）从它解析到 .pnpm 目录=@probe+a@0.1.0  version=0.1.0  marker=registry-0.1.0
+.pnpm 下的 @probe 目录（2 个）：
+  @probe+a@0.1.0
+  @probe+b@file+dev-packs+pro_8d2a60f87ec79277ffba4c33b462dcb9
+（已删 C:\Users\godamericatb14\AppData\Local\Temp\gwb-probe-2609250930\homes\q4-peer-del\dev-packs\probe-b-0.1.1-dev.1.tgz）
+
+### cwd=q4-peer-del
+> pnpm add @probe/a@0.2.0
+✓ Lockfile passes supply-chain policies (verified 374ms ago)
+Error:   × adding a new package
+  ╰─▶ Failed to resolve dependency tree: Failed to resolve dependency: Could
+      not install from "C:/Users/godamericatb14/AppData/Local/Temp/gwb-probe-
+      2609250930/homes/q4-peer-del/dev-packs/probe-b-0.1.1-dev.1.tgz" as it
+      does not exist.
+exit=1
+
+--- inspect：删掉 b 的 tgz、a 升到 0.2.0 之后
+@probe/a  清单=0.1.0  .pnpm 目录=@probe+a@0.1.0  version=0.1.0  marker=registry-0.1.0
+@probe/b  清单=file:C:\Users\godamericatb14\AppData\Local\Temp\gwb-probe-2609250930\homes\q4-peer-del\dev-packs\probe-b-0.1.1-dev.1.tgz  .pnpm 目录=@probe+b@file+dev-packs+pro_8d2a60f87ec79277ffba4c33b462dcb9  version=0.1.1-dev.1  marker=b
+  peer @probe/a（^0.1.0）从它解析到 .pnpm 目录=@probe+a@0.1.0  version=0.1.0  marker=registry-0.1.0
+.pnpm 下的 @probe 目录（2 个）：
+  @probe+a@0.1.0
+  @probe+b@file+dev-packs+pro_8d2a60f87ec79277ffba4c33b462dcb9
+@probe/b 真实目录 前：@probe+b@file+dev-packs+pro_8d2a60f87ec79277ffba4c33b462dcb9
+@probe/b 真实目录 后：@probe+b@file+dev-packs+pro_8d2a60f87ec79277ffba4c33b462dcb9
+@probe/b 真实目录变了：False；旧目录还在磁盘上：True
