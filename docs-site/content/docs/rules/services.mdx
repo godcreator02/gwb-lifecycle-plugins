@@ -73,11 +73,9 @@ export default class GwbExample extends Service {
 
 {/* ref file="../plugins/plugin-manager/src/index.ts" lines="238-246" */}
 
-**往继承了 `Service` 的服务里注册，不用自己包 `ctx.effect`**；往 `ctx.provide` 提供的扩展点服务里注册，要自己包。外壳 `gwbShell` 与命令总线 `gwbCommands`（0.4.6 起）都继承了 `Service`。模板注册窗格直接调；注册命令还包着一层 `ctx.effect`，这是给 0.4.6 之前不会自动注销的命令总线准备的：
+**往继承了 `Service` 的服务里注册，不用自己包 `ctx.effect`**；往 `ctx.provide` 提供的扩展点服务里注册，要自己包。外壳 `gwbShell` 与命令总线 `gwbCommands` 都继承了 `Service`，模板注册窗格与命令都直接调：
 
-{/* ref file="../plugins/devkit/template/pkg/src/index.ts.tpl" lines="28-45" */}
-
-模板 peer 里命令总线的下限已是 0.5.0，那一层包装可以删，还没删；不删也没有坏处，注销函数执行第二次什么也不做。
+{/* ref file="../plugins/devkit/template/pkg/src/index.ts.tpl" lines="28-42" */}
 
 ## 登记命令
 

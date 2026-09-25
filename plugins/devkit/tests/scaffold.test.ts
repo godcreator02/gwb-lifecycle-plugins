@@ -761,7 +761,6 @@ describe('title 按所在文件的上下文编码（GWB-25）', () => {
         logger: () => ({ info: (message: string) => logs.push(message) }),
         gwbShell: { registerPane: (pane: { title: string }) => panes.push(pane) },
         gwbCommands: { register: () => () => {} },
-        effect: (fn: () => unknown) => fn(),
       }
       ;(exports['apply'] as (c: typeof ctx) => void)(ctx)
       expect(panes.map((p) => p.title)).toEqual([HOSTILE_TITLE])

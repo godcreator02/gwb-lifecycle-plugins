@@ -70,7 +70,7 @@ devkit 保证：
 - 已装的包只发一条 `update`，不另发 `remount`、`disable`、`enable`
 - 装上的版本号不是这次打包的就回 `ok: false`
 
-**第一处靠约定**：devkit 不 import 插件管理的回执类型，也拿不到插件管理的服务（它经 CDP 调用），回执里用到的几个字段在 `dev.ts` 里手写解析。第三处有类型检查：插件管理改了导出函数或命令名常量，devkit 的 `pnpm check` 当场报错。约定写在三处：插件管理三条命令的 `usage`、`dev.ts` 的 `entriesOf` 与 `updateInstalledPackages`、本仓 AGENTS。目标 home 的插件管理早于 0.12.0 时不认 `specs`，`update` 回参数错误，devkit 原样带回。
+**第一处靠约定**：devkit 不 import 插件管理的回执类型，也拿不到插件管理的服务（它经 CDP 调用），回执里用到的几个字段在 `dev.ts` 里手写解析。第三处有类型检查：插件管理改了导出函数或命令名常量，devkit 的 `pnpm check` 当场报错。约定写在三处：插件管理三条命令的 `usage`、`dev.ts` 的 `entriesOf` 与 `updateInstalledPackages`、本仓 AGENTS。
 
 内核仓文档站的「home 布局与条目树」一页写的是：插件管理是唯一写 home 的插件，`cordis.yml` 只经条目树改，`package.json` 与 `node_modules/` 只经插件管理运行的 pnpm 改。`devkit.dev` 守这一条；`devkit.home.new` 是例外，它在内核启动前直接写 `cordis.yml`、运行三次 `pnpm add`（那时插件管理还没装、home 还没启动），用的 pnpm 和插件管理是同一个。
 

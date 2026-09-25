@@ -197,105 +197,97 @@ async function cdpPortFor(
 }
 
 function registerHomeCommands({ ctx, log, commands, homeDeps }: Wiring): void {
-  ctx.effect(() =>
-    commands.register(
-      {
-        name: 'devkit.home.new',
-        plugin: '@godcreator/gwb-devkit',
-        description: '开一个测试 home（装内核包、cordis 与基础插件，用宿主安装版启动，调试端口自动选）',
-        usage:
-          '{short 必给（kebab-case）}——名字是 <short>-<yyMMddHHmm>。启动之前往新 home 里依次 pnpm add 三次（写好 cordis.yml 条目）：先装内核包 @godcreator/gwb-kernel-desktop，精确版本是运行这条命令的内核的 gwbKernel.version，带 --save-exact；再装装上的内核包 peerDependencies.cordis 写的那个精确版本的 cordis，同样带 --save-exact；最后装七个基础插件。内核包与 cordis 装完都读 node_modules 里的清单核对版本。安装包只带启动器、从 home 里加载内核，所以内核包必须装上；哪一步没成都不启动。然后用宿主自己那个 exe 再开一个窗口（安装版认 GWB_HOME；不构建内核、不认内核仓），调试端口自动选一个空的。回执里带着现有 home 清单，开新的时候顺便清理旧的',
-      },
-      async (args) => {
-        if (!isRecord(args)) return { ok: false, error: `参数要是个对象。\n${HOME_USAGE}` }
-        const short = asHomeName(args.short)
-        if (short === undefined) return { ok: false, error: `short 缺了或不是 kebab-case。\n${HOME_USAGE}` }
-        const root = homesRootOf()
-        let homeName: string
-        try {
-          homeName = nextName(short, homeDeps.now(), (candidate) => homeDeps.fs.exists(path.join(root, candidate)))
-        } catch (err) {
-          return { ok: false, error: String(err instanceof Error ? err.message : err) }
-        }
-        const pnpm = await locatePnpm()
-        if (!pnpm.ok) return { ok: false, error: pnpm.error }
-        const port = await cdpPortFor(root, homeName, homeDeps)
-        if (!port.ok) return { ok: false, error: port.error }
-        const outcome = await launchHome(
-          { name: homeName, homesRoot: root, cdp: port.cdp, install: { kernelVersion: requireKernel(ctx).version, pnpm: pnpm.file } },
-          homeDeps,
-        )
-        if (!outcome.ok) {
-          log.warn(`home.new 没成：${outcome.error}`)
-          return outcome
-        }
-        log.info(`devkit.home.new：${outcome.note}`)
-        return { ok: true, data: { ...outcome, ...(port.note === undefined ? {} : { cdpNote: port.note }), homes: await listHomes(root, homeDeps) } }
-      },
-    ),
+  commands.register(
+    {
+      name: 'devkit.home.new',
+      plugin: '@godcreator/gwb-devkit',
+      description: '开一个测试 home（装内核包、cordis 与基础插件，用宿主安装版启动，调试端口自动选）',
+      usage:
+        '{short 必给（kebab-case）}——名字是 <short>-<yyMMddHHmm>。启动之前往新 home 里依次 pnpm add 三次（写好 cordis.yml 条目）：先装内核包 @godcreator/gwb-kernel-desktop，精确版本是运行这条命令的内核的 gwbKernel.version，带 --save-exact；再装装上的内核包 peerDependencies.cordis 写的那个精确版本的 cordis，同样带 --save-exact；最后装七个基础插件。内核包与 cordis 装完都读 node_modules 里的清单核对版本。安装包只带启动器、从 home 里加载内核，所以内核包必须装上；哪一步没成都不启动。然后用宿主自己那个 exe 再开一个窗口（安装版认 GWB_HOME；不构建内核、不认内核仓），调试端口自动选一个空的。回执里带着现有 home 清单，开新的时候顺便清理旧的',
+    },
+    async (args) => {
+      if (!isRecord(args)) return { ok: false, error: `参数要是个对象。\n${HOME_USAGE}` }
+      const short = asHomeName(args.short)
+      if (short === undefined) return { ok: false, error: `short 缺了或不是 kebab-case。\n${HOME_USAGE}` }
+      const root = homesRootOf()
+      let homeName: string
+      try {
+        homeName = nextName(short, homeDeps.now(), (candidate) => homeDeps.fs.exists(path.join(root, candidate)))
+      } catch (err) {
+        return { ok: false, error: String(err instanceof Error ? err.message : err) }
+      }
+      const pnpm = await locatePnpm()
+      if (!pnpm.ok) return { ok: false, error: pnpm.error }
+      const port = await cdpPortFor(root, homeName, homeDeps)
+      if (!port.ok) return { ok: false, error: port.error }
+      const outcome = await launchHome(
+        { name: homeName, homesRoot: root, cdp: port.cdp, install: { kernelVersion: requireKernel(ctx).version, pnpm: pnpm.file } },
+        homeDeps,
+      )
+      if (!outcome.ok) {
+        log.warn(`home.new 没成：${outcome.error}`)
+        return outcome
+      }
+      log.info(`devkit.home.new：${outcome.note}`)
+      return { ok: true, data: { ...outcome, ...(port.note === undefined ? {} : { cdpNote: port.note }), homes: await listHomes(root, homeDeps) } }
+    },
   )
 
-  ctx.effect(() =>
-    commands.register(
-      {
-        name: 'devkit.home.open',
-        plugin: '@godcreator/gwb-devkit',
-        description: '重开一个已有的测试 home（用宿主安装版启动）',
-        usage: '{name 必给}——调试端口自动选。机器重启之后要回到原来那个 home 只有这一条路（home.new 每次都建新目录，插件得全部重装一遍）',
-      },
-      async (args) => {
-        if (!isRecord(args)) return { ok: false, error: `参数要是个对象。\n${HOME_USAGE}` }
-        const homeName = asHomeName(args.name)
-        if (homeName === undefined) return { ok: false, error: `name 缺了或不是 kebab-case。\n${HOME_USAGE}` }
-        const root = homesRootOf()
-        if (!homeDeps.fs.exists(path.join(root, homeName))) {
-          return { ok: false, error: `${path.join(root, homeName)} 不在——没有这个 home（看 devkit.home.list）` }
-        }
-        const port = await cdpPortFor(root, homeName, homeDeps)
-        if (!port.ok) return { ok: false, error: port.error }
-        const outcome = await launchHome(
-          { name: homeName, homesRoot: root, cdp: port.cdp },
-          homeDeps,
-        )
-        if (!outcome.ok) {
-          log.warn(`home.open 没成：${outcome.error}`)
-          return outcome
-        }
-        log.info(`devkit.home.open：${outcome.note}`)
-        return { ok: true, data: { ...outcome, ...(port.note === undefined ? {} : { cdpNote: port.note }) } }
-      },
-    ),
+  commands.register(
+    {
+      name: 'devkit.home.open',
+      plugin: '@godcreator/gwb-devkit',
+      description: '重开一个已有的测试 home（用宿主安装版启动）',
+      usage: '{name 必给}——调试端口自动选。机器重启之后要回到原来那个 home 只有这一条路（home.new 每次都建新目录，插件得全部重装一遍）',
+    },
+    async (args) => {
+      if (!isRecord(args)) return { ok: false, error: `参数要是个对象。\n${HOME_USAGE}` }
+      const homeName = asHomeName(args.name)
+      if (homeName === undefined) return { ok: false, error: `name 缺了或不是 kebab-case。\n${HOME_USAGE}` }
+      const root = homesRootOf()
+      if (!homeDeps.fs.exists(path.join(root, homeName))) {
+        return { ok: false, error: `${path.join(root, homeName)} 不在——没有这个 home（看 devkit.home.list）` }
+      }
+      const port = await cdpPortFor(root, homeName, homeDeps)
+      if (!port.ok) return { ok: false, error: port.error }
+      const outcome = await launchHome(
+        { name: homeName, homesRoot: root, cdp: port.cdp },
+        homeDeps,
+      )
+      if (!outcome.ok) {
+        log.warn(`home.open 没成：${outcome.error}`)
+        return outcome
+      }
+      log.info(`devkit.home.open：${outcome.note}`)
+      return { ok: true, data: { ...outcome, ...(port.note === undefined ? {} : { cdpNote: port.note }) } }
+    },
   )
 
-  ctx.effect(() =>
-    commands.register(
-      {
-        name: 'devkit.home.rm',
-        plugin: '@godcreator/gwb-devkit',
-        description: '删一个测试 home',
-        usage:
-          '{name，force?}——没在运行的直接删；**还在运行的要 force**，那时连停带删（按它 runtime.json 里的 pid，核对映像名与记录里那个 CDP 端口再杀，按 pid 等进程真退了才删）。**回「已删」只在目录真不在了之后**，没删掉回 ok:false 并列出还剩什么。default 是日常用的 home：不 force 不删，而且它在运行时 force 也不删，自己关掉它的窗口再来',
-      },
-      async (args) => {
-        if (!isRecord(args)) return { ok: false, error: `参数要是个对象。\n${HOME_USAGE}` }
-        const homeName = asHomeName(args.name)
-        if (homeName === undefined) return { ok: false, error: `name 缺了或不是 kebab-case。\n${HOME_USAGE}` }
-        const outcome = await removeHome(path.join(homesRootOf(), homeName), homeName, args.force === true, homeDeps)
-        if (outcome.ok) log.info(`devkit.home.rm：${outcome.note}`)
-        else log.warn(`devkit.home.rm 没成：${outcome.note}`)
-        return outcome.ok ? { ok: true, data: outcome } : { ok: false, error: outcome.note }
-      },
-    ),
+  commands.register(
+    {
+      name: 'devkit.home.rm',
+      plugin: '@godcreator/gwb-devkit',
+      description: '删一个测试 home',
+      usage:
+        '{name，force?}——没在运行的直接删；**还在运行的要 force**，那时连停带删（按它 runtime.json 里的 pid，核对映像名与记录里那个 CDP 端口再杀，按 pid 等进程真退了才删）。**回「已删」只在目录真不在了之后**，没删掉回 ok:false 并列出还剩什么。default 是日常用的 home：不 force 不删，而且它在运行时 force 也不删，自己关掉它的窗口再来',
+    },
+    async (args) => {
+      if (!isRecord(args)) return { ok: false, error: `参数要是个对象。\n${HOME_USAGE}` }
+      const homeName = asHomeName(args.name)
+      if (homeName === undefined) return { ok: false, error: `name 缺了或不是 kebab-case。\n${HOME_USAGE}` }
+      const outcome = await removeHome(path.join(homesRootOf(), homeName), homeName, args.force === true, homeDeps)
+      if (outcome.ok) log.info(`devkit.home.rm：${outcome.note}`)
+      else log.warn(`devkit.home.rm 没成：${outcome.note}`)
+      return outcome.ok ? { ok: true, data: outcome } : { ok: false, error: outcome.note }
+    },
   )
 
-  ctx.effect(() =>
-    commands.register(
-      { name: 'devkit.home.list', plugin: '@godcreator/gwb-devkit', description: '列出全部测试 home 与各自的端口', usage: '无参数。每个 home 报名字（带时间戳）、是否在运行、调试端口、MCP 入口的端口与地址（runtime.json 的 mcp 字段）' },
-      async () => {
-        const root = homesRootOf()
-        return { ok: true, data: { root, homes: await listHomes(root, homeDeps) } }
-      },
-    ),
+  commands.register(
+    { name: 'devkit.home.list', plugin: '@godcreator/gwb-devkit', description: '列出全部测试 home 与各自的端口', usage: '无参数。每个 home 报名字（带时间戳）、是否在运行、调试端口、MCP 入口的端口与地址（runtime.json 的 mcp 字段）' },
+    async () => {
+      const root = homesRootOf()
+      return { ok: true, data: { root, homes: await listHomes(root, homeDeps) } }
+    },
   )
 }
 
@@ -365,97 +357,91 @@ function packagesArgOf(args: Record<string, unknown>): string[] {
 }
 
 function registerDevCommand({ ctx, log, commands, homeDeps }: Wiring): void {
-  ctx.effect(() =>
-    commands.register(
-      {
-        name: 'devkit.dev',
-        plugin: '@godcreator/gwb-devkit',
-        description: '改一版看一版（构建→打包进目标 home→经目标 home 的插件管理装并重新加载→刷新→取证；装内核包时改成重启目标 home）',
-        usage:
-          '{home 必给（目标 home 名，**只认名字不认端口**——端口从它的 runtime.json 里查，并确认它还在运行）, dir 必给（仓根绝对路径）, packages?（包目录，相对仓根；只收插件与内核包，库直接拒；不给就是仓根自己）, waitFor?（刷新后等这个选择器出现）}。一条走完：仓根 pnpm build → 照 files 验产物 → 在临时目录组装发布内容、版本号改成 <patch+1>-dev.<yyyyMMddHHmmss>，pnpm pack 到 <目标 home>\\dev-packs\\（包文件每版一个新路径，已存在就拒；旧的不删：home 清单引用着的包文件删了，这个 home 之后的 pnpm add 全失败；开发版不进源）→ 读目标 home 的 package.json（只读）：已在 dependencies 里的包合成一条 plugin-manager.update {"specs":{"<包>":"file:./dev-packs/<包文件>"}}，不在的插件逐个 plugin-manager.install {pkg, spec}（新建一条条目），都经 CDP 在目标页面里调；插件管理装包、重新加载这些包与真实目录变了的别的包，插件管理自己的条目推迟到回执之后（回执 selfDeferred，这边轮询 plugin-manager.list 等它 active）→ 整页刷新（驱动退出码非零或没等到页面回来就回 ok:false，说清等的是什么、最后看到了什么）→ 取证（装上的是这次打包的版本号、条目真的 ACTIVE、日志新增的部分里没有 error），取不到证就回 ok:false。回执 { home, homeName, shipped: [{ pkg, version, dir, packFile, via: update|install, entryId? }], update?（plugin-manager.update 的回执原样）, reload? | kernel?, evidence }。**packages 里有内核包 @godcreator/gwb-kernel-desktop 时**：它 peer 里的 cordis（必须是精确版本号）和内核包放进同一条 update；内核包不在目标 home 里直接拒；update 回执 restartRequired，这边不刷新，改成停掉目标 home 再启动（主进程里的内核换不掉），轮询 shell.env 直到 versions.kernel 就是这次打包的版本号，回执多一个字段 kernel { version, restart }，再照常取证。**构建不可跳过**：跳过构建就是装上一版。**目标是 default 或开发套件自己所在的 home 都直接拒；页面自报的名字跟你给的对不上也拒**',
-      },
-      async (args) => {
-        if (!isRecord(args)) return { ok: false, error: `参数要是个对象。\n${DEV_USAGE}` }
-        const target = await cdpTargetOf(args, homeDeps)
-        if (!target.ok) return { ok: false, error: target.error }
-        const dir = typeof args.dir === 'string' ? args.dir.trim() : ''
-        if (dir === '' || !path.isAbsolute(dir)) return { ok: false, error: `dir 要是仓根的绝对路径。\n${DEV_USAGE}` }
-        if (!fs.existsSync(dir)) return { ok: false, error: `${dir} 不在——dir 给的是仓根，不是包目录` }
-        const pnpm = await locatePnpm()
-        if (!pnpm.ok) return { ok: false, error: pnpm.error }
-        const input: DevInput = {
-          home: target.name,
-          repoDir: path.resolve(dir),
-          packages: packagesArgOf(args),
-          ...(typeof args.waitFor === 'string' && args.waitFor.trim() !== '' ? { waitFor: args.waitFor.trim() } : {}),
-          ownHome: requireKernel(ctx).dataDir,
-        }
-        log.info(`devkit.dev：仓 ${input.repoDir} → ${target.name}（调试口 ${String(target.cdp)}）`)
-        const deps: DevDeps = { ...devDepsWith(pnpm.file), restartHome: (home) => restartTestHome(home, homeDeps) }
-        const outcome = await runDev(input, deps)
-        if (!outcome.ok) {
-          log.warn(`devkit.dev 没成：${outcome.error}`)
-          return outcome.data === undefined
-            ? { ok: false, error: outcome.error }
-            : { ok: false, error: outcome.error, data: outcome.data }
-        }
-        log.info(`devkit.dev：${outcome.data.homeName} 换上了 ${outcome.data.shipped.map((one) => `${one.pkg}@${one.version}`).join('、')}`)
-        return outcome
-      },
-    ),
+  commands.register(
+    {
+      name: 'devkit.dev',
+      plugin: '@godcreator/gwb-devkit',
+      description: '改一版看一版（构建→打包进目标 home→经目标 home 的插件管理装并重新加载→刷新→取证；装内核包时改成重启目标 home）',
+      usage:
+        '{home 必给（目标 home 名，**只认名字不认端口**——端口从它的 runtime.json 里查，并确认它还在运行）, dir 必给（仓根绝对路径）, packages?（包目录，相对仓根；只收插件与内核包，库直接拒；不给就是仓根自己）, waitFor?（刷新后等这个选择器出现）}。一条走完：仓根 pnpm build → 照 files 验产物 → 在临时目录组装发布内容、版本号改成 <patch+1>-dev.<yyyyMMddHHmmss>，pnpm pack 到 <目标 home>\\dev-packs\\（包文件每版一个新路径，已存在就拒；旧的不删：home 清单引用着的包文件删了，这个 home 之后的 pnpm add 全失败；开发版不进源）→ 读目标 home 的 package.json（只读）：已在 dependencies 里的包合成一条 plugin-manager.update {"specs":{"<包>":"file:./dev-packs/<包文件>"}}，不在的插件逐个 plugin-manager.install {pkg, spec}（新建一条条目），都经 CDP 在目标页面里调；插件管理装包、重新加载这些包与真实目录变了的别的包，插件管理自己的条目推迟到回执之后（回执 selfDeferred，这边轮询 plugin-manager.list 等它 active）→ 整页刷新（驱动退出码非零或没等到页面回来就回 ok:false，说清等的是什么、最后看到了什么）→ 取证（装上的是这次打包的版本号、条目真的 ACTIVE、日志新增的部分里没有 error），取不到证就回 ok:false。回执 { home, homeName, shipped: [{ pkg, version, dir, packFile, via: update|install, entryId? }], update?（plugin-manager.update 的回执原样）, reload? | kernel?, evidence }。**packages 里有内核包 @godcreator/gwb-kernel-desktop 时**：它 peer 里的 cordis（必须是精确版本号）和内核包放进同一条 update；内核包不在目标 home 里直接拒；update 回执 restartRequired，这边不刷新，改成停掉目标 home 再启动（主进程里的内核换不掉），轮询 shell.env 直到 versions.kernel 就是这次打包的版本号，回执多一个字段 kernel { version, restart }，再照常取证。**构建不可跳过**：跳过构建就是装上一版。**目标是 default 或开发套件自己所在的 home 都直接拒；页面自报的名字跟你给的对不上也拒**',
+    },
+    async (args) => {
+      if (!isRecord(args)) return { ok: false, error: `参数要是个对象。\n${DEV_USAGE}` }
+      const target = await cdpTargetOf(args, homeDeps)
+      if (!target.ok) return { ok: false, error: target.error }
+      const dir = typeof args.dir === 'string' ? args.dir.trim() : ''
+      if (dir === '' || !path.isAbsolute(dir)) return { ok: false, error: `dir 要是仓根的绝对路径。\n${DEV_USAGE}` }
+      if (!fs.existsSync(dir)) return { ok: false, error: `${dir} 不在——dir 给的是仓根，不是包目录` }
+      const pnpm = await locatePnpm()
+      if (!pnpm.ok) return { ok: false, error: pnpm.error }
+      const input: DevInput = {
+        home: target.name,
+        repoDir: path.resolve(dir),
+        packages: packagesArgOf(args),
+        ...(typeof args.waitFor === 'string' && args.waitFor.trim() !== '' ? { waitFor: args.waitFor.trim() } : {}),
+        ownHome: requireKernel(ctx).dataDir,
+      }
+      log.info(`devkit.dev：仓 ${input.repoDir} → ${target.name}（调试口 ${String(target.cdp)}）`)
+      const deps: DevDeps = { ...devDepsWith(pnpm.file), restartHome: (home) => restartTestHome(home, homeDeps) }
+      const outcome = await runDev(input, deps)
+      if (!outcome.ok) {
+        log.warn(`devkit.dev 没成：${outcome.error}`)
+        return outcome.data === undefined
+          ? { ok: false, error: outcome.error }
+          : { ok: false, error: outcome.error, data: outcome.data }
+      }
+      log.info(`devkit.dev：${outcome.data.homeName} 换上了 ${outcome.data.shipped.map((one) => `${one.pkg}@${one.version}`).join('、')}`)
+      return outcome
+    },
   )
 }
 
 /** 只发到源、不碰任何 home，从哪个 home 调都行；升级 default 不接在后面：先在隔离 home 验过，再由插件管理自己升级 */
 function registerReleaseCommand({ ctx, log, commands }: Wiring): void {
-  ctx.effect(() =>
-    commands.register(
-      {
-        name: 'devkit.release',
-        plugin: '@godcreator/gwb-devkit',
-        description: '发正式版到包的 publishConfig.registry，没写就是团队源（git 工作区干净→构建→验产物→发版前检查→在临时目录里组装并发布）',
-        usage:
-          '{dir 必给（仓根绝对路径）, packages?（包目录，相对仓根，按依赖顺序；不给就是仓根自己）}。一条走完：仓根 git 工作区干净（有未提交改动就拒，一个都不发）→ 仓根 pnpm build → 照 files 白名单验产物 → 同号已在发布目标上就拒（发布目标是包自己 package.json 的 publishConfig.registry，没写就是团队源；写了但不是 http(s) 地址就拒）→ 发版前检查（每个要发的包：@godcreator 范围下的 dev 范围包含源上 dist-tags.latest，workspace: 跳过，范围内落后放行；产物里没有空 import、相对 import 指向的文件都在。keywords 含 gwb-plugin 的插件包另加：peer 里只许 cordis、内核包 @godcreator/gwb-kernel-desktop 与别的插件（包目录 node_modules 里它的清单 keywords 含 gwb-plugin，或是 cordis 官方插件），peer 里每个 gwb 插件（不分范围）和源上 dist-tags.latest 在同一条线（0.x 只看 x，≥1 只看主版本号；问哪个源由 ~/.npmrc 的范围行决定）；node 侧产物——exports["."] 的运行时入口（没有 exports 时是 main）顺着相对 import 走到的文件——的包名 import 只有 node 内置模块、electron 与 peer 里写了的包；浏览器侧产物——dist/client.js，同样顺着相对 import 走——只 import 页面 importmap 里的名字，也就是内核包清单 gwb.shared 的键，从包目录 node_modules 里装好的内核包现读；peer 里写了内核包、写法是 ^x.y.z、范围包含运行中的内核 gwbKernel.version——主版本号为 0 时次版本号相同，≥1 时主版本号相同，并且不低于下限，预发布段不看。没过就一个都不发，回执按包一次列全）→ 在临时目录里组装发布内容并发到发布目标（不改仓里任何文件；tag latest；发布内容清单的 publishConfig.registry 写发布目标，命令行不带 --registry；workspace: 依赖写成 ^<工作区里那个号>，这一次同发的写成 ^新号）→ 按给定顺序发完。**版本号在仓里升**（改 package.json 并提交），同一个版本号永不重发。只发到源、不碰任何 home；升级 default 用 plugin-manager.update {"all":true}',
-      },
-      async (args) => {
-        if (!isRecord(args)) return { ok: false, error: `参数要是个对象。\n${RELEASE_USAGE}` }
-        const dir = typeof args.dir === 'string' ? args.dir.trim() : ''
-        if (dir === '' || !path.isAbsolute(dir)) return { ok: false, error: `dir 要是仓根的绝对路径。\n${RELEASE_USAGE}` }
-        if (!fs.existsSync(dir)) return { ok: false, error: `${dir} 不在——dir 给的是仓根，不是包目录` }
-        const pnpm = await locatePnpm()
-        if (!pnpm.ok) return { ok: false, error: pnpm.error }
-        const packages = packagesArgOf(args)
-        log.info(`devkit.release：仓 ${path.resolve(dir)}（${packages.length === 0 ? '仓根自己' : packages.join('、')}）`)
-        const outcome = await runRelease({ repoDir: path.resolve(dir), packages, runningKernel: requireKernel(ctx).version }, releaseDepsWith(pnpm.file))
-        if (!outcome.ok) {
-          log.warn(`devkit.release 没成：${outcome.error}`)
-          return outcome.data === undefined
-            ? { ok: false, error: outcome.error }
-            : { ok: false, error: outcome.error, data: outcome.data }
-        }
-        log.info(`devkit.release：${outcome.data.shipped.map((one) => `${one.pkg}@${one.version}`).join('、')} 上了 latest`)
-        return outcome
-      },
-    ),
+  commands.register(
+    {
+      name: 'devkit.release',
+      plugin: '@godcreator/gwb-devkit',
+      description: '发正式版到包的 publishConfig.registry，没写就是团队源（git 工作区干净→构建→验产物→发版前检查→在临时目录里组装并发布）',
+      usage:
+        '{dir 必给（仓根绝对路径）, packages?（包目录，相对仓根，按依赖顺序；不给就是仓根自己）}。一条走完：仓根 git 工作区干净（有未提交改动就拒，一个都不发）→ 仓根 pnpm build → 照 files 白名单验产物 → 同号已在发布目标上就拒（发布目标是包自己 package.json 的 publishConfig.registry，没写就是团队源；写了但不是 http(s) 地址就拒）→ 发版前检查（每个要发的包：@godcreator 范围下的 dev 范围包含源上 dist-tags.latest，workspace: 跳过，范围内落后放行；产物里没有空 import、相对 import 指向的文件都在。keywords 含 gwb-plugin 的插件包另加：peer 里只许 cordis、内核包 @godcreator/gwb-kernel-desktop 与别的插件（包目录 node_modules 里它的清单 keywords 含 gwb-plugin，或是 cordis 官方插件），peer 里每个 gwb 插件（不分范围）和源上 dist-tags.latest 在同一条线（0.x 只看 x，≥1 只看主版本号；问哪个源由 ~/.npmrc 的范围行决定）；node 侧产物——exports["."] 的运行时入口（没有 exports 时是 main）顺着相对 import 走到的文件——的包名 import 只有 node 内置模块、electron 与 peer 里写了的包；浏览器侧产物——dist/client.js，同样顺着相对 import 走——只 import 页面 importmap 里的名字，也就是内核包清单 gwb.shared 的键，从包目录 node_modules 里装好的内核包现读；peer 里写了内核包、写法是 ^x.y.z、范围包含运行中的内核 gwbKernel.version——主版本号为 0 时次版本号相同，≥1 时主版本号相同，并且不低于下限，预发布段不看。没过就一个都不发，回执按包一次列全）→ 在临时目录里组装发布内容并发到发布目标（不改仓里任何文件；tag latest；发布内容清单的 publishConfig.registry 写发布目标，命令行不带 --registry；workspace: 依赖写成 ^<工作区里那个号>，这一次同发的写成 ^新号）→ 按给定顺序发完。**版本号在仓里升**（改 package.json 并提交），同一个版本号永不重发。只发到源、不碰任何 home；升级 default 用 plugin-manager.update {"all":true}',
+    },
+    async (args) => {
+      if (!isRecord(args)) return { ok: false, error: `参数要是个对象。\n${RELEASE_USAGE}` }
+      const dir = typeof args.dir === 'string' ? args.dir.trim() : ''
+      if (dir === '' || !path.isAbsolute(dir)) return { ok: false, error: `dir 要是仓根的绝对路径。\n${RELEASE_USAGE}` }
+      if (!fs.existsSync(dir)) return { ok: false, error: `${dir} 不在——dir 给的是仓根，不是包目录` }
+      const pnpm = await locatePnpm()
+      if (!pnpm.ok) return { ok: false, error: pnpm.error }
+      const packages = packagesArgOf(args)
+      log.info(`devkit.release：仓 ${path.resolve(dir)}（${packages.length === 0 ? '仓根自己' : packages.join('、')}）`)
+      const outcome = await runRelease({ repoDir: path.resolve(dir), packages, runningKernel: requireKernel(ctx).version }, releaseDepsWith(pnpm.file))
+      if (!outcome.ok) {
+        log.warn(`devkit.release 没成：${outcome.error}`)
+        return outcome.data === undefined
+          ? { ok: false, error: outcome.error }
+          : { ok: false, error: outcome.error, data: outcome.data }
+      }
+      log.info(`devkit.release：${outcome.data.shipped.map((one) => `${one.pkg}@${one.version}`).join('、')} 上了 latest`)
+      return outcome
+    },
   )
 }
 
 /** 读的是这个 home 的磁盘：装着的包就算，不管条目启没启用 */
 function registerServicesCommand({ ctx, commands }: Wiring): void {
-  ctx.effect(() =>
-    commands.register(
-      {
-        name: 'devkit.services',
-        plugin: '@godcreator/gwb-devkit',
-        description: '这个 home 里有哪些可以 inject 的服务：谁提供、类型定义原文（方法签名与注释），从各包的 .d.ts 里现读',
-        usage:
-          '无参数。扫这个 home 顶层 node_modules 里每个包的全部 .d.ts，找 declare module \'cordis\' { interface Context { 服务名: 类型 } }。类型定义在自己声明里的包是提供方，类型从别处 import 来的只是在用。回执 { ok, data: { home, services: [{ service, providers: [<包名>@<版本>], type, optional, definition?, declaredAlsoBy: [<包名>@<版本>] }] } }，按服务名排序；definition 是第一个提供方里那个类型的定义原文连同文档注释，没有提供方时不带。providers 正常只有一个，多于一个说明有包带着重复或过期的声明。要用某个服务：在 peer 里写上提供方，import type 它的类型，ctx.inject 取用',
-      },
-      () => {
-        const home = requireKernel(ctx).dataDir
-        return { ok: true, data: { home, services: servicesOf(readHomeTypeDeclarations(home)) } }
-      },
-    ),
+  commands.register(
+    {
+      name: 'devkit.services',
+      plugin: '@godcreator/gwb-devkit',
+      description: '这个 home 里有哪些可以 inject 的服务：谁提供、类型定义原文（方法签名与注释），从各包的 .d.ts 里现读',
+      usage:
+        '无参数。扫这个 home 顶层 node_modules 里每个包的全部 .d.ts，找 declare module \'cordis\' { interface Context { 服务名: 类型 } }。类型定义在自己声明里的包是提供方，类型从别处 import 来的只是在用。回执 { ok, data: { home, services: [{ service, providers: [<包名>@<版本>], type, optional, definition?, declaredAlsoBy: [<包名>@<版本>] }] } }，按服务名排序；definition 是第一个提供方里那个类型的定义原文连同文档注释，没有提供方时不带。providers 正常只有一个，多于一个说明有包带着重复或过期的声明。要用某个服务：在 peer 里写上提供方，import type 它的类型，ctx.inject 取用',
+    },
+    () => {
+      const home = requireKernel(ctx).dataDir
+      return { ok: true, data: { home, services: servicesOf(readHomeTypeDeclarations(home)) } }
+    },
   )
 }
 
@@ -482,138 +468,134 @@ function templateRootOrNull(requiredSubdir: string): string | null {
 
 function registerScaffoldCommand(wiring: Wiring): void {
   const { ctx, log, commands, hasCommand } = wiring
-  ctx.effect(() =>
-    commands.register(
-      {
-        name: 'devkit.scaffold',
-        plugin: '@godcreator/gwb-devkit',
-        description: '在一个新目录里生成一个 gwb 插件仓（默认连文档站一起建）',
-        usage:
-          `{name（必给，kebab-case 短名）, dir（必给，绝对路径且必须还不存在）, title?, docs?（缺省 true）, port?, scope?（包名范围，缺省 ${TEAM_SCOPE}）, registry?（写进插件包 publishConfig.registry 的发布目标，缺省团队源）}。插件的模板在本包；建站是两步，都经命令总线交出去——${CREATE_SITE_COMMAND}（站点插件）生成 fumadocs 骨架，${ATTACH_SITE_COMMAND}（docfirst 插件）在骨架上装六区；六区装好之后写插件页的初稿（回执 pluginPage）。哪个插件没装就跳过那一步、回执里说怎么补，插件文件照样写到磁盘。参数不对会把完整说明回给你`,
-      },
-      async (args) => {
-        if (!isRecord(args)) return { ok: false, error: `参数要是个对象。\n${SCAFFOLD_USAGE}` }
-        const templateRoot = templateRootOrNull('')
-        if (templateRoot === null) {
-          return { ok: false, error: '包内 template/ 不在——这一版没把它带进包（files 白名单漏了），换一版' }
-        }
-        // 想不想建站与建不建得成是两件事：站点插件没装时 README 里那段话也得跟着改，所以在渲染之前定下来
-        const canDocs = args.docs !== false && hasCommand(CREATE_SITE_COMMAND)
-        const kernelVersion = requireKernel(ctx).version
-        let plan
-        try {
-          plan = planScaffold({
-            name: typeof args.name === 'string' ? args.name : '',
-            dir: typeof args.dir === 'string' ? args.dir : '',
-            ...(typeof args.title === 'string' && args.title.trim() !== '' ? { title: args.title } : {}),
-            docs: canDocs,
-            ...(typeof args.port === 'number' ? { port: args.port } : {}),
-            ...publishIdentityArgsOf(args),
-            kernelVersion,
-          })
-        } catch (err) {
-          return { ok: false, error: `${err instanceof Error ? err.message : String(err)}\n\n${SCAFFOLD_USAGE}` }
-        }
-        let files
-        let page
-        try {
-          files = renderTemplate(templateRoot, plan)
-          page = renderPluginPage(templateRoot, plan)
-          writeRepo(plan.dir, files)
-        } catch (err) {
-          return { ok: false, error: `建仓没成：${err instanceof Error ? err.message : String(err)}` }
-        }
-        log.info(`devkit.scaffold：${plan.pkg} → ${path.join(plan.dir, 'plugins', plan.name)}（${files.length} 个文件）`)
+  commands.register(
+    {
+      name: 'devkit.scaffold',
+      plugin: '@godcreator/gwb-devkit',
+      description: '在一个新目录里生成一个 gwb 插件仓（默认连文档站一起建）',
+      usage:
+        `{name（必给，kebab-case 短名）, dir（必给，绝对路径且必须还不存在）, title?, docs?（缺省 true）, port?, scope?（包名范围，缺省 ${TEAM_SCOPE}）, registry?（写进插件包 publishConfig.registry 的发布目标，缺省团队源）}。插件的模板在本包；建站是两步，都经命令总线交出去——${CREATE_SITE_COMMAND}（站点插件）生成 fumadocs 骨架，${ATTACH_SITE_COMMAND}（docfirst 插件）在骨架上装六区；六区装好之后写插件页的初稿（回执 pluginPage）。哪个插件没装就跳过那一步、回执里说怎么补，插件文件照样写到磁盘。参数不对会把完整说明回给你`,
+    },
+    async (args) => {
+      if (!isRecord(args)) return { ok: false, error: `参数要是个对象。\n${SCAFFOLD_USAGE}` }
+      const templateRoot = templateRootOrNull('')
+      if (templateRoot === null) {
+        return { ok: false, error: '包内 template/ 不在——这一版没把它带进包（files 白名单漏了），换一版' }
+      }
+      // 想不想建站与建不建得成是两件事：站点插件没装时 README 里那段话也得跟着改，所以在渲染之前定下来
+      const canDocs = args.docs !== false && hasCommand(CREATE_SITE_COMMAND)
+      const kernelVersion = requireKernel(ctx).version
+      let plan
+      try {
+        plan = planScaffold({
+          name: typeof args.name === 'string' ? args.name : '',
+          dir: typeof args.dir === 'string' ? args.dir : '',
+          ...(typeof args.title === 'string' && args.title.trim() !== '' ? { title: args.title } : {}),
+          docs: canDocs,
+          ...(typeof args.port === 'number' ? { port: args.port } : {}),
+          ...publishIdentityArgsOf(args),
+          kernelVersion,
+        })
+      } catch (err) {
+        return { ok: false, error: `${err instanceof Error ? err.message : String(err)}\n\n${SCAFFOLD_USAGE}` }
+      }
+      let files
+      let page
+      try {
+        files = renderTemplate(templateRoot, plan)
+        page = renderPluginPage(templateRoot, plan)
+        writeRepo(plan.dir, files)
+      } catch (err) {
+        return { ok: false, error: `建仓没成：${err instanceof Error ? err.message : String(err)}` }
+      }
+      log.info(`devkit.scaffold：${plan.pkg} → ${path.join(plan.dir, 'plugins', plan.name)}（${files.length} 个文件）`)
 
-        // 插件文件已经在磁盘上，站没建成不算建仓失败，回执里说清楚
-        const docs = await buildDocsSite(wiring, plan)
-        // 插件页只能在六区装好之后写：attach 只在没加过页的骨架上装得了
-        const pluginPage = pluginPageTarget(plan.dir, plan.name)
-        if (pluginPage !== null) writePluginPage(pluginPage, page)
-        return {
-          ok: true,
-          data: {
-            repoDir: plan.dir,
-            pluginDir: path.join(plan.dir, 'plugins', plan.name),
-            pkg: plan.pkg,
-            registry: plan.registry,
-            name: plan.name,
-            title: plan.title,
-            files: files.length,
-            docs,
-            pluginPage,
-            nextSteps: nextSteps(plan, {
-              built: docs.built,
-              attached: docs.attached,
-              ...(docs.port === undefined ? {} : { port: docs.port }),
-            }),
-          },
-        }
-      },
-    ),
+      // 插件文件已经在磁盘上，站没建成不算建仓失败，回执里说清楚
+      const docs = await buildDocsSite(wiring, plan)
+      // 插件页只能在六区装好之后写：attach 只在没加过页的骨架上装得了
+      const pluginPage = pluginPageTarget(plan.dir, plan.name)
+      if (pluginPage !== null) writePluginPage(pluginPage, page)
+      return {
+        ok: true,
+        data: {
+          repoDir: plan.dir,
+          pluginDir: path.join(plan.dir, 'plugins', plan.name),
+          pkg: plan.pkg,
+          registry: plan.registry,
+          name: plan.name,
+          title: plan.title,
+          files: files.length,
+          docs,
+          pluginPage,
+          nextSteps: nextSteps(plan, {
+            built: docs.built,
+            attached: docs.attached,
+            ...(docs.port === undefined ? {} : { port: docs.port }),
+          }),
+        },
+      }
+    },
   )
 }
 
 function registerScaffoldPluginCommand({ ctx, log, commands }: Wiring): void {
-  ctx.effect(() =>
-    commands.register(
-      {
-        name: 'devkit.scaffold.plugin',
-        plugin: '@godcreator/gwb-devkit',
-        description: '往已有的 workspace 仓的 plugins/ 再加一个插件包（同一份插件包模板；仓里有装好六区的文档站时顺带写插件页的初稿）',
-        usage:
-          '{name 必给（kebab-case 短名，派生规则同 devkit.scaffold）, repo 必给（workspace 仓根的绝对路径——pnpm-workspace.yaml 里得有 plugins/ 那条，旧布局的仓报错里写着怎么迁）, title?, scope?, registry?（规则与缺省值同 devkit.scaffold）}。插件包写到 <repo>/plugins/<短名>/，必须还不存在。与建仓用的是同一份插件包模板（template/pkg/）——只有一个插件和有多个插件的仓格式一致靠这个。参数不对会把完整说明回给你',
-      },
-      async (args) => {
-        if (!isRecord(args)) return { ok: false, error: `参数要是个对象。\n${SCAFFOLD_PLUGIN_USAGE}` }
-        const templateRoot = templateRootOrNull('pkg')
-        if (templateRoot === null) {
-          return { ok: false, error: '包内 template/pkg/ 不在——这一版没把它带进包（files 白名单漏了），换一版' }
-        }
-        const kernelVersion = requireKernel(ctx).version
-        let plan
-        try {
-          plan = planScaffoldPlugin({
-            name: typeof args.name === 'string' ? args.name : '',
-            repo: typeof args.repo === 'string' ? args.repo : '',
-            ...(typeof args.title === 'string' && args.title.trim() !== '' ? { title: args.title } : {}),
-            ...publishIdentityArgsOf(args),
-            kernelVersion,
-          })
-        } catch (err) {
-          return { ok: false, error: `${err instanceof Error ? err.message : String(err)}\n\n${SCAFFOLD_PLUGIN_USAGE}` }
-        }
-        // 插件页也要还不存在，在写任何文件之前查
-        const pluginPage = pluginPageTarget(plan.repoDir, plan.name)
-        if (pluginPage !== null && fs.existsSync(pluginPage)) {
-          return { ok: false, error: `加件没成：插件页已经存在，不覆盖：${pluginPage}` }
-        }
-        let files
-        try {
-          files = renderPlugin(templateRoot, plan)
-          const page = renderPluginPage(templateRoot, plan)
-          writeRepo(plan.dir, files)
-          if (pluginPage !== null) writePluginPage(pluginPage, page)
-        } catch (err) {
-          return { ok: false, error: `加件没成：${err instanceof Error ? err.message : String(err)}` }
-        }
-        log.info(`devkit.scaffold.plugin：${plan.pkg} → ${plan.dir}（${files.length} 个文件）`)
-        return {
-          ok: true,
-          data: {
-            repoDir: plan.repoDir,
-            pluginDir: plan.dir,
-            pkg: plan.pkg,
-            registry: plan.registry,
-            name: plan.name,
-            title: plan.title,
-            files: files.length,
-            pluginPage,
-            nextSteps: nextStepsPlugin(plan, pluginPage),
-          },
-        }
-      },
-    ),
+  commands.register(
+    {
+      name: 'devkit.scaffold.plugin',
+      plugin: '@godcreator/gwb-devkit',
+      description: '往已有的 workspace 仓的 plugins/ 再加一个插件包（同一份插件包模板；仓里有装好六区的文档站时顺带写插件页的初稿）',
+      usage:
+        '{name 必给（kebab-case 短名，派生规则同 devkit.scaffold）, repo 必给（workspace 仓根的绝对路径——pnpm-workspace.yaml 里得有 plugins/ 那条，旧布局的仓报错里写着怎么迁）, title?, scope?, registry?（规则与缺省值同 devkit.scaffold）}。插件包写到 <repo>/plugins/<短名>/，必须还不存在。与建仓用的是同一份插件包模板（template/pkg/）——只有一个插件和有多个插件的仓格式一致靠这个。参数不对会把完整说明回给你',
+    },
+    async (args) => {
+      if (!isRecord(args)) return { ok: false, error: `参数要是个对象。\n${SCAFFOLD_PLUGIN_USAGE}` }
+      const templateRoot = templateRootOrNull('pkg')
+      if (templateRoot === null) {
+        return { ok: false, error: '包内 template/pkg/ 不在——这一版没把它带进包（files 白名单漏了），换一版' }
+      }
+      const kernelVersion = requireKernel(ctx).version
+      let plan
+      try {
+        plan = planScaffoldPlugin({
+          name: typeof args.name === 'string' ? args.name : '',
+          repo: typeof args.repo === 'string' ? args.repo : '',
+          ...(typeof args.title === 'string' && args.title.trim() !== '' ? { title: args.title } : {}),
+          ...publishIdentityArgsOf(args),
+          kernelVersion,
+        })
+      } catch (err) {
+        return { ok: false, error: `${err instanceof Error ? err.message : String(err)}\n\n${SCAFFOLD_PLUGIN_USAGE}` }
+      }
+      // 插件页也要还不存在，在写任何文件之前查
+      const pluginPage = pluginPageTarget(plan.repoDir, plan.name)
+      if (pluginPage !== null && fs.existsSync(pluginPage)) {
+        return { ok: false, error: `加件没成：插件页已经存在，不覆盖：${pluginPage}` }
+      }
+      let files
+      try {
+        files = renderPlugin(templateRoot, plan)
+        const page = renderPluginPage(templateRoot, plan)
+        writeRepo(plan.dir, files)
+        if (pluginPage !== null) writePluginPage(pluginPage, page)
+      } catch (err) {
+        return { ok: false, error: `加件没成：${err instanceof Error ? err.message : String(err)}` }
+      }
+      log.info(`devkit.scaffold.plugin：${plan.pkg} → ${plan.dir}（${files.length} 个文件）`)
+      return {
+        ok: true,
+        data: {
+          repoDir: plan.repoDir,
+          pluginDir: plan.dir,
+          pkg: plan.pkg,
+          registry: plan.registry,
+          name: plan.name,
+          title: plan.title,
+          files: files.length,
+          pluginPage,
+          nextSteps: nextStepsPlugin(plan, pluginPage),
+        },
+      }
+    },
   )
 }
 

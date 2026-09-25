@@ -283,10 +283,10 @@ class PluginManager {
         this.commandBus = undefined
       })
       const registerCommand: RegisterCommand = (name, description, usage, handler) => {
-        ctx.effect(() => commandBus.register({ name, description, usage, plugin: PKG }, handler))
+        commandBus.register({ name, description, usage, plugin: PKG }, handler)
       }
       const registerBusyGuardedCommand: RegisterCommand = (name, description, usage, handler) => {
-        ctx.effect(() => commandBus.register({ name, description, usage, plugin: PKG }, (args) => this.busyGate.run(() => handler(args) as Promise<{ ok: boolean }> | { ok: boolean })))
+        commandBus.register({ name, description, usage, plugin: PKG }, (args) => this.busyGate.run(() => handler(args) as Promise<{ ok: boolean }> | { ok: boolean }))
       }
       this.registerHomeCommands(registerCommand, registerBusyGuardedCommand)
       this.registerSourceCommands(registerCommand, commandBus)
@@ -958,7 +958,7 @@ function hasCommand(commandBus: GwbCommands | undefined, name: string): boolean 
 /** 没有命令插件、命令表里没有这条、执行失败，都返回「界面要手动刷新」 */
 async function runShellReload(commandBus: GwbCommands | undefined): Promise<{ reload: 'done' | 'unavailable'; note?: string }> {
   if (!hasCommand(commandBus, SHELL_RELOAD_COMMAND) || commandBus === undefined) {
-    return { reload: 'unavailable', note: `命令表里没有 ${SHELL_RELOAD_COMMAND}（外壳没装或版本太旧），界面要手动刷新` }
+    return { reload: 'unavailable', note: `命令表里没有 ${SHELL_RELOAD_COMMAND}（外壳没装），界面要手动刷新` }
   }
   const result = await commandBus.run(SHELL_RELOAD_COMMAND)
   if (result.ok) return { reload: 'done' }
@@ -1008,7 +1008,7 @@ function updateArgsOf(args: unknown): UpdateArgs {
   }
   const specs = argsObject['specs']
   if (!isRecord(specs) || Object.keys(specs).length === 0 || Object.values(specs).some((spec) => typeof spec !== 'string' || spec === '')) {
-    throw new Error('specs 要是个非空对象，键是包名、值是非空字符串写法，比如 { "specs": { "@godcreator/gwb-hello": "0.3.1-dev.2" } }')
+    throw new Error('specs 要是个非空对象，键是包名、值是非空字符串写法，比如 { "specs": { "@godcreator/gwb-hello": "0.3.1" } }')
   }
   return { specs: specs as Record<string, string> }
 }

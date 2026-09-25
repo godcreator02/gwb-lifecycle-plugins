@@ -488,7 +488,7 @@ describe('plugin-manager.update', () => {
     const pm = mount({ entries: { foo: '@x/gwb-foo' } })
     const result = (await pm.run('plugin-manager.update', { all: true })) as GwbResult & { data: { reload: string; note: string } }
     expect(result.data.reload).toBe('unavailable')
-    expect(result.data.note).toBe('命令表里没有 shell.reload（外壳没装或版本太旧），界面要手动刷新')
+    expect(result.data.note).toBe('命令表里没有 shell.reload（外壳没装），界面要手动刷新')
   })
 
   it('升级清单里有插件管理自己：自己那条先回 deferred，回执之后才重新加载，再整页重新加载', async () => {

@@ -43,10 +43,14 @@ pnpm install
 
 ```powershell
 pnpm check          # 各包的 check：开发套件是 typecheck + vitest，插件管理另加 oxlint
-pnpm build          # 只构建 plugins/*：开发套件 esbuild 打包成一个 dist/index.js、tsc 只出类型声明，插件管理 tsc 直接输出；文档站不在里面
+pnpm build          # 只构建 plugins/*，两个包都先清空 dist/：开发套件 esbuild 打包成一个 dist/index.js、tsc 只出类型声明，插件管理 tsc 直接输出；文档站不在里面
 ```
 
 **`pnpm check` 不构建。** 它检查的是源码，全绿只说明源码没问题，跟「装出来能不能运行」是两件事。
+
+**构建先清空 `dist/`**：不清的话，源码里删掉的模块还留在 `dist/` 里，随 `files` 白名单一起发出去。插件管理的产物测试查 `dist/` 里每个 `.js` 都有对应的 `src` 文件：
+
+{/* has file="../plugins/plugin-manager/tests/artifact.test.ts" text="每个 .js 都有对应的 src 文件" */}
 
 开发套件的测试里只有 `tests/process-tree.test.ts` 启动真的子进程：超时终止整棵进程树要看孙进程真的没了，假实现证明不了。它几秒钟跑完，跟着 `pnpm check` 一起跑。
 
@@ -65,7 +69,7 @@ pnpm build          # 只构建 plugins/*：开发套件 esbuild 打包成一个
 3. 在那个 home 里调命令看结果：`devkit.cdp {"args":["<名>","cmd","<命令名>","<JSON 参数>"]}`。验 devkit 自己的命令也是这样调——命令在隔离 home 的进程里运行，跟日常用的 home 里那份 devkit 无关
 4. 看那个 home 的 `gwb.log`；验完 `devkit.home.rm {"name":"<名>","force":true}`
 
-`devkit.dev` 只拒绝以 `default` 或 devkit 自己所在的 home 为目标，所以从日常用的 home 往隔离 home 装开发版的 devkit 是可以的；日常用的 home 里的 devkit 只能发正式版后用 `plugin-manager.update {"all":true}` 升级。装的是插件管理自己时，它的条目在回执之后才重新加载（回执 `selfDeferred: true`），`devkit.dev` 会轮询 `plugin-manager.list` 等它回来。目标 home 的插件管理要认 `update` 的 `specs` 参数（0.12.0 起）。
+`devkit.dev` 只拒绝以 `default` 或 devkit 自己所在的 home 为目标，所以从日常用的 home 往隔离 home 装开发版的 devkit 是可以的；日常用的 home 里的 devkit 只能发正式版后用 `plugin-manager.update {"all":true}` 升级。装的是插件管理自己时，它的条目在回执之后才重新加载（回执 `selfDeferred: true`），`devkit.dev` 会轮询 `plugin-manager.list` 等它回来。
 
 改了模板时，模板生成的新仓能不能顺利运行完 install / build / check，单元测试回答不了：用构建产物实际建一个仓运行一遍，做法见 `probes/2609191042_workspace-scaffold/`。
 

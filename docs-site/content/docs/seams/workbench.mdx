@@ -17,13 +17,13 @@ description: 连接 devkit、插件管理与工作台的四个服务：命令总
 
 {/* ref file="../plugins/devkit/src/index.ts" lines="47-48" */}
 
-devkit 对命令总线用了三个方法：`register(定义, 处理函数)` 登记命令，定义带 `name`、`plugin`（包名）、`description`、`usage`，返回的撤销函数交给 `ctx.effect`；`list()` 查某个命令名在不在；`run(名字, 参数)` 调别的插件的命令（见[借用别的插件的命令](/docs/seams/borrowed-commands)）。
+devkit 对命令总线用了三个方法：`register(定义, 处理函数)` 登记命令，定义带 `name`、`plugin`（包名）、`description`、`usage`，撤销由命令总线登记在调用方的 effect 上，devkit 卸载时自动撤销；`list()` 查某个命令名在不在；`run(名字, 参数)` 调别的插件的命令（见[借用别的插件的命令](/docs/seams/borrowed-commands)）。
 
 {/* ref file="../plugins/devkit/src/index.ts" lines="285-293" */}
 
 {/* ref file="../plugins/devkit/src/index.ts" lines="139-143" */}
 
-`gwbNodeCli` 只用来登记一条命令行工具 `devkit.cdp`，`entry` 是包里 `bin/cdp.mjs` 的绝对路径；这条登记由 `gwbNodeCli` 自己放进调用方的 effect，devkit 卸载时自动撤销，devkit 不再包一层 `ctx.effect`：
+`gwbNodeCli` 只用来登记一条命令行工具 `devkit.cdp`，`entry` 是包里 `bin/cdp.mjs` 的绝对路径；这条登记同样由 `gwbNodeCli` 自己放进调用方的 effect：
 
 {/* ref file="../plugins/devkit/src/index.ts" lines="303-318" */}
 
@@ -57,7 +57,7 @@ devkit 保证：
 - 命令的 `plugin` 写包名 `@godcreator/gwb-plugin-manager`
 - 命令的参数或回执有破坏性变化时升 x（`gwbPluginManager` 的值上不放版本数字）
 
-工作台服务保证：`register` 返回撤销函数、`list()` 的每一项带 `name` 与 `plugin`、`run` 回 `{ ok, data?, error? }`、`gwbNodeCli.register` 自己把登记放进调用方的 effect——这几条写在各服务包的类型声明与说明书里，两个插件只经类型检查对上，**运行时靠约定**。
+工作台服务保证：`gwbCommands.register` 与 `gwbNodeCli.register` 自己把登记放进调用方的 effect、`list()` 的每一项带 `name` 与 `plugin`、`run` 回 `{ ok, data?, error? }`——这几条写在各服务包的类型声明与说明书里，两个插件只经类型检查对上，**运行时靠约定**。
 
 devkit 的就绪日志从 `list()` 里筛出 `plugin` 等于包名 `@godcreator/gwb-devkit` 的命令，与登记命令时写的 `plugin` 相同：
 

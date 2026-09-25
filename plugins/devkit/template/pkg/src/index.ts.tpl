@@ -29,18 +29,15 @@ export function apply(ctx: GwbContext): void {
   // 地址按 import.meta.url 算，内核不认识任何包名
   shell.registerPane({ id: 'main', title: '{{title}}', client: CLIENT_URL, style: STYLE_URL })
 
-  // 命令是插件向页面和 agent 提供能力的方式。register 返回注销函数，包进 ctx.effect，本插件卸载时注销：
-  // 命令总线 0.4.6 起自己会这么做，更早的版本不包就会在卸载后把命令名留在命令表里
-  ctx.effect(() =>
-    commands.register(
-      {
-        name: '{{name}}.ping',
-        // description 一句话说命令做什么（MCP 入口的 index 列它），参数形状写进 usage（search 列它），无参数写「无参数」
-        description: '模板自带的命令：返回插件名与当前时间，用来确认插件已加载',
-        usage: '无参数',
-        plugin: '{{pkg}}',
-      },
-      async () => ({ ok: true, data: { plugin: name, time: new Date().toISOString() } }),
-    ),
+  // 命令是插件向页面和 agent 提供能力的方式。命令总线继承 cordis 的 Service：本插件卸载时，命令自动注销
+  commands.register(
+    {
+      name: '{{name}}.ping',
+      // description 一句话说命令做什么（MCP 入口的 index 列它），参数形状写进 usage（search 列它），无参数写「无参数」
+      description: '模板自带的命令：返回插件名与当前时间，用来确认插件已加载',
+      usage: '无参数',
+      plugin: '{{pkg}}',
+    },
+    async () => ({ ok: true, data: { plugin: name, time: new Date().toISOString() } }),
   )
 }
