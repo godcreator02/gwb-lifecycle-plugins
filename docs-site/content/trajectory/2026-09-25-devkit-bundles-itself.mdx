@@ -1,0 +1,40 @@
+---
+title: devkit 自己的构建改成 esbuild 打包，与模板生成的插件同一个做法，自用的库从此能打进产物
+born-at: 2026-09-25T10:40
+type: choice
+parent: [2026-09-08-gwb-devkit]
+label: 自己也打包
+domain: 发版
+---
+
+## 背景
+
+依赖的规矩允许插件带库：运行时自己用的库写 dev、打包进构建产物，产物里只许留 node 内置模块、`electron` 与 peer 里写了的包名 import，判据只看构建产物。模板生成的插件本来就用 esbuild 打包浏览器侧。
+
+devkit 自己却是 `tsc -p tsconfig.json` 直接输出，不打包：源码里 import 一个第三方库，产物里就留下这个包名，自己的发版前检查按 node 侧名单拒掉。两个修复分支因此各手写了一个解析器——发版前检查找 import 用的 JS 词法扫描器（`fix/artifact-import-scan`），建仓读 `pnpm-workspace.yaml` 用的精简 YAML 读取（`fix/scaffold-escape`）。人不认可「devkit 不许带库」这个前提：规矩允许用库，只要打包。
+
+## 结论与边界
+
+- `plugins/devkit/build.ts` 用 esbuild 从 `src/index.ts` 打出一个 `dist/index.js`：esm、`platform: 'node'`，外置 node 内置模块、`electron`、`cordis` 与 peer 里的包，其余打包进去。外置名单从自己清单的 peer 读，不手抄
+- `cordis` 不在 peer 里也外置：哪天有人按值 import 了它，产物里留下包名、被发版前检查拦住，而不是悄悄打包进一份拷贝
+- `bin/cdp.mjs` 不打包：`src/index.ts` 对它的 import 在产物里留成 `../bin/cdp.mjs`。它是 node 直接运行的独立脚本，node 命令行插件按包内路径运行它，包里只该有一份
+- 类型声明照旧由 tsc 输出（`--emitDeclarationOnly`），`exports["."]` 的 `types` 不变；每次构建先清空 `dist/`，免得上一次 tsc 输出的一堆 `.js` 随 `files` 白名单一起发出去
+- 新增 `tests/built-artifact.test.ts`：构建之后对产物跑发版前检查的产物部分，再加载产物、调几条不碰 home 的命令，确认 `bin/`、`skills/`、`template/` 这些靠 `import.meta.url` 算出的包内路径打包后照样指得到；没有 `dist/` 时整组跳过
+- 插件管理的构建这次不改：它的产物只 import node 内置模块，还没有要打包的库
+
+## 否掉的候选
+
+- **继续 tsc 直接输出，库写 `dependencies`**：规矩表里 `dependencies` 只给打包不进产物的库（原生可执行文件、运行时按路径读自己文件的包）；这两个库都能打包，写进 `dependencies` 就是给自己开例外
+- **手写解析器**（两个修复分支原来的做法）：每遇到一种格式就自己维护一份解析，还要另找标准答案对照；规矩本来就允许用库
+- **把 `bin/cdp.mjs` 一起打进产物**：能运行，但包里会有两份同样的代码，脚本顶层的命令行解析与「是不是被直接运行」的判断也跟着进了插件模块；留成相对 import，产物与原来 tsc 输出时同一个形状
+
+## 代价
+
+- 产物是一个约 150KB 的文件，不带 sourcemap：运行时报错的调用栈指向 `dist/index.js` 的行号，要自己对回 `src/`
+- `pnpm check` 不构建，产物测试只在 `pnpm build` 之后才真的运行；没构建时它跳过而不是失败
+- 包内路径全靠「产物在包根下一层」这一条：以后改输出目录的深度，`bin/`、`skills/`、`template/` 三处一起指错
+- devkit 的 dev 多了 esbuild（仓里文档站已经装着同一个版本）
+
+## 依据
+
+在 worktree `gwb-devkit-wt-bundle` 的分支 `build/devkit-esbuild` 上：`pnpm build` 之后 `dist/` 里只有 `index.js` 一个 `.js`，包名 import 只剩 `node:*` 与 `@godcreator/gwb-plugin-manager`（peer 里的包），唯一的相对 import 是 `../bin/cdp.mjs`；`artifactProblems` 对产物回空；仓根 `pnpm check` 全绿。未另存探针。

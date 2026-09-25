@@ -168,6 +168,14 @@ peer 里内核包的检查，比对规则从插件管理的主入口 import（�
 
 外壳、node 命令行、说明书三个服务用 `ctx.inject([...], fn)` 局部注入：缺哪个，只有那一部分停在等待状态，主插件照常加载。这三个插件在 peer 里标 `optional`，命令插件、插件管理与内核包是必需的 peer（见[用到的插件写 peer](/docs/rules/plugin-peers)）。服务怎么提供和使用的规矩见[cordis 服务怎么提供和使用](/docs/rules/services)。
 
+本包自己的构建与模板生成的插件同一个做法：`build.ts` 用 esbuild 从 `src/index.ts` 把 node 侧打成一个 `dist/index.js`，外置 node 内置模块、`electron`、`cordis` 与 peer 里的包，其余打包进去，所以运行时自己用的库照[依赖怎么写](/docs/rules/deps)写 dev、打进产物。类型声明由 tsc 另外输出到 `dist/`。`bin/cdp.mjs` 不打包：产物里对它的 import 原样留成 `../bin/cdp.mjs`；产物与源码都在包根下一层，`import.meta.url` 算出来的包内路径（`bin/`、`skills/`、`template/`）打包前后指向同一处：
+
+{/* ref file="../plugins/devkit/build.ts" lines="15-47" */}
+
+构建之后，`tests/built-artifact.test.ts` 对产物跑一遍发版前检查的产物部分，再加载产物、调几条不碰 home 的命令，看包内路径能不能解析到；没有 `dist/` 时整组跳过：
+
+{/* has file="../plugins/devkit/tests/built-artifact.test.ts" text="过得了发版前检查" */}
+
 ## 不做的事
 
 - **不画界面**：没有窗格、没有浏览器端代码，只向外壳报一个显示名；使用者是 agent，读回执

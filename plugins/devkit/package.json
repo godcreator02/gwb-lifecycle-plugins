@@ -24,7 +24,8 @@
     "title": "开发套件"
   },
   "scripts": {
-    "build": "tsc -p tsconfig.json",
+    "//build": "两步：esbuild 把 node 侧打成一个 dist/index.js（外置 node 内置模块、electron、cordis 与 peer 里的包，其余打包进去），tsc 只输出类型声明",
+    "build": "node build.ts && tsc -p tsconfig.json --emitDeclarationOnly",
     "typecheck": "tsc --noEmit -p tsconfig.json",
     "test": "vitest run",
     "check": "pnpm run typecheck && pnpm run test",
@@ -48,6 +49,7 @@
   "devDependencies": {
     "@types/node": "^24.0.0",
     "cordis": "4.0.0-rc.10",
+    "esbuild": "^0.28.2",
     "typescript": "^7.0.2",
     "vitest": "^4.1.10"
   },

@@ -59,7 +59,7 @@
 
 ```powershell
 pnpm check          # 各包的 check：typecheck + vitest，插件管理另加 oxlint
-pnpm build          # 只构建 plugins/*，tsc 直接输出 dist/，没有打包器；文档站不在里面
+pnpm build          # 只构建 plugins/*：开发套件 esbuild 打包成一个 dist/index.js、tsc 只出类型声明，插件管理 tsc 直接输出；文档站不在里面
 ```
 
 **`pnpm check` 不构建。** 它检查的是源码，全绿只说明源码没问题，跟「装出来能不能运行」是两件事。
