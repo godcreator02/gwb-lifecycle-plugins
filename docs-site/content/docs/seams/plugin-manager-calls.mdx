@@ -31,7 +31,7 @@ description: 连接 devkit 与插件管理：devkit 从插件管理的主入口 
 
 `specs` 的规则在插件管理的 `planSpecsUpdate`：包必须已在 home 的 `dependencies` 里，写了 `cordis` 直接报错，写法原样交给 pnpm；`file:` 写法装完不核对版本号，由 devkit 自己读 `node_modules` 里的清单核对：
 
-{/* ref file="../plugins/plugin-manager/src/update.ts" lines="114-143" */}
+{/* ref file="../plugins/plugin-manager/src/update.ts" lines="109-125" */}
 
 `plugin-manager.list` 的回执由 devkit 自己解析：`data` 就是包的数组，按 `pkg` 找包，读每条条目的 `entryId` 与 `active`，一个包的**全部**条目都算进取证；这次装的插件在表里一条条目都没有，取证判失败：
 
