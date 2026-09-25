@@ -1,0 +1,27 @@
+---
+title: 'devkit.dev 装包成功，取证却报「plugin-manager.list 没回」'
+description: '来源：总控台会话（改 gwb-docs-site 时），2026-09-25'
+docfirst: none
+---
+
+## 现场
+
+隔离 home `docsite-docfirst-2609252207`（内核 0.7.2、外壳 0.14.1），对单包仓 `D:\unitfolders\evew5-gwbapps\gwb-docs-site`
+连续运行四次 `devkit.dev {"home":"docsite-docfirst-2609252207","dir":"…\\gwb-docs-site","packages":["."]}`：
+
+| 时间 | 结果 |
+| --- | --- |
+| 22:08 | `ok: true`（第一次，经 install 新建条目） |
+| 22:42 | `ok: true`（经 update） |
+| 22:51 | 失败：`取不到证:plugin-manager.list 没回(这张页没回一张认得出的回执——它可能不是工作台的外壳页)` |
+| 23:12 | 同上 |
+
+后两次失败之后，紧接着运行 `devkit.cdp {"args":["docsite-docfirst-2609252207","cmd","plugin-manager.list"]}`，回执正常：
+`@godcreator/gwb-docs-site` 的 spec 已经是这次打的开发版包文件（`…-0.5.1-dev.20260925225100.tgz`、`…-20260925231255.tgz`），条目 `active: true`。
+也就是说装包与重新加载都成功了，只有取证那一步没拿到回执。
+
+## 期望
+
+装上了就取得到证；或者取证失败时回执说清是超时还是页面不对，而不是让人以为没装上。
+猜测（未核实）：取证发得太早，页面刷新后外壳还没就绪；这个插件这次去掉了浏览器侧代码，页面刷新可能比以前快，
+也可能跟它有关。
