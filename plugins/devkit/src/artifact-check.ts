@@ -1,6 +1,7 @@
 import { builtinModules } from 'node:module'
 import path from 'node:path'
 import { KERNEL_PACKAGE } from '@godcreator/gwb-plugin-manager'
+import { scanModuleImports } from './import-scan.js'
 import { isRecord } from './vocab.js'
 
 // 纯函数：读文件只经调用方给的 readText，测试里给一张假文件表
@@ -15,11 +16,6 @@ export interface ModuleImports {
   empty: string[]
 }
 
-// 只认产物里的三种写法：顶格的 `import … from` / `export … from` / `import '<名>'`（tsc 与 esbuild 输出的顶层 import 都顶格写），以及非注释行里带字面量的 `import('<名>')`
-const STATIC_IMPORT = /^(?:import|export)\s*(?:[\w$*{}\s,]*?\s*from\s*)?(['"])([^'"\n]+)\1/gm
-const EMPTY_IMPORT = /^(?:import|export)\s*\{\s*\}\s*from\s*(['"])([^'"\n]+)\1/gm
-const DYNAMIC_IMPORT = /\bimport\(\s*(['"])([^'"\n]+)\1\s*\)/g
-const COMMENT_LINE = /^\s*(?:\/\/|\/\*|\*)/
 const URL_SCHEME = /^[a-z][a-z0-9+.-]*:/i
 
 function isRelative(spec: string): boolean {
@@ -31,21 +27,17 @@ function isUrl(spec: string): boolean {
   return URL_SCHEME.test(spec) && !spec.startsWith('node:')
 }
 
+/** 按语法找（见 `scanModuleImports`），读不下去就抛错 */
 export function importsOf(code: string): ModuleImports {
-  const specs: string[] = []
-  for (const match of code.matchAll(STATIC_IMPORT)) specs.push(match[2]!)
-  for (const line of code.split(/\r?\n/)) {
-    if (COMMENT_LINE.test(line)) continue
-    for (const match of line.matchAll(DYNAMIC_IMPORT)) specs.push(match[2]!)
-  }
   const bare = new Set<string>()
   const relative = new Set<string>()
-  for (const spec of specs) {
-    if (isRelative(spec)) relative.add(spec)
-    else if (!isUrl(spec)) bare.add(spec)
+  const empty = new Set<string>()
+  for (const { specifier, empty: isEmpty } of scanModuleImports(code)) {
+    if (isEmpty) empty.add(specifier)
+    if (isRelative(specifier)) relative.add(specifier)
+    else if (!isUrl(specifier)) bare.add(specifier)
   }
-  const empty = [...new Set([...code.matchAll(EMPTY_IMPORT)].map((match) => match[2]!))]
-  return { bare: [...bare], relative: [...relative], empty }
+  return { bare: [...bare], relative: [...relative], empty: [...empty] }
 }
 
 /** `@scope/name/sub` → `@scope/name`；`name/sub` → `name` */
@@ -105,7 +97,7 @@ export interface ArtifactIo {
 interface WalkedModules {
   /** 走到的文件（绝对路径）→ 它的 import */
   modules: Map<string, ModuleImports>
-  /** 指向不存在文件的相对 import，已写成回执里的一句话 */
+  /** 指向不存在文件的相对 import、按语法读不下去的文件，已写成回执里的一句话 */
   broken: string[]
 }
 
@@ -122,7 +114,13 @@ function walkModules(pkgDir: string, entries: string[], io: ArtifactIo): WalkedM
       broken.push(`产物 ${relativeToPackage(pkgDir, file)} 不在：构建之后它该在`)
       continue
     }
-    const imports = importsOf(code)
+    let imports: ModuleImports
+    try {
+      imports = importsOf(code)
+    } catch (err) {
+      broken.push(`产物 ${relativeToPackage(pkgDir, file)} 按 JS 语法读不下去，找不全它的 import：${err instanceof Error ? err.message : String(err)}`)
+      continue
+    }
     modules.set(file, imports)
     for (const spec of imports.relative) {
       const target = spec.startsWith('/') ? spec : path.resolve(path.dirname(file), spec)

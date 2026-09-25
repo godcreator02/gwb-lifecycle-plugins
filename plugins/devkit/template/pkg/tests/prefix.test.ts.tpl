@@ -15,6 +15,10 @@ import { describe, expect, it } from 'vitest'
  * 对裸 `flex` 只会回「不认识」，分不出漏没漏）问 Tailwind「编得出规则吗」。
  * 编得出来的，就是本该带前缀而没带的类。模板串的插值段、data-probe 的值、
  * import 说明符这些自然编不出规则，不用特判。
+ *
+ * **前缀写了却编不出规则的守卫**，同样静默：`disabled:{{cssPrefix}}:opacity-50`（前缀排在变体后面）Tailwind 不认，
+ * 一条规则都不出也不报错，要写成 `{{cssPrefix}}:disabled:opacity-50`。判法：带前缀的 token 拿本插件的
+ * styles.css 原样编，编不出规则就报；前缀出现在 token 中间的，单独报成「前缀要排在最前」。
  */
 const here = path.dirname(fileURLToPath(import.meta.url))
 const clientDir = path.resolve(here, '../src/client')
@@ -100,5 +104,45 @@ describe('忘加前缀的守卫', () => {
       previous = next
     }
     expect(missing.sort()).toEqual([])
+  })
+})
+
+const PREFIX = '{{cssPrefix}}:'
+/** 前缀排在变体后面时，前缀夹在两个冒号中间 */
+const PREFIX_AFTER_VARIANT = ':{{cssPrefix}}:'
+
+describe('前缀写了、却编不出规则的守卫', () => {
+  const files = tsxFiles(clientDir)
+
+  it('带 {{cssPrefix}}: 前缀的类名都编得出规则，前缀排在变体后面的单独报出', async () => {
+    const compiler = await compile(fs.readFileSync(path.join(clientDir, 'styles.css'), 'utf8'), { base: clientDir, onDependency: () => {} })
+
+    const prefixed = new Set<string>()
+    const prefixAfterVariant = new Set<string>()
+    for (const file of files) {
+      for (const literal of literals(fs.readFileSync(file, 'utf8'))) {
+        for (const token of literal.split(/\s+/)) {
+          if (token.startsWith(PREFIX) && token.length > PREFIX.length) prefixed.add(token)
+          else if (token.includes(PREFIX_AFTER_VARIANT)) prefixAfterVariant.add(token)
+        }
+      }
+    }
+
+    // 同上一条：逐个传入，这一步的输出没变就是这个 token 没编出规则
+    const withoutRule: string[] = []
+    let previous = compiler.build([])
+    for (const token of prefixed) {
+      const next = compiler.build([token])
+      if (next === previous) withoutRule.push(token)
+      previous = next
+    }
+
+    const problems = [
+      ...[...prefixAfterVariant].sort().map(
+        (token) => `${token}：前缀要排在最前，写成 ${PREFIX}${token.replace(PREFIX_AFTER_VARIANT, ':')}——前缀排在变体后面不报错，只是一条规则都不出`,
+      ),
+      ...withoutRule.sort().map((token) => `${token}：编不出规则——工具类或变体名拼错了，或者有变体排在了前缀前面；不是类名的字符串别用 ${PREFIX} 开头`),
+    ]
+    expect(problems).toEqual([])
   })
 })

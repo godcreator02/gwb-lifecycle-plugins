@@ -1,0 +1,19 @@
+node v24.14.1，2026-09-25 10:01
+语料：node_modules/.pnpm 下 es-module-lexer 认作 ESM 的 .js / .mjs 共 1243 个，用时 5680 ms
+== 原样
+对照的文件 1243 个，es-module-lexer 找到的 import 2753 条；es-module-lexer 读不了、跳过 0 个
+参数是无插值模板字面量的动态 import（scanModuleImports 不记，单独数）：0 条
+scanModuleImports 抛错 0 个
+结果不一致 0 个
+== esbuild minify 之后（esbuild 转不了、跳过 0 个）
+对照的文件 1243 个，es-module-lexer 找到的 import 2753 条；es-module-lexer 读不了、跳过 0 个
+参数是无插值模板字面量的动态 import（scanModuleImports 不记，单独数）：0 条
+scanModuleImports 抛错 0 个
+结果不一致 0 个
+== 块笔记 D:\unitfolders\evew5-gwbapps\gwb-block-note\plugins\gwb-bn-core\dist\client.js 原样（不压行发的那一版，4.06 MB）
+旧写法（按行正则）找到：["react","react-dom","react-dom/client","react/jsx-runtime"]
+scanModuleImports 找到：["static react","static react-dom","static react-dom/client","static react/jsx-runtime"]
+== 块笔记 D:\unitfolders\evew5-gwbapps\gwb-block-note\plugins\gwb-bn-core\dist\client.js 压成一行（2.89 MB，行数 501）
+旧写法（按行正则）找到：["),this[e.source.type](e.source,t),t.write("]
+scanModuleImports 找到（177 ms）：["static react","static react-dom","static react-dom/client","static react/jsx-runtime"]
+es-module-lexer 找到：["static react","static react-dom","static react-dom/client","static react/jsx-runtime"]

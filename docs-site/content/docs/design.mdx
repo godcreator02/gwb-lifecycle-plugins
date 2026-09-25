@@ -84,7 +84,7 @@ devkit 没有任何特权：装进 home 才有它的命令，加载不成功就�
 | 建仓 | `src/scaffold.ts` | 同一个文件，直接读写磁盘 | [建仓与加插件](/docs/devkit/scaffold) |
 | 测试 home | `src/home.ts` | `src/node-home-deps.ts` | [测试 home](/docs/devkit/home) |
 | 改一版看一版 | `src/dev.ts` | `src/node-dev-deps.ts` | [改一版看一版](/docs/devkit/dev) |
-| 发正式版 | `src/release.ts`、`src/artifact-check.ts`（内核范围的比对规则从插件管理 import） | `src/node-dev-deps.ts` | [开发套件](/docs/devkit#发正式版的检查) |
+| 发正式版 | `src/release.ts`、`src/artifact-check.ts`（内核范围的比对规则从插件管理 import）、`src/import-scan.ts`（按 JS 词法找产物里的 import） | `src/node-dev-deps.ts` | [开发套件](/docs/devkit#发正式版的检查) |
 | 服务总览 | `src/services.ts` | `src/node-services-deps.ts` | [服务表与类型声明](/docs/seams/service-table) |
 | 进程与端口探测 | `src/probes.ts` | `src/node-probe-deps.ts`（只有 Windows 的 `tasklist` 与 `netstat`） | [测试 home](/docs/devkit/home) |
 | 小工具 | `src/vocab.ts`：`isRecord` 与 `requireKernel`（内核包只导出类型，这两个函数由插件自带） | — | — |

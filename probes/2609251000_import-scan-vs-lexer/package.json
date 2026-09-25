@@ -1,0 +1,13 @@
+{
+  "name": "probe-import-scan-vs-lexer",
+  "private": true,
+  "type": "module",
+  "//dependencies": "es-module-lexer 作对照答案，esbuild 负责压成一行；vitest、shiki、tailwindcss 只作语料（带大量动态 import、正则与模板字面量的真实 ESM）",
+  "dependencies": {
+    "es-module-lexer": "2.3.2",
+    "esbuild": "0.28.2",
+    "shiki": "4.4.3",
+    "tailwindcss": "4.3.3",
+    "vitest": "4.1.11"
+  }
+}

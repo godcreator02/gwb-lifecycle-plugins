@@ -1,0 +1,3 @@
+# 让 pnpm 往上找 workspace 根时停在这里，不并进 gwb-devkit 仓根的 workspace
+allowBuilds:
+  esbuild: true

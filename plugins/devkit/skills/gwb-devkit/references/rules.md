@@ -17,8 +17,9 @@
 | ----------------------- | ------------------------------------- | ------------- |
 | `devkit.release` 的发版前检查 | 构建之后、发第一个包之前                          | 一个包都不发，回执按包列全 |
 | 模板带的产物测试                | 构建之后运行 `pnpm check`（没有 `dist/` 时整组跳过） | 测试红           |
+| 模板带的类名前缀测试              | 每次 `pnpm check`（当场编译样式入口，不用先构建）       | 测试红           |
 
-模板带的产物测试是 `devkit.scaffold` 生成进每个插件的 `tests/artifact.test.ts`。
+模板带的产物测试是 `devkit.scaffold` 生成进每个插件的 `tests/artifact.test.ts`，类名前缀测试是 `tests/prefix.test.ts`。
 
 ## 总表
 
@@ -33,6 +34,7 @@
 | 源码里不指回别的仓：tsconfig `paths` 只有指向包内的 `@/*` 一项，没有 `link:` / `file:` 依赖                                                     | [依赖](/docs/rules/deps)                  | 没有工具检查                                                                                                                                           | —                                                                                                  |
 | node 侧用 tsc 直接输出时，相对 import 带 `.js`                                                                                     | [依赖](/docs/rules/deps)                  | 模板带的产物测试                                                                                                                                         | —                                                                                                  |
 | 带界面的插件，`style.css` 的颜色类只用主题令牌（外壳 `theme.reference.css` 与本插件 `@theme` 声明的 `--color-<名>`），不用 Tailwind 出厂调色板               | [importmap](/docs/rules/importmap)      | 模板带的产物测试                                                                                                                                         | 只查 `text-` / `bg-` / `border-` / `from-` / `via-` / `to-` / `divide-` 开头的类，`ring-`、`fill-` 等别的前缀不查 |
+| 带界面的插件，类名一律带本插件的前缀，前缀排在所有变体前面（`<前缀>:disabled:opacity-50`，不写 `disabled:<前缀>:opacity-50`）                                 | 说明书 `gwb-shell`                         | 模板带的类名前缀测试：没带前缀却编得出规则的类、带了前缀却编不出规则的类都报，前缀排在变体后面的单独报并写出改法                                                                                         | 只查 `src/client` 下 tsx 里的字符串字面量，模板字面量插值里的类名不查                                                       |
 | 留着 `prepublishOnly: pnpm build`，`files` 白名单列全                                                                           | [依赖](/docs/rules/deps)                  | `devkit.release` 照 `files` 验构建产物在不在；`prepublishOnly` 没有工具检查                                                                                      | —                                                                                                  |
 | 浏览器侧只外置页面 importmap 里的名字（react 的四个包名），其余依赖打包进构建产物                                                                       | [importmap](/docs/rules/importmap)      | importmap 写死在内核包的页面入口里，别的包加不进名字；外置了别的名字，`devkit.release` 的浏览器侧检查会拒                                                                               | —                                                                                                  |
 | 外置名单只从内核包页面入口 `dist/index.html` 的 importmap 读，不手抄                                                                       | [importmap](/docs/rules/importmap)      | 没有工具检查；抄了 importmap 里没有的名字，`devkit.release` 的浏览器侧检查会拒                                                                                            | —                                                                                                  |

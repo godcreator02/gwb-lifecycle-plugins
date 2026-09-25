@@ -18,7 +18,7 @@ function plugin(extra: Record<string, unknown> = {}): Record<string, unknown> {
 }
 
 describe('importsOf：产物里的 import 分三种', () => {
-  it('行首的 import / export from、副作用 import、非注释行的 import()：包名、相对、空 import 各归各', () => {
+  it('import / export from、副作用 import、带字面量的 import()：包名、相对、空 import 各归各', () => {
     const code = [
       "import fs from 'node:fs';",
       'import {',
@@ -31,7 +31,9 @@ describe('importsOf：产物里的 import 分三种', () => {
       "import {} from '@godcreator/gwb-commands';",
       "export {} from 'type-only';",
       "const lazy = await import('lazy-lib');",
+      '/**',
       " * 注释里的 import('not-real') 不算",
+      ' */',
       "// import('also-not')",
       "const text = 'import x from \"in-a-string\"';",
       "const url = new URL('./client.js', import.meta.url);",
@@ -42,6 +44,16 @@ describe('importsOf：产物里的 import 分三种', () => {
     expect(got.bare.sort()).toEqual(['@godcreator/gwb-commands', '@godcreator/gwb-shell/sub', 'cordis', 'lazy-lib', 'node:fs', 'type-only'].sort())
     expect(got.relative.sort()).toEqual(['./re.js', './side.js'])
     expect(got.empty.sort()).toEqual(['@godcreator/gwb-commands', 'type-only'])
+  })
+
+  it('压成一行：真实 import 照样分三种，代码生成器字符串里的 import("…") 不算', () => {
+    const code =
+      'import{jsx as e}from"react/jsx-runtime";import"./side.js";import{}from"@godcreator/gwb-commands";' +
+      'function g(t,n){t.write("import("),t.write(JSON.stringify(n)),t.write(")")}const l=await import("lazy-lib");'
+    const got = importsOf(code)
+    expect(got.bare.sort()).toEqual(['@godcreator/gwb-commands', 'lazy-lib', 'react/jsx-runtime'])
+    expect(got.relative).toEqual(['./side.js'])
+    expect(got.empty).toEqual(['@godcreator/gwb-commands'])
   })
 })
 
@@ -170,6 +182,29 @@ describe('artifactProblems', () => {
   it('浏览器侧：内核包的页面入口读不到就报，不猜', () => {
     const got = artifactProblems(PKG, plugin(), true, io({ 'dist/index.js': '', 'dist/client.js': "import React from 'react';\n" }))
     expect(got).toEqual([expect.stringContaining('内核包的页面入口读不到'), expect.stringContaining("import 了 'react'")])
+  })
+
+  it('两侧压成一行的产物：字符串、模板、正则、注释里的伪 import 不拒，真实的动态 import 照样查', () => {
+    const fakeImports = 'const s="import(\\"not-a-package\\")",t=`import("nor-this")`,r=/import\\("nor-regex"\\)/;/* import("nor-comment") */'
+    const got = artifactProblems(
+      PKG,
+      plugin({ peerDependencies: { cordis: '4.0.0-rc.10' } }),
+      true,
+      io({
+        'dist/index.js': `import{Service as S}from"cordis";${fakeImports}const y=await import("yaml");`,
+        'dist/client.js': `import{jsx as e}from"react/jsx-runtime";${fakeImports}const d=await import("dayjs");`,
+        [`node_modules/${KERNEL_PACKAGE}/dist/index.html`]: KERNEL_INDEX_HTML,
+      }),
+    )
+    expect(got).toEqual([
+      expect.stringContaining("node 侧产物 dist/index.js import 了 'yaml'"),
+      expect.stringContaining("浏览器侧产物 dist/client.js import 了 'dayjs'"),
+    ])
+  })
+
+  it('产物按语法读不下去：拒，写明哪个文件、第几行第几列', () => {
+    const got = artifactProblems(PKG, plugin(), true, io({ 'dist/index.js': 'const a="abc\n' }))
+    expect(got).toEqual([expect.stringMatching(/dist\/index\.js.*第 1 行第 9 列.*字符串没有闭合/)])
   })
 
   it('没有浏览器侧（没有 dist/client.js）：不读内核包', () => {

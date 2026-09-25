@@ -1,0 +1,36 @@
+---
+title: 发版前检查按 JS 词法找 import，手写扫描器，不用 esbuild 也不引解析器库
+born-at: 2026-09-25T10:20
+type: choice
+parent: [2026-09-08-gwb-devkit]
+label: 按词法找 import
+domain: 发版
+---
+
+pivots-from:: [发版前检查改查构建产物](2026-09-24-release-checks-artifacts.md)
+
+## 背景
+
+发版前检查找产物里的 import 是按行的正则：顶格的 `import … from` / `export … from` / `import '…'`，加上非注释行里带字面量的 `import('…')`。块笔记 gwb-bn-core 的浏览器侧产物压成一行之后，打包进来的代码生成器里 `t.write("import(")` 和 `t.write(")")` 之间那段文字被当成一条动态 import，包名是 `"),this[e.source.type](e.source,t),t.write("`，拒发。块笔记只好改成不压行发，产物从 2.5 MB 涨到 3.3 MB（块笔记 main `65f2a9b`）。
+
+## 结论与边界
+
+- **按 JS 词法找**：新模块 `src/import-scan.ts` 把产物切成词，跳过字符串、模板字面量的文字段（插值里照常找）、正则字面量与注释，再在词序列里认 `import` / `export`。记三种：顶层的静态 import 与 `export … from`，参数是单个字符串字面量的 `import()`。node 侧与浏览器侧两份产物都用它
+- **语义不变的地方**：参数不是字符串字面量的 `import(x)` 照旧不记；空 import（`import {} from`）照旧单独标出
+- **读不下去就拒**：字符串、模板、正则、块注释没闭合，括号不配对，扫描器抛错，发版前检查把它写成一条拒绝理由，带文件名与行列号。不回退到按行的正则
+- **正则与除号按前一个词区分**：前一个词是值（名字、字面量、`)`、`]`、`}`）时 `/` 是除号，否则是正则；`)` 与 `}` 另记它们配对的开括号——`if (…)` 这类条件的 `)` 之后、语句块的 `}` 之后是正则
+
+## 否掉的候选
+
+- **esbuild 只解析、拿 metafile 的 `imports`**：esbuild 带原生可执行文件，打不进 devkit 的产物，只能写进 `dependencies`；而 devkit 自己的 node 侧产物 import 了 `dependencies` 里的包，会被它自己的发版前检查拒（node 侧只放行内置模块、`electron` 与 peer）。另外 esbuild 的插件接口只有异步的 `build` 能用，`artifactProblems` 是同步的，要改成异步就得动 `release.ts`。借用被发仓自己装的 esbuild 也不行：库、只有 node 侧的插件不一定装了它
+- **es-module-lexer、acorn 这类纯 JS 解析器**：照写插件的规矩，运行时用的库写 dev、打包进产物；devkit 的构建是 tsc 直接输出、没有打包这一步，为一个函数给 devkit 加打包，改的是整个插件的构建与发布方式
+- **在按行正则上再补例外**（跳过字符串里的、跳过正则里的）：压成一行之后「行首」这个锚本身就不成立了——探针里块笔记的产物压行后，旧写法连真实的 `import{…}from"react"` 都一条没找到，因为它们落在行中间
+
+## 代价
+
+- 手写的词法在两处会猜错：`case x: {…}` 与标签 `a: {…}` 的 `}` 之后紧跟正则会被当成除号；名字 `of` / `await` / `yield` 当普通变量用、后面跟除号时会被当成正则。猜错时要么漏掉之后的 import，要么因为括号对不上而拒发（拒发时报的是行列号，不是「词法猜错了」）
+- 词法维护在 devkit 自己手里，JS 语法以后加了新的字面量写法要回来改
+
+## 依据
+
+`probes/2609251000_import-scan-vs-lexer/`：拿 es-module-lexer 2.3.2 当答案，在 vitest、shiki、tailwindcss 及其依赖里 1243 个 ESM 文件上对照，原样一轮、esbuild minify 压成一行再一轮，2753 条 import 两轮都完全一致、扫描器没有抛错；块笔记 gwb-bn-core 的产物压成一行（2.89 MB）后，旧写法只找到那段假包名，新写法与 es-module-lexer 都找到 react 的四个名字，扫描用时 177 ms。不压行的原样产物上新旧写法找到的包名相同。
