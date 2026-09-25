@@ -1,19 +1,25 @@
 ---
-title: home 的两层与唯一写入者
-description: home 里有包与条目两层，list 把两层对上；只有插件管理写 home——包只经 applyToHome，条目只经 loader 的条目树，改动命令经 BUSY 互斥，同一时刻最多一个写 home 的 pnpm
+title: home 的包与条目
+description: home 里有包与条目两层，list 按包名把两层对上、两层都不丢；内核包与 cordis 在清单里但没有条目，不进 list；只有插件管理写 home——包只经 applyToHome 运行 pnpm，条目只经 loader 的条目树
 ---
 
-# home 的两层与唯一写入者
+# home 的包与条目
 
-**本页回答**：home 里的包与条目是什么关系，`list` 怎么把它们对上；为什么只能有一个写入者；包和条目各经哪条路改；两个改动同时来时怎么办。
+**本页回答**：home 里的包与条目是什么关系、`list` 怎么把两层对上；为什么只能由插件管理一个写 home、包和条目各经哪条路改。同一时刻只让一个改动写 home，见[同一时刻只允许一个改动](/docs/plugin-manager/busy)。
 
 ## 包与条目两层
 
-home 里的插件分两层：**包**是 pnpm 装进 `package.json` 与 `node_modules` 的 npm 包；**条目**是 `cordis.yml` 里的一行，指向一个包，loader 按条目加载插件。一个包可以有好几条条目，各是一个实例、各存各的数据。插件管理自己、命令插件也各是 `cordis.yml` 里的一条条目，一样出现在 `list` 里。内核包与 `cordis` 也在 home 的 `package.json` 里，但没有条目（内核包经 `update` 的 `specs` 换、`cordis` 由插件管理照内核包对齐），`list` 不列它们：列出来就是两个「装了包、没有条目」的包，看着像该卸掉的，而卸掉之后 home 就启动不了。
+**包**是 pnpm 装进 home 的 `package.json` 与 `node_modules` 的 npm 包；**条目**是 `cordis.yml` 里的一项，指向一个包，loader 按条目加载插件。一个包可以有好几条条目，各是一个实例、各存各的数据。插件管理自己、命令插件也各是一条条目，一样出现在 `list` 里。
 
-**为什么分两层**：装包是 pnpm 的事，加载是 loader 的事，pnpm 和 loader 各有自己的清单。只装包、不加条目，插件不会运行；条目指向的包被删了，条目还在。插件管理的工作就是让两层对应上，并且如实报告对不上的地方。
+两层各有各的清单：装包是 pnpm 的事，加载是 loader 的事。只装包、不加条目，插件不会运行；条目指向的包被删了，条目还在。插件管理让两层对得上，并如实报告对不上的地方。
 
-**怎么做**：`list` 读 home 的 `package.json` 和条目树，按包名对照，两层都不丢；再给每个包读它自己的 `package.json`，带上它 peer 里内核包的范围包不包含运行中的内核（见[内核兼容性](/docs/plugin-manager/kernel-compat)）、peer 里别的插件满没满足（见[peer 满没满足](/docs/plugin-manager/peers)）：
+内核包 `@godcreator/gwb-kernel-desktop` 与 `cordis` 也在 home 的 `package.json` 里，但没有条目，`list` 不列它们：列出来就是两个「装了包、没有条目」的包，看着像该卸掉的，而卸掉之后 home 就启动不了。它们怎么换见[升内核](/docs/plugin-manager/kernel-upgrade)。
+
+{/* ref file="../plugins/plugin-manager/src/kernel-upgrade.ts" lines="9-10" */}
+
+## list 怎么对照
+
+`list` 读 home 的 `package.json` 的 dependencies 和条目树，按包名对照，两层都不丢；再给每个包读它装在 `node_modules` 里的 `package.json`，加上内核兼容（见[内核兼容性](/docs/plugin-manager/kernel-compat)）与 peer 满没满足（见[peer 满没满足](/docs/plugin-manager/peers)）两组字段：
 
 <Diagram name="pm-list" title="list 把 package.json 与 cordis.yml 两层对上，两层都不丢">
 - 左边是 home 的 `package.json` 里的依赖，中间是 `cordis.yml` 的条目，右边是 `list` 按包名排好的结果
@@ -22,15 +28,13 @@ home 里的插件分两层：**包**是 pnpm 装进 `package.json` 与 `node_mod
 - 每条条目带 `active`：看的是 fiber 的状态是不是 `ACTIVE`，不是 fiber 在不在——依赖没满足的插件也有 fiber，只是永远到不了 `ACTIVE`
 </Diagram>
 
-{/* ref file="../plugins/plugin-manager/src/inventory.ts" lines="86-103" */}
-
 {/* ref file="../plugins/plugin-manager/src/index.ts" lines="348-358" */}
 
-home 的 `package.json` 读不了、不是 JSON、`dependencies` 或其中某一格的形状不对，一律抛错，报错里带清单的路径；没写 `dependencies` 算空表。
+{/* ref file="../plugins/plugin-manager/src/inventory.ts" lines="86-103" */}
+
+条目来自可以手工改的 `cordis.yml`，形状不对的那一项跳过，不让整棵树读不出来。home 的 `package.json` 反过来：读不了、不是 JSON、`dependencies` 或其中某一项形状不对，一律抛错并带上清单路径——那是 home 坏了；没写 `dependencies` 算空表。
 
 {/* ref file="../plugins/plugin-manager/src/home.ts" lines="26-30" */}
-
-**守住它的测试**：
 
 {/* has file="../plugins/plugin-manager/tests/inventory.test.ts" text="装了包但一条条目都没有" */}
 
@@ -38,71 +42,44 @@ home 的 `package.json` 读不了、不是 JSON、`dependencies` 或其中某一
 
 {/* has file="../plugins/plugin-manager/tests/inventory.test.ts" text="是否加载成功看的是 fiber 的状态" */}
 
+{/* has file="../plugins/plugin-manager/tests/inventory.test.ts" text="形状对不上的那格跳过" */}
+
 {/* has file="../plugins/plugin-manager/tests/home.test.ts" text="清单不在、不是合法 JSON：抛错，报错里有清单路径" */}
 
-{/* has file="../plugins/plugin-manager/tests/commands.test.ts" text="包与条目两层对上，带 peer 里内核包的范围与没满足的别的 peer；条目指向没装的包报 installed: false" */}
+{/* has file="../plugins/plugin-manager/tests/commands.test.ts" text="home 的 dependencies 里的内核包与 cordis 不列出来" */}
 
 ## 只有插件管理写 home
 
 改这两层的只有插件管理，而且各只有一条路：**包只经 `applyToHome` 运行 pnpm，条目只经 loader 的条目树**。
 
-**为什么**：两层都不是「写一下文件」那么简单。pnpm 每次都读、改、写 `package.json` 与锁文件，两个同时运行会丢改动，而且都退出码 0（实测见下一节）；`cordis.yml` 的内容在 loader 的内存里也有一份，直接写文件，内存里的条目不知道，下一次写回就把磁盘上的改动覆盖掉。只有一个写入者、一条路，这两类覆盖才都不会发生。
+两层都不是「写一下文件」那么简单。pnpm 每次都读、改、写 `package.json` 与锁文件，两个同时运行会丢改动，而且都退出码 0；`cordis.yml` 的内容在 loader 的内存里也有一份，直接写文件，内存里的条目不知道，下一次写回就把磁盘上的改动覆盖掉。只有一个写入者、一条路，这两类覆盖才都不会发生。
 
-`devkit.dev` 往隔离 home 装开发版也走这条路：它把包文件放进目标 home 的 `dev-packs\`，再在目标页面里调 `plugin-manager.update {"specs":…}`（已装的包）或 `plugin-manager.install`（新插件），见[改一版看一版](/docs/devkit/dev)。唯一的例外是 `devkit.home.new`：新 home 启动之前插件管理还没装、也没在运行，内核包、cordis 与基础插件只能由它直接用 pnpm 装进去。一个隔离 home 同一时间只给一个会话用，名字各起各的，这条靠约定，不加锁（[隔离 home 靠约定](/trajectory/2026-09-25-isolated-home-by-convention)）。
+`devkit.dev` 往隔离 home 装开发版也走这条路：包文件放进目标 home 的 `dev-packs/`，再调目标 home 的 `plugin-manager.update {"specs":…}`（已装的包）或 `plugin-manager.install`（新插件），见接缝页 [devkit 调插件管理](/docs/seams/plugin-manager-calls)。唯一的例外是 `devkit.home.new`：新 home 启动之前插件管理还没装、也没在运行，内核包、`cordis` 与基础插件只能由它直接用 pnpm 装进去。
 
 ### 包：只经 applyToHome
 
-**怎么做**：安装、卸载、升级（包括换内核包）都经 `applyToHome` 运行 pnpm，直接启动，不排队。会写 home 的 pnpm 只在这里运行，调用它的四条命令都经过 BUSY 检查（见下面「同一时刻只允许一个改动」），所以插件管理在同一个 home 里同一时刻最多只有一个写 home 的 pnpm。只读的 `pnpm outdated --json` 不经过 `applyToHome`，也不经过 BUSY。
+安装、卸载、升级（包括换内核包）都经 `applyToHome` 运行 pnpm：`add` 一律带 `--save-exact`，home 的清单写精确版本号；`remove` 只删点名的那一个。调用它的四条命令都经过 BUSY 检查，所以插件管理在同一个 home 里同一时刻最多一个写 home 的 pnpm。只读的 `pnpm outdated --json` 不经过这里，也不经过 BUSY。
 
 {/* ref file="../plugins/plugin-manager/src/index.ts" lines="761-768" */}
 
-**实测**：在和真 home 布局相同的临时 home 里，`pnpm add x` 与 `pnpm add y` 同时运行 5 轮，每轮清单与锁文件都只剩一个包；`pnpm add` 与 `pnpm remove` 同时运行 5 轮，每轮添加的那个包都丢了。两个 pnpm 都退出码 0、没有警告，丢掉的包还留在 `node_modules` 里。`pnpm outdated --json` 不写文件，和 `pnpm add` 同时运行 5 轮，`add` 的结果都对。所以写 home 的 pnpm 必须互斥，`outdated` 不必（[两个 pnpm 同时改同一个 home](/trajectory/2026-09-25-concurrent-pnpm-loses-writes)）。
+为什么清单一律写精确版本号：清单里一项写成 `^` 之后，下次按点名的版本号装，pnpm 12 照样沿用 `^`、可能装上范围里更新的预发布版（devkit 仓 `probes/2609241510_pnpm-add-exact-prefix/`；取舍见轨迹卡[升内核并进 specs](/trajectory/2026-09-25-kernel-via-specs-caller-reloads)）。
 
 ### 条目：只经 loader 的条目树
 
-**怎么做**：条目的增删改只用条目树的 `create` / `update` / `remove`——它们把写回 `cordis.yml` 与当场加载、卸载一起做。启用传 `{ disabled: null }`（loader 把 null 当作删掉这个字段），停用传 `{ disabled: true }`；`remove-entry` 只删条目，包留在 home 里。
+条目的增删改只用条目树的 `create` / `update` / `remove`——它们把写回 `cordis.yml` 与当场加载、卸载一起做。启用传 `{ disabled: null }`（loader 把 `null` 当作删掉这个字段），停用传 `{ disabled: true }`；`remove-entry` 只删条目，包留在 home 里。entryId 写完整的（`home:hello`）或只写 id（`hello`）都认，条目树只认末段。
 
-{/* ref file="../plugins/plugin-manager/src/index.ts" lines="689-706" */}
+{/* ref file="../plugins/plugin-manager/src/index.ts" lines="689-715" */}
 
-条目树在构造时从插件管理自己那条条目的上一层取（`ctx.fiber.entry.parent.tree`），不用知道承载 `cordis.yml` 的那条条目叫什么。按 loader 自己的类型 `EntryTree` 取，再赋给收窄后的 `EntryTreeLike`：loader 改了这几个方法的签名，类型检查就在这里失败。
+条目树在构造时从插件管理自己那条条目的上一层取（`ctx.fiber.entry.parent.tree`），不用知道承载 `cordis.yml` 的那条条目叫什么。按 loader 自己的类型 `EntryTree` 取、再赋给收窄后的 `EntryTreeLike`：loader 改了这几个方法的签名，类型检查就在这里失败。loader 这一侧的约定见接缝页[条目树 loader](/docs/seams/entry-tree)。
 
 {/* ref file="../plugins/plugin-manager/src/tree.ts" lines="6-19" */}
 
 {/* ref file="../plugins/plugin-manager/src/tree.ts" lines="28-33" */}
 
-**守住它的测试**：用 `devDependencies` 里固定版本的 loader 与 include 搭一个和内核相同的环境，把条目树的用法运行一遍。这几个版本要和 peer 里内核包范围下限那个内核用的一致（见[内核兼容性](/docs/plugin-manager/kernel-compat)）。
-
-{/* has file="../plugins/plugin-manager/tests/loader.test.ts" text="从插件自己的上下文取到条目树与自己的 entryId" */}
+{/* has file="../plugins/plugin-manager/tests/commands.test.ts" text="remove-entry、enable、disable：完整 entryId 与不带前缀的 id 都认；没有这条就抛错" */}
 
 {/* has file="../plugins/plugin-manager/tests/loader.test.ts" text="改的是内存里的条目，也写回 cordis.yml" */}
 
 <Note>
 **别直接写 cordis.yml**：绕过条目树改文件，内存里的条目不知道，改动要等下次重启才生效，而且中间任何一次写回都会用内存里的旧内容把它覆盖掉。
 </Note>
-
-### 同一时刻只允许一个改动：BUSY
-
-**为什么**：两个写 home 的 pnpm 同时运行会丢改动（见上面「包：只经 applyToHome」）；而且一次安装、一次热升级不止一次 pnpm，还要改条目树、重新加载插件，中间插进另一个改动，状态就乱了。
-
-**怎么做**：`install`、`uninstall`、`update`、`remount` 四条命令在最外层先经过一道互斥检查。已经有一个在运行时，重入的直接返回 `{ ok: false, error: "BUSY…" }`，不排队——排队会让界面看起来点了没反应。一个内核进程只服务一个 home，所以进程内的一个标志就够了；运行中抛错也会释放。插件管理对外只有命令（见[对外只有命令](/docs/plugin-manager/commands)），没有绕开这道检查的调用方式。
-
-{/* ref file="../plugins/plugin-manager/src/busy.ts" lines="1-17" */}
-
-**守住它的测试**：
-
-{/* has file="../plugins/plugin-manager/tests/busy.test.ts" text="有改动在运行时重入回 BUSY，不执行" */}
-
-{/* has file="../plugins/plugin-manager/tests/busy.test.ts" text="执行中抛错也释放标志，下一次能执行" */}
-
-<Diagram name="pm-busy" title="改动命令经过 BUSY 检查，同一时刻最多一个写 home 的 pnpm；只读的 outdated 不经过 BUSY">
-- 命令 A（`install`）通过 BUSY 检查、设上标志，它的 `pnpm add` 开始运行、写 home
-- 命令 B（`uninstall`）进来时标志还设着，不排队，马上得到 `{ ok: false, error: "BUSY…" }`
-- 命令 C（`outdated`）只读，不经过 BUSY，它的 `pnpm outdated` 和 A 的 `pnpm add` 同时运行，不写文件，不影响 A
-- A 返回回执时释放标志（抛错也会释放），再来的改动命令又能通过
-</Diagram>
-
-**已知边界**：BUSY 管不到下面三处，为什么不另外加检查见[删掉 pnpm 串行队列、只留 BUSY](/trajectory/2026-09-25-drop-pnpm-queue-keep-busy)。
-
-- `add-entry`、`remove-entry`、`enable`、`disable`、`transfer-owner` 五条命令不经过 BUSY：`update` 正在重新加载某条条目时，别人可以同时停用或删掉它
-- `update` 或 `remount` 重新加载插件管理自己时，先发回执、释放 BUSY，下一个宏任务才重新加载：这中间进来的改动命令能通过检查，可能运行到一半插件管理就被停用；重新加载出来的新实例 BUSY 标志是新的，不知道旧实例里还有没有命令在运行
-- 管不到插件管理进程外的 pnpm：`devkit.home.new`（新 home 启动之前）、人在终端里手工运行的 pnpm，和插件管理的改动同时写同一个 home 时照样会丢改动
