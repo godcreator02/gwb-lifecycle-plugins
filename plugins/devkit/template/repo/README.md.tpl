@@ -10,16 +10,21 @@
 
 ## 插件包的结构（`plugins/{{name}}/`，配置都在包内）
 
-- **node 侧**（`src/index.ts`）：`apply` 里注册一个窗格、登记一条 `{{name}}.ping` 命令。命令总线、外壳与内核包的接口类型都只 `import type`，
-  构建产物里没有包名 import。peer 里写运行时从 home 里得到的三个包：内核包 `@godcreator/gwb-kernel-desktop`（范围 `^<版本号>`
+- **node 侧**（`src/index.ts`）：`apply` 里注册一个窗格、登记一条 `{{name}}.ping` 命令，esbuild 打成一个 `dist/index.js`，
+  用到的库打包进去。命令总线、外壳与内核包的接口类型都只 `import type`。peer 里写运行时从 home 里得到的三个包：内核包 `@godcreator/gwb-kernel-desktop`（范围 `^<版本号>`
   声明这个插件兼容哪些内核）、命令总线 `@godcreator/gwb-commands` 与外壳 `@godcreator/gwb-shell`，三个范围的下限都是建仓时
   那个 home 里的版本；以后用到别的插件也写进 peer：写在顶层 `inject` 里的写普通 peer，只在 `ctx.inject([...], cb)` 里用的
   在 `peerDependenciesMeta` 标 `optional: true`，都不另写 dev；`cordis` 只写 devDependencies（给本地构建与类型检查）；
 - **浏览器侧**（`src/client/`）：窗格里显示「你好」和一个计数按钮。类名一律以 `{{cssPrefix}}:` 开头，样式只作用于本插件
   （cssPrefix 是短名去掉非小写字母，Tailwind 的 prefix 只收 a-z）；react 由页面的 importmap 提供（提供方是内核包），构建时不打包；
 - **自述**（`package.json` 的 description）：一句话说这个插件做什么；
-- **两份测试**：类名前缀、构建产物（node 侧的包名 import 只有 node 内置模块、`electron` 与 peer 里写了的包，浏览器侧只有内核包页面 importmap 里的名字，也就是 react 的四个包名）；
-- tsconfig / vitest / oxlint 配置全在包内——这个包以后搬到别的仓，配置不用改。
+- **测试**：`tests/` 放自己的逻辑测试，模板不带。构建产物的包名 import、类名前缀、颜色只用主题令牌这些检查由 devkit 做：
+  `devkit.dev` 构建之后查，`devkit.release` 发之前查；
+- tsconfig / oxlint 配置全在包内——这个包以后搬到别的仓，配置不用改。
+
+不要界面的插件，删掉 `src/client/`、`build.ts` 里浏览器侧那段、`build` 脚本里的 `tailwindcss` 一步与 `typecheck` 里浏览器侧那一步、
+`src/index.ts` 里注册窗格那几行与 `inject` 里的 `gwbShell`，peer 里删外壳，dev 里删 `@tailwindcss/cli`、`tailwindcss`、`tw-animate-css`、
+`react`、`react-dom` 与两个 `@types/react*`。
 
 改成真插件：把窗格与 ping 换成你的东西，description 换成一句话说它做什么。
 要提供扩展点服务就继承 cordis 的 `Service`：构建产物里有了按值 import 的 `cordis`，peer 里加上 `cordis`（别的包仍写 dev）。
@@ -31,8 +36,8 @@
 
 ```powershell
 pnpm install
-pnpm build          # 递归构建 plugins/*：pnpm -r --filter "./plugins/*"（tsc、esbuild、tailwindcss 三步）
-pnpm check          # 递归检查：typecheck（node 侧 + 浏览器侧）+ oxlint + vitest；产物测试读 dist/，没构建时整组跳过，所以先 build
+pnpm build          # 递归构建 plugins/*：pnpm -r --filter "./plugins/*"（esbuild 打两侧、tsc 出类型声明、tailwindcss 出样式）
+pnpm check          # 递归检查：typecheck（node 侧 + 浏览器侧）+ oxlint + vitest
 ```
 
 ## 验收

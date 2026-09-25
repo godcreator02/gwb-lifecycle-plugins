@@ -26,8 +26,7 @@
     "typecheck": "tsc --noEmit -p tsconfig.json",
     "lint": "oxlint . --deny-warnings",
     "test": "vitest run",
-    "check": "pnpm run typecheck && pnpm run lint && pnpm run test",
-    "prepublishOnly": "pnpm build"
+    "check": "pnpm run typecheck && pnpm run lint && pnpm run test"
   },
   "peerDependencies": {
     "@godcreator/gwb-kernel-desktop": "^0.7.0",
@@ -53,7 +52,6 @@
     "url": "https://git.tianshen02.online:28377/godcreator/gwb-devkit.git"
   },
   "keywords": [
-    "gwb",
     "gwb-plugin"
   ]
 }

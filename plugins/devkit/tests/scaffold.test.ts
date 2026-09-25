@@ -287,11 +287,8 @@ describe('包内 template/：两部分', () => {
       'plugins/hello/src/client/styles.css',
       'plugins/hello/src/client/tsconfig.json',
       'plugins/hello/src/index.ts',
-      'plugins/hello/tests/artifact.test.ts',
-      'plugins/hello/tests/prefix.test.ts',
       'plugins/hello/tsconfig.build.json',
       'plugins/hello/tsconfig.json',
-      'plugins/hello/vitest.config.ts',
       'pnpm-workspace.yaml',
     ])
     const shell = JSON.parse(files.find((f) => f.rel === 'package.json')?.text ?? '') as {
@@ -310,8 +307,8 @@ describe('包内 template/：两部分', () => {
       scripts: Record<string, string>
     }
     expect(pkg.name).toBe('@godcreator/gwb-hello')
-    // 红线六：漏了 prepublishOnly，publish 会把上一版的 dist/ 原样发出去而且一声不吭
-    expect(pkg.scripts.prepublishOnly).toBeDefined()
+    // 发版只走 devkit.release，它自己先构建；没有手工 pnpm publish 这条路，也就不要 prepublishOnly
+    expect(pkg.scripts.prepublishOnly).toBeUndefined()
     expect(pkg.scripts.check).toBeDefined()
     const entry = files.find((f) => f.rel === 'plugins/hello/src/index.ts')?.text ?? ''
     expect(entry).toContain("export const name = 'gwb-hello'")
@@ -417,25 +414,34 @@ describe('包内 template/：两部分', () => {
     expect(imports).toContain('@godcreator/gwb-shell/theme.reference.css')
   })
 
-  it('生成的产物测试：node 侧只放行内置模块、electron 与自己 peer 里的包；浏览器侧只放行内核包页面 importmap 的名字', () => {
+  it('模板不带测试文件：产物与样式的检查由 devkit.dev / devkit.release 做，复制进各仓的副本不会跟着更新', () => {
     const files = renderTemplate(TEMPLATE_ROOT, planScaffold({ name: 'hello', dir: 'D:\\tmp\\x', peerVersions: PEERS }))
-    const artifactTest = files.find((f) => f.rel === 'plugins/hello/tests/artifact.test.ts')?.text ?? ''
-    expect(artifactTest).toContain("spec !== 'electron' && !ownPeers.has(packageNameOf(spec))")
-    expect(artifactTest).toContain("ownManifest['peerDependencies']")
-    expect(artifactTest).toContain('builtinModules.includes(spec)')
-    expect(artifactTest).not.toContain('gwb-plugin-api')
-    expect(artifactTest).toContain("resolve('@godcreator/gwb-kernel-desktop/package.json')")
-    expect(artifactTest).toContain('bareImportsOf([CLIENT])')
+    expect(files.filter((f) => f.rel.includes('/tests/'))).toEqual([])
+    const manifest = JSON.parse(files.find((f) => f.rel === 'plugins/hello/package.json')?.text ?? '') as { devDependencies: Record<string, string> }
+    expect(manifest.devDependencies['@tailwindcss/node']).toBeUndefined()
   })
 
-  it('生成的产物测试查颜色类只用主题令牌：色名从外壳的 theme.reference.css 与本插件样式入口读，不手抄名单', () => {
+  it('node 侧也用 esbuild 打成一个文件：外置 peer、electron 与 cordis，tsc 只出类型声明', () => {
     const files = renderTemplate(TEMPLATE_ROOT, planScaffold({ name: 'hello', dir: 'D:\\tmp\\x', peerVersions: PEERS }))
-    const artifactTest = files.find((f) => f.rel === 'plugins/hello/tests/artifact.test.ts')?.text ?? ''
-    expect(artifactTest).toContain("resolve('@godcreator/gwb-shell/theme.reference.css')")
-    expect(artifactTest).toContain("path.resolve(here, '../src/client/styles.css')")
-    expect(artifactTest).toContain('paletteColorSelectors(')
-    // 令牌色名一个都不许以字面量出现：名单只从外壳读
-    for (const token of ['muted-foreground', 'primary-foreground', 'destructive']) expect(artifactTest).not.toContain(`'${token}'`)
+    const text = (rel: string): string => files.find((f) => f.rel === rel)?.text ?? ''
+    const buildScript = text('plugins/hello/build.ts')
+    expect(buildScript).toContain("entryPoints: ['src/index.ts']")
+    expect(buildScript).toContain('external: nodeSideExternals()')
+    expect(buildScript).toContain("['electron', 'cordis', ...peers]")
+    const buildConfig = JSON.parse(text('plugins/hello/tsconfig.build.json')) as { compilerOptions: Record<string, unknown> }
+    expect(buildConfig.compilerOptions['emitDeclarationOnly']).toBe(true)
+    // 关掉 verbatimModuleSyntax，esbuild 才会去掉只引类型的 import，不需要「只写 import type」这条规矩
+    for (const rel of ['plugins/hello/tsconfig.json', 'plugins/hello/src/client/tsconfig.json']) expect(text(rel), rel).not.toContain('verbatimModuleSyntax')
+  })
+
+  it('生成的清单只写有人读的字段：keywords 只有 gwb-plugin，files 只有 dist，exports 只有 "."，没有 author 与 engines', () => {
+    const files = renderTemplate(TEMPLATE_ROOT, planScaffold({ name: 'hello', dir: 'D:\\tmp\\x', peerVersions: PEERS }))
+    const manifest = JSON.parse(files.find((f) => f.rel === 'plugins/hello/package.json')?.text ?? '') as Record<string, unknown>
+    expect(manifest['keywords']).toEqual(['gwb-plugin'])
+    expect(manifest['files']).toEqual(['dist'])
+    expect(Object.keys(manifest['exports'] as Record<string, unknown>)).toEqual(['.'])
+    expect(manifest).not.toHaveProperty('author')
+    expect(manifest).not.toHaveProperty('engines')
   })
 
   it('生成的清单：description 是一句话，不带服务 / skill / 命令计数；dev 里没有已退役的 gwb-repo-kit', () => {
@@ -447,14 +453,13 @@ describe('包内 template/：两部分', () => {
     for (const file of files) expect(file.text, file.rel).not.toContain('gwb-repo-kit')
   })
 
-  it('生成的插件包：清单里没有 gwb 字段；测试不分快慢标签（没有 test:all、不带 --tags-filter，vitest 配置里没有 tags）；oxlint 不替仓根忽略 docs-site 与 .claude', () => {
+  it('生成的插件包：清单里没有 gwb 字段；测试不分快慢标签（没有 test:all、不带 --tags-filter）；oxlint 不替仓根忽略 docs-site 与 .claude', () => {
     const files = renderPlugin(TEMPLATE_ROOT, planScaffoldPlugin({ name: 'world', repo: fakeWorkspace(), peerVersions: PEERS }))
     const text = (rel: string): string => files.find((f) => f.rel === rel)?.text ?? ''
     const manifest = JSON.parse(text('package.json')) as { gwb?: unknown; scripts: Record<string, string> }
     expect(manifest.gwb).toBeUndefined()
     expect(manifest.scripts['test:all']).toBeUndefined()
     expect(manifest.scripts['test']).not.toContain('--tags-filter')
-    expect(text('vitest.config.ts')).not.toContain('tags')
     const ignored = (JSON.parse(text('.oxlintrc.json')) as { ignorePatterns: string[] }).ignorePatterns
     expect(ignored).not.toContain('docs-site/**')
     expect(ignored).not.toContain('.claude/**')

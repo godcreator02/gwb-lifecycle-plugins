@@ -1,6 +1,6 @@
 {
   "name": "@godcreator/gwb-devkit",
-  "version": "0.23.2",
+  "version": "0.23.3",
   "author": {
     "name": "godcreator"
   },
@@ -25,8 +25,7 @@
     "build": "node build.ts && tsc -p tsconfig.json --emitDeclarationOnly",
     "typecheck": "tsc --noEmit -p tsconfig.json",
     "test": "vitest run",
-    "check": "pnpm run typecheck && pnpm run test",
-    "prepublishOnly": "pnpm build"
+    "check": "pnpm run typecheck && pnpm run test"
   },
   "peerDependencies": {
     "@godcreator/gwb-kernel-desktop": "^0.7.0",
@@ -55,7 +54,6 @@
     "url": "https://git.tianshen02.online:28377/godcreator/gwb-devkit.git"
   },
   "keywords": [
-    "gwb",
     "gwb-plugin"
   ]
 }

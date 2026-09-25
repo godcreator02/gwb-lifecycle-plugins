@@ -26,7 +26,7 @@ const STEPS: { title: string; detail: string; lit: Part[]; flows: Flow[]; back?:
     detail: '页面上的 file:// 地址带着 home 路径。目标是 default、或者就是开发套件自己所在的 home，直接拒：替换插件的工具不能运行在被替换的进程里。',
     lit: ['ask'], flows: ['dev-ask'],
   },
-  { title: '第 2 步：仓根 pnpm build', detail: '在仓根构建，不在包目录：同仓的包常常用着另一个包的产物，只构建被装的那个，装进去的就是新插件配旧库。', lit: ['build'], flows: ['dev-build'] },
+  { title: '第 2 步：仓根 pnpm build', detail: '在仓根构建，不在包目录：同仓的包常常用着另一个包的产物，只构建被装的那个，装进去的就是新插件配旧库。构建之后带界面的插件过样式检查（类名前缀、颜色只用主题令牌），没过就停，一个都不装。', lit: ['build'], flows: ['dev-build'] },
   {
     title: '第 3 步：打包进目标 home',
     detail: '只收插件与内核包，库直接拒。版本号是 <patch+1>-dev.<yyyyMMddHHmmss>，pnpm pack 到目标 home 的 dev-packs 目录。包文件路径每版不同，已存在就拒；旧的包文件不删，home 清单还引用着它们。',

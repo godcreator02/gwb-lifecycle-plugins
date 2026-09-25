@@ -8,7 +8,7 @@
     "types": [],
     "strict": true,
     "noUncheckedIndexedAccess": true,
-    "verbatimModuleSyntax": true,
+    "isolatedModules": true,
     "skipLibCheck": true,
     "noEmit": true
   },

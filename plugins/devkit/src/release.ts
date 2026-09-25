@@ -2,6 +2,7 @@ import path from 'node:path'
 import { BUILD_TIMEOUT_MS, PLUGIN_KEYWORD, literalArtifacts, pnpmPlan, type RunPlan, type RunResult } from './dev.js'
 import { KERNEL_PACKAGE, isCaretRange } from '@godcreator/gwb-plugin-manager'
 import { artifactProblems } from './artifact-check.js'
+import { styleProblems, type StyleCheckIo } from './style-check.js'
 import { isRecord, packageManifestOf, parseHttpUrl, TEAM_REGISTRY } from './vocab.js'
 
 /** git 工作区的状态。`dirty` 里是 porcelain 条目原文（两列状态加路径） */
@@ -25,6 +26,8 @@ export interface ReleaseDeps {
   gitStatus(repoDir: string): Promise<GitStatus>
   readText(file: string): string | undefined
   exists(target: string): boolean
+  filesUnder: StyleCheckIo['filesUnder']
+  tailwindOf: StyleCheckIo['tailwindOf']
   /** pnpm 的可执行文件：命令开头 `locatePnpm` 找到并核对过版本的那个 */
   pnpm: string
 }
@@ -127,24 +130,17 @@ export function publishTargetOf(doc: Record<string, unknown>): { ok: true; regis
   return { ok: true, registry }
 }
 
-/** 包清单是不是一个插件：keywords 含 `gwb-plugin`，或者是 cordis 官方插件（keywords 同时含 `cordis` 与 `plugin`，如 `@cordisjs/plugin-timer`） */
+/** 包清单是不是一个插件：keywords 含 `gwb-plugin` */
 export function isPluginManifest(manifest: unknown): boolean {
-  if (!isRecord(manifest) || !Array.isArray(manifest['keywords'])) return false
-  const keywords = manifest['keywords']
-  return keywords.includes('gwb-plugin') || (keywords.includes('cordis') && keywords.includes('plugin'))
-}
-
-/** 包清单是不是一个 gwb 插件：keywords 含 `gwb-plugin`。cordis 官方插件不算 */
-function isGwbPluginManifest(manifest: unknown): boolean {
   return isRecord(manifest) && Array.isArray(manifest['keywords']) && manifest['keywords'].includes(PLUGIN_KEYWORD)
 }
 
-/** peer 里要和源上 latest 比同一条线的那些：cordis、内核包、`workspace:` 以外，包目录 node_modules 里的清单是 gwb 插件的，不分范围 */
+/** peer 里要和源上 latest 比同一条线的那些：cordis、内核包、`workspace:` 以外，包目录 node_modules 里的清单是插件的，不分范围 */
 function gwbPluginPeersOf(manifest: TicketManifest, peerManifestOf: (pkg: string) => unknown): Set<string> {
   const peers = new Set<string>()
   for (const [pkg, range] of Object.entries(manifest.peers)) {
     if (pkg === 'cordis' || pkg === KERNEL_PACKAGE || range.startsWith('workspace:')) continue
-    if (isGwbPluginManifest(peerManifestOf(pkg))) peers.add(pkg)
+    if (isPluginManifest(peerManifestOf(pkg))) peers.add(pkg)
   }
   return peers
 }
@@ -219,7 +215,7 @@ export function peerProblems(manifest: TicketManifest, peerManifestOf: (pkg: str
       problems.push(`peer 写了 ${pkg},包目录的 node_modules 里读不到它的清单:先在仓根 pnpm install,不猜它是不是插件`)
     } else if (!isPluginManifest(peerManifest)) {
       problems.push(
-        `peer 写了 ${pkg},它不是插件(keywords 里没有 gwb-plugin,也不是 cordis 官方插件):peer 只写运行时从 home 里得到的东西——cordis、内核包 ${KERNEL_PACKAGE}、用到的别的插件。` +
+        `peer 写了 ${pkg},它不是插件(keywords 里没有 gwb-plugin):peer 只写运行时从 home 里得到的东西——cordis、内核包 ${KERNEL_PACKAGE}、用到的别的插件。` +
           `库、接口定义包、importmap 里的包、构建时才用的包写 devDependencies、打包进产物;` +
           `打包不进产物的自用库(原生可执行文件、运行时按路径读自己文件的包)写 dependencies,并在清单里写明原因`,
       )
@@ -316,13 +312,14 @@ async function latestOfUpstreams(planned: PlannedPackage[], deps: ReleaseDeps): 
   return latest
 }
 
-function ticketFor(plannedPackage: PlannedPackage, latest: Record<string, string | undefined>, deps: ReleaseDeps): Ticket {
+async function ticketFor(plannedPackage: PlannedPackage, latest: Record<string, string | undefined>, deps: ReleaseDeps): Promise<Ticket> {
   const { pkgDir, manifest, gwbPluginPeers, peerManifestOf } = plannedPackage
   const problems = [
     ...peerLineProblems(manifest, latest, gwbPluginPeers),
     ...peerProblems(manifest, peerManifestOf),
     ...kernelPeerProblems(manifest),
     ...artifactProblems(pkgDir, manifest.doc, manifest.plugin, deps),
+    ...(await styleProblems(pkgDir, manifest, deps)),
   ]
   return { pkg: `${manifest.name}@${manifest.version}`, problems }
 }
@@ -353,7 +350,8 @@ export async function runRelease(input: ReleaseInput, deps: ReleaseDeps): Promis
   if ('ok' in plan) return plan
 
   const latest = await latestOfUpstreams(plan.planned, deps)
-  const tickets = plan.planned.map((plannedPackage) => ticketFor(plannedPackage, latest, deps))
+  const tickets: Ticket[] = []
+  for (const plannedPackage of plan.planned) tickets.push(await ticketFor(plannedPackage, latest, deps))
   if (tickets.some((ticket) => ticket.problems.length > 0)) return { ok: false, error: ticketRefusal(tickets) }
 
   const shipped = await publishInOrder(plan.planned, plan.ranges, deps)

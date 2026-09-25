@@ -89,9 +89,7 @@ pnpm build          # 只构建 plugins/*，两个包都先清空 dist/：开发
 
 发完升级 `default` 时，升到插件管理自己，它的条目在回执发出之后才重新加载（回执 `selfDeferred: true`），过一会儿再用 `plugin-manager.list` 核对它 `active`。
 
-开发套件的 `package.json` 留着 `prepublishOnly`：手工发版（`gwb-release` 的「手工发版」）靠它先构建，删了会把上一版的 `dist/` 原样发出去而且不报错。
-
-{/* has file="../plugins/devkit/package.json" text="prepublishOnly" */}
+发版只走 `devkit.release`，它自己先在仓根构建；两个包的 `package.json` 都不写 `prepublishOnly`，不手工 `pnpm publish`。
 
 **开发套件的 `files` 白名单五项，一项都不能少**：
 

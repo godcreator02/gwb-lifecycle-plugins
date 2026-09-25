@@ -17,8 +17,8 @@ function plugin(extra: Record<string, unknown> = {}): Record<string, unknown> {
   return { name: '@godcreator/gwb-fake', version: '0.1.0', exports: EXPORTS, keywords: ['gwb', 'gwb-plugin'], ...extra }
 }
 
-describe('importsOf：产物里的 import 分三种', () => {
-  it('import / export from、副作用 import、带字面量的 import()：包名、相对、空 import 各归各', () => {
+describe('importsOf：产物里的 import 分包名与相对两种', () => {
+  it('import / export from、副作用 import、带字面量的 import()：包名、相对各归各', () => {
     const code = [
       "import fs from 'node:fs';",
       'import {',
@@ -43,17 +43,15 @@ describe('importsOf：产物里的 import 分三种', () => {
     const got = importsOf(code)
     expect(got.bare.sort()).toEqual(['@godcreator/gwb-commands', '@godcreator/gwb-shell/sub', 'cordis', 'lazy-lib', 'node:fs', 'type-only'].sort())
     expect(got.relative.sort()).toEqual(['./re.js', './side.js'])
-    expect(got.empty.sort()).toEqual(['@godcreator/gwb-commands', 'type-only'])
   })
 
-  it('压成一行：真实 import 照样分三种，代码生成器字符串里的 import("…") 不算', () => {
+  it('压成一行：真实 import 照样分两种，代码生成器字符串里的 import("…") 不算', () => {
     const code =
       'import{jsx as e}from"react/jsx-runtime";import"./side.js";import{}from"@godcreator/gwb-commands";' +
       'function g(t,n){t.write("import("),t.write(JSON.stringify(n)),t.write(")")}const l=await import("lazy-lib");'
     const got = importsOf(code)
     expect(got.bare.sort()).toEqual(['@godcreator/gwb-commands', 'lazy-lib', 'react/jsx-runtime'])
     expect(got.relative).toEqual(['./side.js'])
-    expect(got.empty).toEqual(['@godcreator/gwb-commands'])
   })
 
   it('压成一行的各种写法：静态 import、副作用 import、import * as、export from、export *、export * as、动态 import 都找到', () => {
@@ -64,12 +62,11 @@ describe('importsOf：产物里的 import 分三种', () => {
     const got = importsOf(code)
     expect(got.bare.sort()).toEqual(['@godcreator/x/sub', 'lazy', 'node:path', 'react/jsx-runtime', 'y'])
     expect(got.relative.sort()).toEqual(['./re.js', './side.js'])
-    expect(got.empty).toEqual([])
   })
 
   it('打包进来的代码生成器：字符串里的 import( 与 ) 连成一段像 import("…") 的文字，不算', () => {
     const code = 'function g(e,n){e.write("import("),e.write(JSON.stringify(n)),e.write(")")}' + "function h(e){e.write('import('),e.write('\")'),e.write(')')}"
-    expect(importsOf(code)).toEqual({ bare: [], relative: [], empty: [] })
+    expect(importsOf(code)).toEqual({ bare: [], relative: [] })
   })
 
   it('模板字面量的文字段不算，插值里的真实动态 import 算', () => {
@@ -94,23 +91,21 @@ describe('importsOf：产物里的 import 分三种', () => {
 
   it('注释里的不算：块注释、行注释、压成一行里的块注释', () => {
     const code = ['/**', " * 示例：import('not-real')", " * import x from 'also-not'", ' */', "// import('line-comment')", 'a();/* import("inline") */b();'].join('\n')
-    expect(importsOf(code)).toEqual({ bare: [], relative: [], empty: [] })
+    expect(importsOf(code)).toEqual({ bare: [], relative: [] })
   })
 
   it('参数不是单个字符串字面量的 import() 不记（import(x)、拼接、模板字面量）；import.meta、属性名 import、对象键 import 都不是 import', () => {
     const code = 'import(x);import("a"+b);import(`t`);const u=import.meta.url;obj.import("no");o?.import("no2");const m={import:"no3",export:"no4"};class K{import(){return 1}}'
-    expect(importsOf(code)).toEqual({ bare: [], relative: [], empty: [] })
+    expect(importsOf(code)).toEqual({ bare: [], relative: [] })
   })
 
   it('动态 import 带第二个参数（import attributes）照样算', () => {
     expect(importsOf('const j=await import("./data.json",{with:{type:"json"}});').relative).toEqual(['./data.json'])
   })
 
-  it('空 import：import {} from / export {} from 标 empty，export {} 不是 import', () => {
+  it('import {} from / export {} from 照常算包名 import，export {} 不是 import', () => {
     const code = "import{}from\"@godcreator/gwb-commands\";import {\n} from 'a';export {} from 'type-only';export {};import {x} from 'b'"
-    const got = importsOf(code)
-    expect(got.empty.sort()).toEqual(['@godcreator/gwb-commands', 'a', 'type-only'])
-    expect(got.bare.sort()).toEqual(['@godcreator/gwb-commands', 'a', 'b', 'type-only'])
+    expect(importsOf(code).bare.sort()).toEqual(['@godcreator/gwb-commands', 'a', 'b', 'type-only'])
   })
 
   it('import 的名字是字符串（export { "a-b" as c } from）：取 from 后面那个', () => {
@@ -129,7 +124,7 @@ describe('importsOf：产物里的 import 分三种', () => {
   })
 
   it('块注释没闭合不算读不下去：注释一直延到文件尾，里面的 import 不记', () => {
-    expect(importsOf('import "./before.js";/* import("inside")')).toEqual({ bare: [], relative: ['./before.js'], empty: [] })
+    expect(importsOf('import "./before.js";/* import("inside")')).toEqual({ bare: [], relative: ['./before.js'] })
   })
 })
 
@@ -213,16 +208,14 @@ describe('artifactProblems', () => {
 
   it('相对 import 指向的文件不在：拒', () => {
     const got = artifactProblems(PKG, plugin(), true, io({ 'dist/index.js': "import './store';\n" }))
-    expect(got).toEqual([expect.stringContaining("import 的 './store' 不在")])
+    expect(got).toEqual(["dist/index.js 里 import 的 './store' 指向的文件不在"])
   })
 
-  it('空 import：插件与库都拒（插件里它同时是一条不在名单上的包名 import）', () => {
+  it('空 import（import {} from）：插件按包名 import 查名单，peer 里写了就放行；库不查', () => {
     const files = io({ 'dist/index.js': "import {} from '@godcreator/gwb-shell';\n" })
-    expect(artifactProblems(PKG, plugin(), true, files)).toEqual([
-      expect.stringContaining("import {} from '@godcreator/gwb-shell'"),
-      expect.stringContaining("node 侧产物 dist/index.js import 了 '@godcreator/gwb-shell'"),
-    ])
-    expect(artifactProblems(PKG, { ...plugin(), keywords: ['gwb'] }, false, files)).toEqual([expect.stringContaining('空 import')])
+    expect(artifactProblems(PKG, plugin(), true, files)).toEqual([expect.stringContaining("node 侧产物 dist/index.js import 了 '@godcreator/gwb-shell'")])
+    expect(artifactProblems(PKG, plugin({ peerDependencies: { '@godcreator/gwb-shell': '^0.14.0' } }), true, files)).toEqual([])
+    expect(artifactProblems(PKG, { ...plugin(), keywords: ['gwb'] }, false, files)).toEqual([])
   })
 
   it('库不查包名 import 的名单', () => {

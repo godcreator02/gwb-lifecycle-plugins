@@ -12,8 +12,6 @@ export interface ModuleImports {
   bare: string[]
   /** `./`、`../`、`/` 开头的 import */
   relative: string[]
-  /** `import {} from '<名>'` / `export {} from '<名>'`：源码里 `import { type X }` 在 verbatimModuleSyntax 下留下的空 import */
-  empty: string[]
 }
 
 const URL_SCHEME = /^[a-z][a-z0-9+.-]*:/i
@@ -27,7 +25,6 @@ function isUrl(spec: string): boolean {
   return URL_SCHEME.test(spec) && !spec.startsWith('node:')
 }
 
-const EMPTY_IMPORT_STATEMENT = /^(?:import|export)\s*\{\s*\}\s*from\s*['"]/
 const SINGLE_STRING_LITERAL = /^(['"])[\s\S]*\1$/
 
 /**
@@ -38,16 +35,14 @@ const SINGLE_STRING_LITERAL = /^(['"])[\s\S]*\1$/
 export function importsOf(code: string): ModuleImports {
   const bare = new Set<string>()
   const relative = new Set<string>()
-  const empty = new Set<string>()
-  for (const specifier of lexedImports(code)) {
-    if (specifier.empty) empty.add(specifier.name)
-    if (isRelative(specifier.name)) relative.add(specifier.name)
-    else if (!isUrl(specifier.name)) bare.add(specifier.name)
+  for (const name of lexedImports(code)) {
+    if (isRelative(name)) relative.add(name)
+    else if (!isUrl(name)) bare.add(name)
   }
-  return { bare: [...bare], relative: [...relative], empty: [...empty] }
+  return { bare: [...bare], relative: [...relative] }
 }
 
-function lexedImports(code: string): { name: string; empty: boolean }[] {
+function lexedImports(code: string): string[] {
   // 没初始化时 parse 不抛错，而是返回一个 Promise；initSync 重复调用直接返回
   initSync()
   let found: readonly ImportSpecifier[]
@@ -59,11 +54,10 @@ function lexedImports(code: string): { name: string; empty: boolean }[] {
     const { line, column } = lineColumnOf(code, at)
     throw new Error(`第 ${String(line)} 行第 ${String(column)} 列`, { cause: err })
   }
-  const lexed: { name: string; empty: boolean }[] = []
+  const lexed: string[] = []
   for (const one of found) {
     if (one.d === -2 || one.n === undefined) continue
-    if (one.d === -1) lexed.push({ name: one.n, empty: EMPTY_IMPORT_STATEMENT.test(code.slice(one.ss, one.se)) })
-    else if (SINGLE_STRING_LITERAL.test(code.slice(one.s, one.e))) lexed.push({ name: one.n, empty: false })
+    if (one.d === -1 || SINGLE_STRING_LITERAL.test(code.slice(one.s, one.e))) lexed.push(one.n)
   }
   return lexed
 }
@@ -160,7 +154,7 @@ function walkModules(pkgDir: string, entries: string[], io: ArtifactIo): WalkedM
     for (const spec of imports.relative) {
       const target = spec.startsWith('/') ? spec : path.resolve(path.dirname(file), spec)
       if (io.readText(target) === undefined) {
-        broken.push(`${relativeToPackage(pkgDir, file)} 里 import 的 '${spec}' 不在：node 与浏览器都不补扩展名，相对 import 要写到带 .js 的文件名`)
+        broken.push(`${relativeToPackage(pkgDir, file)} 里 import 的 '${spec}' 指向的文件不在`)
         continue
       }
       filesToRead.push(target)
@@ -175,14 +169,6 @@ function relativeToPackage(pkgDir: string, file: string): string {
 
 /** 浏览器侧入口：模板 `build.ts` 用 esbuild 输出的 `dist/client.js` */
 export const BROWSER_ENTRY = 'dist/client.js'
-
-
-
-function emptyImportProblems(pkgDir: string, modules: [string, ModuleImports][]): string[] {
-  return modules.flatMap(([file, imports]) =>
-    imports.empty.map((spec) => `${relativeToPackage(pkgDir, file)} 里有空 import：import {} from '${spec}'。源码里只引类型的写成 import type { X }，不写 import { type X }`),
-  )
-}
 
 function peersOf(manifest: Record<string, unknown>): Set<string> {
   return new Set(isRecord(manifest.peerDependencies) ? Object.keys(manifest.peerDependencies) : [])
@@ -217,7 +203,7 @@ function browserSideBareImportProblems(pkgDir: string, browserModules: Map<strin
 }
 
 /**
- * `plugin` 为 false（库、工具包）时只查空 import 与相对 import 指向的文件在不在；
+ * `plugin` 为 false（库、工具包）时只查相对 import 指向的文件在不在；
  * 包名 import 的两份名单只管插件：库的 import 由用它的插件打包时解析，不在 home 里按包名解析
  */
 export function artifactProblems(pkgDir: string, manifest: Record<string, unknown>, plugin: boolean, io: ArtifactIo): string[] {
@@ -229,7 +215,6 @@ export function artifactProblems(pkgDir: string, manifest: Record<string, unknow
   const browser = walkModules(pkgDir, io.readText(clientFile) === undefined ? [] : [clientFile], io)
 
   problems.push(...node.broken, ...browser.broken)
-  problems.push(...emptyImportProblems(pkgDir, [...node.modules, ...browser.modules]))
   if (!plugin) return problems
 
   problems.push(...nodeSideBareImportProblems(pkgDir, node.modules, peersOf(manifest)))

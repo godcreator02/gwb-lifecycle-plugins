@@ -26,7 +26,7 @@ peer 的意思是「运行时从 home 里得到这个包」。插件的 peer 因
 
 ## 谁在查
 
-**`devkit.release` 发版前检查**（只查插件包，`keywords` 含 `gwb-plugin`）：peer 里 `cordis` 与内核包以外的每个包，读包目录 `node_modules` 里它的清单，`keywords` 含 `gwb-plugin` 或同时含 `cordis` 与 `plugin`（cordis 官方插件）才算插件，不是插件、清单读不到都拒；peer 里的每个 gwb 插件（清单 `keywords` 含 `gwb-plugin`，不分包名范围；内核包、`workspace:` 与 cordis 官方插件除外）范围要是 `^x.y.z`，并且和源上 `dist-tags.latest` 在同一条线（问哪个源由用户级 `~/.npmrc` 的范围行决定）——主版本号为 0 时只比次版本号，≥1 时只比主版本号。不在同一条线说明上游出了破坏性版本，拒绝理由里写着适配、验过之后改成的 `^<latest>`：
+**`devkit.release` 发版前检查**（只查插件包，`keywords` 含 `gwb-plugin`）：peer 里 `cordis` 与内核包以外的每个包，读包目录 `node_modules` 里它的清单，`keywords` 含 `gwb-plugin` 才算插件，不是插件、清单读不到都拒；peer 里的每个插件（不分包名范围；内核包、`workspace:` 除外）范围要是 `^x.y.z`，并且和源上 `dist-tags.latest` 在同一条线（问哪个源由用户级 `~/.npmrc` 的范围行决定）——主版本号为 0 时只比次版本号，≥1 时只比主版本号。不在同一条线说明上游出了破坏性版本，拒绝理由里写着适配、验过之后改成的 `^<latest>`：
 
 {/* ref file="../plugins/devkit/src/release.ts" lines="152-161" */}
 

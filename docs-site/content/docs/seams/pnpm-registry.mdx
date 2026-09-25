@@ -110,14 +110,14 @@ devkit 保证：
 
 **改 home 的是同一个 pnpm，但互斥只在插件管理里**：插件管理与 `devkit.home.new` 找到的是同一个文件；插件管理的改动经过它自己的 BUSY 检查，`devkit.dev` 装包也经目标 home 的插件管理，所以同样经过这道检查；`devkit.home.new` 不经过插件管理（那时插件管理还没装、home 还没启动），同时有别的 pnpm 写同一个 home 会丢改动（见[同一时刻只允许一个改动](/docs/plugin-manager/busy)）。
 
-手工发版与 `devkit.release` 都不在命令行写 `--registry`，都照包清单的 `publishConfig.registry`。
+`devkit.release` 不在命令行写 `--registry`，照包清单的 `publishConfig.registry`。
 
 ## 不负责的事
 
 - devkit 与插件管理都不安装、不升级 pnpm 本身；要求的 pnpm 版本写在插件管理里，换版本就是发一版插件管理
 - devkit 与插件管理都不写 `~/.npmrc` 与 token；第三方包源由 agent 照说明书 `gwb-plugin-manager` 手写
 - 插件管理不看环境变量或 pnpm 全局配置里指定的源，只看两份 npmrc
-- `devkit.release` 不运行包里的 `prepublishOnly`：发布内容来自临时目录，那里没有 `scripts`
+- `devkit.release` 不运行包里的 `scripts`：发布内容来自临时目录，那里没有 `scripts`
 
 ## 测试
 

@@ -1,0 +1,40 @@
+---
+title: 写插件的规矩只留有工具查的，模板测试收回 devkit
+born-at: 2026-09-25T19:30
+type: choice
+parent: [2026-09-25-scaffold-peers-from-home]
+label: 规矩只留有工具查的
+domain: devkit
+---
+
+## 背景
+
+人让从简化规则的角度把 devkit 对插件的要求整体过一遍。规矩总表有 27 条，一半以上写着「没有工具检查」；模板除了插件本身，还带两份测试（产物测试 238 行、类名前缀测试 132 行）和几项没人读的清单字段。
+
+核对下来有三件事：
+
+- 模板测试被复制进每个插件仓以后就不再更新：容器里 11 份 `prefix.test.ts` 副本，没有一份带最新的「前缀排在变体后面」检查；`artifact.test.ts` 的副本也各是各的版本
+- 产物测试里的包名 import 检查和 `devkit.release` 查的是同一件事，却是两套实现（测试用行首正则，release 按 JS 语法）
+- 规矩说「自用的库打包进产物」，可模板的 node 侧是 tsc 逐个文件输出，不打包：在 node 侧 import 一个库，release 就拒，模板没给出走得通的路
+
+## 结论与边界
+
+- 总表只收两种：有工具查的，和没有工具查、但违反了一定出事的（卸载清理）。剩 7 条；`apply` 里的 async 要 catch、`#` 私有字段、`instanceof Service` 这几个坑单列一节
+- 删掉的规矩：`@godcreator` dev 依赖的写法（写错了 install 当场失败）、类型引用到的包列全（降为一句提示）、源码不指回别的仓（写了别人一装就失败）、相对 import 带 `.js` 与只写 `import type`（node 侧改成 esbuild 打包、关掉 `verbatimModuleSyntax` 后不会再出现）、保留 `prepublishOnly` 与手工发版（发版只走 `devkit.release`，它从没有 `scripts` 的临时目录发）、清单不写 `//` 键（全局规矩已有）、`cordis` 不写进 `dependencies`（多份 cordis 能一起工作，唯一的坑 `instanceof` 已单列）、不 import 别的插件（devkit 自己就按值 import 插件管理，peer 与按真实目录重新加载已经让它成了正常用法）、契约版本按区间比对（和 peer 范围加升 x 是同一件事）
+- 命令字段、窗格地址这两条由命令总线与外壳在登记时查，devkit 的总表里只指路
+- 服务还是命令、补 `Context`、谁定义类型、数据目录归属降为写法建议，留在分页里
+- `devkit.release` 删掉空 import 检查（指向 peer 里的包时运行无害，指向别的包时 node 侧包名检查已经会拒）；「是不是插件」只认 `keywords` 含 `gwb-plugin`，删掉 cordis 官方插件的例外（没有插件在 peer 里写它们）
+- 样式检查（类选择器前缀、前缀排在变体前、颜色只用令牌、`var()` fallback）收回 devkit：`devkit.dev` 构建之后、`devkit.release` 发之前都查。Tailwind 从被检查包自己的 `@tailwindcss/cli` 旁边找，devkit 不自带
+- 模板：不带测试文件；node 侧用 esbuild 打成一个文件，tsc 只出类型声明；删掉 `author`、`engines`、`exports["./package.json"]`、`files` 里的 `src`、`prepublishOnly`、vitest 配置文件；`keywords` 只写 `gwb-plugin`；不要界面时删哪些写进生成的 README
+
+## 否掉的候选
+
+- **devkit 导出检查函数，模板测试只调用它**：每个仓都要把 devkit 写进 dev，版本照样落后，只是把复制代码换成了复制版本号
+- **scaffold 加 `ui: false` 参数生成无界面插件**：为一种变体多一条代码路径，一份删除清单就够
+- **保留模板测试，只把 devkit 的检查也加上**：两套实现照样漂移
+
+## 代价与遗留
+
+- 离线运行 `pnpm check` 查不到样式问题了，要到 `devkit.dev` 才报；dev 每次都构建，报得和原来一样早
+- 已有插件仓里的两份测试副本不替它们删，往各仓的 feedback 收件页各投一条；块笔记的契约版本比对同样只投递，由它自己决定改不改成 peer
+- 已有插件下次发版时会多过一道样式检查，以前在 `pnpm check` 里没更新的副本放过的问题，这次会被拦下

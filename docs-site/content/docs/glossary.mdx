@@ -36,7 +36,7 @@ description: 这个仓里反复出现的词各指什么、在哪一页定义；�
 | 说明书 | 随包发布、由说明书插件登记给 agent 的 `SKILL.md`，经 `skill.read` 读。内容跟着它描述的代码一起发版 | [开发套件](/docs/devkit#说明书) |
 | 建仓 | `devkit.scaffold` 把新插件的初始文件写进一个新目录，只写插件的文件，不建文档站 | [建仓与加插件](/docs/devkit/scaffold) |
 | workspace 仓 | 仓根是不发布的 private 包，插件在 `plugins/<短名>/`、别的包在 `packages/`。模板只生成这一种布局 | [建仓与加插件](/docs/devkit/scaffold) |
-| 发版前检查 | `devkit.release` 构建之后、发第一个包之前查的那几条：peer 只写 `cordis`、内核包与插件、peer 里的插件和源上 latest 在同一条线、构建产物里的包名 import 与空 import、peer 里内核包的写法；dev 依赖不查。代码里的函数与类型名用 ticket（`Ticket`、`ticketRefusal`） | [发正式版](/docs/devkit/release) |
+| 发版前检查 | `devkit.release` 构建之后、发第一个包之前查的那几条：peer 只写 `cordis`、内核包与插件、peer 里的插件和源上 latest 在同一条线、构建产物里的包名 import、peer 里内核包的写法、带界面插件的样式；dev 依赖不查。代码里的函数与类型名用 ticket（`Ticket`、`ticketRefusal`） | [发正式版](/docs/devkit/release) |
 | peer | 插件 `package.json` 的 `peerDependencies`：运行时从 home 里得到的包——按值 import 的 `cordis`、内核包、用到的别的插件。node 侧构建产物只能按包名 import 这里写了的包。只在 `ctx.inject([...], fn)` 里用的插件在 `peerDependenciesMeta` 标 `optional`，意思是 home 里可以没有它、有的话版本要在范围里。`plugin-manager.list` 报没满足的（`unmetPeers`），只报告不拦 | [用到的插件写 peer](/docs/rules/plugin-peers) |
 | 同一条线 | 两个版本号之间没有破坏性版本：主版本号为 0 时次版本号相同，≥1 时主版本号相同。`devkit.release` 拿它比 peer 里的插件和源上的 latest | [用到的插件写 peer](/docs/rules/plugin-peers) |
 | 纯逻辑 | 不读写磁盘、不启动进程、只看输入输出的那部分代码，测试用假实现运行完。对面是只执行、不判断的 `node-*-deps.ts` | [关键设计](/docs/design#纯逻辑与真机器操作分开) |

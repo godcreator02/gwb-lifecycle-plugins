@@ -1,15 +1,14 @@
 ---
 title: 4 模板与发版前检查
-description: 连接建仓模板 template/ 与 devkit.release 的发版前检查：模板生成的插件包 peer 那几项过得了发版前检查；模板带的产物测试照发版前检查的两份包名 import 名单另写了一份，两份一致靠 scaffold 的测试查生成的文本
+description: 连接建仓模板 template/ 与 devkit.release 的发版前检查：模板生成的插件包 peer 那几项过得了发版前检查；模板 build.ts 的两份外置名单与发版前检查的两份包名 import 名单是同一套；模板不带检查，检查只在 devkit 里
 ---
 
-**本页回答**：模板生成的插件包要满足发版前检查的哪几条；模板带的产物测试和发版前检查查的是不是同一套名单；模板与发版前检查的名单一致靠什么。
+**本页回答**：模板生成的插件包要满足发版前检查的哪几条；模板的构建脚本和发版前检查用的是不是同一套名单；两边一致靠什么。
 
 ## 连接的模块
 
 - 建仓模板（`plugins/devkit/template/`）：`repo/` 生成仓根，`pkg/` 生成 `plugins/<短名>/`；由 `src/scaffold.ts` 渲染，`devkit.scaffold` 与 `devkit.scaffold.plugin` 共用 `pkg/`
-- 发版前检查（`src/release.ts`、`src/artifact-check.ts`）：`devkit.release` 构建之后、发第一个包之前运行
-- 生成出来的插件包自带的产物测试 `tests/artifact.test.ts`（模板里是 `template/pkg/tests/artifact.test.ts.tpl`）：在被生成的仓里随 `pnpm check` 运行
+- 发版前检查（`src/release.ts`、`src/artifact-check.ts`、`src/style-check.ts`）：`devkit.release` 构建之后、发第一个包之前运行；样式检查 `devkit.dev` 构建之后也运行
 
 ## 接口
 
@@ -17,39 +16,35 @@ description: 连接建仓模板 template/ 与 devkit.release 的发版前检查�
 
 **peer**：生成的清单 peer 里只有内核包与模板用到的两个插件（命令总线、外壳），内核包的范围是 `^<运行建仓命令的内核的 x.y.z>`，命令总线与外壳的范围是 `^<那个 home 里装着的 x.y.z>`，所以在同一个 home 上建仓、发版，过得了「peer 里的插件和源上 latest 在同一条线」。发版前检查要求 peer 只有 `cordis`、内核包与插件，内核包写成 `^x.y.z`：
 
-{/* ref file="../plugins/devkit/template/pkg/package.json.tpl" lines="23-27" */}
+{/* ref file="../plugins/devkit/template/pkg/package.json.tpl" lines="19-23" */}
 
-**node 侧产物的包名 import**：发版前检查只放行 node 内置模块、`electron` 与本包 peer 里写了的包；模板的产物测试照同一条规则读自己清单的 peer：
+**node 侧产物的包名 import**：发版前检查只放行 node 内置模块、`electron` 与本包 peer 里写了的包；模板的 `build.ts` 用 esbuild 把 node 侧打成一个文件，外置的正是 peer 里的包与 `electron`（外加 `cordis`：按值 import 了它却没写进 peer，产物里留下包名、被发版前检查拦住）：
 
-{/* ref file="../plugins/devkit/src/artifact-check.ts" lines="84-93" */}
+{/* ref file="../plugins/devkit/template/pkg/build.ts.tpl" lines="12-20" */}
 
-{/* ref file="../plugins/devkit/template/pkg/tests/artifact.test.ts.tpl" lines="21-26" */}
+**浏览器侧产物的包名 import**：发版前检查只放行内核包页面入口 `dist/index.html` 里那段 importmap 的键；模板的 `build.ts` 从插件包 `node_modules` 里装好的内核包读同一段 importmap，当作浏览器侧的外置名单：
 
-**浏览器侧产物的包名 import**：发版前检查与模板的产物测试都只放行内核包页面入口 `dist/index.html` 里那段 importmap 的键，页面入口从插件包的 `node_modules` 里装好的内核包读：
-
-{/* ref file="../plugins/devkit/src/artifact-check.ts" lines="240-257" */}
-
-{/* ref file="../plugins/devkit/template/pkg/tests/artifact.test.ts.tpl" lines="27-37" */}
+{/* ref file="../plugins/devkit/template/pkg/build.ts.tpl" lines="22-38" */}
 
 ## 约定
 
-模板保证：生成的插件包 peer 那几项过得了发版前检查；产物测试的两份名单与发版前检查的相同，产物测试在被生成的仓里先把违反的地方报出来，不用等到发版。
+模板保证：生成的插件包 peer 那几项过得了发版前检查；照模板构建，产物里的包名 import 落在发版前检查的两份名单里。
 
-两份名单保持一样**靠约定**加 `tests/scaffold.test.ts` 查生成的文本：它断言生成的产物测试里有按自己清单的 peer 放行的那一句、有经 `@godcreator/gwb-kernel-desktop/package.json` 找到装好的内核包的那一句，生成的构建脚本从内核包的 `dist/index.html` 读 importmap、不写 react 包名的字面量；不拿同一组产物分别过两份。改发版前检查的名单时，同一个提交里改模板的产物测试。
+模板不带任何检查：产物与样式的检查只在 devkit 里一份，改检查不用同步模板。两份外置名单与发版前检查的名单保持一样**靠约定**加 `tests/scaffold.test.ts` 查生成的构建脚本文本；改发版前检查的名单时，同一个提交里改模板的 `build.ts`。
 
 ## 不负责的事
 
 - 模板不保证生成的仓能直接 `devkit.release`：peer 里的两个插件要和发版那时源上的 latest 在同一条线
-- 产物测试不查 peer 的写法，这一项只在发版前检查里查
-- 发版前检查与产物测试找 import 的写法不同：发版前检查用 es-module-lexer 按 JS 语法找，产物测试只认顶格的静态 import（模板的 `build.ts` 不压行，外置的包名 import 由 esbuild 放在文件开头）。产物压成一行、或有动态 import 的仓，产物测试查不全，要等发版前检查
 - 模板的起始版本号是 0.1.0；升哪一位照说明书 `gwb-release`
 
 ## 测试
 
-`tests/scaffold.test.ts` 用 `renderTemplate` / `renderPlugin` 在内存里生成插件包，查清单与产物测试的文本：
+`tests/scaffold.test.ts` 用 `renderTemplate` / `renderPlugin` 在内存里生成插件包，查清单与构建脚本的文本：
 
 {/* has file="../plugins/devkit/tests/scaffold.test.ts" text="生成的插件包 peer 里写了内核包 ^<运行命令的内核版本号>：建仓与加插件都一样，发版前检查认" */}
 
-{/* has file="../plugins/devkit/tests/scaffold.test.ts" text="生成的产物测试：node 侧只放行内置模块、electron 与自己 peer 里的包；浏览器侧只放行内核包页面 importmap 的名字" */}
+{/* has file="../plugins/devkit/tests/scaffold.test.ts" text="node 侧也用 esbuild 打成一个文件：外置 peer、electron 与 cordis，tsc 只出类型声明" */}
 
 {/* has file="../plugins/devkit/tests/scaffold.test.ts" text="生成的 build.ts 不手抄外置名单：从内核包页面入口的 importmap 读键" */}
+
+{/* has file="../plugins/devkit/tests/scaffold.test.ts" text="模板不带测试文件：产物与样式的检查由 devkit.dev / devkit.release 做，复制进各仓的副本不会跟着更新" */}

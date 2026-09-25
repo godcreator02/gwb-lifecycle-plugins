@@ -1,10 +1,12 @@
 import fs from 'node:fs'
+import { createRequire } from 'node:module'
 import os from 'node:os'
 import path from 'node:path'
 import { fileURLToPath } from 'node:url'
 import { tailLines } from '@godcreator/gwb-plugin-manager'
 import { PACK_TIMEOUT_MS, PUBLISH_TIMEOUT_MS, pnpmPlan, type DevDeps, type RunPlan, type RunResult } from './dev.js'
 import { dirtyLines, type ReleaseDeps } from './release.js'
+import type { TailwindCompiler, TailwindLookup } from './style-check.js'
 import { removeTree, runCaptured } from './node-home-deps.js'
 import { nodeFs } from './node-probe-deps.js'
 import { VERSION } from './vocab.js'
@@ -260,6 +262,46 @@ function packStaged(input: { pkgDir: string; version: string; destination: strin
   })
 }
 
+/** 目录下（递归）全部文件的绝对路径；目录不在回空表。不进 `node_modules` */
+export function filesUnder(dir: string): string[] {
+  if (!fs.existsSync(dir)) return []
+  const files: string[] = []
+  for (const entry of fs.readdirSync(dir, { withFileTypes: true })) {
+    const full = path.join(dir, entry.name)
+    if (entry.isDirectory()) {
+      if (entry.name !== 'node_modules') files.push(...filesUnder(full))
+    } else if (entry.isFile()) {
+      files.push(full)
+    }
+  }
+  return files
+}
+
+/**
+ * 被检查包构建样式用的那份 Tailwind。devkit 不自带：包的 dev 里有 `@tailwindcss/cli`（构建要用），
+ * 从它在 pnpm 虚拟存储里的真实目录解析 `@tailwindcss/node`（cli 自己的依赖，就在它旁边），与构建用的是同一个版本
+ */
+export async function tailwindOf(pkgDir: string): Promise<TailwindLookup> {
+  const cliLink = path.join(pkgDir, 'node_modules', '@tailwindcss', 'cli')
+  if (!fs.existsSync(path.join(cliLink, 'package.json'))) {
+    return {
+      ok: false,
+      error: `包目录 node_modules 里没有 @tailwindcss/cli（${cliLink}），样式检查找不到这个包构建样式用的 Tailwind：dev 里写上 @tailwindcss/cli（构建 dist/style.css 本来就要它），再在仓根 pnpm install`,
+    }
+  }
+  const cliDir = fs.realpathSync(cliLink)
+  let tailwindNode: unknown
+  try {
+    tailwindNode = createRequire(path.join(cliDir, 'package.json'))('@tailwindcss/node')
+  } catch (err) {
+    return { ok: false, error: `从 @tailwindcss/cli 的真实目录 ${cliDir} 解析不到 @tailwindcss/node（它是 cli 自己的依赖）：${err instanceof Error ? err.message : String(err)}` }
+  }
+  const compile = (tailwindNode as { compile?: unknown }).compile
+  if (typeof compile !== 'function') return { ok: false, error: `${cliDir} 旁边的 @tailwindcss/node 没有导出 compile：Tailwind 版本不是 4？` }
+  const compileWithBase = compile as (css: string, options: { base: string; onDependency: (file: string) => void }) => Promise<TailwindCompiler>
+  return { ok: true, compile: (css, base) => compileWithBase(css, { base, onDependency: () => {} }) }
+}
+
 /** 「改一版看一版」在这台机器上的实现。`pnpm` 是命令开头找到的那个；重启 home 要用到测试 home 的启停，由 index.ts 接上 */
 export const devDepsWith = (pnpm: string): Omit<DevDeps, 'restartHome'> => ({
   run: (plan: RunPlan, timeoutMs: number) => runCaptured(plan, timeoutMs),
@@ -267,6 +309,8 @@ export const devDepsWith = (pnpm: string): Omit<DevDeps, 'restartHome'> => ({
   pack: (input) => packStaged({ ...input, pnpm }),
   readText: nodeFs.readText,
   exists: nodeFs.exists,
+  filesUnder,
+  tailwindOf,
   size(file) {
     return fs.statSync(file).size
   },
@@ -313,5 +357,7 @@ export const releaseDepsWith = (pnpm: string): ReleaseDeps => ({
   gitStatus: gitStatusOf,
   readText: nodeFs.readText,
   exists: nodeFs.exists,
+  filesUnder,
+  tailwindOf,
   pnpm,
 })

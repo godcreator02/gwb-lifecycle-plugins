@@ -80,6 +80,12 @@ const HOME_USAGE = [
   '之后从它的 runtime.json 里查。端口没有含义，敲错一位就连到另一个 home。',
 ].join('\n')
 
+/** 样式检查查什么：devkit.dev 与 devkit.release 的 usage 共用这一句 */
+const STYLE_CHECK_SUMMARY =
+  'src/ 下恰好一个写了 prefix(<前缀>) 的样式入口；dist/style.css 的类选择器都是 .<前缀>\\: 开头（.dark 放行）、没有 data-gwb-plugin、var() 的 fallback 里没有写死的值、' +
+  '颜色类（text-/bg-/border-/from-/via-/to-/divide-）只用主题令牌（外壳 theme.reference.css 与本插件样式入口声明的 --color-<名>）；样式入口所在目录下 .tsx 字符串里的类名：前缀排在最前、带前缀的编得出规则、' +
+  '不带前缀却编得出规则的报「漏了前缀」。编译用包自己 dev 里 @tailwindcss/cli 旁边的 @tailwindcss/node，找不到就报'
+
 const DEV_USAGE = [
   'devkit.dev 的参数：',
   '  home      必给，目标 home 名。**这里不收端口**：端口从那个 home 的 runtime.json 里查，同时确认它还在运行',
@@ -91,6 +97,7 @@ const DEV_USAGE = [
   '**装内核包**（packages 里有 @godcreator/gwb-kernel-desktop 的包目录）：内核包放进同一条 update，specs 里不放 cordis（插件管理照装上的内核包 peer 自己对齐）；',
   '内核包必须已在目标 home 里。update 回执 restartRequired 时不刷新，改成停掉目标 home 再启动，轮询 shell.env 直到页面报出的内核版本就是这次打包的版本号',
   '**构建不可跳过**：产物不是最新的就打包，装进去的是上一版，而回执一切正常',
+  `**构建之后、打包之前做样式检查**（插件包构建后有 dist/style.css 才查，没过就停、一个都不装，所有包的问题一次列全）：${STYLE_CHECK_SUMMARY}`,
   '例：{"home":"bn-2609111200","dir":"D:\\\\unitfolders\\\\evew5-gwbapps\\\\gwb-block-note","packages":["plugins/gwb-bn-core","plugins/gwb-bn-comment"]}',
   '目标 home 是 default、或者就是开发套件自己所在的 home，都直接拒——前者会把开发版装进日常用的 home，',
   '后者重新加载条目时会把正在运行的这条命令自己停掉。要换开发套件自己：发正式版，再 plugin-manager.update {"all":true}',
@@ -103,8 +110,9 @@ const RELEASE_USAGE = [
   '**版本号在仓里升**：发的是 package.json 里写的版本号，同一个版本号已在源上就拒——要发新的一版，先升版本号、提交，再调用',
   '**仓根 git 工作区不干净就拒**：正式版只从提交过的状态发',
   `**发到包自己的 publishConfig.registry**：没写这个字段、或写的不是 http(s) 地址就拒（团队源是 ${TEAM_REGISTRY}）。「同号已在源上」问的也是这个源`,
-  '**发版前检查没过就拒**（构建之后，所有包一次列全）：产物里没有空 import（import { type X } 留下的）、相对 import 指向的文件都在；dev 依赖不查',
-  '**插件包另加**（keywords 含 gwb-plugin）：peer 里只许 cordis、内核包 @godcreator/gwb-kernel-desktop 与别的插件（包目录 node_modules 里它的清单 keywords 含 gwb-plugin，或是 cordis 官方插件），peer 里每个 gwb 插件（不分范围）和源上 dist-tags.latest 在同一条线（0.x 只看 x，≥1 只看主版本号；问哪个源由 ~/.npmrc 的范围行决定）；node 侧产物（exports["."] 入口顺着相对 import 走到的文件）的包名 import 只有 node 内置模块、electron 与 peer 里写了的包；浏览器侧产物（dist/client.js）只 import 页面 importmap 里的名字——内核包页面入口 dist/index.html 里那段 importmap 的键（react 的四个），从包目录 node_modules 里装好的内核包读；peer 里写了内核包、写法是 ^x.y.z（范围包不包含哪个内核不查，验证之后由人改）',
+  '**发版前检查没过就拒**（构建之后，所有包一次列全）：产物里相对 import 指向的文件都在；dev 依赖不查',
+  `**带界面的插件包另加样式检查**（构建后有 dist/style.css 才查）：${STYLE_CHECK_SUMMARY}`,
+  '**插件包另加**（keywords 含 gwb-plugin）：peer 里只许 cordis、内核包 @godcreator/gwb-kernel-desktop 与别的插件（包目录 node_modules 里它的清单 keywords 含 gwb-plugin），peer 里每个 gwb 插件（不分范围）和源上 dist-tags.latest 在同一条线（0.x 只看 x，≥1 只看主版本号；问哪个源由 ~/.npmrc 的范围行决定）；node 侧产物（exports["."] 入口顺着相对 import 走到的文件）的包名 import 只有 node 内置模块、electron 与 peer 里写了的包；浏览器侧产物（dist/client.js）只 import 页面 importmap 里的名字——内核包页面入口 dist/index.html 里那段 importmap 的键（react 的四个），从包目录 node_modules 里装好的内核包读；peer 里写了内核包、写法是 ^x.y.z（范围包不包含哪个内核不查，验证之后由人改）',
   '**这条命令只发到源、不碰任何 home**，从哪个 home 调用都行；升级 default 是下一步的事，用 plugin-manager.update {"all":true}',
   '例：{"dir":"D:\\\\unitfolders\\\\evew5-gwbapps\\\\gwb-block-note","packages":["packages/model","packages/engine","packages/client","plugins/gwb-bn-core","plugins/gwb-bn-comment"]}',
 ].join('\n')
@@ -362,7 +370,7 @@ function registerDevCommand({ ctx, log, commands, homeDeps }: Wiring): void {
       plugin: '@godcreator/gwb-devkit',
       description: '改一版看一版（构建→打包进目标 home→经目标 home 的插件管理装并重新加载→刷新→取证；装内核包时改成重启目标 home）',
       usage:
-        '{home 必给（目标 home 名，**只认名字不认端口**——端口从它的 runtime.json 里查，并确认它还在运行）, dir 必给（仓根绝对路径）, packages 必给（包目录的非空数组，相对仓根；只收插件与内核包，库直接拒）, waitFor?（刷新后等这个选择器出现）}。一条走完：仓根 pnpm build → 照 files 验产物 → 在临时目录组装发布内容、版本号改成 <patch+1>-dev.<yyyyMMddHHmmss>，pnpm pack 到 <目标 home>\\dev-packs\\（包文件每版一个新路径，已存在就拒；旧的不删：home 清单引用着的包文件删了，这个 home 之后的 pnpm add 全失败；开发版不进源）→ 读目标 home 的 package.json（只读）：已在 dependencies 里的包合成一条 plugin-manager.update {"specs":{"<包>":"file:./dev-packs/<包文件>"}}，之后不在的插件逐个 plugin-manager.install {pkg, spec}（新建一条条目），都经 CDP 在目标页面里调；插件管理装包、重新加载这些包与真实目录变了的别的包，插件管理自己的条目推迟到回执之后（回执 selfDeferred，这边轮询 plugin-manager.list 等它 active）→ 整页刷新（驱动退出码非零或没等到页面回来就回 ok:false，说清等的是什么、最后看到了什么）→ 取证（装上的是这次打包的版本号、条目真的 ACTIVE、日志新增的部分里没有 error），取不到证就回 ok:false。回执 { home, homeName, shipped: [{ pkg, version, dir, packFile, via: update|install, entryId? }], update?（plugin-manager.update 的回执原样）, reload? | kernel?, evidence }。**packages 里有内核包 @godcreator/gwb-kernel-desktop 时**：内核包放进同一条 update，specs 里不放 cordis（插件管理照装上的内核包 peer 自己对齐）；内核包不在目标 home 里直接拒；update 回执 restartRequired，这边不刷新，改成停掉目标 home 再启动（主进程里的内核换不掉），轮询 shell.env 直到 versions.kernel 就是这次打包的版本号，回执多一个字段 kernel { version, restart }，再照常取证。**构建不可跳过**：跳过构建就是装上一版。**目标是 default 或开发套件自己所在的 home 都直接拒；页面自报的名字跟你给的对不上也拒**',
+        '{home 必给（目标 home 名，**只认名字不认端口**——端口从它的 runtime.json 里查，并确认它还在运行）, dir 必给（仓根绝对路径）, packages 必给（包目录的非空数组，相对仓根；只收插件与内核包，库直接拒）, waitFor?（刷新后等这个选择器出现）}。一条走完：仓根 pnpm build → 照 files 验产物 → 样式检查（插件包构建后有 dist/style.css 才查，没过回 ok:false、一个都不打包，所有包的问题一次列全；查什么见 devkit.release 的 usage）→ 在临时目录组装发布内容、版本号改成 <patch+1>-dev.<yyyyMMddHHmmss>，pnpm pack 到 <目标 home>\\dev-packs\\（包文件每版一个新路径，已存在就拒；旧的不删：home 清单引用着的包文件删了，这个 home 之后的 pnpm add 全失败；开发版不进源）→ 读目标 home 的 package.json（只读）：已在 dependencies 里的包合成一条 plugin-manager.update {"specs":{"<包>":"file:./dev-packs/<包文件>"}}，之后不在的插件逐个 plugin-manager.install {pkg, spec}（新建一条条目），都经 CDP 在目标页面里调；插件管理装包、重新加载这些包与真实目录变了的别的包，插件管理自己的条目推迟到回执之后（回执 selfDeferred，这边轮询 plugin-manager.list 等它 active）→ 整页刷新（驱动退出码非零或没等到页面回来就回 ok:false，说清等的是什么、最后看到了什么）→ 取证（装上的是这次打包的版本号、条目真的 ACTIVE、日志新增的部分里没有 error），取不到证就回 ok:false。回执 { home, homeName, shipped: [{ pkg, version, dir, packFile, via: update|install, entryId? }], update?（plugin-manager.update 的回执原样）, reload? | kernel?, evidence }。**packages 里有内核包 @godcreator/gwb-kernel-desktop 时**：内核包放进同一条 update，specs 里不放 cordis（插件管理照装上的内核包 peer 自己对齐）；内核包不在目标 home 里直接拒；update 回执 restartRequired，这边不刷新，改成停掉目标 home 再启动（主进程里的内核换不掉），轮询 shell.env 直到 versions.kernel 就是这次打包的版本号，回执多一个字段 kernel { version, restart }，再照常取证。**构建不可跳过**：跳过构建就是装上一版。**目标是 default 或开发套件自己所在的 home 都直接拒；页面自报的名字跟你给的对不上也拒**',
     },
     async (args) => {
       if (!isRecord(args)) return { ok: false, error: `参数要是个对象。\n${DEV_USAGE}` }
@@ -407,7 +415,9 @@ function registerReleaseCommand({ log, commands }: Wiring): void {
       plugin: '@godcreator/gwb-devkit',
       description: '发正式版到包的 publishConfig.registry（git 工作区干净→构建→验产物→发版前检查→在临时目录里组装并发布）',
       usage:
-        '{dir 必给（仓根绝对路径）, packages 必给（包目录的非空数组，相对仓根，按依赖顺序）}。一条走完：仓根 git 工作区干净（有未提交改动就拒，一个都不发）→ 仓根 pnpm build → 照 files 白名单验产物 → 同号已在发布目标上就拒（发布目标是包自己 package.json 的 publishConfig.registry；没写、或写的不是 http(s) 地址就拒）→ 发版前检查（每个要发的包：产物里没有空 import、相对 import 指向的文件都在；dev 依赖不查。keywords 含 gwb-plugin 的插件包另加：peer 里只许 cordis、内核包 @godcreator/gwb-kernel-desktop 与别的插件（包目录 node_modules 里它的清单 keywords 含 gwb-plugin，或是 cordis 官方插件），peer 里每个 gwb 插件（不分范围）和源上 dist-tags.latest 在同一条线（0.x 只看 x，≥1 只看主版本号；问哪个源由 ~/.npmrc 的范围行决定）；node 侧产物——exports["."] 的运行时入口（没有 exports 时是 main）顺着相对 import 走到的文件——的包名 import 只有 node 内置模块、electron 与 peer 里写了的包；浏览器侧产物——dist/client.js，同样顺着相对 import 走——只 import 页面 importmap 里的名字，也就是内核包页面入口 dist/index.html 里那段 importmap 的键，从包目录 node_modules 里装好的内核包现读；peer 里写了内核包、写法是 ^x.y.z，范围包不包含哪个内核不查。没过就一个都不发，回执按包一次列全）→ 在临时目录里组装发布内容并发到发布目标（不改仓里任何文件；tag latest；发布内容清单的 publishConfig.registry 写发布目标，命令行不带 --registry；workspace: 依赖写成 ^<工作区里那个号>，这一次同发的写成 ^新号）→ 按给定顺序发完。**版本号在仓里升**（改 package.json 并提交），同一个版本号永不重发。只发到源、不碰任何 home；升级 default 用 plugin-manager.update {"all":true}',
+        '{dir 必给（仓根绝对路径）, packages 必给（包目录的非空数组，相对仓根，按依赖顺序）}。一条走完：仓根 git 工作区干净（有未提交改动就拒，一个都不发）→ 仓根 pnpm build → 照 files 白名单验产物 → 同号已在发布目标上就拒（发布目标是包自己 package.json 的 publishConfig.registry；没写、或写的不是 http(s) 地址就拒）→ 发版前检查（每个要发的包：产物里相对 import 指向的文件都在；dev 依赖不查。keywords 含 gwb-plugin 的插件包另加：peer 里只许 cordis、内核包 @godcreator/gwb-kernel-desktop 与别的插件（包目录 node_modules 里它的清单 keywords 含 gwb-plugin），peer 里每个 gwb 插件（不分范围）和源上 dist-tags.latest 在同一条线（0.x 只看 x，≥1 只看主版本号；问哪个源由 ~/.npmrc 的范围行决定）；node 侧产物——exports["."] 的运行时入口（没有 exports 时是 main）顺着相对 import 走到的文件——的包名 import 只有 node 内置模块、electron 与 peer 里写了的包；浏览器侧产物——dist/client.js，同样顺着相对 import 走——只 import 页面 importmap 里的名字，也就是内核包页面入口 dist/index.html 里那段 importmap 的键，从包目录 node_modules 里装好的内核包现读；peer 里写了内核包、写法是 ^x.y.z，范围包不包含哪个内核不查；构建后有 dist/style.css 的插件包再做样式检查：' +
+        STYLE_CHECK_SUMMARY +
+        '。没过就一个都不发，回执按包一次列全）→ 在临时目录里组装发布内容并发到发布目标（不改仓里任何文件；tag latest；发布内容清单的 publishConfig.registry 写发布目标，命令行不带 --registry；workspace: 依赖写成 ^<工作区里那个号>，这一次同发的写成 ^新号）→ 按给定顺序发完。**版本号在仓里升**（改 package.json 并提交），同一个版本号永不重发。只发到源、不碰任何 home；升级 default 用 plugin-manager.update {"all":true}',
     },
     async (args) => {
       if (!isRecord(args)) return { ok: false, error: `参数要是个对象。\n${RELEASE_USAGE}` }

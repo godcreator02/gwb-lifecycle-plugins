@@ -9,12 +9,12 @@ description: devkit.dev 一条命令把工作区的改动换进另一个 home �
 
 一句话：**把工作区里的改动装进另一个 home 正在运行的进程，并且证明它真的在运行。**
 
-六步，一步都不能省：问目标页面它是哪个 home、在仓根构建、把每个包打成包文件放进目标 home、经目标 home 的插件管理装（插件管理在同一条命令里重新加载条目）、整页刷新、取证。任何一步失败当场停，回执里写着停在哪一步。
+六步，一步都不能省：问目标页面它是哪个 home、在仓根构建（带界面的插件接着过样式检查）、把每个包打成包文件放进目标 home、经目标 home 的插件管理装（插件管理在同一条命令里重新加载条目）、整页刷新、取证。任何一步失败当场停，回执里写着停在哪一步。
 
-{/* ref file="../plugins/devkit/src/dev.ts" lines="568-625" */}
+{/* ref file="../plugins/devkit/src/dev.ts" lines="587-646" */}
 
 <Diagram name="dk-dev-loop" title="改一版看一版：改代码、调 devkit.dev 走完六步、读回执，再改下一版">
-- 左列在控制台 home 里做：`devkit.dev` 收 `home`、`dir`、`packages`，仓根 `pnpm build`，每个包 `pnpm pack` 成包文件（版本号 `<patch+1>-dev.<yyyyMMddHHmmss>`），放进目标 home 的 `dev-packs` 目录
+- 左列在控制台 home 里做：`devkit.dev` 收 `home`、`dir`、`packages`，仓根 `pnpm build`，带界面的插件过样式检查（没过就停，一个都不装），每个包 `pnpm pack` 成包文件（版本号 `<patch+1>-dev.<yyyyMMddHHmmss>`），放进目标 home 的 `dev-packs` 目录
 - 右列在目标 home（隔离 home）里做，页面上的操作都经 `bin/cdp.mjs` 按 home 名连过去：先问页面它是哪个 home（`default` 与开发套件自己所在的 home 直接拒）；已装的包合成一条 `plugin-manager.update {"specs":{…}}`，没装的插件逐个 `plugin-manager.install`；插件管理装包并重新加载条目；整页刷新；最后取证
 - 取证三样：装上的是这次的版本号、条目是 `ACTIVE`、`gwb.log` 在装包之前那个长度之后新增的部分没有 error
 - 取证之后读回执、回到改代码，再调一次 `devkit.dev`；任何一步失败当场停，回执写明停在哪一步
@@ -23,6 +23,8 @@ description: devkit.dev 一条命令把工作区的改动换进另一个 home �
 **只收插件与内核包，包目录由调用方列出。** `packages` 必给，是非空的字符串数组，每项是相对仓根的包目录，不给或写错直接拒。每个包目录的清单要读得出、`files` 里的产物都在；`keywords` 里没有 `gwb-plugin`、也不是内核包的，直接拒：库打包进用它的插件，不单独装进 home。
 
 {/* ref file="../plugins/devkit/src/dev.ts" lines="396-425" */}
+
+**构建之后、打包之前过样式检查。** 构建后有 `dist/style.css` 的插件包，查类名前缀、颜色只用主题令牌、`var()` 的 fallback，和 `devkit.release` 发之前查的是同一套（见[发正式版](/docs/devkit/release)）。没过就回 `ok: false`，写明停在打包之前、一个都没装，所有包的问题一次列全。检查只在 devkit 里一份，模板不带测试：复制进各仓的测试副本不会跟着 devkit 更新。
 
 **开发版不进团队源，打成包文件放进目标 home。** 打包沿用发正式版的那套组装：在临时目录里放 `files` 里的东西、README 与改写过的清单（版本号换成这次的、`workspace:` 换成工作区里的版本号），再在临时目录里 `pnpm pack --pack-destination <目标 home>\dev-packs`。`pnpm pack` 会按清单的 `files` 再挑一遍文件，漏写进 `files` 的文件不在包文件里，装上之后照样暴露。仓里的文件一个都不改。
 
@@ -110,9 +112,10 @@ description: devkit.dev 一条命令把工作区的改动换进另一个 home �
 | 读磁盘的几个函数 | 读清单、查产物与包文件在不在、读目标 home 的清单与装上的包清单、取日志基线与新增部分 | `node:fs` | 内存里的文件表 |
 | `sleep` | 轮询插件管理重新加载自己、轮询重启后的 `shell.env` 时，两次之间等一会儿 | `setTimeout` | 只记一行、不真等 |
 | `restartHome` | 装了内核包时停掉目标 home 再启动 | `src/index.ts` 用测试 home 的停止与启动（`bringDownHome`、`launchHome`）接上，调试端口先沿用上次那个 | 记一行调用、可以让它失败 |
+| `filesUnder` / `tailwindOf` | 样式检查：列出样式入口与 `.tsx`；从被检查包的 `@tailwindcss/cli` 旁边找 Tailwind 编译器 | `node-dev-deps.ts` 里的同名函数 | 内存里的文件表、假编译器 |
 | `pnpm` | 构建、打包时启动的 pnpm 可执行文件 | 命令开头在两个固定位置找到并核对过版本的那个（见[pnpm 与包源](/docs/seams/pnpm-registry)），找不到就不开始 | 一个假路径 |
 
-{/* ref file="../plugins/devkit/src/dev.ts" lines="283-303" */}
+{/* ref file="../plugins/devkit/src/dev.ts" lines="284-306" */}
 
 **CDP 那一项为什么是启动子进程，而不是在进程内连接。** CDP 驱动必须在工作台没运行的时候也能单独用，所以它是零依赖单文件的脚本，不是一个可以 import 的模块。一次流程多启动几次进程，几百毫秒，对一次一分钟左右的流程可以忽略。
 

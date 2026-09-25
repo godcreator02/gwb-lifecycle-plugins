@@ -49,7 +49,7 @@ function pluginManifestOf(name: string, version: string, gwb?: Record<string, un
 /** 别的范围下的插件：peer 里的插件不分范围，都和源上 latest 比 */
 const OTHER_SCOPE_PLUGIN = '@someone/gwb-x'
 
-/** peer 里哪些包的清单是插件（keywords 含 gwb-plugin）。cordis 官方插件不算 */
+/** peer 里哪些包的清单是插件（keywords 含 gwb-plugin） */
 const PLUGIN_PEERS: ReadonlySet<string> = new Set([SHELL, B, A, OTHER_SCOPE_PLUGIN])
 
 const T = (peers: Record<string, string>, version = '0.3.0', plugin = false) => ({
@@ -84,7 +84,7 @@ describe('peerLineProblems：peer 里的插件和源上 latest 在同一条线',
     expect(peerLineProblems(P({ [OTHER_SCOPE_PLUGIN]: '^0.3.0' }), { [OTHER_SCOPE_PLUGIN]: '0.3.1' }, PLUGIN_PEERS)).toEqual([])
   })
 
-  it('不是 ^x.y.z、问不出 latest：拒；内核包、workspace:、不是 gwb 插件的 peer（cordis 官方插件）不在这里查', () => {
+  it('不是 ^x.y.z、问不出 latest：拒；内核包、workspace:、不是插件的 peer 不在这里查', () => {
     const got = peerLineProblems(P({ [SHELL]: '>=0.13.0', [B]: '^0.2.0', [KERNEL_PACKAGE]: '^0.1.0', [A]: 'workspace:*', '@cordisjs/plugin-timer': '^1.1.3' }), {}, PLUGIN_PEERS)
     expect(got).toEqual([expect.stringContaining('peer 只许写 ^x.y.z'), expect.stringContaining('问不出')])
   })
@@ -103,9 +103,9 @@ describe('sameReleaseLine 与 isPluginManifest', () => {
     expect(sameReleaseLine('x', '1.0.0')).toBe(false)
   })
 
-  it('插件：keywords 含 gwb-plugin，或同时含 cordis 与 plugin（cordis 官方插件）', () => {
+  it('插件只认 keywords 含 gwb-plugin；cordis 官方插件（keywords 含 cordis 与 plugin）不算', () => {
     expect(isPluginManifest({ keywords: ['gwb', 'gwb-plugin'] })).toBe(true)
-    expect(isPluginManifest({ keywords: ['cordis', 'timer', 'service', 'plugin'] })).toBe(true)
+    expect(isPluginManifest({ keywords: ['cordis', 'timer', 'service', 'plugin'] })).toBe(false)
     expect(isPluginManifest({ keywords: ['gwb'] })).toBe(false)
     expect(isPluginManifest({})).toBe(false)
   })
@@ -124,9 +124,14 @@ describe('peerProblems：插件包的 peer 只写 cordis、内核包与别的插
     expect(peerProblems(T({ cordis: '^4.0.0-rc.9', ...KERNEL_PEER }, '0.3.0', true), peerManifestOf)).toEqual([])
   })
 
-  it('peer 写别的插件（gwb 插件与 cordis 官方插件）：放行', () => {
-    const got = peerProblems(T({ [SHELL]: '^0.13.7', '@cordisjs/plugin-timer': '^1.1.3', ...KERNEL_PEER }, '0.3.0', true), peerManifestOf)
+  it('peer 写别的插件（keywords 含 gwb-plugin）：放行', () => {
+    const got = peerProblems(T({ [SHELL]: '^0.13.7', ...KERNEL_PEER }, '0.3.0', true), peerManifestOf)
     expect(got).toEqual([])
+  })
+
+  it('peer 写 cordis 官方插件：拒，它的 keywords 里没有 gwb-plugin', () => {
+    const got = peerProblems(T({ '@cordisjs/plugin-timer': '^1.1.3', ...KERNEL_PEER }, '0.3.0', true), peerManifestOf)
+    expect(got).toEqual([expect.stringContaining('peer 写了 @cordisjs/plugin-timer,它不是插件(keywords 里没有 gwb-plugin)')])
   })
 
   it('peer 写了不是插件的包：拒，说库打包进产物写 dev；清单读不到：拒，说先 pnpm install', () => {
@@ -222,6 +227,12 @@ function fake(options: FakeOptions = {}): ReleaseDeps & { calls: string[]; range
     pnpm: PNPM,
     readText: (file) => files[path.resolve(file)],
     exists: (target) => path.resolve(target) in files || target.endsWith('dist'),
+    filesUnder: (dir) => Object.keys(files).filter((file) => file.startsWith(path.resolve(dir) + path.sep)),
+    async tailwindOf(pkgDir) {
+      calls.push(`tailwind @${pkgDir}`)
+      // 假编译器：带前缀的 flex 编得出规则，别的都编不出
+      return { ok: true, compile: async (css) => ({ build: (candidates) => (css.includes('prefix(') && candidates.some((one) => one.endsWith(':flex')) ? 'rule' : '') }) }
+    },
     async gitStatus(repoDir) {
       calls.push(`git status @${repoDir}`)
       if (options.gitError === true) return { ok: false, error: 'fatal: not a git repository' }
@@ -320,19 +331,42 @@ describe('发正式版', () => {
     expect(deps.calls.some((one) => one.startsWith('latest '))).toBe(false)
   })
 
-  it('插件包的产物有不在名单上的包名 import、有空 import：拒', async () => {
+  it('插件包的产物有不在名单上的包名 import：拒', async () => {
     const deps = fake({
       files: {
         [path.resolve(REPO, 'a/package.json')]: pluginManifestOf(A, '0.1.0', undefined, { peerDependencies: KERNEL_PEER }),
-        [path.resolve(REPO, 'a/dist/index.js')]: "import YAML from 'yaml';\nimport {} from '@godcreator/gwb-shell';\n",
+        [path.resolve(REPO, 'a/dist/index.js')]: "import YAML from 'yaml';\n",
       },
     })
     const out = await runRelease({ repoDir: REPO, packages: ['a'] }, deps)
     expect(out.ok).toBe(false)
     if (out.ok) return
     expect(out.error).toContain("import 了 'yaml'")
-    expect(out.error).toContain("空 import：import {} from '@godcreator/gwb-shell'")
     expect(deps.calls.some((one) => one.startsWith('publish'))).toBe(false)
+  })
+
+  it('插件包构建后有 dist/style.css：样式检查的问题并进发版前检查，一个都不发；没有 style.css 不查、不找 Tailwind', async () => {
+    const styled = fake({
+      files: {
+        [path.resolve(REPO, 'a/package.json')]: pluginManifestOf(A, '0.1.0', undefined, { peerDependencies: KERNEL_PEER }),
+        [path.resolve(REPO, 'a/dist/style.css')]: '.fa\\:flex{display:flex}.stray{color:red}',
+        [path.resolve(REPO, 'a/src/client/styles.css')]: "@import 'tailwindcss/theme.css' theme(reference) prefix(fa);",
+        [path.resolve(REPO, 'a/src/client/App.tsx')]: 'export const A = () => <div className="fa:flex" />',
+        [path.resolve(REPO, 'a/node_modules/@godcreator/gwb-shell/package.json')]: JSON.stringify({ name: SHELL, exports: { './theme.reference.css': './dist/theme.reference.css' } }),
+        [path.resolve(REPO, 'a/node_modules/@godcreator/gwb-shell/dist/theme.reference.css')]: '@theme inline { --color-primary: var(--primary); }',
+      },
+    })
+    const refused = await runRelease({ repoDir: REPO, packages: ['a', 'b'] }, styled)
+    expect(refused.ok).toBe(false)
+    if (refused.ok) return
+    expect(refused.error).toContain(`${A}@0.1.0:\n  - dist/style.css 里有 1 个类选择器不带 fa: 前缀：.stray`)
+    expect(refused.error).toContain('1 个包 1 条')
+    expect(styled.calls).toContain(`tailwind @${path.resolve(REPO, 'a')}`)
+    expect(styled.calls.some((one) => one.startsWith('publish'))).toBe(false)
+
+    const plain = fake({ files: { [path.resolve(REPO, 'a/package.json')]: pluginManifestOf(A, '0.1.0', undefined, { peerDependencies: KERNEL_PEER }) } })
+    expect((await runRelease({ repoDir: REPO, packages: ['a'] }, plain)).ok).toBe(true)
+    expect(plain.calls.some((one) => one.startsWith('tailwind'))).toBe(false)
   })
 
   it('插件包 peer 里的内核包不对：构建之后、发之前拒，一个都不发，每个包的问题一次列全', async () => {
@@ -504,7 +538,7 @@ describe('发布目标（GWB-17）', () => {
     expect(deps.calls.some((one) => one.startsWith('publish '))).toBe(false)
   })
 
-  it('查别的包的 latest 不指定源（由 .npmrc 的范围行决定）；peer 里别的范围下的插件也查，cordis 官方插件不查', async () => {
+  it('查别的包的 latest 不指定源（由 .npmrc 的范围行决定）；peer 里别的范围下的插件也查，不是插件的 peer（cordis 官方插件）不查', async () => {
     const nodeModules = (pkg: string, keywords: string[]) => ({
       [path.resolve(REPO, 'a/node_modules', ...pkg.split('/'), 'package.json')]: JSON.stringify({ name: pkg, keywords }),
     })

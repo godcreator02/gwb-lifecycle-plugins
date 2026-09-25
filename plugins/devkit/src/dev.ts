@@ -1,5 +1,6 @@
 import path from 'node:path'
 import { INSTALL_COMMAND, KERNEL_PACKAGE, LIST_COMMAND, UPDATE_COMMAND } from '@godcreator/gwb-plugin-manager'
+import { styleProblems, type StyleCheckIo } from './style-check.js'
 import { isRecord, packageManifestOf, VERSION } from './vocab.js'
 
 /** 日常用的那个 home 的名字。开发版装进它就是悄悄换了日常代码，所以当场拒；删它要 `force` */
@@ -289,6 +290,8 @@ export interface DevDeps {
   pack(input: { pkgDir: string; version: string; destination: string }): Promise<{ ok: boolean; tail: string }>
   readText(file: string): string | undefined
   exists(target: string): boolean
+  filesUnder: StyleCheckIo['filesUnder']
+  tailwindOf: StyleCheckIo['tailwindOf']
   /** 文件现在多大。取日志基线用 */
   size(file: string): number
   /** 从某个字节读到末尾。取日志新增部分用 */
@@ -422,6 +425,22 @@ function planDevPackages(input: DevInput, homeDir: string, deps: DevDeps): Failu
     planned.push({ pkgDir, manifest, version, packFile })
   }
   return planned
+}
+
+/** 构建之后、打包之前：带界面插件的样式检查，所有包的问题一次列全 */
+async function styleCheckFailure(planned: readonly PlannedDevPackage[], homeName: string, deps: DevDeps): Promise<Failure | undefined> {
+  const failed: { pkg: string; problems: string[] }[] = []
+  for (const one of planned) {
+    const problems = await styleProblems(one.pkgDir, one.manifest, deps)
+    if (problems.length > 0) failed.push({ pkg: one.manifest.name, problems })
+  }
+  if (failed.length === 0) return undefined
+  const problemCount = failed.reduce((sum, one) => sum + one.problems.length, 0)
+  const blocks = failed.map((one) => `${one.pkg}:\n${one.problems.map((line) => `  - ${line}`).join('\n')}`)
+  return {
+    ok: false,
+    error: `构建之后的样式检查没过(${String(failed.length)} 个包 ${String(problemCount)} 条),停在打包之前,一个都没装进 ${homeName}。逐条改完再来:\n${blocks.join('\n')}`,
+  }
 }
 
 /** 按给的顺序打包；pnpm 退出码 0 还要确认包文件就在算好的路径上，插件管理照这个路径装 */
@@ -566,7 +585,7 @@ async function reloadPage(home: string, waitFor: string | undefined, deps: DevDe
 }
 
 /**
- * 问目标页面 → 仓根构建 → 打包进目标 home 的 dev-packs → 经目标 home 的插件管理装（先 update 已装的、再 install 新插件）
+ * 问目标页面 → 仓根构建 → 样式检查 → 打包进目标 home 的 dev-packs → 经目标 home 的插件管理装（先 update 已装的、再 install 新插件）
  * → 整页刷新 → 取证。任何一步失败当场停。装了内核包时整页刷新换成重启目标 home
  */
 export async function runDev(input: DevInput, deps: DevDeps): Promise<DevOutcome> {
@@ -579,6 +598,8 @@ export async function runDev(input: DevInput, deps: DevDeps): Promise<DevOutcome
 
   const planned = planDevPackages(input, target.home, deps)
   if (!Array.isArray(planned)) return planned
+  const styleFailure = await styleCheckFailure(planned, target.name, deps)
+  if (styleFailure !== undefined) return styleFailure
   const manifestFile = path.join(target.home, HOME_MANIFEST)
   const homeDependencies = homeDependenciesOf(deps.readText(manifestFile), manifestFile)
   if (!homeDependencies.ok) return { ok: false, error: homeDependencies.error }

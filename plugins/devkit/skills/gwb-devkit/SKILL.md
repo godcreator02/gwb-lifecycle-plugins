@@ -12,7 +12,8 @@ description: 写新插件、改插件、在隔离 home 里验证改动时读；�
 3. 建仓：`devkit.scaffold {"name":"<kebab 短名>","dir":"<还不存在的绝对路径>"}`；往已有的 workspace 仓再加一个插件用 `devkit.scaffold.plugin {"repo":"<仓根>","name":"<短名>"}`。回执 `nextSteps` 里是这个仓特有的：仓与插件包在哪。建仓只写插件的文件，不建文档站；模板里要显示名的地方（README 标题、`description`、窗格标题）都是短名，要中文名自己改。没有团队源（`@godcreator`）发布权限就两条都加 `"scope":"@<你的范围>","registry":"<你的源的地址，如 http://localhost:4873/>"`：包名成了 `<scope>/gwb-<短名>`，`registry` 写进插件包的 `publishConfig.registry`，`devkit.release` 发到那里；发布 token 写在用户级 `~/.npmrc`。同一个仓里的插件用同一套
 4. 把模板改成真插件，每一处都守「写插件的规矩」：
    * `src/index.ts`：模板的 `<短名>.ping` 与窗格 `main` 换成真正的命令与窗格。命令照模板那条的写法登记：`name`、`description`、`usage` 都是非空字符串，`description` 一句话说做什么，参数形状写进 `usage`，无参数写「无参数」；不写 `plugin`，命令总线从调用方取包名。缺字段时命令总线在登记时抛错，插件加载失败
-   * `tests/`：不启动进程、不开窗口就能测的逻辑抽成纯函数来测。模板带的 `tests/prefix.test.ts`（类名前缀）与 `tests/artifact.test.ts`（构建产物）不用改。`prefix.test.ts` 报「前缀要排在最前」时照它写的改法改：前缀排在所有变体前面（`<前缀>:disabled:opacity-50`），写反了 Tailwind 不报错、只是一条规则都不出
+   * `tests/`：不启动进程、不开窗口就能测的逻辑抽成纯函数来测，模板不带测试文件。构建产物的包名 import、类名前缀、颜色只用主题令牌这些由 devkit 查（`devkit.dev` 构建之后、`devkit.release` 发之前），报「前缀要排在最前」时照报错里的改法改：前缀排在所有变体前面（`<前缀>:disabled:opacity-50`），写反了 Tailwind 不报错、只是一条规则都不出
+   * 不要界面的插件：照生成的 README 里那张清单删掉浏览器侧的文件、脚本与依赖
    * `package.json`：peer 里内核包 `@godcreator/gwb-kernel-desktop` 的范围 `^x.y.z` 要包含验证时用的内核（模板写的是运行建仓命令的那个 home 里的内核）；用到的别的插件（经 `ctx.inject` 用它的服务、import 它的类型）写进 peer，范围 `^x.y.z`，不另写 dev：写在 `export const inject` 里的是普通 peer，只在 `ctx.inject([...], fn)` 里用的在 `peerDependenciesMeta` 标 `optional: true`。模板已写命令总线与外壳，下限是建仓那个 home 里装着的版本；不用外壳就删掉那一项；`description` 改成一句话说这个插件做什么；有了 `skills/` 目录就把 `skills` 加进 `files`
    * 提供服务：在源码里给 cordis 的 `Context` 补上这一项（`declare module 'cordis' { interface Context { gwbExample: GwbExample } }`），`GwbExample` 定义在本包里、写文档注释说清怎么用；用它的插件从你发布的 `.d.ts` 读到这些
    * 仓里有文档站的，在它的现状区写这个插件的页：功能、接口、依赖、不做的事四节
@@ -31,7 +32,7 @@ description: 写新插件、改插件、在隔离 home 里验证改动时读；�
 ## 改一版看一版
 
 1. 开一个隔离 home：`devkit.home.new {"short":"<插件短名或这次验什么>"}`，回执里是 home 名 `<short>-<yyMMddHHmm>`，自带内核包（运行这条命令的内核那个版本）、`cordis` 与一套基础插件。机器重启后回到已有的 home 用 `devkit.home.open {"name":"<名>"}`。现有的 home 用 `devkit.home.list` 列出，验完的旧 home 用 `devkit.home.rm {"name":"<名>","force":true}` 删掉
-2. `devkit.dev {"home":"<home 名>","dir":"<仓根>","packages":["plugins/<短名>"]}`。`packages` 必给，相对仓根，只给插件与内核包的目录（库打包进用它的插件，给了直接拒）。它把每个包打成包文件放进那个 home 的 `dev-packs`，经那个 home 的插件管理装：已装的包走 `plugin-manager.update`，还没装的插件走 `plugin-manager.install` 新建条目，不用自己建
+2. `devkit.dev {"home":"<home 名>","dir":"<仓根>","packages":["plugins/<短名>"]}`。`packages` 必给，相对仓根，只给插件与内核包的目录（库打包进用它的插件，给了直接拒）。它在仓根构建，带界面的插件先过样式检查（没过回 `ok: false`，不装），再把每个包打成包文件放进那个 home 的 `dev-packs`，经那个 home 的插件管理装：已装的包走 `plugin-manager.update`，还没装的插件走 `plugin-manager.install` 新建条目，不用自己建
 3. 在那个 home 里调新写的命令看回执：`devkit.cdp {"args":["<home 名>","cmd","<命令名>","<JSON 参数>"]}`；界面上的效果按「在页面里取证」做
 
 **完成判据**：`devkit.dev` 回执 `ok: true`（`evidence.installed` 是这次打包的开发版号、条目 `ACTIVE`、日志新增部分没有 error）；`devkit.cdp … cmd plugin-manager.list` 里这个包的条目 `active` 为 true、版本是这次的开发版号；新命令的回执与预期一致。
@@ -53,7 +54,7 @@ description: 写新插件、改插件、在隔离 home 里验证改动时读；�
 
 ## 参考：约定与容易出错的地方
 
-* **是不是插件看 `keywords`**：插件写 `["gwb", "gwb-plugin"]`（模板已带），库只写 `["gwb"]`。`plugin-manager.search`（插件管理窗格的「可装」列表就是它）按 `gwb-plugin` 筛，不看包名范围
+* **是不是插件看 `keywords` 里有没有 `gwb-plugin`**（模板已带），库不写。`plugin-manager.search`（插件管理窗格的「可装」列表就是它）按它筛，不看包名范围
 * **包名与发到哪用 npm 的标准字段**：包的身份是 `package.json` 的 `name`，发到哪是 `publishConfig.registry`（每个要发的包都得写，没写 `devkit.release` 就拒发；模板已写）。别的包名范围的插件要装进 home，那个范围的源得先配进 `~/.npmrc`（照说明书 `gwb-plugin-manager` 的「配第三方包源」）
 * **内核的接口类型从内核包的包根 `import type`**：`import type { GwbContext } from '@godcreator/gwb-kernel-desktop'`，peer 里写着内核包，不另写 dev。包根只导出类型，`isRecord`、`requireKernel` 这类无状态小函数由插件自带一份（devkit 的 `src/vocab.ts`）
 * **node 侧的测试只 import `.ts`**：node 侧的 tsc 没开 jsx

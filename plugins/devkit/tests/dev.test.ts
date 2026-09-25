@@ -110,6 +110,12 @@ function fake(options: FakeOptions = {}): Fake {
     readText: (file) => files[path.resolve(file)],
     // 产物照 `files` 白名单问，测试里 dist 一律当在
     exists: (target) => path.resolve(target) in files || target.endsWith('dist'),
+    filesUnder: (dir) => Object.keys(files).filter((file) => file.startsWith(path.resolve(dir) + path.sep)),
+    async tailwindOf(pkgDir) {
+      calls.push(`tailwind @${pkgDir}`)
+      // 假编译器：什么都编不出
+      return { ok: true, compile: async () => ({ build: () => '' }) }
+    },
     size: () => 0,
     slice: () => options.log ?? '',
     async sleep(ms) {
@@ -363,6 +369,31 @@ describe('一次流程', () => {
     expect(out).toMatchObject({ ok: false })
     if (!out.ok) expect(out.error).toContain(`pnpm add ${PKG} 失败`)
     expect(deps.calls.some((one) => one.includes(' reload'))).toBe(false)
+  })
+
+  it('构建之后样式检查没过：停在打包之前，写明停在哪一步、按包列全问题；没有 dist/style.css 不查', async () => {
+    const pkgDir = path.resolve(REPO, PLUGIN_DIR)
+    const deps = fake({
+      files: {
+        [path.join(pkgDir, 'dist/style.css')]: '.fk\\:flex{display:flex}[data-gwb-plugin] .fk\\:p-2{padding:0}',
+        [path.join(pkgDir, 'src/client/styles.css')]: "@import 'tailwindcss/theme.css' theme(reference) prefix(fk);",
+        [path.join(pkgDir, 'src/client/App.tsx')]: 'export const A = () => <div />',
+        [path.join(pkgDir, 'node_modules/@godcreator/gwb-shell/package.json')]: JSON.stringify({ exports: { './theme.reference.css': './t.css' } }),
+        [path.join(pkgDir, 'node_modules/@godcreator/gwb-shell/t.css')]: '',
+      },
+    })
+    const out = await runDev(input(), deps)
+    expect(out).toMatchObject({ ok: false })
+    if (!out.ok) {
+      expect(out.error).toContain(`构建之后的样式检查没过(1 个包 1 条),停在打包之前,一个都没装进 ${HOME_NAME}`)
+      expect(out.error).toContain(`${PKG}:\n  - dist/style.css 里出现了 data-gwb-plugin`)
+    }
+    expect(deps.calls.indexOf(`tailwind @${pkgDir}`)).toBeGreaterThan(deps.calls.indexOf(`run pnpm build @${REPO}`))
+    expect(deps.calls.some((one) => one.startsWith('pack '))).toBe(false)
+
+    const plain = fake()
+    expect((await runDev(input(), plain)).ok).toBe(true)
+    expect(plain.calls.some((one) => one.startsWith('tailwind'))).toBe(false)
   })
 
   it('构建没成就一步都不往下走', async () => {
