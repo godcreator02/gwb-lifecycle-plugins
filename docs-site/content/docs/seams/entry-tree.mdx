@@ -3,7 +3,7 @@ title: 8 条目树 loader
 description: 连接插件管理与 cordis 的 loader、include：插件管理从自己那条条目的上一层取条目树，只用 store 与 create / update / remove，按 fiber 的状态值判断条目是否运行、用 fiber.await 等卸载加载做完；loader 的这些结构不是公开接口，靠与内核相同的固定版本加一组用真实 loader 运行的测试保护
 ---
 
-**本页回答**：插件管理用了 loader 的哪几样东西、从哪里取到；条目的状态值从哪来；两边各保证什么；内核换了 loader 的版本，插件管理哪里先发现。内核对 home 布局与 loader 版本的承诺写在内核仓文档站的「home 布局与条目树」接缝页。
+**本页回答**：插件管理用了 loader 的哪几样东西、从哪里取到；条目的状态值从哪来；插件管理与 loader 各保证什么；内核换了 loader 的版本，插件管理哪里先发现。内核对 home 布局与 loader 版本的承诺写在内核仓文档站的「home 布局与条目树」接缝页。
 
 ## 连接的模块
 
@@ -46,16 +46,12 @@ loader、include、cordis 需要保证的：`entry.parent.tree` 这条取法、�
 ## 不负责的事
 
 - 插件管理不决定 home 的布局、条目树的结构、包名怎么解析，这些归内核
-- 条目树不知道插件管理的 BUSY 检查；那道检查只挡插件管理自己的四条改动命令（见[同一时刻只允许一个改动](/docs/plugin-manager/busy)）
+- loader 的条目树不知道插件管理的 BUSY 检查；那道检查只挡插件管理自己的四条改动命令（见[同一时刻只允许一个改动](/docs/plugin-manager/busy)）
 - devkit 不碰运行中的条目树：`devkit.dev` 经 CDP 调目标 home 的 `plugin-manager.update` / `install`（见 [devkit 调插件管理](/docs/seams/plugin-manager-calls)）；`devkit.home.new` 在内核启动之前直接写新 home 的 `cordis.yml`，那时还没有条目树
 
 ## 测试
 
-`tests/loader.test.ts` 照内核的顺序搭一个真实的 loader 与 include，把取树、增删改、重新加载各运行一遍；`tests/fiber-state.test.ts` 读已安装 cordis 的类型声明，核对照抄的状态名表：
-
-{/* has file="../plugins/plugin-manager/tests/loader.test.ts" text="从插件自己的上下文取到条目树与自己的 entryId" */}
-
-{/* has file="../plugins/plugin-manager/tests/loader.test.ts" text="改的是内存里的条目，也写回 cordis.yml" */}
+插件管理的 `tests/loader.test.ts` 照内核的顺序搭一个真实的 loader 与 include，把取树、增删改、重新加载各运行一遍；`tests/fiber-state.test.ts` 读已安装 cordis 的类型声明，核对照抄的状态名表。
 
 {/* has file="../plugins/plugin-manager/tests/loader.test.ts" text="停用再启用会重新加载，最后是 ACTIVE" */}
 
