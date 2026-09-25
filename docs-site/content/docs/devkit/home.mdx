@@ -29,19 +29,19 @@ home 在 `%APPDATA%\gwb-kernel\homes\<名>\`。打开哪一个由环境变量 `G
 
 运行时记录，一个 home 一份，home 删了它也就没了：
 
-{/* ref file="../plugins/devkit/src/home.ts" lines="31-49" */}
+{/* ref file="../plugins/devkit/src/home.ts" lines="31-47" */}
 
 **写它的是内核与 MCP 入口插件，不是本包。** 内核每次启动整份重写 `pid`、`startedAt`、`appDir`、`cdp`，`gwb-mcp` 绑定端口之后读出、补上 `mcp` 字段再写回。记录里认不出的字段不读。谁写哪个字段按「谁知道这个值」分：调试端口是 Chromium 的命令行开关，只有启动进程的一方知道，而内核是唯一一定在场的进程；MCP 端口绑定成功之后才确定，只有那个插件知道。
 
 **少一个字段不算坏记录。** `cdp` 只有启动时带了那个开关才有，`mcp` 只有装了 MCP 入口插件且绑定成功才有。缺哪个字段就是那件事没发生。
 
-{/* ref file="../plugins/devkit/src/home.ts" lines="68-80" */}
+{/* ref file="../plugins/devkit/src/home.ts" lines="66-88" */}
 
 **进程退出了记录不删**，读的人负责确认进程还在。崩溃与被结束进程很常见，「退出时删」在这两种情况下根本不会执行；留着的那份是「它上一次用的哪个端口」的唯一线索，而下一次启动时内核会整份重写。
 
 `devkit.home.list` 列出来的是另一个类型，`running` 由记录里的 pid 当场查出来：
 
-{/* ref file="../plugins/devkit/src/home.ts" lines="456-467" */}
+{/* ref file="../plugins/devkit/src/home.ts" lines="452-461" */}
 
 两个端口按记录如实报，**不因为「进程看起来不在了」就去掉**：一个过时的端口正是人要看到的线索。
 
@@ -139,7 +139,7 @@ home 在 `%APPDATA%\gwb-kernel\homes\<名>\`。打开哪一个由环境变量 `G
 
 **三道检查都要过**，少一道就可能把这次改动推给另一个进程：
 
-{/* ref file="../plugins/devkit/src/home.ts" lines="530-556" */}
+{/* ref file="../plugins/devkit/src/home.ts" lines="523-549" */}
 
 记录读得出；pid 还活着，且认得出是一个 home 进程；那个 pid 确实在监听记录里的端口。端口会被下一个进程占用，pid 会被复用，所以「记录里写着 9401」本身不能当依据。「查不出」与「确定不在」分开报：前者不导出任何动作，后者是明确的「它没在运行」。
 
@@ -167,7 +167,7 @@ home 在 `%APPDATA%\gwb-kernel\homes\<名>\`。打开哪一个由环境变量 `G
 
 停止之前**核对两次再结束进程**：映像名认得出是 home 进程，记录里有调试端口的，再核对监听那个端口的进程就是记录里的 pid：
 
-{/* ref file="../plugins/devkit/src/home.ts" lines="583-628" */}
+{/* ref file="../plugins/devkit/src/home.ts" lines="576-621" */}
 
 **手动启动的 home 也能这样停**：记录由内核写，所以不只 devkit 启动的 home 才有「它是谁」的依据。没有记录就照实说没有可停的，不猜、不按名字搜进程。
 

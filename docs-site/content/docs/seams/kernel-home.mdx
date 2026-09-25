@@ -23,17 +23,17 @@ description: 连接 devkit.home.* 与 cdp.mjs 和内核 exe：启动 home 用 GW
 
 `src/home.ts` 的 `parseRecord`：`pid` 必须是正整数、`startedAt` 必须是有限数，否则整份当没有；缺 `cdp` 不算坏。`devkit.dev` 与 `home.*` 用它，定位时还核对 pid 还活着、且那个 pid 占着记录里的端口：
 
-{/* ref file="../plugins/devkit/src/home.ts" lines="67-91" */}
+{/* ref file="../plugins/devkit/src/home.ts" lines="66-88" */}
 
-{/* ref file="../plugins/devkit/src/home.ts" lines="533-561" */}
+{/* ref file="../plugins/devkit/src/home.ts" lines="521-549" */}
 
 `bin/cdp.mjs` 的 `portOf`：只取 `cdp`，要求是 1–65535 的整数，不看 `pid`：
 
-{/* ref file="../plugins/devkit/bin/cdp.mjs" lines="145-163" */}
+{/* ref file="../plugins/devkit/bin/cdp.mjs" lines="137-155" */}
 
 **home 根目录只有一种算法**：`%APPDATA%\gwb-kernel\homes`（Electron 的 `app.getPath('appData')` 在 Windows 上就是 `%APPDATA%`），与内核 `main.ts` 里 `GWB_HOME` 是名字时相同。算法写在零依赖的 `bin/cdp.mjs` 里，`src/index.ts` 从那里 import，两处用的是同一个函数。开发套件只支持 Windows：平台不是 Windows、或没有 `APPDATA`，都直接报错：
 
-{/* ref file="../plugins/devkit/bin/cdp.mjs" lines="69-84" */}
+{/* ref file="../plugins/devkit/bin/cdp.mjs" lines="68-76" */}
 
 {/* has file="../plugins/devkit/src/index.ts" text="import { homesRootOf } from '../bin/cdp.mjs'" */}
 

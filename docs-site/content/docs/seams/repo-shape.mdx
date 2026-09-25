@@ -35,7 +35,7 @@ description: 连接 devkit.dev、devkit.release、devkit.scaffold.plugin 与被�
 
 {/* ref file="../plugins/devkit/src/release.ts" lines="195-195" */}
 
-{/* ref file="../plugins/devkit/src/dev.ts" lines="449-451" */}
+{/* ref file="../plugins/devkit/src/dev.ts" lines="448-451" */}
 
 **产物分两侧，按模板的构建约定认**：`devkit.release` 的构建产物检查把 `exports["."]` 的运行时入口（没有 `exports` 时是 `main`）当作 node 侧入口，把包目录下的 `dist/client.js` 当作浏览器侧入口，各自顺着相对 import 走；入口找不到、相对 import 指向的文件不在，都拒。产物不在这几个位置的仓，那部分文件不被查到：
 

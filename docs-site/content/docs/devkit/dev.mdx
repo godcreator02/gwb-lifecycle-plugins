@@ -56,7 +56,7 @@ description: devkit.dev 一条命令把工作区的改动换进另一个 home �
 
 **最后一步是取证，不是刷新。** 少了它，人看到「装了、刷新了」就会说验过了。三样合起来才能排除那几种「看起来成功了」：装上的就是这次打包的版本号（插件管理对 `file:` 写法不核对版本号，运行着的也可能是上一次的版本）；条目真的是 `ACTIVE`（看的是加载状态，不是条目存在）；日志新增的部分里没有 error（`apply` 里一个 async 调用不报错地 reject，现象正好是「加载了但什么都没发生」，那一条只在日志里）。
 
-{/* ref file="../plugins/devkit/src/dev.ts" lines="684-707" */}
+{/* ref file="../plugins/devkit/src/dev.ts" lines="684-710" */}
 
 **目标用名字指定，端口是查出来的。** 给 `home` 名，端口从那个 home 的 `runtime.json` 里查（内核启动时写的），同时确认进程还在：pid 还活着，且那个 pid 确实在监听记录里的端口。**两边都要核对**：记录回答「你要的是哪个」，页面回答「你连上的实际是哪个」，对不上当场拒——端口会被下一个进程占用，只信记录就会不声不响地把改动装进另一个 home。
 
@@ -92,7 +92,7 @@ description: devkit.dev 一条命令把工作区的改动换进另一个 home �
 
 **取证只有 `collect` 这一个函数，而且只在这条流程里调用。** 判断要有基线：哪些 error 是这次自己引起的，只有拿装包之前的日志长度才分得出来。单独看一眼现状的东西不该做成一条命令——它没有基线，看到的 error 可能是几天前的，而人会把它的绿色当成验收通过，那正是这条流程要防的事。
 
-{/* ref file="../plugins/devkit/src/dev.ts" lines="684-693" */}
+{/* ref file="../plugins/devkit/src/dev.ts" lines="684-692" */}
 
 要看一眼某个 home 的条目表，`devkit.cdp {"args":["<名>","cmd","plugin-manager.list"]}` 就行，那是看，不是验证。
 
