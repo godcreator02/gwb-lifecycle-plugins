@@ -19,14 +19,13 @@ import { fiberStateOf } from './fiber.js'
 import {
   assertOnlyNotKernelManaged,
   assertOnlyPackagesInHome,
+  packagesToRemount,
   planOutdatedUpdate,
   planSpecsUpdate,
-  plannedDependents,
   versionChangesAfterAdd,
   type InstalledDirectories,
   type InstalledVersions,
   type PackageEntries,
-  type PlannedDependent,
   type PlannedEntry,
   type SpecsUpdatePlan,
   type UpdateArgs,
@@ -447,26 +446,25 @@ class PluginManager {
     const checked = await this.outdated()
     if (!checked.ok) return checked
 
-    const plan = planOutdatedUpdate(checked.data.updates, this.tree.store, ownEntryId(this.ctx), only)
+    const plan = planOutdatedUpdate(checked.data.updates, only)
     const notes: string[] = []
     if (plan.alreadyLatest.length > 0) notes.push(`only 里这几个已是最新，没动：${plan.alreadyLatest.join('、')}`)
-    if (plan.packages.length === 0) {
+    if (plan.versionChanges.size === 0) {
       return { ok: true, data: { updated: [], dependents: [], selfDeferred: false, note: ['全都最新', ...notes].join('；') } }
     }
 
-    const versionChanges: VersionChangesAfterAdd = { ok: true, changes: new Map(plan.packages.map((p) => [p.pkg, { from: p.from, to: p.to }])) }
-    return this.addThenRemount(plan.addSpecs, plan.packages, homeDependencies, notes, () => Promise.resolve(versionChanges))
+    const versionChanges: VersionChangesAfterAdd = { ok: true, changes: plan.versionChanges }
+    return this.addThenRemount(plan.addSpecs, [...plan.versionChanges.keys()], homeDependencies, notes, () => Promise.resolve(versionChanges))
   }
 
   /** 包名或写法不合规、包不在 home 的 dependencies 里、写了 cordis 直接抛 */
   private async updateToSpecs(specs: Readonly<Record<string, string>>): Promise<Outcome<Updated> | KernelInstalledButCordisNot> {
     const homeDependencies = await readHomeDependencies(this.homeDir)
-    const plan = planSpecsUpdate(specs, homeDependencies, this.tree.store, ownEntryId(this.ctx))
+    const plan = planSpecsUpdate(specs, homeDependencies)
     if (plan.includesKernel) return this.updateWithKernel(plan, specs)
-    const pkgs = plan.packages.map((p) => p.pkg)
-    const versionsBefore = await this.readInstalledVersions(pkgs)
-    const versionChangesAfterInstall = async (): Promise<VersionChangesAfterAdd> => versionChangesAfterAdd(specs, versionsBefore, await this.readInstalledVersions(pkgs))
-    return this.addThenRemount(plan.addSpecs, plan.packages, homeDependencies, [], versionChangesAfterInstall)
+    const versionsBefore = await this.readInstalledVersions(plan.pkgs)
+    const versionChangesAfterInstall = async (): Promise<VersionChangesAfterAdd> => versionChangesAfterAdd(specs, versionsBefore, await this.readInstalledVersions(plan.pkgs))
+    return this.addThenRemount(plan.addSpecs, plan.pkgs, homeDependencies, [], versionChangesAfterInstall)
   }
 
   /**
@@ -474,7 +472,7 @@ class PluginManager {
    * 主进程里的内核换不掉，不重新加载任何条目
    */
   private async updateWithKernel(plan: SpecsUpdatePlan, specs: Readonly<Record<string, string>>): Promise<Outcome<Updated> | KernelInstalledButCordisNot> {
-    const pkgs = plan.packages.map((p) => p.pkg)
+    const pkgs = plan.pkgs
     const versionsBefore = await this.readInstalledVersions([...pkgs, CORDIS_PACKAGE])
     const added = await this.addToHome(plan.addSpecs, '一条条目都没动')
     if (!added.ok) return added
@@ -495,7 +493,7 @@ class PluginManager {
     if (cordisMismatch !== undefined) return this.kernelInstalledButCordisNot(`${cordisMismatch}。内核包已经是 ${target.kernelVersion}，先别重启`, kernel)
 
     const updated: UpdatedPackage[] = [
-      ...plan.packages.map<UpdatedPackage>((p) => ({ pkg: p.pkg, ...versionChanges.changes.get(p.pkg)!, entries: [] })),
+      ...pkgs.map<UpdatedPackage>((pkg) => ({ pkg, ...versionChanges.changes.get(pkg)!, entries: [] })),
       { pkg: CORDIS_PACKAGE, ...versionChangeOf(versionsBefore.get(CORDIS_PACKAGE), target.cordisVersion), entries: [] },
     ]
     const pluginsOutsideRange = pluginsOutsideKernelRange(await this.readHomePackageManifests(), target.kernelVersion)
@@ -522,13 +520,13 @@ class PluginManager {
   }
 
   /**
-   * 一次 pnpm add → 逐条重新加载装了的包、再重新加载真实目录变了的别的包；本插件自己推迟到回执之后。不整页重新加载：
+   * 一次 pnpm add → 真实目录变了的包逐条重新加载（点了名的在前、别的在后）；本插件自己推迟到回执之后。不整页重新加载：
    * shell.reload 在主进程里同步重载页面，经页面调用这条命令的调用方收不到回执，所以整页重新加载交给调用方。
    * `versionChangesAfterInstall` 在 pnpm add 成功之后、重新加载之前调用，给出回执里每个包的 from / to
    */
   private async addThenRemount(
     addSpecs: readonly string[],
-    packages: readonly PackageEntries[],
+    requestedPackages: readonly string[],
     homeDependencies: Readonly<Record<string, string>>,
     notes: string[],
     versionChangesAfterInstall: () => Promise<VersionChangesAfterAdd>,
@@ -541,14 +539,8 @@ class PluginManager {
     if (!versionChanges.ok) return this.failed(`${versionChanges.error}。一条条目都没动`)
 
     // 升完不重新加载，运行着的还是旧版本，等于没升；旧版本目录也不会一直留着（pnpm 默认约 7 天后清掉）。所以换了目录的每条条目都在这条命令里重新加载
-    const plannedDependentPackages = plannedDependents(
-      directoriesBefore,
-      await this.readInstalledDirectories(homePackages),
-      packages.map((p) => p.pkg),
-      this.tree.store,
-      ownEntryId(this.ctx),
-    )
-    const { updated, dependents, ownEntry } = await this.remountUpgradedEntries(packages, versionChanges.changes, plannedDependentPackages)
+    const targets = packagesToRemount(directoriesBefore, await this.readInstalledDirectories(homePackages), requestedPackages, this.tree.store, ownEntryId(this.ctx))
+    const { updated, dependents, ownEntry } = await this.remountUpgradedEntries(targets.updated, versionChanges.changes, targets.dependents)
     const summary =
       updated.map(describeVersionChange).join('，') +
       (dependents.length === 0 ? '' : `；跟着重新加载 ${dependents.map((d) => d.pkg).join('、')}`)
@@ -579,11 +571,11 @@ class PluginManager {
     return new Map(pkgs.map((pkg, index) => [pkg, installedVersionOf(manifests[index])]))
   }
 
-  /** 逐条重新加载：先装了的包，再跟着重新加载的包；本插件自己那条（启用着的）只记 deferred，交给调用方在回执之后处理 */
+  /** 逐条重新加载：先点了名的包，再跟着重新加载的包；本插件自己那条（启用着的）只记 deferred，交给调用方在回执之后处理 */
   private async remountUpgradedEntries(
     packages: readonly PackageEntries[],
     versionChanges: ReadonlyMap<string, VersionChange>,
-    plannedDependentPackages: readonly PlannedDependent[],
+    plannedDependentPackages: readonly PackageEntries[],
   ): Promise<{ updated: UpdatedPackage[]; dependents: DependentPackage[]; ownEntry: PlannedEntry | undefined }> {
     let ownEntry: PlannedEntry | undefined
     const remountEntriesOf = async (plannedEntries: readonly PlannedEntry[]): Promise<RemountedEntry[]> => {

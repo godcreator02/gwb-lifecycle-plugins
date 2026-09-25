@@ -153,6 +153,18 @@ function linkInstalled(pkg: string, dirName: string): void {
   fs.symlinkSync(real, link, 'junction')
 }
 
+/** 照 pnpm 升级一个包：装之前链到 `<包>@<from>` 的目录；`pnpm add` 之后改链到 `<包>@<to>`（目录名带版本号，升级必换目录），清单写新版本号 */
+function upgradesOnAdd(pkg: string, from: string, to: string): void {
+  const dirName = (version: string): string => `${pkg.replace('/', '+')}@${version}`
+  linkInstalled(pkg, dirName(from))
+  writeInstalledManifest(pkg, { version: from })
+  fakePnpm.afterRun = (args) => {
+    if (args[0] !== 'add') return
+    linkInstalled(pkg, dirName(to))
+    writeInstalledManifest(pkg, { version: to })
+  }
+}
+
 function mount(opts: { entries: Record<string, string>; data?: FakeDataPlugin; settings?: FakeDataPlugin; shellReload?: boolean }): Mounted {
   const tree = fakeTree({ 'plugin-manager': OWN_PKG, ...opts.entries })
   const logs: string[] = []
@@ -456,6 +468,7 @@ describe('plugin-manager.update', () => {
     fakePnpm.captureExitCode = 1
     fakePnpm.captureStdout = JSON.stringify({ '@x/gwb-foo': { current: '1.0.0', latest: '1.1.0' } })
     writeHomeDependencies({ '@x/gwb-foo': '1.0.0', '@x/gwb-other': '1.0.0' })
+    upgradesOnAdd('@x/gwb-foo', '1.0.0', '1.1.0')
     const pm = mount({ entries: { foo: '@x/gwb-foo', 'foo-2': '@x/gwb-foo' }, shellReload: true })
     pm.tree.store['foo-2']!.disabled = true
     expect(await pm.run('plugin-manager.update', { only: ['@x/gwb-foo', '@x/gwb-other'] })).toEqual({
@@ -491,6 +504,8 @@ describe('plugin-manager.update', () => {
   it('升级清单里有插件管理自己：自己那条先回 deferred，回执之后才重新加载，之后不整页重新加载', async () => {
     fakePnpm.captureExitCode = 1
     fakePnpm.captureStdout = JSON.stringify({ [OWN_PKG]: { current: '0.7.0', latest: '0.7.1' } })
+    writeHomeDependencies({ [OWN_PKG]: '0.7.0' })
+    upgradesOnAdd(OWN_PKG, '0.7.0', '0.7.1')
     const pm = mount({ entries: {}, shellReload: true })
     expect(await pm.run('plugin-manager.update', { all: true })).toEqual({
       ok: true,
@@ -582,6 +597,8 @@ describe('plugin-manager.update', () => {
       [KERNEL_PKG]: { current: '0.3.0', latest: '0.3.1' },
       cordis: { current: '4.0.0-rc.9', latest: '4.0.0-rc.10' },
     })
+    writeHomeDependencies({ '@x/gwb-foo': '1.0.0' })
+    upgradesOnAdd('@x/gwb-foo', '1.0.0', '1.1.0')
     const pm = mount({ entries: { foo: '@x/gwb-foo' } })
     expect(await pm.run('plugin-manager.update', { all: true })).toEqual({
       ok: true,
@@ -655,8 +672,7 @@ describe('plugin-manager.update 的 specs', () => {
 
   it('specs 里有插件管理自己：别的在命令里做完，自己那条回执之后才重新加载，之后也不整页重载', async () => {
     writeHomeDependencies({ [OWN_PKG]: '0.11.0' })
-    writeInstalledManifest(OWN_PKG, { version: '0.11.0' })
-    fakePnpm.afterRun = () => writeInstalledManifest(OWN_PKG, { version: '0.12.0-dev.1' })
+    upgradesOnAdd(OWN_PKG, '0.11.0', '0.12.0-dev.1')
     const pm = mount({ entries: {}, shellReload: true })
     expect(await pm.run('plugin-manager.update', { specs: { [OWN_PKG]: '0.12.0-dev.1' } })).toEqual({
       ok: true,
@@ -704,6 +720,19 @@ describe('plugin-manager.update 的 specs', () => {
     expect(result.data['updated']).toEqual([{ pkg: '@x/gwb-foo', to: '1.1.0', entries: [] }])
     expect(pm.shellReloads).toBe(0)
     expect(fakePnpm.calls.map((call) => call.args)).toEqual([['add', '@x/gwb-foo@1.1.0', '--save-exact']])
+  })
+
+  it('装的就是原来那一版、真实目录没变：回执照样列出这个包，它的条目不重新加载', async () => {
+    writeHomeDependencies({ '@x/gwb-foo': '1.0.0' })
+    linkInstalled('@x/gwb-foo', '@x+gwb-foo@1.0.0')
+    writeInstalledManifest('@x/gwb-foo', { version: '1.0.0' })
+    const pm = mount({ entries: { foo: '@x/gwb-foo' } })
+    const fiberBefore = pm.tree.store['foo']!.fiber
+    expect(await pm.run('plugin-manager.update', { specs: { '@x/gwb-foo': '1.0.0' } })).toEqual({
+      ok: true,
+      data: { updated: [{ pkg: '@x/gwb-foo', from: '1.0.0', to: '1.0.0', entries: [] }], dependents: [], selfDeferred: false },
+    })
+    expect(pm.tree.store['foo']!.fiber).toBe(fiberBefore)
   })
 
   it('准确版本号对不上（清单里原来写的是 ^）：ok false，逐项说要的与装上的，一条条目都不重新加载', async () => {

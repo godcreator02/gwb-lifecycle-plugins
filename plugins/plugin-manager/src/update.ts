@@ -17,29 +17,26 @@ export interface PlannedEntry {
   self: boolean
 }
 
-/** 一个包与它在条目树上的全部条目（分组条目不算），条目按树里的先后 */
+/** 一个包与它在条目树上的全部条目（分组条目不算），条目按树里的先后；真实目录没变的包 entries 为空 */
 export interface PackageEntries {
   pkg: string
   entries: PlannedEntry[]
 }
 
-/** 一个要升到 outdated 查到的版本的包 */
-export interface PlannedPackage extends PackageEntries {
-  from: string
-  to: string
-}
-
 /**
- * 没升级、但 `pnpm add` 前后真实目录变了的一个包（多半是 peer 写了被升级包的插件：pnpm 虚拟存储的目录名带着 peer 的版本）。
- * 不重新加载，运行着的还是旧目录里的代码，旧目录被 pnpm 清掉后再加载文件就失败
+ * `pnpm add` 之后要重新加载的包：真实目录变了的包都在内。点了名的（升级或按 specs 装的）归 `updated`，目录没变的也列出、entries 为空；
+ * 没点名、目录变了的归 `dependents`（多半是 peer 写了被升级包的插件：pnpm 虚拟存储的目录名带着 peer 的版本）。两份都按包名排
  */
-export type PlannedDependent = PackageEntries
+export interface RemountTargets {
+  updated: PackageEntries[]
+  dependents: PackageEntries[]
+}
 
 export interface OutdatedUpdatePlan {
   /** `pnpm add` 的每一项 `<包名>@<版本号>`，按包名排：精确版本（outdated 查到的 latest，不是 `@latest` 标签）；清单为空时是空数组 */
   addSpecs: string[]
-  /** 要升级的包，按包名排 */
-  packages: PlannedPackage[]
+  /** 要升级的包 → 回执里的 from / to，按包名排 */
+  versionChanges: Map<string, VersionChange>
   /** `only` 里点了名、在 home 里但不在过期清单里的包（已是最新）——回执里说明，免得人以为它升级了 */
   alreadyLatest: string[]
 }
@@ -48,7 +45,7 @@ export interface SpecsUpdatePlan {
   /** `pnpm add` 的每一项 `<包名>@<写法>`，按包名排 */
   addSpecs: string[]
   /** 要装的包，按包名排 */
-  packages: PackageEntries[]
+  pkgs: string[]
   /** 有内核包：主进程里的内核换不掉，这次不重新加载任何条目；装完再照内核包 peer 对齐 cordis */
   includesKernel: boolean
 }
@@ -89,24 +86,22 @@ export function assertOnlyNotKernelManaged(only: readonly string[]): void {
   }
 }
 
-/** `outdated` 已经不含内核包与 cordis。`ownEntryId` 完整 id（`home:plugins`）或不带前缀的都接受；`only` 给了就只升级点名的那几个 */
-export function planOutdatedUpdate(outdated: Readonly<OutdatedMap>, store: unknown, ownEntryId: string, only?: readonly string[]): OutdatedUpdatePlan {
-  const ownBareId = bareId(ownEntryId)
+/** `outdated` 已经不含内核包与 cordis；`only` 给了就只升级点名的那几个 */
+export function planOutdatedUpdate(outdated: Readonly<OutdatedMap>, only?: readonly string[]): OutdatedUpdatePlan {
   const onlyThesePackages = only === undefined ? undefined : new Set(only)
   const alreadyLatest = only === undefined ? [] : only.filter((pkg) => outdated[pkg] === undefined)
 
-  const pluginEntries = pluginEntriesOf(store)
-  const packages: PlannedPackage[] = []
+  const versionChanges = new Map<string, VersionChange>()
   for (const pkg of Object.keys(outdated).sort((a, b) => a.localeCompare(b))) {
     if (onlyThesePackages !== undefined && !onlyThesePackages.has(pkg)) continue
     const versionGap = outdated[pkg]
     if (versionGap === undefined) continue
-    packages.push({ pkg, from: versionGap.current, to: versionGap.latest, entries: plannedEntriesOf(pkg, pluginEntries, ownBareId) })
+    versionChanges.set(pkg, { from: versionGap.current, to: versionGap.latest })
   }
 
   return {
-    addSpecs: packages.map((p) => installSpec(p.pkg, p.to)),
-    packages,
+    addSpecs: [...versionChanges].map(([pkg, change]) => installSpec(pkg, change.to)),
+    versionChanges,
     alreadyLatest,
   }
 }
@@ -115,12 +110,7 @@ export function planOutdatedUpdate(outdated: Readonly<OutdatedMap>, store: unkno
  * 包名或写法不合规、包不在 home 的 dependencies 里、写了 cordis，都直接抛错。
  * 写法原样交给 pnpm（版本号、tag、`file:<绝对路径>`），`installSpec` 只拦空白与开关
  */
-export function planSpecsUpdate(
-  specs: Readonly<Record<string, string>>,
-  homeDependencies: Readonly<Record<string, string>>,
-  store: unknown,
-  ownEntryId: string,
-): SpecsUpdatePlan {
+export function planSpecsUpdate(specs: Readonly<Record<string, string>>, homeDependencies: Readonly<Record<string, string>>): SpecsUpdatePlan {
   const pkgs = Object.keys(specs).sort((a, b) => a.localeCompare(b))
   const addSpecs = pkgs.map((pkg) => installSpec(pkg, specs[pkg]))
 
@@ -131,15 +121,7 @@ export function planSpecsUpdate(
   if (pkgs.includes(CORDIS_PACKAGE)) {
     throw new Error(`specs 里不写 ${CORDIS_PACKAGE}：它的版本跟着内核包 peer 里写的走，specs 里有内核包 ${KERNEL_PACKAGE} 时由插件管理照装上的内核包自己对齐`)
   }
-  const includesKernel = pkgs.includes(KERNEL_PACKAGE)
-
-  const ownBareId = bareId(ownEntryId)
-  const pluginEntries = pluginEntriesOf(store)
-  return {
-    addSpecs,
-    packages: pkgs.map((pkg) => ({ pkg, entries: plannedEntriesOf(pkg, pluginEntries, ownBareId) })),
-    includesKernel,
-  }
+  return { addSpecs, pkgs, includesKernel: pkgs.includes(KERNEL_PACKAGE) }
 }
 
 /**
@@ -166,20 +148,27 @@ export function versionChangesAfterAdd(
 }
 
 /**
- * `pnpm add` 前后各读一次的真实目录 → 要跟着重新加载的包：目录变了（包括一次读得到、一次读不到）、本身又没升级的，按包名排
+ * `pnpm add` 前后各读一次的真实目录 → 要重新加载的包：目录变了（包括一次读得到、一次读不到）的包都重新加载，没变的不动。
+ * 升级必换目录（pnpm 虚拟存储的目录名带版本号），所以点了名的包也只看目录变没变。`ownEntryId` 完整 id 或不带前缀的都接受
  */
-export function plannedDependents(
+export function packagesToRemount(
   directoriesBefore: InstalledDirectories,
   directoriesAfter: InstalledDirectories,
-  upgradedPackages: readonly string[],
+  requestedPackages: readonly string[],
   store: unknown,
   ownEntryId: string,
-): PlannedDependent[] {
+): RemountTargets {
   const ownBareId = bareId(ownEntryId)
-  const upgraded = new Set(upgradedPackages)
   const pluginEntries = pluginEntriesOf(store)
-  return [...new Set([...directoriesBefore.keys(), ...directoriesAfter.keys()])]
-    .filter((pkg) => !upgraded.has(pkg) && directoriesBefore.get(pkg) !== directoriesAfter.get(pkg))
-    .sort((a, b) => a.localeCompare(b))
-    .map((pkg) => ({ pkg, entries: plannedEntriesOf(pkg, pluginEntries, ownBareId) }))
+  const directoryChanged = (pkg: string): boolean => directoriesBefore.get(pkg) !== directoriesAfter.get(pkg)
+  const withEntries = (pkg: string): PackageEntries => ({ pkg, entries: directoryChanged(pkg) ? plannedEntriesOf(pkg, pluginEntries, ownBareId) : [] })
+  const requested = new Set(requestedPackages)
+  const byName = (a: string, b: string): number => a.localeCompare(b)
+  return {
+    updated: [...requested].sort(byName).map(withEntries),
+    dependents: [...new Set([...directoriesBefore.keys(), ...directoriesAfter.keys()])]
+      .filter((pkg) => !requested.has(pkg) && directoryChanged(pkg))
+      .sort(byName)
+      .map(withEntries),
+  }
 }
