@@ -79,7 +79,7 @@ export function apply(ctx: Context) {
 
 `devkit.scaffold` 生成的插件在 node 侧只 `import type`，构建产物里没有 `cordis`，所以 peer 里没有 `cordis`，`cordis` 写在 dev；peer 里是内核包和模板用到的两个插件——命令总线 `gwb-commands`（登记命令）与外壳 `gwb-shell`（注册窗格、样式令牌），`GwbContext` 从 peer 里的内核包 `import type`：
 
-{/* ref file="../plugins/devkit/template/pkg/package.json.tpl" lines="31-37" */}
+{/* ref file="../plugins/devkit/template/pkg/package.json.tpl" lines="27-33" */}
 
 模板带的产物测试按上面两份名单查构建产物：node 侧放行 node 内置模块、`electron` 与自己清单 peer 里写了的包；浏览器侧只放行内核包页面入口 `dist/index.html` 里 importmap 的键：
 

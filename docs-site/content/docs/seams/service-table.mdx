@@ -25,17 +25,17 @@ description: 连接 devkit.services 与 home 里各包的 .d.ts：它扫调用�
 
 **认哪种写法**：`declare module 'cordis'` 块里 `interface Context` 块里的每一项 `名字: 类型;` 或 `名字?: 类型;`。别的模块里的 `interface Context` 不算：
 
-{/* ref file="../plugins/devkit/src/services.ts" lines="55-66" */}
+{/* ref file="../plugins/devkit/src/services.ts" lines="53-64" */}
 
 **谁是提供方**：在同一个包的 `.d.ts` 里找这个类型名的定义（从行首写起的 `interface`、`class`、`type` 别名，连同紧挨在前面的文档注释），找到就是提供方；`import type { X }`、`import { type X }` 只是引用，找不到定义的包不列：
 
-{/* ref file="../plugins/devkit/src/services.ts" lines="72-98" */}
+{/* ref file="../plugins/devkit/src/services.ts" lines="70-96" */}
 
-{/* ref file="../plugins/devkit/src/services.ts" lines="108-134" */}
+{/* ref file="../plugins/devkit/src/services.ts" lines="106-129" */}
 
 **回执**：`{ home, services: [{ service, providers, type, optional, definition? }] }`，按服务名排序；`providers` 的每一项写成 `<包名>@<版本>`。命令无参数，给了任何参数键都拒：
 
-{/* ref file="../plugins/devkit/src/index.ts" lines="431-446" */}
+{/* ref file="../plugins/devkit/src/index.ts" lines="452-469" */}
 
 ## 约定
 

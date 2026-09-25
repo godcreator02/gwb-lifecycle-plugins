@@ -36,7 +36,7 @@ workspace 仓：仓根是一个不发布的 private 包（`pnpm build` / `pnpm c
 
 五个类型，两条流程：建仓（参数 `ScaffoldInput` → 计划 `ScaffoldPlan` → 渲染好的 `RenderedFile[]`）、加插件（`ScaffoldPluginInput` → `ScaffoldPluginPlan` → 同样的 `RenderedFile[]`）。
 
-{/* ref file="../plugins/devkit/src/scaffold.ts" lines="42-116" */}
+{/* ref file="../plugins/devkit/src/scaffold.ts" lines="42-112" */}
 
 `ScaffoldPlan` 与 `ScaffoldPluginPlan` 算出来之后，后面每一步只看计划，不再回头看参数。两种参数里的 `kernelVersion` 不是命令参数：`src/index.ts` 从运行中的内核服务取 `gwbKernel.version` 传进来，计划里只留 x.y.z 三段（开发版内核去掉预发布段），渲染时填进生成的 `package.json` peer 里内核包的范围 `^x.y.z`。
 
@@ -46,47 +46,47 @@ workspace 仓：仓根是一个不发布的 private 包（`pnpm build` / `pnpm c
 
 模块导出一串纯函数，`src/index.ts` 按顺序调用：
 
-{/* ref file="../plugins/devkit/src/scaffold.ts" lines="174-196" */}
+{/* ref file="../plugins/devkit/src/scaffold.ts" lines="170-187" */}
 
 校验、派生、转成绝对路径、填缺省值都在这一处做完，没有读写磁盘。抛出的每一句都写明该怎么改。`dir` 经 `path.resolve` 转成绝对路径，`D:/a/b` 与 `D:\a\b` 得到同一个结果；`title` 只收一行，夹着换行、制表符这类控制字符就拒。`scope` 要是 `@` 开头的 npm 包名范围；`registry` 要是 http(s) 地址的规范写法（与 `new URL(registry).href` 逐字相同，所以写进 JSON 不用转义），不带账号、查询串与 `#`（发布 token 写在用户级 `~/.npmrc`）。不合规就拒，报错里写出规范写法，不替调用方改：
 
-{/* ref file="../plugins/devkit/src/scaffold.ts" lines="138-163" */}
+{/* ref file="../plugins/devkit/src/scaffold.ts" lines="134-159" */}
 
 加插件的计划**要读磁盘**（建仓的不读）：`repo` 必须已经是 workspace 仓才收，也就是 `pnpm-workspace.yaml` 的 `packages` 里有 `plugins/*` 这一条。
 
-{/* ref file="../plugins/devkit/src/scaffold.ts" lines="247-274" */}
+{/* ref file="../plugins/devkit/src/scaffold.ts" lines="228-255" */}
 
 `packages` 用 yaml 库读，带不带引号、块列表还是流式列表、注释、CRLF 都认；文件写坏了、或 `packages` 不是字符串列表，报错写出文件与第几行第几列，不当成「没有这一条」。yaml 写在 dev 里，由 `build.ts` 打包进产物（见[开发套件](/docs/devkit)的构建一节）：
 
-{/* ref file="../plugins/devkit/src/scaffold.ts" lines="198-245" */}
+{/* ref file="../plugins/devkit/src/scaffold.ts" lines="189-227" */}
 
 **整套模板先在内存里渲染完，再写磁盘。** 占位符出错是这条流程上最可能的失败，而目标目录一旦开始写就没有干净的回滚点。
 
-{/* ref file="../plugins/devkit/src/scaffold.ts" lines="481-494" */}
+{/* ref file="../plugins/devkit/src/scaffold.ts" lines="435-446" */}
 
 认不出的占位符当场抛错。生成的仓里留一个 `{{typo}}`，它会一直留在别人的 package.json 里，到那时已经没人知道它本来该是什么。所以给模板加了新占位符，`placeholders()` 必须同时加一项。
 
 `{{title}}` 是八个占位符里唯一由调用方随便写的，别的几个出自短名、校验过的包名范围与规范写法的地址、版本号或本包拼好的段落，原样替换。`title` 按它所在文件的类型编码，每类文件只许把它写在一种位置：
 
-{/* ref file="../plugins/devkit/src/scaffold.ts" lines="375-393" */}
+{/* ref file="../plugins/devkit/src/scaffold.ts" lines="352-370" */}
 
 Markdown / MDX 开头的 frontmatter 是 YAML，里面的 `title` 写在双引号里、按 JSON 字符串编码，其余正文按 Markdown 编码：
 
-{/* ref file="../plugins/devkit/src/scaffold.ts" lines="413-423" */}
+{/* ref file="../plugins/devkit/src/scaffold.ts" lines="390-400" */}
 
 模板把 `{{title}}` 写在了别的位置（比如 `.ts` 的双引号或注释里），编码对不上，生成的代码是坏的，这一层查不出来；靠测试拿一个带各种特殊字符的 title 真编译、真执行生成的文件。生成的 JSON 与 YAML 读不读得懂、frontmatter 是不是一层「键: 标量」，也由测试对本包的模板核对，运行时不再读一遍：模板只有本包这一份，改了模板跑一次 `tests/scaffold.test.ts` 就知道。
 
 两部分各写到哪里由一个纯函数决定：`repo/` 写到仓根，`pkg/` 写到 `plugins/<短名>/`，**不属于这两部分的文件当场抛错**——模板里每个文件都得声明自己属于哪部分，没声明的文件写下去，谁也说不清它属于仓根还是插件包。
 
-{/* ref file="../plugins/devkit/src/scaffold.ts" lines="453-465" */}
+{/* ref file="../plugins/devkit/src/scaffold.ts" lines="407-419" */}
 
 建仓渲染仓根与插件包两部分，插件页不在里面；加插件只渲染插件包那部分，路径相对插件包根。`writeRepo` 的「目标必须还不存在」于是检查的是 `plugins/<短名>/`，仓根不碰。插件页单独渲染、单独写，见下一节。
 
-{/* ref file="../plugins/devkit/src/scaffold.ts" lines="481-505" */}
+{/* ref file="../plugins/devkit/src/scaffold.ts" lines="435-455" */}
 
 目标目录必须还不存在。建仓与加插件都是一次性动作，往已有目录里写文件没有干净的回滚点。
 
-{/* ref file="../plugins/devkit/src/scaffold.ts" lines="507-516" */}
+{/* ref file="../plugins/devkit/src/scaffold.ts" lines="457-466" */}
 
 ## 依赖的接口
 
@@ -101,17 +101,17 @@ Markdown / MDX 开头的 frontmatter 是 YAML，里面的 `title` 写在双引�
 
 **建站是两步，顺序不能反，中间不能插别的事。**
 
-{/* ref file="../plugins/devkit/src/index.ts" lines="618-630" */}
+{/* ref file="../plugins/devkit/src/index.ts" lines="628-632" */}
 
 `docfirst.attach` 只在还没写过内容的初始站点上装得了，这条由它自己检查。生成初始站点与装六区连着做，中间没人改过文件，整个覆盖才安全；给一个用了半年的站做自动改写不安全。`devkit.scaffold` 里这两步紧挨着，正是那个安全的时刻。
 
 **站没建成不算建仓失败。** 插件的文件早已写到磁盘，所以回执里这两个字段才是实际结果；两条命令哪条失败了，回执才带上它的原始回执（`create` / `attach`），成了的不带：
 
-{/* ref file="../plugins/devkit/src/index.ts" lines="604-616" */}
+{/* ref file="../plugins/devkit/src/index.ts" lines="614-626" */}
 
 `built` 表示初始站点生成了没有，`attached` 表示六区装了没有，`nextSteps` 按这两个字段分三种情况说站建到了哪一步、没建成的怎么补。回执里给一条不存在的 `cd docs-site` 比不给更糟，所以生成的 README 里讲文档站的那段话，也是在渲染之前按「站点插件在不在」定下来的：
 
-{/* ref file="../plugins/devkit/src/index.ts" lines="487-488" */}
+{/* ref file="../plugins/devkit/src/index.ts" lines="504-505" */}
 
 ## 插件页
 
@@ -119,11 +119,11 @@ Markdown / MDX 开头的 frontmatter 是 YAML，里面的 `title` 写在双引�
 
 插件页草稿写出插件名、包名、命令 `<短名>.ping`、窗格 `main` 与注入的两个服务，分功能、接口、依赖、不做的事四节。**只在仓根的文档站装好了六区时写**（判据是 `docs-site/docfirst.config.mjs` 在）：
 
-{/* ref file="../plugins/devkit/src/scaffold.ts" lines="531-545" */}
+{/* ref file="../plugins/devkit/src/scaffold.ts" lines="479-493" */}
 
 没有站时不写；站只有初始站点、六区还没装时不能写——`docfirst.attach` 只在没加过页的初始站点上装得了，多一页它就拒绝。所以 `devkit.scaffold` 在建站两步之后才写：
 
-{/* ref file="../plugins/devkit/src/index.ts" lines="515-519" */}
+{/* ref file="../plugins/devkit/src/index.ts" lines="531-535" */}
 
 `devkit.scaffold.plugin` 在写任何文件之前先查插件页在不在，在就拒，不覆盖。没写插件页的几种情况（没建站、只有初始站点、六区没装成），`nextSteps` / `nextStepsPlugin` 都写明装好六区之后在哪个路径写插件页。
 

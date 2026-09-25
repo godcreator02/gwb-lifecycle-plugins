@@ -18,9 +18,9 @@ description: 连接 devkit 与两个不在本仓的插件：建仓调 docs-site.
 
 **建仓：`docs-site.create` 与 `docfirst.attach`**。插件那部分写到磁盘之后才调，两条都传站目录 `<仓>\docs-site`，不是仓根。`docs-site.create` 传 `{ dir, title }`，端口由站点插件自己选，回执里只读 `data.port`；`docfirst.attach` 传 `{ dir, title }`，只看 `ok` 与 `error`：
 
-{/* ref file="../plugins/devkit/src/index.ts" lines="640-655" */}
+{/* ref file="../plugins/devkit/src/index.ts" lines="644-655" */}
 
-{/* ref file="../plugins/devkit/src/index.ts" lines="668-679" */}
+{/* ref file="../plugins/devkit/src/index.ts" lines="667-677" */}
 
 插件管理不调外壳的 `shell.reload`：升级完的整页重新加载由调用方做（见[热升级](/docs/plugin-manager/upgrade#一次热升级依次发生什么)）。插件管理的 `source.add` 按名字调设置插件的 `settings.get`，读 gitea 插件分区里的地址与 token；它只为配包源服务，写在[9 pnpm 与包源](/docs/seams/pnpm-registry)。
 
