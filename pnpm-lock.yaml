@@ -33,8 +33,8 @@ importers:
         specifier: 0.1.1
         version: 0.1.1(react@19.3.0)
       '@godcreator/docfirst-workflow':
-        specifier: 0.2.2
-        version: 0.2.2(6bdc47a9040b15e33b5f91f6b7d04385)
+        specifier: 0.2.3
+        version: 0.2.3(6bdc47a9040b15e33b5f91f6b7d04385)
       '@tailwindcss/postcss':
         specifier: ^4.3.3
         version: 4.3.3
@@ -415,8 +415,8 @@ packages:
       react:
         optional: true
 
-  '@godcreator/docfirst-workflow@0.2.2':
-    resolution: {integrity: sha512-DsjG2IGdqLLPydijjfm6IeBUBTnOaz8RN1u8EFQiIg53tqFfjfbh1q5IOR0D5ZT+bXlV7ZkcVyzX+odEnLi8nA==, tarball: https://git.tianshen02.online:28377/api/packages/godcreator/npm/%40godcreator%2Fdocfirst-workflow/-/0.2.2/docfirst-workflow-0.2.2.tgz}
+  '@godcreator/docfirst-workflow@0.2.3':
+    resolution: {integrity: sha512-/aX0CktFOkyhvLLaGyidHODEB3+PU2qKn8i178Z6rFbxj1qHqHow4ZfYLcIRCl1e1b3bm4lkhuqkuiCC9+pK5g==, tarball: https://git.tianshen02.online:28377/api/packages/godcreator/npm/%40godcreator%2Fdocfirst-workflow/-/0.2.3/docfirst-workflow-0.2.3.tgz}
     hasBin: true
     peerDependencies:
       fumadocs-core: '>=16'
@@ -2753,7 +2753,7 @@ snapshots:
     optionalDependencies:
       react: 19.3.0
 
-  '@godcreator/docfirst-workflow@0.2.2(6bdc47a9040b15e33b5f91f6b7d04385)':
+  '@godcreator/docfirst-workflow@0.2.3(6bdc47a9040b15e33b5f91f6b7d04385)':
     dependencies:
       '@godcreator/docfirst-trajectory': 0.1.1(react@19.3.0)
       remark-frontmatter: 5.0.0
