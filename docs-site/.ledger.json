@@ -1758,6 +1758,62 @@
     },
     "has ../plugins/devkit/tests/built-artifact.test.ts \"过得了发版前检查\"": {
       "kind": "has"
+    },
+    "../plugins/devkit/src/artifact-check.ts:83-91": {
+      "kind": "git",
+      "blob": "b69755dcb61dfffb7803a0a179e3964fcfcc068c",
+      "commit": "0298ee98a6da789c3aca541b5414c5d7c64077c5",
+      "lines": [
+        83,
+        91
+      ],
+      "hash": "d55bd3f5c6328e3aa5151ac94d19dd518e4bccdf03166fa982d88f7451129884"
+    },
+    "../plugins/devkit/src/artifact-check.ts:49-58": {
+      "kind": "git",
+      "blob": "b69755dcb61dfffb7803a0a179e3964fcfcc068c",
+      "commit": "0298ee98a6da789c3aca541b5414c5d7c64077c5",
+      "lines": [
+        49,
+        58
+      ],
+      "hash": "922f9d86ac92a30d26c802c8749ec44ee8af11e71d1274d986ad15c5ce48a537"
+    },
+    "../plugins/devkit/src/artifact-check.ts:184-203": {
+      "kind": "git",
+      "blob": "b69755dcb61dfffb7803a0a179e3964fcfcc068c",
+      "commit": "0298ee98a6da789c3aca541b5414c5d7c64077c5",
+      "lines": [
+        184,
+        203
+      ],
+      "hash": "17069d48782ffe66df3a193d381c13b2adb263572804d5c680266b1551725914"
+    },
+    "../plugins/devkit/src/artifact-check.ts:205-222": {
+      "kind": "git",
+      "blob": "b69755dcb61dfffb7803a0a179e3964fcfcc068c",
+      "commit": "0298ee98a6da789c3aca541b5414c5d7c64077c5",
+      "lines": [
+        205,
+        222
+      ],
+      "hash": "28dfae0a8865b81adfb25509845a97485161458a32e4e82dde6994e0b017c087"
+    },
+    "../plugins/devkit/src/import-scan.ts:9-16": {
+      "kind": "git",
+      "blob": "f2ae2ddf4768d0f8ee15db2cc09a7a8c769b096c",
+      "commit": "0298ee98a6da789c3aca541b5414c5d7c64077c5",
+      "lines": [
+        9,
+        16
+      ],
+      "hash": "84b2c076157c811a746dbd01359da08e9ce6428838a338fa4da0a71b5b086c5b"
+    },
+    "has ../plugins/devkit/tests/import-scan.test.ts \"压成一行的产物：静态 import、副作用 import、export from、export *、动态 import 都找到\"": {
+      "kind": "has"
+    },
+    "has ../plugins/devkit/template/pkg/tests/prefix.test.ts.tpl \"带 {{cssPrefix}}: 前缀的类名都编得出规则，前缀排在变体后面的单独报出\"": {
+      "kind": "has"
     }
   },
   "content/docs/devkit/scaffold.mdx": {
@@ -2667,6 +2723,26 @@
     },
     "has ../plugins/devkit/tests/node-dev-deps.test.ts \"开发版打包不给同一次的写法：workspace: 换成 ^<工作区里的版本号>；工作区里没有就 ^0.0.0\"": {
       "kind": "has"
+    },
+    "../plugins/devkit/src/artifact-check.ts:184-203": {
+      "kind": "git",
+      "blob": "b69755dcb61dfffb7803a0a179e3964fcfcc068c",
+      "commit": "0298ee98a6da789c3aca541b5414c5d7c64077c5",
+      "lines": [
+        184,
+        203
+      ],
+      "hash": "17069d48782ffe66df3a193d381c13b2adb263572804d5c680266b1551725914"
+    },
+    "../plugins/devkit/src/artifact-check.ts:205-222": {
+      "kind": "git",
+      "blob": "b69755dcb61dfffb7803a0a179e3964fcfcc068c",
+      "commit": "0298ee98a6da789c3aca541b5414c5d7c64077c5",
+      "lines": [
+        205,
+        222
+      ],
+      "hash": "28dfae0a8865b81adfb25509845a97485161458a32e4e82dde6994e0b017c087"
     }
   },
   "content/docs/seams/service-table.mdx": {
@@ -3312,6 +3388,26 @@
     },
     "has ../plugins/devkit/tests/scaffold.test.ts \"生成的 build.ts 不手抄外置名单：从内核包页面入口的 importmap 读键\"": {
       "kind": "has"
+    },
+    "../plugins/devkit/src/artifact-check.ts:49-58": {
+      "kind": "git",
+      "blob": "b69755dcb61dfffb7803a0a179e3964fcfcc068c",
+      "commit": "0298ee98a6da789c3aca541b5414c5d7c64077c5",
+      "lines": [
+        49,
+        58
+      ],
+      "hash": "922f9d86ac92a30d26c802c8749ec44ee8af11e71d1274d986ad15c5ce48a537"
+    },
+    "../plugins/devkit/src/artifact-check.ts:205-222": {
+      "kind": "git",
+      "blob": "b69755dcb61dfffb7803a0a179e3964fcfcc068c",
+      "commit": "0298ee98a6da789c3aca541b5414c5d7c64077c5",
+      "lines": [
+        205,
+        222
+      ],
+      "hash": "28dfae0a8865b81adfb25509845a97485161458a32e4e82dde6994e0b017c087"
     }
   }
 }

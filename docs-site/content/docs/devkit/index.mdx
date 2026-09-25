@@ -110,13 +110,13 @@ peer 里内核包的检查，比对规则从插件管理的主入口 import（�
 
 构建产物检查在 `src/artifact-check.ts`。哪些文件算 node 侧、哪些算浏览器侧，照模板生成的插件包的构建约定判断：node 侧是 `exports["."]` 的运行时入口（没有 `exports` 时是 `main`）加上顺着相对 import 走得到的文件，也就是内核的 loader 按包名 import 插件时加载的那些；浏览器侧是 `dist/client.js`（模板的 `build.ts` 用 esbuild 以 `platform: 'browser'` 输出的文件），同样顺着相对 import 走；两边都走不到的文件不查。node 侧放行的包名是 node 内置模块、`electron` 与本包 peer 里写了的包——peer 已被上面几条限定为 `cordis`、内核包与插件，都是 home 里装着、按包名解析得到的。页面 importmap 里的名字只取内核包页面入口里那段 importmap 的键：页面入口当场从包目录的 `node_modules/@godcreator/gwb-kernel-desktop/dist/index.html` 读（插件 peer 里写了内核包，pnpm 把它链接在那里），取 `<script type="importmap">` 里 `imports` 的键；读不到、没有这段 importmap 都拒，提示 peer 写上内核包 `^0.6.0` 起，别的依赖的清单不看：
 
-{/* ref file="../plugins/devkit/src/artifact-check.ts" lines="91-99" */}
+{/* ref file="../plugins/devkit/src/artifact-check.ts" lines="83-91" */}
 
-{/* ref file="../plugins/devkit/src/artifact-check.ts" lines="57-66" */}
+{/* ref file="../plugins/devkit/src/artifact-check.ts" lines="49-58" */}
 
-{/* ref file="../plugins/devkit/src/artifact-check.ts" lines="186-205" */}
+{/* ref file="../plugins/devkit/src/artifact-check.ts" lines="184-203" */}
 
-{/* ref file="../plugins/devkit/src/artifact-check.ts" lines="207-224" */}
+{/* ref file="../plugins/devkit/src/artifact-check.ts" lines="205-222" */}
 
 产物里的 import 按 JS 词法找（`src/import-scan.ts`），不按行：记静态的 `import … from`、`export … from`、`import '<名>'`，以及参数是字符串字面量的 `import()`；字符串、模板字面量的文字段、正则字面量、注释里写着的 `import(…)` 都不算，压成一行的产物照样认。参数不是字符串字面量的 `import(x)` 不查。一份产物按词法读不下去（字符串、模板、正则、块注释没闭合，括号不配对）就拒，回执里写出是哪个文件、第几行第几列。正则与除号按前一个词区分，没有用解析器库，取舍见轨迹卡[发版前检查按词法找 import](/trajectory/2026-09-25-scan-imports-by-syntax)：
 

@@ -21,13 +21,13 @@ description: 连接建仓模板 template/ 与 devkit.release 的发版前检查�
 
 **node 侧产物的包名 import**：发版前检查只放行 node 内置模块、`electron` 与本包 peer 里写了的包；模板的产物测试照同一条规则读自己清单的 peer：
 
-{/* ref file="../plugins/devkit/src/artifact-check.ts" lines="57-66" */}
+{/* ref file="../plugins/devkit/src/artifact-check.ts" lines="49-58" */}
 
 {/* ref file="../plugins/devkit/template/pkg/tests/artifact.test.ts.tpl" lines="21-26" */}
 
 **浏览器侧产物的包名 import**：两边都只放行内核包页面入口 `dist/index.html` 里那段 importmap 的键，页面入口从插件包的 `node_modules` 里装好的内核包读：
 
-{/* ref file="../plugins/devkit/src/artifact-check.ts" lines="207-224" */}
+{/* ref file="../plugins/devkit/src/artifact-check.ts" lines="205-222" */}
 
 {/* ref file="../plugins/devkit/template/pkg/tests/artifact.test.ts.tpl" lines="27-37" */}
 

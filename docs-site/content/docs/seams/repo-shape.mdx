@@ -39,11 +39,11 @@ description: 连接 devkit.dev、devkit.release、devkit.scaffold.plugin 与被�
 
 **产物分两侧，按模板的构建约定认**：`devkit.release` 的构建产物检查把 `exports["."]` 的运行时入口（没有 `exports` 时是 `main`）当作 node 侧入口，把包目录下的 `dist/client.js` 当作浏览器侧入口，各自顺着相对 import 走；入口找不到、相对 import 指向的文件不在，都拒。产物不在这几个位置的仓，那部分文件不被查到：
 
-{/* ref file="../plugins/devkit/src/artifact-check.ts" lines="186-205" */}
+{/* ref file="../plugins/devkit/src/artifact-check.ts" lines="184-203" */}
 
 **peer 里的包装在包目录的 `node_modules` 里**：发版前检查读 `<包目录>/node_modules/<包>/package.json` 判断 peer 里的包是不是插件，读不到就拒并提示先 `pnpm install`；浏览器侧产物有包名 import 时，页面 importmap 里的名字从 `<包目录>/node_modules/@godcreator/gwb-kernel-desktop/dist/index.html` 里那段 importmap 现读（插件 peer 里写了内核包，pnpm 把它链接在那里），读不到同样拒，提示 peer 写上内核包 `^0.6.0` 起：
 
-{/* ref file="../plugins/devkit/src/artifact-check.ts" lines="207-224" */}
+{/* ref file="../plugins/devkit/src/artifact-check.ts" lines="205-222" */}
 
 **成员放在哪**：组装发布内容时找 `workspace:` 依赖的版本，从仓根往下扫两层，不认目录名：
 
