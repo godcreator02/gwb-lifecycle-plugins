@@ -1,5 +1,4 @@
 import { FIBER_STATE } from './fiber.js'
-import type { KernelCompatStatus } from './kernel-compat.js'
 import type { PeerStatus } from './peers.js'
 import { isRecord } from './vocab.js'
 
@@ -34,8 +33,8 @@ export interface ReconciledPackage {
   entries: EntrySnapshot[]
 }
 
-/** 一个包在 `list` 里的样子：对照结果加上它 peer 里内核包的范围包不包含运行中的内核、peer 里别的包满没满足 */
-export interface PluginPackageView extends ReconciledPackage, KernelCompatStatus, PeerStatus {}
+/** 一个包在 `list` 里的样子：对照结果加上它 peer 里写的包（含内核包）满没满足 */
+export interface PluginPackageView extends ReconciledPackage, PeerStatus {}
 
 /** 包清单里的 `version`；清单读不到或没写时是 undefined */
 export function installedVersionOf(manifest: unknown): string | undefined {

@@ -1,5 +1,3 @@
-import { isRecord } from './vocab.js'
-
 // 零 I/O 纯逻辑。devkit 从本包主入口 import 这里的比对规则做发版检查，改了它发版检查跟着变
 
 /** 内核包的包名。插件在 peerDependencies 里写它的版本范围，声明兼容哪些内核 */
@@ -45,32 +43,8 @@ export function caretRangeCovers(range: string, version: string): boolean {
   return sameLine && notLowerThan(actual, floor)
 }
 
-/** 包清单 peerDependencies 里内核包的范围；没写或不是字符串时是 undefined */
-export function declaredKernelRange(manifest: unknown): string | undefined {
-  if (!isRecord(manifest)) return undefined
-  const peers = manifest['peerDependencies']
-  if (!isRecord(peers)) return undefined
-  const range = peers[KERNEL_PACKAGE]
-  return typeof range === 'string' ? range : undefined
-}
-
 /** 规则同 `caretRangeCovers`；范围没写是 false；内核版本号不合法直接抛错（它来自内核自己的包清单） */
 export function kernelRangeCovers(range: string | undefined, kernelVersion: string): boolean {
   if (!isExactVersion(kernelVersion)) throw new Error(`内核版本号不是合法的版本号：${JSON.stringify(kernelVersion)}`)
   return range !== undefined && caretRangeCovers(range, kernelVersion)
-}
-
-/** 一个包在 `list` 回执里和内核版本有关的两个字段 */
-export interface KernelCompatStatus {
-  /** 包清单 peerDependencies 里内核包的范围。没写、或写的不是字符串时没有这个字段 */
-  kernelRange?: string
-  /** 范围不包含运行中的内核；没写、写的不是 `^x.y.z` 也算 */
-  kernelUntested: boolean
-}
-
-/** 包清单（读不到时是 undefined）→ `list` 回执里的两个字段 */
-export function kernelCompatStatusOf(manifest: unknown, runningKernel: string): KernelCompatStatus {
-  const kernelRange = declaredKernelRange(manifest)
-  const kernelUntested = !kernelRangeCovers(kernelRange, runningKernel)
-  return kernelRange === undefined ? { kernelUntested } : { kernelRange, kernelUntested }
 }

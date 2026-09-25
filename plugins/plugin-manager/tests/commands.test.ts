@@ -210,7 +210,7 @@ afterEach(() => {
 const settle = (): Promise<void> => new Promise((resolve) => setTimeout(resolve, 20))
 
 describe('plugin-manager.list', () => {
-  it('包与条目两层对上，带 peer 里内核包的范围与没满足的别的 peer；条目指向没装的包报 installed: false、不标内核兼容', async () => {
+  it('包与条目两层对上，带没满足的 peer；条目指向没装的包报 installed: false、unmetPeers 为空', async () => {
     writeHomeDependencies({ '@x/gwb-a': '^1.0.0' })
     writeInstalledManifest('@x/gwb-a', {
       version: '1.2.0',
@@ -225,8 +225,6 @@ describe('plugin-manager.list', () => {
       spec: '^1.0.0',
       installed: true,
       entries: [{ id: 'a', entryId: 'home:a', pkg: '@x/gwb-a', disabled: false, active: true, group: false }],
-      kernelRange: '^0.2.1',
-      kernelUntested: false,
       unmetPeers: [
         { pkg: '@x/gwb-b', range: '^1.0.0', installed: '0.9.0' },
         { pkg: '@x/gwb-missing', range: '^0.3.0' },
@@ -236,10 +234,21 @@ describe('plugin-manager.list', () => {
       pkg: '@x/gwb-ghost',
       installed: false,
       entries: [{ id: 'ghost', entryId: 'home:ghost', pkg: '@x/gwb-ghost', disabled: false, active: true, group: false }],
-      kernelUntested: false,
       unmetPeers: [],
     })
     expect(listed.map((view) => view.pkg)).toEqual([...listed.map((view) => view.pkg)].sort((a, b) => a.localeCompare(b)))
+  })
+
+  it('插件 peer 里内核包的范围不包含正在运行的内核：unmetPeers 列一项，installed 是运行中的内核版本（home 里装着的内核包版本不算）', async () => {
+    writeHomeDependencies({ '@x/gwb-a': '^1.0.0', '@x/gwb-b': '^1.0.0', [KERNEL_PKG]: '^0.3.0' })
+    writeInstalledManifest(KERNEL_PKG, { name: KERNEL_PKG, version: '0.3.0' })
+    writeInstalledManifest('@x/gwb-a', { version: '1.0.0', keywords: ['gwb-plugin'], peerDependencies: { [KERNEL_PKG]: '^0.3.0' } })
+    writeInstalledManifest('@x/gwb-b', { version: '1.0.0', keywords: ['gwb-plugin'], peerDependencies: { [KERNEL_PKG]: '^0.2.0' } })
+    const pm = mount({ entries: {} })
+    const listed = (await pm.run('plugin-manager.list')) as { pkg: string; unmetPeers: unknown }[]
+    expect(listed.find((view) => view.pkg === '@x/gwb-a')?.unmetPeers).toEqual([{ pkg: KERNEL_PKG, range: '^0.3.0', installed: '0.2.7' }])
+    expect(listed.find((view) => view.pkg === '@x/gwb-b')?.unmetPeers).toEqual([])
+    expect(listed.some((view) => 'kernelUntested' in view || 'kernelRange' in view)).toBe(false)
   })
 
   it('home 的 dependencies 里的内核包与 cordis 不列出来：它们没有条目，内核包经 update 的 specs 换、cordis 随它对齐', async () => {
@@ -740,7 +749,7 @@ describe('plugin-manager.update 的 specs 里有内核包', () => {
 
   const NEW_KERNEL = { name: KERNEL_PKG, version: '0.4.0', peerDependencies: { cordis: '4.0.0' } }
 
-  it('内核包与别的包一次 pnpm add，再照装上的内核包 peer 装 cordis（只有 cordis 带 --save-exact：它要正好等于内核包 peer 里那个版本）；不重新加载任何条目；回执带新旧版本、要不要重启、范围不含新内核的插件', async () => {
+  it('内核包与别的包一次 pnpm add，再照装上的内核包 peer 装 cordis（只有 cordis 带 --save-exact：它要正好等于内核包 peer 里那个版本）；不重新加载任何条目；回执带新旧版本与要不要重启，不带 pluginsOutsideRange', async () => {
     writeHomeDependencies({ [KERNEL_PKG]: '0.3.0', cordis: '4.0.0-rc.9', '@x/gwb-old': '1.0.0', '@x/gwb-new': '1.0.0', '@x/lib': '1.0.0' })
     writeInstalledManifest(KERNEL_PKG, { name: KERNEL_PKG, version: '0.3.0', peerDependencies: { cordis: '4.0.0-rc.9' } })
     writeInstalledManifest('cordis', { name: 'cordis', version: '4.0.0-rc.9' })
@@ -763,7 +772,6 @@ describe('plugin-manager.update 的 specs 里有内核包', () => {
         dependents: [],
         selfDeferred: false,
         restartRequired: true,
-        pluginsOutsideRange: ['@x/gwb-old'],
         note: result.data['note'],
       },
     })

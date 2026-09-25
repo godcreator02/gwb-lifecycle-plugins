@@ -31,7 +31,7 @@ import {
 } from './update.js'
 import { remountNow, remountSelfLater, type RemountedEntry } from './remount.js'
 import { KERNEL_PACKAGE } from './kernel-compat.js'
-import { CORDIS_PACKAGE, installedVersionMismatch, KERNEL_MANAGED_PACKAGES, kernelStatusInList, kernelUpgradeTargetOf, pluginsOutsideKernelRange, versionChangeOf, type VersionChange } from './kernel-upgrade.js'
+import { CORDIS_PACKAGE, installedVersionMismatch, KERNEL_MANAGED_PACKAGES, kernelUpgradeTargetOf, versionChangeOf, type VersionChange } from './kernel-upgrade.js'
 import { declaredPluginPeers, peerStatusOf } from './peers.js'
 import { searchPlugins, type PackageSourcesDeps } from './package-sources.js'
 
@@ -95,8 +95,6 @@ interface Updated {
   selfDeferred: boolean
   /** 只在 specs 里有内核包时出现：装上的内核版本与正在运行的不同，重启工作台后才生效 */
   restartRequired?: boolean
-  /** 只在 specs 里有内核包时出现：home 里 peer 范围不包含新内核（或没写范围）的插件，按包名排 */
-  pluginsOutsideRange?: string[]
   /** 需要提醒的情况：全都最新、only 里列出但已是最新的包、要不要重启 */
   note?: string
 }
@@ -173,8 +171,8 @@ class PluginManager {
   private registerHomeCommands(registerCommand: RegisterCommand, registerBusyGuardedCommand: RegisterCommand): void {
     registerCommand(
       LIST_COMMAND,
-      'home 里装了哪些包（内核包与 cordis 除外）、各有哪些条目、有没有 peer 范围不包含当前内核或 peer 里写的别的包没满足的',
-      `回执按包列，不列内核包 ${KERNEL_PACKAGE} 与 ${CORDIS_PACKAGE}（它们没有条目；内核包经 ${UPDATE_COMMAND} 的 specs 换，cordis 随它对齐）：包名、spec、条目（id、entryId、启停、是否 ACTIVE）、kernelRange（包的 package.json 里 peerDependencies["${KERNEL_PACKAGE}"] 写的范围，没写时没有这个字段）、kernelUntested（只标插件——keywords 含 gwb-plugin 的包：范围不包含运行中的内核就是 true，没写、写的不是 ^x.y.z 也算；别的包与清单读不到的包一律 false；^x.y.z 在主版本号为 0 时要求次版本号相同，≥1 时要求主版本号相同，并且不低于 x.y.z）、unmetPeers（只看插件 peer 里除了内核包与 ${CORDIS_PACKAGE} 之外的包，home 里没满足的列成 [{ pkg, range, installed? }]：没装（没有 installed 字段；peerDependenciesMeta 里 optional: true 的没装不算）、装着的版本不在范围里、或范围不是 ^x.y.z，range 原样照抄，范围规则同上；每个包都有这个字段，不是插件、清单读不到、全都满足时是空数组）。只报告，不拦加载。无参数`,
+      'home 里装了哪些包（内核包与 cordis 除外）、各有哪些条目、peer 里写的包（含内核包）有没有没满足的',
+      `回执按包列，不列内核包 ${KERNEL_PACKAGE} 与 ${CORDIS_PACKAGE}（它们没有条目；内核包经 ${UPDATE_COMMAND} 的 specs 换，cordis 随它对齐）：包名、spec、条目（id、entryId、启停、是否 ACTIVE）、unmetPeers（只看插件——keywords 含 gwb-plugin 的包——peer 里除了 ${CORDIS_PACKAGE} 之外的包，没满足的列成 [{ pkg, range, installed? }]：内核包 ${KERNEL_PACKAGE} 对照正在运行的内核，范围不包含就列、installed 是运行中的内核版本，peer 里没写内核包就不列这一项；别的包对照 home 里装着的版本，没装（没有 installed 字段；peerDependenciesMeta 里 optional: true 的没装不算）、装着的版本不在范围里都列；范围不是 ^x.y.z 也列，range 原样照抄；^x.y.z 在主版本号为 0 时要求次版本号相同，≥1 时要求主版本号相同，并且不低于 x.y.z；每个包都有这个字段，不是插件、清单读不到、全都满足时是空数组）。只报告，不拦加载。无参数`,
       () => this.list(),
     )
 
@@ -223,7 +221,7 @@ class PluginManager {
     registerBusyGuardedCommand(
       UPDATE_COMMAND,
       '升级 home 里已装的包（全部过期的、点名的几个、或按给定写法装，内核包也走这条），不重启、不整页重新加载',
-      `${UPDATE_ARGS_USAGE}。home 的 package.json 里照 pnpm 默认写 ^ 范围（只有 ${CORDIS_PACKAGE} 写精确版本号）；清单里已有的 ^ 范围会挡住往回退版本，specs 退回旧版会在核对时回 ok: false。all 与 only：一次 pnpm add 把过期包升到 outdated 返回的精确版本；specs：一次 pnpm add 每项 <包名>@<写法>，不查 outdated，写法是准确版本号的，装完读 node_modules 里的清单核对，装上的不是那个号就回 ok: false、一条条目都不重新加载（tag 与 file: 不核对）。pnpm add 前后 home 里 node_modules/<包名> 指向的真实目录变了的包，条目在同一条命令里逐条停用→启用、重新加载成新版本（原本停用的跳过；插件管理自己那条在回执发出后才重新加载）：点了名的包归 updated（装的就是原来那一版、目录没变的也列出，entries 为空），没点名的（多半是 peer 写了被装的包的插件）归 dependents。不整页重新加载：界面要换成新代码，由调用方拿到回执后自己调 shell.reload。内核包 ${KERNEL_PACKAGE} 与 ${CORDIS_PACKAGE} 不在过期清单里，only 点了它们直接报错。specs 里有内核包时：内核包与其余包一次 pnpm add，再读装上的内核包 peerDependencies.cordis（必须是精确版本号）pnpm add ${CORDIS_PACKAGE}@<那个版本>，不重新加载任何条目——主进程里的内核换不掉，重启工作台后才生效，重启由人决定；回执另带 restartRequired（装上的内核版本与正在运行的不同时是 true）与 pluginsOutsideRange（keywords 含 gwb-plugin、peer 里内核包的范围不包含新内核或没写范围的插件）；内核包装上了而 cordis 没对齐时回 ok: false，data 带 { kernel: { from?, to } }，error 说明先别重启。specs 里写 ${CORDIS_PACKAGE} 直接报错。回执 data { updated: [{ pkg, from?, to, entries: [{ id, action, state }] }], dependents: [{ pkg, entries: [{ id, action, state }] }], selfDeferred, restartRequired?, pluginsOutsideRange?, note? }：specs 的 from 是装之前 node_modules 里清单的 version（读不到就没有），to 是装完读到的 version；失败时 error 里带 pnpm 输出的最后几行；${BUSY_USAGE_NOTE}`,
+      `${UPDATE_ARGS_USAGE}。home 的 package.json 里照 pnpm 默认写 ^ 范围（只有 ${CORDIS_PACKAGE} 写精确版本号）；清单里已有的 ^ 范围会挡住往回退版本，specs 退回旧版会在核对时回 ok: false。all 与 only：一次 pnpm add 把过期包升到 outdated 返回的精确版本；specs：一次 pnpm add 每项 <包名>@<写法>，不查 outdated，写法是准确版本号的，装完读 node_modules 里的清单核对，装上的不是那个号就回 ok: false、一条条目都不重新加载（tag 与 file: 不核对）。pnpm add 前后 home 里 node_modules/<包名> 指向的真实目录变了的包，条目在同一条命令里逐条停用→启用、重新加载成新版本（原本停用的跳过；插件管理自己那条在回执发出后才重新加载）：点了名的包归 updated（装的就是原来那一版、目录没变的也列出，entries 为空），没点名的（多半是 peer 写了被装的包的插件）归 dependents。不整页重新加载：界面要换成新代码，由调用方拿到回执后自己调 shell.reload。内核包 ${KERNEL_PACKAGE} 与 ${CORDIS_PACKAGE} 不在过期清单里，only 点了它们直接报错。specs 里有内核包时：内核包与其余包一次 pnpm add，再读装上的内核包 peerDependencies.cordis（必须是精确版本号）pnpm add ${CORDIS_PACKAGE}@<那个版本>，不重新加载任何条目——主进程里的内核换不掉，重启工作台后才生效，重启由人决定；回执另带 restartRequired（装上的内核版本与正在运行的不同时是 true），重启后 peer 范围不包含新内核的插件由 ${LIST_COMMAND} 的 unmetPeers 列出；内核包装上了而 cordis 没对齐时回 ok: false，data 带 { kernel: { from?, to } }，error 说明先别重启。specs 里写 ${CORDIS_PACKAGE} 直接报错。回执 data { updated: [{ pkg, from?, to, entries: [{ id, action, state }] }], dependents: [{ pkg, entries: [{ id, action, state }] }], selfDeferred, restartRequired?, note? }：specs 的 from 是装之前 node_modules 里清单的 version（读不到就没有），to 是装完读到的 version；失败时 error 里带 pnpm 输出的最后几行；${BUSY_USAGE_NOTE}`,
       (args) => this.update(updateArgsOf(args)),
     )
 
@@ -255,10 +253,7 @@ class PluginManager {
     const manifestsByPackage = new Map<string, unknown>()
     await this.readInstalledManifests(reconciledPackages.map((view) => view.pkg), manifestsByPackage)
     const installedVersions = await this.installedVersionsFor(manifestsByPackage)
-    return reconciledPackages.map((view) => {
-      const manifest = manifestsByPackage.get(view.pkg)
-      return { ...view, ...kernelStatusInList(view.pkg, manifest, this.kernelVersion), ...peerStatusOf(manifest, installedVersions) }
-    })
+    return reconciledPackages.map((view) => ({ ...view, ...peerStatusOf(manifestsByPackage.get(view.pkg), installedVersions, this.kernelVersion) }))
   }
 
   /** 没装的包读成 undefined */
@@ -269,12 +264,14 @@ class PluginManager {
 
   /**
    * 包 → 装着的版本号。插件 peer 里点名、而 dependencies 与条目都没提到的包也去 `node_modules` 读一次清单；
-   * 不合包名规则的键不拿去拼路径（`..` 之类会读到 `node_modules` 外面），按没装报
+   * 内核包不读（它对照正在运行的内核）；不合包名规则的键不拿去拼路径（`..` 之类会读到 `node_modules` 外面），按没装报
    */
   private async installedVersionsFor(manifestsByPackage: Map<string, unknown>): Promise<Map<string, string>> {
     const peeredButUnreadPackages = new Set<string>()
     for (const manifest of manifestsByPackage.values()) {
-      for (const { pkg } of declaredPluginPeers(manifest)) if (!manifestsByPackage.has(pkg) && isPkgName(pkg)) peeredButUnreadPackages.add(pkg)
+      for (const { pkg } of declaredPluginPeers(manifest)) {
+        if (pkg !== KERNEL_PACKAGE && !manifestsByPackage.has(pkg) && isPkgName(pkg)) peeredButUnreadPackages.add(pkg)
+      }
     }
     await this.readInstalledManifests([...peeredButUnreadPackages], manifestsByPackage)
     const installedVersions = new Map<string, string>()
@@ -402,17 +399,12 @@ class PluginManager {
       ...pkgs.map<UpdatedPackage>((pkg) => ({ pkg, ...versionChanges.changes.get(pkg)!, entries: [] })),
       { pkg: CORDIS_PACKAGE, ...versionChangeOf(versionsBefore.get(CORDIS_PACKAGE), target.cordisVersion), entries: [] },
     ]
-    const pluginsOutsideRange = pluginsOutsideKernelRange(await this.readHomePackageManifests(), target.kernelVersion)
     const restartRequired = target.kernelVersion !== this.kernelVersion
-    this.log.info(
-      `装了 ${updated.map(describeVersionChange).join('，')}；有内核包，没有重新加载任何条目` +
-        (restartRequired ? '，重启工作台后生效' : '') +
-        (pluginsOutsideRange.length === 0 ? '' : `；peer 范围不包含新内核的插件：${pluginsOutsideRange.join('、')}`),
-    )
+    this.log.info(`装了 ${updated.map(describeVersionChange).join('，')}；有内核包，没有重新加载任何条目` + (restartRequired ? '，重启工作台后生效' : ''))
     const note = restartRequired
-      ? `装了内核包 ${KERNEL_PACKAGE} ${target.kernelVersion}：主进程里的内核换不掉，这次没有重新加载任何条目，这 ${updated.length} 个包重启工作台后才都换成新装的版本；重启由人决定`
+      ? `装了内核包 ${KERNEL_PACKAGE} ${target.kernelVersion}：主进程里的内核换不掉，这次没有重新加载任何条目，这 ${updated.length} 个包重启工作台后才都换成新装的版本；重启由人决定。重启后 ${LIST_COMMAND} 的 unmetPeers 列出 peer 范围不包含新内核的插件`
       : `装上的就是正在运行的内核 ${this.kernelVersion}，不用重启；这次没有重新加载任何条目`
-    return { ok: true, data: { updated, dependents: [], selfDeferred: false, restartRequired, pluginsOutsideRange, note } }
+    return { ok: true, data: { updated, dependents: [], selfDeferred: false, restartRequired, note } }
   }
 
   private failed(error: string): { ok: false; error: string } {
@@ -453,13 +445,6 @@ class PluginManager {
     if (ownEntry !== undefined) remountSelfLater(this.tree, ownEntry.id, this.log)
     this.log.info(`升级完成：${summary}${ownEntry === undefined ? '' : `；插件管理自己（${ownEntry.id}）在回执之后重新加载`}`)
     return { ok: true, data: { updated, dependents, selfDeferred: ownEntry !== undefined, ...noteOf(notes) } }
-  }
-
-  /** home 的 dependencies 里每个包 → 它装在 node_modules 里的清单（没装的是 undefined） */
-  private async readHomePackageManifests(): Promise<Map<string, unknown>> {
-    const manifestsByPackage = new Map<string, unknown>()
-    await this.readInstalledManifests(Object.keys(await readHomeDependencies(this.homeDir)), manifestsByPackage)
-    return manifestsByPackage
   }
 
   /**

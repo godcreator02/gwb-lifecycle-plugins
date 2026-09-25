@@ -41,10 +41,11 @@ describe('caretRangeCovers：^x.y.z 包不包含装着的版本', () => {
   })
 })
 
-describe('declaredPluginPeers：插件 peer 里除了内核包与 cordis 的那些', () => {
-  it('去掉内核包与 cordis，别的原样照抄，按清单里的先后', () => {
+describe('declaredPluginPeers：插件 peer 里除了 cordis 的那些', () => {
+  it('去掉 cordis，内核包与别的包原样照抄，按清单里的先后', () => {
     const manifest = plugin({ peerDependencies: { [KERNEL_PACKAGE]: '^0.5.0', cordis: '4.0.0-rc.10', [SHELL]: '^0.5.0', [COMMANDS]: '^0.5.0' } })
     expect(declaredPluginPeers(manifest)).toEqual([
+      { pkg: KERNEL_PACKAGE, range: '^0.5.0', optional: false },
       { pkg: SHELL, range: '^0.5.0', optional: false },
       { pkg: COMMANDS, range: '^0.5.0', optional: false },
     ])
@@ -67,13 +68,14 @@ describe('peerStatusOf：list 回执里的 unmetPeers', () => {
     [SHELL, '0.5.2'],
     [COMMANDS, '0.4.5'],
   ])
+  const RUNNING_KERNEL = '0.7.1'
 
   it('全都满足：空数组', () => {
-    expect(peerStatusOf(plugin({ peerDependencies: { [SHELL]: '^0.5.0' } }), installed)).toEqual({ unmetPeers: [] })
+    expect(peerStatusOf(plugin({ peerDependencies: { [SHELL]: '^0.5.0', [KERNEL_PACKAGE]: '^0.7.0' } }), installed, RUNNING_KERNEL)).toEqual({ unmetPeers: [] })
   })
 
   it('没装的没有 installed 字段；装着但不在范围里的带上 installed；范围不是 ^x.y.z 的原样照抄、算没满足', () => {
-    const status = peerStatusOf(plugin({ peerDependencies: { [SHELL]: '^0.6.0', [DATA]: '^0.1.0', [COMMANDS]: '>=0.4.0' } }), installed)
+    const status = peerStatusOf(plugin({ peerDependencies: { [SHELL]: '^0.6.0', [DATA]: '^0.1.0', [COMMANDS]: '>=0.4.0' } }), installed, RUNNING_KERNEL)
     expect(status.unmetPeers).toEqual([
       { pkg: SHELL, range: '^0.6.0', installed: '0.5.2' },
       { pkg: DATA, range: '^0.1.0' },
@@ -84,17 +86,36 @@ describe('peerStatusOf：list 回执里的 unmetPeers', () => {
 
   it('可选的 peer：没装不算，装着但不在范围里照样算', () => {
     const meta = { peerDependenciesMeta: { [DATA]: { optional: true }, [SHELL]: { optional: true } } }
-    expect(peerStatusOf(plugin({ peerDependencies: { [DATA]: '^0.1.0', [SHELL]: '^0.6.0' }, ...meta }), installed)).toEqual({
+    expect(peerStatusOf(plugin({ peerDependencies: { [DATA]: '^0.1.0', [SHELL]: '^0.6.0' }, ...meta }), installed, RUNNING_KERNEL)).toEqual({
       unmetPeers: [{ pkg: SHELL, range: '^0.6.0', installed: '0.5.2' }],
     })
   })
 
-  it('内核包与 cordis 不在这里报（内核包看 kernelRange / kernelUntested）', () => {
-    expect(peerStatusOf(plugin({ peerDependencies: { [KERNEL_PACKAGE]: '^9.0.0', cordis: '9.0.0' } }), installed)).toEqual({ unmetPeers: [] })
+  it('内核包对照正在运行的内核：范围不包含就列一项，installed 是运行中的内核版本', () => {
+    expect(peerStatusOf(plugin({ peerDependencies: { [KERNEL_PACKAGE]: '^0.6.0' } }), installed, RUNNING_KERNEL)).toEqual({
+      unmetPeers: [{ pkg: KERNEL_PACKAGE, range: '^0.6.0', installed: RUNNING_KERNEL }],
+    })
+    expect(peerStatusOf(plugin({ peerDependencies: { [KERNEL_PACKAGE]: '^0.7.2' } }), installed, RUNNING_KERNEL).unmetPeers).toHaveLength(1)
+  })
+
+  it('内核包的范围不是 ^x.y.z 也列；home 的 node_modules 里装着的内核版本不参与判断', () => {
+    expect(peerStatusOf(plugin({ peerDependencies: { [KERNEL_PACKAGE]: '>=0.7.0' } }), installed, RUNNING_KERNEL)).toEqual({
+      unmetPeers: [{ pkg: KERNEL_PACKAGE, range: '>=0.7.0', installed: RUNNING_KERNEL }],
+    })
+    const kernelInNodeModules = new Map([[KERNEL_PACKAGE, '0.6.0']])
+    expect(peerStatusOf(plugin({ peerDependencies: { [KERNEL_PACKAGE]: '^0.7.0' } }), kernelInNodeModules, RUNNING_KERNEL)).toEqual({ unmetPeers: [] })
+  })
+
+  it('peer 里没写内核包的插件不列内核这一项；cordis 不在这里报', () => {
+    expect(peerStatusOf(plugin({ peerDependencies: { [SHELL]: '^0.5.0', cordis: '9.0.0' } }), installed, RUNNING_KERNEL)).toEqual({ unmetPeers: [] })
+  })
+
+  it('运行中的内核版本号不合法：直接抛错', () => {
+    expect(() => peerStatusOf(plugin({ peerDependencies: { [KERNEL_PACKAGE]: '^0.7.0' } }), installed, 'dev')).toThrow('内核版本号不是合法的版本号')
   })
 
   it('不是插件的包、清单读不到的包：空数组', () => {
-    expect(peerStatusOf({ keywords: ['gwb'], peerDependencies: { [DATA]: '^0.1.0' } }, installed)).toEqual({ unmetPeers: [] })
-    expect(peerStatusOf(undefined, installed)).toEqual({ unmetPeers: [] })
+    expect(peerStatusOf({ keywords: ['gwb'], peerDependencies: { [DATA]: '^0.1.0', [KERNEL_PACKAGE]: '^0.1.0' } }, installed, RUNNING_KERNEL)).toEqual({ unmetPeers: [] })
+    expect(peerStatusOf(undefined, installed, RUNNING_KERNEL)).toEqual({ unmetPeers: [] })
   })
 })

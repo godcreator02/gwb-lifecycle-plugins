@@ -1,4 +1,4 @@
-import { KERNEL_PACKAGE, isExactVersion, kernelCompatStatusOf, type KernelCompatStatus } from './kernel-compat.js'
+import { KERNEL_PACKAGE, isExactVersion } from './kernel-compat.js'
 import { PLUGIN_KEYWORD } from './search.js'
 import { isRecord } from './vocab.js'
 
@@ -56,25 +56,4 @@ export function isPluginManifest(manifest: unknown): boolean {
   if (!isRecord(manifest)) return false
   const keywords = manifest['keywords']
   return Array.isArray(keywords) && keywords.includes(PLUGIN_KEYWORD)
-}
-
-/**
- * `list` 回执里一个包的内核兼容字段。只有插件要声明兼容哪个内核：keywords 里没有 gwb-plugin 的包（库、词汇表包、第三方 cordis 插件）、
- * 清单读不到的包、内核包与 cordis 自己一律不标
- */
-export function kernelStatusInList(pkg: string, manifest: unknown, kernelVersion: string): KernelCompatStatus {
-  if (KERNEL_MANAGED_PACKAGES.has(pkg) || !isPluginManifest(manifest)) return { kernelUntested: false }
-  return kernelCompatStatusOf(manifest, kernelVersion)
-}
-
-/**
- * home 里的包清单（包名 → 清单，没装的是 undefined）→ 拿 `kernelVersion` 算 `list` 回执时 `kernelUntested` 为真的包，按包名排：
- * 与 `list` 用同一个判断，没写范围的插件也算
- */
-export function pluginsOutsideKernelRange(manifestsByPackage: ReadonlyMap<string, unknown>, kernelVersion: string): string[] {
-  const outside: string[] = []
-  for (const [pkg, manifest] of manifestsByPackage) {
-    if (kernelStatusInList(pkg, manifest, kernelVersion).kernelUntested) outside.push(pkg)
-  }
-  return outside.sort((a, b) => a.localeCompare(b))
 }
