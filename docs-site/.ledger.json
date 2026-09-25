@@ -1867,6 +1867,19 @@
     },
     "has ../plugins/devkit/tests/artifact-check.test.ts \"压成一行的各种写法：静态 import、副作用 import、import * as、export from、export *、export * as、动态 import 都找到\"": {
       "kind": "has"
+    },
+    "../plugins/devkit/build.ts:15-50": {
+      "kind": "git",
+      "blob": "23ebc86527f5d0fb5ac8b5d1b4f8364aa74279bb",
+      "commit": "e6a7efba4afc588b9d79c614e524f3d0bcccb920",
+      "lines": [
+        15,
+        50
+      ],
+      "hash": "8596bdea3caaabcf5ee75549d68a88be50872f07965653b371cf0c8fd279d8b1"
+    },
+    "has ../plugins/devkit/tests/built-artifact.test.ts \"另起一个 node 进程直接 import 得起来\"": {
+      "kind": "has"
     }
   },
   "content/docs/devkit/scaffold.mdx": {
@@ -2097,6 +2110,106 @@
       "lines": [
         440,
         454
+      ],
+      "hash": "3a37bbf1859c348c9aa1ee1db69e330f557b48d6e2d165ac8a0d670d53607d94"
+    },
+    "../plugins/devkit/src/scaffold.ts:207-234": {
+      "kind": "git",
+      "blob": "a63baf3fcc3b6d67b561237e3bd8fc9636576a79",
+      "commit": "e6a7efba4afc588b9d79c614e524f3d0bcccb920",
+      "lines": [
+        207,
+        234
+      ],
+      "hash": "a1be55f4aea03bea7d737101b9aec686cb5166e47cac4f7584562f6a0dc72470"
+    },
+    "../plugins/devkit/src/scaffold.ts:158-205": {
+      "kind": "git",
+      "blob": "a63baf3fcc3b6d67b561237e3bd8fc9636576a79",
+      "commit": "e6a7efba4afc588b9d79c614e524f3d0bcccb920",
+      "lines": [
+        158,
+        205
+      ],
+      "hash": "1044287c4158b1bdb3ef5ed33b29e384323be440d1cb60b9bbd10ecd6c95fbe2"
+    },
+    "../plugins/devkit/src/scaffold.ts:439-452": {
+      "kind": "git",
+      "blob": "a63baf3fcc3b6d67b561237e3bd8fc9636576a79",
+      "commit": "e6a7efba4afc588b9d79c614e524f3d0bcccb920",
+      "lines": [
+        439,
+        452
+      ],
+      "hash": "e67a466c6769036a3ad7ad0184c833e6763579985ddc00e6827564eb3d80c52f"
+    },
+    "../plugins/devkit/src/scaffold.ts:333-351": {
+      "kind": "git",
+      "blob": "a63baf3fcc3b6d67b561237e3bd8fc9636576a79",
+      "commit": "e6a7efba4afc588b9d79c614e524f3d0bcccb920",
+      "lines": [
+        333,
+        351
+      ],
+      "hash": "159aaa9052a80ccca7ebe68dbb03b6acd4eda7fe565176c90d772808db6acda7"
+    },
+    "../plugins/devkit/src/scaffold.ts:371-381": {
+      "kind": "git",
+      "blob": "a63baf3fcc3b6d67b561237e3bd8fc9636576a79",
+      "commit": "e6a7efba4afc588b9d79c614e524f3d0bcccb920",
+      "lines": [
+        371,
+        381
+      ],
+      "hash": "64affdd7ce4d2e12298761d71decea94c95f1bc9829e7a72b8a27a13cfeed3ab"
+    },
+    "../plugins/devkit/src/scaffold.ts:383-404": {
+      "kind": "git",
+      "blob": "a63baf3fcc3b6d67b561237e3bd8fc9636576a79",
+      "commit": "e6a7efba4afc588b9d79c614e524f3d0bcccb920",
+      "lines": [
+        383,
+        404
+      ],
+      "hash": "694035851888a5db8ec70e52d8510ad8364426ab1996cbe266d512987febfec3"
+    },
+    "../plugins/devkit/src/scaffold.ts:411-423": {
+      "kind": "git",
+      "blob": "a63baf3fcc3b6d67b561237e3bd8fc9636576a79",
+      "commit": "e6a7efba4afc588b9d79c614e524f3d0bcccb920",
+      "lines": [
+        411,
+        423
+      ],
+      "hash": "2fc6df07177ff92a5c567bcc6b8b76349c82369597619dc0f3485bc3b042d1ff"
+    },
+    "../plugins/devkit/src/scaffold.ts:439-463": {
+      "kind": "git",
+      "blob": "a63baf3fcc3b6d67b561237e3bd8fc9636576a79",
+      "commit": "e6a7efba4afc588b9d79c614e524f3d0bcccb920",
+      "lines": [
+        439,
+        463
+      ],
+      "hash": "5fda46d139202de22fab79b2f4b3d8e7a6347008dedbd4eabc3b5e78267f698a"
+    },
+    "../plugins/devkit/src/scaffold.ts:465-474": {
+      "kind": "git",
+      "blob": "a63baf3fcc3b6d67b561237e3bd8fc9636576a79",
+      "commit": "e6a7efba4afc588b9d79c614e524f3d0bcccb920",
+      "lines": [
+        465,
+        474
+      ],
+      "hash": "85fb89653da1a4bb6d57f635648964a8b5e434afef9e7bd1e481bc51e6066acb"
+    },
+    "../plugins/devkit/src/scaffold.ts:489-503": {
+      "kind": "git",
+      "blob": "a63baf3fcc3b6d67b561237e3bd8fc9636576a79",
+      "commit": "e6a7efba4afc588b9d79c614e524f3d0bcccb920",
+      "lines": [
+        489,
+        503
       ],
       "hash": "3a37bbf1859c348c9aa1ee1db69e330f557b48d6e2d165ac8a0d670d53607d94"
     }
