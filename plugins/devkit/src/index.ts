@@ -27,12 +27,14 @@ import { CDP_ENTRY, devDepsWith, releaseDepsWith } from './node-dev-deps.js'
 import { locatePnpm } from '@godcreator/gwb-plugin-manager'
 import { homeFs, makeAppSpawnPlan, makeGuiSpawn, runCaptured } from './node-home-deps.js'
 import {
+  homePeerVersions,
   NAME_RE,
   nextSteps,
   nextStepsPlugin,
   packageRoot,
   planScaffold,
   planScaffoldPlugin,
+  type PeerVersions,
   renderPlugin,
   renderTemplate,
   SCOPE_RE,
@@ -447,6 +449,11 @@ function publishIdentityArgsOf(args: Record<string, unknown>): { scope?: string;
   return picked
 }
 
+function peerVersionsOfOwnHome(ctx: GwbContext): PeerVersions {
+  const kernel = requireKernel(ctx)
+  return homePeerVersions(kernel.dataDir, kernel.version)
+}
+
 /** 包内 `template/` 目录。它在 `files` 白名单里，随包发布 */
 function templateRoot(): string {
   return path.join(packageRoot(import.meta.dirname), 'template')
@@ -471,7 +478,7 @@ function registerScaffoldCommand({ ctx, log, commands }: Wiring): void {
           name: typeof args.name === 'string' ? args.name : '',
           dir: typeof args.dir === 'string' ? args.dir : '',
           ...publishIdentityArgsOf(args),
-          kernelVersion: requireKernel(ctx).version,
+          peerVersions: peerVersionsOfOwnHome(ctx),
         })
       } catch (err) {
         return { ok: false, error: `${err instanceof Error ? err.message : String(err)}\n\n${SCAFFOLD_USAGE}` }
@@ -519,7 +526,7 @@ function registerScaffoldPluginCommand({ ctx, log, commands }: Wiring): void {
           name: typeof args.name === 'string' ? args.name : '',
           repo: typeof args.repo === 'string' ? args.repo : '',
           ...publishIdentityArgsOf(args),
-          kernelVersion: requireKernel(ctx).version,
+          peerVersions: peerVersionsOfOwnHome(ctx),
         })
       } catch (err) {
         return { ok: false, error: `${err instanceof Error ? err.message : String(err)}\n\n${SCAFFOLD_PLUGIN_USAGE}` }

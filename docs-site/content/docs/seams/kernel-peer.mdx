@@ -7,7 +7,7 @@ description: 连接插件包 package.json 的 peer（内核包的范围、用到
 
 ## 连接的模块
 
-- 插件包的 `package.json`：`peerDependencies` 里写内核包 `@godcreator/gwb-kernel-desktop` 的范围，声明兼容哪些内核；再写用到的别的插件的范围，可选使用的在 `peerDependenciesMeta` 标 `optional`
+- 插件包的 `package.json`：`peerDependencies` 里写内核包 `@godcreator/gwb-kernel-desktop` 的范围，声明兼容哪些内核；再写用到的别的插件的范围，只在 `ctx.inject([...], fn)` 里用的在 `peerDependenciesMeta` 标 `optional`
 - devkit 的 `devkit.release`（`plugins/devkit/src/release.ts`）：发版前检查
 - 插件管理的 `plugin-manager.list`（`plugins/plugin-manager/src/index.ts`、`src/kernel-compat.ts`、`src/kernel-upgrade.ts`、`src/peers.ts`）：按包报 `unmetPeers`，内核包与别的插件都在里面；`src/kernel-compat.ts` 里判写法的 `isCaretRange` 经主入口导出给 devkit
 - 内核：内核服务 `gwbKernel` 的 `version`；内核包和插件一样装在 home 里
@@ -44,7 +44,7 @@ description: 连接插件包 package.json 的 peer（内核包的范围、用到
 
 {/* ref file="../plugins/plugin-manager/src/peers.ts" lines="58-77" */}
 
-**peer 里的别的插件**：`"<插件包名>": "^x.y.z"`，可选使用的在 `peerDependenciesMeta` 标 `optional: true`（规矩见[用到的插件写 peer](/docs/rules/plugin-peers)）。devkit 与插件管理问的不是同一件事：devkit 在发版时问「上游有没有出破坏性版本」，拿范围下限和源上 latest 比在不在同一条线；插件管理在 home 里问「装着的这一版在不在范围里」，拿范围和装着的版本比，用的是 `caretRangeCovers`（插件管理内部的函数；比内核包时用的 `kernelRangeCovers` 只在它外面多一层「内核版本号不合法就抛错」，也不导出，见 [peer 满没满足](/docs/plugin-manager/peers)）。
+**peer 里的别的插件**：`"<插件包名>": "^x.y.z"`，只在 `ctx.inject([...], fn)` 里用的在 `peerDependenciesMeta` 标 `optional: true`（规矩见[用到的插件写 peer](/docs/rules/plugin-peers)）。devkit 与插件管理问的不是同一件事：devkit 在发版时问「上游有没有出破坏性版本」，拿范围下限和源上 latest 比在不在同一条线；插件管理在 home 里问「装着的这一版在不在范围里」，拿范围和装着的版本比，用的是 `caretRangeCovers`（插件管理内部的函数；比内核包时用的 `kernelRangeCovers` 只在它外面多一层「内核版本号不合法就抛错」，也不导出，见 [peer 满没满足](/docs/plugin-manager/peers)）。
 
 {/* ref file="../plugins/devkit/src/release.ts" lines="152-161" */}
 
@@ -64,7 +64,7 @@ devkit 保证：插件包 peer 里的内核包没写、不是 `^x.y.z`，一个�
 
 {/* ref file="../plugins/devkit/src/release.ts" lines="130-140" */}
 
-建仓模板的 `template/pkg/package.json.tpl` 在 peer 里写内核包，值是 `^{{kernelVersion}}`：`devkit.scaffold` 与 `devkit.scaffold.plugin` 填入运行命令的那个 home 的内核版本号（只取 x.y.z），所以新仓在同一个内核上 `devkit.release` 时过得了这一项检查（见[模板与发版前检查](/docs/seams/template-release)）。模板的 peer 里还写着它用到的命令总线与外壳，版本号写死在模板里，改之前先照源上的 latest。
+建仓模板的 `template/pkg/package.json.tpl` 在 peer 里写内核包，值是 `^{{kernelVersion}}`：`devkit.scaffold` 与 `devkit.scaffold.plugin` 填入运行命令的那个 home 的内核版本号（只取 x.y.z），所以新仓在同一个内核上 `devkit.release` 时过得了这一项检查（见[模板与发版前检查](/docs/seams/template-release)）。模板的 peer 里还写着它用到的命令总线与外壳，值是 `^{{commandsVersion}}`、`^{{shellVersion}}`，由这两条命令读那个 home 里装着的版本填（见[建仓与加插件](/docs/devkit/scaffold#数据结构)），模板里不写死数字。
 
 {/* ref file="../plugins/devkit/template/pkg/package.json.tpl" lines="23-27" */}
 

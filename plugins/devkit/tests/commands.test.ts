@@ -163,11 +163,19 @@ function writeWorkspaceRepo(repoDir: string): void {
   writeJson(path.join(repoDir, 'package.json'), { name: 'x-workspace', private: true, scripts: { build: 'pnpm -r build' } })
 }
 
+/** 装着命令总线与外壳的 home：建仓与加插件照它装着的版本写模板插件的 peer */
+function homeWithCommandsAndShell(): string {
+  const homeDir = tempDir('dk-home-')
+  writeJson(path.join(homeDir, 'node_modules', '@godcreator', 'gwb-commands', 'package.json'), { name: '@godcreator/gwb-commands', version: '0.5.2' })
+  writeJson(path.join(homeDir, 'node_modules', '@godcreator', 'gwb-shell', 'package.json'), { name: '@godcreator/gwb-shell', version: '0.14.1' })
+  return homeDir
+}
+
 describe('devkit.scaffold 与 devkit.scaffold.plugin', () => {
   it('建仓：插件文件写到磁盘，回执只报仓与插件包；不建文档站，也不调别的插件的命令', async () => {
     const dir = path.join(tempDir('dk-scaffold-'), 'hello')
     const devkit = mountDevkit({
-      homeDir: tempDir('dk-home-'),
+      homeDir: homeWithCommandsAndShell(),
       busCommands: { 'docs-site.create': () => ({ ok: true, data: { port: 4321 } }), 'docfirst.attach': () => ({ ok: true, data: {} }) },
     })
     const receipt = await devkit.run('devkit.scaffold', { name: 'hello', dir })
@@ -179,11 +187,24 @@ describe('devkit.scaffold 与 devkit.scaffold.plugin', () => {
     expect(fs.existsSync(path.join(dir, 'plugins', 'hello', 'package.json'))).toBe(true)
     expect(fs.existsSync(path.join(dir, 'docs-site'))).toBe(false)
     expect(devkit.busCalls).toEqual([])
+    const manifest = JSON.parse(fs.readFileSync(path.join(dir, 'plugins', 'hello', 'package.json'), 'utf8')) as { peerDependencies: Record<string, string> }
+    expect(manifest.peerDependencies).toMatchObject({ '@godcreator/gwb-commands': '^0.5.2', '@godcreator/gwb-shell': '^0.14.1' })
+  })
+
+  it('home 里没装外壳：拒，不写任何文件，报错写出没装哪个包', async () => {
+    const dir = path.join(tempDir('dk-scaffold-'), 'hello')
+    const homeDir = tempDir('dk-home-')
+    writeJson(path.join(homeDir, 'node_modules', '@godcreator', 'gwb-commands', 'package.json'), { name: '@godcreator/gwb-commands', version: '0.5.2' })
+    const devkit = mountDevkit({ homeDir })
+    const receipt = await devkit.run('devkit.scaffold', { name: 'hello', dir })
+    expect(receipt.ok).toBe(false)
+    expect(receipt.error).toContain('没装 @godcreator/gwb-shell')
+    expect(fs.existsSync(dir)).toBe(false)
   })
 
   it('目标目录已经存在：建仓没成，不覆盖', async () => {
     const dir = tempDir('dk-scaffold-')
-    const devkit = mountDevkit({ homeDir: tempDir('dk-home-') })
+    const devkit = mountDevkit({ homeDir: homeWithCommandsAndShell() })
     expect((await devkit.run('devkit.scaffold', { name: 'hello', dir })).error).toContain('建仓没成')
   })
 
@@ -192,7 +213,7 @@ describe('devkit.scaffold 与 devkit.scaffold.plugin', () => {
     writeWorkspaceRepo(repoDir)
     fs.mkdirSync(path.join(repoDir, 'docs-site', 'content', 'docs'), { recursive: true })
     fs.writeFileSync(path.join(repoDir, 'docs-site', 'docfirst.config.mjs'), 'export default {}\n')
-    const devkit = mountDevkit({ homeDir: tempDir('dk-home-') })
+    const devkit = mountDevkit({ homeDir: homeWithCommandsAndShell() })
     const receipt = await devkit.run('devkit.scaffold.plugin', { repo: repoDir, name: 'world' })
     expect(receipt.ok).toBe(true)
     const data = receipt.data as Record<string, unknown>

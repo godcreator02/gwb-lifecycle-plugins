@@ -117,7 +117,14 @@ describe.skipIf(!built)('构建产物', () => {
     fs.mkdirSync(repoDir, { recursive: true })
     fs.writeFileSync(path.join(repoDir, 'pnpm-workspace.yaml'), 'packages:\n  - plugins/*\n')
     fs.writeFileSync(path.join(repoDir, 'package.json'), JSON.stringify({ name: 'x-workspace', private: true }))
-    const devkit = await mountBundle(tempDir('dk-bundle-home-'))
+    // 加插件读 home 里装着的命令总线与外壳的版本号
+    const homeDir = tempDir('dk-bundle-home-')
+    for (const pkg of ['@godcreator/gwb-commands', '@godcreator/gwb-shell']) {
+      const manifest = path.join(homeDir, 'node_modules', ...pkg.split('/'), 'package.json')
+      fs.mkdirSync(path.dirname(manifest), { recursive: true })
+      fs.writeFileSync(manifest, JSON.stringify({ name: pkg, version: '0.9.0' }))
+    }
+    const devkit = await mountBundle(homeDir)
     const receipt = await devkit.run('devkit.scaffold.plugin', { repo: repoDir, name: 'world' })
     expect(receipt.ok, receipt.error).toBe(true)
     expect(fs.existsSync(path.join(repoDir, 'plugins', 'world', 'src', 'index.ts'))).toBe(true)

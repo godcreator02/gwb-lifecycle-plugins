@@ -40,7 +40,7 @@ description: plugins/devkit/AGENTS.md 由这一页生成——每次会话都得
 ## 硬约束
 
 - **开发套件产物开头那个 `require` 别删**：`build.ts` 用 `createRequire` 造的，打包进来的 yaml 靠它；删了 vitest 照样全绿，只有 `tests/built-artifact.test.ts` 会失败
-- **模板**：`template/pkg/` 是插件包的唯一正本，建仓与加插件都用它；`template/` 下每个文件带 `.tpl`、都要声明属于 `repo/` 还是 `pkg/`；加占位符同时改 `src/scaffold.ts` 的 `placeholders()`，占位符的值只能是短名、包名、规范写法的地址、版本号这类不用转义的东西，要显示名的地方用短名；改模板后运行 `tests/scaffold.test.ts`；改模板里 `@godcreator` 包的版本号之前先 `pnpm view <包> dist-tags.latest`。细节见 `devkit/scaffold.mdx`
+- **模板**：`template/pkg/` 是插件包的唯一正本，建仓与加插件都用它；`template/` 下每个文件带 `.tpl`、都要声明属于 `repo/` 还是 `pkg/`；加占位符同时改 `src/scaffold.ts` 的 `placeholders()`，占位符的值只能是短名、包名、规范写法的地址、版本号这类不用转义的东西，要显示名的地方用短名；改模板后运行 `tests/scaffold.test.ts`；模板里不写死 `@godcreator` 包的版本号，peer 里的内核包、命令总线、外壳都是占位符，由运行建仓命令的那个 home 填。细节见 `devkit/scaffold.mdx`
 - **建仓与加插件只写插件的文件**：不建文档站、不写文档页、不调别的插件的命令
 - **没有设置项**；将来要加一律用 `gwbSettings.define`，不读 `cordis.yml` 的 `config`
 - **每条命令的参数形状写进 `usage`**，无参数写「无参数」

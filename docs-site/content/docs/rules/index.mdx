@@ -37,9 +37,9 @@ description: 写 gwb 插件要守的规矩一条一行：做法在哪一页、�
 | --- | --- | --- | --- |
 | peer 只写运行时从 home 里得到的三类包——构建产物里按值 import 的 `cordis`、内核包 `@godcreator/gwb-kernel-desktop`、用到的别的插件，其余写 dev | [依赖](/docs/rules/deps) | `devkit.release` 拒 peer 里 `cordis`、内核包、插件以外的包（是不是插件读包目录 `node_modules` 里它的清单，读不到也拒）；node 侧产物按值 import 了 peer 里没写的包也拒 | — |
 | `cordis` 不写进 `dependencies` | [依赖](/docs/rules/deps) | 没有专门的检查；按值 import 了 `cordis` 却没写进 peer 时，`devkit.release` 的 node 侧包名 import 检查会拒 | 同时写进 peer 与 `dependencies` 查不到 |
-| `@godcreator` 包的 dev 写 `^<源上已经发了的版本>` 或精确号；落后于源上 latest 不要紧，装得上就行 | [依赖](/docs/rules/deps) | 没有专门的检查；写了源上没有的版本，仓根 `pnpm install` 失败 | 写法 |
+| `@godcreator` 的库与接口定义包（不是插件，写在 dev）写 `^<源上已经发了的版本>` 或精确号；落后于源上 latest 不要紧，装得上就行 | [依赖](/docs/rules/deps) | 没有专门的检查；写了源上没有的版本，仓根 `pnpm install` 失败 | 写法 |
 | 构建产物里的包名 import：node 侧只能是 node 内置模块、`electron` 与 peer 里写了的包，浏览器侧只能是页面 importmap 里的名字 | [依赖](/docs/rules/deps) | `devkit.release` 两侧都查（浏览器侧名单从包目录 `node_modules` 里装好的内核包页面入口读，读不到也拒）；模板带的产物测试同样查两侧 | 产物测试只认顶格的静态 import |
-| 类型引用到的包由使用方在 dev 里列全，`skipLibCheck: false` 下类型检查通过 | [依赖](/docs/rules/deps) | 没有工具检查 | 全部 |
+| 类型引用到的包（包括上游 d.ts 里又引用到的）由使用方列全：写在 peer 里的不再写，其余写 dev；改了依赖之后关掉 `skipLibCheck` 类型检查一次 | [依赖](/docs/rules/deps) | 没有工具检查 | 全部 |
 | 只引类型写 `import type`，不写 `import { type X }` | [依赖](/docs/rules/deps) | `devkit.release` 拒构建产物里的空 import（`import { type X }` 编译后留下的 `import {} from`） | — |
 | 源码里不指回别的仓：tsconfig `paths` 只有指向包内的 `@/*` 一项，没有 `link:` / `file:` 依赖 | [依赖](/docs/rules/deps) | 没有工具检查 | 全部 |
 | node 侧用 tsc 直接输出时，相对 import 带 `.js` | [依赖](/docs/rules/deps) | `devkit.release` 拒指向不存在文件的相对 import；模板带的产物测试 | — |
@@ -51,7 +51,7 @@ description: 写 gwb 插件要守的规矩一条一行：做法在哪一页、�
 | 窗格的 `client` / `style` 从插件自己的模块地址算（`new URL('./client.js', import.meta.url).href`），是路径以 `.js` / `.css` 结尾的 `file://` 地址 | 说明书 `gwb-shell` | 外壳登记窗格时检查 | — |
 | 扩展点服务继承 cordis 的 `Service`，注册随调用方卸载自动撤销 | [服务](/docs/rules/services) | 没有工具检查 | 全部 |
 | 扩展点用服务，数据读写和动作用命令，同一能力只提供一种调用方式 | [服务](/docs/rules/services) | 没有工具检查 | 全部 |
-| 命令的 `name`、`description`、`usage` 都是非空字符串：`description` 一句话说做什么，参数形状写进 `usage`，无参数写「无参数」；`plugin` 可以不写，写了必须等于自己的完整包名 | [服务](/docs/rules/services) | 命令总线登记时检查：缺字段、只有空白、`plugin` 与调用方的包名不同都抛错 | `usage` 写没写对参数形状 |
+| 命令的 `name`、`description`、`usage` 都是非空字符串：`description` 一句话说做什么，参数形状写进 `usage`，无参数写「无参数」；不写 `plugin`（命令总线从调用方取包名，写了就必须等于自己的完整包名） | [服务](/docs/rules/services) | 命令总线登记时检查：缺字段、只有空白、`plugin` 与调用方的包名不同都抛错 | `usage` 写没写对参数形状 |
 | 提供服务的插件在自己的类型声明里给 cordis 的 `Context` 补上这一项，服务的类型定义在自己的声明里、带文档注释 | [服务](/docs/rules/services) | 没有工具检查 | 全部 |
 | `gwbKernel` 用 `requireKernel` 取、不写进 `inject`；不写 `instanceof Service`；类的私有字段用 TS `private` | [服务](/docs/rules/services) | 没有工具检查 | 全部 |
 | 插件之间只通过服务和命令交互，不 import 别的插件 | [交互](/docs/rules/interaction) | 没有工具检查：发版前检查放行 node 侧对 peer 里写了的包的 import，写进 peer 的插件也在其中 | 全部 |
@@ -60,14 +60,11 @@ description: 写 gwb 插件要守的规矩一条一行：做法在哪一页、�
 | 插件的数据目录只由它自己读写 | [交互](/docs/rules/interaction) | 没有工具检查 | 全部 |
 | 自己启动或创建的一切，卸载时清理掉，并返回 promise | [卸载清理](/docs/rules/dispose) | 没有工具检查 | 全部 |
 | 插件包在 peer 里写内核包 `@godcreator/gwb-kernel-desktop`，范围 `^x.y.z`，x.y.z 是验证时那个内核的版本 | [兼容哪个内核](/docs/rules/kernel-compat) | `devkit.release` 拒没写、写法不是 `^x.y.z`；`plugin-manager.list` 按包报范围不包含 home 里内核的插件 | 范围包不包含验证时那个内核 |
-| 经 `ctx.inject` 用到、或 import 了类型的别的插件写进 peer，范围 `^x.y.z`，可选使用的在 `peerDependenciesMeta` 标 `optional: true`；不另写 dev | [用到的插件写 peer](/docs/rules/plugin-peers) | `devkit.release` 拒 peer 里的 gwb 插件写法不是 `^x.y.z`、和源上 latest 不在同一条线；`plugin-manager.list` 按包报 `unmetPeers` | 用到了却没写进 peer |
+| 经 `ctx.inject` 用到、或 import 了类型的别的插件写进 peer，范围 `^x.y.z`；写在 `export const inject` 里的是普通 peer，只在 `ctx.inject([...], fn)` 里用的在 `peerDependenciesMeta` 标 `optional: true`；不另写 dev | [用到的插件写 peer](/docs/rules/plugin-peers) | `devkit.release` 拒 peer 里的 gwb 插件写法不是 `^x.y.z`、和源上 latest 不在同一条线；`plugin-manager.list` 按包报 `unmetPeers` | 用到了却没写进 peer；标没标反 |
 | 0.x 里只在破坏契约时升 x，其余升 y；同一个号不重发 | 说明书 `gwb-release` | `devkit.release` 拒源上已有的号 | 升哪一位 |
 
 ## 这个仓自己还没照做的
 
-插件管理（`plugins/plugin-manager/`）与开发套件的清单都按上面的规矩写：peer 里是内核包与用到的插件。还差两处：
+插件管理（`plugins/plugin-manager/`）与开发套件的清单都按上面的规矩写：peer 里是内核包与用到的插件。还差一处：
 
 - **插件管理的 dev 暂时列着接口类型包 `@godcreator/gwb-plugin-api`**：命令总线 0.5.0 的类型声明还从它取 `GwbResult`，少了它 `commandBus.run` 的回执成了 error 类型、oxlint 不过。命令总线改成从内核包取类型之后删掉
-- **模板的窗格入口手写了外壳传入的参数形状**：`template/pkg/src/client/index.tsx.tpl` 里的 `PaneArgs` 没从外壳 `import type`。外壳发出导出窗格入口类型的正式版之后，改成从外壳取、把模板里外壳的下限升上去
-
-{/* has file="../plugins/devkit/template/pkg/src/client/index.tsx.tpl" text="interface PaneArgs {" */}

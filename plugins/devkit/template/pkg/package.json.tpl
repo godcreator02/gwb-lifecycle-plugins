@@ -22,8 +22,8 @@
   "engines": { "node": ">=24" },
   "peerDependencies": {
     "@godcreator/gwb-kernel-desktop": "^{{kernelVersion}}",
-    "@godcreator/gwb-commands": "^0.5.0",
-    "@godcreator/gwb-shell": "^0.13.7"
+    "@godcreator/gwb-commands": "^{{commandsVersion}}",
+    "@godcreator/gwb-shell": "^{{shellVersion}}"
   },
   "devDependencies": {
     "@tailwindcss/cli": "^4.3.0",
@@ -32,7 +32,7 @@
     "@types/react": "19.2.18",
     "@types/react-dom": "19.2.5",
     "cordis": "4.0.0-rc.10",
-    "esbuild": "^0.27.0",
+    "esbuild": "^0.28.2",
     "oxlint": "1.76.0",
     "oxlint-tsgolint": "7.0.2001",
     "react": "19.2.8",

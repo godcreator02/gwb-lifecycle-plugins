@@ -1,7 +1,7 @@
 import fs from 'node:fs'
 import path from 'node:path'
 import { isMap, isScalar, isSeq, LineCounter, parseDocument, type Document } from 'yaml'
-import { parseHttpUrl, TEAM_REGISTRY, TEAM_SCOPE, versionCore } from './vocab.js'
+import { isRecord, parseHttpUrl, TEAM_REGISTRY, TEAM_SCOPE, versionCore } from './vocab.js'
 
 /** 短名：kebab-case。段之间只许一个连字符、结尾不许有连字符——宽松的写法会放过 `x--`，生成的包名就一直带着它 */
 export const NAME_RE = /^[a-z][a-z0-9]*(?:-[a-z0-9]+)*$/
@@ -21,11 +21,24 @@ export const PKG_ZONE = 'pkg'
 /** 插件包所在的那条 workspace glob：加插件要求仓的 `pnpm-workspace.yaml` 的 packages 里有它 */
 export const PLUGINS_GLOB = 'plugins/*'
 
+/** 模板插件 peer 里用到的两个插件：顶层 inject 了它们，写普通 peer */
+export const COMMANDS_PACKAGE = '@godcreator/gwb-commands'
+export const SHELL_PACKAGE = '@godcreator/gwb-shell'
+
+/**
+ * 运行建仓命令的那个 home 里的版本号：内核是正在运行的内核，命令总线与外壳是 home 里装着的。
+ * 生成的插件包 peer 里分别写 `^<x.y.z>`，模板里不写死任何一个
+ */
+export interface PeerVersions {
+  kernel: string
+  commands: string
+  shell: string
+}
+
 export interface ScaffoldInput {
   name: string
   dir: string
-  /** 运行 `devkit.scaffold` 的那个内核的版本号。生成的插件包在 peer 里写内核包 `^<它的 x.y.z>` */
-  kernelVersion: string
+  peerVersions: PeerVersions
   /** 包名范围，`@` 开头。不给是 `TEAM_SCOPE` */
   scope?: string
   /** 写进插件包 `publishConfig.registry` 的发布目标。不给是 `TEAM_REGISTRY` */
@@ -43,16 +56,15 @@ export interface ScaffoldPlan {
   pluginName: string
   /** 转成绝对路径之后的目标目录 */
   dir: string
-  /** 生成的插件包 peer 里内核包范围的下限：运行建仓命令的内核版本号的 x.y.z 三段 */
-  kernelVersion: string
+  /** 生成的插件包 peer 里各范围的下限，都只取 x.y.z 三段 */
+  peerVersions: PeerVersions
 }
 
 /** 往已有的 workspace 仓加一个插件的参数 */
 export interface ScaffoldPluginInput {
   name: string
   repo: string
-  /** 运行 `devkit.scaffold.plugin` 的那个内核的版本号。生成的插件包在 peer 里写内核包 `^<它的 x.y.z>` */
-  kernelVersion: string
+  peerVersions: PeerVersions
   /** 同 `ScaffoldInput.scope` */
   scope?: string
   /** 同 `ScaffoldInput.registry` */
@@ -73,8 +85,8 @@ export interface ScaffoldPluginPlan {
   repoDir: string
   /** 插件包目录：`<repo>/plugins/<短名>` */
   dir: string
-  /** 生成的插件包 peer 里内核包范围的下限：运行加插件命令的内核版本号的 x.y.z 三段 */
-  kernelVersion: string
+  /** 同 `ScaffoldPlan.peerVersions` */
+  peerVersions: PeerVersions
 }
 
 /** 一份渲染好的文件：相对路径（已去掉 .tpl、已按所属部分算好位置）+ 正文 */
@@ -142,7 +154,32 @@ export function planScaffold(input: ScaffoldInput): ScaffoldPlan {
     registry: registryOrTeamRegistry(input.registry),
     pluginName: `gwb-${name}`,
     dir,
-    kernelVersion: versionCore(input.kernelVersion),
+    peerVersions: peerVersionCores(input.peerVersions),
+  }
+}
+
+function peerVersionCores({ kernel, commands, shell }: PeerVersions): PeerVersions {
+  return { kernel: versionCore(kernel), commands: versionCore(commands), shell: versionCore(shell) }
+}
+
+/** home 里装着的一个包的版本号，读 `<home>/node_modules/<包>/package.json`。没装、或清单里没有版本号就抛 */
+function installedVersionInHome(homeDir: string, pkg: string): string {
+  const manifestPath = path.join(homeDir, 'node_modules', ...pkg.split('/'), 'package.json')
+  if (!fs.existsSync(manifestPath)) {
+    throw new Error(`运行这条命令的 home 里没装 ${pkg}（没有 ${manifestPath}）：模板插件的 peer 照这个 home 装着的版本写`)
+  }
+  const manifest: unknown = JSON.parse(fs.readFileSync(manifestPath, 'utf8'))
+  const version = isRecord(manifest) ? manifest['version'] : undefined
+  if (typeof version !== 'string') throw new Error(`${manifestPath} 里没有字符串的 version`)
+  return version
+}
+
+/** 运行建仓命令的那个 home 的 `PeerVersions`：内核取正在运行的版本号，命令总线与外壳读 home 里装着的 */
+export function homePeerVersions(homeDir: string, runningKernelVersion: string): PeerVersions {
+  return {
+    kernel: runningKernelVersion,
+    commands: installedVersionInHome(homeDir, COMMANDS_PACKAGE),
+    shell: installedVersionInHome(homeDir, SHELL_PACKAGE),
   }
 }
 
@@ -209,7 +246,7 @@ export function planScaffoldPlugin(input: ScaffoldPluginInput): ScaffoldPluginPl
     pluginName: `gwb-${name}`,
     repoDir,
     dir: path.join(repoDir, 'plugins', name),
-    kernelVersion: versionCore(input.kernelVersion),
+    peerVersions: peerVersionCores(input.peerVersions),
   }
 }
 
@@ -219,7 +256,7 @@ interface Placeholdable {
   pkg: string
   registry: string
   pluginName: string
-  kernelVersion: string
+  peerVersions: PeerVersions
 }
 
 /**
@@ -234,7 +271,9 @@ export function placeholders(plan: Placeholdable): Record<string, string> {
     pkgName: plan.pluginName,
     // 样式类前缀：短名去掉非小写字母。Tailwind 4 的 prefix() 只收 a-z，有连字符或数字时 build 才报错，check 照样全绿
     cssPrefix: plan.name.replace(/[^a-z]/g, ''),
-    kernelVersion: plan.kernelVersion,
+    kernelVersion: plan.peerVersions.kernel,
+    commandsVersion: plan.peerVersions.commands,
+    shellVersion: plan.peerVersions.shell,
   }
 }
 

@@ -1,0 +1,37 @@
+---
+title: 建仓模板的 peer 版本号从 home 读，可选 peer 照代码标
+born-at: 2026-09-25T19:00
+type: choice
+parent: [2026-09-24-plugins-peer-each-other]
+label: 模板版本号从 home 读
+domain: devkit
+---
+
+## 背景
+
+外壳发了 0.14.0（升 x），建仓模板 `template/pkg/package.json.tpl` 的 peer 里还写着外壳 `^0.13.7`、命令总线 `^0.5.0`。照模板新建的插件，第一次 `devkit.release` 就会被「peer 里的插件和源上 latest 不在同一条线」拒掉。内核包的范围早就是占位符 `{{kernelVersion}}`，由运行建仓命令的内核填，只有这两个插件是写死的数字。
+
+同一轮核对模板时还有两处跟不上：外壳 0.14.0 已经从 `@godcreator/gwb-shell/pane` 导出 `PaneArgs` / `PaneHandle`，模板的窗格入口还在手写形状；命令总线 0.5.0 起从调用方取包名，模板登记命令时还写着 `plugin`。
+
+人还问了可选 peer 是不是多余，「可选的话不写 peer 不就行了」。
+
+## 结论与边界
+
+- 命令总线与外壳的范围改成占位符 `{{commandsVersion}}` / `{{shellVersion}}`，由 `homePeerVersions` 读运行建仓命令的那个 home 的 `node_modules/<包>/package.json` 填，只取 x.y.z；home 里没装就拒，不联网问源。devkit 0.23.2
+- 模板里从此不写死任何 `@godcreator` 包的版本号
+- 窗格入口的类型从外壳的 `@godcreator/gwb-shell/pane` 取；登记命令不写 `plugin`
+- 可选 peer 保留。它的意思是「home 里可以没有它；有的话版本要在范围里」。不写 peer 会同时丢掉四样：装着的版本出了范围时 `unmetPeers` 报、发版时和源上 latest 比、开发时从 peer 拿类型（要把 dev 加回来）、上游升级后跟着重新加载
+- 标不标可选照代码写：`export const inject` 里的是普通 peer，只在 `ctx.inject([...], fn)` 里用的标 `optional`。例外是局部注入、但缺了它本插件一样功能都没有的（插件管理的命令总线），写普通 peer
+
+## 否掉的候选
+
+- **只把模板里的数字改成 0.14.0**：下次上游升 x 又过时，而且没有东西会提前报出来
+- **建仓时问源上的 `dist-tags.latest`**：要联网，每个包一两秒；运行建仓命令的 home 一般就是刚升级过的 default，版本和 latest 一致
+- **可选的插件不写 peer**：见上面丢掉的四样
+- **可选全部改成普通 peer**：devkit、插件管理这类「有外壳就用、没有也能跑」的插件，装进不带外壳或说明书插件的 home 时 `unmetPeers` 一直误报；pnpm 默认还会另装一份没人加载的副本
+- **加一道检查，从代码里分析 inject 写法、核对标没标反**：要解析源码，只为一个少见的错误，不值得
+
+## 代价与遗留
+
+- 运行建仓命令的 home 如果没升级，模板写进去的是旧版本号，第一次发版照样可能被拒；这时先升级那个 home 再建仓，或手工改清单
+- 局部注入的插件标成了普通 peer 还是可选，没有工具查

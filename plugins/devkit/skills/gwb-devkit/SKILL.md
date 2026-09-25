@@ -11,9 +11,9 @@ description: 写新插件、改插件、在隔离 home 里验证改动时读；�
 2. 带界面的插件，先读外壳的说明书 `skill.read {"name":"gwb-shell"}`
 3. 建仓：`devkit.scaffold {"name":"<kebab 短名>","dir":"<还不存在的绝对路径>"}`；往已有的 workspace 仓再加一个插件用 `devkit.scaffold.plugin {"repo":"<仓根>","name":"<短名>"}`。回执 `nextSteps` 里是这个仓特有的：仓与插件包在哪。建仓只写插件的文件，不建文档站；模板里要显示名的地方（README 标题、`description`、窗格标题）都是短名，要中文名自己改。没有团队源（`@godcreator`）发布权限就两条都加 `"scope":"@<你的范围>","registry":"<你的源的地址，如 http://localhost:4873/>"`：包名成了 `<scope>/gwb-<短名>`，`registry` 写进插件包的 `publishConfig.registry`，`devkit.release` 发到那里；发布 token 写在用户级 `~/.npmrc`。同一个仓里的插件用同一套
 4. 把模板改成真插件，每一处都守「写插件的规矩」：
-   * `src/index.ts`：模板的 `<短名>.ping` 与窗格 `main` 换成真正的命令与窗格。命令照模板那条的写法登记：`name`、`description`、`usage` 都是非空字符串，`description` 一句话说做什么，参数形状写进 `usage`，无参数写「无参数」；`plugin` 可以不写（命令总线 0.5.0 起从调用方取），写了必须等于自己的完整包名。命令总线 0.5.0 起缺字段或 `plugin` 不对就在登记时抛错，插件加载失败
+   * `src/index.ts`：模板的 `<短名>.ping` 与窗格 `main` 换成真正的命令与窗格。命令照模板那条的写法登记：`name`、`description`、`usage` 都是非空字符串，`description` 一句话说做什么，参数形状写进 `usage`，无参数写「无参数」；不写 `plugin`，命令总线从调用方取包名。缺字段时命令总线在登记时抛错，插件加载失败
    * `tests/`：不启动进程、不开窗口就能测的逻辑抽成纯函数来测。模板带的 `tests/prefix.test.ts`（类名前缀）与 `tests/artifact.test.ts`（构建产物）不用改。`prefix.test.ts` 报「前缀要排在最前」时照它写的改法改：前缀排在所有变体前面（`<前缀>:disabled:opacity-50`），写反了 Tailwind 不报错、只是一条规则都不出
-   * `package.json`：peer 里内核包 `@godcreator/gwb-kernel-desktop` 的范围 `^x.y.z` 要包含验证时用的内核（模板写的是运行建仓命令的那个内核）；用到的别的插件（经 `ctx.inject` 用它的服务、import 它的类型）写进 peer，范围 `^x.y.z`，只是可选使用的在 `peerDependenciesMeta` 标 `optional: true`，不再另写 dev（模板已写命令总线与外壳，不用外壳就删掉那一项）；`description` 改成一句话说这个插件做什么；有了 `skills/` 目录就把 `skills` 加进 `files`
+   * `package.json`：peer 里内核包 `@godcreator/gwb-kernel-desktop` 的范围 `^x.y.z` 要包含验证时用的内核（模板写的是运行建仓命令的那个 home 里的内核）；用到的别的插件（经 `ctx.inject` 用它的服务、import 它的类型）写进 peer，范围 `^x.y.z`，不另写 dev：写在 `export const inject` 里的是普通 peer，只在 `ctx.inject([...], fn)` 里用的在 `peerDependenciesMeta` 标 `optional: true`。模板已写命令总线与外壳，下限是建仓那个 home 里装着的版本；不用外壳就删掉那一项；`description` 改成一句话说这个插件做什么；有了 `skills/` 目录就把 `skills` 加进 `files`
    * 提供服务：在源码里给 cordis 的 `Context` 补上这一项（`declare module 'cordis' { interface Context { gwbExample: GwbExample } }`），`GwbExample` 定义在本包里、写文档注释说清怎么用；用它的插件从你发布的 `.d.ts` 读到这些
    * 仓里有文档站的，在它的现状区写这个插件的页：功能、接口、依赖、不做的事四节
 5. 仓根 `pnpm build`，再 `pnpm check`

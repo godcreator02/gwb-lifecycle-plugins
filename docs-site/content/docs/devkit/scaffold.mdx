@@ -18,7 +18,7 @@ workspace 仓：仓根是一个不发布的 private 包（`pnpm build` / `pnpm c
 两条命令都只写插件的文件，不建文档站、不往已有的文档站里写页，也不调别的插件的命令：要文档站的仓，照站点插件与 docfirst 插件自己的说明书去建。加插件不碰仓根，README 里插件清单的更新由人做（`nextStepsPlugin` 最后一步提醒）。
 
 <Diagram name="dk-scaffold" title="devkit.scaffold 建仓的四步，都在本包里">
-- 第 1 步 `planScaffold` 算计划：校验短名、`scope` 与 `registry`，派生包名 `<scope>/gwb-<短名>` 与插件名、定下发布目标，peer 里内核包的范围取运行中内核版本号的 x.y.z 三段；不碰磁盘
+- 第 1 步 `planScaffold` 算计划：校验短名、`scope` 与 `registry`，派生包名 `<scope>/gwb-<短名>` 与插件名、定下发布目标，peer 里内核包、命令总线、外壳的范围取运行建仓命令的那个 home 里的版本号（x.y.z 三段）；不碰磁盘
 - 第 2 步在内存里渲染 `template/repo/` 与 `template/pkg/`；认不出的占位符当场抛错
 - 第 3 步 `writeRepo` 写磁盘：目标目录必须还不存在；仓根写四个文件，插件包写到 `plugins/<短名>/`
 - 第 4 步回执：`nextSteps` 只写这次建仓特有的——仓与插件包在哪，流程指向说明书 `gwb-devkit` 的「新写一个插件」
@@ -32,11 +32,13 @@ workspace 仓：仓根是一个不发布的 private 包（`pnpm build` / `pnpm c
 
 ## 数据结构
 
-五个类型，两条流程：建仓（参数 `ScaffoldInput` → 计划 `ScaffoldPlan` → 渲染好的 `RenderedFile[]`）、加插件（`ScaffoldPluginInput` → `ScaffoldPluginPlan` → 同样的 `RenderedFile[]`）。
+六个类型，两条流程：建仓（参数 `ScaffoldInput` → 计划 `ScaffoldPlan` → 渲染好的 `RenderedFile[]`）、加插件（`ScaffoldPluginInput` → `ScaffoldPluginPlan` → 同样的 `RenderedFile[]`）。
 
-{/* ref file="../plugins/devkit/src/scaffold.ts" lines="24-84" */}
+{/* ref file="../plugins/devkit/src/scaffold.ts" lines="28-96" */}
 
-`ScaffoldPlan` 与 `ScaffoldPluginPlan` 算出来之后，后面每一步只看计划，不再回头看参数。两种参数里的 `kernelVersion` 不是命令参数：`src/index.ts` 从运行中的内核服务取 `gwbKernel.version` 传进来，计划里只留 x.y.z 三段（开发版内核去掉预发布段），渲染时填进生成的 `package.json` peer 里内核包的范围 `^x.y.z`。
+`ScaffoldPlan` 与 `ScaffoldPluginPlan` 算出来之后，后面每一步只看计划，不再回头看参数。两种参数里的 `peerVersions` 不是命令参数：`src/index.ts` 调 `homePeerVersions`，内核取运行中的内核服务的 `gwbKernel.version`，命令总线与外壳读这个 home 的 `node_modules/<包>/package.json`（没装就拒，报错写出读的是哪个文件）。计划里只留 x.y.z 三段（开发版去掉预发布段），渲染时分别填进生成的 `package.json` peer 里三个包的范围 `^x.y.z`。模板里因此不写死任何 `@godcreator` 包的版本号：写死的数字会随上游发版过时，上游一升 x，新仓第一次发版就被「和源上 latest 不在同一条线」拒掉（取舍见轨迹卡[建仓模板的 peer 版本号从 home 读](/trajectory/2026-09-25-scaffold-peers-from-home)）。
+
+{/* ref file="../plugins/devkit/src/scaffold.ts" lines="161-184" */}
 
 ## 提供的接口
 
@@ -44,7 +46,7 @@ workspace 仓：仓根是一个不发布的 private 包（`pnpm build` / `pnpm c
 
 模块导出一串纯函数，`src/index.ts` 按顺序调用：
 
-{/* ref file="../plugins/devkit/src/scaffold.ts" lines="133-147" */}
+{/* ref file="../plugins/devkit/src/scaffold.ts" lines="145-159" */}
 
 校验、派生、转成绝对路径、填缺省值都在这一处做完，没有读写磁盘。抛出的每一句都写明该怎么改。`dir` 经 `path.resolve` 转成绝对路径，`D:/a/b` 与 `D:\a\b` 得到同一个结果。`scope` 要是 `@` 开头的 npm 包名范围；`registry` 要是 http(s) 地址的规范写法（与 `new URL(registry).href` 逐字相同，所以写进 JSON 不用转义），不带账号、查询串与 `#`（发布 token 写在用户级 `~/.npmrc`）。不合规就拒，报错里写出规范写法，不替调用方改：
 
@@ -52,7 +54,7 @@ workspace 仓：仓根是一个不发布的 private 包（`pnpm build` / `pnpm c
 
 加插件的计划**要读磁盘**（建仓的不读）：`repo` 必须已经是 workspace 仓才收，也就是 `pnpm-workspace.yaml` 的 `packages` 里有 `plugins/*` 这一条。
 
-{/* ref file="../plugins/devkit/src/scaffold.ts" lines="188-214" */}
+{/* ref file="../plugins/devkit/src/scaffold.ts" lines="225-251" */}
 
 `packages` 用 yaml 库读，带不带引号、块列表还是流式列表、注释、CRLF 都认；文件写坏了、或 `packages` 不是字符串列表，报错写出文件与第几行第几列，不当成「没有这一条」。yaml 写在 dev 里，由 `build.ts` 打包进产物（见[开发](/docs/develop#提交前的检查)）：
 
@@ -62,9 +64,9 @@ workspace 仓：仓根是一个不发布的 private 包（`pnpm build` / `pnpm c
 
 {/* ref file="../plugins/devkit/src/scaffold.ts" lines="280-290" */}
 
-占位符一共七个，值都出自短名、校验过的包名范围、规范写法的地址与版本号三段，放进 JSON、TS、Markdown 都不用转义，原样替换。认不出的占位符当场抛错：生成的仓里留一个 `{{typo}}`，它会一直留在别人的 package.json 里，到那时已经没人知道它本来该是什么。所以给模板加了新占位符，`placeholders()` 必须同时加一项：
+占位符一共九个，值都出自短名、校验过的包名范围、规范写法的地址与版本号三段，放进 JSON、TS、Markdown 都不用转义，原样替换。认不出的占位符当场抛错：生成的仓里留一个 `{{typo}}`，它会一直留在别人的 package.json 里，到那时已经没人知道它本来该是什么。所以给模板加了新占位符，`placeholders()` 必须同时加一项：
 
-{/* ref file="../plugins/devkit/src/scaffold.ts" lines="225-248" */}
+{/* ref file="../plugins/devkit/src/scaffold.ts" lines="262-287" */}
 
 生成的 JSON 与 YAML 读不读得懂由测试对本包的模板核对，运行时不再读一遍：模板只有本包这一份，改了模板运行一次 `tests/scaffold.test.ts` 就知道。
 
@@ -92,7 +94,7 @@ workspace 仓：仓根是一个不发布的 private 包（`pnpm build` / `pnpm c
 
 给一份参数，看抛什么、算出什么；给一个临时目录，看磁盘上写下了什么。整个过程不启动进程、不开窗口，`tests/scaffold.test.ts` 直接测这几件事：
 
-短名的正则会不会放过 `x--` 这种结尾；`planScaffold` 的派生与缺省值，计划里没有显示名；给了 `scope`、`registry` 时包名、`publishConfig.registry`、README 与回执跟着变，内核包与模板用到的两个插件仍在 `@godcreator` 下，不给时是团队范围与团队源，不合规的范围与地址（不带 `@`、大写、非 http(s)、不是规范写法、带账号或查询串）建仓与加插件都拒；`planScaffoldPlugin` 对不存在的 repo、`pnpm-workspace.yaml` 的 `packages` 里没有 `plugins/*` 的拒绝，以及带引号、块列表、流式列表、注释、CRLF 几种写法都收，YAML 写坏了、`packages` 不是字符串列表时报出文件与行列；`dir` / `repo` 用正斜杠写与用反斜杠写得到同一个路径；`nextSteps` / `nextStepsPlugin` 写了什么、`packages` 参数有没有带上、流程指向说明书而不在回执里复述、不提文档站；生成的 `package.json` 在 peer 里写了内核包 `^<运行命令的内核版本号>`，开发版内核只取 x.y.z 三段；认不出的占位符真的会抛错，`{{title}}` 也算认不出；`.tpl` 后缀与两部分的去向（`landRel`）对不对；包内 `template/` 里每个文件都声明了属于哪部分、只有两部分；要显示名的地方都是短名；生成的文件里没有文档站；生成的清单 peer 里有内核包、只在 node 侧按值 import 了 `cordis` 时才写 peer `cordis`，命令总线与外壳写在 peer、不写 dev；生成的 node 侧源码从 peer 里的内核包 `import type` 接口类型；构建脚本从内核包页面入口 `dist/index.html` 里的 importmap 读外置名单、不写 react 包名的字面量，产物测试同样从装好的内核包读名单、样式入口从外壳引令牌映射；产物测试的颜色类白名单从外壳的 `theme.reference.css` 与样式入口读色名，不手抄；生成的 `description` 是一句话、不带计数，生成的文件里没有已退役的 `gwb-repo-kit`；生成的 JSON、YAML 都解析得了；在临时 workspace 仓里真的生成一个 `plugins/<短名>/`；`writeRepo` 对已存在的目录真的拒绝；`packageRoot` 找到盘根都没有就抛；回执里给的命令参数都过得了 `JSON.parse`。`tests/commands.test.ts` 在假上下文上调两条命令，测回执只有那几个字段、不调别的插件的命令、不写文档站。
+短名的正则会不会放过 `x--` 这种结尾；`planScaffold` 的派生与缺省值，计划里没有显示名；给了 `scope`、`registry` 时包名、`publishConfig.registry`、README 与回执跟着变，内核包与模板用到的两个插件仍在 `@godcreator` 下，不给时是团队范围与团队源，不合规的范围与地址（不带 `@`、大写、非 http(s)、不是规范写法、带账号或查询串）建仓与加插件都拒；`planScaffoldPlugin` 对不存在的 repo、`pnpm-workspace.yaml` 的 `packages` 里没有 `plugins/*` 的拒绝，以及带引号、块列表、流式列表、注释、CRLF 几种写法都收，YAML 写坏了、`packages` 不是字符串列表时报出文件与行列；`dir` / `repo` 用正斜杠写与用反斜杠写得到同一个路径；`nextSteps` / `nextStepsPlugin` 写了什么、`packages` 参数有没有带上、流程指向说明书而不在回执里复述、不提文档站；生成的 `package.json` 在 peer 里写了内核包 `^<运行命令的内核版本号>`、命令总线与外壳 `^<home 里装着的版本号>`，开发版只取 x.y.z 三段，模板里这两项是占位符、不写死数字；`homePeerVersions` 读 home 里装着的版本，没装外壳时拒并写出读的是哪个文件；模板登记命令不写 `plugin`；窗格入口的 `PaneArgs`、`PaneHandle` 从外壳的 `@godcreator/gwb-shell/pane` 取；认不出的占位符真的会抛错，`{{title}}` 也算认不出；`.tpl` 后缀与两部分的去向（`landRel`）对不对；包内 `template/` 里每个文件都声明了属于哪部分、只有两部分；要显示名的地方都是短名；生成的文件里没有文档站；生成的清单 peer 里有内核包、只在 node 侧按值 import 了 `cordis` 时才写 peer `cordis`，命令总线与外壳写在 peer、不写 dev；生成的 node 侧源码从 peer 里的内核包 `import type` 接口类型；构建脚本从内核包页面入口 `dist/index.html` 里的 importmap 读外置名单、不写 react 包名的字面量，产物测试同样从装好的内核包读名单、样式入口从外壳引令牌映射；产物测试的颜色类白名单从外壳的 `theme.reference.css` 与样式入口读色名，不手抄；生成的 `description` 是一句话、不带计数，生成的文件里没有已退役的 `gwb-repo-kit`；生成的 JSON、YAML 都解析得了；在临时 workspace 仓里真的生成一个 `plugins/<短名>/`；`writeRepo` 对已存在的目录真的拒绝；`packageRoot` 找到盘根都没有就抛；回执里给的命令参数都过得了 `JSON.parse`。`tests/commands.test.ts` 在假上下文上调两条命令，测回执只有那几个字段、不调别的插件的命令、不写文档站。
 
 {/* has file="../plugins/devkit/tests/scaffold.test.ts" text="要显示名的地方用短名" */}
 
@@ -111,7 +113,7 @@ workspace 仓：仓根是一个不发布的 private 包（`pnpm build` / `pnpm c
 
 - **`template/` 下的文件一律带 `.tpl` 后缀**，写到磁盘时去掉：`npm pack` 固定不打包 `.gitignore`，给所有文件统一加后缀，一条规则就管住了全部文件
 - **`.oxlintrc.json` 放在插件包里、不放仓根**：oxlint 按工作目录找配置，插件包自带配置，搬到哪个仓都不用改
-- **模板里 `@godcreator` 包的版本号跟着源走**：peer 里是内核包与模板用到的两个插件（命令总线 `gwb-commands`、外壳 `gwb-shell`），别的 `@godcreator` 包写 dev，都写 `^<版本>`；peer 里的插件要和源上的 `dist-tags.latest` 在同一条线，不在同一条线，新仓第一次发版就被发版前检查拦下；写了源上没有的版本，新仓 `pnpm install` 直接失败。所以改模板里的版本号之前先用 `pnpm view <包> dist-tags.latest` 查
+- **模板里不写死 `@godcreator` 包的版本号**：peer 里的内核包、命令总线 `gwb-commands`、外壳 `gwb-shell` 都用占位符，由建仓那个 home 填（见上面「数据结构」）。模板要用到新的 `@godcreator` 插件时同样加占位符、从 home 读，不写数字；写死的数字一过时，新仓第一次发版就被「和源上 latest 不在同一条线」拒掉
 
 ## 代码地图
 

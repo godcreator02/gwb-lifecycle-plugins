@@ -1,6 +1,6 @@
 ---
 title: 用到的插件写 peer
-description: 插件经 ctx.inject 用别的插件的服务、或 import 它的类型，就在 peerDependencies 里写它的 ^x.y.z，可选使用的标 optional；devkit.release 查 peer 里只有插件、和源上 latest 在同一条线，plugin-manager.list 报没满足的，plugin-manager.update 把写 peer 的插件一起重新加载，pnpm 不自动补装缺的 peer
+description: 插件经 ctx.inject 用别的插件的服务、或 import 它的类型，就在 peerDependencies 里写它的 ^x.y.z，只在 ctx.inject([...], fn) 里用的标 optional；devkit.release 查 peer 里只有插件、和源上 latest 在同一条线，plugin-manager.list 报没满足的，plugin-manager.update 把写 peer 的插件一起重新加载，pnpm 不自动补装缺的 peer
 ---
 
 # 用到的插件写 peer
@@ -9,14 +9,17 @@ description: 插件经 ctx.inject 用别的插件的服务、或 import 它的�
 
 ## 规则
 
-**插件用到别的插件——经 `ctx.inject` 用它的服务，或 import 它的类型——就把它写进 `peerDependencies`，范围写 `^x.y.z`，下限是开发、验证时用的那一版。** 只是可选使用的（`ctx.inject([...], fn)` 局部注入、缺了只少一部分功能），在 `peerDependenciesMeta` 里标 `optional: true`。写进 peer 的插件不另写 dev：插件仓里 pnpm 把 peer 装进 `node_modules`，类型从那里取。
+**插件用到别的插件——经 `ctx.inject` 用它的服务，或 import 它的类型——就把它写进 `peerDependencies`，范围写 `^x.y.z`，下限是开发、验证时用的那一版。** 标不标可选照代码写：写在 `export const inject` 里的是普通 peer，只在 `ctx.inject([...], fn)` 里用的在 `peerDependenciesMeta` 里标 `optional: true`（例外见下面「怎么判」的第一条）。写进 peer 的插件不另写 dev：插件仓里 pnpm 把 peer 装进 `node_modules`，类型从那里取。
+
+可选 peer 的意思是「home 里可以没有它；有的话版本要在范围里」。它和不写 peer 不一样：不写的话，装着的版本出了范围没人报，发版时也不和源上 latest 比，开发时还得另写 dev 才拿得到类型。
 
 peer 的意思是「运行时从 home 里得到这个包」。插件的 peer 因此只有三类：按值 import 的 `cordis`、内核包 `@godcreator/gwb-kernel-desktop`（见[兼容哪个内核](/docs/rules/kernel-compat)）、用到的别的插件。库、接口定义包、构建工具不是 home 里的插件，照[依赖怎么写](/docs/rules/deps)写 dev 或 `dependencies`。
 
 ## 怎么判
 
-- **该写，必需**：`export const inject` 里写了它的服务（缺了插件就不加载），或者经命令总线登记命令、用外壳注册窗格与样式令牌这类少了就没法工作的；按值 import 它主入口导出的函数也是（发版前检查只放行 node 侧对 peer 里写了的包的 import，这种用法本身是例外，见[插件之间怎么交互](/docs/rules/interaction)）
-- **该写，可选**：用 `ctx.inject([...], fn)` 局部注入它的服务，缺了只少那一部分功能——标 `optional: true`，没装不算没满足
+- **该写，必需**：`export const inject` 里写了它的服务（缺了插件就不加载）；只在 `ctx.inject([...], fn)` 里用、但缺了它本插件一样功能都没有的也算（插件管理的命令都登记在命令总线上，它经 `ctx.inject` 取命令总线，只为缺了命令总线时插件管理照样加载）；按值 import 它主入口导出的函数也是（发版前检查只放行 node 侧对 peer 里写了的包的 import，这种用法本身是例外，见[插件之间怎么交互](/docs/rules/interaction)）
+- **该写，可选**：只在 `ctx.inject([...], fn)` 里用它的服务，缺了只少那一部分功能——标 `optional: true`，没装不算没满足
+- **别标反**：`export const inject` 里的服务标成可选，home 里缺它时插件不加载，`unmetPeers` 也不报，没有工具查这一点
 - **不用写**：只按命令名调它的命令（经命令总线查找，命令不在就回执说明），不用它的服务也不 import 它的类型
 - **下限写开发、验证时用的那一版**：用到了那个插件某个版本新加的东西（比如外壳新加的主题令牌），下限就写到那一版
 - **范围只写 `^x.y.z`**：精确号、`>=`、`~` 都不认，发版前检查拒，`plugin-manager.list` 算没满足

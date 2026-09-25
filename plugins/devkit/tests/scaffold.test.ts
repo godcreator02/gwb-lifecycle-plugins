@@ -5,8 +5,12 @@ import { fileURLToPath } from 'node:url'
 import { afterEach, describe, expect, it } from 'vitest'
 import YAML from 'yaml'
 import {
+  COMMANDS_PACKAGE,
+  homePeerVersions,
   NAME_RE,
+  type PeerVersions,
   PKG_ZONE,
+  SHELL_PACKAGE,
   PLUGINS_GLOB,
   REPO_ZONE,
   landRel,
@@ -34,6 +38,9 @@ const TEMPLATE_ROOT = path.join(path.dirname(fileURLToPath(import.meta.url)), '.
 
 /** 运行建仓命令的内核版本号 */
 const KERNEL = '0.3.0'
+
+/** 运行建仓命令的 home：正在运行的内核与装着的命令总线、外壳 */
+const PEERS: PeerVersions = { kernel: KERNEL, commands: '0.5.2', shell: '0.14.1' }
 
 const sandboxes: string[] = []
 function sandbox(): string {
@@ -70,7 +77,7 @@ describe('短名校验', () => {
 
 describe('planScaffold：校验与派生', () => {
   it('短名派生出包名与插件名；计划里没有显示名，也没有建不建站', () => {
-    const plan = planScaffold({ name: 'hello-world', dir: 'D:\\tmp\\x', kernelVersion: KERNEL })
+    const plan = planScaffold({ name: 'hello-world', dir: 'D:\\tmp\\x', peerVersions: PEERS })
     expect(plan.name).toBe('hello-world')
     expect(plan.pkg).toBe(`${TEAM_SCOPE}/gwb-hello-world`)
     expect(plan.pluginName).toBe('gwb-hello-world')
@@ -79,14 +86,14 @@ describe('planScaffold：校验与派生', () => {
   })
 
   it('dir 绝对化：相对路径按当前工作目录算，那不是调用方心里那个「相对谁」', () => {
-    expect(path.isAbsolute(planScaffold({ name: 'x', dir: 'tmp/x', kernelVersion: KERNEL }).dir)).toBe(true)
+    expect(path.isAbsolute(planScaffold({ name: 'x', dir: 'tmp/x', peerVersions: PEERS }).dir)).toBe(true)
   })
 
   it('短名不合规就拒，报错里带上规则；dir 空着也拒', () => {
     for (const bad of ['', 'Hello', 'hello_world']) {
-      expect(() => planScaffold({ name: bad, dir: 'D:\\tmp\\x', kernelVersion: KERNEL })).toThrow(/kebab-case/)
+      expect(() => planScaffold({ name: bad, dir: 'D:\\tmp\\x', peerVersions: PEERS })).toThrow(/kebab-case/)
     }
-    expect(() => planScaffold({ name: 'x', dir: '   ', kernelVersion: KERNEL })).toThrow(/dir/)
+    expect(() => planScaffold({ name: 'x', dir: '   ', peerVersions: PEERS })).toThrow(/dir/)
   })
 
 })
@@ -94,7 +101,7 @@ describe('planScaffold：校验与派生', () => {
 describe('planScaffoldPlugin：往 workspace 仓加插件', () => {
   it('派生同一套身份，dir 直指 <repo>/plugins/<短名>', () => {
     const repo = fakeWorkspace()
-    const plan = planScaffoldPlugin({ name: 'world', repo, kernelVersion: KERNEL })
+    const plan = planScaffoldPlugin({ name: 'world', repo, peerVersions: PEERS })
     expect(plan.pkg).toBe(`${TEAM_SCOPE}/gwb-world`)
     expect(plan.pluginName).toBe('gwb-world')
     expect(plan.repoDir).toBe(repo)
@@ -103,16 +110,16 @@ describe('planScaffoldPlugin：往 workspace 仓加插件', () => {
   })
 
   it('repo 不在、yaml 不在、yaml 的 packages 里没有 plugins/*，三种都拒', () => {
-    expect(() => planScaffoldPlugin({ name: 'x', repo: path.join(sandbox(), 'nope'), kernelVersion: KERNEL })).toThrow(/不在/)
+    expect(() => planScaffoldPlugin({ name: 'x', repo: path.join(sandbox(), 'nope'), peerVersions: PEERS })).toThrow(/不在/)
     const bare = path.join(sandbox(), 'bare')
     fs.mkdirSync(bare, { recursive: true })
-    expect(() => planScaffoldPlugin({ name: 'x', repo: bare, kernelVersion: KERNEL })).toThrow(/不是 workspace 仓/)
+    expect(() => planScaffoldPlugin({ name: 'x', repo: bare, peerVersions: PEERS })).toThrow(/不是 workspace 仓/)
     const noPlugins = fakeWorkspace('packages:\n  - docs-site\n')
-    expect(() => planScaffoldPlugin({ name: 'x', repo: noPlugins, kernelVersion: KERNEL })).toThrow(/不是 workspace 仓/)
+    expect(() => planScaffoldPlugin({ name: 'x', repo: noPlugins, peerVersions: PEERS })).toThrow(/不是 workspace 仓/)
     for (const bad of ['', 'Hello', 'x--']) {
-      expect(() => planScaffoldPlugin({ name: bad, repo: fakeWorkspace(), kernelVersion: KERNEL })).toThrow(/kebab-case/)
+      expect(() => planScaffoldPlugin({ name: bad, repo: fakeWorkspace(), peerVersions: PEERS })).toThrow(/kebab-case/)
     }
-    expect(() => planScaffoldPlugin({ name: 'x', repo: '   ', kernelVersion: KERNEL })).toThrow(/repo/)
+    expect(() => planScaffoldPlugin({ name: 'x', repo: '   ', peerVersions: PEERS })).toThrow(/repo/)
   })
 })
 
@@ -126,7 +133,7 @@ describe('包名范围与发布目标（GWB-17）', () => {
   }
 
   it('不给 scope、registry：包名在团队范围下，publishConfig.registry 写团队源', () => {
-    const plan = planScaffold({ name: 'hello', dir: 'D:\\tmp\\x', kernelVersion: KERNEL })
+    const plan = planScaffold({ name: 'hello', dir: 'D:\\tmp\\x', peerVersions: PEERS })
     expect(plan.pkg).toBe(`${TEAM_SCOPE}/gwb-hello`)
     expect(plan.registry).toBe(TEAM_REGISTRY)
     const manifest = manifestOf(renderTemplate(TEMPLATE_ROOT, plan), 'plugins/hello/package.json')
@@ -134,19 +141,19 @@ describe('包名范围与发布目标（GWB-17）', () => {
   })
 
   it('给了 scope、registry：包名 <scope>/gwb-<短名>，publishConfig.registry 是给的地址；建仓与加插件一样', () => {
-    const plan = planScaffold({ name: 'hello', dir: 'D:\\tmp\\x', scope: SOMEONE, registry: LOCAL, kernelVersion: KERNEL })
+    const plan = planScaffold({ name: 'hello', dir: 'D:\\tmp\\x', scope: SOMEONE, registry: LOCAL, peerVersions: PEERS })
     expect(plan.pkg).toBe('@someone/gwb-hello')
     const fromScaffold = manifestOf(renderTemplate(TEMPLATE_ROOT, plan), 'plugins/hello/package.json')
     expect(fromScaffold).toMatchObject({ name: '@someone/gwb-hello', publishConfig: { registry: LOCAL } })
 
-    const second = planScaffoldPlugin({ name: 'world', repo: fakeWorkspace(), scope: SOMEONE, registry: LOCAL, kernelVersion: KERNEL })
+    const second = planScaffoldPlugin({ name: 'world', repo: fakeWorkspace(), scope: SOMEONE, registry: LOCAL, peerVersions: PEERS })
     expect(second.pkg).toBe('@someone/gwb-world')
     expect(second.registry).toBe(LOCAL)
     expect(manifestOf(renderPlugin(TEMPLATE_ROOT, second), 'package.json')).toMatchObject({ name: '@someone/gwb-world', publishConfig: { registry: LOCAL } })
   })
 
   it('README、回执里的包名跟着 scope 走；内核包与模板用到的两个插件仍是团队范围', () => {
-    const plan = planScaffold({ name: 'hello', dir: 'D:\\tmp\\x', scope: SOMEONE, registry: LOCAL, kernelVersion: KERNEL })
+    const plan = planScaffold({ name: 'hello', dir: 'D:\\tmp\\x', scope: SOMEONE, registry: LOCAL, peerVersions: PEERS })
     const files = renderTemplate(TEMPLATE_ROOT, plan)
     expect(files.find((f) => f.rel === 'README.md')?.text).toContain('`@someone/gwb-hello`')
     expect(nextSteps(plan).join('\n')).toContain('@someone/gwb-hello')
@@ -156,13 +163,13 @@ describe('包名范围与发布目标（GWB-17）', () => {
 
   it('scope 不是 @ 开头的合法 npm 范围：拒，报错里带原文，不修正', () => {
     for (const bad of ['someone', '@', '@Someone', '@.x', '@_x', '@x/y', ' @x', '@x ', '@中文', '']) {
-      expect(() => planScaffold({ name: 'x', dir: 'D:\\tmp\\x', scope: bad, kernelVersion: KERNEL }), JSON.stringify(bad)).toThrow(
+      expect(() => planScaffold({ name: 'x', dir: 'D:\\tmp\\x', scope: bad, peerVersions: PEERS }), JSON.stringify(bad)).toThrow(
         `scope 要是 @ 开头的 npm 范围`,
       )
-      expect(() => planScaffoldPlugin({ name: 'x', repo: fakeWorkspace(), scope: bad, kernelVersion: KERNEL }), JSON.stringify(bad)).toThrow(/scope/)
+      expect(() => planScaffoldPlugin({ name: 'x', repo: fakeWorkspace(), scope: bad, peerVersions: PEERS }), JSON.stringify(bad)).toThrow(/scope/)
     }
     for (const good of ['@someone', '@a1', '@my-org', '@x.y', '@x_y']) {
-      expect(planScaffold({ name: 'x', dir: 'D:\\tmp\\x', scope: good, kernelVersion: KERNEL }).pkg).toBe(`${good}/gwb-x`)
+      expect(planScaffold({ name: 'x', dir: 'D:\\tmp\\x', scope: good, peerVersions: PEERS }).pkg).toBe(`${good}/gwb-x`)
     }
   })
 
@@ -179,17 +186,17 @@ describe('包名范围与发布目标（GWB-17）', () => {
       ['http://host/#x', /不许带账号、查询串或 #/],
     ]
     for (const [bad, why] of rejected) {
-      expect(() => planScaffold({ name: 'x', dir: 'D:\\tmp\\x', registry: bad, kernelVersion: KERNEL }), JSON.stringify(bad)).toThrow(why)
-      expect(() => planScaffoldPlugin({ name: 'x', repo: fakeWorkspace(), registry: bad, kernelVersion: KERNEL }), JSON.stringify(bad)).toThrow(why)
+      expect(() => planScaffold({ name: 'x', dir: 'D:\\tmp\\x', registry: bad, peerVersions: PEERS }), JSON.stringify(bad)).toThrow(why)
+      expect(() => planScaffoldPlugin({ name: 'x', repo: fakeWorkspace(), registry: bad, peerVersions: PEERS }), JSON.stringify(bad)).toThrow(why)
     }
     for (const good of ['http://localhost:9999/', 'https://npm.example.com/api/packages/me/npm/']) {
-      expect(planScaffold({ name: 'x', dir: 'D:\\tmp\\x', registry: good, kernelVersion: KERNEL }).registry).toBe(good)
+      expect(planScaffold({ name: 'x', dir: 'D:\\tmp\\x', registry: good, peerVersions: PEERS }).registry).toBe(good)
     }
   })
 })
 
 describe('nextSteps：只写这次建仓特有的，流程指向说明书', () => {
-  const plan = planScaffold({ name: 'x', dir: 'D:\\tmp\\x', kernelVersion: KERNEL })
+  const plan = planScaffold({ name: 'x', dir: 'D:\\tmp\\x', peerVersions: PEERS })
 
   it('报仓的路径、包名，指向说明书 gwb-devkit 的「新写一个插件」，devkit.dev 的 packages 指到 plugins/ 下', () => {
     const steps = nextSteps(plan).join('\n')
@@ -209,7 +216,7 @@ describe('nextSteps：只写这次建仓特有的，流程指向说明书', () =
 
   it('nextStepsPlugin：报插件包路径与包名；README 的插件清单由人补；不提文档站与插件页', () => {
     const repo = fakeWorkspace()
-    const plan = planScaffoldPlugin({ name: 'w', repo, kernelVersion: KERNEL })
+    const plan = planScaffoldPlugin({ name: 'w', repo, peerVersions: PEERS })
     const steps = nextStepsPlugin(plan).join('\n')
     expect(steps).toContain(plan.dir)
     expect(steps).toContain('@godcreator/gwb-w')
@@ -268,7 +275,7 @@ describe('包内 template/：两部分', () => {
   })
 
   it('真渲染一套：占位符一个不剩，仓根 + 插件包的树形都对', () => {
-    const files = renderTemplate(TEMPLATE_ROOT, planScaffold({ name: 'hello', dir: 'D:\\tmp\\x', kernelVersion: KERNEL }))
+    const files = renderTemplate(TEMPLATE_ROOT, planScaffold({ name: 'hello', dir: 'D:\\tmp\\x', peerVersions: PEERS }))
     expect(files.map((f) => f.rel).sort()).toEqual([
       '.gitignore',
       'README.md',
@@ -313,7 +320,7 @@ describe('包内 template/：两部分', () => {
 
   it('renderPlugin 只渲染件包那半：rel 相对件包根，仓半的文件一个都不在', () => {
     const repo = fakeWorkspace()
-    const files = renderPlugin(TEMPLATE_ROOT, planScaffoldPlugin({ name: 'world', repo, kernelVersion: KERNEL }))
+    const files = renderPlugin(TEMPLATE_ROOT, planScaffoldPlugin({ name: 'world', repo, peerVersions: PEERS }))
     expect(files.length).toBeGreaterThan(0)
     // 仓半不在：根壳、README、workspace 是建仓的事，加件不碰
     expect(files.some((f) => f.rel === 'pnpm-workspace.yaml' || f.rel === 'README.md')).toBe(false)
@@ -322,8 +329,8 @@ describe('包内 template/：两部分', () => {
   })
 
   it('生成的插件包 peer 里写了内核包 ^<运行命令的内核版本号>：建仓与加插件都一样，发版前检查认', () => {
-    const fromScaffold = renderTemplate(TEMPLATE_ROOT, planScaffold({ name: 'hello', dir: 'D:\\tmp\\x', kernelVersion: KERNEL }))
-    const fromPlugin = renderPlugin(TEMPLATE_ROOT, planScaffoldPlugin({ name: 'world', repo: fakeWorkspace(), kernelVersion: KERNEL }))
+    const fromScaffold = renderTemplate(TEMPLATE_ROOT, planScaffold({ name: 'hello', dir: 'D:\\tmp\\x', peerVersions: PEERS }))
+    const fromPlugin = renderPlugin(TEMPLATE_ROOT, planScaffoldPlugin({ name: 'world', repo: fakeWorkspace(), peerVersions: PEERS }))
     for (const manifestText of [
       fromScaffold.find((f) => f.rel === 'plugins/hello/package.json')?.text,
       fromPlugin.find((f) => f.rel === 'package.json')?.text,
@@ -334,13 +341,34 @@ describe('包内 template/：两部分', () => {
     }
   })
 
-  it('运行建仓命令的是开发版内核：peer 里的内核包范围只取 x.y.z 三段', () => {
-    const files = renderPlugin(TEMPLATE_ROOT, planScaffoldPlugin({ name: 'world', repo: fakeWorkspace(), kernelVersion: '0.3.1-dev.202609241500' }))
-    expect(kernelPeerOf(files.find((f) => f.rel === 'package.json')?.text)).toBe('^0.3.1')
+  it('运行建仓命令的内核与 home 里装的是开发版：peer 里的范围都只取 x.y.z 三段', () => {
+    const devPeers = { kernel: '0.3.1-dev.202609241500', commands: '0.5.3-dev.202609241500', shell: '0.14.2-dev.202609241500' }
+    const files = renderPlugin(TEMPLATE_ROOT, planScaffoldPlugin({ name: 'world', repo: fakeWorkspace(), peerVersions: devPeers }))
+    const manifestText = files.find((f) => f.rel === 'package.json')?.text
+    expect(kernelPeerOf(manifestText)).toBe('^0.3.1')
+    const peers = (JSON.parse(manifestText ?? '') as { peerDependencies: Record<string, string> }).peerDependencies
+    expect(peers[COMMANDS_PACKAGE]).toBe('^0.5.3')
+    expect(peers[SHELL_PACKAGE]).toBe('^0.14.2')
+  })
+
+  it('命令总线与外壳的 peer 范围是 ^<建仓那个 home 里装着的版本>，模板里不写死：建仓与加插件都一样', () => {
+    const fromScaffold = renderTemplate(TEMPLATE_ROOT, planScaffold({ name: 'hello', dir: 'D:\\tmp\\x', peerVersions: PEERS }))
+    const fromPlugin = renderPlugin(TEMPLATE_ROOT, planScaffoldPlugin({ name: 'world', repo: fakeWorkspace(), peerVersions: PEERS }))
+    for (const manifestText of [
+      fromScaffold.find((f) => f.rel === 'plugins/hello/package.json')?.text,
+      fromPlugin.find((f) => f.rel === 'package.json')?.text,
+    ]) {
+      const peers = (JSON.parse(manifestText ?? '') as { peerDependencies: Record<string, string> }).peerDependencies
+      expect(peers[COMMANDS_PACKAGE]).toBe(`^${PEERS.commands}`)
+      expect(peers[SHELL_PACKAGE]).toBe(`^${PEERS.shell}`)
+    }
+    const templateManifest = fs.readFileSync(path.join(TEMPLATE_ROOT, PKG_ZONE, 'package.json.tpl'), 'utf8')
+    expect(templateManifest).toContain('"@godcreator/gwb-commands": "^{{commandsVersion}}"')
+    expect(templateManifest).toContain('"@godcreator/gwb-shell": "^{{shellVersion}}"')
   })
 
   it('生成的清单按「依赖怎么写」：peer 里有内核包与用到的两个插件；cordis 只在 node 侧按值 import 了 cordis 时才写', () => {
-    const files = renderTemplate(TEMPLATE_ROOT, planScaffold({ name: 'hello', dir: 'D:\\tmp\\x', kernelVersion: KERNEL }))
+    const files = renderTemplate(TEMPLATE_ROOT, planScaffold({ name: 'hello', dir: 'D:\\tmp\\x', peerVersions: PEERS }))
     const manifest = JSON.parse(files.find((f) => f.rel === 'plugins/hello/package.json')?.text ?? '') as {
       peerDependencies?: Record<string, string>
       devDependencies: Record<string, string>
@@ -355,7 +383,7 @@ describe('包内 template/：两部分', () => {
   })
 
   it('生成的清单：命令总线、外壳写 peer、不写 dev', () => {
-    const files = renderTemplate(TEMPLATE_ROOT, planScaffold({ name: 'hello', dir: 'D:\\tmp\\x', kernelVersion: KERNEL }))
+    const files = renderTemplate(TEMPLATE_ROOT, planScaffold({ name: 'hello', dir: 'D:\\tmp\\x', peerVersions: PEERS }))
     const text = files.find((f) => f.rel === 'plugins/hello/package.json')?.text ?? ''
     const manifest = JSON.parse(text) as { peerDependencies: Record<string, string>; devDependencies: Record<string, string> }
     for (const pkg of ['@godcreator/gwb-commands', '@godcreator/gwb-shell']) {
@@ -365,13 +393,13 @@ describe('包内 template/：两部分', () => {
   })
 
   it('生成的源码从 peer 里的内核包取接口类型', () => {
-    const files = renderTemplate(TEMPLATE_ROOT, planScaffold({ name: 'hello', dir: 'D:\\tmp\\x', kernelVersion: KERNEL }))
+    const files = renderTemplate(TEMPLATE_ROOT, planScaffold({ name: 'hello', dir: 'D:\\tmp\\x', peerVersions: PEERS }))
     const nodeEntry = files.find((f) => f.rel === 'plugins/hello/src/index.ts')?.text ?? ''
     expect(nodeEntry).toContain("import type { GwbContext } from '@godcreator/gwb-kernel-desktop'")
   })
 
   it('生成的 build.ts 不手抄外置名单：从内核包页面入口的 importmap 读键', () => {
-    const files = renderTemplate(TEMPLATE_ROOT, planScaffold({ name: 'hello', dir: 'D:\\tmp\\x', kernelVersion: KERNEL }))
+    const files = renderTemplate(TEMPLATE_ROOT, planScaffold({ name: 'hello', dir: 'D:\\tmp\\x', peerVersions: PEERS }))
     const buildScript = files.find((f) => f.rel === 'plugins/hello/build.ts')?.text ?? ''
     expect(buildScript).toContain("import.meta.resolve('@godcreator/gwb-kernel-desktop/package.json')")
     expect(buildScript).toContain("path.join(path.dirname(manifestPath), 'dist', 'index.html')")
@@ -383,14 +411,14 @@ describe('包内 template/：两部分', () => {
   })
 
   it('生成的样式入口从外壳导出的 theme.reference.css 引令牌映射', () => {
-    const files = renderTemplate(TEMPLATE_ROOT, planScaffold({ name: 'hello', dir: 'D:\\tmp\\x', kernelVersion: KERNEL }))
+    const files = renderTemplate(TEMPLATE_ROOT, planScaffold({ name: 'hello', dir: 'D:\\tmp\\x', peerVersions: PEERS }))
     const styles = files.find((f) => f.rel === 'plugins/hello/src/client/styles.css')?.text ?? ''
     const imports = [...styles.replaceAll(/\/\*[\s\S]*?\*\//g, '').matchAll(/^@import '([^']+)'/gm)].map((m) => m[1])
     expect(imports).toContain('@godcreator/gwb-shell/theme.reference.css')
   })
 
   it('生成的产物测试：node 侧只放行内置模块、electron 与自己 peer 里的包；浏览器侧只放行内核包页面 importmap 的名字', () => {
-    const files = renderTemplate(TEMPLATE_ROOT, planScaffold({ name: 'hello', dir: 'D:\\tmp\\x', kernelVersion: KERNEL }))
+    const files = renderTemplate(TEMPLATE_ROOT, planScaffold({ name: 'hello', dir: 'D:\\tmp\\x', peerVersions: PEERS }))
     const artifactTest = files.find((f) => f.rel === 'plugins/hello/tests/artifact.test.ts')?.text ?? ''
     expect(artifactTest).toContain("spec !== 'electron' && !ownPeers.has(packageNameOf(spec))")
     expect(artifactTest).toContain("ownManifest['peerDependencies']")
@@ -401,7 +429,7 @@ describe('包内 template/：两部分', () => {
   })
 
   it('生成的产物测试查颜色类只用主题令牌：色名从外壳的 theme.reference.css 与本插件样式入口读，不手抄名单', () => {
-    const files = renderTemplate(TEMPLATE_ROOT, planScaffold({ name: 'hello', dir: 'D:\\tmp\\x', kernelVersion: KERNEL }))
+    const files = renderTemplate(TEMPLATE_ROOT, planScaffold({ name: 'hello', dir: 'D:\\tmp\\x', peerVersions: PEERS }))
     const artifactTest = files.find((f) => f.rel === 'plugins/hello/tests/artifact.test.ts')?.text ?? ''
     expect(artifactTest).toContain("resolve('@godcreator/gwb-shell/theme.reference.css')")
     expect(artifactTest).toContain("path.resolve(here, '../src/client/styles.css')")
@@ -411,7 +439,7 @@ describe('包内 template/：两部分', () => {
   })
 
   it('生成的清单：description 是一句话，不带服务 / skill / 命令计数；dev 里没有已退役的 gwb-repo-kit', () => {
-    const files = renderTemplate(TEMPLATE_ROOT, planScaffold({ name: 'hello', dir: 'D:\\tmp\\x', kernelVersion: KERNEL }))
+    const files = renderTemplate(TEMPLATE_ROOT, planScaffold({ name: 'hello', dir: 'D:\\tmp\\x', peerVersions: PEERS }))
     const text = files.find((f) => f.rel === 'plugins/hello/package.json')?.text ?? ''
     const manifest = JSON.parse(text) as { description: string }
     expect(manifest.description.startsWith('hello：')).toBe(true)
@@ -420,7 +448,7 @@ describe('包内 template/：两部分', () => {
   })
 
   it('生成的插件包：清单里没有 gwb 字段；测试不分快慢标签（没有 test:all、不带 --tags-filter，vitest 配置里没有 tags）；oxlint 不替仓根忽略 docs-site 与 .claude', () => {
-    const files = renderPlugin(TEMPLATE_ROOT, planScaffoldPlugin({ name: 'world', repo: fakeWorkspace(), kernelVersion: KERNEL }))
+    const files = renderPlugin(TEMPLATE_ROOT, planScaffoldPlugin({ name: 'world', repo: fakeWorkspace(), peerVersions: PEERS }))
     const text = (rel: string): string => files.find((f) => f.rel === rel)?.text ?? ''
     const manifest = JSON.parse(text('package.json')) as { gwb?: unknown; scripts: Record<string, string> }
     expect(manifest.gwb).toBeUndefined()
@@ -433,8 +461,8 @@ describe('包内 template/：两部分', () => {
   })
 
   it('生成的每份 package.json 在任何一层都没有 // 开头的说明键：JSON 没有注释，这类键没有工具读、会随包发出去', () => {
-    const fromScaffold = renderTemplate(TEMPLATE_ROOT, planScaffold({ name: 'hello', dir: 'D:\\tmp\\x', kernelVersion: KERNEL }))
-    const fromPlugin = renderPlugin(TEMPLATE_ROOT, planScaffoldPlugin({ name: 'world', repo: fakeWorkspace(), kernelVersion: KERNEL }))
+    const fromScaffold = renderTemplate(TEMPLATE_ROOT, planScaffold({ name: 'hello', dir: 'D:\\tmp\\x', peerVersions: PEERS }))
+    const fromPlugin = renderPlugin(TEMPLATE_ROOT, planScaffoldPlugin({ name: 'world', repo: fakeWorkspace(), peerVersions: PEERS }))
     const manifests = [...fromScaffold, ...fromPlugin].filter((f) => path.basename(f.rel) === 'package.json')
     expect(manifests.map((f) => f.rel).sort()).toEqual(['package.json', 'package.json', 'plugins/hello/package.json'])
     const commentKeysOf = (value: unknown): string[] =>
@@ -445,12 +473,12 @@ describe('包内 template/：两部分', () => {
   })
 
   it('模板里的占位符全在 placeholders 的表上——认不出的当场抛，那正是这条要守的', () => {
-    expect(() => renderTemplate(TEMPLATE_ROOT, planScaffold({ name: 'x', dir: 'D:\\tmp\\x', kernelVersion: KERNEL }))).not.toThrow()
-    expect(() => renderPlugin(TEMPLATE_ROOT, planScaffoldPlugin({ name: 'x', repo: fakeWorkspace(), kernelVersion: KERNEL }))).not.toThrow()
+    expect(() => renderTemplate(TEMPLATE_ROOT, planScaffold({ name: 'x', dir: 'D:\\tmp\\x', peerVersions: PEERS }))).not.toThrow()
+    expect(() => renderPlugin(TEMPLATE_ROOT, planScaffoldPlugin({ name: 'x', repo: fakeWorkspace(), peerVersions: PEERS }))).not.toThrow()
   })
 
   it('要显示名的地方用短名：README 标题、仓根与插件包的 description、窗格标题、加载日志、窗格里的问候', () => {
-    const files = renderTemplate(TEMPLATE_ROOT, planScaffold({ name: 'hello-world', dir: 'D:\\tmp\\x', kernelVersion: KERNEL }))
+    const files = renderTemplate(TEMPLATE_ROOT, planScaffold({ name: 'hello-world', dir: 'D:\\tmp\\x', peerVersions: PEERS }))
     const text = (rel: string): string => files.find((f) => f.rel === rel)?.text ?? ''
     expect(text('README.md').split('\n')[0]).toBe('# hello-world')
     expect((JSON.parse(text('package.json')) as { description: string }).description.startsWith('hello-world 的 pnpm workspace')).toBe(true)
@@ -462,7 +490,7 @@ describe('包内 template/：两部分', () => {
   })
 
   it('建仓不带文档站的任何东西：没有 docs-site 下的文件，仓根清单与 .gitignore 不提 docs-site，README 没有讲文档站的那一节', () => {
-    const files = renderTemplate(TEMPLATE_ROOT, planScaffold({ name: 'hello', dir: 'D:\\tmp\\x', kernelVersion: KERNEL }))
+    const files = renderTemplate(TEMPLATE_ROOT, planScaffold({ name: 'hello', dir: 'D:\\tmp\\x', peerVersions: PEERS }))
     for (const file of files) {
       expect(file.rel, file.rel).not.toContain('docs-site')
       for (const gone of ['docs-site.create', 'docfirst.attach']) expect(file.text, file.rel).not.toContain(gone)
@@ -494,7 +522,7 @@ describe('writeRepo：真写临时目录', () => {
 
   it('端到端：薄壳仓里加一件，盘上长出 plugins/world/ 那半', () => {
     const repo = fakeWorkspace()
-    const plan = planScaffoldPlugin({ name: 'world', repo, kernelVersion: KERNEL })
+    const plan = planScaffoldPlugin({ name: 'world', repo, peerVersions: PEERS })
     writeRepo(plan.dir, renderPlugin(TEMPLATE_ROOT, plan))
     expect(fs.readFileSync(path.join(repo, 'plugins', 'world', 'package.json'), 'utf8')).toContain('@godcreator/gwb-world')
     // 仓根原样：只有搭仓时写的那份 yaml，件那半没往根上放任何东西
@@ -504,12 +532,51 @@ describe('writeRepo：真写临时目录', () => {
 
 describe('模板插件的命令登记', () => {
   it('ping 命令的参数形状写在 usage 里，description 只说它做什么', () => {
-    const plan = planScaffold({ name: 'hello', dir: 'D:\\tmp\\x', kernelVersion: KERNEL })
+    const plan = planScaffold({ name: 'hello', dir: 'D:\\tmp\\x', peerVersions: PEERS })
     const entry = renderTemplate(TEMPLATE_ROOT, plan).find((f) => f.rel === 'plugins/hello/src/index.ts')?.text ?? ''
     expect(entry).toContain("usage: '无参数'")
     const description = /description: '([^']*)'/.exec(entry)?.[1]
     expect(description).toBeDefined()
     expect(description).not.toContain('无参数')
+  })
+
+  it('不写 plugin 字段：命令总线 0.5.0 起从调用方取包名', () => {
+    const plan = planScaffold({ name: 'hello', dir: 'D:\\tmp\\x', peerVersions: PEERS })
+    const entry = renderTemplate(TEMPLATE_ROOT, plan).find((f) => f.rel === 'plugins/hello/src/index.ts')?.text ?? ''
+    expect(entry).not.toMatch(/^\s*plugin:/m)
+  })
+})
+
+describe('模板的窗格入口', () => {
+  it('PaneArgs 与 PaneHandle 从外壳的 @godcreator/gwb-shell/pane 取，不手写形状', () => {
+    const files = renderTemplate(TEMPLATE_ROOT, planScaffold({ name: 'hello', dir: 'D:\\tmp\\x', peerVersions: PEERS }))
+    const client = files.find((f) => f.rel === 'plugins/hello/src/client/index.tsx')?.text ?? ''
+    expect(client).toContain("import type { PaneArgs, PaneHandle } from '@godcreator/gwb-shell/pane'")
+    expect(client).not.toMatch(/^interface PaneArgs/m)
+  })
+})
+
+describe('homePeerVersions：从运行建仓命令的 home 读版本号', () => {
+  /** 临时目录里搭一个 home：node_modules 下按包名放清单 */
+  function fakeHome(versions: Record<string, string>): string {
+    const home = sandbox()
+    for (const [pkg, version] of Object.entries(versions)) {
+      const dir = path.join(home, 'node_modules', ...pkg.split('/'))
+      fs.mkdirSync(dir, { recursive: true })
+      fs.writeFileSync(path.join(dir, 'package.json'), JSON.stringify({ name: pkg, version }), 'utf8')
+    }
+    return home
+  }
+
+  it('内核取正在运行的版本号，命令总线与外壳读 home 里装着的', () => {
+    const home = fakeHome({ [COMMANDS_PACKAGE]: '0.5.2', [SHELL_PACKAGE]: '0.14.1' })
+    expect(homePeerVersions(home, '0.7.1')).toEqual({ kernel: '0.7.1', commands: '0.5.2', shell: '0.14.1' })
+  })
+
+  it('home 里没装外壳：拒，报错写出包名与读的是哪个文件', () => {
+    const home = fakeHome({ [COMMANDS_PACKAGE]: '0.5.2' })
+    expect(() => homePeerVersions(home, '0.7.1')).toThrow(`没装 ${SHELL_PACKAGE}`)
+    expect(() => homePeerVersions(home, '0.7.1')).toThrow(path.join(home, 'node_modules', '@godcreator', 'gwb-shell', 'package.json'))
   })
 })
 
@@ -550,9 +617,9 @@ describe('生成的结构化文件都读得懂：模板是本包自己的，由�
   }
 
   it('建仓与加插件生成的 JSON、YAML 都解析得了；pnpm-workspace.yaml 读得出 plugins/*', () => {
-    const scaffold = renderTemplate(TEMPLATE_ROOT, planScaffold({ name: 'hello', dir: 'D:\\tmp\\x', kernelVersion: KERNEL }))
+    const scaffold = renderTemplate(TEMPLATE_ROOT, planScaffold({ name: 'hello', dir: 'D:\\tmp\\x', peerVersions: PEERS }))
     expect(unreadableFiles(scaffold)).toEqual([])
-    expect(unreadableFiles(renderPlugin(TEMPLATE_ROOT, planScaffoldPlugin({ name: 'world', repo: fakeWorkspace(), kernelVersion: KERNEL })))).toEqual([])
+    expect(unreadableFiles(renderPlugin(TEMPLATE_ROOT, planScaffoldPlugin({ name: 'world', repo: fakeWorkspace(), peerVersions: PEERS })))).toEqual([])
     const workspace = scaffold.find((f) => f.rel === 'pnpm-workspace.yaml')?.text ?? ''
     expect((YAML.parse(workspace) as { packages: string[] }).packages).toContain(PLUGINS_GLOB)
   })
@@ -588,7 +655,7 @@ describe('加插件认 pnpm-workspace.yaml 里各种写法的 plugins/*（GWB-27
   for (const [label, yaml] of accepted) {
     it(`${label}：收`, () => {
       const repo = fakeWorkspace(yaml)
-      expect(planScaffoldPlugin({ name: 'w', repo, kernelVersion: KERNEL }).dir).toBe(path.join(repo, 'plugins', 'w'))
+      expect(planScaffoldPlugin({ name: 'w', repo, peerVersions: PEERS }).dir).toBe(path.join(repo, 'plugins', 'w'))
     })
   }
 
@@ -601,7 +668,7 @@ describe('加插件认 pnpm-workspace.yaml 里各种写法的 plugins/*（GWB-27
       ['packages:\n  - "\\x41"\n', '["A"]'],
     ]
     for (const [yaml, found] of rejected) {
-      expect(() => planScaffoldPlugin({ name: 'w', repo: fakeWorkspace(yaml), kernelVersion: KERNEL }), JSON.stringify(yaml)).toThrow(
+      expect(() => planScaffoldPlugin({ name: 'w', repo: fakeWorkspace(yaml), peerVersions: PEERS }), JSON.stringify(yaml)).toThrow(
         `${PLUGINS_GLOB} 这一条（读到的是 ${found}）`,
       )
     }
@@ -609,7 +676,7 @@ describe('加插件认 pnpm-workspace.yaml 里各种写法的 plugins/*（GWB-27
 
   it('没有 packages 这个键、或文件是空的，报原来那句「没有 packages」', () => {
     for (const yaml of ['allowBuilds:\n  esbuild: true\n', '']) {
-      expect(() => planScaffoldPlugin({ name: 'w', repo: fakeWorkspace(yaml), kernelVersion: KERNEL }), JSON.stringify(yaml)).toThrow(
+      expect(() => planScaffoldPlugin({ name: 'w', repo: fakeWorkspace(yaml), peerVersions: PEERS }), JSON.stringify(yaml)).toThrow(
         /不是 workspace 仓.*没有 pnpm-workspace\.yaml 或里面没有 packages/,
       )
     }
@@ -633,37 +700,37 @@ describe('加插件认 pnpm-workspace.yaml 里各种写法的 plugins/*（GWB-27
     for (const [yaml, why] of unreadable) {
       const repo = fakeWorkspace(yaml)
       const file = path.join(repo, 'pnpm-workspace.yaml')
-      expect(() => planScaffoldPlugin({ name: 'w', repo, kernelVersion: KERNEL }), JSON.stringify(yaml)).toThrow(why)
-      expect(() => planScaffoldPlugin({ name: 'w', repo, kernelVersion: KERNEL }), JSON.stringify(yaml)).toThrow(file)
+      expect(() => planScaffoldPlugin({ name: 'w', repo, peerVersions: PEERS }), JSON.stringify(yaml)).toThrow(why)
+      expect(() => planScaffoldPlugin({ name: 'w', repo, peerVersions: PEERS }), JSON.stringify(yaml)).toThrow(file)
     }
   })
 
   it('建仓生成的仓，加插件认得出', () => {
     const repoDir = path.join(sandbox(), 'repo')
-    writeRepo(repoDir, renderTemplate(TEMPLATE_ROOT, planScaffold({ name: 'hello', dir: repoDir, kernelVersion: KERNEL })))
-    expect(() => planScaffoldPlugin({ name: 'world', repo: repoDir, kernelVersion: KERNEL })).not.toThrow()
+    writeRepo(repoDir, renderTemplate(TEMPLATE_ROOT, planScaffold({ name: 'hello', dir: repoDir, peerVersions: PEERS })))
+    expect(() => planScaffoldPlugin({ name: 'world', repo: repoDir, peerVersions: PEERS })).not.toThrow()
   })
 })
 
 describe('路径参数正斜杠、反斜杠都认（09-14 反馈）', () => {
   it('planScaffold：D:/a/b 与 D:\\a\\b 归一成同一个绝对路径', () => {
-    const forward = planScaffold({ name: 'x', dir: 'D:/tmp/gwb/x', kernelVersion: KERNEL }).dir
-    const backward = planScaffold({ name: 'x', dir: 'D:\\tmp\\gwb\\x', kernelVersion: KERNEL }).dir
+    const forward = planScaffold({ name: 'x', dir: 'D:/tmp/gwb/x', peerVersions: PEERS }).dir
+    const backward = planScaffold({ name: 'x', dir: 'D:\\tmp\\gwb\\x', peerVersions: PEERS }).dir
     expect(forward).toBe('D:\\tmp\\gwb\\x')
     expect(backward).toBe(forward)
   })
 
   it('planScaffoldPlugin：repo 用正斜杠写，认得出仓、插件包目录落在同一处', () => {
     const repo = fakeWorkspace()
-    const plan = planScaffoldPlugin({ name: 'w', repo: repo.replaceAll('\\', '/'), kernelVersion: KERNEL })
+    const plan = planScaffoldPlugin({ name: 'w', repo: repo.replaceAll('\\', '/'), peerVersions: PEERS })
     expect(plan.repoDir).toBe(repo)
     expect(plan.dir).toBe(path.join(repo, 'plugins', 'w'))
   })
 
   it('回执里给的命令参数是合法 JSON：Windows 路径的反斜杠转义过，照抄就能用', () => {
-    const plan = planScaffold({ name: 'x', dir: 'D:\\tmp\\x', kernelVersion: KERNEL })
+    const plan = planScaffold({ name: 'x', dir: 'D:\\tmp\\x', peerVersions: PEERS })
     expect(nextSteps(plan).join('\n')).toContain(JSON.stringify({ home: '<隔离 home 名>', dir: 'D:\\tmp\\x', packages: ['plugins/x'] }))
-    for (const step of [...nextSteps(plan), ...nextStepsPlugin(planScaffoldPlugin({ name: 'w', repo: fakeWorkspace(), kernelVersion: KERNEL }))]) {
+    for (const step of [...nextSteps(plan), ...nextStepsPlugin(planScaffoldPlugin({ name: 'w', repo: fakeWorkspace(), peerVersions: PEERS }))]) {
       // 回执里凡是 `命令名 {…}` 的写法，花括号那一段都要是合法 JSON（`<名>` 这种要人替换的占位只出现在字符串里）
       for (const match of step.matchAll(/[a-z-]+(?:\.[a-z-]+)+ (\{[^{}]*(?:\[[^\]]*\])?[^{}]*\})/g)) {
         expect(() => JSON.parse(match[1] ?? ''), `${step}\n里的 ${match[1] ?? ''}`).not.toThrow()

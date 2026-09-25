@@ -1,4 +1,4 @@
-# pnpm 11 的设置都写在这个文件里（package.json 的 pnpm 字段已不再读取）。
+# pnpm 11 起，设置都写在这个文件里（package.json 的 pnpm 字段已不再读取）。
 #
 # 仓只有一种布局——workspace：仓根是不发布的 private 包，插件放在 plugins/<短名>/；加第二个插件用
 # devkit.scaffold.plugin {"repo":"<仓根>","name":"<短名>"}，它在 plugins/ 下再建一个目录。

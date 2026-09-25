@@ -12,8 +12,9 @@
 
 - **node 侧**（`src/index.ts`）：`apply` 里注册一个窗格、登记一条 `{{name}}.ping` 命令。命令总线、外壳与内核包的接口类型都只 `import type`，
   构建产物里没有包名 import。peer 里写运行时从 home 里得到的三个包：内核包 `@godcreator/gwb-kernel-desktop`（范围 `^<版本号>`
-  声明这个插件兼容哪些内核，建仓时写的是运行建仓命令的那个内核）、命令总线 `@godcreator/gwb-commands` 与外壳 `@godcreator/gwb-shell`；
-  `cordis` 只写 devDependencies（给本地构建与类型检查）；
+  声明这个插件兼容哪些内核）、命令总线 `@godcreator/gwb-commands` 与外壳 `@godcreator/gwb-shell`，三个范围的下限都是建仓时
+  那个 home 里的版本；以后用到别的插件也写进 peer：写在顶层 `inject` 里的写普通 peer，只在 `ctx.inject([...], cb)` 里用的
+  在 `peerDependenciesMeta` 标 `optional: true`，都不另写 dev；`cordis` 只写 devDependencies（给本地构建与类型检查）；
 - **浏览器侧**（`src/client/`）：窗格里显示「你好」和一个计数按钮。类名一律以 `{{cssPrefix}}:` 开头，样式只作用于本插件
   （cssPrefix 是短名去掉非小写字母，Tailwind 的 prefix 只收 a-z）；react 由页面的 importmap 提供（提供方是内核包），构建时不打包；
 - **自述**（`package.json` 的 description）：一句话说这个插件做什么；

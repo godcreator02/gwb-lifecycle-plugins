@@ -17,19 +17,3 @@ docfirst: none
 约 2 秒，default 自己走了一遍正常退出（default 的 `gwb.log` 里 `17:07:46.709Z info kernel 清理完成，退出`）。原因没查清：值得看一下
 `home.new` 启动的子进程和 default 的生命周期有没有绑在一起。弄清之前，停这种实例用 `devkit.home.rm {"name":"<名>","force":true}`，别直接结束进程。
 
-## 2026-09-25 要跟 shell 0.14：peer 或 dev 里外壳的范围改成 ^0.14.0
-
-来源：gwb-ui-plugins（界面插件仓 `D:\unitfolders\igldu-gwbkernel\gwb-ui-plugins`），提交 `7301bda`，2026-09-25；总控台会话代为投递。
-
-外壳 `@godcreator/gwb-shell` 马上从 0.13.10 发 0.14.0，这是破坏性版本，只破坏了一处：`shell.env` 回执的 `versions` 里删掉了 `launcher`（安装包版本）。内核 0.7.0 删了 `gwbKernel.launcherVersion`，这个值早就没有来源（界面插件仓轨迹卡 `2026-09-25-statusbar-drop-launcher`）。在 `D:\unitfolders` 下搜过 `versions.launcher` 与 `launcherVersion`，没有别的插件的代码读它。窗格注册、`args.shell`、`shell.openPane` 这些接口都没变。
-
-同一版里不破坏的改动：外壳用到的插件改写进 peer（命令总线 `^0.5.0`、数据 `^0.1.7`，说明书可选）；第一次开机按默认布局打开窗格后会自己保存一次布局；窗格容器上的 `data-gwb-plugin` 改取注册表里此刻的包名。
-
-要做的：
-
-1. 下次发版前，把 peer 或 dev 里外壳的范围改成 `^0.14.0`（写在 peer 的，改完在隔离 home 里装上外壳 0.14 验一遍）
-2. 不改的后果：写在 peer 的，`devkit.release` 的发版前检查会因为和源上 latest 不在同一条线而拒绝发布，`plugin-manager.list` 会在 `unmetPeers` 里报出来；写在 dev 的，发版前检查会因为 latest 已出范围而拒绝发布。运行时照常，不影响已装的版本
-
-本仓的情况：
-
-- `@godcreator/gwb-devkit`（`plugins/devkit/package.json` 第 36 行）：peer 里写的是 `^0.13.7`，第 41 行标了 optional

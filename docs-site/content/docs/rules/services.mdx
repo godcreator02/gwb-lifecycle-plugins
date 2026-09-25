@@ -65,9 +65,11 @@ export default class GwbExample extends Service {
 | `static inject = [...]` | `Service` 类的必需依赖，含义同上 |
 | `ctx.inject([...], (ctx) => { … })` | 可有可无的依赖：那个服务出现时回调运行，消失时回调里注册的东西自动撤销，主插件照常加载 |
 
+用哪一种也决定提供方插件在 peer 里标不标可选：前两种写普通 peer，第三种标 `optional: true`（见[用到的插件写 peer](/docs/rules/plugin-peers)）。
+
 模板生成的插件用第一种，两个服务都必需：
 
-{/* ref file="../plugins/devkit/template/pkg/src/index.ts.tpl" lines="16-17" */}
+{/* ref file="../plugins/devkit/template/pkg/src/index.ts.tpl" lines="16-20" */}
 
 插件管理对说明书插件用第三种：说明书插件没装时插件管理照常加载，装上之后才登记自己的说明书：
 
@@ -75,14 +77,14 @@ export default class GwbExample extends Service {
 
 **往继承了 `Service` 的服务里注册，不用自己包 `ctx.effect`**；往 `ctx.provide` 提供的扩展点服务里注册，要自己包。外壳 `gwbShell` 与命令总线 `gwbCommands` 都继承了 `Service`，模板注册窗格与命令都直接调：
 
-{/* ref file="../plugins/devkit/template/pkg/src/index.ts.tpl" lines="28-42" */}
+{/* ref file="../plugins/devkit/template/pkg/src/index.ts.tpl" lines="31-44" */}
 
 ## 登记命令
 
 - `name`、`description`、`usage` 都是非空字符串
 - `description` 一句话说命令做什么，MCP 入口的 `index` 列出它
 - 参数形状写进 `usage`（`{ entryId, enabled? }`），无参数就写「无参数」。`search` 命中的那一行带 `usage`；命令总线不带参数 schema，agent 知道参数怎么给只能看它
-- `plugin` 可以不写，命令总线从调用方取它的包名；写了就必须等于自己的完整包名
+- 不写 `plugin`，命令总线从调用方取它的包名；写了就必须等于自己的完整包名
 - 命令总线 `gwbCommands` 0.5.0 起在登记时检查：`name`、`description`、`usage` 缺一或只有空白，`plugin` 与调用方的包名不同，都直接抛错，插件加载失败。devkit 不检查这几条；`usage` 写没写对参数形状，没有工具检查
 
 ## 容易出错的几处

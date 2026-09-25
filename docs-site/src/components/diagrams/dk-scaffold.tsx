@@ -16,7 +16,7 @@ const ITEMS: ChainItem[] = [
 
 const STEPS: { title: string; detail: string; active: number }[] = [
   { title: '全貌', detail: '四格都是开发套件自己的代码，不调别的插件的命令，也不建文档站。', active: -1 },
-  { title: '第 1 步：算计划', detail: '校验短名、scope 与 registry，派生包名 <scope>/gwb-<短名>（scope 缺省 @godcreator）、插件名 gwb-<短名>，发布目标写进插件包的 publishConfig.registry（缺省团队源）；peer 里内核包的范围取运行中内核版本号的 x.y.z 三段。只算、不碰磁盘，参数不对把整份用法放进报错。', active: 0 },
+  { title: '第 1 步：算计划', detail: '校验短名、scope 与 registry，派生包名 <scope>/gwb-<短名>（scope 缺省 @godcreator）、插件名 gwb-<短名>，发布目标写进插件包的 publishConfig.registry（缺省团队源）；peer 里内核包、命令总线、外壳的范围取运行建仓命令的那个 home 里的版本号（x.y.z 三段）。只算、不碰磁盘，参数不对把整份用法放进报错。', active: 0 },
   { title: '第 2 步：在内存里渲染', detail: '整套模板先渲染成内存里的文件表，要显示名的地方填短名；认不出的占位符当场抛错，这时磁盘上还什么都没写。生成的 JSON / YAML 读不读得懂由测试对本包的模板核对。', active: 1 },
   { title: '第 3 步：写磁盘', detail: '目标目录必须还不存在，存在就拒、不覆盖。仓根写 package.json、pnpm-workspace.yaml、README.md、.gitignore，插件包写到 plugins/<短名>/。', active: 2 },
   { title: '第 4 步：回执', detail: '回执报仓与插件包在哪、包名与发布目标、写了几个文件；nextSteps 只写这次建仓特有的路径，流程指向说明书 gwb-devkit 的「新写一个插件」。', active: 3 },

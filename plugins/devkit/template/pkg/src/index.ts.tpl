@@ -13,7 +13,10 @@ export const name = '{{pkgName}}'
 const CLIENT_URL = new URL('./client.js', import.meta.url).href
 const STYLE_URL = new URL('./style.css', import.meta.url).href
 
-/** 两个服务都在，cordis 才调用 apply；任何一个重新加载，本插件跟着重新加载 */
+/**
+ * 两个服务都在，cordis 才调用 apply；任何一个重新加载，本插件跟着重新加载。
+ * 写在这里的服务，提供它的插件在 package.json 里写普通 peer；只在 `ctx.inject([...], cb)` 里用的，写 peer 并标 optional
+ */
 export const inject = ['gwbCommands', 'gwbShell']
 
 export function apply(ctx: GwbContext): void {
@@ -21,8 +24,8 @@ export function apply(ctx: GwbContext): void {
   const log = ctx.logger(name)
   const shell = ctx.gwbShell
   const commands = ctx.gwbCommands
-  // inject 已保证两个服务都在，这一行只为把可选类型收窄
-  if (shell === undefined || commands === undefined) return
+  // 命令总线在类型上是可选的（内核也声明了它）；inject 保证了它在，不在就是加载顺序出了错，直接报
+  if (commands === undefined) throw new Error('ctx.gwbCommands 不在：inject 里写了它，cordis 本不该调用 apply')
   log.info('{{name}} 已加载')
 
   // 外壳继承 cordis 的 Service：本插件卸载时，窗格自动注销。
@@ -36,7 +39,6 @@ export function apply(ctx: GwbContext): void {
       // description 一句话说命令做什么（MCP 入口的 index 列它），参数形状写进 usage（search 列它），无参数写「无参数」
       description: '模板自带的命令：返回插件名与当前时间，用来确认插件已加载',
       usage: '无参数',
-      plugin: '{{pkg}}',
     },
     async () => ({ ok: true, data: { plugin: name, time: new Date().toISOString() } }),
   )

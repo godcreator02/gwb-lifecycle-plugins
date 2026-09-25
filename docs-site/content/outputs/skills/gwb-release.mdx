@@ -35,7 +35,7 @@ description: 升版本号、改依赖版本号、发版时读。
 1. 确定要不要跟：
    - 自己发版时，`devkit.release` 拿插件包 peer 里的每个插件（不分包名范围）和源上 `dist-tags.latest` 比在不在同一条线（0.x 比 x，≥1 比主版本号）：同一条线放行，一个数字都不动；不在同一条线（上游出了破坏性版本）必须跟。dev 依赖不查：落后于 latest、甚至出了范围都照样发，只要 `pnpm install` 装得上——dev 只在构建与类型检查时用，不影响运行
    - 要用上游的新东西：下限升到带那个东西的版本。上游是别的插件（经 `ctx.inject` 用它的服务、import 它的类型）的，它写在 peer 里，改的就是 peer 的下限；home 里装的版本不够新时 `plugin-manager.list` 的 `unmetPeers` 会报出来（规矩见 gwb-devkit 附件 `references/rules.md` 的「用到的插件写 peer」）
-2. 改写法：`@godcreator` 的库、接口定义包写在 dev，`^<源上已经发了的版本>`（精确号也合法）；用到的别的插件写在 peer，只许 `^<源上已经发了的版本>`，可选使用的在 `peerDependenciesMeta` 标 `optional: true`；同仓的包写 `workspace:*`，`devkit.release` 发版时写成 `^<版本>`。插件包 peer 里的内核包 `@godcreator/gwb-kernel-desktop` 写 `^<验证时那个内核的版本号>`（见第三节第 1 步）。依赖写进 peer、dev 还是 `dependencies`，照 gwb-devkit 附件 `references/rules.md` 的「依赖怎么写」
+2. 改写法：`@godcreator` 的库、接口定义包写在 dev，`^<源上已经发了的版本>`（精确号也合法）；用到的别的插件写在 peer，只许 `^<源上已经发了的版本>`，只在 `ctx.inject([...], fn)` 里用的在 `peerDependenciesMeta` 标 `optional: true`；同仓的包写 `workspace:*`，`devkit.release` 发版时写成 `^<版本>`。插件包 peer 里的内核包 `@godcreator/gwb-kernel-desktop` 写 `^<验证时那个内核的版本号>`（见第三节第 1 步）。依赖写进 peer、dev 还是 `dependencies`，照 gwb-devkit 附件 `references/rules.md` 的「依赖怎么写」
 3. 要跟的先适配代码，再 `pnpm install`、`pnpm check`
 
 **完成判据**：`pnpm install` 成功（下限写了源上没有的版本会在这里失败）；`pnpm check` 全绿。
