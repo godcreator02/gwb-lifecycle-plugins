@@ -2,7 +2,7 @@ import fs from 'node:fs'
 import os from 'node:os'
 import path from 'node:path'
 import { afterEach, describe, expect, it } from 'vitest'
-import { distManifest, registryPinArgs, withPublishRegistry, workspaceRootOf, workspaceVersions } from '../src/node-dev-deps.js'
+import { distManifest, publishedFromView, registryPinArgs, unsupportedFileEntries, withPublishRegistry, workspaceRootOf, workspaceVersions } from '../src/node-dev-deps.js'
 
 /**
  * `node-dev-deps.ts` 的其余部分是读写磁盘、启动进程，不进单元测试；`distManifest` 与 `workspaceRootOf` 不是：
@@ -56,15 +56,15 @@ describe('分发清单', () => {
     expect(out.dependencies?.['@godcreator/gwb-sibling']).toBe('^0.4.0')
   })
 
-  it('开发版打包不给同一次的写法：workspace: 换成 ^<工作区里的版本号>；工作区里没有就 ^0.0.0', () => {
-    const out = distManifest(
-      { ...MANIFEST, dependencies: { '@godcreator/gwb-sibling': 'workspace:^', '@godcreator/gwb-stranger': 'workspace:*' } },
-      '0.4.1-dev.20260913120000',
-      {},
-      WORKSPACE,
-    )
+  it('开发版打包不给同一次的写法：workspace: 换成 ^<工作区里的版本号>', () => {
+    const out = distManifest({ ...MANIFEST, dependencies: { '@godcreator/gwb-sibling': 'workspace:^' } }, '0.4.1-dev.20260913120000', {}, WORKSPACE)
     expect(out.dependencies?.['@godcreator/gwb-sibling']).toBe('^0.3.9')
-    expect(out.dependencies?.['@godcreator/gwb-stranger']).toBe('^0.0.0')
+  })
+
+  it('workspace: 依赖在工作区里找不到：直接抛，点名是哪个包，不写 ^0.0.0', () => {
+    expect(() => distManifest({ ...MANIFEST, dependencies: { '@godcreator/gwb-stranger': 'workspace:*' } }, '0.4.0', {}, WORKSPACE)).toThrow(
+      '@godcreator/gwb-stranger',
+    )
   })
 
   it('普通范围原样写，不是本仓的包不改', () => {
@@ -130,6 +130,12 @@ describe('workspaceRootOf：从包目录往上找工作区根', () => {
     expect(workspaceVersions(found).get('@x/lib')).toBe('0.4.2')
   })
 
+  it('工作区里有读不懂的 package.json：直接抛，写明是哪个文件，不当它不在', () => {
+    const root = workspaceWithPluginAndLib()
+    fs.writeFileSync(path.join(root, 'packages', 'lib', 'package.json'), '{ 半截')
+    expect(() => workspaceVersions(root)).toThrow(path.join(root, 'packages', 'lib', 'package.json'))
+  })
+
   it('包目录自己有 pnpm-workspace.yaml 时就是它自己', () => {
     const root = workspaceWithPluginAndLib()
     expect(workspaceRootOf(root)).toBe(root)
@@ -139,5 +145,27 @@ describe('workspaceRootOf：从包目录往上找工作区根', () => {
     const lonely = fs.mkdtempSync(path.join(os.tmpdir(), 'devkit-lonely-'))
     made.push(lonely)
     expect(() => workspaceRootOf(lonely)).toThrow(/pnpm-workspace\.yaml/)
+  })
+})
+
+describe('files 白名单：只认字面路径', () => {
+  it('否定式（!开头）与通配都挑出来：组装发布内容只按字面复制，这两种一律拒', () => {
+    expect(unsupportedFileEntries(['dist', 'skills', '!py/**/__pycache__', 'lib/*.js', 'a?.txt'])).toEqual(['!py/**/__pycache__', 'lib/*.js', 'a?.txt'])
+    expect(unsupportedFileEntries(['dist', 'src'])).toEqual([])
+  })
+})
+
+describe('pnpm view 的结果：这个版本号在源上有没有', () => {
+  it('退出码 0 就是有', () => {
+    expect(publishedFromView({ ok: true, tail: '0.21.0' }, '@godcreator/x@0.21.0', 'http://r/')).toBe(true)
+  })
+
+  it('没有这个版本、没有这个包（404）：没有', () => {
+    expect(publishedFromView({ ok: false, tail: 'Error: ERR_PNPM_PACKAGE_NOT_FOUND\n  × No matching version found for @godcreator/x@0.99.0' }, '@godcreator/x@0.99.0', 'http://r/')).toBe(false)
+    expect(publishedFromView({ ok: false, tail: 'Error: ERR_PNPM_FETCH_404\n  × GET http://r/@godcreator/x: Not Found - 404' }, '@godcreator/x@0.1.0', 'http://r/')).toBe(false)
+  })
+
+  it('别的失败（源连不上、超时）：直接抛，不当成没发过', () => {
+    expect(() => publishedFromView({ ok: false, tail: 'ERR_PNPM_META_FETCH_FAIL  GET http://r/: request to http://r/ failed, reason: connect ECONNREFUSED' }, '@godcreator/x@0.1.0', 'http://r/')).toThrow(/ECONNREFUSED/)
   })
 })

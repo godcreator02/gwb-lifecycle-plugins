@@ -6,6 +6,7 @@ import { tailLines } from '@godcreator/gwb-plugin-manager'
 import { PACK_TIMEOUT_MS, PUBLISH_TIMEOUT_MS, pnpmPlan, type DevDeps, type RunPlan, type RunResult } from './dev.js'
 import type { ReleaseDeps } from './release.js'
 import { removeTree, runCaptured } from './node-home-deps.js'
+import { VERSION } from './vocab.js'
 import { runWithTreeTimeout, timeoutNote } from './node-process-tree.js'
 
 // DevDeps 与 ReleaseDeps 在这台机器上的实现：读写磁盘、启动进程、经 bin/cdp.mjs 连 CDP。
@@ -71,28 +72,23 @@ interface DistManifest {
 
 /**
  * 工作区里各包当前的版本号（`workspace:` 依赖换成范围时用）。扫目录、不写死 `packages/`、`plugins/` 这类目录名；
- * 只扫两层，跳过 `node_modules`、`dist` 与点开头的目录
+ * 只扫两层，跳过 `node_modules`、`dist` 与点开头的目录。读不懂的 package.json 直接抛，写明是哪个文件
  */
 export function workspaceVersions(repoDir: string, depth = 2): Map<string, string> {
   const versionsByName = new Map<string, string>()
   const walk = (dir: string, levelsLeft: number): void => {
     const manifest = path.join(dir, 'package.json')
     if (fs.existsSync(manifest)) {
+      let doc: { name?: unknown; version?: unknown }
       try {
-        const doc = JSON.parse(fs.readFileSync(manifest, 'utf8')) as { name?: unknown; version?: unknown }
-        if (typeof doc.name === 'string' && typeof doc.version === 'string') versionsByName.set(doc.name, doc.version)
-      } catch {
-        // 读不了就当没有：这里只是给 workspace: 找一个版本号，不是在检查别人的包
+        doc = JSON.parse(fs.readFileSync(manifest, 'utf8')) as { name?: unknown; version?: unknown }
+      } catch (err) {
+        throw new Error(`工作区里的 ${manifest} 读不懂:${err instanceof Error ? err.message : String(err)}`)
       }
+      if (typeof doc.name === 'string' && typeof doc.version === 'string') versionsByName.set(doc.name, doc.version)
     }
     if (levelsLeft <= 0) return
-    let children: fs.Dirent[]
-    try {
-      children = fs.readdirSync(dir, { withFileTypes: true })
-    } catch {
-      return
-    }
-    for (const child of children) {
+    for (const child of fs.readdirSync(dir, { withFileTypes: true })) {
       if (!child.isDirectory()) continue
       if (child.name.startsWith('.') || child.name === 'node_modules' || child.name === 'dist') continue
       walk(path.join(dir, child.name), levelsLeft - 1)
@@ -115,7 +111,7 @@ export function workspaceRootOf(pkgDir: string): string {
 
 /**
  * 版本号换成这次的；删掉 `scripts` 与 `devDependencies`；`workspace:` 换成 `^<工作区里的版本号>`（临时目录不在工作区里，
- * pnpm 不会替换）；同一次发的包（`siblings`）在 dependencies 里一律换成给的写法（正式版给 `^新版本号`，开发版的打包给空表）
+ * pnpm 不会替换），工作区里找不到那个包就抛；同一次发的包（`siblings`）在 dependencies 里一律换成给的写法（正式版给 `^新版本号`，开发版的打包给空表）
  */
 export function distManifest(
   manifest: DistManifest,
@@ -132,7 +128,7 @@ export function distManifest(
     for (const [name, range] of Object.entries(table)) {
       const sibling = siblings[name]
       if (useSiblingRanges && sibling !== undefined) rewritten[name] = sibling
-      else if (range.startsWith('workspace:')) rewritten[name] = `^${workspace.get(name) ?? '0.0.0'}`
+      else if (range.startsWith('workspace:')) rewritten[name] = `^${workspaceVersionOf(name, workspace)}`
       else rewritten[name] = range
     }
     return rewritten
@@ -143,6 +139,27 @@ export function distManifest(
   const peers = rewrittenRanges(distributed.peerDependencies, false)
   if (peers !== undefined) distributed.peerDependencies = peers
   return distributed
+}
+
+function workspaceVersionOf(name: string, workspace: Map<string, string>): string {
+  const version = workspace.get(name)
+  if (version === undefined) throw new Error(`依赖 ${name} 写的是 workspace:,可工作区里找不到这个包(只扫仓根往下两层)`)
+  return version
+}
+
+/** `files` 里组装发布内容时认不了的写法：否定式（`!` 开头）与通配。这里只按字面复制，悄悄漏掉文件的表现是「发出去了、装上了、新写的东西没生效」 */
+export function unsupportedFileEntries(files: readonly string[]): string[] {
+  return files.filter((one) => one.startsWith('!') || /[*?]/.test(one))
+}
+
+/**
+ * `pnpm view <包>@<版本> version` 的结果 → 这个版本号在源上有没有。退出码 0 是有；pnpm 报没有这个版本或没有这个包（404）是没有；
+ * 别的失败（源连不上、超时）问不出，直接抛
+ */
+export function publishedFromView(seen: { ok: boolean; tail: string }, spec: string, registry: string): boolean {
+  if (seen.ok) return true
+  if (/ERR_PNPM_PACKAGE_NOT_FOUND|ERR_PNPM_FETCH_404/.test(seen.tail)) return false
+  throw new Error(`问不出 ${spec} 在 ${registry} 上有没有:\n${seen.tail}`)
 }
 
 /** 发布内容清单的 `publishConfig.registry` 换成发布目标，`publishConfig` 的别的字段原样；`pnpm publish` 按它发 */
@@ -178,32 +195,25 @@ async function withStagedDistribution(
   }
   const files = manifest.files ?? []
   if (files.length === 0) return { ok: false, tail: `${manifest.name} 的 package.json 里 files 是空的,不知道该带什么进分发包` }
-  // 带通配的当场拒：这里只按字面复制，悄悄漏掉文件的表现是「发出去了、装上了、新写的东西没生效」
-  const positives = files.filter((one) => !one.startsWith('!'))
-  const globbed = positives.filter((one) => /[*?]/.test(one))
-  if (globbed.length > 0) {
+  const unsupported = unsupportedFileEntries(files)
+  if (unsupported.length > 0) {
     return {
       ok: false,
-      tail: `${manifest.name} 的 files 里有通配(${globbed.join('、')}),这里只认字面路径。把它写成实在的目录名`,
+      tail: `${manifest.name} 的 files 里有否定式或通配(${unsupported.join('、')}),这里只认字面路径。写成实在的目录名与文件名`,
     }
   }
-  /** 否定式里那个末段名(`!py/**\/__pycache__` → `__pycache__`):复制完按名字剪掉 */
-  const excludes = files
-    .filter((one) => one.startsWith('!'))
-    .map((one) => one.replace(/^!/, '').split(/[\\/]/).filter((seg) => seg !== '' && seg !== '**').pop())
-    .filter((one): one is string => one !== undefined && !/[*?]/.test(one))
 
   const stage = fs.mkdtempSync(path.join(os.tmpdir(), 'gwb-devkit-stage-'))
   let stageMayStillBeRead = false
   try {
     const repoDir = workspaceRootOf(input.pkgDir)
-    for (const rel of positives) {
+    for (const rel of files) {
       const from = path.join(input.pkgDir, rel)
       if (!fs.existsSync(from)) return { ok: false, tail: `产物不在:${from}` }
       const to = path.join(stage, rel)
       fs.mkdirSync(path.dirname(to), { recursive: true })
       // cpSync 不用 copyFileSync：files 里可以是目录（dist、skills、template 都是）
-      fs.cpSync(from, to, { recursive: true, filter: (src) => !excludes.includes(path.basename(src)) })
+      fs.cpSync(from, to, { recursive: true })
     }
     const readme = [path.join(input.pkgDir, 'README.md'), path.join(repoDir, 'README.md')].find((one) => fs.existsSync(one))
     if (readme !== undefined) fs.copyFileSync(readme, path.join(stage, 'README.md'))
@@ -265,28 +275,19 @@ export const devDepsWith = (pnpm: string): Omit<DevDeps, 'restartHome'> => ({
     return fs.existsSync(target)
   },
   size(file) {
-    try {
-      return fs.statSync(file).size
-    } catch {
-      // 日志还不存在（刚开的 home）：基线当 0，整份都算新增，这正是实情
-      return 0
-    }
+    return fs.statSync(file).size
   },
   slice(file, from) {
+    const fd = fs.openSync(file, 'r')
     try {
-      const fd = fs.openSync(file, 'r')
-      try {
-        const end = fs.fstatSync(fd).size
-        // 日志被轮转或清过,`from` 会大过现在的长度。那时从头读,别回一段空的
-        const start = from > end ? 0 : from
-        const buffer = Buffer.alloc(end - start)
-        fs.readSync(fd, buffer, 0, buffer.length, start)
-        return buffer.toString('utf8')
-      } finally {
-        fs.closeSync(fd)
-      }
-    } catch {
-      return ''
+      const end = fs.fstatSync(fd).size
+      // 日志被轮转或清过,`from` 会大过现在的长度。那时从头读,别回一段空的
+      const start = from > end ? 0 : from
+      const buffer = Buffer.alloc(end - start)
+      fs.readSync(fd, buffer, 0, buffer.length, start)
+      return buffer.toString('utf8')
+    } finally {
+      fs.closeSync(fd)
     }
   },
   now: () => Date.now(),
@@ -315,15 +316,13 @@ async function gitStatusOf(repoDir: string): Promise<{ ok: true; dirty: string[]
 export const releaseDepsWith = (pnpm: string): ReleaseDeps => ({
   run: (plan: RunPlan, timeoutMs: number) => runCaptured(plan, timeoutMs),
   publish: (input) => publishStaged({ ...input, pnpm }),
-  published: async (spec, registry) => {
-    const seen = await runCaptured(pnpmPlan(['view', spec, 'version', ...registryPinArgs(spec, registry)], os.tmpdir(), pnpm), 60_000)
-    return seen.ok
-  },
+  published: async (spec, registry) =>
+    publishedFromView(await runCaptured(pnpmPlan(['view', spec, 'version', ...registryPinArgs(spec, registry)], os.tmpdir(), pnpm), 60_000), spec, registry),
   latest: async (pkg) => {
     const seen = await runCaptured(pnpmPlan(['view', pkg, 'dist-tags.latest'], os.tmpdir(), pnpm), 60_000)
     if (!seen.ok) return undefined
     const lines = seen.tail.split(/\r?\n/).map((line) => line.trim())
-    return lines.reverse().find((line) => /^\d+\.\d+\.\d+(?:-[0-9A-Za-z.-]+)?$/.test(line))
+    return lines.reverse().find((line) => VERSION.test(line))
   },
   gitStatus: gitStatusOf,
   readText(file) {

@@ -1,6 +1,6 @@
 import path from 'node:path'
 import { INSTALL_COMMAND, KERNEL_PACKAGE, LIST_COMMAND, UPDATE_COMMAND } from '@godcreator/gwb-plugin-manager'
-import { isRecord } from './vocab.js'
+import { isRecord, VERSION } from './vocab.js'
 
 /** 日常用的那个 home 的名字。开发版装进它就是悄悄换了日常代码，所以当场拒；删它要 `force` */
 export const DAILY_HOME = 'default'
@@ -47,11 +47,12 @@ function pad(value: number): string {
  * home 里的真实目录。同一秒跑两次撞到同一个包文件，当场拒
  */
 export function devVersion(version: string, now: number): string {
-  const [major = '0', minor = '0', rest = '0'] = version.split('.')
-  const patch = Number.parseInt(rest, 10)
+  const match = VERSION.exec(version)
+  if (match === null) throw new Error(`包清单里的版本号 "${version}" 不是 x.y.z(可带预发布段),算不出开发版号`)
+  const [, major, minor, patch] = match
   const nowDate = new Date(now)
   const stamp = `${String(nowDate.getFullYear())}${pad(nowDate.getMonth() + 1)}${pad(nowDate.getDate())}${pad(nowDate.getHours())}${pad(nowDate.getMinutes())}${pad(nowDate.getSeconds())}`
-  return `${major}.${minor}.${String((Number.isNaN(patch) ? 0 : patch) + 1)}-dev.${stamp}`
+  return `${String(major)}.${String(minor)}.${String(Number(patch) + 1)}-dev.${stamp}`
 }
 
 // ── 检查目标 ──────────────────────────────────────────────────────────────────
@@ -92,7 +93,7 @@ export interface Manifest {
   plugin: boolean
 }
 
-/** `files` 里必须真在磁盘上的产物。否定式（`!py/**\/__pycache__`）与通配不算：拿去查存在必然「不在」 */
+/** `files` 里必须真在磁盘上的产物。否定式与通配不算（拿去查存在必然「不在」）：组装发布内容时这两种直接拒，见 node-dev-deps 的 `unsupportedFileEntries` */
 export function literalArtifacts(files: readonly string[]): string[] {
   return files.filter((one) => !one.startsWith('!') && !/[*?]/.test(one))
 }

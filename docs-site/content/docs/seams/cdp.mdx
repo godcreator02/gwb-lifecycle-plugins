@@ -13,7 +13,7 @@ description: 连接 devkit（经 gwbNodeCli 登记、dev.ts 启动子进程）�
 
 ## 接口
 
-**命令行**：`<home 名> <动作> [参数…]`，开关 `--target` / `--mod` / `--pad` / `--size` / `--timeout` 可以写在任意位置，`--x=值` 与 `--x 值` 两种都认。第一个位置是纯数字就拒：
+**命令行**：`<home 名> <动作> [参数…]`，开关 `--target` / `--mod` / `--pad` / `--size` / `--timeout` 可以写在任意位置，`--x=值` 与 `--x 值` 两种都认；`--mod` 里写错的键名直接拒。第一个位置一律当 home 名，去那个 home 的 `runtime.json` 查端口，给的是端口号就找不到那个 home 的记录、照实报：
 
 {/* ref file="../plugins/devkit/bin/cdp.mjs" lines="52-60" */}
 

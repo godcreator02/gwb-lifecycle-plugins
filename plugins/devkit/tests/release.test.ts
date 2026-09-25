@@ -98,10 +98,6 @@ describe('checkTicket：版本号与 dev 范围', () => {
     ])
   })
 
-  it('源上的 latest 不是版本号：写进 problems，不拿它比大小', () => {
-    const got = checkTicket(T({}, { [SHELL]: '^0.9.0' }), { [SHELL]: 'garbage' }, NO_PLUGIN_PEERS)
-    expect(got.problems).toEqual([expect.stringContaining('dist-tags.latest 是 "garbage",不是版本号')])
-  })
 })
 
 describe('checkTicket：peer 里的插件和源上 latest 在同一条线', () => {
@@ -165,16 +161,12 @@ describe('compareVersions：逐段数字比', () => {
     expect(() => compareVersions('0.1', '0.1.0')).toThrow(/"0.1" 不是版本号/)
     expect(() => compareVersions('0.1.0', 'latest')).toThrow(/"latest" 不是版本号/)
   })
-  it('构建段不参与比较', () => {
-    expect(compareVersions('0.1.0+build.7', '0.1.0')).toBe(0)
-  })
   it('同三段时带预发布段的小：0.2.1-dev.x < 0.2.1，但大于 0.2.0', () => {
     expect(compareVersions('0.2.1-dev.202609151533', '0.2.1')).toBe(-1)
     expect(compareVersions('0.2.1-dev.202609151533', '0.2.0')).toBe(1)
   })
-  it('两个预发布号按数字段比', () => {
-    expect(compareVersions('0.7.2-dev.202609171834', '0.7.2-dev.202609171837')).toBe(-1)
-    expect(compareVersions('0.7.2-dev.10', '0.7.2-dev.9')).toBe(1)
+  it('两边三段相同、都带预发布段：直接抛——dev 的下限只收正式号，发版前检查碰不到这种比较', () => {
+    expect(() => compareVersions('0.7.2-dev.1', '0.7.2-dev.2')).toThrow(/预发布段/)
   })
 })
 

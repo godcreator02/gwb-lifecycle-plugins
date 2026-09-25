@@ -29,6 +29,9 @@ export function requireKernel(ctx: Pick<GwbContext, 'gwbKernel'>): GwbKernelApi 
   return kernel
 }
 
+/** 版本号：`x.y.z`，可带预发布段（`0.3.2-dev.20260925120000`）；四个捕获组是主、次、补丁号与预发布段 */
+export const VERSION = /^(\d+)\.(\d+)\.(\d+)(?:-([0-9A-Za-z.-]+))?$/
+
 /** 版本号只留 x.y.z 三段（去掉预发布段与构建段）：插件 peer 里内核包的范围按它写成 `^x.y.z`。调用方保证传入的是合法版本号 */
 export function versionCore(version: string): string {
   return version.replace(/[-+].*$/, '')

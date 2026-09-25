@@ -135,11 +135,8 @@ export function evalFileOf(given) {
 // 找到那个 home
 // ---------------------------------------------------------------------------
 
-/** 端口从 `<dir>/runtime.json` 的 `cdp` 字段查；第一个位置给了数字当场拒，不悄悄当成端口 */
+/** 端口从 `<dir>/runtime.json` 的 `cdp` 字段查；给的不是 home 名（比如一个端口号），这里找不到那个 home 的记录就停 */
 function portOf(name, dir) {
-  if (/^\d+$/.test(name)) {
-    throw new Error(`第一个位置要 home 名，不是端口（给的是 ${name}）。哪个 home 在运行、端口是多少，看 devkit.home.list`)
-  }
   const file = path.join(dir, 'runtime.json')
   if (!fs.existsSync(file)) throw new Error(`${file} 不在——${name} 没启动过。用 devkit.home.open 启动它`)
   let record
@@ -161,10 +158,22 @@ let port
 
 /** CDP 的修饰键是位掩码，不是名字 */
 const MOD_BIT = { alt: 1, ctrl: 2, meta: 4, shift: 8 }
-const modifiers = (opts.mod ?? '')
-  .split(',')
-  .filter((name) => name !== '')
-  .reduce((sum, name) => sum | (MOD_BIT[name.trim().toLowerCase()] ?? 0), 0)
+
+/** `--mod ctrl,shift` → 位掩码。写错的键名直接拒：当它没写，发出去的就是一个少了修饰键的真操作 */
+export function modifiersOf(spec) {
+  let sum = 0
+  for (const raw of (spec ?? '').split(',')) {
+    const name = raw.trim().toLowerCase()
+    if (name === '') continue
+    const bit = MOD_BIT[name]
+    if (bit === undefined) throw new Error(`--mod 里的 ${raw.trim()} 不认得，只认 ${Object.keys(MOD_BIT).join('、')}`)
+    sum |= bit
+  }
+  return sum
+}
+
+/** 直接运行时才算（见文件末尾）：被 import 时 argv 不是给这支脚本的 */
+let modifiers = 0
 
 const pad = Number(opts.pad ?? 0)
 
@@ -247,11 +256,10 @@ const settle = (send) =>
     new Promise((done) => setTimeout(() => done('no-frame'), 400)),
   ])`)
 
-/** 看不见时截图是旧画面、动画不跑；输入不受影响，所以只有要看画面时才把窗口提到前面 */
-async function visibility(send, raise) {
+/** 看不见时截图是旧画面、动画不跑；输入不受影响，所以只有截图（要看画面）才调它把窗口提到前面 */
+async function raiseForScreenshot(send) {
   const before = await evaluate(send, 'document.visibilityState')
   if (before === 'visible') return { visible: true }
-  if (!raise) return { visible: false, note: '页面被遮住了：截图会是陈旧帧，动画不跑。输入不受影响' }
   await send('Page.bringToFront')
   const after = await evaluate(send, 'document.visibilityState')
   return { visible: after === 'visible', raised: true, note: after === 'visible' ? '窗口被抬到前面了' : '抬了也没抬起来' }
@@ -448,7 +456,7 @@ function insist(spot) {
   process.exit(1)
 }
 
-async function run(send, target) {
+async function run(send) {
   switch (verb) {
     case 'eval': {
       const file = evalFileOf(args[0])
@@ -580,8 +588,7 @@ async function run(send, target) {
       const { given, sel } = shotArgsOf(args)
       const file = shotFileOf(given, homeDir)
       await send('Page.enable')
-      // 只有截图真的要画面，所以只有它把窗口提到前面
-      const seen = await visibility(send, true)
+      const seen = await raiseForScreenshot(send)
       // 裁剪只要盒子、不要命中检查：长元素的中心点在别的元素上很常见，跟能不能截它无关
       const spot = sel === undefined ? undefined : await pointOf(send, sel)
       if (spot !== undefined && spot.clip === undefined) insist(spot)
@@ -645,6 +652,7 @@ export function assertVerbAllowedOn(pageHome, verb, sizeSwitch) {
 // 被 `node <本文件>` 运行时才动手，被 import 时（单测与 `src/index.ts`）只交出上面那几个纯函数
 if (import.meta.main) {
   if (!home || !verb) throw new Error('用法：node <本文件> <home 名> <动作> [参数…]，动作见文件头')
+  modifiers = modifiersOf(opts.mod)
   homeDir = homeDirOf(home, homesRootOf())
   port = portOf(home, homeDir)
   const { ws, send, page } = await connect()
@@ -654,7 +662,7 @@ if (import.meta.main) {
     assertVerbAllowedOn(pageHome, verb, opts.size)
     viewportOverridden = opts.size !== undefined && opts.size !== 'off'
     const viewport = await override(send)
-    console.log(JSON.stringify({ page: page.title, 在哪个home: home, ...viewport, ...(await run(send, page)) }, null, 2))
+    console.log(JSON.stringify({ page: page.title, 在哪个home: home, ...viewport, ...(await run(send)) }, null, 2))
   } finally {
     // 视口覆盖必须自己撤：断开连接不一定还原，页面会卡在那个尺寸上。撤不掉也不能盖住本来要报的错，所以不抛。
     // 核对 home 或守卫没过就没发过覆盖，也就不往那个页面发撤销

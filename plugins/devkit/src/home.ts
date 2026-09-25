@@ -1,7 +1,7 @@
 import path from 'node:path'
 import { DAILY_HOME, homePnpmPlan, installedManifest, type RunPlan, type RunResult } from './dev.js'
 import { KERNEL_PACKAGE } from '@godcreator/gwb-plugin-manager'
-import { isRecord } from './vocab.js'
+import { isRecord, VERSION } from './vocab.js'
 import { bareImage, type ProcessProbe } from './probes.js'
 
 /** home 名的形状，就是内核 `GWB_HOME` 的校验正则：比它严没有意义，名字最终由内核决定收不收 */
@@ -296,8 +296,6 @@ export function installedManifestAtVersion(
   return { ok: true, manifest }
 }
 
-const EXACT_VERSION = /^(0|[1-9]\d*)\.(0|[1-9]\d*)\.(0|[1-9]\d*)(?:-[0-9A-Za-z.-]+)?$/
-
 /**
  * 从装上的内核包清单里取它 peer 里的 cordis 版本：home 根上的 cordis 必须是这个精确版本，内核与插件才解析到同一份。
  * 清单读不到、装上的版本不是要装的那个、peer 里的 cordis 不是精确版本号，都拒
@@ -311,7 +309,7 @@ export function cordisVersionForKernel(
   if (!installed.ok) return installed
   const peers = installed.manifest.peerDependencies
   const cordis = isRecord(peers) ? peers.cordis : undefined
-  if (typeof cordis !== 'string' || !EXACT_VERSION.test(cordis)) {
+  if (typeof cordis !== 'string' || !VERSION.test(cordis)) {
     return {
       ok: false,
       error: `内核包 ${KERNEL_PACKAGE}@${kernelVersion} 的 peerDependencies.cordis 是 ${JSON.stringify(cordis)},不是精确版本号:home 根上的 cordis 只能照精确版本装(${installedManifest(home, KERNEL_PACKAGE)})`,

@@ -13,6 +13,7 @@ import {
   homeDirOf,
   homesRootOf,
   isFullPath,
+  modifiersOf,
   shotArgsOf,
   shotFileOf,
 } from '../bin/cdp.mjs'
@@ -208,5 +209,19 @@ describe('写磁盘前的检查', () => {
 
   it('跟包根同前缀的兄弟目录不算在包里', () => {
     expect(assertWritable(`${PKG}-evidence${path.sep}a.png`, PKG)).toBe(`${PKG}-evidence${path.sep}a.png`)
+  })
+})
+
+describe('--mod：修饰键的位掩码', () => {
+  it('认得的名字按位相加，大小写与空白不计较', () => {
+    expect(modifiersOf(undefined)).toBe(0)
+    expect(modifiersOf('ctrl')).toBe(2)
+    expect(modifiersOf('Ctrl, shift')).toBe(10)
+    expect(modifiersOf('alt,ctrl,meta,shift')).toBe(15)
+  })
+
+  it('写错的键名直接拒，报出是哪个，不当它没写', () => {
+    expect(() => modifiersOf('ctrl,shfit')).toThrow(/shfit/)
+    expect(() => modifiersOf('control')).toThrow(/alt、ctrl、meta、shift/)
   })
 })

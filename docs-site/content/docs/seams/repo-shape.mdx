@@ -31,7 +31,7 @@ description: 连接 devkit.dev、devkit.release、devkit.scaffold.plugin 与被�
 
 **要发的包写了 `publishConfig.registry`**：`devkit.release` 发到这个地址，没写、或写的不是 http(s) 地址就拒（见[pnpm 与包源](/docs/seams/pnpm-registry)）。
 
-**`files` 白名单就是产物清单**：构建之后，白名单里不带 `!`、不带通配的每一项都得在包目录里；组装发布内容与开发版的包文件时只复制这些，带通配的直接拒：
+**`files` 白名单就是产物清单**：构建之后，白名单里不带 `!`、不带通配的每一项都得在包目录里；组装发布内容与开发版的包文件时只复制这些，带否定式（`!` 开头）或通配的直接拒：
 
 {/* ref file="../plugins/devkit/src/dev.ts" lines="116-119" */}
 
@@ -51,7 +51,7 @@ description: 连接 devkit.dev、devkit.release、devkit.scaffold.plugin 与被�
 
 {/* ref file="../plugins/devkit/src/artifact-check.ts" lines="240-257" */}
 
-**成员放在哪**：组装发布内容时找 `workspace:` 依赖的版本，从仓根往下扫两层，不认目录名：
+**成员放在哪**：组装发布内容时找 `workspace:` 依赖的版本，从仓根往下扫两层，不认目录名；找不到那个包、或扫到读不懂的 `package.json`，直接报错：
 
 {/* ref file="../plugins/devkit/src/node-dev-deps.ts" lines="72-103" */}
 
@@ -97,6 +97,6 @@ devkit 保证：
 
 {/* has file="../plugins/devkit/tests/scaffold.test.ts" text="加插件认 pnpm-workspace.yaml 里各种写法的 plugins/*（GWB-27）" */}
 
-{/* has file="../plugins/devkit/tests/node-dev-deps.test.ts" text="开发版打包不给同一次的写法：workspace: 换成 ^<工作区里的版本号>；工作区里没有就 ^0.0.0" */}
+{/* has file="../plugins/devkit/tests/node-dev-deps.test.ts" text="workspace: 依赖在工作区里找不到：直接抛，点名是哪个包，不写 ^0.0.0" */}
 
 {/* has file="../plugins/devkit/tests/node-dev-deps.test.ts" text="包在 plugins/<名>/ 时，根是有 pnpm-workspace.yaml 的那层，packages/ 下的号找得到" */}

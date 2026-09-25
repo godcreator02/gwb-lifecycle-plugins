@@ -205,6 +205,10 @@ describe('版本号与包文件名', () => {
     expect(devVersion('0.3.1-dev.20260911120000', 0)).toMatch(/^0\.3\.2-dev\./)
   })
 
+  it('底版本不是 x.y.z：直接抛，不补零', () => {
+    for (const bad of ['0.3', 'latest', '0.3.x']) expect(() => devVersion(bad, NOW), bad).toThrow(bad)
+  })
+
   it('包文件名照 pnpm pack 的默认写法：scope 去掉 @、斜杠换成连字符', () => {
     expect(packFileName('@godcreator/gwb-fake', '0.3.2-dev.20260911120007')).toBe('godcreator-gwb-fake-0.3.2-dev.20260911120007.tgz')
   })

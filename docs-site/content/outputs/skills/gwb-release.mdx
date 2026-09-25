@@ -63,13 +63,13 @@ description: 升版本号、改依赖版本号、发版时读。
 
 ### `devkit.release` 做什么
 
-依次：仓根 git 工作区干净 → 仓根 `pnpm build` → 照 `files` 白名单检查产物在不在 → 同一个版本号已在发布目标上就拒 → 发版前检查 → 在临时目录组装发布内容、发到发布目标并打 `latest`（`workspace:` 依赖写成 `^`：同一次发的写 `^新版本号`，其余写 `^<工作区里的版本号>`）。发布目标是包 `package.json` 的 `publishConfig.registry`，没写、或写的不是 http(s) 地址就拒；它写进发布内容清单的 `publishConfig.registry`，命令行不带 `--registry`。它不改仓里任何文件，只往各包的发布目标发包、不改任何 home；「运行中的内核」指调它的那个 home 里的内核。
+依次：仓根 git 工作区干净 → 仓根 `pnpm build` → 照 `files` 白名单检查产物在不在 → 同一个版本号已在发布目标上就拒（问不出有没有也拒） → 发版前检查 → 在临时目录组装发布内容、发到发布目标并打 `latest`（`workspace:` 依赖写成 `^`：同一次发的写 `^新版本号`，其余写 `^<工作区里的版本号>`）。发布目标是包 `package.json` 的 `publishConfig.registry`，没写、或写的不是 http(s) 地址就拒；它写进发布内容清单的 `publishConfig.registry`，命令行不带 `--registry`。它不改仓里任何文件，只往各包的发布目标发包、不改任何 home；「运行中的内核」指调它的那个 home 里的内核。
 
 发版前检查，每个包：
 
 | 检什么 | 没过 |
 | --- | --- |
-| `@godcreator` 范围下的 dev（别的范围下的库不查）：写法认不出下限、下限比源上 latest 新、latest 已出范围、问不出源上的 latest、或源上的 latest 不是版本号（`workspace:` 跳过） | 拒；范围内落后（含相等）放行 |
+| `@godcreator` 范围下的 dev（别的范围下的库不查）：写法认不出下限、下限比源上 latest 新、latest 已出范围、或问不出源上的 latest（`workspace:` 跳过） | 拒；范围内落后（含相等）放行 |
 | 构建产物里有空 import（`import {} from '…'`，源码写了 `import { type X }`），或相对 import 指向的文件不在 | 拒 |
 | 构建产物按 JS 语法读不下去（字符串、模板、正则没闭合，括号不配对）。import 按 JS 语法找：字符串、模板字面量、正则、注释里写着的 `import(…)` 不算，压成一行的产物照样认 | 拒，写明文件与行列号 |
 
