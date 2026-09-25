@@ -11,7 +11,7 @@ description: devkit.dev 一条命令把工作区的改动换进另一个 home �
 
 六步，一步都不能省：问目标页面它是哪个 home、在仓根构建、把每个包打成包文件放进目标 home、经目标 home 的插件管理装（插件管理在同一条命令里重新加载条目）、整页刷新、取证。任何一步失败当场停，回执里写着停在哪一步。
 
-{/* ref file="../plugins/devkit/src/dev.ts" lines="577-633" */}
+{/* ref file="../plugins/devkit/src/dev.ts" lines="568-625" */}
 
 <Diagram name="dk-dev-loop" title="改一版看一版：改代码、调 devkit.dev 走完六步、读回执，再改下一版">
 - 左列在控制台 home 里做：`devkit.dev` 收 `home`、`dir`、`packages`，仓根 `pnpm build`，每个包 `pnpm pack` 成包文件（版本号 `<patch+1>-dev.<yyyyMMddHHmmss>`），放进目标 home 的 `dev-packs` 目录
@@ -22,7 +22,7 @@ description: devkit.dev 一条命令把工作区的改动换进另一个 home �
 
 **只收插件与内核包，包目录由调用方列出。** `packages` 必给，是非空的字符串数组，每项是相对仓根的包目录，不给或写错直接拒。每个包目录的清单要读得出、`files` 里的产物都在；`keywords` 里没有 `gwb-plugin`、也不是内核包的，直接拒：库打包进用它的插件，不单独装进 home。
 
-{/* ref file="../plugins/devkit/src/dev.ts" lines="405-434" */}
+{/* ref file="../plugins/devkit/src/dev.ts" lines="396-425" */}
 
 **开发版不进团队源，打成包文件放进目标 home。** 打包沿用发正式版的那套组装：在临时目录里放 `files` 里的东西、README 与改写过的清单（版本号换成这次的、`workspace:` 换成工作区里的版本号），再在临时目录里 `pnpm pack --pack-destination <目标 home>\dev-packs`。`pnpm pack` 会按清单的 `files` 再挑一遍文件，漏写进 `files` 的文件不在包文件里，装上之后照样暴露。仓里的文件一个都不改。
 
@@ -44,11 +44,11 @@ description: devkit.dev 一条命令把工作区的改动换进另一个 home �
 
 `update` 用一次 `pnpm add` 装齐，重新加载这些包的条目，也重新加载装前装后真实目录变了的别的包（peer 里写了被换的包的插件，它们的目录跟着换）；插件管理自己的条目推迟到回执发出之后才重新加载，回执带 `selfDeferred: true`，这边就轮询 `plugin-manager.list`，等插件管理的条目重新答复、在运行，超时没等到就回 `ok: false` 并说清卡在哪。`update` 回执 `ok: false` 时整体失败，错误原样带回来。插件管理不整页重新加载，页面由这边刷新。
 
-{/* ref file="../plugins/devkit/src/dev.ts" lines="531-562" */}
+{/* ref file="../plugins/devkit/src/dev.ts" lines="522-553" */}
 
 **整页刷新没成就停。** 页面代码要整页重新加载才会按 `file://` 重新取；给了 `waitFor` 就等那个选择器出现，不给只等 `readyState`。驱动退出码非零、或回执里「等到了」不是 `true`，整体回 `ok: false`，错误里写明等的是什么、最后看到了什么——接着取证的话，量到的会是刷新途中或上一版的页面。
 
-{/* ref file="../plugins/devkit/src/dev.ts" lines="564-575" */}
+{/* ref file="../plugins/devkit/src/dev.ts" lines="555-566" */}
 
 **版本号必须变，这是这条流程起作用的前提。** Node 的 ESM 模块图按 URL 缓存，同一个 URL 永远是同一个模块实例；原地覆盖产物不改路径，cordis 把插件停用再启用，`import()` 拿回的还是旧的。包文件的路径变了，pnpm 虚拟存储里的目录就变了，重新加载时才真的重新执行模块。前提是这次的版本号真的装上了，所以取证里核对装上的版本号那一样不能省。
 
@@ -56,11 +56,11 @@ description: devkit.dev 一条命令把工作区的改动换进另一个 home �
 
 **装了内核包时，整页刷新换成重启目标 home。** 内核包 `@godcreator/gwb-kernel-desktop` 装在 home 里，由启动器在进程启动时加载，主进程里运行着的内核换不掉。内核包和别的包放进同一条 `update`，`specs` 里不放 `cordis`：插件管理装完内核包，自己读它 peer 里 `cordis` 的精确版本号再装那一版，不重新加载任何条目，回执带 `restartRequired: true`。这边停掉目标 home 的进程、用同一个 home 再启动，然后轮询 `shell.env`，直到回执里的 `versions.kernel` 就是这次打包的版本号；报出的是别的版本号当场判失败——那说明启动器加载的不是 home 里装上的那份。装了内核包而回执里没有 `restartRequired` 也判失败。取证照常做。
 
-{/* ref file="../plugins/devkit/src/dev.ts" lines="508-529" */}
+{/* ref file="../plugins/devkit/src/dev.ts" lines="499-520" */}
 
 **最后一步是取证，不是刷新。** 少了它，人看到「装了、刷新了」就会说验过了。三样合起来才能排除那几种「看起来成功了」：装上的就是这次打包的版本号（插件管理对 `file:` 写法不核对版本号，运行着的也可能是上一次的版本）；条目真的是 `ACTIVE`（看的是加载状态，不是条目存在）；日志新增的部分里没有 error（`apply` 里一个 async 调用不报错地 reject，现象正好是「加载了但什么都没发生」，那一条只在日志里）。
 
-{/* ref file="../plugins/devkit/src/dev.ts" lines="651-677" */}
+{/* ref file="../plugins/devkit/src/dev.ts" lines="643-669" */}
 
 **目标用名字指定，端口是查出来的。** 给 `home` 名，端口从那个 home 的 `runtime.json` 里查（内核启动时写的），同时确认进程还在：pid 还活着，且那个 pid 确实在监听记录里的端口。**两边都要核对**：记录回答「你要的是哪个」，页面回答「你连上的实际是哪个」，对不上当场拒——端口会被下一个进程占用，只信记录就会不声不响地把改动装进另一个 home。页面那一边由 `bin/cdp.mjs` 每次连上时核对（页面报不出 home、报的名字对不上都退出码非零），`guardHome` 只再拒两种：`default` 与开发套件自己所在的 home。
 
@@ -86,7 +86,7 @@ description: devkit.dev 一条命令把工作区的改动换进另一个 home �
 
 三样：一次的输入（指定的 home、仓根、包目录、刷新后等哪个选择器、本插件自己所在的 home）、一次的回执（目标 home、打包了哪几个包各是什么版本号、包文件在哪、经 `update` 还是 `install` 装的与 `install` 新建的条目、`update` 的回执原样、刷新结果、取证；装了内核包时没有刷新结果，换成 `kernel`：页面报出的内核版本号与重启的经过），以及取证本身（每个包打包的版本号与装上的版本号、条目表、没在运行的几条、日志新增部分里的 error 与 warn）。
 
-{/* ref file="../plugins/devkit/src/dev.ts" lines="316-371" */}
+{/* ref file="../plugins/devkit/src/dev.ts" lines="307-362" */}
 
 输入里没有「要不要构建」，也没有源地址。**构建是这条流程的必需一步**：产物不是最新的就打包，等于装的是上一版，而回执从头到尾一切正常；开发版不经过任何源。
 
@@ -96,7 +96,7 @@ description: devkit.dev 一条命令把工作区的改动换进另一个 home �
 
 **取证只有 `collect` 这一个函数，而且只在这条流程里调用。** 判断要有基线：哪些 error 是这次自己引起的，只有拿装包之前的日志长度才分得出来。单独看一眼现状的东西不该做成一条命令——它没有基线，看到的 error 可能是几天前的，而人会把它的绿色当成验收通过，那正是这条流程要防的事。
 
-{/* ref file="../plugins/devkit/src/dev.ts" lines="651-659" */}
+{/* ref file="../plugins/devkit/src/dev.ts" lines="643-651" */}
 
 要看一眼某个 home 的条目表，`devkit.cdp {"args":["<名>","cmd","plugin-manager.list"]}` 就行，那是看，不是验证。
 
@@ -112,7 +112,7 @@ description: devkit.dev 一条命令把工作区的改动换进另一个 home �
 | `restartHome` | 装了内核包时停掉目标 home 再启动 | `src/index.ts` 用测试 home 的停止与启动（`bringDownHome`、`launchHome`）接上，调试端口先沿用上次那个 | 记一行调用、可以让它失败 |
 | `pnpm` | 构建、打包时启动的 pnpm 可执行文件 | 命令开头在两个固定位置找到并核对过版本的那个（见[pnpm 与包源](/docs/seams/pnpm-registry)），找不到就不开始 | 一个假路径 |
 
-{/* ref file="../plugins/devkit/src/dev.ts" lines="292-312" */}
+{/* ref file="../plugins/devkit/src/dev.ts" lines="283-303" */}
 
 **CDP 那一项为什么是启动子进程，而不是在进程内连接。** CDP 驱动必须在工作台没运行的时候也能单独用，所以它是零依赖单文件的脚本，不是一个可以 import 的模块。一次流程多启动几次进程，几百毫秒，对一次一分钟左右的流程可以忽略。
 
