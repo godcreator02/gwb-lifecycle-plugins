@@ -31,7 +31,7 @@ devkit 这边：登记命令时 `entry` 指向这个文件（见[工作台服务
 
 {/* ref file="../plugins/devkit/src/dev.ts" lines="597-608" */}
 
-**退出码**：0 是成功。1 有三种：`cmd` 的回执不是 `ok: true`、`reload` 等超时、点不中目标（这三种 stdout 上照样有 JSON）；此外参数错、连不上、home 对不上都是直接抛错，Node 以 1 退出，stdout 上没有 JSON，原因在 stderr。devkit 两样都看：退出码决定 `ok`，JSON 解析不了就是 `undefined`；等不回来就在超时后终止这个子进程的整棵进程树、确认退出了再回：
+**退出码**：0 是成功。1 有三种：`cmd` 的回执不是 `ok: true`、`reload` 等超时、点不中目标（这三种 stdout 上照样有 JSON）；此外参数错、动作不在分类表里、连不上、home 对不上、在 `default` 上做写动作都是直接抛错，Node 以 1 退出，stdout 上没有 JSON，原因在 stderr。devkit 两样都看：退出码决定 `ok`，JSON 解析不了就是 `undefined`；等不回来就在超时后终止这个子进程的整棵进程树、确认退出了再回：
 
 {/* ref file="../plugins/devkit/src/node-dev-deps.ts" lines="43-57" */}
 
@@ -47,6 +47,7 @@ devkit 这边：登记命令时 `entry` 指向这个文件（见[工作台服务
 
 `cdp.mjs` 保证：
 - 第一个位置只收 home 名，连上之后核对页面自报的 home，对不上就不动手
+- 页面自报 `default` 时只做只读动作（`shot`、`home`），写动作与 `--size` 不动手就拒；不在分类表里的动作在哪个 home 上都拒
 - 写磁盘的位置只收完整的绝对路径，不看工作目录，不写进 devkit 包目录与任何 `node_modules`
 - 页面上的命令失败时退出码非零，回执原样放在 `回执` 里
 
@@ -64,7 +65,7 @@ devkit 保证：`devkit.dev` 每一步都按 home 名调它，不传端口；把
 
 ## 测试
 
-`tests/cdp.test.ts` import 那几个纯函数测路径与写磁盘前的检查，不连真页面；连页面的部分没有自动测试。
+`tests/cdp.test.ts` import 那几个纯函数测路径、写磁盘前的检查与 `default` 上的读写分开，不连真页面；连页面的部分没有自动测试。
 
 {/* has file="../plugins/devkit/tests/cdp.test.ts" text="整个文件不读工作目录" */}
 

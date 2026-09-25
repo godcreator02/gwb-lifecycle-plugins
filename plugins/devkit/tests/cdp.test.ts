@@ -5,6 +5,9 @@ import { fileURLToPath } from 'node:url'
 import { describe, expect, it } from 'vitest'
 import {
   PACKAGE_ROOT,
+  READ_ONLY_VERBS,
+  WRITE_VERBS,
+  assertVerbAllowedOn,
   assertWritable,
   evalFileOf,
   homeDirOf,
@@ -15,8 +18,9 @@ import {
 } from '../bin/cdp.mjs'
 
 /**
- * `bin/cdp.mjs` 里决定写到哪里的纯函数。它一概不看工作目录：截图缺省存到被截的那个 home 自己的
- * `out\cdp\`，给输出与 eval 的文件都只收绝对路径，写磁盘的位置不许在本包目录与任何 node_modules 里。
+ * `bin/cdp.mjs` 被 import 时交出的纯函数，管两件事。写磁盘的位置：一概不看工作目录，截图缺省存到被截那个
+ * home 自己的 `out\cdp\`，给输出与 eval 的文件都只收绝对路径，位置不许在本包目录与任何 node_modules 里。
+ * default 上读写分开：只读动作放行，写动作与 --size 在分发之前拒，表外的动作在哪个 home 上都拒。
  */
 
 const SCRIPT = fileURLToPath(new URL('../bin/cdp.mjs', import.meta.url))
@@ -130,6 +134,62 @@ describe('eval 的文件', () => {
 
   it('没给文件也拒', () => {
     expect(() => evalFileOf(undefined)).toThrow(/绝对路径/)
+  })
+})
+
+describe('default 上读写分开', () => {
+  const ISOLATED = 'cdpguard-2609251000'
+
+  it('只读动作对 default 放行', () => {
+    for (const verb of READ_ONLY_VERBS) {
+      expect(() => assertVerbAllowedOn('default', verb, undefined), verb).not.toThrow()
+    }
+  })
+
+  it('写动作对 default 拒，错话写明只许只读、写动作去隔离 home', () => {
+    for (const verb of WRITE_VERBS) {
+      expect(() => assertVerbAllowedOn('default', verb, undefined), verb).toThrow(/default 上只许只读动作[\s\S]*隔离 home/)
+    }
+  })
+
+  it('eval 能执行任意代码，一律算写', () => {
+    expect(WRITE_VERBS.has('eval')).toBe(true)
+    expect(READ_ONLY_VERBS.has('eval')).toBe(false)
+  })
+
+  it('--size 会改 default 页面的视口，只读动作带上它也拒', () => {
+    expect(() => assertVerbAllowedOn('default', 'shot', '900x800')).toThrow(/--size/)
+    expect(() => assertVerbAllowedOn('default', 'shot', 'off')).toThrow(/--size/)
+  })
+
+  it('隔离 home 上读写都放行，--size 也放行', () => {
+    for (const verb of [...READ_ONLY_VERBS, ...WRITE_VERBS]) {
+      expect(() => assertVerbAllowedOn(ISOLATED, verb, undefined), verb).not.toThrow()
+    }
+    expect(() => assertVerbAllowedOn(ISOLATED, 'shot', '900x800')).not.toThrow()
+  })
+
+  it('表外的动作在哪个 home 上都报错，错话要人先分类', () => {
+    for (const home of ['default', ISOLATED]) {
+      expect(() => assertVerbAllowedOn(home, 'navigate', undefined), home).toThrow(/不认得这个动作：navigate[\s\S]*READ_ONLY_VERBS[\s\S]*WRITE_VERBS/)
+      expect(() => assertVerbAllowedOn(home, undefined, undefined), home).toThrow(/不认得这个动作/)
+    }
+  })
+
+  it('两张表不相交，合起来正好是 run() 里分发的全部动作', () => {
+    expect([...READ_ONLY_VERBS].filter((verb) => WRITE_VERBS.has(verb))).toEqual([])
+    const dispatched = [...fs.readFileSync(SCRIPT, 'utf8').matchAll(/^ {4}case '([a-z]+)':/gm)].map((m) => m[1]).sort()
+    expect(dispatched.length).toBeGreaterThan(0)
+    expect([...READ_ONLY_VERBS, ...WRITE_VERBS].sort()).toEqual(dispatched)
+  })
+
+  it('入口在核对 home 之后、视口覆盖与分发之前调用它，传的是页面自报的名字', () => {
+    const source = fs.readFileSync(SCRIPT, 'utf8')
+    const checked = source.indexOf('const pageHome = await assertHome(send)')
+    const guarded = source.indexOf('assertVerbAllowedOn(pageHome, verb, opts.size)')
+    expect(checked).toBeGreaterThan(0)
+    expect(guarded).toBeGreaterThan(checked)
+    expect(guarded).toBeLessThan(source.lastIndexOf('await override(send)'))
   })
 })
 

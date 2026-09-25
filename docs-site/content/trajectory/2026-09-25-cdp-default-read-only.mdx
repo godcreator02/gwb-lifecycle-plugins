@@ -1,0 +1,34 @@
+---
+title: devkit.cdp 对 default 读写分开
+born-at: 2026-09-25T09:57
+type: choice
+parent: [2026-09-08-gwb-devkit]
+label: default 只读
+domain: 测试 home
+---
+
+pivots-from:: [按名字找到一个 home](2026-09-11-address-a-home-by-name.md)
+
+## 背景
+
+`bin/cdp.mjs` 的文件头写着「只对隔离 home 用，绝不用在 default 上」，但代码里没有这道检查：连上之后的 `assertHome` 只核对请求的 home 名和页面自报的名字一致，两边都是 `default` 也放行，之后 `cmd`、`eval`、`type` 这些真实的写操作照做。`devkit.dev` 自己拒绝以 `default` 为目标，可它保护不了直接调 `devkit.cdp`、或者直接用 node 运行这个文件的入口（e71d842 时的状态）。
+
+要决定的是：`default` 上是全部拒，还是分开对待。人定的做法是**读写分开**：只读动作可以对 `default` 执行，会改状态的动作目标是 `default` 就在分发之前拒；判断 `default` 用页面自报的名字而不是请求参数；`eval` 一律算写；分类写成一张明确的集合，不在表里的动作报错，逼加动作的人显式分类。
+
+## 结论与边界
+
+`cdp.mjs` 里两张表：只读 `shot`、`home`；写 `eval`、`move`、`click`、`rclick`、`drag`、`scroll`、`type`、`key`、`cmd`、`reload`。守卫在核对名字之后、视口覆盖与分发之前调用，页面自报 `default` 时写动作直接抛错，报错写明「default 上只许只读动作，写动作请在隔离 home 上做」；表外的动作在哪个 home 上都拒。单测另有一条读源码，查两张表合起来正好是 `run()` 里分发的全部动作，加了 `case` 不登记就红。
+
+分类时拿不准的两处按「会不会改状态由界面决定、脚本判断不了」归到写：悬停 `move` 与滚动 `scroll` 发的是真实输入，会触发页面里的事件处理。`--size` 不是动作，但它改页面视口、外壳会跟着重新排版，所以 `default` 上带了它也拒（包括撤销用的 `--size off`）。
+
+边界：`default` 上因此读不到页面里的值——能读值的只有 `eval`，而它算写；要在 `default` 上看东西只剩截图。`shot` 会把窗口提到前面，这一点照旧放行。
+
+## 否掉的候选
+
+- **`default` 上全部拒**：截图和问 home 不改任何东西，一并拒掉只会让人去绕开这个脚本
+- **按请求参数判断 `default`**：请求的名字与页面自报的名字在 `assertHome` 里已经核对过相等，但判断落在页面自报的那个上，才是「实际连上的是谁」
+- **在 `devkit.cdp` 的命令层（`src/index.ts`）拦**：只挡得住经命令总线的调用，挡不住直接用 node 运行这个文件
+
+## 代价与遗留
+
+`devkit.cdp` 的 `usage` 文字（`src/index.ts`）仍写「只对隔离 home 用，绝不打 default」，比现在的行为更严；这次没改它，等那个文件上别的改动合并时一起改成现状。

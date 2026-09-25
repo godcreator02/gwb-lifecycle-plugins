@@ -30,7 +30,8 @@
 //       断点用（只对这次连接生效，必须跟动作写在同一次调用里，见 override）；
 //       `--timeout <秒>` 一条 CDP 消息等多久（cmd 缺省 900、reload 60、其余 15）。
 //
-// 只对隔离 home 用，绝不用在 default 上：这里发的是真实操作，会真的写数据。
+// default 上只许只读动作（shot / home），别的动作与 `--size` 在分发之前就拒：这里发的是真实操作，会真的写数据。
+// 动作分类见 READ_ONLY_VERBS / WRITE_VERBS，加动作必须登记进其中一张。
 //
 // 内核要这样启动（两个开关缺一不可）：
 //
@@ -610,6 +611,33 @@ async function assertHome(send) {
   if (found.名字 !== home) {
     throw new Error(`你要的是 ${home}，可这个端口上的页面自报是 ${found.名字}——记录过时了。停掉重开那个 home`)
   }
+  return found.名字
+}
+
+/** 日常使用的 home。它上面只许只读动作 */
+const DAILY_HOME = 'default'
+
+/** 不改页面与 home 状态的动作 */
+export const READ_ONLY_VERBS = new Set(['shot', 'home'])
+
+/** 会改状态的动作：真实输入（悬停、滚动也会触发页面逻辑）、执行命令、刷新；eval 能执行任意代码，一律算写 */
+export const WRITE_VERBS = new Set(['eval', 'move', 'click', 'rclick', 'drag', 'scroll', 'type', 'key', 'cmd', 'reload'])
+
+/**
+ * `pageHome` 是页面自报的 home 名（`assertHome` 已核对它等于请求的名字）。表外的动作在哪个 home 上都拒；
+ * `--size` 改的是页面视口，外壳会跟着重排，所以 default 上也拒
+ */
+export function assertVerbAllowedOn(pageHome, verb, sizeSwitch) {
+  if (!READ_ONLY_VERBS.has(verb) && !WRITE_VERBS.has(verb)) {
+    throw new Error(`不认得这个动作：${verb}。每个动作都要登记进 READ_ONLY_VERBS 或 WRITE_VERBS（见文件头的动作表）`)
+  }
+  if (pageHome !== DAILY_HOME) return
+  if (WRITE_VERBS.has(verb)) {
+    throw new Error(`default 上只许只读动作（${[...READ_ONLY_VERBS].join(' / ')}），${verb} 是写动作——写动作请在隔离 home 上做（devkit.home.new）`)
+  }
+  if (sizeSwitch !== undefined) {
+    throw new Error(`default 上只许只读动作，--size 会改页面视口——要换视口尺寸请在隔离 home 上做（devkit.home.new）`)
+  }
 }
 
 // ---------------------------------------------------------------------------
@@ -620,13 +648,17 @@ if (import.meta.main) {
   homeDir = homeDirOf(home, homesRootOf())
   port = portOf(home, homeDir)
   const { ws, send, page } = await connect()
+  let viewportOverridden = false
   try {
-    await assertHome(send)
+    const pageHome = await assertHome(send)
+    assertVerbAllowedOn(pageHome, verb, opts.size)
+    viewportOverridden = opts.size !== undefined && opts.size !== 'off'
     const viewport = await override(send)
     console.log(JSON.stringify({ page: page.title, 在哪个home: home, ...viewport, ...(await run(send, page)) }, null, 2))
   } finally {
-    // 视口覆盖必须自己撤：断开连接不一定还原，页面会卡在那个尺寸上。撤不掉也不能盖住本来要报的错，所以不抛
-    if (opts.size !== undefined && opts.size !== 'off') {
+    // 视口覆盖必须自己撤：断开连接不一定还原，页面会卡在那个尺寸上。撤不掉也不能盖住本来要报的错，所以不抛。
+    // 核对 home 或守卫没过就没发过覆盖，也就不往那个页面发撤销
+    if (viewportOverridden) {
       try {
         await send('Emulation.clearDeviceMetricsOverride')
       } catch {
