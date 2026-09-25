@@ -115,7 +115,7 @@ devkit 没有任何特权：装进 home 才有它的命令，加载不成功就�
 插件管理 `@godcreator/gwb-plugin-manager` 仍是 home 里的普通插件：由 `cordis.yml` 里的一条条目加载、单独发版、用 `plugin-manager.update` 升级。它和 devkit 放在一起，是因为两者互相依赖的地方多（[插件管理迁入 devkit 仓](/trajectory/2026-09-24-plugin-manager-joins-devkit)）：
 
 - `devkit.dev` 打包之后在目标页面里调 `plugin-manager.install` 与 `plugin-manager.update {"specs":{…}}` 装包并重新加载，再用 `plugin-manager.list` 核对；回执 `selfDeferred` 时轮询 `list` 等插件管理自己回来
-- `devkit.home.new` 把内核包、`cordis` 与插件管理等基础插件装进新 home，之后往这个 home 加插件用 `plugin-manager.install`、升内核用 `plugin-manager.update-kernel`
+- `devkit.home.new` 把内核包、`cordis` 与插件管理等基础插件装进新 home，之后往这个 home 加插件用 `plugin-manager.install`、升内核用 `plugin-manager.update {"specs":{"@godcreator/gwb-kernel-desktop":"<版本>"}}`
 - 插件 peer 里内核包的范围两边都用：插件管理在 `list` 里拿它和运行中的内核比对，`devkit.release` 发版前拒绝没写对的插件包。比对规则只有一份，在插件管理的 `src/kernel-compat.ts`；devkit 的 peer 里写着插件管理，从它的主入口 import 这套规则，连同找 pnpm 的 `locatePnpm`（[两个插件删掉用不上的机制](/trajectory/2026-09-25-drop-unused-machinery)）
 
 {/* has file="../plugins/devkit/src/release.ts" text="import { KERNEL_PACKAGE, isCaretRange, kernelRangeCovers } from '@godcreator/gwb-plugin-manager'" */}

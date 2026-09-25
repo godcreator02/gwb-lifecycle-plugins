@@ -25,13 +25,13 @@ description: 连接 devkit 与插件管理：devkit 从插件管理的主入口 
 
 插件管理这边的两条命令：
 
-{/* ref file="../plugins/plugin-manager/src/index.ts" lines="305-314" */}
+{/* ref file="../plugins/plugin-manager/src/index.ts" lines="226-234" */}
 
-{/* ref file="../plugins/plugin-manager/src/index.ts" lines="364-372" */}
+{/* ref file="../plugins/plugin-manager/src/index.ts" lines="285-290" */}
 
-`specs` 的规则在插件管理的 `planSpecsUpdate`：包必须已在 home 的 `dependencies` 里，只给 cordis 不给内核包直接报错，写法原样交给 pnpm：
+`specs` 的规则在插件管理的 `planSpecsUpdate`：包必须已在 home 的 `dependencies` 里，写了 `cordis` 直接报错，写法原样交给 pnpm：
 
-{/* ref file="../plugins/plugin-manager/src/update.ts" lines="112-141" */}
+{/* ref file="../plugins/plugin-manager/src/update.ts" lines="114-143" */}
 
 `plugin-manager.list` 的回执由 devkit 自己解析：回执的 `data` 就是包的数组，按 `pkg` 找包，读每条条目的 `entryId` 与 `active`，一个包的**全部**条目都算进取证；这次装的插件在表里一条条目都没有，取证判失败：
 
@@ -49,9 +49,9 @@ description: 连接 devkit 与插件管理：devkit 从插件管理的主入口 
 
 **三、devkit 从插件管理的主入口 import 几个函数与三条命令的名字。** 找 pnpm 的 `locatePnpm`、内核包名 `KERNEL_PACKAGE`、peer 范围的判定 `isCaretRange` / `kernelRangeCovers`、取输出最后几行的 `tailLines`，规则只有插件管理里这一份；`devkit.dev` 调的命令名 `LIST_COMMAND`、`INSTALL_COMMAND`、`UPDATE_COMMAND` 也从这里取。devkit 的 peer 里写着插件管理（仓里写 `workspace:^`，`devkit.release` 发版时写成 `^<插件管理的版本号>`），home 里 pnpm 把它解析到装着的那一份：
 
-{/* ref file="../plugins/plugin-manager/src/index.ts" lines="50-52" */}
+{/* ref file="../plugins/plugin-manager/src/index.ts" lines="42-44" */}
 
-{/* ref file="../plugins/plugin-manager/src/index.ts" lines="65-73" */}
+{/* ref file="../plugins/plugin-manager/src/index.ts" lines="54-56" */}
 
 {/* ref file="../plugins/devkit/package.json" lines="38-45" */}
 
@@ -60,7 +60,7 @@ description: 连接 devkit 与插件管理：devkit 从插件管理的主入口 
 插件管理保证：
 - `plugin-manager.list` 按包列出，每条条目有完整 `entryId` 与 `active`
 - `plugin-manager.install` 收 `{ pkg, spec }`，`spec` 可以是 `file:` 写法，成功回 `{ ok, pkg, entryId }`
-- `plugin-manager.update` 收 `{ specs }`：一次 `pnpm add`、写准确版本号；重新加载这些包的条目与真实目录变了的别的包；插件管理自己的条目推迟到回执之后（回执 `selfDeferred: true`，那条条目的 `action` 是 `deferred`）；`specs` 不整页重载；有内核包时不重新加载任何条目、回执 `restartRequired: true`
+- `plugin-manager.update` 收 `{ specs }`：一次 `pnpm add --save-exact`；重新加载这些包的条目与真实目录变了的别的包；插件管理自己的条目推迟到回执之后（回执 `selfDeferred: true`，那条条目的 `action` 是 `deferred`）；不整页重新加载；有内核包时照装上的内核包 peer 对齐 `cordis`、不重新加载任何条目，回执带 `restartRequired`（装上的内核版本与正在运行的不同时是 `true`）
 - 改这三条命令的名字、参数或回执形状算破坏性变更：升版本号的 x、先通知下游（写在本仓 AGENTS 的「本仓还有插件管理」）
 - 主入口导出的那几个函数是纯函数（`locatePnpm` 只读磁盘、运行一次 `pnpm --version`），删改它们的名字或签名同样是破坏性变更
 

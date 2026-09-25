@@ -1,0 +1,41 @@
+---
+title: 插件管理 0.13.0：升内核只走 update 的 specs、整页重新加载交给调用方、回执只有一层 ok、home 清单一律写精确版本号
+born-at: 2026-09-25T18:30
+type: choice
+parent: [2026-09-08-gwb-devkit]
+label: 升内核并进 specs
+domain: 插件管理
+---
+
+## 背景
+
+插件管理 0.12.1 有两条路换内核：`plugin-manager.update-kernel` 先装内核包、再读装上的内核包 `peerDependencies.cordis` 对齐 `cordis`；`plugin-manager.update` 的 `specs` 也能带内核包与 `cordis`，但不读内核包 peer，`cordis` 写哪个版本由调用方负责。`devkit.dev` 开发内核时走的是后一条，自己从打好的内核包清单里取 peer 里的 `cordis` 塞进 `specs`。同一件事两套规则，谁对齐 `cordis` 各说各的。
+
+整页重新加载也不统一：`update` 的 `all` / `only` 升完插件管理自己调外壳的 `shell.reload`，`specs` 不调、由调用方刷新（理由见 [update 显式 all 加 specs](2026-09-25-update-takes-all-param.md)）。回执外层是命令总线的 `{ ok, data, error }`，`data` 里又有一份 `ok` / `error` / `tail`，两层 `ok` 要调用方自己挑一层看。home 清单的写法也不一：`install` 与 `all` / `only` 写 `^` 范围，`specs` 与 `update-kernel` 写精确版本号——这一条原先记在未来区「还没做的四件事」里。
+
+pivots-from:: [update 显式 all 加 specs](2026-09-25-update-takes-all-param.md)
+pivots-from:: [清单里原来写 ^ 时 pnpm add 照样装上更新的预发布版](2026-09-24-pnpm-add-keeps-caret.md)
+pivots-from:: [内核包与 cordis 不进 list](2026-09-25-kernel-packages-out-of-list.md)
+
+## 结论与边界
+
+主会话定稿，插件管理 0.13.0（破坏性）一次做完：
+
+- **升内核只走 `update {"specs":{...}}`**，删掉 `update-kernel`。`specs` 里有内核包时，内核包与其余包一次 `pnpm add --save-exact`；插件管理自己读装上的内核包 `peerDependencies.cordis`（必须是精确版本号），再 `pnpm add --save-exact cordis@<那个版本>` 并核对；不重新加载任何条目。回执带 `restartRequired`（装上的内核版本不等于正在运行的）与 `pluginsOutsideRange`（原 `update-kernel` 的检查搬过来）。`specs` 里写 `cordis` 直接报错。升到最新写 `latest`
+- **整页重新加载交给调用方**：删回执字段 `reload` 与插件管理对 `shell.reload` 的调用。本插件自己的条目仍在回执之后重新加载（`selfDeferred` 保留）。窗格拿到回执后自己调 `shell.reload`；`devkit.dev` 本来就自己刷新；agent 经 MCP 升级完调 `shell.reload`
+- **回执只有一层 ok**：命令外层 `{ ok, data?, error? }` 不变，`data` 只放成功结果；失败时 pnpm 输出的最后几行拼进外层 `error`。失败时确实要带的结构化字段逐个说明：`remount` 失败的 `data`，`specs` 里有内核包、内核包装上了而 `cordis` 没对齐时的 `data.kernel`
+- **home 清单一律写精确版本号**：`install` 与 `update` 的三种参数都带 `--save-exact`；`install` 拒绝已在 home dependencies 里的包，报错指向 `add-entry`（再挂一条）与 `update {"specs":...}`（换版本）
+- 一并删掉没人用的参数与字段：`search` 的 `scope` 参数与回执每行的 `keywords`、`uninstall` 回执的 `removedEntries`、`add-entry` 的 `config`、`transfer-owner` 回执的 `data` / `settings`（缺数据插件或设置插件直接报错）；主入口只留 devkit 实际 import 的几样
+
+边界：`list`、`outdated`、`remount`、启停与增删条目、`source.*` 的形状不变；`all` / `only` 仍不核对装上的版本号（版本号来自 `outdated`，清单一律精确之后不再有 `^` 留下的偏差）。未来区那一节随之删掉，页标题改成三件事。
+
+## 否掉的候选
+
+- **只留 `update-kernel`，`specs` 不收内核包**：原话「devkit 开发内核时要把内核包和插件一次装完再重启，拆两条命令先后都不对」（上下文：`devkit.dev` 开发内核时，一次交给插件管理的包里既有内核开发版也有插件开发版，装完重启那个 home 一次）
+- **插件管理总在回执之后整页重新加载**（`all` / `only` / `specs` 一样，推迟到回执发出以后）：原话「和 devkit 等页面回来有先后竞争」（上下文：`devkit.dev` 拿到回执后自己刷新目标页面、等它回来再取证）
+
+## 代价与遗留
+
+调用方都要跟：devkit 0.22.0 不再往 `specs` 里放 `cordis`；界面插件的插件管理窗格改调 `update` 并自己 `shell.reload`、按一层 `ok` 读回执；MCP 入口说明、内核仓 INSTALL 与开发页把 `update-kernel` 改成 `specs` 写法。下游跟上之前别把 0.13.0 升进 default（照说明书 gwb-release 第四节）。
+
+回执类型不再从主入口导出，调用方照命令的 `usage` 读回执；这与规矩页「命令的参数和返回值类型由提供方导出」不一致，是有意收窄主入口的代价（无物证，写卡时的判断）。

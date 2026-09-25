@@ -64,9 +64,9 @@ describe('planOutdatedUpdate：一次 pnpm add，精确版本', () => {
 describe('assertOnlyNotKernelManaged：内核包与 cordis 热升级不了', () => {
   const KERNEL = '@godcreator/gwb-kernel-desktop'
 
-  it('only 点了它们的名：抛错、说出是哪几个、指向 update-kernel', () => {
+  it('only 点了它们的名：抛错、说出是哪几个、指向 specs 写法', () => {
     expect(() => assertOnlyNotKernelManaged([HELLO, KERNEL, 'cordis'])).toThrow(`only 里的 ${KERNEL}、cordis 由内核决定版本`)
-    expect(() => assertOnlyNotKernelManaged([KERNEL])).toThrow('plugin-manager.update-kernel')
+    expect(() => assertOnlyNotKernelManaged([KERNEL])).toThrow(`plugin-manager.update {"specs":{"${KERNEL}"`)
   })
 
   it('only 没点它们：不抛', () => {
@@ -176,10 +176,10 @@ describe('planSpecsUpdate：给已装的包按给定写法装', () => {
     expect(plan.includesKernel).toBe(false)
   })
 
-  it('有内核包（可以连同 cordis）：includesKernel 为真', () => {
-    const plan = planSpecsUpdate({ [KERNEL]: '0.6.1-dev.1', cordis: '4.0.0-rc.11', [HELLO]: 'latest' }, homeDependencies, store, 'home:plugin-manager')
+  it('有内核包：includesKernel 为真', () => {
+    const plan = planSpecsUpdate({ [KERNEL]: '0.6.1-dev.1', [HELLO]: 'latest' }, homeDependencies, store, 'home:plugin-manager')
     expect(plan.includesKernel).toBe(true)
-    expect(plan.addSpecs).toEqual([`${KERNEL}@0.6.1-dev.1`, `${HELLO}@latest`, 'cordis@4.0.0-rc.11'])
+    expect(plan.addSpecs).toEqual([`${KERNEL}@0.6.1-dev.1`, `${HELLO}@latest`])
   })
 
   it('包不在 home 的 dependencies 里：直接抛错，说出是哪几个、指向 install', () => {
@@ -189,8 +189,9 @@ describe('planSpecsUpdate：给已装的包按给定写法装', () => {
     expect(() => planSpecsUpdate({ '@x/gwb-new': '1.0.0' }, homeDependencies, store, 'home:plugin-manager')).toThrow('plugin-manager.install')
   })
 
-  it('只给 cordis 不给内核包：直接抛错，指向 update-kernel', () => {
-    expect(() => planSpecsUpdate({ cordis: '4.0.0-rc.11' }, homeDependencies, store, 'home:plugin-manager')).toThrow('plugin-manager.update-kernel')
+  it('写了 cordis（带不带内核包都一样）：直接抛错，cordis 由插件管理照装上的内核包对齐', () => {
+    expect(() => planSpecsUpdate({ cordis: '4.0.0-rc.11' }, homeDependencies, store, 'home:plugin-manager')).toThrow('specs 里不写 cordis')
+    expect(() => planSpecsUpdate({ [KERNEL]: '0.6.1', cordis: '4.0.0-rc.11' }, homeDependencies, store, 'home:plugin-manager')).toThrow('specs 里不写 cordis')
   })
 
   it('包名或写法不合规：直接抛错', () => {

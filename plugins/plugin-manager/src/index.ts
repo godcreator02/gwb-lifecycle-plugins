@@ -1,6 +1,6 @@
 import os from 'node:os'
-import type { GwbContext, GwbResult } from '@godcreator/gwb-kernel-desktop'
-import { isRecord, noteOf, requireKernel } from './vocab.js'
+import type { GwbContext } from '@godcreator/gwb-kernel-desktop'
+import { isRecord, noteOf, requireKernel, type Outcome } from './vocab.js'
 // 这几条 type import 只为引入对方的 `declare module 'cordis'`（commands 另取一个类型）；这些插件写在 peer 里，数据、设置、说明书标 optional，都经嵌套注入使用
 import type { GwbCommands } from '@godcreator/gwb-commands'
 import type {} from '@godcreator/gwb-data'
@@ -38,22 +38,10 @@ import { CORDIS_PACKAGE, installedVersionMismatch, KERNEL_MANAGED_PACKAGES, kern
 import { declaredPluginPeers, peerStatusOf } from './peers.js'
 import { addSource, listSources, removeSource, searchPlugins, type PackageSourcesDeps } from './package-sources.js'
 
-export type { EntrySnapshot, PluginPackageView } from './inventory.js'
-export type { RemountedEntry } from './remount.js'
-export type { KernelCompatStatus } from './kernel-compat.js'
-export type { VersionChange } from './kernel-upgrade.js'
-export type { PeerStatus, UnmetPeer } from './peers.js'
-export type { SearchReceipt, SourceAddResult, SourceListResult, SourceRemoveResult, SourceReport } from './package-sources.js'
-export type { SearchRow } from './search.js'
-export type { UpdateArgs } from './update.js'
-
 // 开发套件复用的规则：它 import 这几个，不另存一份
 export { locatePnpm } from './pnpm-location.js'
-export { caretRangeCovers, declaredKernelRange, isCaretRange, KERNEL_PACKAGE, kernelRangeCovers } from './kernel-compat.js'
+export { isCaretRange, KERNEL_PACKAGE, kernelRangeCovers } from './kernel-compat.js'
 export { tailLines } from './pnpm.js'
-
-/** 外壳的整页重载命令。按命令名查找，不 import 外壳的常量：那会让外壳成为运行时依赖 */
-const SHELL_RELOAD_COMMAND = 'shell.reload'
 
 const NAME = 'gwb-plugin-manager'
 
@@ -65,20 +53,23 @@ const BUSY_USAGE_NOTE = '同一时刻只允许一个变更，重入回 { ok:fals
 
 export const LIST_COMMAND = 'plugin-manager.list'
 export const INSTALL_COMMAND = 'plugin-manager.install'
-export const ADD_ENTRY_COMMAND = 'plugin-manager.add-entry'
-export const REMOVE_ENTRY_COMMAND = 'plugin-manager.remove-entry'
-export const ENABLE_COMMAND = 'plugin-manager.enable'
-export const DISABLE_COMMAND = 'plugin-manager.disable'
-export const REMOUNT_COMMAND = 'plugin-manager.remount'
-export const OUTDATED_COMMAND = 'plugin-manager.outdated'
 export const UPDATE_COMMAND = 'plugin-manager.update'
-export const UPDATE_KERNEL_COMMAND = 'plugin-manager.update-kernel'
-export const UNINSTALL_COMMAND = 'plugin-manager.uninstall'
-export const TRANSFER_OWNER_COMMAND = 'plugin-manager.transfer-owner'
-export const SEARCH_COMMAND = 'plugin-manager.search'
-export const SOURCE_ADD_COMMAND = 'plugin-manager.source.add'
-export const SOURCE_LIST_COMMAND = 'plugin-manager.source.list'
-export const SOURCE_REMOVE_COMMAND = 'plugin-manager.source.remove'
+const ADD_ENTRY_COMMAND = 'plugin-manager.add-entry'
+const REMOVE_ENTRY_COMMAND = 'plugin-manager.remove-entry'
+const ENABLE_COMMAND = 'plugin-manager.enable'
+const DISABLE_COMMAND = 'plugin-manager.disable'
+const REMOUNT_COMMAND = 'plugin-manager.remount'
+const OUTDATED_COMMAND = 'plugin-manager.outdated'
+const UNINSTALL_COMMAND = 'plugin-manager.uninstall'
+const TRANSFER_OWNER_COMMAND = 'plugin-manager.transfer-owner'
+const SEARCH_COMMAND = 'plugin-manager.search'
+const SOURCE_ADD_COMMAND = 'plugin-manager.source.add'
+const SOURCE_LIST_COMMAND = 'plugin-manager.source.list'
+const SOURCE_REMOVE_COMMAND = 'plugin-manager.source.remove'
+
+/** 数据插件与设置插件的包名：转移归属时两个都要装着 */
+const DATA_PACKAGE = '@godcreator/gwb-data'
+const SETTINGS_PACKAGE = '@godcreator/gwb-settings'
 
 /**
  * 服务 `gwbPluginManager` 的值：只表示插件管理装了（别的插件 inject 它，跟着它一起加载、卸载），上面没有字段。
@@ -88,37 +79,8 @@ export type PluginManagerPresence = Record<string, never>
 
 const PRESENCE: PluginManagerPresence = {}
 
-/** 转移归属的回执。`data` / `settings` 是 false 说明对应的插件没装、那部分没有处理 */
-export interface TransferOwnerResult {
-  id: string
-  pkg: string
-  data: boolean
-  settings: boolean
-}
-
-/** 安装的回执 */
-export interface InstallResult {
-  ok: boolean
-  pkg: string
-  /** 成功才有：新加条目的完整 entryId */
-  entryId?: string
-  /** 失败时的原因 */
-  error?: string
-  /** pnpm 失败时输出的最后几行，失败原因在里面 */
-  tail?: string
-}
-
-/** 查新版本的回执 */
-export interface OutdatedReceipt {
-  ok: boolean
-  /** 成功才有：包名 → 新旧版本信息。**空对象 = 全都最新**，与「查询失败」区分开 */
-  updates?: Record<string, UpdateInfo>
-  /** 失败时的原因 */
-  error?: string
-}
-
 /** `update` 装了的一个包 */
-export interface UpdatedPackage {
+interface UpdatedPackage {
   pkg: string
   /** 装之前 home 里的版本号；`specs` 装之前 node_modules 里读不到它的清单时没有这个字段 */
   from?: string
@@ -129,66 +91,30 @@ export interface UpdatedPackage {
 }
 
 /** `update` 中没升级、但 pnpm add 前后真实目录变了，跟着重新加载的一个包 */
-export interface DependentPackage {
+interface DependentPackage {
   pkg: string
   /** 它的每条条目各自的处理结果 */
   entries: RemountedEntry[]
 }
 
-/** `update` 的回执 */
-export interface UpdateResult {
-  ok: boolean
-  /** 装了的包。pnpm 失败时为空——没有装任何包、没有改动任何条目 */
+/** `update` 成功的回执 */
+interface Updated {
+  /** 装了的包；specs 里有内核包时末尾还有插件管理自己对齐的 cordis */
   updated: UpdatedPackage[]
-  /** 跟着重新加载的包，在 `updated` 之后处理。没有、或 pnpm 失败时为空 */
+  /** 跟着重新加载的包，在 `updated` 之后处理 */
   dependents: DependentPackage[]
-  /** 本插件自己在升级或跟着重新加载的包里：它的条目在回执发出后才重新加载，重新加载完再整页重载 */
+  /** 本插件自己在升级或跟着重新加载的包里：它的条目在回执发出后才重新加载 */
   selfDeferred: boolean
-  /**
-   * 整页重载是否执行：`done` 表示 `shell.reload` 已经执行；`deferred` 表示等本插件自己重新加载完再执行；
-   * `unavailable` 表示命令表里没有它（或它执行失败），界面要手动刷新——原因在 `note` 里。
-   * 没有升级任何包、给的是 specs（不整页重载，页面由调用方刷新）或整体失败时，没有这个字段
-   */
-  reload?: 'done' | 'deferred' | 'unavailable'
-  /** 只在 `specs` 里有内核包时出现：主进程里的内核换不掉，这次没有重新加载任何条目，重启工作台后才生效 */
-  restartRequired?: true
-  /** 需要提醒的情况：全都最新、only 里列出但已是最新的包、界面要手动刷新、要重启 */
-  note?: string
-  /** 失败时的原因 */
-  error?: string
-  /** pnpm 失败时输出的最后几行，失败原因在里面 */
-  tail?: string
-}
-
-/** 升内核的回执 */
-export interface UpdateKernelResult {
-  ok: boolean
-  /** 成功时有；装 cordis 失败时也有（内核包已经装上了） */
-  kernel?: VersionChange
-  /** 成功才有 */
-  cordis?: VersionChange
-  /** 成功才有：主进程里的内核换不掉，重启工作台后才生效 */
+  /** 只在 specs 里有内核包时出现：装上的内核版本与正在运行的不同，重启工作台后才生效 */
   restartRequired?: boolean
-  /** 成功才有：home 里 peer 范围不包含新内核（或没写范围）的插件，按包名排 */
+  /** 只在 specs 里有内核包时出现：home 里 peer 范围不包含新内核（或没写范围）的插件，按包名排 */
   pluginsOutsideRange?: string[]
+  /** 需要提醒的情况：全都最新、only 里列出但已是最新的包、要不要重启 */
   note?: string
-  /** 失败时的原因 */
-  error?: string
-  /** pnpm 失败时输出的最后几行，失败原因在里面 */
-  tail?: string
 }
 
-/** 卸载的回执 */
-export interface UninstallResult {
-  ok: boolean
-  pkg: string
-  /** 成功才有：这次随包一起删除的条目（不带前缀的 id），供界面显示数量 */
-  removedEntries?: string[]
-  /** 失败时的原因 */
-  error?: string
-  /** pnpm 失败时输出的最后几行，失败原因在里面 */
-  tail?: string
-}
+/** specs 里有内核包、内核包已经装上而 cordis 没对齐时的失败回执：`data.kernel` 是已经装上的内核版本 */
+type KernelInstalledButCordisNot = { ok: false; error: string; data: { kernel: VersionChange } }
 
 /** 数据插件与设置插件各有一份的归属记录（id → 包），`ctx.gwbData` 与 `ctx.gwbSettings` 都满足它 */
 interface OwnerBook {
@@ -224,8 +150,6 @@ class PluginManager {
   private dataOwnerBook: OwnerBook | undefined
   /** 装了设置插件才有 */
   private settingsOwnerBook: OwnerBook | undefined
-  /** 命令插件存在才有。一键热升级用它执行 `shell.reload`，包括本插件自己重新加载之后那一次 */
-  private commandBus: GwbCommands | undefined
 
   private readonly busyGate = new BusyGate()
 
@@ -279,10 +203,6 @@ class PluginManager {
       const commandBus = ctx.gwbCommands
       // inject 保证了它在，这句只是把类型收窄
       if (commandBus === undefined) return
-      this.commandBus = commandBus
-      ctx.effect(() => () => {
-        this.commandBus = undefined
-      })
       const registerCommand: RegisterCommand = (name, description, usage, handler) => {
         commandBus.register({ name, description, usage, plugin: PKG }, handler)
       }
@@ -294,98 +214,87 @@ class PluginManager {
     })
   }
 
-  /** 改 home 里的包与条目的命令；安装、卸载、一键热升级、升内核、重新加载经过 BUSY 检查 */
+  /** 改 home 里的包与条目的命令；安装、卸载、升级、重新加载经过 BUSY 检查 */
   private registerHomeCommands(registerCommand: RegisterCommand, registerBusyGuardedCommand: RegisterCommand): void {
     registerCommand(
       LIST_COMMAND,
       'home 里装了哪些包（内核包与 cordis 除外）、各有哪些条目、有没有 peer 范围不包含当前内核或 peer 里写的别的包没满足的',
-      `回执按包列，不列内核包 ${KERNEL_PACKAGE} 与 ${CORDIS_PACKAGE}（它们没有条目、由 ${UPDATE_KERNEL_COMMAND} 管）：包名、spec、条目（id、entryId、启停、是否 ACTIVE）、kernelRange（包的 package.json 里 peerDependencies["${KERNEL_PACKAGE}"] 写的范围，没写时没有这个字段）、kernelUntested（只标插件——keywords 含 gwb-plugin 的包：范围不包含运行中的内核就是 true，没写、写的不是 ^x.y.z 也算；别的包与清单读不到的包一律 false；^x.y.z 在主版本号为 0 时要求次版本号相同，≥1 时要求主版本号相同，并且不低于 x.y.z）、unmetPeers（只看插件 peer 里除了内核包与 ${CORDIS_PACKAGE} 之外的包，home 里没满足的列成 [{ pkg, range, installed? }]：没装（没有 installed 字段；peerDependenciesMeta 里 optional: true 的没装不算）、装着的版本不在范围里、或范围不是 ^x.y.z，range 原样照抄，范围规则同上；每个包都有这个字段，不是插件、清单读不到、全都满足时是空数组）。只报告，不拦加载。无参数`,
+      `回执按包列，不列内核包 ${KERNEL_PACKAGE} 与 ${CORDIS_PACKAGE}（它们没有条目；内核包经 ${UPDATE_COMMAND} 的 specs 换，cordis 随它对齐）：包名、spec、条目（id、entryId、启停、是否 ACTIVE）、kernelRange（包的 package.json 里 peerDependencies["${KERNEL_PACKAGE}"] 写的范围，没写时没有这个字段）、kernelUntested（只标插件——keywords 含 gwb-plugin 的包：范围不包含运行中的内核就是 true，没写、写的不是 ^x.y.z 也算；别的包与清单读不到的包一律 false；^x.y.z 在主版本号为 0 时要求次版本号相同，≥1 时要求主版本号相同，并且不低于 x.y.z）、unmetPeers（只看插件 peer 里除了内核包与 ${CORDIS_PACKAGE} 之外的包，home 里没满足的列成 [{ pkg, range, installed? }]：没装（没有 installed 字段；peerDependenciesMeta 里 optional: true 的没装不算）、装着的版本不在范围里、或范围不是 ^x.y.z，range 原样照抄，范围规则同上；每个包都有这个字段，不是插件、清单读不到、全都满足时是空数组）。只报告，不拦加载。无参数`,
       () => this.list(),
     )
 
     registerBusyGuardedCommand(
       INSTALL_COMMAND,
-      '往 home 装一个包并加一条条目',
-      `一次 pnpm add 把包装进 home，再加一条条目（默认启用）。不装它的 peer，也不判断是不是库：装了没有 apply 的包，条目加载失败，在 plugin-manager.list 里看得到。回执 { ok, pkg, entryId?, error?, tail? }。参数 { pkg, spec? }（spec 是版本或 tag）；${BUSY_USAGE_NOTE}`,
+      '往 home 装一个还没装的包并加一条条目',
+      `一次 pnpm add --save-exact 把包装进 home（home 的 package.json 里写精确版本号），再加一条条目（默认启用）。包已在 home 的 dependencies 里直接报错：再加一条条目用 ${ADD_ENTRY_COMMAND}，换版本用 ${UPDATE_COMMAND} {"specs":{…}}。不装它的 peer，也不判断是不是库：装了没有 apply 的包，条目加载失败，在 ${LIST_COMMAND} 里看得到。回执 data { pkg, entryId }；失败时 error 里带 pnpm 输出的最后几行。参数 { pkg, spec? }（spec 是版本或 tag）；${BUSY_USAGE_NOTE}`,
       async (args) => {
-        const argsObject = argsObjectOf(args)
-        const result = await this.install(requiredString(argsObject, 'pkg'), optionalString(argsObject, 'spec'))
-        return receiptWithPnpmTail(result)
+        const argsObject = argsObjectOf(args, ['pkg', 'spec'])
+        return this.install(requiredString(argsObject, 'pkg'), optionalString(argsObject, 'spec'))
       },
     )
 
-    registerCommand(ADD_ENTRY_COMMAND, '给已装的包再加一条条目', '参数 { pkg, id?, config? }。不给 id 就自动生成（磁盘上有本包留下的旧 id 时优先沿用）；给的 id 在条目树上已被占用、或磁盘上的数据与设置属于别的包，直接拒绝', async (args) => {
-      const argsObject = argsObjectOf(args)
-      const entryId = await this.addEntry(requiredString(argsObject, 'pkg'), optionalString(argsObject, 'id'), argsObject['config'])
+    registerCommand(ADD_ENTRY_COMMAND, '给已装的包再加一条条目', '参数 { pkg, id? }。不给 id 就自动生成（磁盘上有本包留下的旧 id 时优先沿用）；给的 id 在条目树上已被占用、或磁盘上的数据与设置属于别的包，直接拒绝。回执 data { entryId }', async (args) => {
+      const argsObject = argsObjectOf(args, ['pkg', 'id'])
+      const entryId = await this.addEntry(requiredString(argsObject, 'pkg'), optionalString(argsObject, 'id'))
       return { ok: true, data: { entryId } }
     })
 
     registerCommand(
       TRANSFER_OWNER_COMMAND,
       '把一个 id 的数据与设置的归属转给另一个包',
-      '同一个插件改了包名、要继续用旧数据与设置时调用它；数据目录与设置分区的归属一起改。参数 { id, pkg }：id 是条目 id（不带前缀的 id 或完整 entryId，条目树上不必有这条），pkg 是新的所属包名。回执 { id, pkg, data, settings }，data / settings 是 false 说明对应的插件（gwb-data / gwb-settings）没装、那一半没改',
+      `同一个插件改了包名、要继续用旧数据与设置时调用它；数据目录与设置分区的归属一起改。数据插件（${DATA_PACKAGE}）与设置插件（${SETTINGS_PACKAGE}）都要装着，缺一个直接报错、哪一份都不转。参数 { id, pkg }：id 是条目 id（不带前缀的 id 或完整 entryId，条目树上不必有这条），pkg 是新的所属包名。回执 data { id, pkg }`,
       async (args) => {
-        const argsObject = argsObjectOf(args)
+        const argsObject = argsObjectOf(args, ['id', 'pkg'])
         return { ok: true, data: await this.transferOwner(requiredString(argsObject, 'id'), requiredString(argsObject, 'pkg')) }
       },
     )
 
     registerCommand(REMOVE_ENTRY_COMMAND, '删一条条目（不删包）', '参数 { entryId }', (args) => {
-      this.removeEntry(requiredString(argsObjectOf(args), 'entryId'))
+      this.removeEntry(requiredString(argsObjectOf(args, ['entryId']), 'entryId'))
       return { ok: true }
     })
 
     registerCommand(ENABLE_COMMAND, '启用一条条目', '参数 { entryId }', async (args) => {
-      await this.enable(requiredString(argsObjectOf(args), 'entryId'))
+      await this.enable(requiredString(argsObjectOf(args, ['entryId']), 'entryId'))
       return { ok: true }
     })
 
     registerCommand(DISABLE_COMMAND, '停用一条条目', '参数 { entryId }', async (args) => {
-      await this.disable(requiredString(argsObjectOf(args), 'entryId'))
+      await this.disable(requiredString(argsObjectOf(args, ['entryId']), 'entryId'))
       return { ok: true }
     })
 
     registerBusyGuardedCommand(
       REMOUNT_COMMAND,
       '重新加载一条条目：停用→等卸载完→启用→等加载完，一条命令做完',
-      `参数 { entryId }（完整 entryId 或不带前缀的 id）。回执 { id, action, state }：action 是 remounted（在这条命令里做完，state 是重新加载后的 fiber 状态，ACTIVE 才算加载成功）或 deferred（目标是插件管理自己：先返回回执，下一个宏任务才重新加载，state 是动手前的状态，之后用 plugin-manager.list 核对 active）；操作条目树时抛错则回 ok: false，data 里 action 是 failed。原本停用的条目重新加载后是启用的；重新加载命令插件（gwb-commands）也在这条命令里做完；${BUSY_USAGE_NOTE}`,
+      `参数 { entryId }（完整 entryId 或不带前缀的 id）。回执 { id, action, state }：action 是 remounted（在这条命令里做完，state 是重新加载后的 fiber 状态，ACTIVE 才算加载成功）或 deferred（目标是插件管理自己：先返回回执，下一个宏任务才重新加载，state 是动手前的状态，之后用 ${LIST_COMMAND} 核对 active）；操作条目树时抛错则回 ok: false，data 里 action 是 failed。原本停用的条目重新加载后是启用的；重新加载命令插件（gwb-commands）也在这条命令里做完；${BUSY_USAGE_NOTE}`,
       async (args) => {
-        const result = await this.remount(requiredString(argsObjectOf(args), 'entryId'))
+        const result = await this.remount(requiredString(argsObjectOf(args, ['entryId']), 'entryId'))
         if (result.action === 'failed') return { ok: false, error: `条目 ${result.id} 重新加载失败：${result.state}`, data: result }
         return { ok: true, data: result }
       },
     )
 
-    registerCommand(OUTDATED_COMMAND, '查已装的包哪些有新版本', `pnpm outdated。回执 { ok, updates: { 包名: { current, latest } } }，空对象表示全都最新；不含内核包 ${KERNEL_PACKAGE} 与 ${CORDIS_PACKAGE}（热升级不了，用 ${UPDATE_KERNEL_COMMAND} 升）。无参数`, async () => {
-      const result = await this.outdated()
-      if (result.ok) return { ok: true, data: result }
-      return { ok: false, error: result.error ?? '没有给出原因' }
-    })
+    registerCommand(
+      OUTDATED_COMMAND,
+      '查已装的包哪些有新版本',
+      `pnpm outdated。回执 data { updates: { 包名: { current, latest } } }，空对象表示全都最新；不含内核包 ${KERNEL_PACKAGE} 与 ${CORDIS_PACKAGE}（热升级不了，内核包用 ${UPDATE_COMMAND} 的 specs 换）。无参数`,
+      () => this.outdated(),
+    )
 
     registerBusyGuardedCommand(
       UPDATE_COMMAND,
-      '热升级 home 里已装的包（全部过期的、点名的几个、或按给定写法装），不重启',
-      `${UPDATE_ARGS_USAGE}。all 与 only：一次 pnpm add 把过期包升到 outdated 返回的精确版本；specs：一次 pnpm add 每项 <包名>@<写法>、带 --save-exact，不查 outdated；写法是准确版本号的，装完读 node_modules 里的清单核对，装上的不是那个号就回 ok: false、一条条目都不重新加载（tag 与 file: 不核对）。装完逐条停用→启用，重新加载成新版本（原本停用的跳过；插件管理自己那条在回执发出后才重新加载），all 与 only 最后 shell.reload 整页重新加载；specs 不整页重载（shell.reload 同步重载页面，经页面调用的调用方收不到回执），回执没有 reload，页面由调用方刷新。pnpm add 前后 home 里 node_modules/<包名> 指向的真实目录变了、本身没装的包（多半是 peer 写了被装的包的插件），它们的条目在同一条命令里跟着重新加载。内核包 ${KERNEL_PACKAGE} 与 ${CORDIS_PACKAGE} 不在过期清单里，only 点了它们直接报错，用 ${UPDATE_KERNEL_COMMAND} 升；specs 里有内核包时连同 ${CORDIS_PACKAGE} 与别的包在同一次 pnpm add 里装，不重新加载任何条目、不整页重载，回执带 restartRequired: true；specs 只给 ${CORDIS_PACKAGE} 不给内核包直接报错。回执 { updated: [{ pkg, from?, to, entries: [{ id, action, state }] }], dependents: [{ pkg, entries: [{ id, action, state }] }], selfDeferred, reload?, restartRequired?, note? }：specs 的 from 是装之前 node_modules 里清单的 version（读不到就没有），to 是装完读到的 version；${BUSY_USAGE_NOTE}`,
-      async (args) => {
-        const result = await this.update(updateArgsOf(args))
-        return receiptWithPnpmTail(result)
-      },
+      '升级 home 里已装的包（全部过期的、点名的几个、或按给定写法装，内核包也走这条），不重启、不整页重新加载',
+      `${UPDATE_ARGS_USAGE}。pnpm add 一律带 --save-exact，home 的 package.json 里写精确版本号。all 与 only：一次 pnpm add 把过期包升到 outdated 返回的精确版本；specs：一次 pnpm add 每项 <包名>@<写法>，不查 outdated，写法是准确版本号的，装完读 node_modules 里的清单核对，装上的不是那个号就回 ok: false、一条条目都不重新加载（tag 与 file: 不核对）。装完逐条停用→启用，重新加载成新版本（原本停用的跳过；插件管理自己那条在回执发出后才重新加载）。不整页重新加载：界面要换成新代码，由调用方拿到回执后自己调 shell.reload。pnpm add 前后 home 里 node_modules/<包名> 指向的真实目录变了、本身没装的包（多半是 peer 写了被装的包的插件），它们的条目在同一条命令里跟着重新加载。内核包 ${KERNEL_PACKAGE} 与 ${CORDIS_PACKAGE} 不在过期清单里，only 点了它们直接报错。specs 里有内核包时：内核包与其余包一次 pnpm add，再读装上的内核包 peerDependencies.cordis（必须是精确版本号）pnpm add ${CORDIS_PACKAGE}@<那个版本>，不重新加载任何条目——主进程里的内核换不掉，重启工作台后才生效，重启由人决定；回执另带 restartRequired（装上的内核版本与正在运行的不同时是 true）与 pluginsOutsideRange（keywords 含 gwb-plugin、peer 里内核包的范围不包含新内核或没写范围的插件）；内核包装上了而 cordis 没对齐时回 ok: false，data 带 { kernel: { from?, to } }，error 说明先别重启。specs 里写 ${CORDIS_PACKAGE} 直接报错。回执 data { updated: [{ pkg, from?, to, entries: [{ id, action, state }] }], dependents: [{ pkg, entries: [{ id, action, state }] }], selfDeferred, restartRequired?, pluginsOutsideRange?, note? }：specs 的 from 是装之前 node_modules 里清单的 version（读不到就没有），to 是装完读到的 version；失败时 error 里带 pnpm 输出的最后几行；${BUSY_USAGE_NOTE}`,
+      (args) => this.update(updateArgsOf(args)),
     )
 
     registerBusyGuardedCommand(
-      UPDATE_KERNEL_COMMAND,
-      '升级 home 里的内核包，并把 home 根上的 cordis 对齐到内核要的版本；重启工作台后生效',
-      `先 pnpm add ${KERNEL_PACKAGE}@<version，不给就是 latest>，再读装上的内核包 peerDependencies 里的 cordis（必须是精确版本号）pnpm add ${CORDIS_PACKAGE}@<那个版本>，两个都按精确版本号写进 home 的 package.json。不重新加载任何条目：主进程里的内核换不掉，重启工作台后才生效，重启由人决定。回执 { ok, kernel: { from?, to }, cordis: { from?, to }, restartRequired（装上的版本与正在运行的内核不同时是 true）, pluginsOutsideRange: [包名…]（keywords 含 gwb-plugin、peer 里内核包的范围不包含新内核或没写范围的插件）, note }，装之前 home 里没有的包没有 from；失败回 { ok: false, error, kernel?, tail? }，内核包已装上而 cordis 没对齐时带 kernel、error 说明先别重启。参数 { version? }；${BUSY_USAGE_NOTE}`,
-      async (args) => {
-        const result = await this.updateKernel(versionArgOf(args))
-        return receiptWithPnpmTail(result)
-      },
+      UNINSTALL_COMMAND,
+      '卸载一个包：删除它的全部条目，再卸载包',
+      `设置与数据留在磁盘上（只删一条条目调用 ${REMOVE_ENTRY_COMMAND}）。内核包与 ${CORDIS_PACKAGE} 不许卸载，直接报错。回执 data { pkg }；pnpm 失败时 error 说明条目已删几条、包还在，并带 pnpm 输出的最后几行。参数 { pkg }；${BUSY_USAGE_NOTE}`,
+      (args) => this.uninstall(requiredString(argsObjectOf(args, ['pkg']), 'pkg')),
     )
-
-    registerBusyGuardedCommand(UNINSTALL_COMMAND, '卸载一个包：删除它的全部条目，再卸载包', `设置与数据留在磁盘上（只删一条条目调用 plugin-manager.remove-entry）。内核包与 ${CORDIS_PACKAGE} 不许卸载，直接报错。参数 { pkg }；${BUSY_USAGE_NOTE}`, async (args) => {
-      const result = await this.uninstall(requiredString(argsObjectOf(args), 'pkg'))
-      return receiptWithPnpmTail(result)
-    })
   }
 
   /** 找插件与配包源的四条命令：不改 home，不经 BUSY 检查 */
@@ -399,28 +308,25 @@ class PluginManager {
 
     registerCommand(
       SEARCH_COMMAND,
-      '列出 registry 上的插件（npm 标准检索）：默认查全部配好的源',
-      `从哪条源装就在哪条源搜：逐条源并发查（查成的并进 packages，没查成的在 note 里点名，一条失败不影响别的；全都没查成才 ok:false）。回执 packages 每行带 pkg / version / description / keywords，「是不是插件」看包自己的 keywords 里有没有 gwb-plugin。参数 { scope? }——不给就查全部配好的源（${SOURCE_LIST_COMMAND} 列出的两层 npmrc，@godcreator 在前、其余按名字排），给了只查那一条（如 "@j"）`,
+      '列出全部配好的源上的插件（npm 标准检索）',
+      `无参数。从哪条源装就在哪条源搜：${SOURCE_LIST_COMMAND} 列出的两层 npmrc 里的每条源（@godcreator 在前、其余按名字排）并发查，查成的并进 packages，没查成的在 note 里点名，一条失败不影响别的；全都没查成才 ok:false。只列插件：包自己的 keywords 里有 gwb-plugin 的。回执 data { packages: [{ pkg, version?, description? }], note? }`,
       async (args) => {
-        const result = await searchPlugins(deps, scopeArgOf(args))
-        if (result.ok) return { ok: true, data: result }
-        return { ok: false, error: result.error ?? '没说原因' }
+        argsObjectOf(args ?? {}, [])
+        return searchPlugins(deps)
       },
     )
 
     registerCommand(
       SOURCE_ADD_COMMAND,
       '往机器级 npmrc 写一条包源（scope 路由），装第三方插件用',
-      '已有同 scope 就原地替换。写的是 ~/.npmrc（机器级）：@godcreator 的路由本来就在那里，不许经这条命令改。参数 { scope, registry?, owner?, token? }：registry 直接给源地址；owner 走 gitea 的简便写法——拼成 <base>/api/packages/<owner>/npm/（base 取设置 gitea.base-url，取不到 http(s) 地址就回执 ok:false——装 gitea 插件配好它，或改给 registry），token 没给就取设置 gitea 分区的 token，取不到则回执 ok:false。token 行按源地址配对，同一个 token 配多条源不会重复写。回执 { ok, scope, registry, tokenWritten, replaced, lines?（token 已遮掉）, note? }',
+      '已有同 scope 就原地替换。写的是 ~/.npmrc（机器级）：@godcreator 的路由本来就在那里，不许经这条命令改。参数 { scope, registry?, owner?, token? }：registry 直接给源地址；owner 走 gitea 的简便写法——拼成 <base>/api/packages/<owner>/npm/（base 取设置 gitea.base-url，取不到 http(s) 地址就回执 ok:false——装 gitea 插件配好它，或改给 registry），token 没给就取设置 gitea 分区的 token，取不到则回执 ok:false。token 行按源地址配对，同一个 token 配多条源不会重复写。回执 data { scope, registry, tokenWritten, replaced, lines（token 已遮掉）, note? }',
       async (args) => {
-        const argsObject = argsObjectOf(args)
-        const result = await addSource(deps, requiredString(argsObject, 'scope'), {
+        const argsObject = argsObjectOf(args, ['scope', 'registry', 'owner', 'token'])
+        return addSource(deps, requiredString(argsObject, 'scope'), {
           registry: optionalString(argsObject, 'registry'),
           owner: optionalString(argsObject, 'owner'),
           token: optionalString(argsObject, 'token'),
         })
-        if (result.ok) return { ok: true, data: result }
-        return { ok: false, error: result.error ?? '没说原因', data: result }
       },
     )
 
@@ -434,12 +340,8 @@ class PluginManager {
     registerCommand(
       SOURCE_REMOVE_COMMAND,
       '从机器级 npmrc 删掉一条包源',
-      '参数 { scope }。token 行没有别的 scope 再指向它时一起删，还有就留着。@godcreator 不许删；机器级没有这条时说明原因（包括「它在 home 级，要手工删」）。回执 { ok, scope, registry? }',
-      async (args) => {
-        const result = await removeSource(deps, requiredString(argsObjectOf(args), 'scope'))
-        if (result.ok) return { ok: true, data: result }
-        return { ok: false, error: result.error ?? '没说原因', data: result }
-      },
+      '参数 { scope }。token 行没有别的 scope 再指向它时一起删，还有就留着。@godcreator 不许删；机器级没有这条时回 ok:false 说明原因（包括「它在 home 级，要手工删」）。回执 data { scope, registry? }',
+      (args) => removeSource(deps, requiredString(argsObjectOf(args, ['scope']), 'scope')),
     )
   }
 
@@ -479,42 +381,37 @@ class PluginManager {
     return installedVersions
   }
 
-  /** 调用方写错（包名、版本范围不合规）直接抛；下面每一种失败都是正常结果，转成回执 */
-  async install(pkg: string, spec?: string): Promise<InstallResult> {
+  /** 调用方写错（包名、版本范围不合规、包已经装了）直接抛；pnpm 失败、条目加不进去转成回执 */
+  async install(pkg: string, spec?: string): Promise<Outcome<{ pkg: string; entryId: string }>> {
     const packageSpec = installSpec(pkg, spec)
-
-    const pnpmLookup = await locatePnpm()
-    if (!pnpmLookup.ok) {
-      this.log.warn(`装不了 ${packageSpec}：${pnpmLookup.error}`)
-      return { ok: false, pkg, error: pnpmLookup.error }
+    const installedSpec = (await readHomeDependencies(this.homeDir))[pkg]
+    if (installedSpec !== undefined) {
+      throw new Error(
+        `${pkg} 已经装在 home 里（dependencies 里写的是 ${installedSpec}），install 只装还没装的包。再加一条条目用 ${ADD_ENTRY_COMMAND} {"pkg":"${pkg}"}；换版本用 ${UPDATE_COMMAND} {"specs":{"${pkg}":"<版本号、tag 或 file:路径>"}}`,
+      )
     }
 
-    this.log.info(`用 ${describePnpm(pnpmLookup)} 装 ${packageSpec}`)
-    const pnpmRun = await this.applyToHome(pnpmLookup.file, { add: [packageSpec] })
-    if (!pnpmRun.ok) {
-      const failure = describeAddFailure(`pnpm add ${packageSpec}`, pnpmRun)
-      this.log.warn(`${failure.error}\n${failure.tail ?? ''}`)
-      return { ok: false, pkg, ...failure }
-    }
+    const added = await this.addToHome([packageSpec], '')
+    if (!added.ok) return added
 
     try {
       const entryId = await this.createEntry(pkg)
       // 不等加载，所以日志说「已加进」不说「已加载」
       this.log.info(`${packageSpec} 装上了，条目 ${entryId} 已加进 cordis.yml`)
-      return { ok: true, pkg, entryId }
+      return { ok: true, data: { pkg, entryId } }
     } catch (err: unknown) {
       // 不回滚删包：删包比留着危险，而且删除时未必只删掉这一个
       const error = `${packageSpec} 装上了，但条目加不进 cordis.yml：${String(err)}。包留在 home 里，查看列表调用 ${LIST_COMMAND}`
       this.log.warn(error)
-      return { ok: false, pkg, error }
+      return { ok: false, error }
     }
   }
 
   /**
    * `pnpm outdated --json` 的退出码 1 表示「存在过期包」，是结果不是失败。它不写文件，和写 home 的 pnpm 同时运行没有影响，所以不经 BUSY。
-   * 内核包与 cordis 从结果里拿掉：一键热升级升不了它们
+   * 内核包与 cordis 从结果里拿掉：`all` / `only` 升不了它们
    */
-  async outdated(): Promise<OutdatedReceipt> {
+  async outdated(): Promise<Outcome<{ updates: Record<string, UpdateInfo> }>> {
     const pnpmLookup = await locatePnpm()
     if (!pnpmLookup.ok) return { ok: false, error: pnpmLookup.error }
 
@@ -529,17 +426,17 @@ class PluginManager {
     if (updates === undefined) {
       return { ok: false, error: withStderr('pnpm outdated 的输出解析不了（需要的是 JSON）——pnpm 升大版本时输出格式可能变了') }
     }
-    return { ok: true, updates: withoutKernelManaged(updates) }
+    return { ok: true, data: { updates: withoutKernelManaged(updates) } }
   }
 
   /** 参数写错直接抛；下面每一种失败都是正常结果，转成回执 */
-  async update(args: UpdateArgs): Promise<UpdateResult> {
+  async update(args: UpdateArgs): Promise<Outcome<Updated> | KernelInstalledButCordisNot> {
     if ('specs' in args) return this.updateToSpecs(args.specs)
     return this.updateOutdated('only' in args ? args.only : undefined)
   }
 
   /** `only` 里包名不合规、不在 home 的 dependencies 里、是内核包或 cordis 直接抛；不给 `only` 就升全部过期包 */
-  private async updateOutdated(only: readonly string[] | undefined): Promise<UpdateResult> {
+  private async updateOutdated(only: readonly string[] | undefined): Promise<Outcome<Updated>> {
     const homeDependencies = await readHomeDependencies(this.homeDir)
     if (only !== undefined) {
       for (const pkg of only) assertPkgName(pkg)
@@ -548,93 +445,100 @@ class PluginManager {
     }
 
     const checked = await this.outdated()
-    if (!checked.ok || checked.updates === undefined) return failedUpdate(checked.error ?? '查不出过期清单')
+    if (!checked.ok) return checked
 
-    const plan = planOutdatedUpdate(checked.updates, this.tree.store, ownEntryId(this.ctx), only)
+    const plan = planOutdatedUpdate(checked.data.updates, this.tree.store, ownEntryId(this.ctx), only)
     const notes: string[] = []
     if (plan.alreadyLatest.length > 0) notes.push(`only 里这几个已是最新，没动：${plan.alreadyLatest.join('、')}`)
     if (plan.packages.length === 0) {
-      return { ok: true, updated: [], dependents: [], selfDeferred: false, note: ['全都最新', ...notes].join('；') }
+      return { ok: true, data: { updated: [], dependents: [], selfDeferred: false, note: ['全都最新', ...notes].join('；') } }
     }
 
     const versionChanges: VersionChangesAfterAdd = { ok: true, changes: new Map(plan.packages.map((p) => [p.pkg, { from: p.from, to: p.to }])) }
-    return this.addThenRemount(plan.addSpecs, { saveExact: false, reloadPage: true }, plan.packages, homeDependencies, notes, () => Promise.resolve(versionChanges))
+    return this.addThenRemount(plan.addSpecs, plan.packages, homeDependencies, notes, () => Promise.resolve(versionChanges))
   }
 
-  /** 包名或写法不合规、包不在 home 的 dependencies 里、只给 cordis 不给内核包直接抛。一律写精确版本号：home 清单里留着 `^`，下次重装会解析到别的版本 */
-  private async updateToSpecs(specs: Readonly<Record<string, string>>): Promise<UpdateResult> {
+  /** 包名或写法不合规、包不在 home 的 dependencies 里、写了 cordis 直接抛 */
+  private async updateToSpecs(specs: Readonly<Record<string, string>>): Promise<Outcome<Updated> | KernelInstalledButCordisNot> {
     const homeDependencies = await readHomeDependencies(this.homeDir)
     const plan = planSpecsUpdate(specs, homeDependencies, this.tree.store, ownEntryId(this.ctx))
+    if (plan.includesKernel) return this.updateWithKernel(plan, specs)
     const pkgs = plan.packages.map((p) => p.pkg)
     const versionsBefore = await this.readInstalledVersions(pkgs)
     const versionChangesAfterInstall = async (): Promise<VersionChangesAfterAdd> => versionChangesAfterAdd(specs, versionsBefore, await this.readInstalledVersions(pkgs))
-    if (plan.includesKernel) return this.addWithKernel(plan, versionChangesAfterInstall)
-    return this.addThenRemount(plan.addSpecs, { saveExact: true, reloadPage: false }, plan.packages, homeDependencies, [], versionChangesAfterInstall)
-  }
-
-  /** 找 pnpm、一次 pnpm add；失败转成回执，这时一条条目都没动 */
-  private async addForUpdate(addSpecs: readonly string[], saveExact: boolean): Promise<{ ok: true } | { ok: false; receipt: UpdateResult }> {
-    const pnpmLookup = await locatePnpm()
-    if (!pnpmLookup.ok) {
-      this.log.warn(`升不了：${pnpmLookup.error}`)
-      return { ok: false, receipt: failedUpdate(pnpmLookup.error) }
-    }
-    // 一次装完：pnpm 读改写 home 的 package.json，逐个包启动进程与并发安装一样会互相覆盖
-    this.log.info(`用 ${describePnpm(pnpmLookup)} 一次安装 ${addSpecs.join(' ')}`)
-    const pnpmRun = await this.applyToHome(pnpmLookup.file, saveExact ? { add: addSpecs, saveExact: true } : { add: addSpecs })
-    if (pnpmRun.ok) return { ok: true }
-    const failure = describeAddFailure(`pnpm add ${addSpecs.join(' ')}`, pnpmRun)
-    const error = `${failure.error}。一条条目都没动`
-    this.log.warn(`${error}\n${failure.tail ?? ''}`)
-    return { ok: false, receipt: { ...failedUpdate(error), ...(failure.tail === undefined ? {} : { tail: failure.tail }) } }
-  }
-
-  /** specs 里有内核包：一次 pnpm add 全部装上；主进程里的内核换不掉，不重新加载任何条目、不整页重载 */
-  private async addWithKernel(plan: SpecsUpdatePlan, versionChangesAfterInstall: () => Promise<VersionChangesAfterAdd>): Promise<UpdateResult> {
-    const added = await this.addForUpdate(plan.addSpecs, true)
-    if (!added.ok) return added.receipt
-    const versionChanges = await versionChangesAfterInstall()
-    if (!versionChanges.ok) {
-      const error = `${versionChanges.error}。一条条目都没动，先别重启`
-      this.log.warn(error)
-      return failedUpdate(error)
-    }
-    const updated = plan.packages.map<UpdatedPackage>((p) => ({ pkg: p.pkg, ...versionChanges.changes.get(p.pkg)!, entries: [] }))
-    const summary = updated.map(describeVersionChange).join('，')
-    this.log.info(`装了 ${summary}；有内核包，没有重新加载任何条目，重启工作台后生效`)
-    return {
-      ok: true,
-      updated,
-      dependents: [],
-      selfDeferred: false,
-      restartRequired: true,
-      note: `装了内核包 ${KERNEL_PACKAGE}：主进程里的内核换不掉，这次没有重新加载任何条目、没有整页重载，这 ${updated.length} 个包重启工作台后才都换成新装的版本；重启由人决定`,
-    }
+    return this.addThenRemount(plan.addSpecs, plan.packages, homeDependencies, [], versionChangesAfterInstall)
   }
 
   /**
-   * 一次 pnpm add → 逐条重新加载装了的包、再重新加载真实目录变了的别的包 → 整页重载；本插件自己推迟到回执之后。
-   * `reloadPage` 为 false 时不调 shell.reload（包括本插件自己重新加载之后那一次）：它在主进程里同步重载页面，经页面调用这条命令的调用方收不到回执
+   * specs 里有内核包：一次 pnpm add 装上 specs 里的全部包 → 照装上的内核包 peer 里的 cordis 再 pnpm add 一次 → 核对 cordis。
+   * 主进程里的内核换不掉，不重新加载任何条目
+   */
+  private async updateWithKernel(plan: SpecsUpdatePlan, specs: Readonly<Record<string, string>>): Promise<Outcome<Updated> | KernelInstalledButCordisNot> {
+    const pkgs = plan.packages.map((p) => p.pkg)
+    const versionsBefore = await this.readInstalledVersions([...pkgs, CORDIS_PACKAGE])
+    const added = await this.addToHome(plan.addSpecs, '一条条目都没动')
+    if (!added.ok) return added
+
+    const versionChanges = versionChangesAfterAdd(specs, versionsBefore, await this.readInstalledVersions(pkgs))
+    if (!versionChanges.ok) return this.failed(`${versionChanges.error}。一条条目都没动，cordis 没动，先别重启`)
+    const kernel = versionChanges.changes.get(KERNEL_PACKAGE)!
+
+    const target = kernelUpgradeTargetOf(await readInstalledPackageManifest(this.homeDir, KERNEL_PACKAGE))
+    if (!target.ok) return this.kernelInstalledButCordisNot(`${KERNEL_PACKAGE} 装上了，但${target.error}。cordis 没动，home 里的内核与 cordis 可能对不上，先别重启`, kernel)
+    const cordisAdded = await this.addToHome(
+      [installSpec(CORDIS_PACKAGE, target.cordisVersion)],
+      `内核包已经是 ${target.kernelVersion}，home 根上的 cordis 没对齐到它要的 ${target.cordisVersion}，先别重启`,
+    )
+    if (!cordisAdded.ok) return { ok: false, error: cordisAdded.error, data: { kernel } }
+    const cordisInstalled = installedVersionOf(await readInstalledPackageManifest(this.homeDir, CORDIS_PACKAGE))
+    const cordisMismatch = installedVersionMismatch(CORDIS_PACKAGE, target.cordisVersion, cordisInstalled)
+    if (cordisMismatch !== undefined) return this.kernelInstalledButCordisNot(`${cordisMismatch}。内核包已经是 ${target.kernelVersion}，先别重启`, kernel)
+
+    const updated: UpdatedPackage[] = [
+      ...plan.packages.map<UpdatedPackage>((p) => ({ pkg: p.pkg, ...versionChanges.changes.get(p.pkg)!, entries: [] })),
+      { pkg: CORDIS_PACKAGE, ...versionChangeOf(versionsBefore.get(CORDIS_PACKAGE), target.cordisVersion), entries: [] },
+    ]
+    const pluginsOutsideRange = pluginsOutsideKernelRange(await this.readHomePackageManifests(), target.kernelVersion)
+    const restartRequired = target.kernelVersion !== this.kernelVersion
+    this.log.info(
+      `装了 ${updated.map(describeVersionChange).join('，')}；有内核包，没有重新加载任何条目` +
+        (restartRequired ? '，重启工作台后生效' : '') +
+        (pluginsOutsideRange.length === 0 ? '' : `；peer 范围不包含新内核的插件：${pluginsOutsideRange.join('、')}`),
+    )
+    const note = restartRequired
+      ? `装了内核包 ${KERNEL_PACKAGE} ${target.kernelVersion}：主进程里的内核换不掉，这次没有重新加载任何条目，这 ${updated.length} 个包重启工作台后才都换成新装的版本；重启由人决定`
+      : `装上的就是正在运行的内核 ${this.kernelVersion}，不用重启；这次没有重新加载任何条目`
+    return { ok: true, data: { updated, dependents: [], selfDeferred: false, restartRequired, pluginsOutsideRange, note } }
+  }
+
+  private failed(error: string): { ok: false; error: string } {
+    this.log.warn(error)
+    return { ok: false, error }
+  }
+
+  private kernelInstalledButCordisNot(error: string, kernel: VersionChange): KernelInstalledButCordisNot {
+    this.log.warn(error)
+    return { ok: false, error, data: { kernel } }
+  }
+
+  /**
+   * 一次 pnpm add → 逐条重新加载装了的包、再重新加载真实目录变了的别的包；本插件自己推迟到回执之后。不整页重新加载：
+   * shell.reload 在主进程里同步重载页面，经页面调用这条命令的调用方收不到回执，所以整页重新加载交给调用方。
    * `versionChangesAfterInstall` 在 pnpm add 成功之后、重新加载之前调用，给出回执里每个包的 from / to
    */
   private async addThenRemount(
     addSpecs: readonly string[],
-    options: { saveExact: boolean; reloadPage: boolean },
     packages: readonly PackageEntries[],
     homeDependencies: Readonly<Record<string, string>>,
     notes: string[],
     versionChangesAfterInstall: () => Promise<VersionChangesAfterAdd>,
-  ): Promise<UpdateResult> {
+  ): Promise<Outcome<Updated>> {
     const homePackages = Object.keys(homeDependencies).filter(isPkgName)
     const directoriesBefore = await this.readInstalledDirectories(homePackages)
-    const added = await this.addForUpdate(addSpecs, options.saveExact)
-    if (!added.ok) return added.receipt
+    const added = await this.addToHome(addSpecs, '一条条目都没动')
+    if (!added.ok) return added
     const versionChanges = await versionChangesAfterInstall()
-    if (!versionChanges.ok) {
-      const error = `${versionChanges.error}。一条条目都没动`
-      this.log.warn(error)
-      return failedUpdate(error)
-    }
+    if (!versionChanges.ok) return this.failed(`${versionChanges.error}。一条条目都没动`)
 
     // 升完不重新加载，运行着的还是旧版本，等于没升；旧版本目录也不会一直留着（pnpm 默认约 7 天后清掉）。所以换了目录的每条条目都在这条命令里重新加载
     const plannedDependentPackages = plannedDependents(
@@ -648,104 +552,9 @@ class PluginManager {
     const summary =
       updated.map(describeVersionChange).join('，') +
       (dependents.length === 0 ? '' : `；跟着重新加载 ${dependents.map((d) => d.pkg).join('、')}`)
-    if (!options.reloadPage) {
-      notes.push(NO_PAGE_RELOAD_NOTE)
-      if (ownEntry !== undefined) remountSelfLater(this.tree, ownEntry.id, this.log)
-      this.log.info(`升级完成：${summary}${ownEntry === undefined ? '' : `；插件管理自己（${ownEntry.id}）在回执之后重新加载`}；不整页重载`)
-      return { ok: true, updated, dependents, selfDeferred: ownEntry !== undefined, ...noteOf(notes) }
-    }
-    const commandBus = this.commandBus
-
-    if (ownEntry === undefined) {
-      const reload = await runShellReload(commandBus)
-      if (reload.note !== undefined) notes.push(reload.note)
-      this.log.info(`一键热升级完成：${summary}${reload.reload === 'done' ? '；界面已整页重载' : ''}`)
-      return { ok: true, updated, dependents, selfDeferred: false, reload: reload.reload, ...noteOf(notes) }
-    }
-
-    // 本插件自己在回执之后重新加载：闭包只持有 tree、id、命令插件的引用与 logger，不调 this 上的其他方法
-    const id = ownEntry.id
-    const log = this.log
-    remountSelfLater(this.tree, id, log, async () => {
-      const reload = await runShellReload(commandBus)
-      if (reload.note !== undefined) log.warn(reload.note)
-    })
-    const canReload = hasCommand(commandBus, SHELL_RELOAD_COMMAND)
-    if (!canReload) notes.push(`命令表里没有 ${SHELL_RELOAD_COMMAND}，界面要手动刷新`)
-    this.log.info(`一键热升级：${summary}；插件管理自己（${id}）在回执之后重新加载${canReload ? '，随后整页重载' : ''}`)
-    return { ok: true, updated, dependents, selfDeferred: true, reload: canReload ? 'deferred' : 'unavailable', ...noteOf(notes) }
-  }
-
-  /** 版本写法不合规直接抛；pnpm 失败、内核包 peer 里的 cordis 不是精确版本号都转成回执。不重新加载任何条目 */
-  async updateKernel(version?: string): Promise<UpdateKernelResult> {
-    const kernelSpec = installSpec(KERNEL_PACKAGE, version ?? 'latest')
-
-    const pnpmLookup = await locatePnpm()
-    if (!pnpmLookup.ok) {
-      this.log.warn(`升不了内核：${pnpmLookup.error}`)
-      return { ok: false, error: pnpmLookup.error }
-    }
-
-    const kernelBefore = installedVersionOf(await readInstalledPackageManifest(this.homeDir, KERNEL_PACKAGE))
-    const cordisBefore = installedVersionOf(await readInstalledPackageManifest(this.homeDir, CORDIS_PACKAGE))
-
-    this.log.info(`用 ${describePnpm(pnpmLookup)} 装 ${kernelSpec}`)
-    // 内核包与 cordis 都写精确版本号：home 根上的 cordis 必须等于内核包 peer 里的那个版本，写成 ^ 以后重装会解析到别的版本
-    const kernelRun = await this.applyToHome(pnpmLookup.file, { add: [kernelSpec], saveExact: true })
-    if (!kernelRun.ok) {
-      const failure = describeAddFailure(`pnpm add ${kernelSpec}`, kernelRun)
-      this.log.warn(`${failure.error}\n${failure.tail ?? ''}`)
-      return { ok: false, ...failure }
-    }
-
-    const target = kernelUpgradeTargetOf(await readInstalledPackageManifest(this.homeDir, KERNEL_PACKAGE))
-    if (!target.ok) {
-      const error = `${kernelSpec} 装上了，但${target.error}。cordis 没动，home 里的内核与 cordis 可能对不上，先别重启`
-      this.log.warn(error)
-      return { ok: false, error }
-    }
-    const kernelMismatch = version === undefined ? undefined : installedVersionMismatch(KERNEL_PACKAGE, version, target.kernelVersion)
-    if (kernelMismatch !== undefined) {
-      const error = `${kernelMismatch}。cordis 没动，先别重启`
-      this.log.warn(error)
-      return { ok: false, error }
-    }
-    const kernel = versionChangeOf(kernelBefore, target.kernelVersion)
-
-    const cordisSpec = installSpec(CORDIS_PACKAGE, target.cordisVersion)
-    const cordisRun = await this.applyToHome(pnpmLookup.file, { add: [cordisSpec], saveExact: true })
-    if (!cordisRun.ok) {
-      const failure = describeAddFailure(`pnpm add ${cordisSpec}`, cordisRun)
-      const error = `${failure.error}。内核包已经是 ${target.kernelVersion}，home 根上的 cordis 没对齐到它要的 ${target.cordisVersion}，先别重启`
-      this.log.warn(`${error}\n${failure.tail ?? ''}`)
-      return { ok: false, kernel, error, ...(failure.tail === undefined ? {} : { tail: failure.tail }) }
-    }
-    const cordisMismatch = installedVersionMismatch(
-      CORDIS_PACKAGE,
-      target.cordisVersion,
-      installedVersionOf(await readInstalledPackageManifest(this.homeDir, CORDIS_PACKAGE)),
-    )
-    if (cordisMismatch !== undefined) {
-      const error = `${cordisMismatch}。内核包已经是 ${target.kernelVersion}，先别重启`
-      this.log.warn(error)
-      return { ok: false, kernel, error }
-    }
-
-    const pluginsOutsideRange = pluginsOutsideKernelRange(await this.readHomePackageManifests(), target.kernelVersion)
-    const cordis = versionChangeOf(cordisBefore, target.cordisVersion)
-    this.log.info(
-      `内核包装成 ${target.kernelVersion}、cordis 对齐到 ${target.cordisVersion}，重启工作台后生效` +
-        (pluginsOutsideRange.length === 0 ? '' : `；peer 范围不包含新内核的插件：${pluginsOutsideRange.join('、')}`),
-    )
-    const restartRequired = target.kernelVersion !== this.kernelVersion
-    return {
-      ok: true,
-      kernel,
-      cordis,
-      restartRequired,
-      pluginsOutsideRange,
-      note: restartRequired ? '主进程里的内核换不掉，重启工作台后才生效；重启由人决定' : `装上的就是正在运行的内核 ${this.kernelVersion}，不用重启`,
-    }
+    if (ownEntry !== undefined) remountSelfLater(this.tree, ownEntry.id, this.log)
+    this.log.info(`升级完成：${summary}${ownEntry === undefined ? '' : `；插件管理自己（${ownEntry.id}）在回执之后重新加载`}`)
+    return { ok: true, data: { updated, dependents, selfDeferred: ownEntry !== undefined, ...noteOf(notes) } }
   }
 
   /** home 的 dependencies 里每个包 → 它装在 node_modules 里的清单（没装的是 undefined） */
@@ -812,10 +621,10 @@ class PluginManager {
   }
 
   /** 包没装（调用方写错了）、是内核包或 cordis 直接抛；删条目与 pnpm 两步的失败转成回执 */
-  async uninstall(pkg: string): Promise<UninstallResult> {
+  async uninstall(pkg: string): Promise<Outcome<{ pkg: string }>> {
     assertPkgName(pkg)
     if (KERNEL_MANAGED_PACKAGES.has(pkg)) {
-      throw new Error(`${pkg} 是 home 运行必需的包，不许卸载：卸掉之后 home 启动不了。内核包用 ${UPDATE_KERNEL_COMMAND} 升级，${CORDIS_PACKAGE} 随它对齐`)
+      throw new Error(`${pkg} 是 home 运行必需的包，不许卸载：卸掉之后 home 启动不了。内核包用 ${UPDATE_COMMAND} {"specs":{"${KERNEL_PACKAGE}":"<版本号>"}} 换，${CORDIS_PACKAGE} 随它对齐`)
     }
     const homeDependencies = await readHomeDependencies(this.homeDir)
     if (homeDependencies[pkg] === undefined) {
@@ -827,47 +636,44 @@ class PluginManager {
     for (const id of removedIds) this.tree.remove(id)
 
     const pnpmLookup = await locatePnpm()
-    if (!pnpmLookup.ok) {
-      this.log.warn(`卸不了 ${pkg}：条目已删除（${removedIds.length} 条），${pnpmLookup.error}`)
-      return { ok: false, pkg, removedEntries: removedIds, error: pnpmLookup.error }
-    }
+    if (!pnpmLookup.ok) return this.failed(`卸不了 ${pkg}：${pnpmLookup.error}。条目已删除 ${removedIds.length} 条，包还在 home 里`)
     const pnpmRun = await this.applyToHome(pnpmLookup.file, { remove: [pkg] })
     if (!pnpmRun.ok) {
       // 不回滚：包会出现在「已装、没有条目」那一组里，重试加条目即可
-      const error = `pnpm remove ${pkg} 失败（退出码 ${String(pnpmRun.exitCode)}）。条目已删除 ${removedIds.length} 条，包还在 home 里`
-      this.log.warn(`${error}\n${pnpmRun.tail ?? ''}`)
-      return pnpmRun.tail === undefined
-        ? { ok: false, pkg, removedEntries: removedIds, error }
-        : { ok: false, pkg, removedEntries: removedIds, error, tail: pnpmRun.tail }
+      return this.failed(withTail(`pnpm remove ${pkg} 失败（退出码 ${String(pnpmRun.exitCode)}）。条目已删除 ${removedIds.length} 条，包还在 home 里`, pnpmRun.tail))
     }
 
     this.log.info(`${pkg} 卸载了：删除 ${removedIds.length} 条条目，包已从 home 移除。设置与数据留在磁盘上`)
-    return { ok: true, pkg, removedEntries: removedIds }
+    return { ok: true, data: { pkg } }
   }
 
   /** 包没装、id 已被占用、id 的数据或设置属于别的包，都会抛 */
-  async addEntry(pkg: string, id?: string, config?: unknown): Promise<string> {
+  async addEntry(pkg: string, id?: string): Promise<string> {
     assertPkgName(pkg)
     const homeDependencies = await readHomeDependencies(this.homeDir)
     if (homeDependencies[pkg] === undefined) {
       throw new Error(`home 里没装 ${pkg}，加不了条目。先调用 ${INSTALL_COMMAND}，或者自己去 home 里 pnpm add。`)
     }
-    const entryId = await this.createEntry(pkg, id, config)
+    const entryId = await this.createEntry(pkg, id)
     this.log.info(`条目 ${entryId}（${pkg}）加进 cordis.yml 了`)
     return entryId
   }
 
-  /** 数据插件、设置插件没装的那部分跳过；`id` 不要求条目树上有这条 */
-  async transferOwner(id: string, pkg: string): Promise<TransferOwnerResult> {
+  /** 数据插件或设置插件没装就抛错、哪一份都不转；`id` 不要求条目树上有这条 */
+  async transferOwner(id: string, pkg: string): Promise<{ id: string; pkg: string }> {
     assertPkgName(pkg)
     const bareEntryId = bareId(id)
     assertId(bareEntryId)
     const dataOwnerBook = this.dataOwnerBook
     const settingsOwnerBook = this.settingsOwnerBook
-    if (dataOwnerBook !== undefined) await dataOwnerBook.transferOwner(bareEntryId, pkg)
-    if (settingsOwnerBook !== undefined) await settingsOwnerBook.transferOwner(bareEntryId, pkg)
+    if (dataOwnerBook === undefined || settingsOwnerBook === undefined) {
+      const missing = [dataOwnerBook === undefined ? DATA_PACKAGE : undefined, settingsOwnerBook === undefined ? SETTINGS_PACKAGE : undefined].filter((one) => one !== undefined)
+      throw new Error(`没装 ${missing.join('、')}：数据与设置的归属要一起转，缺一个就哪一份都不转`)
+    }
+    await dataOwnerBook.transferOwner(bareEntryId, pkg)
+    await settingsOwnerBook.transferOwner(bareEntryId, pkg)
     this.log.info(`${bareEntryId} 的数据与设置的归属已转给 ${pkg}`)
-    return { id: bareEntryId, pkg, data: dataOwnerBook !== undefined, settings: settingsOwnerBook !== undefined }
+    return { id: bareEntryId, pkg }
   }
 
   /** 两份归属记录合并：id → 登记为其归属的包（每份记录各一个，所以可能有两个） */
@@ -909,7 +715,7 @@ class PluginManager {
   }
 
   /** id 一定显式给：不给的话 loader 每次启动生成一个新的随机 id，按 id 分区的设置与数据每启动一次就新建一份 */
-  private async createEntry(pkg: string, id?: string, config?: unknown): Promise<string> {
+  private async createEntry(pkg: string, id?: string): Promise<string> {
     // 磁盘上的归属记录在条目删除后仍然保留，只按条目树判断重复会把别的包的数据分给这条条目
     const owners = await this.idOwners()
     const idsInTree = new Set(Object.keys(this.tree.store))
@@ -920,12 +726,10 @@ class PluginManager {
       assertIdUsable(id, pkg, idsInTree, owners)
       chosenId = id
     }
-    // 每次传一个新对象：create 会把它原样放进 group.data，共用一个对象等于两条条目共享配置
-    const options: Record<string, unknown> = { id: chosenId, name: pkg }
-    if (config !== undefined) options['config'] = config
 
-    // 不 await：create 返回的 promise 包含加载，inject 满足不了的插件永远加载不完；写进 yml 在第一个 await 之前就同步安排好了
-    void this.tree.create(options, null).catch((err: unknown) => {
+    // 不 await：create 返回的 promise 包含加载，inject 满足不了的插件永远加载不完；写进 yml 在第一个 await 之前就同步安排好了。
+    // 每次传一个新对象：create 会把它原样放进 group.data，共用一个对象等于两条条目共享配置
+    void this.tree.create({ id: chosenId, name: pkg }, null).catch((err: unknown) => {
       this.log.warn(`条目 ${chosenId}（${pkg}）加进 cordis.yml 了，但没加载起来：${String(err)}`)
     })
     return this.fullEntryIdOf(chosenId)
@@ -939,59 +743,50 @@ class PluginManager {
   }
 
   /**
-   * 改 home 的唯一入口：安装、升级、卸载都经这里运行 pnpm。调用它的命令都经过 BUSY 检查——两个写 home 的 pnpm 同时运行会丢改动，
-   * 而且都退出码 0。`saveExact` 让 home 的清单写精确版本号，不写 `^`
+   * 找 pnpm、一次 `pnpm add <specs…> --save-exact`。失败回一句说明：退出码那句，接着 `consequence`（这时 home 处在什么状态），
+   * 最后是 pnpm 输出的最后几行
    */
-  private applyToHome(pnpm: string, change: { add: readonly string[]; saveExact?: true } | { remove: readonly string[] }): Promise<PnpmResult> {
-    const args = 'add' in change ? ['add', ...change.add, ...(change.saveExact ? ['--save-exact'] : [])] : ['remove', ...change.remove]
+  private async addToHome(specs: readonly string[], consequence: string): Promise<{ ok: true } | { ok: false; error: string }> {
+    const withConsequence = (message: string): string => (consequence === '' ? message : `${message}。${consequence}`)
+    const pnpmLookup = await locatePnpm()
+    if (!pnpmLookup.ok) return this.failed(withConsequence(pnpmLookup.error))
+    // 一次装完：pnpm 读改写 home 的 package.json，逐个包启动进程与并发安装一样会互相覆盖
+    this.log.info(`用 ${describePnpm(pnpmLookup)} 安装 ${specs.join(' ')}`)
+    const pnpmRun = await this.applyToHome(pnpmLookup.file, { add: specs })
+    if (pnpmRun.ok) return { ok: true }
+    const failure = describeAddFailure(`pnpm add ${specs.join(' ')} --save-exact`, pnpmRun)
+    return this.failed(withTail(withConsequence(failure.error), failure.tail))
+  }
+
+  /**
+   * 改 home 的唯一入口：安装、升级、卸载都经这里运行 pnpm。调用它的命令都经过 BUSY 检查——两个写 home 的 pnpm 同时运行会丢改动，
+   * 而且都退出码 0。add 一律带 `--save-exact`：home 的清单写精确版本号，写成 `^` 以后重装会解析到别的版本
+   */
+  private applyToHome(pnpm: string, change: { add: readonly string[] } | { remove: readonly string[] }): Promise<PnpmResult> {
+    const args = 'add' in change ? ['add', ...change.add, '--save-exact'] : ['remove', ...change.remove]
     return runPnpm({ pnpm, cwd: this.homeDir, args })
   }
 }
 
-function failedUpdate(error?: string): UpdateResult {
-  return { ok: false, updated: [], dependents: [], selfDeferred: false, ...(error === undefined ? {} : { error }) }
+/** pnpm 输出的最后几行接在说明后面，另起一行 */
+function withTail(message: string, tail: string | undefined): string {
+  return tail === undefined ? message : `${message}\n${tail}`
 }
 
-function hasCommand(commandBus: GwbCommands | undefined, name: string): boolean {
-  return commandBus !== undefined && commandBus.list().some((command) => command.name === name)
-}
-
-/** 没有命令插件、命令表里没有这条、执行失败，都返回「界面要手动刷新」 */
-async function runShellReload(commandBus: GwbCommands | undefined): Promise<{ reload: 'done' | 'unavailable'; note?: string }> {
-  if (!hasCommand(commandBus, SHELL_RELOAD_COMMAND) || commandBus === undefined) {
-    return { reload: 'unavailable', note: `命令表里没有 ${SHELL_RELOAD_COMMAND}（外壳没装），界面要手动刷新` }
-  }
-  const result = await commandBus.run(SHELL_RELOAD_COMMAND)
-  if (result.ok) return { reload: 'done' }
-  return { reload: 'unavailable', note: `${SHELL_RELOAD_COMMAND} 失败（${result.error ?? '没有给出原因'}），界面要手动刷新` }
-}
-
-/** 包名作键的表去掉内核包与 cordis：它们由 `update-kernel` 管，不进 `list` 与 `outdated` */
+/** 包名作键的表去掉内核包与 cordis：它们不进 `list` 与 `outdated` */
 function withoutKernelManaged<T>(byPackage: Readonly<Record<string, T>>): Record<string, T> {
   return Object.fromEntries(Object.entries(byPackage).filter(([pkg]) => !KERNEL_MANAGED_PACKAGES.has(pkg)))
 }
 
-/** 失败时 pnpm 输出的最后几行既拼进 error（给人看），也原样留在 data 里（界面要单独排版时用） */
-function receiptWithPnpmTail(result: { ok: boolean; error?: string; tail?: string }): GwbResult {
-  if (result.ok) return { ok: true, data: result }
-  const tail = result.tail === undefined ? '' : `\n${result.tail}`
-  return { ok: false, error: `${result.error ?? '没有给出原因'}${tail}`, data: result }
-}
-
 const UPDATE_ARG_KEYS = ['all', 'only', 'specs'] as const
 
-const NO_PAGE_RELOAD_NOTE = 'specs 不整页重载，页面由调用方刷新'
-
 /** 报错与 usage 共用的一句用法 */
-const UPDATE_ARGS_USAGE =
-  '参数三选一、恰好给一个：{ "all": true } 把 outdated 查到的过期包全升到精确 latest；{ "only": ["<包名>", …] } 只升这几个过期包（不在 home 的 dependencies 里的名字、内核包与 cordis 直接报错，已是最新的写进 note）；{ "specs": { "<包名>": "<版本号、tag 或 file:<绝对路径>>" } } 给已装的包按给定写法装（包不在 home 的 dependencies 里直接报错，首次安装用 plugin-manager.install）'
+const UPDATE_ARGS_USAGE = `参数三选一、恰好给一个：{ "all": true } 把 outdated 查到的过期包全升到精确 latest；{ "only": ["<包名>", …] } 只升这几个过期包（不在 home 的 dependencies 里的名字、内核包与 cordis 直接报错，已是最新的写进 note）；{ "specs": { "<包名>": "<版本号、tag 或 file:<绝对路径>>" } } 给已装的包按给定写法装（包不在 home 的 dependencies 里直接报错，首次安装用 ${INSTALL_COMMAND}；升内核写 { "specs": { "${KERNEL_PACKAGE}": "latest" } }）`
 
 /** 三种参数恰好给一种；不给、给了两种、认不出的键、值的类型不对，都直接抛错并带上用法 */
 function updateArgsOf(args: unknown): UpdateArgs {
   if (args === undefined || args === null) throw new Error(`没给参数：要升全部就给 {"all":true}。${UPDATE_ARGS_USAGE}`)
-  const argsObject = argsObjectOf(args)
-  const unknownKeys = Object.keys(argsObject).filter((key) => !(UPDATE_ARG_KEYS as readonly string[]).includes(key))
-  if (unknownKeys.length > 0) throw new Error(`认不出参数 ${unknownKeys.join('、')}。${UPDATE_ARGS_USAGE}`)
+  const argsObject = argsObjectOf(args, UPDATE_ARG_KEYS, UPDATE_ARGS_USAGE)
   const givenKeys = UPDATE_ARG_KEYS.filter((key) => argsObject[key] !== undefined)
   if (givenKeys.length === 0) throw new Error(`没给参数：要升全部就给 {"all":true}。${UPDATE_ARGS_USAGE}`)
   if (givenKeys.length > 1) throw new Error(`all、only、specs 只能给一个，这次给了 ${givenKeys.join('、')}。${UPDATE_ARGS_USAGE}`)
@@ -1018,23 +813,14 @@ function describeVersionChange(updated: UpdatedPackage): string {
   return `${updated.pkg} ${updated.from ?? '（装之前读不到版本号）'} → ${updated.to}`
 }
 
-/** 不传、传空对象都表示装源上的 latest；给了 version 就要是非空字符串 */
-function versionArgOf(args: unknown): string | undefined {
-  if (args === undefined || args === null) return undefined
-  return optionalString(argsObjectOf(args), 'version')
-}
-
-/** 不传、传空对象都是查全部源；给了 scope 就要是非空字符串 */
-function scopeArgOf(args: unknown): string | undefined {
-  if (args === undefined || args === null) return undefined
-  const scope = argsObjectOf(args)['scope']
-  if (scope === undefined || scope === null) return undefined
-  if (typeof scope !== 'string' || scope === '') throw new Error('scope 给了就要是非空字符串，比如 "@j"')
-  return scope
-}
-
-function argsObjectOf(args: unknown): Record<string, unknown> {
+/** 参数要是对象、只许出现 `allowedKeys` 里的键；认不出的键直接抛错，不静默忽略 */
+function argsObjectOf(args: unknown, allowedKeys: readonly string[], usage?: string): Record<string, unknown> {
   if (!isRecord(args)) throw new Error('参数要是一个对象，比如 { "entryId": "commands" }')
+  const unknownKeys = Object.keys(args).filter((key) => !allowedKeys.includes(key))
+  if (unknownKeys.length > 0) {
+    const accepted = allowedKeys.length === 0 ? '这条命令无参数' : `认得的参数是 ${allowedKeys.join('、')}`
+    throw new Error(`认不出参数 ${unknownKeys.join('、')}：${accepted}。${usage ?? ''}`)
+  }
   return args
 }
 

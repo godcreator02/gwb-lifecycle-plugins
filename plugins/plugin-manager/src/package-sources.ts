@@ -1,7 +1,7 @@
 import type { GwbResult } from '@godcreator/gwb-kernel-desktop'
 import { readNpmrc, writeNpmrc } from './home.js'
 import { searchRegistry } from './registry.js'
-import { mergeScoped, type SearchRow } from './search.js'
+import { mergeScoped, type PluginRow } from './search.js'
 import {
   BOOTSTRAP_SCOPE,
   isRegistryUrl,
@@ -13,39 +13,32 @@ import {
   removeSource as removeSourceLines,
   upsertSource as upsertSourceLines,
 } from './sources.js'
-import { noteOf } from './vocab.js'
+import { noteOf, type Outcome } from './vocab.js'
 
-/** 检索的回执 */
-export interface SearchReceipt {
-  ok: boolean
-  /** 成了才有：全部配好的源（或指定的 scope）上的插件。**空数组 = 查成了、一个都没有**，和「没查成」分得开 */
-  packages?: SearchRow[]
-  /** 没成时的一句话 */
-  error?: string
-  /** 成了但有源没查成时，点名是哪几条（其余照常） */
+/** 检索成了的回执 */
+interface SearchFound {
+  /** 全部配好的源上的插件。**空数组 = 查成了、一个都没有**，和「没查成」分得开 */
+  packages: PluginRow[]
+  /** 有源没查成时，点名是哪几条（其余照常） */
   note?: string
 }
 
-/** 写一条包源的回执。回执经命令总线传出去，`lines` 里的 token 一律已遮掉 */
-export interface SourceAddResult {
-  ok: boolean
+/** 写成一条包源的回执。回执经命令总线传出去，`lines` 里的 token 一律已遮掉 */
+interface SourceAdded {
   scope: string
-  /** 写进去的源地址；owner 写法取不到 gitea.base-url 时没有 */
-  registry?: string
+  registry: string
   /** token 行写没写（公开源不需要凭据，只写路由行） */
   tokenWritten: boolean
   /** 机器级原来就有这条 scope：这次是原地替换，不是追加 */
   replaced: boolean
   /** 写进去的行（已遮掉 token） */
-  lines?: string[]
+  lines: string[]
   /** 值得说一声的：home 级有同名 scope 指向别处、pnpm 用的是那一条 */
   note?: string
-  /** 没成时的一句话 */
-  error?: string
 }
 
 /** 列表里的一条包源。`token` 只报有没有，不报值 */
-export interface SourceReport {
+interface SourceReport {
   scope: string
   registry: string
   /** 来自哪份文件——pnpm 把两层合起来读，只看一层会漏 */
@@ -54,7 +47,7 @@ export interface SourceReport {
 }
 
 /** 列包源的回执 */
-export interface SourceListResult {
+interface SourceListResult {
   /** 机器级那份 npmrc 的路径（source.add / source.remove 改的就是它） */
   user: string
   /** home 级那份的路径（只读展示；手工加过行才会存在） */
@@ -62,14 +55,11 @@ export interface SourceListResult {
   sources: SourceReport[]
 }
 
-/** 删一条包源的回执 */
-export interface SourceRemoveResult {
-  ok: boolean
+/** 删掉一条包源的回执 */
+interface SourceRemoved {
   scope: string
-  /** 成了才有：被删掉的那条路由指向的源 */
+  /** 被删掉的那条路由指向的源 */
   registry?: string
-  /** 没成时的一句话 */
-  error?: string
 }
 
 export interface PackageSourcesDeps {
@@ -82,23 +72,28 @@ export interface PackageSourcesDeps {
   log: { info(message: string): void; warn(message: string): void }
 }
 
-/** 给了 `scope` 只查那一条；不给就并发查全部配好的源，一条失败只进 `note`，全都没查成才 `ok: false` */
-export async function searchPlugins(deps: PackageSourcesDeps, scope?: string): Promise<SearchReceipt> {
-  if (scope !== undefined) return searchOne(deps, scope)
-
+/** 并发查全部配好的源，一条失败只进 `note`，全都没查成才 `ok: false` */
+export async function searchPlugins(deps: PackageSourcesDeps): Promise<Outcome<SearchFound>> {
   const scopes = await configuredScopes(deps)
   const receiptsInScopeOrder = await Promise.all(scopes.map((one) => searchOne(deps, one)))
-  const merged = mergeScoped(scopes.map((one, index) => ({ scope: one, ...receiptsInScopeOrder[index]! })))
+  const merged = mergeScoped(
+    scopes.map((one, index) => {
+      const receipt = receiptsInScopeOrder[index]!
+      return receipt.ok ? { scope: one, ok: true, packages: receipt.data } : { scope: one, ok: false, error: receipt.error }
+    }),
+  )
   if (merged.packages.length === 0 && merged.failed.length === scopes.length) {
     const failureSummary = merged.failed.map((failure) => `${failure.scope}：${failure.error}`).join('；')
     return { ok: false, error: `一条源都没查成——${failureSummary}` }
   }
   return {
     ok: true,
-    packages: merged.packages,
-    ...(merged.failed.length === 0
-      ? {}
-      : { note: `这几条源没查成（其余照常）：${merged.failed.map((failure) => `${failure.scope}（${failure.error}）`).join('、')}` }),
+    data: {
+      packages: merged.packages,
+      ...(merged.failed.length === 0
+        ? {}
+        : { note: `这几条源没查成（其余照常）：${merged.failed.map((failure) => `${failure.scope}（${failure.error}）`).join('、')}` }),
+    },
   }
 }
 
@@ -111,10 +106,8 @@ async function configuredScopes(deps: PackageSourcesDeps): Promise<string[]> {
   return [BOOTSTRAP_SCOPE, ...[...scopesInNpmrc].filter((scope) => scope !== BOOTSTRAP_SCOPE).sort()]
 }
 
-async function searchOne(deps: PackageSourcesDeps, scope: string): Promise<SearchReceipt> {
-  if (!isScope(scope)) {
-    return { ok: false, error: `scope 要写成 @xxx（比如 "@j"），收到的是 ${JSON.stringify(scope)}` }
-  }
+/** `scope` 来自 npmrc 的路由行，形状已由解析保证 */
+async function searchOne(deps: PackageSourcesDeps, scope: string): Promise<Outcome<PluginRow[]>> {
   const registry = registryFor(scope, { home: await readNpmrc(deps.homeNpmrc), user: await readNpmrc(deps.userNpmrc) })
   return searchRegistry(registry, scope, await tokenForScope(deps, scope))
 }
@@ -154,7 +147,7 @@ export async function addSource(
   deps: PackageSourcesDeps,
   scope: string,
   opts: { registry?: string; owner?: string; token?: string },
-): Promise<SourceAddResult> {
+): Promise<Outcome<SourceAdded>> {
   // 调用方写错的当场抛；下面每一种「没成」都是正常结果，写进回执
   assertScopeShape(scope)
   if (scope === BOOTSTRAP_SCOPE) {
@@ -176,14 +169,14 @@ export async function addSource(
     const gitea = await giteaSourceOf(deps, owner)
     if (!gitea.ok) {
       deps.log.warn(`${scope} 的源没加上：${gitea.error}`)
-      return { ok: false, scope, tokenWritten: false, replaced: false, error: gitea.error }
+      return { ok: false, error: gitea.error }
     }
     resolvedRegistry = gitea.registry
     if (token === undefined) {
       if (gitea.token === undefined) {
         const error = '取不到 gitea.token（设置里没配，或没装设置插件）。私有源没有凭据装不了——显式传 token，或者先把 token 配进设置的 gitea 分区'
         deps.log.warn(`${scope} 的源没加上：${error}`)
-        return { ok: false, scope, registry: resolvedRegistry, tokenWritten: false, replaced: false, error }
+        return { ok: false, error }
       }
       token = gitea.token
     }
@@ -201,7 +194,7 @@ export async function addSource(
   if (!(await userNpmrcRoutes(deps, scope, resolvedRegistry))) {
     const error = `写完重读没读到 ${scope} → ${resolvedRegistry}（写盘异常？）`
     deps.log.warn(error)
-    return { ok: false, scope, registry: resolvedRegistry, tokenWritten: token !== undefined, replaced: applied.replaced, error }
+    return { ok: false, error }
   }
 
   const overrideNote = await homeNpmrcOverrideNote(deps, scope, resolvedRegistry)
@@ -210,12 +203,14 @@ export async function addSource(
   deps.log.info(`${scope} 的源${applied.replaced ? '换成了' : '加上了'} ${resolvedRegistry}${token === undefined ? '' : '（带凭据）'}，写在机器级 ${deps.userNpmrc}`)
   return {
     ok: true,
-    scope,
-    registry: resolvedRegistry,
-    tokenWritten: token !== undefined,
-    replaced: applied.replaced,
-    lines: applied.wrote.map(maskLine),
-    ...noteOf(notes),
+    data: {
+      scope,
+      registry: resolvedRegistry,
+      tokenWritten: token !== undefined,
+      replaced: applied.replaced,
+      lines: applied.wrote.map(maskLine),
+      ...noteOf(notes),
+    },
   }
 }
 
@@ -232,7 +227,7 @@ export async function listSources(deps: PackageSourcesDeps): Promise<SourceListR
   }
 }
 
-export async function removeSource(deps: PackageSourcesDeps, scope: string): Promise<SourceRemoveResult> {
+export async function removeSource(deps: PackageSourcesDeps, scope: string): Promise<Outcome<SourceRemoved>> {
   assertScopeShape(scope)
   if (scope === BOOTSTRAP_SCOPE) {
     throw new Error(`${BOOTSTRAP_SCOPE} 是本机所有 home 与源码仓安装、发版用的源，删了它安装和发版都会失败。本命令不删它`)
@@ -244,11 +239,11 @@ export async function removeSource(deps: PackageSourcesDeps, scope: string): Pro
     const error = onlyInHomeNpmrc
       ? `机器级 ${deps.userNpmrc} 里没有 ${scope}——它在 home 级 .npmrc 里（手工加的），本命令只改机器级，那一行要手工删`
       : `机器级 ${deps.userNpmrc} 里没有 ${scope} 这条 scope 路由`
-    return { ok: false, scope, error }
+    return { ok: false, error }
   }
   await writeNpmrc(deps.userNpmrc, applied.text)
   deps.log.info(`${scope} 的源从机器级删掉了${applied.registry === undefined ? '' : `（原来指向 ${applied.registry}）`}`)
-  return { ok: true, scope, ...(applied.registry === undefined ? {} : { registry: applied.registry }) }
+  return { ok: true, data: { scope, ...(applied.registry === undefined ? {} : { registry: applied.registry }) } }
 }
 
 /**

@@ -10,58 +10,61 @@ home 里有两层：
 * **包**：pnpm 装进 home 的 `node_modules`，只是在磁盘上
 * **条目**：`cordis.yml` 里指向一个包的一行。有了条目，插件的代码才加载运行。一个包可以有好几条条目，各是一个实例、各存各的数据
 
-`plugin-manager.list` 同时报两层：每个包下有哪些条目，每条启用没有、`active`（加载成功）没有。内核包与 `cordis` 没有条目，`list` 与 `outdated` 都不列它们，由下面「升内核」那条命令管，也不许 `uninstall`。命令作用在 MCP 入口连着的那个 home；要操作隔离 home，经 `devkit.cdp {"args":["<home 名>","cmd","plugin-manager.<命令>","<JSON 参数>"]}` 调。
+`plugin-manager.list` 同时报两层：每个包下有哪些条目，每条启用没有、`active`（加载成功）没有。内核包与 `cordis` 没有条目，`list` 与 `outdated` 都不列它们，也不许 `uninstall`；内核包照下面「升内核」换。命令作用在 MCP 入口连着的那个 home；要操作隔离 home，经 `devkit.cdp {"args":["<home 名>","cmd","plugin-manager.<命令>","<JSON 参数>"]}` 调。
+
+回执只有外层一层 `ok`：成功时读 `data`，失败时读 `error`（pnpm 输出的最后几行拼在它末尾）。
 
 ## 装一个插件
 
 1. `plugin-manager.search` 确认包名（第三方 scope 先按下一节配包源）
-2. `plugin-manager.install {"pkg":"<包名>"}`，可选 `spec` 指定版本或 tag。一次 `pnpm add` 加一条启用的条目，回执 `{ ok, pkg, entryId }`
+2. `plugin-manager.install {"pkg":"<包名>"}`，可选 `spec` 指定版本或 tag。一次 `pnpm add --save-exact`，home 的 `package.json` 写精确版本号，再加一条启用的条目，回执 `data` 是 `{ pkg, entryId }`。包已经装了直接报错：再加一条条目用 `add-entry`，换版本用 `update {"specs":…}`
 3. `plugin-manager.list` 看这个包的条目 `active`
 4. 调一次 MCP 入口的 `index`，新插件的命令这时出现
 
 **完成判据**：`list` 里这个包的条目 `active` 为 true；`index` 里有它的命令。
 
-`active` 为 false 时原因在 `gwb.log`；日志说数据目录或设置分区属于别的包，按「增删改条目」第 4 步处理。同一个包再 install 一次会多一条条目（id 带数字后缀）。
+`active` 为 false 时原因在 `gwb.log`；日志说数据目录或设置分区属于别的包，按「增删改条目」第 4 步处理。
 
 ## 找插件、配包源
 
 1. 第三方 scope 写一条包源：
-   * gitea：`plugin-manager.source.add {"scope":"@j","owner":"J"}`，地址拼成 `<gitea 地址>/api/packages/J/npm/`（gitea 地址取设置 `gitea.base-url`），token 没传就取设置 `gitea.token`
+   * gitea：`plugin-manager.source.add {"scope":"@j","owner":"J"}`，地址拼成 `<gitea 地址>/api/packages/J/npm/`（gitea 地址取设置 `gitea.base-url`，取不到就回 `ok: false`：装上 gitea 插件配好它，或改用 `registry` 写法），token 没传就取设置 `gitea.token`
    * 其他源：`plugin-manager.source.add {"scope":"@x","registry":"https://…/npm/","token":"…"}`，公开源可以不给 token
 2. `plugin-manager.source.list` 核对：这条 scope 的 `file` 是 `user`，私有源的 `token` 为 true
-3. `plugin-manager.search` 不带参数，查全部配好的源（`{"scope":"@j"}` 只查一条）
+3. `plugin-manager.search`，无参数，查全部配好的源
 
-**完成判据**：`search` 回执的 `packages` 里有那条源上的插件，`note` 里没有点名这条源。
+**完成判据**：`search` 回执 `data.packages` 里有那条源上的插件，`data.note` 里没有点名这条源。
 
 删一条包源：`plugin-manager.source.remove {"scope":"@j"}`。
 
 ## 升级插件
 
-1. `plugin-manager.outdated` 看谁有新版本，回 `包名 → { current, latest }`
+1. `plugin-manager.outdated` 看谁有新版本，回执 `data.updates` 是 `包名 → { current, latest }`
 2. `plugin-manager.update`，参数三选一、恰好给一个，不给参数直接报错：
 
    * 全升：`{"all":true}`
    * 只升几个：`{"only":["<包名>"]}`；名字不在 home 的 dependencies 里、或是内核包与 `cordis`，直接报错；已是最新的写进 `note`
-   * 按给定写法装已装的包：`{"specs":{"<包名>":"<版本号、tag 或 file:<绝对路径>>"}}`，不查 `outdated`，home 的 `package.json` 写精确版本号；包不在 home 的 dependencies 里直接报错（首次安装用 `install`）。写法是准确版本号的，装完核对装上的就是它，对不上回 `ok: false`、`error` 逐项写要的与装上的、一条条目都没重新加载——多半是 home 的 `package.json` 里那一项写成了 `^`，改成 `error` 里给的精确版本号再调一次；tag 与 `file:` 不核对。`specs` 装完照常重新加载条目，但不整页重新加载（`shell.reload` 同步重载页面，经页面调命令的调用方会收不到回执），回执没有 `reload`，`note` 写「specs 不整页重载，页面由调用方刷新」：拿到回执后自己刷新页面
+   * 按给定写法装已装的包：`{"specs":{"<包名>":"<版本号、tag 或 file:<绝对路径>>"}}`，不查 `outdated`；包不在 home 的 dependencies 里直接报错（首次安装用 `install`）。写法是准确版本号的，装完核对装上的就是它，对不上回 `ok: false`、`error` 逐项写要的与装上的、一条条目都没重新加载——多半是 home 的 `package.json` 里那一项写成了 `^`，改成 `error` 里给的精确版本号再调一次；tag 与 `file:` 不核对
 
-   一条命令做完：一次 `pnpm add`（`all` 与 `only` 升到 `outdated` 查到的精确版本，`specs` 原样用给的写法）→ 装了的包的每条条目重新加载（本来停用的保持停用）→ 装之前与装之后真实目录变了的别的包（多半是 peer 写了被升级包的插件）的条目也跟着重新加载 → 整页重新加载（`specs` 不做这一步），不重启
-3. 读回执 `updated[].entries[]` 与 `dependents[].entries[]`：`state` 为 `ACTIVE` 才算加载成功；`dependents` 是没升级、但这次换了目录跟着重新加载的包。`specs` 的 `updated[].to` 是装完读到的版本号（tag 与 `file:` 装上了哪一版看它）；装之前读不到版本号的包没有 `from`。`selfDeferred: true` 表示插件管理自己在回执发出后才重新加载，过一会儿用 `list` 核对；升到 gwb-mcp 自己时进行中的 MCP 请求会断，重连一次
-4. `plugin-manager.list` 核对版本与 `active`，再调一次 `index`
+   一条命令做完：一次 `pnpm add --save-exact`（`all` 与 `only` 升到 `outdated` 查到的精确版本，`specs` 原样用给的写法）→ 装了的包的每条条目重新加载（本来停用的保持停用）→ 装之前与装之后真实目录变了的别的包（多半是 peer 写了被升级包的插件）的条目也跟着重新加载，不重启
+3. 读回执 `data.updated[].entries[]` 与 `data.dependents[].entries[]`：`state` 为 `ACTIVE` 才算加载成功；`dependents` 是没升级、但这次换了目录跟着重新加载的包。`specs` 的 `updated[].to` 是装完读到的版本号（tag 与 `file:` 装上了哪一版看它）；装之前读不到版本号的包没有 `from`。`selfDeferred: true` 表示插件管理自己在回执发出后才重新加载，过一会儿用 `list` 核对；升到 gwb-mcp 自己时进行中的 MCP 请求会断，重连一次
+4. 插件管理不整页重新加载：要让界面换成新代码，拿到成功回执后自己调一次 `shell.reload`
+5. `plugin-manager.list` 核对版本与 `active`，再调一次 `index`
 
-**完成判据**：`outdated` 里不再有这次升的包；`list` 里它们的版本是新版、条目 `active` 为 true，`dependents` 里的包条目 `active` 也为 true。
+**完成判据**：`outdated` 里不再有这次升的包；`list` 里它们的版本是新版、条目 `active` 为 true，`dependents` 里的包条目 `active` 也为 true；升级后调过 `shell.reload`。
 
 升级前的隔离 home 验证、上游发了破坏性版本时怎么升，见说明书 `gwb-release`。
 
 ## 升内核
 
-内核包 `@godcreator/gwb-kernel-desktop` 与 home 根上的 `cordis` 由这条命令升，`update` 的 `all` 与 `only` 不动它们。`update` 的 `specs` 也可以带上内核包（连同 `cordis` 与别的包一起装），那一次不重新加载任何条目、不整页重新加载，回执 `restartRequired: true`，`cordis` 写哪个版本由调用方负责；`specs` 只给 `cordis` 不给内核包直接报错。`outdated` 不报内核有没有新版本：不给 `version` 就装源上的 latest，回执的 `kernel.from` 与 `kernel.to` 相同就是已是最新。新内核先在隔离 home 里升、重启验完，再升 default。
+内核包 `@godcreator/gwb-kernel-desktop` 也经 `update` 的 `specs` 换，`all` 与 `only` 不动它。`outdated` 不报内核有没有新版本：写 `latest` 就装源上的最新版，回执里内核包的 `from` 与 `to` 相同就是已是最新。新内核先在隔离 home 里升、重启验完，再升 default。
 
-1. `plugin-manager.update-kernel`（指定版本给 `{"version":"<版本>"}`，不给就装源上的 latest）。它先装内核包，再按内核包 `peerDependencies.cordis` 写的精确版本号装 `cordis`；不重新加载任何条目
-2. 读回执：`kernel` 与 `cordis` 的 `{ from, to }`；`restartRequired`（装上的内核与正在运行的不同时是 true）；`pluginsOutsideRange` 是 peer 里内核包的范围不包含新内核（或没写范围）的插件
+1. `plugin-manager.update {"specs":{"@godcreator/gwb-kernel-desktop":"<版本号或 latest>"}}`，可以连同别的包一起写。`cordis` 不写（写了直接报错）：插件管理装完内核包，自己照它 `peerDependencies.cordis` 写的精确版本号装 `cordis`。不重新加载任何条目
+2. 读回执 `data`：`updated` 里内核包与末尾 `cordis` 的 `{ from, to }`；`restartRequired`（装上的内核与正在运行的不同时是 true）；`pluginsOutsideRange` 是 peer 里内核包的范围不包含新内核（或没写范围）的插件
 3. `restartRequired` 为 true 时告诉人要重启工作台才生效，并列出 `pluginsOutsideRange`；重启由人决定，不要自己重启
-4. `ok: false` 且 `error` 说先别重启：内核包已经装上、`cordis` 没对齐。按 `error` 修好再调一次：内核包 peer 里的 `cordis` 写成了范围；装 `cordis` 时 pnpm 失败（原因在 `data.tail`）；或者 pnpm 装上的版本不是要的——home 的 `package.json` 里那一项写成了 `^`，改成 `error` 里给的精确版本号
+4. `ok: false` 且 `data.kernel` 在、`error` 说先别重启：内核包已经装上、`cordis` 没对齐。按 `error` 修好再调一次：内核包 peer 里的 `cordis` 写成了范围；装 `cordis` 时 pnpm 失败（原因在 `error` 末尾）；或者 pnpm 装上的版本不是要的——home 的 `package.json` 里那一项写成了 `^`，改成 `error` 里给的精确版本号
 
-**完成判据**：回执 `ok` 为 true，人已知道要重启和 `pluginsOutsideRange` 里的插件；重启后 `runtime.json` 报的内核版本是 `kernel.to`。
+**完成判据**：回执 `ok` 为 true，人已知道要重启和 `pluginsOutsideRange` 里的插件；重启后 `runtime.json` 报的内核版本是回执里内核包的 `to`。
 
 ## 查哪些插件的内核范围不包含当前内核、peer 里的插件没满足
 
@@ -86,18 +89,18 @@ home 里有两层：
 
 2. 调对应的命令：
 
-   | 要做什么        | 命令（前缀 `plugin-manager.`）                                              |
-   | ----------- | --------------------------------------------------------------------- |
-   | 给已装的包再加一条条目 | `add-entry {"pkg":"<包名>"}`，可选 `id`、`config`；不给 `id` 时优先用回本包留在磁盘上的旧 id |
-   | 删一条条目、留着包   | `remove-entry {"entryId":"…"}`，随时可以 `add-entry` 加回来                   |
-   | 删包连同它的全部条目  | `uninstall {"pkg":"<包名>"}`，设置与数据留在磁盘上，重装回来还是那份；依赖它的插件停在未加载            |
-   | 启用、停用       | `enable` / `disable {"entryId":"…"}`，立即生效                             |
-   | 重新加载一条      | `remount {"entryId":"…"}`，停用、等卸载完、启用、等加载完都在这一条里                       |
+   | 要做什么        | 命令（前缀 `plugin-manager.`）                                     |
+   | ----------- | ------------------------------------------------------------ |
+   | 给已装的包再加一条条目 | `add-entry {"pkg":"<包名>"}`，可选 `id`；不给 `id` 时优先用回本包留在磁盘上的旧 id |
+   | 删一条条目、留着包   | `remove-entry {"entryId":"…"}`，随时可以 `add-entry` 加回来          |
+   | 删包连同它的全部条目  | `uninstall {"pkg":"<包名>"}`，设置与数据留在磁盘上，重装回来还是那份；依赖它的插件停在未加载   |
+   | 启用、停用       | `enable` / `disable {"entryId":"…"}`，立即生效                    |
+   | 重新加载一条      | `remount {"entryId":"…"}`，停用、等卸载完、启用、等加载完都在这一条里              |
 
 3. `remount` 的回执：`remounted` 表示做完了，`state` 为 `ACTIVE` 才算成功；`deferred` 表示目标是插件管理自己，回执先发、下一个宏任务才重新加载，过一会儿用 `list` 核对 `active`
 
 4. 插件加载失败、日志说「数据目录 … 属于 X」或「设置分区 … 属于 X」：
-   * 同一个插件改了包名、要继续用旧数据：`transfer-owner {"id":"<id>","pkg":"<新包名>"}` 把数据与设置一起转过去，再 `remount` 那条条目
+   * 同一个插件改了包名、要继续用旧数据：`transfer-owner {"id":"<id>","pkg":"<新包名>"}` 把数据与设置一起转过去（数据插件与设置插件都要装着，缺一个直接报错），再 `remount` 那条条目
    * 不是同一个插件：`remove-entry` 后带新的 `id` 调 `add-entry`，给它自己的一份数据
 
 5. `plugin-manager.list` 核对
@@ -107,8 +110,8 @@ home 里有两层：
 ## 参考
 
 * **重新加载一条条目只用 `remount`**：它一条命令做完停用与启用。目标是插件管理自己或命令总线（`gwb-commands`）时，分两条调的话 `disable` 一返回命令表就没了，`enable` 调不进去，条目停在停用状态
-* **同一时刻只允许一个改动**：`install`、`uninstall`、`update`、`update-kernel`、`remount` 正在运行时再调回 `{ ok: false, error: "BUSY…" }`，等前一个返回回执后再调。`outdated`、`search`、`source.*` 不写 home，不受这条限制。`add-entry`、`remove-entry`、`enable`、`disable`、`transfer-owner` 也不经过这道检查：`update` 运行时别动它要重新加载的条目。插件管理之外在同一个 home 里运行的 pnpm（`devkit.dev`、手工运行）不受它管，和插件管理的改动同时写 home 会丢改动、而且都退出码 0
-* **失败回执**：参数写错（包名、版本范围、id、scope 不合规，条目不存在，改或删 `@godcreator`）直接报错；执行中失败回 `ok: false`，`error` 是原因，pnpm 输出的最后几行在 `data.tail`。`update` 的 pnpm 失败时一条条目都没动
+* **同一时刻只允许一个改动**：`install`、`uninstall`、`update`、`remount` 正在运行时再调回 `{ ok: false, error: "BUSY…" }`，等前一个返回回执后再调。`outdated`、`search`、`source.*` 不写 home，不受这条限制。`add-entry`、`remove-entry`、`enable`、`disable`、`transfer-owner` 也不经过这道检查：`update` 运行时别动它要重新加载的条目。插件管理之外在同一个 home 里运行的 pnpm（`devkit.dev`、手工运行）不受它管，和插件管理的改动同时写 home 会丢改动、而且都退出码 0
+* **失败回执**：参数写错（包名、版本范围、id、scope 不合规，有认不出的参数，条目不存在，改或删 `@godcreator`）直接报错；执行中失败回 `ok: false`，`error` 是原因，pnpm 输出的最后几行拼在它末尾。`update` 的 pnpm 失败时一条条目都没动
 * **install 只装点名的包**：不装它 peer 里的插件，也不判断它是不是库。插件管理启动 pnpm 时带环境变量 `pnpm_config_auto_install_peers=false`，pnpm 也不会自动补装缺的 peer；缺的看 `list` 的 `unmetPeers`，要用就另外 `install`。人在 home 里手工运行 pnpm 时自己设这个环境变量，命令行参数 `--config.auto-install-peers=false` 会被 pnpm 忽略。装了一个没有 `apply` 的包，条目照样加上、加载失败，用 `uninstall` 删掉
 * **是不是插件只看包清单 `keywords` 里有没有 `gwb-plugin`**，名字不参与。`search` 回的是这条规则筛出的全部结果，不维护的旧包也在里面
 * **源地址按 scope 从两份 npmrc 找**：先找 `@scope:registry=`，再找 `registry=`，每一种都是 home 级 `<home>/.npmrc` 优先于机器级 `~/.npmrc`，都没写就是 npm 官方源。这和 pnpm 安装读的是同一批配置行，从哪装就在哪搜

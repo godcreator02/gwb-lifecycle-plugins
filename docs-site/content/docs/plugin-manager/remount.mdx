@@ -58,7 +58,7 @@ description: 停用 → 等旧的卸载完 → 启用 → 等新的加载完，�
 
 **怎么做**：排到下一个宏任务的那段代码只持有条目树、id 与事先拿到的 logger——那时插件管理原来的实例已经卸载，ctx 上的东西都不能用。`update` 装的包里有插件管理自己时也这样处理，回执 `selfDeferred: true`；`devkit.dev` 收到它就轮询 `plugin-manager.list` 等插件管理回来，带超时。
 
-{/* ref file="../plugins/plugin-manager/src/remount.ts" lines="81-95" */}
+{/* ref file="../plugins/plugin-manager/src/remount.ts" lines="60-87" */}
 
 **守住它的测试**：
 

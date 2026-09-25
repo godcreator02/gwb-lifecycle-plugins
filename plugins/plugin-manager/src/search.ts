@@ -17,6 +17,9 @@ export interface SearchRow {
   keywords: string[]
 }
 
+/** `search` 回执里的一行：不带 keywords，是不是插件已在检索时按它筛过 */
+export type PluginRow = Omit<SearchRow, 'keywords'>
+
 /** 整份响应认不出时是 undefined，和「查成了但没有结果」（空数组）分得开 */
 export type ParsedSearch = SearchRow[] | undefined
 
@@ -24,16 +27,16 @@ export type ParsedSearch = SearchRow[] | undefined
 export interface ScopedSearch {
   scope: string
   ok: boolean
-  packages?: SearchRow[]
+  packages?: PluginRow[]
   error?: string
 }
 
 /** 查成的源里的包按传入顺序并在一起（包名自带 scope，不用去重），没查成的列进 `failed` */
 export function mergeScoped(results: readonly ScopedSearch[]): {
-  packages: SearchRow[]
+  packages: PluginRow[]
   failed: { scope: string; error: string }[]
 } {
-  const packages: SearchRow[] = []
+  const packages: PluginRow[] = []
   const failed: { scope: string; error: string }[] = []
   for (const result of results) {
     if (result.ok && result.packages !== undefined) packages.push(...result.packages)

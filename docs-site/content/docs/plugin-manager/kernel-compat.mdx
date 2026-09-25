@@ -1,6 +1,6 @@
 ---
 title: 内核兼容性
-description: 插件在 peerDependencies 里给内核包 @godcreator/gwb-kernel-desktop 写 ^x.y.z 范围；list 按包报 kernelRange 与 kernelUntested，范围不包含运行中的内核就报，只报告不拦加载；update-kernel 与 devkit.release 用同一条规则
+description: 插件在 peerDependencies 里给内核包 @godcreator/gwb-kernel-desktop 写 ^x.y.z 范围；list 按包报 kernelRange 与 kernelUntested，范围不包含运行中的内核就报，只报告不拦加载；update 装内核包时的 pluginsOutsideRange 与 devkit.release 用同一条规则
 ---
 
 # 内核兼容性
@@ -48,7 +48,7 @@ description: 插件在 peerDependencies 里给内核包 @godcreator/gwb-kernel-d
 
 **只标插件**：`keywords` 里有 `gwb-plugin`、又不是内核包与 `cordis` 自己的包才比。库、第三方 cordis 插件（如 `@cordisjs/plugin-timer`）、
 内核包与 `cordis`、清单读不到的包都不该声明兼容哪个内核，一律 `kernelUntested: false`、不带 `kernelRange`——不然窗格里这些包都显示「内核未测过」，
-真正没适配当前内核的插件反而看不出来。是不是插件的判法与 `update-kernel` 回执里的 `pluginsOutsideRange` 相同：
+真正没适配当前内核的插件反而看不出来。是不是插件的判法与 `update` 装内核包时回执里的 `pluginsOutsideRange` 相同：
 
 {/* ref file="../plugins/plugin-manager/src/kernel-upgrade.ts" lines="61-68" */}
 
@@ -56,7 +56,7 @@ description: 插件在 peerDependencies 里给内核包 @godcreator/gwb-kernel-d
 
 **怎么读包清单**：按包名（含 scope）从 home 的 `node_modules` 读。文件不在（条目指向一个没装的包，或 pnpm 装到一半）就当不是插件、不标；文件在但读不了、或不是合法 JSON，`list` 直接报错并带上文件路径——那是 home 坏了，不该当成「范围不包含」报出来了事。
 
-{/* ref file="../plugins/plugin-manager/src/home.ts" lines="34-49" */}
+{/* ref file="../plugins/plugin-manager/src/home.ts" lines="36-51" */}
 
 **守住它的测试**：
 
@@ -78,7 +78,7 @@ description: 插件在 peerDependencies 里给内核包 @godcreator/gwb-kernel-d
 
 ## 还有谁用同一条规则
 
-- **`plugin-manager.update-kernel`**：装完新内核，列出 home 里 `keywords` 含 `gwb-plugin`、范围不包含新内核（或没写范围）的插件，放在回执的 `pluginsOutsideRange` 里，同样只报告，见[升内核](/docs/plugin-manager/upgrade#升内核)
+- **`plugin-manager.update` 的 `specs` 里有内核包**：装完新内核，列出 home 里 `keywords` 含 `gwb-plugin`、范围不包含新内核（或没写范围）的插件，放在回执的 `pluginsOutsideRange` 里，同样只报告，见[升内核](/docs/plugin-manager/upgrade#升内核)
 - **`devkit.release`**：构建之后、发第一个包之前，检查每个插件包（`keywords` 含 `gwb-plugin` 的）peer 里内核包的范围：必须写了、是 `^x.y.z`、并且包含运行中的内核。有一个不对就一个都不发，回执里说该改成什么。不是插件的包（库、工具包）不查
 
 **只有一份规则**：比对规则只写在插件管理的 `src/kernel-compat.ts` 里，从包主入口导出（见[接口](/docs/plugin-manager#接口)）。devkit 在 peer 里写了插件管理，发版检查直接 import `KERNEL_PACKAGE`、`isCaretRange`、`kernelRangeCovers`，所以改了这里的规则，`devkit.release` 的检查跟着变；改签名或 devkit 依赖的行为要升 x（见[改了命令形状就升 x](/docs/plugin-manager/commands#改了命令形状就升-x)）。

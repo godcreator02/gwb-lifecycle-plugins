@@ -11,7 +11,7 @@ description: 插件在 peerDependencies 里写它用到的别的插件的 ^x.y.z
 
 **是什么**：插件包在 `peerDependencies` 里写它用到的别的插件，范围 `^x.y.z`，意思是运行时 home 里那个插件装的版本在这个范围里；只是可选使用的在 `peerDependenciesMeta` 标 `optional: true`。`list` 给每个包读它装在 home 里的 `package.json`，回执里每个包都带 `unmetPeers`，每条是 `{ pkg, range, installed? }`：
 
-- 只看插件（`keywords` 含 `gwb-plugin`）peer 里内核包与 `cordis` 以外的包；内核包由 `kernelRange` / `kernelUntested` 报（见[内核兼容性](/docs/plugin-manager/kernel-compat)），`cordis` 由 `update-kernel` 对齐
+- 只看插件（`keywords` 含 `gwb-plugin`）peer 里内核包与 `cordis` 以外的包；内核包由 `kernelRange` / `kernelUntested` 报（见[内核兼容性](/docs/plugin-manager/kernel-compat)），`cordis` 由插件管理在 `update` 的 `specs` 装内核包时对齐
 - 没装：列进来，没有 `installed` 字段；optional 的没装不算
 - 装着但版本不在范围里：列进来，带 `installed`；optional 的也一样
 - 范围不是 `^x.y.z`：`range` 原样照抄，算没满足
@@ -34,7 +34,7 @@ description: 插件在 peerDependencies 里写它用到的别的插件的 ^x.y.z
 
 **「装着的版本」从哪读**：home 的 `node_modules/<包名>/package.json` 在，就算装了，版本取它的 `version`。`list` 本来就读 home 的 dependencies 与条目里每个包的清单；插件 peer 里点名了别的包时再补读一次。不合包名规则的键不拿去拼路径，按没装报。
 
-{/* ref file="../plugins/plugin-manager/src/index.ts" lines="425-459" */}
+{/* ref file="../plugins/plugin-manager/src/index.ts" lines="348-382" */}
 
 **守住它的测试**：
 

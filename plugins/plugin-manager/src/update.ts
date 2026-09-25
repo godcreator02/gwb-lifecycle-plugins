@@ -49,7 +49,7 @@ export interface SpecsUpdatePlan {
   addSpecs: string[]
   /** 要装的包，按包名排 */
   packages: PackageEntries[]
-  /** 有内核包：主进程里的内核换不掉，这次不重新加载任何条目、不整页重载 */
+  /** 有内核包：主进程里的内核换不掉，这次不重新加载任何条目；装完再照内核包 peer 对齐 cordis */
   includesKernel: boolean
 }
 
@@ -79,11 +79,13 @@ export function assertOnlyPackagesInHome(only: readonly string[], homeDependenci
   }
 }
 
-/** 内核包与 cordis 热升级不了：`only` 点了它们的名直接抛错，指向升内核的命令 */
+/** 内核包与 cordis 热升级不了：`only` 点了它们的名直接抛错，指向 specs 写法 */
 export function assertOnlyNotKernelManaged(only: readonly string[]): void {
   const kernelManaged = only.filter((pkg) => KERNEL_MANAGED_PACKAGES.has(pkg))
   if (kernelManaged.length > 0) {
-    throw new Error(`only 里的 ${kernelManaged.join('、')} 由内核决定版本，热升级不了：内核包用 plugin-manager.update-kernel 升，cordis 随它对齐`)
+    throw new Error(
+      `only 里的 ${kernelManaged.join('、')} 由内核决定版本，热升级不了：内核包用 plugin-manager.update {"specs":{"${KERNEL_PACKAGE}":"<版本号、latest 或 file:路径>"}} 换，cordis 由插件管理照装上的内核包对齐`,
+    )
   }
 }
 
@@ -110,7 +112,7 @@ export function planOutdatedUpdate(outdated: Readonly<OutdatedMap>, store: unkno
 }
 
 /**
- * 包名或写法不合规、包不在 home 的 dependencies 里、只给 cordis 不给内核包，都直接抛错。
+ * 包名或写法不合规、包不在 home 的 dependencies 里、写了 cordis，都直接抛错。
  * 写法原样交给 pnpm（版本号、tag、`file:<绝对路径>`），`installSpec` 只拦空白与开关
  */
 export function planSpecsUpdate(
@@ -126,10 +128,10 @@ export function planSpecsUpdate(
   if (notInHome.length > 0) {
     throw new Error(`specs 里的 ${notInHome.join('、')} 不在 home 的 package.json 的 dependencies 里：specs 只给已装的包换版本，首次安装用 plugin-manager.install`)
   }
-  const includesKernel = pkgs.includes(KERNEL_PACKAGE)
-  if (pkgs.includes(CORDIS_PACKAGE) && !includesKernel) {
-    throw new Error(`specs 里有 ${CORDIS_PACKAGE} 却没有内核包 ${KERNEL_PACKAGE}：${CORDIS_PACKAGE} 的版本跟着内核包 peer 里写的走，单独换用 plugin-manager.update-kernel`)
+  if (pkgs.includes(CORDIS_PACKAGE)) {
+    throw new Error(`specs 里不写 ${CORDIS_PACKAGE}：它的版本跟着内核包 peer 里写的走，specs 里有内核包 ${KERNEL_PACKAGE} 时由插件管理照装上的内核包自己对齐`)
   }
+  const includesKernel = pkgs.includes(KERNEL_PACKAGE)
 
   const ownBareId = bareId(ownEntryId)
   const pluginEntries = pluginEntriesOf(store)

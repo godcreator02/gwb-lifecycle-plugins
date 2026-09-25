@@ -1,23 +1,20 @@
 ---
 title: 5 借用别的插件的命令
-description: 连接 devkit、插件管理与三个不在本仓的插件：建仓调 docs-site.create 与 docfirst.attach，插件管理调 shell.reload；都只按命令名在命令总线上查，查不到就跳过或报告，参数与回执靠约定
+description: 连接 devkit 与两个不在本仓的插件：建仓调 docs-site.create 与 docfirst.attach，只按命令名在命令总线上查，查不到就跳过，参数与回执靠约定
 ---
 
-**本页回答**：devkit 与插件管理调了哪几条别人的命令、传什么、读回执里的哪个字段；命令不在时各自怎么办；这些约定写在哪。
+**本页回答**：devkit 调了哪几条别人的命令、传什么、读回执里的哪个字段；命令不在时怎么办；这些约定写在哪。
 
 ## 连接的模块
 
 - devkit 的 `devkit.scaffold`（`src/index.ts`）
-- 插件管理的 `plugin-manager.update`（`src/index.ts`）
-- 被调的插件，都不在本仓：站点插件 `@godcreator/gwb-docs-site`（`docs-site.create`）、docfirst 插件 `@godcreator/gwb-docfirst-workflow`（`docfirst.attach`）、外壳 `@godcreator/gwb-shell`（`shell.reload`）
+- 被调的插件，都不在本仓：站点插件 `@godcreator/gwb-docs-site`（`docs-site.create`）、docfirst 插件 `@godcreator/gwb-docfirst-workflow`（`docfirst.attach`）
 
 ## 接口
 
-**按名字查**：两个插件都不 import 被调插件的包，命令名写成本包里的常量，调用前用 `gwbCommands.list()` 查一次，每次调用都重新查，不缓存：
+**按名字查**：devkit 不 import 被调插件的包，命令名写成本包里的常量，调用前用 `gwbCommands.list()` 查一次，每次调用都重新查，不缓存：
 
 {/* ref file="../plugins/devkit/src/index.ts" lines="51-55" */}
-
-{/* ref file="../plugins/plugin-manager/src/index.ts" lines="54-55" */}
 
 **建仓：`docs-site.create` 与 `docfirst.attach`**。插件那部分写到磁盘之后才调，两条都传站目录 `<仓>\docs-site`，不是仓根。`docs-site.create` 传 `{ dir, title }`，端口由站点插件自己选，回执里只读 `data.port`；`docfirst.attach` 传 `{ dir, title }`，只看 `ok` 与 `error`：
 
@@ -25,11 +22,7 @@ description: 连接 devkit、插件管理与三个不在本仓的插件：建仓
 
 {/* ref file="../plugins/devkit/src/index.ts" lines="668-679" */}
 
-**插件管理：`shell.reload`**。一键热升级最后调它整页重新加载，不传参数，只看 `ok` 与 `error`：
-
-{/* ref file="../plugins/plugin-manager/src/index.ts" lines="958-966" */}
-
-插件管理的 `source.add` 另外按名字调设置插件的 `settings.get`，读 gitea 插件分区里的地址与 token；它只为配包源服务，写在[9 pnpm 与包源](/docs/seams/pnpm-registry)。
+插件管理不调外壳的 `shell.reload`：升级完的整页重新加载由调用方做（见[热升级](/docs/plugin-manager/upgrade#一次热升级依次发生什么)）。插件管理的 `source.add` 按名字调设置插件的 `settings.get`，读 gitea 插件分区里的地址与 token；它只为配包源服务，写在[9 pnpm 与包源](/docs/seams/pnpm-registry)。
 
 ## 约定
 
@@ -37,13 +30,11 @@ devkit 保证：
 - 建站那两步失败或命令不在，插件那部分照样留在磁盘上，建仓不算失败；回执的 `docs.built`、`docs.attached` 两个字段说到了哪一步，`note` 与 `nextSteps` 给出补建的两条命令
 - `docs-site.create` 在而 `docfirst.attach` 不在时，提醒「立刻补」：`docfirst.attach` 只在还没写过内容的骨架上装得上
 
-插件管理保证：`shell.reload` 不在或失败时，回执与日志说「界面要手动刷新」，升级照样算完成。
-
-被调的插件需要保证的——命令名、参数形状、`data.port` 这个字段——**都靠约定**。写在这几处：两个插件源码里的命令名常量与 `usage` 文字、`scaffold.ts` 的 `docsBlock` 与 `nextSteps`、本仓 AGENTS 的「建站是两步」、被调插件各自的说明书（`docs-site`）。被调插件改了名字或形状，devkit 这边没有任何类型或测试会报错，表现是「当作没装」而跳过，或读到空的 `port`。
+被调的插件需要保证的——命令名、参数形状、`data.port` 这个字段——**都靠约定**。写在这几处：devkit 源码里的命令名常量与 `usage` 文字、`scaffold.ts` 的 `docsBlock` 与 `nextSteps`、本仓 AGENTS 的「建站是两步」、被调插件各自的说明书（`docs-site`）。被调插件改了名字或形状，devkit 这边没有任何类型或测试会报错，表现是「当作没装」而跳过，或读到空的 `port`。
 
 ## 不负责的事
 
-- devkit 不知道站点骨架里有什么、六区怎么装；插件管理不知道外壳怎么重新加载
+- devkit 不知道站点骨架里有什么、六区怎么装
 - devkit 不检查被调命令的版本
 
 ## 测试

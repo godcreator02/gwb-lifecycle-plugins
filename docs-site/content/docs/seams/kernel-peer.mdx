@@ -32,7 +32,7 @@ description: 连接插件包 package.json 的 peer（内核包的范围、用到
 
 {/* ref file="../plugins/plugin-manager/src/kernel-compat.ts" lines="24-61" */}
 
-{/* ref file="../plugins/plugin-manager/src/index.ts" lines="49-52" */}
+{/* ref file="../plugins/plugin-manager/src/index.ts" lines="41-44" */}
 
 **devkit 这边**：`devkit.release` 只查 `keywords` 含 `gwb-plugin` 的包，从插件管理 import `KERNEL_PACKAGE`、`isCaretRange`、`kernelRangeCovers`，拿 devkit 自己所在那个 home 的 `gwbKernel.version` 比：
 
@@ -40,11 +40,11 @@ description: 连接插件包 package.json 的 peer（内核包的范围、用到
 
 **插件管理这边**：`list` 从 home 的 `node_modules` 读每个包的 `package.json`，拿插件管理所在那个 home 的 `gwbKernel.version` 比：
 
-{/* ref file="../plugins/plugin-manager/src/index.ts" lines="445-455" */}
+{/* ref file="../plugins/plugin-manager/src/index.ts" lines="348-358" */}
 
 {/* ref file="../plugins/plugin-manager/src/kernel-compat.ts" lines="63-76" */}
 
-**peer 里的别的插件**：`"<插件包名>": "^x.y.z"`，可选使用的在 `peerDependenciesMeta` 标 `optional: true`（规矩见[用到的插件写 peer](/docs/rules/plugin-peers)）。两边问的不是同一件事：devkit 在发版时问「上游有没有出破坏性版本」，拿范围下限和源上 latest 比在不在同一条线；插件管理在 home 里问「装着的这一版在不在范围里」，拿范围和装着的版本比，用的就是内核范围那条规则的同一个函数 `caretRangeCovers`（内核范围的 `kernelRangeCovers` 只在它外面多一层「内核版本号不合法就抛错」）。
+**peer 里的别的插件**：`"<插件包名>": "^x.y.z"`，可选使用的在 `peerDependenciesMeta` 标 `optional: true`（规矩见[用到的插件写 peer](/docs/rules/plugin-peers)）。两边问的不是同一件事：devkit 在发版时问「上游有没有出破坏性版本」，拿范围下限和源上 latest 比在不在同一条线；插件管理在 home 里问「装着的这一版在不在范围里」，拿范围和装着的版本比，用的就是内核范围那条规则的同一个函数 `caretRangeCovers`（插件管理内部的函数；主入口导出给 devkit 的 `kernelRangeCovers` 只在它外面多一层「内核版本号不合法就抛错」）。
 
 {/* ref file="../plugins/devkit/src/release.ts" lines="238-247" */}
 

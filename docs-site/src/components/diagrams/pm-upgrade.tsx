@@ -39,18 +39,21 @@ const STEPS: { title: string; detail: string; events: Event[] }[] = [
   },
   {
     title: '回执发出',
-    detail: '回执里写着 selfDeferred: true、reload: deferred。在这之前停用插件管理自己，回执就发不出去了。',
+    detail: '回执里写着 selfDeferred: true。在这之前停用插件管理自己，回执就发不出去了。',
     events: [{ lane: 0, lines: ['收到回执', 'selfDeferred'] }],
   },
   {
     title: '下一个宏任务：重新加载插件管理自己',
-    detail: '这段代码只持有条目树、id、命令插件的引用与 logger——插件管理原来的实例已经卸载，ctx 上什么都不能用。',
+    detail: '这段代码只持有条目树、id 与 logger——插件管理原来的实例已经卸载，ctx 上什么都不能用。',
     events: [{ lane: 4, lines: ['停用→启用', '新版本'] }],
   },
   {
-    title: '整页重新加载',
-    detail: '经命令插件调用外壳的 shell.reload，窗格拿到新版本的页面代码。命令表里没有它时，回执里的 reload 是 unavailable。',
-    events: [{ lane: 5, lines: ['shell', '.reload'] }],
+    title: '调用方整页重新加载',
+    detail: '插件管理不整页重新加载。调用方拿到成功回执后自己调外壳的 shell.reload，窗格拿到新版本的页面代码；devkit.dev 本来就自己刷新目标页面。',
+    events: [
+      { lane: 0, lines: ['调 shell', '.reload'] },
+      { lane: 5, lines: ['整页', '重新加载'] },
+    ],
   },
 ]
 
@@ -58,7 +61,7 @@ const LANE_Y = (lane: number) => 34 + lane * 48
 const COL_X = (step: number) => 176 + step * 96
 
 export function PmUpgrade() {
-  const all = [{ title: '全貌', detail: '一条命令里按时间先后做完：定计划 → 一次 pnpm add → 逐条停用再启用（升级的包，再是 peer 写了它的包） → 回执 → 重新加载插件管理自己 → 整页重新加载。', events: [] as Event[] }, ...STEPS]
+  const all = [{ title: '全貌', detail: '一条命令里按时间先后做完：定计划 → 一次 pnpm add → 逐条停用再启用（升级的包，再是 peer 写了它的包） → 回执 → 重新加载插件管理自己；调用方拿到回执后自己整页重新加载。', events: [] as Event[] }, ...STEPS]
   const state = useSteps(all.length, 3000)
   const current = all[state.step]!
   const replyX = COL_X(3) - 4

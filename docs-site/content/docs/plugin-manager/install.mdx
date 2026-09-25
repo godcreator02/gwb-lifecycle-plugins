@@ -1,6 +1,6 @@
 ---
 title: 安装与卸载
-description: install 在一条命令里装包并加一条条目，只等写入、不等加载；home 里只有插件、内核包与 cordis，所以不替插件装它 peer 里的插件、不判断是不是库；uninstall 先删条目后卸包、不回滚
+description: install 在一条命令里装一个还没装的包（--save-exact）并加一条条目，只等写入、不等加载；已装的包直接报错，再挂一条用 add-entry、换版本用 update 的 specs；home 里只有插件、内核包与 cordis，所以不替插件装它 peer 里的插件、不判断是不是库；uninstall 先删条目后卸包、不回滚
 ---
 
 # 安装与卸载
@@ -9,27 +9,28 @@ description: install 在一条命令里装包并加一条条目，只等写入�
 
 ## 装包与加条目在一条命令里
 
-**是什么**：`install` 一条命令做完三步：校验参数 → 一次 `pnpm add` → 选 id、加一条条目（默认启用）。
+**是什么**：`install` 一条命令做完三步：校验参数 → 一次 `pnpm add --save-exact` → 选 id、加一条条目（默认启用）。home 的 `package.json` 里写精确版本号。
 
 **为什么**：条目必须指向刚装上的那个包。拆成「先装包、再加条目」两条命令，中间可能插进别的改动，调用方也得自己处理「包装上了、条目没加上」的中间状态。
 
 **怎么做**：
 
 <Diagram name="pm-install" title="安装一个包：三步依次做，每一步失败时回执是什么样，回执里逐步多出哪几行">
-1. **校验参数**：包名与版本范围不合规就抛错——拦的是 `-r` 这类会被 pnpm 当成命令行选项的参数。参数全程以数组传给 pnpm、不经过 shell。只有调用方写错才抛，下面每一种失败都转成 `ok: false` 的回执
-2. **一次 `pnpm add`**：先在两个固定位置找到 pnpm 并核对版本（见 [pnpm](/docs/plugin-manager/pnpm)），再经 `applyToHome` 运行。失败时回执带 pnpm 输出的最后几行
+1. **校验参数**：包名与版本范围不合规就抛错——拦的是 `-r` 这类会被 pnpm 当成命令行选项的参数。参数全程以数组传给 pnpm、不经过 shell。包已在 home 的 dependencies 里也抛错。只有调用方写错才抛，下面每一种失败都转成 `ok: false` 的回执
+2. **一次 `pnpm add --save-exact`**：先在两个固定位置找到 pnpm 并核对版本（见 [pnpm](/docs/plugin-manager/pnpm)），再经 `applyToHome` 运行。失败时 `error` 末尾带 pnpm 输出的最后几行
 3. **选 id，加一条条目**：id 的规则见[id 与归属](/docs/plugin-manager/ids)，经条目树 `create` 写进 `cordis.yml`，回执带 `entryId`。写不进 `cordis.yml` 时回执 `ok: false`，包留在 home 里、不回滚——删包比留着危险
 </Diagram>
 
-{/* ref file="../plugins/plugin-manager/src/index.ts" lines="461-490" */}
+{/* ref file="../plugins/plugin-manager/src/index.ts" lines="384-408" */}
 
-- 同一个包 install 两次会得到两条条目（第二条的 id 带数字后缀）：一个包对应几条条目本来就合法，不替调用方猜「是不是装过了」
-- 只给已装的包再加一条条目，用 `add-entry`
+- 包已在 home 的 dependencies 里，`install` 直接报错、一次 pnpm 都不运行，报错指向两条路：再加一条条目用 `add-entry`，换版本用 `update {"specs":{…}}`。已装的包再 `pnpm add` 一次，只会悄悄换掉版本号、再多一条条目，两件事都不是调用方要的
 - 装完之后，agent 要再调一次 MCP 入口的 `index`，新插件的命令才出现
 
 **覆盖它的测试**：参数校验与失败回执有单元测试；整条命令在假条目树、假 pnpm 上有测试；真的 pnpm 与 loader 下的安装只能实机验证（隔离 home 里调 `plugin-manager.install`）。
 
-{/* has file="../plugins/plugin-manager/tests/commands.test.ts" text="install：在 home 里 pnpm add 包名@spec，再加一条条目" */}
+{/* has file="../plugins/plugin-manager/tests/commands.test.ts" text="install：在 home 里 pnpm add 包名@spec --save-exact，再加一条条目" */}
+
+{/* has file="../plugins/plugin-manager/tests/commands.test.ts" text="install：包已在 home 的 dependencies 里，直接抛错、指向 add-entry 与 update 的 specs，不运行 pnpm" */}
 
 {/* has file="../plugins/plugin-manager/tests/ids.test.ts" text="以 - 开头的包名不认" */}
 
@@ -45,7 +46,7 @@ description: install 在一条命令里装包并加一条条目，只等写入�
 
 **怎么做**：写回 `cordis.yml` 在 `create` 的第一个 `await` 之前就同步安排好了，所以不 `await` 也不影响写入；加载失败只记一条 warn。
 
-{/* ref file="../plugins/plugin-manager/src/index.ts" lines="824-828" */}
+{/* ref file="../plugins/plugin-manager/src/index.ts" lines="730-734" */}
 
 这一条没有单元测试：要验证，就在隔离 home 里装一个依赖还没装齐的插件，看命令是否照常返回回执、`list` 里是否显示未加载。
 
@@ -56,7 +57,7 @@ description: install 在一条命令里装包并加一条条目，只等写入�
 **为什么**：插件代码运行时用到的东西，各有提供方，不需要另外装进 home：
 
 <Diagram name="pm-home-contents" title="home 的 node_modules 里只有插件、内核包与 cordis；插件运行时用到的东西各由谁提供">
-- 内核包 `@godcreator/gwb-kernel-desktop` 与 `cordis` 装在 home 根上，由创建 home 的一方装、由 `update-kernel` 升；`cordis` 的版本等于内核包 peer 里写的那个，内核与插件 import 的是同一份
+- 内核包 `@godcreator/gwb-kernel-desktop` 与 `cordis` 装在 home 根上，由创建 home 的一方装，内核包经 `update` 的 `specs` 换、`cordis` 由插件管理照内核包对齐；`cordis` 的版本等于内核包 peer 里写的那个，内核与插件 import 的是同一份
 - 插件用到的别的插件写在它的 peer 里，是 home 里另一个有条目的插件，装不装由人决定；没装或版本不在范围里，`list` 的 `unmetPeers` 报出来
 - 页面上必须只有一份的运行时代码经页面的 importmap 提供：importmap 写死在内核包的页面入口 `dist/index.html` 里，只有 react 的四个包名，别的包加不进名字
 - 插件自己用的库、接口定义包打包进它自己的构建产物
@@ -82,7 +83,7 @@ description: install 在一条命令里装包并加一条条目，只等写入�
 - 反过来先卸包：条目会指向一个不在 home 里的包
 </Diagram>
 
-{/* ref file="../plugins/plugin-manager/src/index.ts" lines="711-743" */}
+{/* ref file="../plugins/plugin-manager/src/index.ts" lines="623-648" */}
 
 只删一条条目、保留包，用 `remove-entry`。
 

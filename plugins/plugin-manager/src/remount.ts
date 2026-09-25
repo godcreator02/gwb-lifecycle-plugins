@@ -57,20 +57,12 @@ export async function remountNow(tree: EntryTreeLike, id: string, log: RemountLo
   }
 }
 
-/** 本插件自己那条：排到下一个宏任务里重新加载。闭包只持有条目树、id 与 logger；`after` 在重新加载完之后执行 */
-export function remountSelfLater(
-  tree: EntryTreeLike,
-  id: string,
-  log: RemountLog,
-  after?: () => Promise<void>,
-  schedule: Schedule = nextMacrotask,
-  settleMs: number = SETTLE_MS,
-): void {
+/** 本插件自己那条：排到下一个宏任务里重新加载。闭包只持有条目树、id 与 logger */
+export function remountSelfLater(tree: EntryTreeLike, id: string, log: RemountLog, schedule: Schedule = nextMacrotask, settleMs: number = SETTLE_MS): void {
   schedule(() => {
     void remountEntry(tree, id, settleMs)
-      .then(async (state) => {
+      .then((state) => {
         log.info(`插件管理自己（${id}）重新加载了：${state}`)
-        if (after !== undefined) await after()
       })
       .catch((err: unknown) => {
         log.warn(`插件管理自己（${id}）重新加载失败：${String(err)}`)
@@ -89,7 +81,7 @@ export function remountOne(
 ): Promise<RemountedEntry> {
   if (id !== ownId) return remountNow(tree, id, log, settleMs)
   const stateBeforeRemount = fiberStateOf(tree.store[id])
-  remountSelfLater(tree, id, log, undefined, schedule, settleMs)
+  remountSelfLater(tree, id, log, schedule, settleMs)
   log.info(`插件管理自己（${id}）在回执之后重新加载`)
   return Promise.resolve({ id, action: 'deferred', state: stateBeforeRemount })
 }

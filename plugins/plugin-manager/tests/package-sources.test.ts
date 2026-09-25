@@ -52,11 +52,13 @@ describe('source.add', () => {
     const got = await addSource(deps, '@j', { owner: 'J' })
     expect(got).toEqual({
       ok: true,
-      scope: '@j',
-      registry: 'https://gitea.example/api/packages/J/npm/',
-      tokenWritten: true,
-      replaced: false,
-      lines: ['@j:registry=https://gitea.example/api/packages/J/npm/', '//gitea.example/api/packages/J/npm/:_authToken=***'],
+      data: {
+        scope: '@j',
+        registry: 'https://gitea.example/api/packages/J/npm/',
+        tokenWritten: true,
+        replaced: false,
+        lines: ['@j:registry=https://gitea.example/api/packages/J/npm/', '//gitea.example/api/packages/J/npm/:_authToken=***'],
+      },
     })
     expect(read(deps.userNpmrc)).toContain('//gitea.example/api/packages/J/npm/:_authToken=t-secret')
     expect(JSON.stringify(got)).not.toContain('t-secret')
@@ -69,9 +71,10 @@ describe('source.add', () => {
       else settings['base-url'] = baseUrl
       const got = await addSource(deps, '@j', { owner: 'J' })
       expect(got.ok).toBe(false)
-      expect(got.error).toContain('gitea.base-url')
-      expect(got.error).toContain('registry')
-      expect(got.registry).toBeUndefined()
+      const error = got.ok ? '' : got.error
+      expect(error).toContain('gitea.base-url')
+      expect(error).toContain('registry')
+      expect(got).not.toHaveProperty('data')
     }
     expect(fs.existsSync(deps.userNpmrc)).toBe(false)
   })
@@ -79,8 +82,7 @@ describe('source.add', () => {
   it('owner 写法取不到 token：ok:false，机器级 npmrc 不动', async () => {
     settings['base-url'] = GITEA
     const got = await addSource(deps, '@j', { owner: 'J' })
-    expect(got.ok).toBe(false)
-    expect(got.error).toContain('gitea.token')
+    expect(got).toEqual({ ok: false, error: expect.stringContaining('gitea.token') as unknown })
     expect(fs.existsSync(deps.userNpmrc)).toBe(false)
   })
 
@@ -88,8 +90,9 @@ describe('source.add', () => {
     writeFile(deps.homeNpmrc, '@j:registry=https://other.example/npm/\n')
     const got = await addSource(deps, '@j', { registry: 'https://j.example/npm' })
     expect(got.ok).toBe(true)
-    expect(got.registry).toBe('https://j.example/npm/')
-    expect(got.note).toContain('pnpm 会用那一条')
+    const data = got.ok ? got.data : undefined
+    expect(data?.registry).toBe('https://j.example/npm/')
+    expect(data?.note).toContain('pnpm 会用那一条')
     expect(read(deps.homeNpmrc)).toBe('@j:registry=https://other.example/npm/\n')
   })
 
@@ -119,15 +122,13 @@ describe('source.list', () => {
 describe('source.remove', () => {
   it('删掉机器级的路由与没人指向的 token 行', async () => {
     writeFile(deps.userNpmrc, '@j:registry=https://j.example/npm/\n//j.example/npm/:_authToken=t\n')
-    expect(await removeSource(deps, '@j')).toEqual({ ok: true, scope: '@j', registry: 'https://j.example/npm/' })
+    expect(await removeSource(deps, '@j')).toEqual({ ok: true, data: { scope: '@j', registry: 'https://j.example/npm/' } })
     expect(read(deps.userNpmrc)).toBe('')
   })
 
   it('只在 home 级有：ok:false，说明要手工删', async () => {
     writeFile(deps.homeNpmrc, '@j:registry=https://j.example/npm/\n')
-    const got = await removeSource(deps, '@j')
-    expect(got.ok).toBe(false)
-    expect(got.error).toContain('手工删')
+    expect(await removeSource(deps, '@j')).toEqual({ ok: false, error: expect.stringContaining('手工删') as unknown })
   })
 
   it('@godcreator 不许删', async () => {
@@ -139,7 +140,7 @@ describe('search', () => {
   const body = (names: string[]): string =>
     JSON.stringify({ objects: names.map((name) => ({ package: { name, version: '1.0.0', keywords: ['gwb-plugin'] } })), total: names.length, time: 0 })
 
-  it('不给 scope 查全部配好的源：@godcreator 在前，一条失败只进 note；带上这条源的 token', async () => {
+  it('查全部配好的源：@godcreator 在前，一条失败只进 note；带上这条源的 token；每行只有 pkg / version / description', async () => {
     writeFile(deps.userNpmrc, [
       '@godcreator:registry=https://god.example/npm/',
       '@j:registry=https://j.example/npm/',
@@ -157,24 +158,18 @@ describe('search', () => {
 
     const got = await searchPlugins(deps)
     expect(got.ok).toBe(true)
-    expect(got.packages?.map((row) => row.pkg)).toEqual(['@godcreator/gwb-shell', '@j/gwb-planner'])
-    expect(got.note).toContain('@dead')
+    const data = got.ok ? got.data : undefined
+    expect(data?.packages).toEqual([
+      { pkg: '@godcreator/gwb-shell', version: '1.0.0' },
+      { pkg: '@j/gwb-planner', version: '1.0.0' },
+    ])
+    expect(data?.note).toContain('@dead')
     expect(seen.find((one) => one.url.startsWith('https://j.example/'))?.auth).toBe('Bearer t-j')
     expect(seen.find((one) => one.url.startsWith('https://god.example/'))?.auth).toBeUndefined()
   })
 
   it('全部源都没查成才 ok:false', async () => {
     vi.stubGlobal('fetch', () => Promise.resolve(new Response('nope', { status: 500 })))
-    const got = await searchPlugins(deps)
-    expect(got.ok).toBe(false)
-    expect(got.error).toContain('一条源都没查成')
-  })
-
-  it('给了形状不对的 scope：ok:false 带说明，不发请求', async () => {
-    const fetchSpy = vi.fn()
-    vi.stubGlobal('fetch', fetchSpy)
-    const got = await searchPlugins(deps, 'j')
-    expect(got.ok).toBe(false)
-    expect(fetchSpy).not.toHaveBeenCalled()
+    expect(await searchPlugins(deps)).toEqual({ ok: false, error: expect.stringContaining('一条源都没查成') as unknown })
   })
 })

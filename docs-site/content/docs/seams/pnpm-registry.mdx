@@ -70,7 +70,7 @@ description: 连接 devkit、插件管理与 pnpm、npm 源、两份 npmrc、git
 
 这套规则写在 `sources.ts` 与 pnpm 的 npmrc 语义两处：pnpm 改了读取优先级，这里查到的源会和实际安装用的源不一样。每条源发 `GET <registry>/-/v1/search?text=<scope>&size=250`，这条源有凭据就带 `Authorization: Bearer`，最多等 10 秒；是不是插件只看包清单 `keywords` 里有没有 `gwb-plugin`：
 
-{/* ref file="../plugins/plugin-manager/src/registry.ts" lines="11-32" */}
+{/* ref file="../plugins/plugin-manager/src/registry.ts" lines="10-31" */}
 
 {/* ref file="../plugins/plugin-manager/src/search.ts" lines="8-9" */}
 
@@ -80,7 +80,7 @@ description: 连接 devkit、插件管理与 pnpm、npm 源、两份 npmrc、git
 
 {/* ref file="../plugins/plugin-manager/src/sources.ts" lines="1-5" */}
 
-{/* ref file="../plugins/plugin-manager/src/home.ts" lines="65-87" */}
+{/* ref file="../plugins/plugin-manager/src/home.ts" lines="67-89" */}
 
 `@godcreator` 是生态自己的 scope，`source.add` 与 `source.remove` 都拒绝改它：
 
@@ -88,7 +88,7 @@ description: 连接 devkit、插件管理与 pnpm、npm 源、两份 npmrc、git
 
 **按名字读 gitea 插件的设置**：`source.add` 用 `owner` 写法时，经命令总线调 `settings.get { section: 'gitea', key: 'base-url' }` 与 `{ section: 'gitea', key: 'token' }`：
 
-{/* ref file="../plugins/plugin-manager/src/package-sources.ts" lines="253-268" */}
+{/* ref file="../plugins/plugin-manager/src/package-sources.ts" lines="249-267" */}
 
 分区名 `gitea` 是 gitea 插件条目的 id，两个设置名写在 gitea 插件仓里。`settings.get` 只回存下的值、不回落到声明时的默认值，插件管理不另存一份 gitea 地址：gitea 插件的条目 id 不叫 `gitea`、改了设置名、或没配 `base-url`，`source.add` 的 `owner` 写法都回 `ok: false`，要么配好设置，要么改给 `registry`；token 取不到时同样回 `ok: false`。
 

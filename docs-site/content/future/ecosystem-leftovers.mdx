@@ -1,9 +1,9 @@
 ---
-title: 还没做的四件事
-description: 全生态机制定案收尾时留下、和本仓相关、还没做的四件事：源上的旧开发版删不删、home 清单写法与整页重载的时机、devkit.home.new 改经插件管理、清理 default 里的库
+title: 还没做的三件事
+description: 全生态机制定案收尾时留下、和本仓相关、还没做的三件事：源上的旧开发版删不删、devkit.home.new 改经插件管理、清理 default 里的库
 ---
 
-# 还没做的四件事
+# 还没做的三件事
 
 **本页回答**：全生态机制定案（原交接页 `spec/ecosystem-simplify`，已删，内容在 git 历史里）收尾时，和本仓相关、还没做的有哪几件，各在等什么。下游插件仓的迁移项不在这里跟踪。
 
@@ -12,12 +12,6 @@ description: 全生态机制定案收尾时留下、和本仓相关、还没做�
 devkit 0.20.0 之前，`devkit.dev` 把开发版发到团队源、打 `dev` 标签，源上因此留着约五百个 `-dev.*` 版本。它们不动 `latest`，不影响装包。
 
 **人暂定不删**：删除不可逆，要人同意；不删也不影响别的事。要删的话先定留哪些（比如还被哪个 home 的清单引用着的）。
-
-## home 清单一律写精确版本号，只在外壳变了时整页重载
-
-现在插件管理写 home 清单的写法不一：`plugin-manager.install` 与 `plugin-manager.update` 的 `all` / `only` 写 `^` 范围，`update` 的 `specs`、`update-kernel` 写精确版本号。`update` 的 `all` / `only` 升完每次都整页重载，不管外壳变没变。
-
-想做成：清单一律写精确版本号、以锁文件为准；整页重载只在外壳（`@godcreator/gwb-shell`）换了版本时做。改的是插件管理的命令语义，动手前按说明书 gwb-release 判断升哪一位。
 
 ## `devkit.home.new` 改为经插件管理装基础插件
 

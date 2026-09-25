@@ -1,6 +1,6 @@
 ---
 title: 找插件与配包源
-description: plugin-manager.search 在配好的 npm 源上检索插件，地址按 scope 从两份 npmrc 里找、和 pnpm 安装读同一批配置行，是不是插件只看包清单 keywords 里的 gwb-plugin；source.add / list / remove 只改机器级 ~/.npmrc，@godcreator 不改不删，token 按源地址配对、不进回执；这四条不改 home，不经 BUSY
+description: plugin-manager.search（无参数）在配好的全部 npm 源上检索插件，地址按 scope 从两份 npmrc 里找、和 pnpm 安装读同一批配置行，是不是插件只看包清单 keywords 里的 gwb-plugin；source.add / list / remove 只改机器级 ~/.npmrc，@godcreator 不改不删，token 按源地址配对、不进回执；这四条不改 home，不经 BUSY
 ---
 
 # 找插件与配包源
@@ -11,15 +11,15 @@ description: plugin-manager.search 在配好的 npm 源上检索插件，地址�
 - 两份 npmrc：机器级 `~/.npmrc` 本机所有 home 共用；home 级 `<home>/.npmrc` 只读，同名行优先
 - `plugin-manager.source.add` / `source.remove` 只写机器级那份，`@godcreator` 不许改、不许删；`source.list` 与 `search` 两份都读
 - `search` 每个 scope 找一条源地址（先 `@scope:registry=`，再 `registry=`，都没写就是 npm 官方源），各条源并发发 `GET <源>/-/v1/search?text=<scope>&size=250`
-- 包清单 `keywords` 含 `gwb-plugin` 的才算插件，合并进 `packages`；没查成的源写进 `note`
+- 包清单 `keywords` 含 `gwb-plugin` 的才算插件，合并进 `packages`（每行 `pkg`、`version`、`description`）；没查成的源写进 `note`
 - 装包的 `plugin-manager.install` 经 pnpm 读的是同一批配置行，所以搜到的包就从这条源装
 </Diagram>
 
 ## 从哪装就在哪搜
 
-**是什么**：`search` 不给 `scope` 时，查两份 npmrc 里出现过的每个 scope，`@godcreator` 永远排第一（npmrc 里没写它时它走全局源），其余按名字排；各条源并发查，查成的合并进 `packages`，没查成的在 `note` 里写明是哪条、为什么，全部没查成才回 `ok: false`。给了 `scope` 只查那一条。
+**是什么**：`search` 没有参数，查两份 npmrc 里出现过的每个 scope，`@godcreator` 永远排第一（npmrc 里没写它时它走全局源），其余按名字排；各条源并发查，查成的合并进回执的 `packages`，没查成的在 `note` 里写明是哪条、为什么，全部没查成才回 `ok: false`。
 
-{/* ref file="../plugins/plugin-manager/src/package-sources.ts" lines="87-114" */}
+{/* ref file="../plugins/plugin-manager/src/package-sources.ts" lines="75-107" */}
 
 每条源的地址按 scope 从两份 npmrc 里找：先找 `@scope:registry=`，再找 `registry=`，每一种都是 home 级优先于机器级，都没写就是 npm 官方源。
 
@@ -29,13 +29,13 @@ description: plugin-manager.search 在配好的 npm 源上检索插件，地址�
 
 **怎么做**：每条源发 `GET <registry>/-/v1/search?text=<scope>&size=250`，这条源在 npmrc 里配了 token 就带 `Authorization: Bearer`，每条源最多等 10 秒。检索接口是 npmjs、Verdaccio、gitea 都实现的标准协议，这里不认识任何具体的源。
 
-{/* ref file="../plugins/plugin-manager/src/registry.ts" lines="3-32" */}
+{/* ref file="../plugins/plugin-manager/src/registry.ts" lines="4-35" */}
 
-**是不是插件只看包清单 `keywords` 里有没有 `gwb-plugin`**，包名前缀、scope 都不参与判断。这个字段只在检索响应里有（单包详情接口会去掉它），一次请求就能判断完。gitea 的检索响应把 scope 与名字分开放，解析时拼回完整包名。
+**是不是插件只看包清单 `keywords` 里有没有 `gwb-plugin`**，包名前缀、scope 都不参与判断。这个字段只在检索响应里有（单包详情接口会去掉它），一次请求就能判断完；判断完就从回执里拿掉，回执只列插件。gitea 的检索响应把 scope 与名字分开放，解析时拼回完整包名。
 
 {/* ref file="../plugins/plugin-manager/src/search.ts" lines="8-9" */}
 
-{/* ref file="../plugins/plugin-manager/src/search.ts" lines="45-48" */}
+{/* ref file="../plugins/plugin-manager/src/search.ts" lines="48-51" */}
 
 用环境变量或 pnpm 全局配置指定的源，这里看不到；本机的配置都写在 `~/.npmrc` 里。
 
@@ -51,7 +51,7 @@ description: plugin-manager.search 在配好的 npm 源上检索插件，地址�
 
 **是什么**：`source.add` 与 `source.remove` 只改机器级 `~/.npmrc`；home 级 `<home>/.npmrc` 只读，`source.list` 把两份合起来列出，逐条标出处，token 只报有没有。
 
-{/* ref file="../plugins/plugin-manager/src/home.ts" lines="65-87" */}
+{/* ref file="../plugins/plugin-manager/src/home.ts" lines="67-89" */}
 
 **为什么**：`@godcreator` 的路由本来就写在 `~/.npmrc`，本机每个 home 的安装、每个源码仓的安装与发版都读它，包源是整台机器共用的配置。home 级那份 pnpm 也读、而且同名行优先，只放手工加的行。
 
@@ -65,7 +65,7 @@ description: plugin-manager.search 在配好的 npm 源上检索插件，地址�
 - 回执里的 `lines` 已把 token 换成 `***`，日志里也不写 token
 - `@godcreator` 不许改、不许删，两条命令都当场报错
 
-{/* ref file="../plugins/plugin-manager/src/package-sources.ts" lines="155-172" */}
+{/* ref file="../plugins/plugin-manager/src/package-sources.ts" lines="146-163" */}
 
 机器级没有这条 scope 时 `remove` 回 `ok: false`；它只写在 home 级时，`error` 里说明那一行要手工删。
 
@@ -81,7 +81,7 @@ description: plugin-manager.search 在配好的 npm 源上检索插件，地址�
 
 **是什么**：`source.add { scope, owner }` 把源地址拼成 `<gitea 地址>/api/packages/<owner>/npm/`。gitea 地址取设置 `gitea.base-url`，取不到 http(s) 地址就回 `ok: false`，让人装上 gitea 插件配好它，或者改给 `registry`；没显式给 token 时取设置 `gitea.token`，取不到就回 `ok: false`——私有源没有凭据装不了，与其等到安装时失败，不如现在说清楚。
 
-{/* ref file="../plugins/plugin-manager/src/package-sources.ts" lines="254-272" */}
+{/* ref file="../plugins/plugin-manager/src/package-sources.ts" lines="249-267" */}
 
 **为什么经命令读**：设置服务 `ctx.gwbSettings` 只读得到调用方自己的分区，`gitea` 分区属于 gitea 插件，读它只能按名字调 `settings.get` 命令。插件管理不另存 gitea 地址：设置插件或 gitea 插件没装、设置里没配，`owner` 写法就拼不出地址。
 
@@ -89,7 +89,7 @@ description: plugin-manager.search 在配好的 npm 源上检索插件，地址�
 
 **是什么**：四条命令用不带 BUSY 检查的 `registerCommand` 登记，也不运行 pnpm。
 
-{/* ref file="../plugins/plugin-manager/src/index.ts" lines="373-380" */}
+{/* ref file="../plugins/plugin-manager/src/index.ts" lines="300-307" */}
 
 **为什么**：BUSY 防的是两次改动同时改 home 的 `package.json`；这四条要么只读网络与文件，要么改的是机器级 `~/.npmrc`，不碰 home。检索可能要等好几条源，排在安装后面只会让「可装」列表等到安装做完才出来。
 

@@ -25,7 +25,7 @@ god 工作台写插件用的一套东西：开发套件 `gwb-devkit`（建仓、
 | 2 | devkit 调插件管理 | 开发套件 ↔ 插件管理 | 从插件管理主入口 import pnpm 定位、版本范围判定与命令名；经 CDP 调 `plugin-manager.install` / `update` / `list`（约定）；`home.new` 自己写条目、装内核包与基础插件（约定） | [devkit 调插件管理](/docs/seams/plugin-manager-calls) |
 | 3 | peer 里的内核包与插件（约定） | 插件 peer 里的内核包范围、用到的别的插件的范围 ↔ `devkit.release`、`plugin-manager.list` | 内核范围比对规则一份，在插件管理；peer 里的插件发版时比源上 latest、在 home 里比装着的版本 | [peer 里的内核包与插件](/docs/seams/kernel-peer) |
 | 4 | 模板与发版前检查（约定） | 建仓模板 ↔ `devkit.release` 的发版前检查 | 模板生成的插件包在同一个内核上过得了 peer 那几项；模板带的产物测试与发版前检查用同一套包名 import 名单 | [模板与发版前检查](/docs/seams/template-release) |
-| 5 | 借用别的插件的命令（约定） | 建仓、插件管理 ↔ 站点插件、docfirst、外壳 | 按名字调 `docs-site.create`、`docfirst.attach`、`shell.reload` | [借用别的插件的命令](/docs/seams/borrowed-commands) |
+| 5 | 借用别的插件的命令（约定） | 建仓 ↔ 站点插件、docfirst | 按名字调 `docs-site.create`、`docfirst.attach` | [借用别的插件的命令](/docs/seams/borrowed-commands) |
 | 6 | CDP 驱动（约定） | 开发套件 ↔ `cdp.mjs` ↔ 工作台页面 | 命令行参数、输出的 JSON、`window.gwb.command` | [CDP 驱动](/docs/seams/cdp) |
 | 7 | 内核与 home（约定） | `devkit.home.*`、CDP 驱动 ↔ 内核 exe | `GWB_HOME`、调试端口、`runtime.json`、home 根目录、`gwb.log` 的行格式 | [内核与 home](/docs/seams/kernel-home) |
 | 8 | 条目树 | 插件管理 ↔ cordis loader | `EntryTreeLike` 的 store / create / update / remove | [条目树](/docs/seams/entry-tree) |

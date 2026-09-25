@@ -1,7 +1,7 @@
 'use client'
 
 /**
- * 同一时刻只允许一个改动：左边三条命令，中间是加在五条改动命令上的 BUSY 检查，右边是 home 里正在运行的 pnpm。
+ * 同一时刻只允许一个改动：左边三条命令，中间是加在四条改动命令上的 BUSY 检查，右边是 home 里正在运行的 pnpm。
  * 命令 B 被 BUSY 拒绝；只读的 outdated 不经过 BUSY，它的 pnpm 和改动命令的 pnpm 同时运行。
  */
 
@@ -76,7 +76,7 @@ export function PmBusy() {
         <Box x={14} y={100} w={170} h={46} lines={['命令 B', 'plugin-manager.uninstall']} tone={current.rejected ? 'b' : undefined} />
         <Box x={14} y={176} w={170} h={46} lines={['命令 C（只读）', 'plugin-manager.outdated']} tone={lit('c')} />
 
-        <Box x={230} y={30} w={150} h={116} lines={['BUSY 检查', '只加在五条改动命令上', current.gate]} tone={lit('gate')} />
+        <Box x={230} y={30} w={150} h={116} lines={['BUSY 检查', '只加在四条改动命令上', current.gate]} tone={lit('gate')} />
         <Arrow from={[184, 53]} to={[230, 53]} />
         <Arrow from={[184, 116]} to={[230, 116]} />
         <Arrow from={[230, 132]} to={[184, 132]} label="BUSY" labelAt="below" tone={current.rejected ? 'b' : undefined} />

@@ -39,6 +39,7 @@
     "2026-09-25-runner-tree-kill",
     "2026-09-25-cdp-default-read-only",
     "2026-09-25-scope-and-publish-target",
+    "2026-09-25-kernel-via-specs-caller-reloads",
     "2026-09-25-devkit-no-fallbacks"
   ]
 }

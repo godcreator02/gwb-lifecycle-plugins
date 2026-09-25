@@ -88,3 +88,7 @@ description: 这个仓里反复出现的词各指什么、在哪一页定义；�
 | `plugin-manager.update-all` | 插件管理 0.12.0 | 改名为 `plugin-manager.update`，参数三选一、恰好给一个：全部升级给 `{"all":true}`（不给参数直接报错），`only` 照旧，另有 `specs` 按给定写法装已装的包。见[轨迹卡](/trajectory/2026-09-25-update-takes-all-param) |
 | `devkit.dev` / `devkit.release` 不给 `packages` 就当仓根自己是插件包；包没写 `publishConfig.registry` 就发到团队源 | devkit 0.21.0 | `packages` 必给；每个要发的包写 `"publishConfig": { "registry": "<源的地址>" }`。见[轨迹卡](/trajectory/2026-09-25-drop-legacy-defaults) |
 | 清单字段 `gwb.shared`、内核包的 `./react*` 出口 | 内核 0.6.0 | 页面 importmap 写死在内核包的页面入口 `dist/index.html` 里；外置名单与发版前检查都读那段 importmap 的键。见[轨迹卡](/trajectory/2026-09-25-importmap-names-from-page-entry) |
+| `plugin-manager.update-kernel` | 插件管理 0.13.0 | 内核包写进 `plugin-manager.update {"specs":{"@godcreator/gwb-kernel-desktop":"<版本号、latest 或 file:路径>"}}`，可以连同别的包；`cordis` 由插件管理照装上的内核包对齐，`specs` 里不写。见[轨迹卡](/trajectory/2026-09-25-kernel-via-specs-caller-reloads) |
+| `update` 回执的 `reload`；插件管理升级完自己调 `shell.reload` | 插件管理 0.13.0 | 调用方拿到成功回执后自己调 `shell.reload` |
+| 插件管理回执 `data` 里的 `ok` / `error` / `tail`；`search` 的 `scope` 参数与回执每行的 `keywords`；`uninstall` 回执的 `removedEntries`；`add-entry` 的 `config`；`transfer-owner` 回执的 `data` / `settings` | 插件管理 0.13.0 | 只看外层 `ok`，失败原因与 pnpm 输出的最后几行都在外层 `error`；`search` 一律查全部源；`transfer-owner` 缺数据插件或设置插件直接报错 |
+| 插件管理主入口的 `caretRangeCovers`、`declaredKernelRange`、回执类型与 `list` / `install` / `update` 以外的命令名常量 | 插件管理 0.13.0 | devkit 用 `isCaretRange`、`kernelRangeCovers`；回执照命令的 `usage` 读 |
