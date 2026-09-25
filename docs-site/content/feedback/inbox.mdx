@@ -9,12 +9,6 @@ docfirst: none
 **本页回答**：别的仓在用 devkit 的过程中投来了什么意见。一条一节，处理完删——这一区是暂存不是档案，
 定下来的判据写成轨迹卡。本仓自己反复做的操作候选在 [hatch](/feedback/hatch)。
 
-## 2026-09-25 用 `Stop-Process` 停掉 `devkit.home.new` 开的实例后，default 跟着退出
-
-来源：总控台会话（内核 0.6.0 删 `gwb.shared` 那一轮顺带看到的现象）。
-
-`devkit.home.new {"short":"static-importmap"}` 开出来的实例（pid 136532，由 default 里的 devkit 启动），用 `Stop-Process` 停掉之后
-约 2 秒，default 自己走了一遍正常退出（default 的 `gwb.log` 里 `17:07:46.709Z info kernel 清理完成，退出`）。原因没查清：值得看一下
-`home.new` 启动的子进程和 default 的生命周期有没有绑在一起。弄清之前，停这种实例用 `devkit.home.rm {"name":"<名>","force":true}`，别直接结束进程。
+此刻没有待处理的反馈。
 
 

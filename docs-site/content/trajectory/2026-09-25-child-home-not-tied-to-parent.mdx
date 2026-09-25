@@ -1,0 +1,27 @@
+---
+title: devkit 开出的隔离 home 与开它的工作台互不牵连，「停子实例 default 跟着退出」复现不出来
+born-at: 2026-09-25T20:50
+type: finding
+parent: [2026-09-25-isolated-home-by-convention]
+label: 子实例不牵连父实例
+domain: devkit
+---
+
+## 背景
+
+收件页记着一条：用 `Stop-Process` 停掉 `devkit.home.new` 开出来的实例约 2 秒后，default 走了一遍正常退出（日志里「清理完成，退出」）。原因没查清，当时的临时提醒是停这种实例用 `devkit.home.rm`，别直接结束进程。
+
+## 查到了什么
+
+- 复现用两个隔离 home，不碰 default：default 开出 A，A 的 devkit 再开出 B，核对过 B 的父进程是 A、A 的父进程是 default。对 B 用 `Stop-Process`（两次）、`taskkill /PID`（不带 /T、/F）、`CloseMainWindow()` 各停一次，反过来用 `Stop-Process` 停 A 一次，每次观察 15 秒：被停的那个退出，另一个都还在，日志没有新行。default 的 pid 从头到尾没变
+- 代码上：devkit 启动实例用 `detached: true`、`stdio: 'ignore'`、`unref()`，直接运行宿主自己的 exe，父子之间没有管道，devkit 也不监视子进程；启动器只算出 home、加载内核入口；内核走到「清理完成，退出」只有窗口全关或有人调 `app.quit()` 这一条路，不监听 stdin、管道或子进程退出，没有插件调 `app.quit`
+- 当时那次：default 走的是正常清理，是它的窗口被关了或有人调了 quit，被外部强行结束不会写这两行；退出后约 1 分 43 秒又重新启动，内核几分钟前刚升过版本。更可能是人手动关了或重启了 default，时间上刚好碰上——这一点是推断，窗口是谁关的已经查不到
+
+## 结论与边界
+
+- devkit、内核、启动器都不用改
+- 收件页那条结案；「别直接结束进程」的提醒前提不成立。停隔离 home 仍推荐 `devkit.home.rm {"force":true}`：它先核对映像名与调试端口再停，停完连目录一起删
+
+## 代价与遗留
+
+- 进程所在的 job object 只做了推断（detached 的子进程脱离父进程的 job，这种 job 也只会让子进程随父进程结束、不会反过来），没有实测分清 default、A、B 是不是同一个 job
