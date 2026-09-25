@@ -1,27 +1,27 @@
 ---
 title: 9 pnpm 与包源
-description: 连接 devkit、插件管理与 pnpm、npm 源、两份 npmrc、gitea 插件的设置：两个插件用同一个 pnpm——用户装在两个固定位置之一的 pnpm 12，按同一套规则找、核对版本，直接启动，关掉自动补装 peer；插件管理用它改 home，devkit 用它做 build / pack / publish / view / add；正式版发到包自己的 publishConfig.registry（没写就拒发；团队源的地址写在 devkit 里，建仓缺省写它）、打 latest，开发版打成包文件放进目标 home；插件管理按 scope 从两份 npmrc 找源、调 registry 的检索接口找插件、读写机器级 ~/.npmrc 的包源，owner 写法按名字调 settings.get 读 gitea 分区
+description: 连接 devkit、插件管理与 pnpm、npm 源、两份 npmrc、gitea 插件的设置：两个插件用同一个 pnpm——用户装在两个固定位置之一的 pnpm 12，按插件管理里那一份规则找、核对版本，直接启动；在 home 里运行时关掉自动补装 peer；插件管理用它改 home，devkit 用它做 build / pack / publish / view / add；正式版发到包自己的 publishConfig.registry、打 latest，开发版打成包文件放进目标 home；插件管理按 scope 从两份 npmrc 找源、调 registry 的检索接口找插件、读写机器级 ~/.npmrc 的包源，owner 写法按名字调 settings.get 读 gitea 分区
 ---
 
-**本页回答**：两个插件用的是哪一个 pnpm、怎么找到它、各拿它做什么；正式版发到哪个源、哪几处指定源、哪几处靠用户的 `~/.npmrc`；开发版与正式版怎么分开；插件管理找插件、配包源时读写哪两份 npmrc、怎么决定去哪条源检索、读 gitea 插件的哪两项设置。
+**本页回答**：两个插件用的是哪一个 pnpm、怎么找到它、各拿它做什么；在 home 里运行 pnpm 时为什么关掉自动补装 peer；正式版发到哪个源、哪几处指定源、哪几处靠用户的 `~/.npmrc`；开发版与正式版怎么分开；插件管理找插件、配包源时读写哪两份 npmrc、怎么决定去哪条源检索、读 gitea 插件的哪两项设置。
 
 ## 连接的模块
 
-- 插件管理：`plugins/plugin-manager/src/pnpm.ts`、`src/pnpm-path.ts`、`src/pnpm-location.ts`；找插件与配包源在 `src/package-sources.ts`、`src/sources.ts`、`src/search.ts`、`src/registry.ts`、`src/home.ts`
-- devkit：`src/dev.ts`、`src/release.ts`、`src/home.ts`、`src/node-dev-deps.ts`；找 pnpm 用插件管理主入口导出的 `locatePnpm`
-- 用户装的 pnpm 12 可执行文件；团队包源（gitea 上 `godcreator` 组织的 npm 源）与第三方包源；npmjs、Verdaccio、gitea 都实现的 npm registry 检索接口
+- 插件管理：`plugins/plugin-manager/src/pnpm-location.ts`（找 pnpm）、`src/pnpm.ts`（启动 pnpm）；找插件与配包源在 `src/package-sources.ts`、`src/sources.ts`、`src/search.ts`、`src/registry.ts`、`src/home.ts`
+- devkit：`plugins/devkit/src/dev.ts`、`src/release.ts`、`src/home.ts`、`src/node-dev-deps.ts`；找 pnpm 用插件管理主入口导出的 `locatePnpm`
+- 用户装的 pnpm 12 可执行文件；团队源（gitea 上 `godcreator` 组织的 npm 源）与第三方包源；npmjs、Verdaccio、gitea 都实现的 npm registry 检索接口
 - 两份 npmrc：机器级 `~/.npmrc`（插件管理的 `source.add` / `source.remove` 改它）与 home 级 `<home>/.npmrc`（只读）；pnpm 安装时读的是同一批配置行
 - gitea 插件（gitea 插件仓 gwb-gitea）的设置：`gitea` 分区的 `base-url` 与 `token`，经设置插件的命令 `settings.get` 读
 
 ## 接口
 
-**两个插件用同一个 pnpm**：每条要运行 pnpm 的命令开头按顺序检查两个位置——`%LOCALAPPDATA%\pnpm\bin\pnpm.exe`（pnpm 12 官方安装脚本的默认位置）、`%APPDATA%\npm\node_modules\pnpm\pnpm.exe`（npm 全局装的 pnpm 包里的原生可执行文件）——用第一个存在的，运行 `--version` 核对是 12.x 并且不低于 12.4.2；不存在、版本不对都报错，不去试另一个位置，不看 PATH。找到的文件直接启动，不经 shell。规则只有一份，写在插件管理的 `src/pnpm-location.ts`，devkit 从插件管理的主入口 import `locatePnpm`：
+**两个插件用同一个 pnpm**：每条要运行 pnpm 的命令开头按顺序检查两个位置——`%LOCALAPPDATA%\pnpm\bin\pnpm.exe`（pnpm 12 官方安装脚本的默认位置）、`%APPDATA%\npm\node_modules\pnpm\pnpm.exe`（npm 全局装的 pnpm 包里的原生可执行文件）——用第一个存在的，运行 `--version` 核对是 12.x 并且不低于 12.4.2；不存在、版本不对都报错，不去试另一个位置，不看 PATH。找到的文件直接启动，不经 shell。规则只有一份，写在插件管理的 `src/pnpm-location.ts`，devkit 从插件管理的主入口 import `locatePnpm`（插件管理这一侧见 [pnpm](/docs/plugin-manager/pnpm)）：
 
 {/* ref file="../plugins/plugin-manager/src/pnpm-location.ts" lines="22-28" */}
 
 {/* has file="../plugins/devkit/src/index.ts" text="import { locatePnpm } from '@godcreator/gwb-plugin-manager'" */}
 
-**插件管理拿它做什么**：只在 home 里运行 `add`、`remove`、`outdated --json`，不传 `--registry`，源由用户级 `~/.npmrc` 决定。细节见[插件管理的 pnpm](/docs/plugin-manager/pnpm)。
+**插件管理拿它做什么**：只在 home 里运行 `add --save-exact`、`remove`、`outdated --json`，不传 `--registry`，源由 npmrc 决定。
 
 **devkit 拿它做什么**：`devkit.home.new`、`devkit.dev`、`devkit.release` 三条命令开头各找一次，找不到就回 `ok: false`、什么都不做。用在六处：
 
@@ -31,18 +31,18 @@ description: 连接 devkit、插件管理与 pnpm、npm 源、两份 npmrc、git
 | `pnpm pack --pack-destination <目标 home>\dev-packs` | 临时目录里组装好的发布内容 | `devkit.dev` | 不适用 |
 | `pnpm publish --no-git-checks --tag latest` | 临时目录里组装好的发布内容 | `devkit.release` | 发布目标，写在发布内容清单的 `publishConfig.registry`，命令行不带 `--registry` |
 | `pnpm view <包@版本> version` | 系统临时目录 | `devkit.release` | 发布目标：带范围的包名带 `--config.<范围>:registry=<发布目标>`，不带范围的带 `--registry` |
-| `pnpm view <包> dist-tags.latest` | 系统临时目录 | `devkit.release` | 不指定，按 `~/.npmrc` 的范围行 |
-| `pnpm add <内核包、cordis、七个基础插件>` | 新 home | `devkit.home.new` | 不指定 |
+| `pnpm view <包> dist-tags.latest` | 系统临时目录 | `devkit.release` | 不指定，按 `~/.npmrc` 的 scope 路由 |
+| `pnpm add --save-exact <内核包、cordis、七个基础插件>` | 新 home | `devkit.home.new` | 不指定 |
 
-`devkit.dev` 不在目标 home 里启动 pnpm：装包是目标 home 的插件管理在它自己的进程里运行的 `pnpm add`。
+`devkit.dev` 不在目标 home 里启动 pnpm：装包是目标 home 的插件管理在它自己的进程里运行的 `pnpm add`（见 [devkit 调插件管理](/docs/seams/plugin-manager-calls)）。
 
 {/* ref file="../plugins/devkit/src/dev.ts" lines="271-279" */}
 
 {/* ref file="../plugins/devkit/src/node-dev-deps.ts" lines="242-261" */}
 
-{/* ref file="../plugins/devkit/src/node-dev-deps.ts" lines="305-312" */}
+{/* ref file="../plugins/devkit/src/node-dev-deps.ts" lines="301-312" */}
 
-**在 home 里运行的 pnpm 都关掉自动补装 peer**：启动 pnpm 时环境变量原样传下去，只加一项 `pnpm_config_auto_install_peers=false`（插件管理另去掉 `ELECTRON_RUN_AS_NODE`）。插件管理的 pnpm 都在 home 里运行；devkit 只在 `home.new` 的三次 `pnpm add` 带它，在插件仓里的 build 与临时目录里的 pack、publish、view 不带——插件仓里开发要靠自动补装把 peer 里的内核包与插件装进 `node_modules`，带上它 pnpm 会按新配置重装、把这些 peer 拿掉，构建时找不到类型。插件的 peer 写了别的插件，home 里没装那个插件时，pnpm 默认把它装进 `node_modules/.pnpm` 且不提示，不写进 home 的 `package.json`、没有条目，插件管理也不认它。命令行参数 `--config.auto-install-peers=false` 会被 pnpm 忽略，只有环境变量或 home 的 `pnpm-workspace.yaml` 关得掉（实验见本仓 `probes/2609242300_peer-between-plugins/`）：
+**在 home 里运行的 pnpm 都关掉自动补装 peer**：启动 pnpm 时环境变量原样传下去，加一项 `pnpm_config_auto_install_peers=false`（插件管理另去掉 `ELECTRON_RUN_AS_NODE`）。插件管理的 pnpm 都在 home 里运行；devkit 只在 `home.new` 的三次 `pnpm add` 带它，在插件仓里的 build 与临时目录里的 pack、publish、view 不带——插件仓里开发要靠自动补装把 peer 里的内核包与插件装进 `node_modules`，带上它 pnpm 会按新配置重装、把这些 peer 拿掉，构建时找不到类型。插件的 peer 写了别的插件、home 里没装那个插件时，pnpm 默认把它装进 `node_modules/.pnpm` 且不提示，不写进 home 的 `package.json`、没有条目，插件管理也不认它。命令行参数 `--config.auto-install-peers=false` 会被 pnpm 忽略，只有环境变量或 home 的 `pnpm-workspace.yaml` 关得掉（实验见本仓 `probes/2609242300_peer-between-plugins/`）：
 
 {/* ref file="../plugins/devkit/src/dev.ts" lines="264-269" */}
 
@@ -54,7 +54,7 @@ description: 连接 devkit、插件管理与 pnpm、npm 源、两份 npmrc、git
 
 {/* ref file="../plugins/devkit/src/release.ts" lines="179-192" */}
 
-发布目标写进临时目录里发布内容清单的 `publishConfig.registry`，命令行不带 `--registry`；问「这个版本号在源上有没有」时指定发布目标。pnpm 12 里 `publishConfig.registry` 盖得过 `~/.npmrc` 的范围行与命令行的 `--registry`，而 `--registry` 盖不过范围行——`pnpm view` 也一样，带范围的包名要用 `--config.<范围>:registry=` 才指定得了（实验见本仓 `probes/2609251140_pnpm-publish-config-registry/`）：
+发布目标写进临时目录里发布内容清单的 `publishConfig.registry`，命令行不带 `--registry`；问「这个版本号在源上有没有」时指定发布目标。pnpm 12 里 `publishConfig.registry` 盖得过 `~/.npmrc` 的 scope 路由与命令行的 `--registry`，而 `--registry` 盖不过 scope 路由——`pnpm view` 也一样，带范围的包名要用 `--config.<范围>:registry=` 才指定得了（实验见本仓 `probes/2609251140_pnpm-publish-config-registry/`）：
 
 {/* ref file="../plugins/devkit/src/node-dev-deps.ts" lines="166-179" */}
 
@@ -64,7 +64,7 @@ description: 连接 devkit、插件管理与 pnpm、npm 源、两份 npmrc、git
 
 {/* ref file="../plugins/devkit/src/dev.ts" lines="45-56" */}
 
-**插件管理找插件：按 scope 找源、调检索接口**。`plugin-manager.search` 每条源的地址照 pnpm 读两份 npmrc 的优先级找：先找 `@scope:registry=`，再找 `registry=`，每一种都是 home 级优先于机器级，都没有就是 npm 官方源：
+**插件管理找插件：按 scope 找源、调检索接口**。`plugin-manager.search` 每条源的地址照 pnpm 读两份 npmrc 的优先级找：先找 `@scope:registry=`，再找 `registry=`，每一种都是 home 级优先于机器级，都没有就是 npm 官方源（插件管理这一侧见[找插件与配包源](/docs/plugin-manager/sources)）：
 
 {/* ref file="../plugins/plugin-manager/src/sources.ts" lines="107-117" */}
 
@@ -90,21 +90,23 @@ description: 连接 devkit、插件管理与 pnpm、npm 源、两份 npmrc、git
 
 {/* ref file="../plugins/plugin-manager/src/package-sources.ts" lines="249-267" */}
 
-分区名 `gitea` 是 gitea 插件条目的 id，两个设置名写在 gitea 插件仓里。`settings.get` 只回存下的值、不回落到声明时的默认值，插件管理不另存一份 gitea 地址：gitea 插件的条目 id 不叫 `gitea`、改了设置名、或没配 `base-url`，`source.add` 的 `owner` 写法都回 `ok: false`，要么配好设置，要么改给 `registry`；token 取不到时同样回 `ok: false`。
+分区名 `gitea` 是 gitea 插件条目的 id，两个设置名写在 gitea 插件仓里。插件管理不另存一份 gitea 地址：gitea 插件的条目 id 不叫 `gitea`、改了设置名、或没配 `base-url`，`owner` 写法都回 `ok: false`，要么配好设置，要么改给 `registry`；token 取不到时同样回 `ok: false`。
 
 ## 约定
 
-两个插件都保证：在 home 里启动 pnpm 时带 `pnpm_config_auto_install_peers=false`，不让 pnpm 把插件 peer 里缺的插件自动装进 home；devkit 在插件仓里启动 pnpm 时不带。人在 home 里手工运行 pnpm 时要自己设这个环境变量。
+两个插件都保证：在 home 里启动 pnpm 时带 `pnpm_config_auto_install_peers=false`，在 home 里 `pnpm add` 一律带 `--save-exact`；devkit 在插件仓里启动 pnpm 时不带前者。人在 home 里手工运行 pnpm 时要自己设这个环境变量。
 
 插件管理保证：
+
 - 会写 home 的 pnpm 只在经过 BUSY 检查的命令里运行，同一时刻最多一个；只读的 `pnpm outdated` 不经过 BUSY
 - `source.add` / `source.remove` 只改机器级 `~/.npmrc`，home 级只读；`@godcreator` 的路由与凭据不改不删
 - `source.add` 同一个 scope 已有就原地替换；换源、删源时，旧源的凭据行只在没有别的 scope 还指向它时才删；写完重读一遍，读不到写进去的行就回 `ok: false`
 - 回执与日志里不带 token：写进去的行里 token 换成 `***`，`source.list` 只报有没有 token
 - home 级有同名 scope 指向别的地址时，`source.add` 的回执 `note` 里提醒 pnpm 用的是 home 级那条
-- `search` 不带参数时查全部配好的 scope（`@godcreator` 在前、其余按名字排），各条源并发查，一条失败不影响别的，全都失败才 `ok: false`
+- `search` 不带参数，查全部配好的 scope（`@godcreator` 在前、其余按名字排），各条源并发查，一条失败不影响别的，全都失败才 `ok: false`
 
 devkit 保证：
+
 - 正式版发到包的发布目标（`publishConfig.registry`，没写就拒），打 `latest`；开发版不发到任何源
 - 同一个版本号在发布目标上已有就不发
 - 发布内容与开发版的包文件都在临时目录里组装，不改仓里的 `package.json`
@@ -115,13 +117,13 @@ devkit 保证：
 
 gitea 插件需要保证的（gitea 插件仓的约定）：条目 id 是 `gitea`，设置名是 `base-url` 与 `token`。
 
-**改 home 的是同一个 pnpm，但互斥只在插件管理里**：插件管理与 `devkit.home.new` 找到的是同一个文件；插件管理的改动经过它自己的 BUSY 检查，`devkit.dev` 装包也经目标 home 的插件管理，所以同样经过这道检查；`devkit.home.new` 不经过插件管理（那时插件管理还没装、home 还没启动），同时有别的 pnpm 写同一个 home 会丢改动（[两个 pnpm 同时改同一个 home](/trajectory/2026-09-25-concurrent-pnpm-loses-writes)）。
+**改 home 的是同一个 pnpm，但互斥只在插件管理里**：插件管理与 `devkit.home.new` 找到的是同一个文件；插件管理的改动经过它自己的 BUSY 检查，`devkit.dev` 装包也经目标 home 的插件管理，所以同样经过这道检查；`devkit.home.new` 不经过插件管理（那时插件管理还没装、home 还没启动），同时有别的 pnpm 写同一个 home 会丢改动（见[同一时刻只允许一个改动](/docs/plugin-manager/busy)）。
 
 手工发版与 `devkit.release` 都不在命令行写 `--registry`，都照包清单的 `publishConfig.registry`。
 
 ## 不负责的事
 
-- 两个插件都不安装、不升级 pnpm 本身；插件管理换 pnpm 版本就是发一版插件管理
+- 两个插件都不安装、不升级 pnpm 本身；要求的 pnpm 版本写在插件管理里，换版本就是发一版插件管理
 - devkit 不配置 `~/.npmrc` 与 token；包源的配置归插件管理的 `source.*`
 - 插件管理不看环境变量或 pnpm 全局配置里指定的源，只看两份 npmrc；不写 home 级 `.npmrc`，那里的行要手工改
 - gitea 插件不知道插件管理在读它的设置
