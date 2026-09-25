@@ -1,6 +1,6 @@
 ---
 title: 安装与卸载
-description: install 在一条命令里装一个还没装的包（--save-exact）并加一条条目，只等写入、不等加载；已装的包直接报错；home 里只有插件、内核包与 cordis，所以不替插件装它 peer 里的插件、不判断是不是库；uninstall 先删条目后卸包、不回滚，内核包与 cordis 不许卸
+description: install 在一条命令里装一个还没装的包（清单写 ^ 范围）并加一条条目，只等写入、不等加载；已装的包直接报错；home 里只有插件、内核包与 cordis，所以不替插件装它 peer 里的插件、不判断是不是库；uninstall 先删条目后卸包、不回滚，内核包与 cordis 不许卸
 ---
 
 # 安装与卸载
@@ -9,17 +9,17 @@ description: install 在一条命令里装一个还没装的包（--save-exact�
 
 ## 装包与加条目在一条命令里
 
-`install` 一条命令做完三步：校验参数 → 一次 `pnpm add --save-exact`（home 的 `package.json` 里写精确版本号）→ 选 id、加一条启用的条目，回执 `data` 是 `{ pkg, entryId }`。拆成「先装包、再加条目」两条命令，中间可能插进别的改动，调用方也得自己处理「包装上了、条目没加上」的中间状态。
+`install` 一条命令做完三步：校验参数 → 一次 `pnpm add`（home 的 `package.json` 里照 pnpm 默认写 `^` 范围，为什么见 [home 与条目](/docs/plugin-manager/home)）→ 选 id、加一条启用的条目，回执 `data` 是 `{ pkg, entryId }`。拆成「先装包、再加条目」两条命令，中间可能插进别的改动，调用方也得自己处理「包装上了、条目没加上」的中间状态。
 
 <Diagram name="pm-install" title="安装一个包：三步依次做，每一步失败时回执是什么样，回执里逐步多出哪几行">
 1. **校验参数**：包名与版本写法不合规就抛错——拦的是 `-r` 这类会被 pnpm 当成命令行选项的参数，参数全程以数组传给 pnpm、不经过 shell。包已在 home 的 dependencies 里也抛错。只有调用方写错才抛，下面每一种失败都转成 `ok: false` 的回执
-2. **一次 `pnpm add --save-exact`**：先在两个固定位置找到 pnpm 并核对版本（见 [pnpm](/docs/plugin-manager/pnpm)），再经 `applyToHome` 运行。失败时 `error` 末尾带 pnpm 输出的最后几行，不加条目
+2. **一次 `pnpm add`**：先在两个固定位置找到 pnpm 并核对版本（见 [pnpm](/docs/plugin-manager/pnpm)），再经 `applyToHome` 运行。失败时 `error` 末尾带 pnpm 输出的最后几行，不加条目
 3. **选 id，加一条条目**：经条目树 `create` 写进 `cordis.yml`，回执带 `entryId`。写不进 `cordis.yml` 时回 `ok: false`，包留在 home 里、不回滚——删包比留着危险，删除时也未必只删掉这一个
 </Diagram>
 
 {/* ref file="../plugins/plugin-manager/src/index.ts" lines="384-408" */}
 
-{/* has file="../plugins/plugin-manager/tests/commands.test.ts" text="install：在 home 里 pnpm add 包名@spec --save-exact，再加一条条目" */}
+{/* has file="../plugins/plugin-manager/tests/commands.test.ts" text="install：在 home 里 pnpm add 包名@spec（不带 --save-exact，清单照 pnpm 默认写 ^ 范围），再加一条条目" */}
 
 {/* has file="../plugins/plugin-manager/tests/commands.test.ts" text="install：pnpm 失败时不加条目，外层 error 带上输出的最后几行，没有 data" */}
 

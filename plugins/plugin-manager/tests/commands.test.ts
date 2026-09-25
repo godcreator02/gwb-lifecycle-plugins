@@ -367,11 +367,11 @@ describe('plugin-manager.remount', () => {
 })
 
 describe('plugin-manager.install 与 uninstall', () => {
-  it('install：在 home 里 pnpm add 包名@spec --save-exact，再加一条条目', async () => {
+  it('install：在 home 里 pnpm add 包名@spec（不带 --save-exact，清单照 pnpm 默认写 ^ 范围），再加一条条目', async () => {
     fakePnpm.afterRun = () => writeHomeDependencies({ '@x/gwb-foo': '1.2.0' })
     const pm = mount({ entries: {} })
     expect(await pm.run('plugin-manager.install', { pkg: '@x/gwb-foo', spec: '^1.0.0' })).toEqual({ ok: true, data: { pkg: '@x/gwb-foo', entryId: 'home:foo' } })
-    expect(fakePnpm.calls).toEqual([{ args: ['add', '@x/gwb-foo@^1.0.0', '--save-exact'], cwd: homeDir }])
+    expect(fakePnpm.calls).toEqual([{ args: ['add', '@x/gwb-foo@^1.0.0'], cwd: homeDir }])
     expect(pm.tree.store['foo']?.options).toEqual({ id: 'foo', name: '@x/gwb-foo' })
   })
 
@@ -387,7 +387,7 @@ describe('plugin-manager.install 与 uninstall', () => {
   it('install：pnpm 失败时不加条目，外层 error 带上输出的最后几行，没有 data', async () => {
     fakePnpm.runExitCode = 1
     const pm = mount({ entries: {} })
-    expect(await pm.run('plugin-manager.install', { pkg: '@x/gwb-foo' })).toEqual({ ok: false, error: 'pnpm add @x/gwb-foo --save-exact 失败（退出码 1）\npnpm 说的原因' })
+    expect(await pm.run('plugin-manager.install', { pkg: '@x/gwb-foo' })).toEqual({ ok: false, error: 'pnpm add @x/gwb-foo 失败（退出码 1）\npnpm 说的原因' })
     expect(pm.tree.store['foo']).toBeUndefined()
   })
 
@@ -464,7 +464,7 @@ describe('plugin-manager.update', () => {
     expect(fakePnpm.calls.map((call) => call.args[0])).toEqual(['outdated'])
   })
 
-  it('升一个包：一次 pnpm add --save-exact 精确版本，它的条目在这条命令里重新加载，停用的跳过；不整页重新加载', async () => {
+  it('升一个包：一次 pnpm add 到 outdated 查到的版本，它的条目在这条命令里重新加载，停用的跳过；不整页重新加载', async () => {
     fakePnpm.captureExitCode = 1
     fakePnpm.captureStdout = JSON.stringify({ '@x/gwb-foo': { current: '1.0.0', latest: '1.1.0' } })
     writeHomeDependencies({ '@x/gwb-foo': '1.0.0', '@x/gwb-other': '1.0.0' })
@@ -490,7 +490,7 @@ describe('plugin-manager.update', () => {
         note: 'only 里这几个已是最新，没动：@x/gwb-other',
       },
     })
-    expect(fakePnpm.calls.map((call) => call.args)).toEqual([['outdated', '--json'], ['add', '@x/gwb-foo@1.1.0', '--save-exact']])
+    expect(fakePnpm.calls.map((call) => call.args)).toEqual([['outdated', '--json'], ['add', '@x/gwb-foo@1.1.0']])
     expect(pm.shellReloads).toBe(0)
   })
 
@@ -527,7 +527,7 @@ describe('plugin-manager.update', () => {
     const pm = mount({ entries: { foo: '@x/gwb-foo' } })
     expect(await pm.run('plugin-manager.update', { all: true })).toEqual({
       ok: false,
-      error: 'pnpm add @x/gwb-foo@1.1.0 --save-exact 失败（退出码 1）。一条条目都没动\npnpm 说的原因',
+      error: 'pnpm add @x/gwb-foo@1.1.0 失败（退出码 1）。一条条目都没动\npnpm 说的原因',
     })
   })
 
@@ -562,7 +562,7 @@ describe('plugin-manager.update', () => {
         selfDeferred: false,
       },
     })
-    expect(fakePnpm.calls.map((call) => call.args)).toEqual([['outdated', '--json'], ['add', '@x/gwb-foo@1.1.0', '--save-exact']])
+    expect(fakePnpm.calls.map((call) => call.args)).toEqual([['outdated', '--json'], ['add', '@x/gwb-foo@1.1.0']])
     expect(pm.tree.store['plain']!.fiber).toBe(plainFiberBefore)
   })
 
@@ -608,7 +608,7 @@ describe('plugin-manager.update', () => {
         selfDeferred: false,
       },
     })
-    expect(fakePnpm.calls.map((call) => call.args)).toEqual([['outdated', '--json'], ['add', '@x/gwb-foo@1.1.0', '--save-exact']])
+    expect(fakePnpm.calls.map((call) => call.args)).toEqual([['outdated', '--json'], ['add', '@x/gwb-foo@1.1.0']])
   })
 
   it('pnpm 只报内核包过期：不运行 pnpm add，note 说全都最新', async () => {
@@ -647,7 +647,7 @@ describe('plugin-manager.update', () => {
 })
 
 describe('plugin-manager.update 的 specs', () => {
-  it('按给定写法一次 pnpm add --save-exact、不查 outdated；from / to 取装之前与装之后清单里的版本号（file: 写法不核对）；它的条目与真实目录变了的别的包重新加载，不整页重载', async () => {
+  it('按给定写法一次 pnpm add、不查 outdated；from / to 取装之前与装之后清单里的版本号（file: 写法不核对）；它的条目与真实目录变了的别的包重新加载，不整页重载', async () => {
     writeHomeDependencies({ '@x/gwb-foo': '1.0.0', '@x/gwb-bar': '1.0.0' })
     linkInstalled('@x/gwb-foo', '@x+gwb-foo@1.0.0')
     writeInstalledManifest('@x/gwb-foo', { version: '1.0.0' })
@@ -666,7 +666,7 @@ describe('plugin-manager.update 的 specs', () => {
         selfDeferred: false,
       },
     })
-    expect(fakePnpm.calls.map((call) => call.args)).toEqual([['add', '@x/gwb-foo@file:D:/repo/foo.tgz', '--save-exact']])
+    expect(fakePnpm.calls.map((call) => call.args)).toEqual([['add', '@x/gwb-foo@file:D:/repo/foo.tgz']])
     expect(pm.shellReloads).toBe(0)
   })
 
@@ -710,7 +710,7 @@ describe('plugin-manager.update 的 specs', () => {
     expect(fakePnpm.calls).toEqual([])
   })
 
-  it('没有内核包、准确版本号对上了：照常重新加载，回执没有 restartRequired，pnpm add 带 --save-exact', async () => {
+  it('没有内核包、准确版本号对上了：照常重新加载，回执没有 restartRequired，pnpm add 不带 --save-exact', async () => {
     writeHomeDependencies({ '@x/gwb-foo': '1.0.0' })
     fakePnpm.afterRun = () => writeInstalledManifest('@x/gwb-foo', { version: '1.1.0' })
     const pm = mount({ entries: {}, shellReload: true })
@@ -719,7 +719,7 @@ describe('plugin-manager.update 的 specs', () => {
     expect(result.data['restartRequired']).toBeUndefined()
     expect(result.data['updated']).toEqual([{ pkg: '@x/gwb-foo', to: '1.1.0', entries: [] }])
     expect(pm.shellReloads).toBe(0)
-    expect(fakePnpm.calls.map((call) => call.args)).toEqual([['add', '@x/gwb-foo@1.1.0', '--save-exact']])
+    expect(fakePnpm.calls.map((call) => call.args)).toEqual([['add', '@x/gwb-foo@1.1.0']])
   })
 
   it('装的就是原来那一版、真实目录没变：回执照样列出这个包，它的条目不重新加载', async () => {
@@ -770,7 +770,7 @@ describe('plugin-manager.update 的 specs 里有内核包', () => {
 
   const NEW_KERNEL = { name: KERNEL_PKG, version: '0.4.0', peerDependencies: { cordis: '4.0.0' } }
 
-  it('内核包与别的包一次 pnpm add --save-exact，再照装上的内核包 peer 装 cordis；不重新加载任何条目；回执带新旧版本、要不要重启、范围不含新内核的插件', async () => {
+  it('内核包与别的包一次 pnpm add，再照装上的内核包 peer 装 cordis（只有 cordis 带 --save-exact：它要正好等于内核包 peer 里那个版本）；不重新加载任何条目；回执带新旧版本、要不要重启、范围不含新内核的插件', async () => {
     writeHomeDependencies({ [KERNEL_PKG]: '0.3.0', cordis: '4.0.0-rc.9', '@x/gwb-old': '1.0.0', '@x/gwb-new': '1.0.0', '@x/lib': '1.0.0' })
     writeInstalledManifest(KERNEL_PKG, { name: KERNEL_PKG, version: '0.3.0', peerDependencies: { cordis: '4.0.0-rc.9' } })
     writeInstalledManifest('cordis', { name: 'cordis', version: '4.0.0-rc.9' })
@@ -799,8 +799,8 @@ describe('plugin-manager.update 的 specs 里有内核包', () => {
     })
     expect(result.data['note']).toContain('重启工作台')
     expect(fakePnpm.calls.map((call) => call.args)).toEqual([
-      ['add', `${KERNEL_PKG}@latest`, '@x/gwb-new@1.0.0', '--save-exact'],
-      ['add', 'cordis@4.0.0', '--save-exact'],
+      ['add', `${KERNEL_PKG}@latest`, '@x/gwb-new@1.0.0'],
+      ['add', '--save-exact', 'cordis@4.0.0'],
     ])
     expect(JSON.stringify(pm.tree.store)).toBe(storeBefore)
     expect(pm.shellReloads).toBe(0)
@@ -849,7 +849,7 @@ describe('plugin-manager.update 的 specs 里有内核包', () => {
     const result = (await pm.run('plugin-manager.update', { specs: { [KERNEL_PKG]: '0.4.0' } })) as GwbResult
     expect(result.ok).toBe(false)
     expect(result.data).toEqual({ kernel: { from: '0.3.0', to: '0.4.0' } })
-    expect(result.error).toContain('pnpm add cordis@4.0.0 --save-exact 失败（退出码 1）')
+    expect(result.error).toContain('pnpm add --save-exact cordis@4.0.0 失败（退出码 1）')
     expect(result.error).toContain('先别重启')
     expect(result.error).toContain('pnpm 说的原因')
   })
@@ -874,7 +874,7 @@ describe('plugin-manager.update 的 specs 里有内核包', () => {
     const pm = mount({ entries: {} })
     expect(await pm.run('plugin-manager.update', { specs: { [KERNEL_PKG]: 'latest' } })).toEqual({
       ok: false,
-      error: `pnpm add ${KERNEL_PKG}@latest --save-exact 失败（退出码 1）。一条条目都没动\npnpm 说的原因`,
+      error: `pnpm add ${KERNEL_PKG}@latest 失败（退出码 1）。一条条目都没动\npnpm 说的原因`,
     })
     expect(fakePnpm.calls).toHaveLength(1)
   })

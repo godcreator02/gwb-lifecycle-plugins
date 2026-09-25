@@ -41,6 +41,7 @@
     "2026-09-25-scope-and-publish-target",
     "2026-09-25-kernel-via-specs-caller-reloads",
     "2026-09-25-devkit-no-fallbacks",
-    "2026-09-25-remount-by-realpath-only"
+    "2026-09-25-remount-by-realpath-only",
+    "2026-09-25-home-manifest-caret"
   ]
 }

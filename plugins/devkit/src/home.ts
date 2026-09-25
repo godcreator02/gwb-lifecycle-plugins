@@ -255,19 +255,19 @@ function pnpmAddPlan(home: string, addArgs: string[], pnpm: string): RunPlan {
   return homePnpmPlan(['add', ...addArgs], home, pnpm)
 }
 
-/** 装内核包：精确版本带 `--save-exact`。清单里已有 `^` 声明时 pnpm 12 照样写回 `^`、退出码 0 却装上更新的版本（probes/2609241510_pnpm-add-exact-prefix），所以只用在清单里还没有这一项的新 home 上，装完核对版本 */
+/** 装内核包：运行中内核的版本，清单照 pnpm 默认写 `^` 范围；装完核对版本 */
 export function kernelInstallPlan(home: string, kernelVersion: string, pnpm: string): RunPlan {
-  return pnpmAddPlan(home, ['--save-exact', `${KERNEL_PACKAGE}@${kernelVersion}`], pnpm)
+  return pnpmAddPlan(home, [`${KERNEL_PACKAGE}@${kernelVersion}`], pnpm)
 }
 
-/** 装 cordis：内核包 peer 里写的精确版本、带 `--save-exact`，限制同 `kernelInstallPlan` */
+/** 装 cordis：内核包 peer 里写的精确版本、带 `--save-exact`——它是预发布版，写成 `^` 范围时别的 rc 也算满足，而它要正好等于内核包 peer 里那个版本 */
 export function cordisInstallPlan(home: string, cordisVersion: string, pnpm: string): RunPlan {
   return pnpmAddPlan(home, ['--save-exact', `cordis@${cordisVersion}`], pnpm)
 }
 
-/** 装基础插件：不写版本，取源上的 latest，带 `--save-exact`——home 清单一律写精确版本号，以后换版本才不会被 pnpm 沿用的 `^` 挡住。home 里除了内核包与 cordis 只装插件 */
+/** 装基础插件：不写版本，取源上的 latest，清单写 `^` 范围。home 里除了内核包与 cordis 只装插件 */
 export function baseInstallPlan(home: string, pnpm: string): RunPlan {
-  return pnpmAddPlan(home, ['--save-exact', ...BASE_PLUGINS.map((p) => p.pkg)], pnpm)
+  return pnpmAddPlan(home, BASE_PLUGINS.map((p) => p.pkg), pnpm)
 }
 
 /** 装包（内核包、cordis、基础插件各一次）的超时 */

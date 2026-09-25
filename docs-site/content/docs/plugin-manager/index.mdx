@@ -16,7 +16,7 @@ description: 插件管理是唯一写 home 的插件——装卸包、增删启�
 - **列出 home 里的包与条目**：每个包下面是它的条目，带启停、是否在运行；内核包与 `cordis` 不列，见 [home 的包与条目](/docs/plugin-manager/home)
 - **报告每个插件兼容哪些内核**：`list` 的每个包带 `kernelRange` 与 `kernelUntested`，只报告、不拦加载，见[内核兼容性](/docs/plugin-manager/kernel-compat)
 - **报告每个插件 peer 里的别的插件满没满足**：`list` 的每个包带 `unmetPeers`，只报告、不拦加载，见 [peer 满没满足](/docs/plugin-manager/peers)
-- **装一个还没装的包并加一条条目**：一条命令做完，home 的 `package.json` 写精确版本号，只等条目写入、不等加载；包已装就报错。**卸载**先删全部条目、再卸包，数据与设置留在磁盘上。见[安装与卸载](/docs/plugin-manager/install)
+- **装一个还没装的包并加一条条目**：一条命令做完，home 的 `package.json` 照 pnpm 默认写 `^` 范围，只等条目写入、不等加载；包已装就报错。**卸载**先删全部条目、再卸包，数据与设置留在磁盘上。见[安装与卸载](/docs/plugin-manager/install)
 - **加删条目、启用或停用一条条目**：条目只经 loader 的条目树改，见 [home 的包与条目](/docs/plugin-manager/home#条目只经-loader-的条目树)
 - **重新加载一条条目**：停用 → 等旧的卸载完 → 启用 → 等新的加载完，一条命令做完，见[重新加载一条条目](/docs/plugin-manager/remount)
 - **选条目 id、转归属**：沿用本包留在磁盘上的旧 id，避开别的包的数据与设置；插件改了包名时把一个 id 的数据与设置转给新包，见 [id 与归属](/docs/plugin-manager/ids)

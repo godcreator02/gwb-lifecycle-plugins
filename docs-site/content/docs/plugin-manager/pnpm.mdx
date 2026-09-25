@@ -34,7 +34,7 @@ pnpm 由用户装好，插件管理不自带。每次要运行 pnpm 时按顺序
 
 ## 参数、环境与读回什么
 
-**命令行参数与工作目录**：写 home 只有 `add <spec…> --save-exact` 与 `remove <包名>` 两种，都经 `applyToHome` 运行；只读的是 `outdated --json`。工作目录一律是 home。参数以数组传给进程，不经 shell。
+**命令行参数与工作目录**：写 home 只有 `add <spec…>`（对齐 `cordis` 那一次是 `add --save-exact cordis@<版本>`）与 `remove <包名>` 两种，都经 `applyToHome` 运行；只读的是 `outdated --json`。工作目录一律是 home。参数以数组传给进程，不经 shell。
 
 {/* ref file="../plugins/plugin-manager/src/index.ts" lines="765-768" */}
 

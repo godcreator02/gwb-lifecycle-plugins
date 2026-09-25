@@ -40,8 +40,8 @@ export function kernelUpgradeTargetOf(kernelManifest: unknown): KernelUpgradeTar
 }
 
 /**
- * pnpm 退出码 0 不等于装上了要的版本：home 的 package.json 里这个包原来写成 `^x.y.z` 时，pnpm 12 沿用 `^`，
- * 点名的版本号与 `--save-exact` 都拦不住它装上范围内更新的预发布版。对上了回 undefined，对不上回一句说明
+ * pnpm 退出码 0 不等于装上了要的版本：home 的 package.json 里这个包写成 `^x.y.z` 时，pnpm 12 沿用 `^`，
+ * 点名的版本号与 `--save-exact` 都拦不住它留着范围内更新的版本（往回退版本、范围里有预发布版时撞上）。对上了回 undefined，对不上回一句说明
  */
 export function installedVersionMismatch(pkg: string, expected: string, installed: string | undefined): string | undefined {
   if (installed === expected) return undefined

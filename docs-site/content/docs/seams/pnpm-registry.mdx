@@ -21,7 +21,7 @@ description: 连接 devkit、插件管理与 pnpm、npm 源、两份 npmrc、git
 
 {/* has file="../plugins/devkit/src/index.ts" text="import { locatePnpm } from '@godcreator/gwb-plugin-manager'" */}
 
-**插件管理拿它做什么**：只在 home 里运行 `add --save-exact`、`remove`、`outdated --json`，不传 `--registry`，源由 npmrc 决定。
+**插件管理拿它做什么**：只在 home 里运行 `add`（对齐 `cordis` 那一次带 `--save-exact`）、`remove`、`outdated --json`，不传 `--registry`，源由 npmrc 决定。
 
 **devkit 拿它做什么**：`devkit.home.new`、`devkit.dev`、`devkit.release` 三条命令开头各找一次，找不到就回 `ok: false`、什么都不做。用在六处：
 
@@ -32,7 +32,7 @@ description: 连接 devkit、插件管理与 pnpm、npm 源、两份 npmrc、git
 | `pnpm publish --no-git-checks --tag latest` | 临时目录里组装好的发布内容 | `devkit.release` | 发布目标，写在发布内容清单的 `publishConfig.registry`，命令行不带 `--registry` |
 | `pnpm view <包@版本> version` | 系统临时目录 | `devkit.release` | 发布目标：带范围的包名带 `--config.<范围>:registry=<发布目标>`，不带范围的带 `--registry` |
 | `pnpm view <包> dist-tags.latest` | 系统临时目录 | `devkit.release` | 不指定，按 `~/.npmrc` 的 scope 路由 |
-| `pnpm add --save-exact <内核包、cordis、七个基础插件>` | 新 home | `devkit.home.new` | 不指定 |
+| `pnpm add <内核包、cordis（带 --save-exact）、七个基础插件>` | 新 home | `devkit.home.new` | 不指定 |
 
 `devkit.dev` 不在目标 home 里启动 pnpm：装包是目标 home 的插件管理在它自己的进程里运行的 `pnpm add`（见 [devkit 调插件管理](/docs/seams/plugin-manager-calls)）。
 
@@ -94,7 +94,7 @@ description: 连接 devkit、插件管理与 pnpm、npm 源、两份 npmrc、git
 
 ## 约定
 
-devkit 与插件管理都保证：在 home 里启动 pnpm 时带 `pnpm_config_auto_install_peers=false`，在 home 里 `pnpm add` 一律带 `--save-exact`；devkit 在插件仓里启动 pnpm 时不带前者。人在 home 里手工运行 pnpm 时要自己设这个环境变量。
+devkit 与插件管理都保证：在 home 里启动 pnpm 时带 `pnpm_config_auto_install_peers=false`，在 home 里 `pnpm add` 照 pnpm 默认在清单里写 `^` 范围，只有装 `cordis` 带 `--save-exact`；devkit 在插件仓里启动 pnpm 时不带前者。人在 home 里手工运行 pnpm 时要自己设这个环境变量。
 
 插件管理保证：
 

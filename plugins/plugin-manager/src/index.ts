@@ -225,7 +225,7 @@ class PluginManager {
     registerBusyGuardedCommand(
       INSTALL_COMMAND,
       '往 home 装一个还没装的包并加一条条目',
-      `一次 pnpm add --save-exact 把包装进 home（home 的 package.json 里写精确版本号），再加一条条目（默认启用）。包已在 home 的 dependencies 里直接报错：再加一条条目用 ${ADD_ENTRY_COMMAND}，换版本用 ${UPDATE_COMMAND} {"specs":{…}}。不装它的 peer，也不判断是不是库：装了没有 apply 的包，条目加载失败，在 ${LIST_COMMAND} 里看得到。回执 data { pkg, entryId }；失败时 error 里带 pnpm 输出的最后几行。参数 { pkg, spec? }（spec 是版本或 tag）；${BUSY_USAGE_NOTE}`,
+      `一次 pnpm add 把包装进 home（home 的 package.json 里照 pnpm 默认写 ^ 范围），再加一条条目（默认启用）。包已在 home 的 dependencies 里直接报错：再加一条条目用 ${ADD_ENTRY_COMMAND}，换版本用 ${UPDATE_COMMAND} {"specs":{…}}。不装它的 peer，也不判断是不是库：装了没有 apply 的包，条目加载失败，在 ${LIST_COMMAND} 里看得到。回执 data { pkg, entryId }；失败时 error 里带 pnpm 输出的最后几行。参数 { pkg, spec? }（spec 是版本或 tag）；${BUSY_USAGE_NOTE}`,
       async (args) => {
         const argsObject = argsObjectOf(args, ['pkg', 'spec'])
         return this.install(requiredString(argsObject, 'pkg'), optionalString(argsObject, 'spec'))
@@ -284,7 +284,7 @@ class PluginManager {
     registerBusyGuardedCommand(
       UPDATE_COMMAND,
       '升级 home 里已装的包（全部过期的、点名的几个、或按给定写法装，内核包也走这条），不重启、不整页重新加载',
-      `${UPDATE_ARGS_USAGE}。pnpm add 一律带 --save-exact，home 的 package.json 里写精确版本号。all 与 only：一次 pnpm add 把过期包升到 outdated 返回的精确版本；specs：一次 pnpm add 每项 <包名>@<写法>，不查 outdated，写法是准确版本号的，装完读 node_modules 里的清单核对，装上的不是那个号就回 ok: false、一条条目都不重新加载（tag 与 file: 不核对）。装完逐条停用→启用，重新加载成新版本（原本停用的跳过；插件管理自己那条在回执发出后才重新加载）。不整页重新加载：界面要换成新代码，由调用方拿到回执后自己调 shell.reload。pnpm add 前后 home 里 node_modules/<包名> 指向的真实目录变了、本身没装的包（多半是 peer 写了被装的包的插件），它们的条目在同一条命令里跟着重新加载。内核包 ${KERNEL_PACKAGE} 与 ${CORDIS_PACKAGE} 不在过期清单里，only 点了它们直接报错。specs 里有内核包时：内核包与其余包一次 pnpm add，再读装上的内核包 peerDependencies.cordis（必须是精确版本号）pnpm add ${CORDIS_PACKAGE}@<那个版本>，不重新加载任何条目——主进程里的内核换不掉，重启工作台后才生效，重启由人决定；回执另带 restartRequired（装上的内核版本与正在运行的不同时是 true）与 pluginsOutsideRange（keywords 含 gwb-plugin、peer 里内核包的范围不包含新内核或没写范围的插件）；内核包装上了而 cordis 没对齐时回 ok: false，data 带 { kernel: { from?, to } }，error 说明先别重启。specs 里写 ${CORDIS_PACKAGE} 直接报错。回执 data { updated: [{ pkg, from?, to, entries: [{ id, action, state }] }], dependents: [{ pkg, entries: [{ id, action, state }] }], selfDeferred, restartRequired?, pluginsOutsideRange?, note? }：specs 的 from 是装之前 node_modules 里清单的 version（读不到就没有），to 是装完读到的 version；失败时 error 里带 pnpm 输出的最后几行；${BUSY_USAGE_NOTE}`,
+      `${UPDATE_ARGS_USAGE}。home 的 package.json 里照 pnpm 默认写 ^ 范围（只有 ${CORDIS_PACKAGE} 写精确版本号）；清单里已有的 ^ 范围会挡住往回退版本，specs 退回旧版会在核对时回 ok: false。all 与 only：一次 pnpm add 把过期包升到 outdated 返回的精确版本；specs：一次 pnpm add 每项 <包名>@<写法>，不查 outdated，写法是准确版本号的，装完读 node_modules 里的清单核对，装上的不是那个号就回 ok: false、一条条目都不重新加载（tag 与 file: 不核对）。pnpm add 前后 home 里 node_modules/<包名> 指向的真实目录变了的包，条目在同一条命令里逐条停用→启用、重新加载成新版本（原本停用的跳过；插件管理自己那条在回执发出后才重新加载）：点了名的包归 updated（装的就是原来那一版、目录没变的也列出，entries 为空），没点名的（多半是 peer 写了被装的包的插件）归 dependents。不整页重新加载：界面要换成新代码，由调用方拿到回执后自己调 shell.reload。内核包 ${KERNEL_PACKAGE} 与 ${CORDIS_PACKAGE} 不在过期清单里，only 点了它们直接报错。specs 里有内核包时：内核包与其余包一次 pnpm add，再读装上的内核包 peerDependencies.cordis（必须是精确版本号）pnpm add ${CORDIS_PACKAGE}@<那个版本>，不重新加载任何条目——主进程里的内核换不掉，重启工作台后才生效，重启由人决定；回执另带 restartRequired（装上的内核版本与正在运行的不同时是 true）与 pluginsOutsideRange（keywords 含 gwb-plugin、peer 里内核包的范围不包含新内核或没写范围的插件）；内核包装上了而 cordis 没对齐时回 ok: false，data 带 { kernel: { from?, to } }，error 说明先别重启。specs 里写 ${CORDIS_PACKAGE} 直接报错。回执 data { updated: [{ pkg, from?, to, entries: [{ id, action, state }] }], dependents: [{ pkg, entries: [{ id, action, state }] }], selfDeferred, restartRequired?, pluginsOutsideRange?, note? }：specs 的 from 是装之前 node_modules 里清单的 version（读不到就没有），to 是装完读到的 version；失败时 error 里带 pnpm 输出的最后几行；${BUSY_USAGE_NOTE}`,
       (args) => this.update(updateArgsOf(args)),
     )
 
@@ -483,8 +483,9 @@ class PluginManager {
 
     const target = kernelUpgradeTargetOf(await readInstalledPackageManifest(this.homeDir, KERNEL_PACKAGE))
     if (!target.ok) return this.kernelInstalledButCordisNot(`${KERNEL_PACKAGE} 装上了，但${target.error}。cordis 没动，home 里的内核与 cordis 可能对不上，先别重启`, kernel)
+    // cordis 要正好等于内核包 peer 里的那个版本，清单里写精确版本号：它是预发布版，写成 ^ 范围时别的 rc 也算满足
     const cordisAdded = await this.addToHome(
-      [installSpec(CORDIS_PACKAGE, target.cordisVersion)],
+      ['--save-exact', installSpec(CORDIS_PACKAGE, target.cordisVersion)],
       `内核包已经是 ${target.kernelVersion}，home 根上的 cordis 没对齐到它要的 ${target.cordisVersion}，先别重启`,
     )
     if (!cordisAdded.ok) return { ok: false, error: cordisAdded.error, data: { kernel } }
@@ -735,27 +736,27 @@ class PluginManager {
   }
 
   /**
-   * 找 pnpm、一次 `pnpm add <specs…> --save-exact`。失败回一句说明：退出码那句，接着 `consequence`（这时 home 处在什么状态），
+   * 找 pnpm、一次 `pnpm add <addArgs…>`。失败回一句说明：退出码那句，接着 `consequence`（这时 home 处在什么状态），
    * 最后是 pnpm 输出的最后几行
    */
-  private async addToHome(specs: readonly string[], consequence: string): Promise<{ ok: true } | { ok: false; error: string }> {
+  private async addToHome(addArgs: readonly string[], consequence: string): Promise<{ ok: true } | { ok: false; error: string }> {
     const withConsequence = (message: string): string => (consequence === '' ? message : `${message}。${consequence}`)
     const pnpmLookup = await locatePnpm()
     if (!pnpmLookup.ok) return this.failed(withConsequence(pnpmLookup.error))
     // 一次装完：pnpm 读改写 home 的 package.json，逐个包启动进程与并发安装一样会互相覆盖
-    this.log.info(`用 ${describePnpm(pnpmLookup)} 安装 ${specs.join(' ')}`)
-    const pnpmRun = await this.applyToHome(pnpmLookup.file, { add: specs })
+    this.log.info(`用 ${describePnpm(pnpmLookup)} 安装 ${addArgs.join(' ')}`)
+    const pnpmRun = await this.applyToHome(pnpmLookup.file, { add: addArgs })
     if (pnpmRun.ok) return { ok: true }
-    const failure = describeAddFailure(`pnpm add ${specs.join(' ')} --save-exact`, pnpmRun)
+    const failure = describeAddFailure(`pnpm add ${addArgs.join(' ')}`, pnpmRun)
     return this.failed(withTail(withConsequence(failure.error), failure.tail))
   }
 
   /**
    * 改 home 的唯一入口：安装、升级、卸载都经这里运行 pnpm。调用它的命令都经过 BUSY 检查——两个写 home 的 pnpm 同时运行会丢改动，
-   * 而且都退出码 0。add 一律带 `--save-exact`：home 的清单写精确版本号，写成 `^` 以后重装会解析到别的版本
+   * 而且都退出码 0。add 照 pnpm 默认在清单里写 `^` 范围（0.x.y 的 y 变了不破坏兼容）；只有对齐 cordis 那一次自己带 `--save-exact`
    */
   private applyToHome(pnpm: string, change: { add: readonly string[] } | { remove: readonly string[] }): Promise<PnpmResult> {
-    const args = 'add' in change ? ['add', ...change.add, '--save-exact'] : ['remove', ...change.remove]
+    const args = 'add' in change ? ['add', ...change.add] : ['remove', ...change.remove]
     return runPnpm({ pnpm, cwd: this.homeDir, args })
   }
 }

@@ -18,7 +18,7 @@ home 里有两层：
 ## 装一个插件
 
 1. `plugin-manager.search` 确认包名（第三方 scope 先按下一节配包源）
-2. `plugin-manager.install {"pkg":"<包名>"}`，可选 `spec` 指定版本或 tag。一次 `pnpm add --save-exact`，home 的 `package.json` 写精确版本号，再加一条启用的条目，回执 `data` 是 `{ pkg, entryId }`。包已经装了直接报错：再加一条条目用 `add-entry`，换版本用 `update {"specs":…}`
+2. `plugin-manager.install {"pkg":"<包名>"}`，可选 `spec` 指定版本或 tag。一次 `pnpm add`，home 的 `package.json` 照 pnpm 默认写 `^` 范围，再加一条启用的条目，回执 `data` 是 `{ pkg, entryId }`。包已经装了直接报错：再加一条条目用 `add-entry`，换版本用 `update {"specs":…}`
 3. `plugin-manager.list` 看这个包的条目 `active`
 4. 调一次 MCP 入口的 `index`，新插件的命令这时出现
 
@@ -44,9 +44,9 @@ home 里有两层：
 2. `plugin-manager.update`，参数三选一、恰好给一个，不给参数直接报错：
    - 全升：`{"all":true}`
    - 只升几个：`{"only":["<包名>"]}`；名字不在 home 的 dependencies 里、或是内核包与 `cordis`，直接报错；已是最新的写进 `note`
-   - 按给定写法装已装的包：`{"specs":{"<包名>":"<版本号、tag 或 file:<绝对路径>>"}}`，不查 `outdated`；包不在 home 的 dependencies 里直接报错（首次安装用 `install`）。写法是准确版本号的，装完核对装上的就是它，对不上回 `ok: false`、`error` 逐项写要的与装上的、一条条目都没重新加载——多半是 home 的 `package.json` 里那一项写成了 `^`，改成 `error` 里给的精确版本号再调一次；tag 与 `file:` 不核对
+   - 按给定写法装已装的包：`{"specs":{"<包名>":"<版本号、tag 或 file:<绝对路径>>"}}`，不查 `outdated`；包不在 home 的 dependencies 里直接报错（首次安装用 `install`）。写法是准确版本号的，装完核对装上的就是它，对不上回 `ok: false`、`error` 逐项写要的与装上的、一条条目都没重新加载——多半是在往回退版本：清单里那一项是 `^` 范围，pnpm 留着范围里更新的那个。不做回退，升坏了发新版往前修；tag 与 `file:` 不核对
 
-   一条命令做完：一次 `pnpm add --save-exact`（`all` 与 `only` 升到 `outdated` 查到的精确版本，`specs` 原样用给的写法）→ 装了的包的每条条目重新加载（本来停用的保持停用）→ 装之前与装之后真实目录变了的别的包（多半是 peer 写了被升级包的插件）的条目也跟着重新加载，不重启
+   一条命令做完：一次 `pnpm add`（`all` 与 `only` 升到 `outdated` 查到的版本，`specs` 原样用给的写法）→ 装之前与装之后真实目录变了的包，每条条目重新加载（本来停用的保持停用；点了名的在前，跟着换了目录的别的包——多半是 peer 写了被升级包的插件——在后），装的就是原来那一版、目录没变的不动，不重启
 3. 读回执 `data.updated[].entries[]` 与 `data.dependents[].entries[]`：`state` 为 `ACTIVE` 才算加载成功；`dependents` 是没升级、但这次换了目录跟着重新加载的包。`specs` 的 `updated[].to` 是装完读到的版本号（tag 与 `file:` 装上了哪一版看它）；装之前读不到版本号的包没有 `from`。`selfDeferred: true` 表示插件管理自己在回执发出后才重新加载，过一会儿用 `list` 核对；升到 gwb-mcp 自己时进行中的 MCP 请求会断，重连一次
 4. 插件管理不整页重新加载：要让界面换成新代码，拿到成功回执后自己调一次 `shell.reload`
 5. `plugin-manager.list` 核对版本与 `active`，再调一次 `index`
@@ -62,7 +62,7 @@ home 里有两层：
 1. `plugin-manager.update {"specs":{"@godcreator/gwb-kernel-desktop":"<版本号或 latest>"}}`，可以连同别的包一起写。`cordis` 不写（写了直接报错）：插件管理装完内核包，自己照它 `peerDependencies.cordis` 写的精确版本号装 `cordis`。不重新加载任何条目
 2. 读回执 `data`：`updated` 里内核包与末尾 `cordis` 的 `{ from, to }`；`restartRequired`（装上的内核与正在运行的不同时是 true）；`pluginsOutsideRange` 是 peer 里内核包的范围不包含新内核（或没写范围）的插件
 3. `restartRequired` 为 true 时告诉人要重启工作台才生效，并列出 `pluginsOutsideRange`；重启由人决定，不要自己重启
-4. `ok: false` 且 `data.kernel` 在、`error` 说先别重启：内核包已经装上、`cordis` 没对齐。按 `error` 修好再调一次：内核包 peer 里的 `cordis` 写成了范围；装 `cordis` 时 pnpm 失败（原因在 `error` 末尾）；或者 pnpm 装上的版本不是要的——home 的 `package.json` 里那一项写成了 `^`，改成 `error` 里给的精确版本号
+4. `ok: false` 且 `data.kernel` 在、`error` 说先别重启：内核包已经装上、`cordis` 没对齐。按 `error` 修好再调一次：内核包 peer 里的 `cordis` 写成了范围；装 `cordis` 时 pnpm 失败（原因在 `error` 末尾）；或者 pnpm 装上的 `cordis` 不是要的版本，照 `error` 里给的精确版本号改 home 的 `package.json` 里 `cordis` 那一项
 
 **完成判据**：回执 `ok` 为 true，人已知道要重启和 `pluginsOutsideRange` 里的插件；重启后 `runtime.json` 报的内核版本是回执里内核包的 `to`。
 

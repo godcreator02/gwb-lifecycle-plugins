@@ -197,7 +197,7 @@ function registerHomeCommands({ ctx, log, commands, homeDeps }: Wiring): void {
       plugin: '@godcreator/gwb-devkit',
       description: '开一个测试 home（装内核包、cordis 与基础插件，用宿主安装版启动，调试端口自动选）',
       usage:
-        '{short 必给（kebab-case）}——名字是 <short>-<yyMMddHHmm>。启动之前往新 home 里依次 pnpm add 三次（写好 cordis.yml 条目）：先装内核包 @godcreator/gwb-kernel-desktop，精确版本是运行这条命令的内核的 gwbKernel.version，带 --save-exact；再装装上的内核包 peerDependencies.cordis 写的那个精确版本的 cordis，同样带 --save-exact；最后装七个基础插件（源上的 latest，也带 --save-exact：home 清单一律写精确版本号）。内核包与 cordis 装完都读 node_modules 里的清单核对版本。安装包只带启动器、从 home 里加载内核，所以内核包必须装上；哪一步没成都不启动。然后用宿主自己那个 exe 再开一个窗口（安装版认 GWB_HOME；不构建内核、不认内核仓），调试端口自动选一个空的。回执里带着现有 home 清单，开新的时候顺便清理旧的',
+        '{short 必给（kebab-case）}——名字是 <short>-<yyMMddHHmm>。启动之前往新 home 里依次 pnpm add 三次（写好 cordis.yml 条目）：先装内核包 @godcreator/gwb-kernel-desktop，版本是运行这条命令的内核的 gwbKernel.version；再装装上的内核包 peerDependencies.cordis 写的那个精确版本的 cordis，带 --save-exact（home 清单里只有它写精确版本号）；最后装七个基础插件（源上的 latest）。内核包与 cordis 装完都读 node_modules 里的清单核对版本。安装包只带启动器、从 home 里加载内核，所以内核包必须装上；哪一步没成都不启动。然后用宿主自己那个 exe 再开一个窗口（安装版认 GWB_HOME；不构建内核、不认内核仓），调试端口自动选一个空的。回执里带着现有 home 清单，开新的时候顺便清理旧的',
     },
     async (args) => {
       if (!isRecord(args)) return { ok: false, error: `参数要是个对象。\n${HOME_USAGE}` }

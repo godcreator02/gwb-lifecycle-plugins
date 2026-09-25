@@ -41,7 +41,7 @@ description: 连接 devkit 与插件管理：devkit 从插件管理的主入口 
 
 {/* ref file="../plugins/plugin-manager/src/inventory.ts" lines="10-24" */}
 
-**二、`devkit.home.new` 自己写 `cordis.yml`、自己装内核包、`cordis` 与基础插件。** 新 home 在内核启动之前，由 devkit 在刚建的 home 目录里写一份七条条目的 `cordis.yml`，再用命令开头找到的 pnpm（两个固定位置之一，见 [pnpm 与包源](/docs/seams/pnpm-registry)）依次运行三次 `pnpm add --save-exact`：内核包（运行中的内核版本）、`cordis`（装上的内核包 peer 里写的精确版本号）、七个基础插件（其中有插件管理，取源上的 latest）。三次都带环境变量 `pnpm_config_auto_install_peers=false`；home 清单因此一律是精确版本号，和插件管理写的一样。内核包与 `cordis` 装完读 `node_modules` 里的清单核对版本，对不上不启动：
+**二、`devkit.home.new` 自己写 `cordis.yml`、自己装内核包、`cordis` 与基础插件。** 新 home 在内核启动之前，由 devkit 在刚建的 home 目录里写一份七条条目的 `cordis.yml`，再用命令开头找到的 pnpm（两个固定位置之一，见 [pnpm 与包源](/docs/seams/pnpm-registry)）依次运行三次 `pnpm add`：内核包（运行中的内核版本）、`cordis`（装上的内核包 peer 里写的精确版本号，带 `--save-exact`）、七个基础插件（其中有插件管理，取源上的 latest）。三次都带环境变量 `pnpm_config_auto_install_peers=false`；home 清单因此只有 `cordis` 是精确版本号、其余是 `^` 范围，和插件管理写的一样。内核包与 `cordis` 装完读 `node_modules` 里的清单核对版本，对不上不启动：
 
 {/* ref file="../plugins/devkit/src/home.ts" lines="235-271" */}
 
@@ -61,7 +61,7 @@ description: 连接 devkit 与插件管理：devkit 从插件管理的主入口 
 
 - `plugin-manager.list` 的 `data` 是按包列出的数组，每条条目有完整 `entryId` 与 `active`
 - `plugin-manager.install` 收 `{ pkg, spec }`，`spec` 可以是 `file:` 写法；包已装就报错；成功回 `data: { pkg, entryId }`
-- `plugin-manager.update` 收 `{ specs }`：一次 `pnpm add --save-exact`；重新加载这些包的条目与真实目录变了的别的包；插件管理自己的条目推迟到回执之后（回执 `selfDeferred: true`，那条条目的 `action` 是 `deferred`）；不整页重新加载；有内核包时照装上的内核包 peer 对齐 `cordis`、不重新加载任何条目，回执带 `restartRequired`
+- `plugin-manager.update` 收 `{ specs }`：一次 `pnpm add`；装之前与装之后真实目录变了的包逐条重新加载；插件管理自己的条目推迟到回执之后（回执 `selfDeferred: true`，那条条目的 `action` 是 `deferred`）；不整页重新加载；有内核包时照装上的内核包 peer 对齐 `cordis`、不重新加载任何条目，回执带 `restartRequired`
 - 改这三条命令的名字、参数或回执形状，删改主入口导出的名字或签名，都是破坏性变更：升 x、先通知下游（见[什么算破坏性变更](/docs/plugin-manager#什么算破坏性变更)）
 
 devkit 保证：

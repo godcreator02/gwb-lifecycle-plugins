@@ -220,30 +220,30 @@ function installsOnRuns(deps: HomeDeps, fs: HomeFs, kernelManifestText: string, 
 describe('装进新 home 的东西：内核包、cordis 与基础插件', () => {
   const NO_AUTO_PEERS = { pnpm_config_auto_install_peers: 'false' }
 
-  it('装内核包：直接启动找到的 pnpm，add --save-exact 精确版本，不自动补装 peer', () => {
+  it('装内核包：直接启动找到的 pnpm，add 运行中内核的版本（不带 --save-exact），不自动补装 peer', () => {
     expect(kernelInstallPlan(HOME, KERNEL_VERSION, PNPM)).toEqual({
       command: PNPM,
-      args: ['add', '--save-exact', `${KERNEL_PACKAGE}@${KERNEL_VERSION}`],
+      args: ['add', `${KERNEL_PACKAGE}@${KERNEL_VERSION}`],
       cwd: HOME,
       env: NO_AUTO_PEERS,
     })
     expect(kernelInstallPlan(HOME, '0.3.1-dev.202609241500', PNPM)).toEqual({
       command: PNPM,
-      args: ['add', '--save-exact', `${KERNEL_PACKAGE}@0.3.1-dev.202609241500`],
+      args: ['add', `${KERNEL_PACKAGE}@0.3.1-dev.202609241500`],
       cwd: HOME,
       env: NO_AUTO_PEERS,
     })
   })
 
-  it('装 cordis：pnpm add --save-exact 精确版本', () => {
+  it('装 cordis：pnpm add --save-exact 精确版本（只有它带：要正好等于内核包 peer 里那个版本）', () => {
     expect(cordisInstallPlan(HOME, '4.0.0-rc.9', PNPM)).toEqual({ command: PNPM, args: ['add', '--save-exact', 'cordis@4.0.0-rc.9'], cwd: HOME, env: NO_AUTO_PEERS })
   })
 
-  it('装基础插件：只装插件，不写版本（取 latest）、带 --save-exact，不自动补装 peer', () => {
+  it('装基础插件：只装插件，不写版本（取 latest）、不带 --save-exact，不自动补装 peer', () => {
     const plan = baseInstallPlan(HOME, PNPM)
     expect(plan.command).toBe(PNPM)
     expect(plan.cwd).toBe(HOME)
-    expect(plan.args).toEqual(['add', '--save-exact', ...BASE_PLUGINS.map((one) => one.pkg)])
+    expect(plan.args).toEqual(['add', ...BASE_PLUGINS.map((one) => one.pkg)])
     expect(plan.env).toEqual(NO_AUTO_PEERS)
   })
 
@@ -398,10 +398,10 @@ describe('launchHome：拼宿主拉起计划、起它、落记录、看五秒', 
     expect(outcome.ok).toBe(true)
     expect(state.runCalls.map((call) => call.timeoutMs)).toEqual([BASE_INSTALL_TIMEOUT_MS, BASE_INSTALL_TIMEOUT_MS, BASE_INSTALL_TIMEOUT_MS])
     expect(state.runCalls.map((call) => call.plan.cwd)).toEqual([HOME, HOME, HOME])
-    expect(state.runCalls[0]?.plan).toMatchObject({ command: PNPM, args: ['add', '--save-exact', `${KERNEL_PACKAGE}@${KERNEL_VERSION}`] })
+    expect(state.runCalls[0]?.plan).toMatchObject({ command: PNPM, args: ['add', `${KERNEL_PACKAGE}@${KERNEL_VERSION}`] })
     expect(state.runCalls[1]?.plan).toMatchObject({ command: PNPM, args: ['add', '--save-exact', 'cordis@4.0.0-rc.9'] })
     expect(state.runCalls[2]?.plan.args).toContain('@godcreator/gwb-commands')
-    expect(state.runCalls[2]?.plan.args).toContain('--save-exact')
+    expect(state.runCalls[2]?.plan.args).not.toContain('--save-exact')
     expect(deps.fs.exists(path.join(HOME, 'cordis.yml'))).toBe(true)
     expect(state.spawned).toHaveLength(1)
   })

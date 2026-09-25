@@ -11,7 +11,7 @@ description: 内核包也经 update 的 specs 换，可以连同别的包一次�
 
 内核包 `@godcreator/gwb-kernel-desktop` 经 `update` 的 `specs` 换：升到最新写 `{"specs":{"@godcreator/gwb-kernel-desktop":"latest"}}`，也可以给版本号或 `file:<绝对路径>`，还可以连同别的包一起写。`specs` 里有内核包时，插件管理依次做：
 
-1. 一次 `pnpm add --save-exact` 装上 `specs` 里的全部包，照[热升级](/docs/plugin-manager/upgrade#specs-装完核对版本号)的规则核对准确版本号
+1. 一次 `pnpm add` 装上 `specs` 里的全部包（清单写 `^` 范围），照[热升级](/docs/plugin-manager/upgrade#specs-装完核对版本号)的规则核对准确版本号
 2. 读 home 里装上的内核包的 `package.json`，取它 `peerDependencies.cordis` 写的精确版本号
 3. `pnpm add --save-exact cordis@<那个版本>`，装完读回核对 `cordis` 装上的就是它
 4. **不重新加载任何条目**：`updated` 每项的 `entries` 是空数组，末尾多一项插件管理自己对齐的 `cordis`；`dependents` 是空数组
@@ -53,7 +53,7 @@ description: 内核包也经 update 的 specs 换，可以连同别的包一次�
 
 {/* ref file="../plugins/plugin-manager/src/kernel-upgrade.ts" lines="70-80" */}
 
-{/* has file="../plugins/plugin-manager/tests/commands.test.ts" text="内核包与别的包一次 pnpm add --save-exact，再照装上的内核包 peer 装 cordis；不重新加载任何条目；回执带新旧版本、要不要重启、范围不含新内核的插件" */}
+{/* has file="../plugins/plugin-manager/tests/commands.test.ts" text="内核包与别的包一次 pnpm add，再照装上的内核包 peer 装 cordis（只有 cordis 带 --save-exact：它要正好等于内核包 peer 里那个版本）；不重新加载任何条目；回执带新旧版本、要不要重启、范围不含新内核的插件" */}
 
 {/* has file="../plugins/plugin-manager/tests/commands.test.ts" text="装上的就是正在运行的内核版本：restartRequired 是 false" */}
 
