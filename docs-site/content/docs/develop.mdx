@@ -33,7 +33,7 @@ plugin-manager.install {"pkg":"@godcreator/gwb-devkit"}
 pnpm install
 ```
 
-仓根的 workspace 包含两个插件包与 `docs-site`，一次装齐；devkit 的 peer 里写着插件管理（`workspace:^`），装好后 devkit 从工作区里的插件管理取它导出的函数与类型。文档站目录里另有自己的 `pnpm-workspace.yaml` 与锁文件，这是本仓的旧形状，模板生成的新仓不这样。
+仓根的 workspace 包含两个插件包与 `docs-site`，一次装齐；devkit 的 peer 里写着插件管理（`workspace:^`），装好后 devkit 从工作区里的插件管理取它导出的函数与类型。文档站目录里另有自己的 `pnpm-workspace.yaml` 与锁文件，这是本仓特有的布局，模板生成的新仓没有。
 
 实验材料放 `probes/<时间戳>_<目的>/`：一次实验一个目录、自包含、进 git、不在 workspace 里。
 
@@ -62,34 +62,26 @@ pnpm build          # 只构建 plugins/*，两个包都先清空 dist/：开发
 
 ## 在隔离 home 里验证
 
-单元测试覆盖不了「装出来能不能加载、命令调不调得通」，这要在隔离 home 里实际运行：
-
-1. 从日常用的 home 开一个隔离 home：`devkit.home.new {"short":"<这次验什么>"}`，回执里有 home 名
-2. 把这次的改动装进去：`devkit.dev {"home":"<名>","dir":"<本仓根>","packages":["plugins/devkit"]}`——改的是插件管理就给 `["plugins/plugin-manager"]`。`devkit.dev` 把包打成包文件放进那个 home 的 `dev-packs` 目录，经那个 home 的插件管理装并重新加载，再核对装上的版本与日志，回执 `ok: false` 就是没验过
-3. 在那个 home 里调命令看结果：`devkit.cdp {"args":["<名>","cmd","<命令名>","<JSON 参数>"]}`。验 devkit 自己的命令也是这样调——命令在隔离 home 的进程里运行，跟日常用的 home 里那份 devkit 无关
-4. 看那个 home 的 `gwb.log`；验完 `devkit.home.rm {"name":"<名>","force":true}`
+单元测试覆盖不了「装出来能不能加载、命令调不调得通」，这要在隔离 home 里实际运行，步骤照说明书 `gwb-devkit` 的「改一版看一版」。本仓的 `packages` 给 `["plugins/devkit"]`，改的是插件管理就给 `["plugins/plugin-manager"]`。验 devkit 自己的命令也在隔离 home 里调——命令在隔离 home 的进程里运行，跟日常用的 home 里那份 devkit 无关。
 
 `devkit.dev` 只拒绝以 `default` 或 devkit 自己所在的 home 为目标，所以从日常用的 home 往隔离 home 装开发版的 devkit 是可以的；日常用的 home 里的 devkit 只能发正式版后用 `plugin-manager.update {"all":true}` 升级。装的是插件管理自己时，它的条目在回执之后才重新加载（回执 `selfDeferred: true`），`devkit.dev` 会轮询 `plugin-manager.list` 等它回来。
 
 改了模板时，模板生成的新仓能不能顺利运行完 install / build / check，单元测试回答不了：用构建产物实际建一个仓运行一遍，做法见 `probes/2609191042_workspace-scaffold/`。
 
-要验 devkit 开、停 home 的行为（`home.new`、`home.rm`，或者结束它开出的实例会怎样），在两个隔离 home 之间做：脚本直接用安装版启动隔离 home A、装上 devkit，经 `bin/cdp.mjs` 让 A 里的 devkit 开隔离 home B，再对 B 动手、看 A。不拿日常用的 home 当 A——它退出或卡住，正在用它的会话一起断。做法见 `probes/2609251010_parent-exit-on-child-kill/`。
+要验 devkit 开、停 home 的行为（`home.new`、`home.rm`，或者结束它开出的实例会怎样），在两个隔离 home 之间做：脚本直接用安装版启动隔离 home A、装上 devkit，经 `bin/cdp.mjs` 让 A 里的 devkit 开隔离 home B，再对 B 操作、看 A 的反应。不拿日常用的 home 当 A——它退出或卡住，正在用它的会话一起断。做法见 `probes/2609251010_parent-exit-on-child-kill/`。
 
 ## 发版
 
-升哪一位版本号、依赖怎么写、发破坏性版本要多做什么，正本是 devkit 的说明书 `gwb-release`（`skill.read {"name":"gwb-release"}`），**每次升版本号之前都读一遍**，这里只列本仓的要点：
+升哪一位版本号、依赖怎么写、发版的每一步与发完升级 `default`，正本是 devkit 的说明书 `gwb-release`（`skill.read {"name":"gwb-release"}`），**每次升版本号之前都读一遍**。本仓只多下面几条。
 
-1. **隔离 home 里验证通过**，`pnpm check`、文档站的 `pnpm doc` 都通过
-2. **升 `package.json` 的版本号并提交**。同一个版本号永不重发；git 工作区要干净
-3. **插件包 peer 里内核包的范围** `^x.y.z` 要包含验证时所用的内核。`devkit.release` 拿它和运行这条命令的 home 的内核比，不包含就拒（[兼容哪个内核](/docs/rules/kernel-compat)）
-4. **调 `devkit.release`**，`packages` 按依赖顺序排：
-   - 只发开发套件：`devkit.release {"dir":"<本仓根>","packages":["plugins/devkit"]}`
-   - 发插件管理：`["plugins/plugin-manager"]`；两个一起发时插件管理排在前面：`["plugins/plugin-manager","plugins/devkit"]`，devkit 的 peer 里插件管理那一项写成这次发的 `^<版本号>`
+`devkit.release` 的 `packages` 按依赖顺序排：
 
-   它检查 git 工作区、构建、按 `files` 白名单检查产物、做发版前检查（[开发套件](/docs/devkit#发正式版的检查)），在临时目录组装发布内容发到 latest，不改仓里任何文件
-5. **发完就升级 `default`**：人在插件管理窗格点「全部更新」，或调 `plugin-manager.update {"all":true}`。说明书与命令都随包发布，不升级等于 agent 读到的还是上一版，而它照着过期的说明书做事不报错。升级到开发套件或插件管理自己时，回执可能收不到，重连后用 `plugin-manager.list` 核对
+- 只发开发套件：`devkit.release {"dir":"<本仓根>","packages":["plugins/devkit"]}`
+- 发插件管理：`["plugins/plugin-manager"]`；两个一起发时插件管理排在前面：`["plugins/plugin-manager","plugins/devkit"]`，devkit 的 peer 里插件管理那一项写成这次发的 `^<版本号>`
 
-**`devkit.release` 不运行 `prepublishOnly`**：临时目录里组装的发布内容没有 `scripts`，产物靠仓根构建加白名单检查保证。只有需要运行仓里钩子时才在包目录手动 `pnpm publish --no-git-checks`（scope 对应的源写在用户级 `~/.npmrc`，不手写 `--registry`）；手动发版不做发版前检查，而且 `prepublishOnly` 不能删——少了它会把上一版的 `dist/` 原样发出去而且不报错，现象是「插件加载了但新写的东西都没生效」。
+发完升级 `default` 时，升到开发套件或插件管理自己，回执可能收不到，重连后用 `plugin-manager.list` 核对。
+
+开发套件的 `package.json` 留着 `prepublishOnly`：手工发版（`gwb-release` 的「手工发版」）靠它先构建，删了会把上一版的 `dist/` 原样发出去而且不报错。
 
 {/* has file="../plugins/devkit/package.json" text="prepublishOnly" */}
 
@@ -107,7 +99,7 @@ pnpm build          # 只构建 plugins/*，两个包都先清空 dist/：开发
 
 ## 文档站
 
-文档站在 `docs-site/`，六区：`content/docs` 现状、`trajectory` 轨迹卡、`spec` 进行中的交接、`future` 未来、`outputs` 生成文件的正本、`feedback` 反复做的操作的候选。在 `docs-site` 目录里：
+文档站在 `docs-site/`。六区各放什么、`doc:confirm` 与提交的先后、确认时点名哪几页，照说明书 `docfirst-docs`；轨迹卡怎么写照 `trajectory`。在 `docs-site` 目录里：
 
 ```powershell
 pnpm doc                           # docfirst check：页面引用的代码改了、生成文件与正本不一致，都会报出来
@@ -116,6 +108,4 @@ pnpm doc:render                    # 按 content/outputs/ 重新生成 AGENTS.md
 pnpm build                         # 构建文档站；端口见 package.json 的 start 脚本（4322）
 ```
 
-- **先提交代码再 `doc:confirm`**：git 比较器只对已提交、工作区干净的内容记录。只点名自己改过的页，不带路径会把别人还没复核的页一起确认掉
-- **生成文件不手改**：`plugins/devkit/AGENTS.md`、`CLAUDE.md`、`README.md`、两个插件 `skills/` 下的 `SKILL.md` 与 `references/` 附件都由 `content/outputs/` 下的 mdx 生成（附件 `references/rules.md` 由现状区的 `rules/index.mdx` 生成），对应关系在 `docfirst.config.mjs` 的 `outputs`；改 mdx、运行 `pnpm doc:render`，mdx、生成文件、`.ledger.json` 放进同一个提交。`skills/fresh-eyes/SKILL.md` 是手写的，不经生成
-- **轨迹卡只增不改**，不引用会变的代码；某条路走不通、做了选型，当场写一张卡
+**生成文件不手改**：`plugins/devkit/AGENTS.md`、`CLAUDE.md`、`README.md`、两个插件 `skills/` 下的 `SKILL.md` 与 `references/` 附件都由 `content/outputs/` 下的 mdx 生成（附件 `references/rules.md` 由现状区的 `rules/index.mdx` 生成），对应关系在 `docfirst.config.mjs` 的 `outputs`；改 mdx、运行 `pnpm doc:render`，mdx、生成文件、`.ledger.json` 放进同一个提交。`skills/fresh-eyes/SKILL.md` 是手写的，不经生成。

@@ -4,7 +4,7 @@
 
 ## 是什么
 
-god 工作台的开发套件，本身就是**一个普通的插件**：装进 home 才有它的命令，加载不了就什么都没有。它走它教别人走的那条路：发到团队源、装进 home。
+god 工作台的开发套件，本身就是**一个普通的插件**：装进 home 才有它的命令，加载不了就什么都没有。它自己也照它教给别人的做法发布：发到团队源、装进 home。
 
 它把「在一个新文件夹里开发一个新插件」这条路上的每一步都做成一个能被 agent 调用的命令：建仓、往仓里加插件、测试 home 的开与删、改一版看一版、发正式版、列出这个 home 里可以 inject 的服务，外加随包发布的写插件说明书与发版规则。**仓的布局只有一种**：pnpm workspace，插件放在 `plugins/<短名>/`，一个插件与多个插件的仓格式相同。
 
@@ -16,17 +16,13 @@ god 工作台的开发套件，本身就是**一个普通的插件**：装进 ho
 plugin-manager.install {"pkg":"@godcreator/gwb-devkit"}
 ```
 
-装完不用配置——它没有设置项。下一次调 MCP 入口的 `index`，`devkit.*` 那几条命令就在清单里。
-
-## 怎么确认它加载了
-
-看 `<home>\gwb.log` 里有没有「开发套件就绪」那一行，那一行才是证据，「装完了」不是。此刻登记了哪些命令，以 `search {"plugin":"@godcreator/gwb-devkit"}` 的结果为准。
+没有设置项，装完不用配置。确认它加载了，看 `<home>\gwb.log` 里有没有「开发套件就绪」那一行——安装命令回的「装完了」不算。
 
 ## 这个仓里还有什么
 
 这个仓是 pnpm workspace，开发套件在 `plugins/devkit/`，旁边还有一个包：
 
-* `plugins/plugin-manager/`：插件管理 `@godcreator/gwb-plugin-manager`，home 里的一个普通插件，单独发版。它和开发套件一起开发，因为两边互相依赖：`devkit.dev` 把开发版的包文件交给目标 home 的 `plugin-manager.install` / `plugin-manager.update` 装并重新加载、用 `plugin-manager.list` 核对结果，`devkit.home.new` 把它装进新 home；插件在 `package.json` 的 peer 里写的内核包 `@godcreator/gwb-kernel-desktop` 的范围，插件管理在 `list` 里拿它和 home 里装的内核比对，`devkit.release` 发版前用同一条规则检查——开发套件的 peer 里写着插件管理，从它的主入口 import 这条规则与找 pnpm 的函数。放在一个仓里，改这些地方一个提交就能改两边
+* `plugins/plugin-manager/`：插件管理 `@godcreator/gwb-plugin-manager`，home 里的一个普通插件，单独发版。两个包互相依赖的地方多（`devkit.dev` 经插件管理装开发版，peer 范围的比对规则只在插件管理里写一份、开发套件 import 它），放在一个仓里，改这些地方一个提交就能改两边；细节见文档站「关键设计」
 
 ## 文档
 
