@@ -26,7 +26,6 @@ import { PmUpgrade } from './diagrams/pm-upgrade'
 import { PmUpgradeGap } from './diagrams/pm-upgrade-gap'
 import { SeamMap } from './diagrams/seam-map'
 import { SeamRepoShape } from './diagrams/seam-repo-shape'
-import { SeamServiceTable } from './diagrams/seam-service-table'
 import { SeamVersionFields } from './diagrams/seam-version-fields'
 
 const drawings: Record<string, () => ReactNode> = {
@@ -50,7 +49,6 @@ const drawings: Record<string, () => ReactNode> = {
   'dk-cdp': () => <DkCdp />,
   'seam-version-fields': () => <SeamVersionFields />,
   'seam-repo-shape': () => <SeamRepoShape />,
-  'seam-service-table': () => <SeamServiceTable />,
 }
 
 export function Diagram({ name, title, children }: { name: string; title?: string; children?: ReactNode }) {

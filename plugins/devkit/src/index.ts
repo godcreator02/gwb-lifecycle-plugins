@@ -23,8 +23,6 @@ import {
 import { kill, portOwner, processTable } from './node-probe-deps.js'
 import { type DevDeps, type DevInput, runDev } from './dev.js'
 import { runRelease } from './release.js'
-import { servicesOf } from './services.js'
-import { readHomeTypeDeclarations } from './node-services-deps.js'
 import { CDP_ENTRY, devDepsWith, releaseDepsWith } from './node-dev-deps.js'
 import { locatePnpm } from '@godcreator/gwb-plugin-manager'
 import { homeFs, makeAppSpawnPlan, makeGuiSpawn, runCaptured } from './node-home-deps.js'
@@ -161,7 +159,6 @@ export function apply(ctx: GwbContext): void {
   registerCdpCli(ctx)
   registerDevCommand(wiring)
   registerReleaseCommand(wiring)
-  registerServicesCommand(wiring)
   registerScaffoldCommand(wiring)
   registerScaffoldPluginCommand(wiring)
   registerOwnSkills(ctx)
@@ -197,7 +194,7 @@ function registerHomeCommands({ ctx, log, commands, homeDeps }: Wiring): void {
       plugin: '@godcreator/gwb-devkit',
       description: '开一个测试 home（装内核包、cordis 与基础插件，用宿主安装版启动，调试端口自动选）',
       usage:
-        '{short 必给（kebab-case）}——名字是 <short>-<yyMMddHHmm>。启动之前往新 home 里依次 pnpm add 三次（写好 cordis.yml 条目）：先装内核包 @godcreator/gwb-kernel-desktop，版本是运行这条命令的内核的 gwbKernel.version；再装装上的内核包 peerDependencies.cordis 写的那个精确版本的 cordis，带 --save-exact（home 清单里只有它写精确版本号）；最后装七个基础插件（源上的 latest）。内核包与 cordis 装完都读 node_modules 里的清单核对版本。安装包只带启动器、从 home 里加载内核，所以内核包必须装上；哪一步没成都不启动。然后用宿主自己那个 exe 再开一个窗口（安装版认 GWB_HOME；不构建内核、不认内核仓），调试端口自动选一个空的。回执里带着现有 home 清单，开新的时候顺便清理旧的',
+        '{short 必给（kebab-case）}——名字是 <short>-<yyMMddHHmm>。启动之前往新 home 里依次 pnpm add 三次（写好 cordis.yml 条目）：先装内核包 @godcreator/gwb-kernel-desktop，版本是运行这条命令的内核的 gwbKernel.version；再装装上的内核包 peerDependencies.cordis 写的那个精确版本的 cordis，带 --save-exact（home 清单里只有它写精确版本号）；最后装七个基础插件（源上的 latest）。内核包与 cordis 装完都读 node_modules 里的清单核对版本。安装包只带启动器、从 home 里加载内核，所以内核包必须装上；哪一步没成都不启动。然后用宿主自己那个 exe 再开一个窗口（安装版认 GWB_HOME；不构建内核、不认内核仓），调试端口自动选一个空的。现有的 home 用 devkit.home.list 列出，验完的用 devkit.home.rm 删',
     },
     async (args) => {
       if (!isRecord(args)) return { ok: false, error: `参数要是个对象。\n${HOME_USAGE}` }
@@ -225,7 +222,7 @@ function registerHomeCommands({ ctx, log, commands, homeDeps }: Wiring): void {
         return outcome
       }
       log.info(`devkit.home.new：${outcome.note}`)
-      return { ok: true, data: { ...outcome, ...(port.note === undefined ? {} : { cdpNote: port.note }), homes: await listHomes(root, homeDeps) } }
+      return { ok: true, data: { ...outcome, ...(port.note === undefined ? {} : { cdpNote: port.note }) } }
     },
   )
 
@@ -445,25 +442,6 @@ function registerReleaseCommand({ ctx, log, commands }: Wiring): void {
       }
       log.info(`devkit.release：${outcome.data.shipped.map((one) => `${one.pkg}@${one.version}`).join('、')} 上了 latest`)
       return outcome
-    },
-  )
-}
-
-/** 读的是这个 home 的磁盘：装着的包就算，不管条目启没启用 */
-function registerServicesCommand({ ctx, commands }: Wiring): void {
-  commands.register(
-    {
-      name: 'devkit.services',
-      plugin: '@godcreator/gwb-devkit',
-      description: '这个 home 里有哪些可以 inject 的服务：谁提供、类型定义原文（方法签名与注释），从各包的 .d.ts 里现读',
-      usage:
-        '无参数。扫这个 home 顶层 node_modules 里每个包的全部 .d.ts，找 declare module \'cordis\' { interface Context { 服务名: 类型 } }。类型定义在自己声明里的包是提供方，类型从别处 import 来的只是在用。回执 { ok, data: { home, services: [{ service, providers: [<包名>@<版本>], type, optional, definition? }] } }，按服务名排序；definition 是第一个提供方里那个类型的定义原文连同文档注释，没有提供方时不带。providers 正常只有一个，多于一个说明有包带着重复或过期的声明。要用某个服务：在 peer 里写上提供方，import type 它的类型，ctx.inject 取用',
-    },
-    (args) => {
-      const refusal = noArgsRefusal(args)
-      if (refusal !== undefined) return refusal
-      const home = requireKernel(ctx).dataDir
-      return { ok: true, data: { home, services: servicesOf(readHomeTypeDeclarations(home)) } }
     },
   )
 }

@@ -121,7 +121,6 @@ describe('参数不对：回 ok false，带上那条命令的用法', () => {
       ['devkit.home.list', { all: true }, '无参数'],
       ['devkit.dev', { home: 'x', dir: 'D:\\x', packages: ['plugins/x'], cdp: 9401 }, 'devkit.dev 的参数'],
       ['devkit.release', { dir: 'D:\\x', packages: ['plugins/x'], tag: 'next' }, 'devkit.release 的参数'],
-      ['devkit.services', { home: 'x' }, '无参数'],
       ['devkit.scaffold', { name: 'x', dir: 'D:\\x', port: 4321 }, 'devkit.scaffold 的参数'],
       ['devkit.scaffold.plugin', { name: 'x', repo: 'D:\\x', docs: false }, 'devkit.scaffold.plugin 的参数'],
     ]
@@ -131,15 +130,6 @@ describe('参数不对：回 ok false，带上那条命令的用法', () => {
       expect(receipt.ok, name).toBe(false)
       expect(receipt.error, name).toContain(`不认识参数 ${unknownKey}`)
       expect(receipt.error, name).toContain(usageHeader)
-    }
-  })
-
-  it('无参数的命令：不给参数或给空对象都收', async () => {
-    const homeDir = tempDir('dk-home-')
-    fs.mkdirSync(path.join(homeDir, 'node_modules'))
-    const devkit = mountDevkit({ homeDir })
-    for (const args of [undefined, {}]) {
-      expect(await devkit.run('devkit.services', args)).toEqual({ ok: true, data: { home: homeDir, services: [] } })
     }
   })
 

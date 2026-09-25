@@ -53,7 +53,7 @@ export default class GwbExample extends Service {
 
 {/* ref file="../plugins/plugin-manager/src/index.ts" lines="840-844" */}
 
-构建时 tsc 把这段连同类型定义输出进 `.d.ts`，`devkit.services` 从 home 里各包的 `.d.ts` 现读，回执里带着类型定义的原文与文档注释（见[服务表与类型声明](/docs/seams/service-table)）。不用另在清单里写一份用法。
+构建时 tsc 把这段连同类型定义输出进 `.d.ts`，用这个服务的插件读提供方的 `.d.ts` 就看得到类型定义的原文与文档注释。不用另在清单里写一份用法。
 
 ## 使用服务：三种 inject
 
@@ -98,8 +98,7 @@ export default class GwbExample extends Service {
 ## 谁来查
 
 - **命令总线登记时**：`name`、`description`、`usage` 缺一或只有空白、`plugin` 与调用方的包名不同，抛错，插件加载失败
-- **`devkit.services`**：从各包的 `.d.ts` 读服务声明，没给 `Context` 补上这一项的服务不在它的回执里——这是结果，不是检查
-- **只靠人守**：服务还是命令的取舍、扩展点继承 `Service`、`usage` 写没写对参数形状、`requireKernel` 与 `private` 这几处写法
+- **只靠人守**：服务还是命令的取舍、提供服务的包在类型声明里给 `Context` 补上这一项、扩展点继承 `Service`、`usage` 写没写对参数形状、`requireKernel` 与 `private` 这几处写法
 
 ## 为什么
 

@@ -1,0 +1,42 @@
+---
+title: devkit 0.23 删一批很少用的机制：服务总览、验收说明书、home 清单回执、两条发版前检查、建仓带文档站与显示名编码
+born-at: 2026-09-25T18:00
+type: choice
+parent: [2026-09-08-gwb-devkit]
+label: 删少用机制
+domain: 开发循环
+---
+
+## 背景
+
+插件管理这一轮做成 0.14.0，devkit 跟着出一个破坏性版本 0.23.0。人借这次破坏性版本，再翻了一遍 devkit 里剩下的命令、参数与检查，挑出几块实际很少有人用、或者和别的机制重复、或者规则本身会把人引到错处的，判定删掉。
+
+## 结论与边界
+
+人判定删；devkit 0.23.0 这一版做（写卡时还没发）。
+
+- **命令 `devkit.services`**（连同 `services.ts`、`node-services-deps.ts` 与测试）：几乎没人调。要找现成的服务，直接看提供方插件的类型声明——它导出的类型、给 cordis 的 `Context` 补的项与文档注释，就是这条命令回执里的那段原文
+- **说明书 `fresh-eyes`**：几乎没人读。它是手写的，不经文档站生成，删了之后包里的说明书全部由正本生成
+- **`devkit.home.new` 回执里的整张 home 清单**：和 `devkit.home.list` 的回执重复；开新 home 的回执只说这一个 home
+- **发版前检查「`@godcreator` 下 dev 依赖的范围必须包含源上 latest」**：dev 依赖只在构建与类型检查时用，落后于 latest 不影响运行，这条检查的效果只是逼下游跟着上游升版本号。发版时 dev 依赖只要装得上就行。peer 里的插件要和源上 latest 在同一条线那条保留：peer 决定运行时和哪个版本一起跑
+- **发版前检查「peer 里内核包的范围包含运行中的内核」改成只查写法 `^x.y.z`**：对照的是调 `devkit.release` 的那个 home 里的内核，于是能不能发版取决于从哪个 home 调，而不取决于包本身。范围包不包含验证时那个内核，照说明书 `gwb-release` 由人在验证之后改；home 里内核与插件对不对得上由 `plugin-manager.list` 报
+- **`devkit.scaffold` 建仓不再建文档站**：删 `docs` 参数、经命令总线调 `docs-site.create` 与 `docfirst.attach` 的两步、插件页草稿（回执 `pluginPage`）与只为它存在的模板；`devkit.scaffold.plugin` 也不再往已有文档站写插件页草稿。建站交给站点插件与 docfirst 插件自己的命令，要用的人自己调
+- **`devkit.scaffold` / `devkit.scaffold.plugin` 的 `title` 参数与按文件类型编码显示名的那一套**：模板里要显示名的地方一律用短名。为了让任意一行文字在 JSON、TS、JSX、Markdown、MDX 的 frontmatter 里都不出错，写了四种编码函数和一大组测试，而这个参数很少有人给
+
+改了约定的：本仓的接缝从十一条减到九条——「5 借用别的插件的命令」「11 服务表与类型声明」两页删掉，其余接缝的编号不变。
+
+supersedes:: [建仓的 title 按所在文件编码](2026-09-25-scaffold-title-by-context.md)
+pivots-from:: [两个插件删掉用不上的机制](2026-09-25-drop-unused-machinery.md)
+pivots-from:: [工具对齐 ^：发版检票强制迁](2026-09-18-caret-ticket-strict-peer.md)
+
+## 否掉的候选
+
+- **保留 `devkit.services`，只把它从说明书第一步里拿掉**：命令留着就要维护 `.d.ts` 的解析与它的接缝页，而提供方的类型声明本来就在包里、谁都读得到
+- **dev 依赖的检查改成只拦「下限比源上 latest 新」**：写了源上没有的号，仓根 `pnpm install` 当场失败，不用等到发版
+- **运行中内核那条改成对照源上内核包的 latest**：插件兼容哪些内核是验证过才知道的事，拿 latest 比和拿运行中的内核比一样，结论取决于发版那一刻的外部状态
+
+## 代价与遗留
+
+- 生成的插件显示名就是短名，要中文名的人自己改模板生成的几处（窗格标题、`package.json` 的 `description`、README 标题）
+- 新建的仓没有文档站；要站的照站点插件与 docfirst 插件的说明书补两步
+- 插件管理主入口导出的 `kernelRangeCovers` 在 devkit 里不再有人用，要不要删归插件管理那边决定

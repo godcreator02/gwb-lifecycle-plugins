@@ -39,7 +39,6 @@ description: 这个仓里反复出现的词各指什么、在哪一页定义；�
 | 发版前检查 | `devkit.release` 构建之后、发第一个包之前查的那几条：dev 范围、peer 只写 `cordis`、内核包与插件、peer 里的插件和源上 latest 在同一条线、构建产物里的包名 import 与空 import、peer 里内核包的范围。代码里的函数与类型名用 ticket（`checkTicket`、`Ticket`） | [发正式版](/docs/devkit/release) |
 | peer | 插件 `package.json` 的 `peerDependencies`：运行时从 home 里得到的包——按值 import 的 `cordis`、内核包、用到的别的插件。node 侧构建产物只能按包名 import 这里写了的包。可选使用的插件在 `peerDependenciesMeta` 标 `optional`。`plugin-manager.list` 报没满足的（`unmetPeers`），只报告不拦 | [用到的插件写 peer](/docs/rules/plugin-peers) |
 | 同一条线 | 两个版本号之间没有破坏性版本：主版本号为 0 时次版本号相同，≥1 时主版本号相同。`devkit.release` 拿它比 peer 里的插件和源上的 latest | [用到的插件写 peer](/docs/rules/plugin-peers) |
-| 服务总览 | `devkit.services` 的回执：调用它的那个 home 里各包的 `.d.ts` 给 cordis 的 `Context` 补了哪些服务、谁提供、类型定义原文 | [服务表与类型声明](/docs/seams/service-table) |
 | 纯逻辑 | 不读写磁盘、不启动进程、只看输入输出的那部分代码，测试用假实现运行完。对面是只执行、不判断的 `node-*-deps.ts` | [关键设计](/docs/design#纯逻辑与真机器操作分开) |
 | 六区 | docfirst 文档站的六个目录：现状、轨迹、交接、未来、生成文件正本、反馈候选 | [开发](/docs/develop#文档站) |
 
@@ -82,8 +81,8 @@ description: 这个仓里反复出现的词各指什么、在哪一页定义；�
 | `devkit.livedoc` | 0.3.0 | 核对、确认、生成都在仓里运行：`cd <仓>\docs-site` 之后 `pnpm doc` / `pnpm doc:confirm` / `pnpm doc:render` |
 | 清单字段 `gwb.requires`；`plugin-manager.list` 回执的 `requires`、`unmetRequires`、`requiresInvalid` | 插件管理 0.9.0、devkit 0.18.15 | 用到的别的插件写进 `peerDependencies`（`^x.y.z`，可选的标 `optional`），`list` 看 `unmetPeers`。见[轨迹卡](/trajectory/2026-09-24-plugins-peer-each-other) |
 | `plugin-sources.search` / `add` / `list` / `remove`、说明书 `gwb-plugin-sources` | `gwb-plugin-sources` 0.1.0 之后不再发 | 并回插件管理：`plugin-manager.search`、`plugin-manager.source.add` / `list` / `remove`，参数与回执不变；说明书读 `gwb-plugin-manager`。见[轨迹卡](/trajectory/2026-09-24-plugin-sources-back-to-plugin-manager) |
-| `devkit.capabilities`、`devkit.audit-structure`、`devkit.audit-deps` | 0.19.0 | 能用的服务看 `devkit.services`，import 入口与类型看包的 `package.json` 与 `.d.ts`；依赖写法与产物在发版时由 `devkit.release` 查；布局照模板迁。见[轨迹卡](/trajectory/2026-09-25-drop-unused-machinery) |
-| 清单字段 `gwb.provides`；发版前检查的类型检查（`tsc --skipLibCheck false`）、拒 0.0.x、拒内核包以外写 `gwb.shared`、`reminders` 字段 | 0.19.0 | 服务的用法写在类型声明的文档注释里，`devkit.services` 读 `.d.ts`；别的几项不再查 |
+| `devkit.capabilities`、`devkit.audit-structure`、`devkit.audit-deps` | 0.19.0 | 能用的服务看提供方插件的类型声明，import 入口与类型看包的 `package.json` 与 `.d.ts`；依赖写法与产物在发版时由 `devkit.release` 查；布局照模板迁。见[轨迹卡](/trajectory/2026-09-25-drop-unused-machinery) |
+| 清单字段 `gwb.provides`；发版前检查的类型检查（`tsc --skipLibCheck false`）、拒 0.0.x、拒内核包以外写 `gwb.shared`、`reminders` 字段 | 0.19.0 | 服务的用法写在类型声明的文档注释里，用的一方读提供方的 `.d.ts`；别的几项不再查 |
 | `plugin-manager.set-label` 与条目的显示名 | 插件管理 0.10.0 | 界面用插件自报的名字 |
 | 开发版发到团队源、tag `dev`；`devkit.dev` 写目标 home 的清单再 `pnpm install` | devkit 0.20.0 | 开发版打成包文件放进目标 home 的 `dev-packs`，经那个 home 的 `plugin-manager.install` / `plugin-manager.update {"specs":{…}}` 装。见[轨迹卡](/trajectory/2026-09-25-dev-via-pack-and-plugin-manager) |
 | `plugin-manager.update-all` | 插件管理 0.12.0 | 改名为 `plugin-manager.update`，参数三选一、恰好给一个：全部升级给 `{"all":true}`（不给参数直接报错），`only` 照旧，另有 `specs` 按给定写法装已装的包。见[轨迹卡](/trajectory/2026-09-25-update-takes-all-param) |
@@ -93,6 +92,7 @@ description: 这个仓里反复出现的词各指什么、在哪一页定义；�
 | `update` 回执的 `reload`；插件管理升级完自己调 `shell.reload` | 插件管理 0.13.0 | 调用方拿到成功回执后自己调 `shell.reload` |
 | 插件管理回执 `data` 里的 `ok` / `error` / `tail`；`search` 的 `scope` 参数与回执每行的 `keywords`；`uninstall` 回执的 `removedEntries`；`add-entry` 的 `config`；`transfer-owner` 回执的 `data` / `settings` | 插件管理 0.13.0 | 只看外层 `ok`，失败原因与 pnpm 输出的最后几行都在外层 `error`；`search` 一律查全部源；`transfer-owner` 缺数据插件或设置插件直接报错 |
 | 插件管理主入口的 `caretRangeCovers`、`declaredKernelRange`、回执类型与 `list` / `install` / `update` 以外的命令名常量 | 插件管理 0.13.0 | devkit 用 `isCaretRange`、`kernelRangeCovers`；回执照命令的 `usage` 读 |
-| `devkit.scaffold` 的 `port` 参数；建仓回执 `nextSteps` 里复述的整套流程；建仓成功时 `docs` 里 `create` / `attach` 两条命令的原始回执；`devkit.services` 回执的 `declaredAlsoBy` | devkit 0.22.0 | 端口由站点插件自己选，看回执 `docs.port`；流程读说明书 `gwb-devkit` 的「新写一个插件」；原始回执只在那条命令失败时带；只在用某个服务的包不再列出。见[轨迹卡](/trajectory/2026-09-25-devkit-no-fallbacks) |
+| `devkit.scaffold` 的 `port` 参数；建仓回执 `nextSteps` 里复述的整套流程；建仓成功时 `docs` 里 `create` / `attach` 两条命令的原始回执；`devkit.services` 回执的 `declaredAlsoBy` | devkit 0.22.0 | 端口由站点插件自己选，看回执 `docs.port`；流程读说明书 `gwb-devkit` 的「新写一个插件」；原始回执只在那条命令失败时带；`devkit.services` 整条命令在 0.23.0 删掉。见[轨迹卡](/trajectory/2026-09-25-devkit-no-fallbacks) |
 | devkit 命令里认不出的参数键被忽略；`devkit.cdp` 的 `--mod` 写错的键名被忽略 | devkit 0.22.0 | 一律报错并说出是哪个键 |
 | 包清单字段 `gwb.title`；插件模板的 `slow` 测试标签与 `test:all` 脚本 | devkit 0.22.0 | 显示名写在插件代码里（窗格标题、外壳的 `describeSelf`）；测试不分快慢，`pnpm test` 全部运行 |
+| `devkit.services`；说明书 `fresh-eyes`；`devkit.home.new` 回执的 `homes` | devkit 0.23.0 | 能用的服务看提供方插件的类型声明（它导出的类型、给 cordis 的 `Context` 补的项）；现有的 home 用 `devkit.home.list` 列出。见[轨迹卡](/trajectory/2026-09-25-devkit-drops-rarely-used) |

@@ -7,14 +7,14 @@ description: 写新插件、改插件、在隔离 home 里验证改动时读；�
 
 ## 新写一个插件
 
-1. 调 `devkit.services`：看这个 home 有哪些可以 inject 的服务、各由哪个包提供、类型定义原文（方法签名与文档注释）。要用的能力已经有了就直接用它：peer 里写上提供方，`import type` 它的类型，`ctx.inject` 取用
+1. 看提供方插件的类型声明：它导出的类型、给 cordis 的 `Context` 补的项（包里 `.d.ts` 的 `declare module 'cordis' { interface Context { … } }`），方法签名与文档注释就在那里。要用的能力已经有了就直接用它：peer 里写上提供方，`import type` 它的类型，`ctx.inject` 取用
 2. 带界面的插件，先读外壳的说明书 `skill.read {"name":"gwb-shell"}`
 3. 建仓：`devkit.scaffold {"name":"<kebab 短名>","dir":"<还不存在的绝对路径>","title":"<显示名>"}`；往已有的 workspace 仓再加一个插件用 `devkit.scaffold.plugin {"repo":"<仓根>","name":"<短名>"}`。回执 `nextSteps` 里是这个仓特有的：仓与插件包在哪、文档站实际建到哪一步（`docs.built` / `docs.attached`）与端口，站没建成的照它补上。没有团队源（`@godcreator`）发布权限就两条都加 `"scope":"@<你的范围>","registry":"<你的源的地址，如 http://localhost:4873/>"`：包名成了 `<scope>/gwb-<短名>`，`registry` 写进插件包的 `publishConfig.registry`，`devkit.release` 发到那里；发布 token 写在用户级 `~/.npmrc`。同一个仓里的插件用同一套
 4. 把模板改成真插件，每一处都守「写插件的规矩」：
    * `src/index.ts`：模板的 `<短名>.ping` 与窗格 `main` 换成真正的命令与窗格。命令照模板那条的写法登记：`name`、`description`、`usage` 都是非空字符串，`description` 一句话说做什么，参数形状写进 `usage`，无参数写「无参数」；`plugin` 可以不写（命令总线 0.5.0 起从调用方取），写了必须等于自己的完整包名。命令总线 0.5.0 起缺字段或 `plugin` 不对就在登记时抛错，插件加载失败
    * `tests/`：不启动进程、不开窗口就能测的逻辑抽成纯函数来测。模板带的 `tests/prefix.test.ts`（类名前缀）与 `tests/artifact.test.ts`（构建产物）不用改。`prefix.test.ts` 报「前缀要排在最前」时照它写的改法改：前缀排在所有变体前面（`<前缀>:disabled:opacity-50`），写反了 Tailwind 不报错、只是一条规则都不出
    * `package.json`：peer 里内核包 `@godcreator/gwb-kernel-desktop` 的范围 `^x.y.z` 要包含验证时用的内核（模板写的是运行建仓命令的那个内核）；用到的别的插件（经 `ctx.inject` 用它的服务、import 它的类型）写进 peer，范围 `^x.y.z`，只是可选使用的在 `peerDependenciesMeta` 标 `optional: true`，不再另写 dev（模板已写命令总线与外壳，不用外壳就删掉那一项）；`description` 改成一句话说这个插件做什么；有了 `skills/` 目录就把 `skills` 加进 `files`
-   * 提供服务：在源码里给 cordis 的 `Context` 补上这一项（`declare module 'cordis' { interface Context { gwbExample: GwbExample } }`），`GwbExample` 定义在本包里、写文档注释说清怎么用；`devkit.services` 从装好的包的 `.d.ts` 读它
+   * 提供服务：在源码里给 cordis 的 `Context` 补上这一项（`declare module 'cordis' { interface Context { gwbExample: GwbExample } }`），`GwbExample` 定义在本包里、写文档注释说清怎么用；用它的插件从你发布的 `.d.ts` 读到这些
    * 文档站的插件页 `docs-site/content/docs/plugins/<短名>.mdx`：照实际功能改写功能、接口、依赖、不做的事四节
 5. 仓根 `pnpm build`，再 `pnpm check`
 
@@ -30,7 +30,7 @@ description: 写新插件、改插件、在隔离 home 里验证改动时读；�
 
 ## 改一版看一版
 
-1. 开一个隔离 home：`devkit.home.new {"short":"<插件短名或这次验什么>"}`，回执里是 home 名 `<short>-<yyMMddHHmm>`，自带内核包（运行这条命令的内核那个版本）、`cordis` 与一套基础插件。机器重启后回到已有的 home 用 `devkit.home.open {"name":"<名>"}`。回执里带着现有 home 清单，验完的旧 home 这时用 `devkit.home.rm {"name":"<名>","force":true}` 删掉
+1. 开一个隔离 home：`devkit.home.new {"short":"<插件短名或这次验什么>"}`，回执里是 home 名 `<short>-<yyMMddHHmm>`，自带内核包（运行这条命令的内核那个版本）、`cordis` 与一套基础插件。机器重启后回到已有的 home 用 `devkit.home.open {"name":"<名>"}`。现有的 home 用 `devkit.home.list` 列出，验完的旧 home 用 `devkit.home.rm {"name":"<名>","force":true}` 删掉
 2. `devkit.dev {"home":"<home 名>","dir":"<仓根>","packages":["plugins/<短名>"]}`。`packages` 必给，相对仓根，只给插件与内核包的目录（库打包进用它的插件，给了直接拒）。它把每个包打成包文件放进那个 home 的 `dev-packs`，经那个 home 的插件管理装：已装的包走 `plugin-manager.update`，还没装的插件走 `plugin-manager.install` 新建条目，不用自己建
 3. 在那个 home 里调新写的命令看回执：`devkit.cdp {"args":["<home 名>","cmd","<命令名>","<JSON 参数>"]}`；界面上的效果按「在页面里取证」做
 

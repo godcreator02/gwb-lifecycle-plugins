@@ -29,7 +29,7 @@ description: plugins/devkit/AGENTS.md 由这一页生成——每次会话都得
 
 提交前在仓根 `pnpm check`、`pnpm build`，在 `docs-site` 里 `pnpm doc`。`pnpm check` 不构建、要先 build 插件管理再 check 开发套件、files 白名单哪几项不能少，见 `develop.mdx` 的「提交前的检查」「发版」。
 
-**生成文件别手改**：`AGENTS.md`、`CLAUDE.md`、`README.md`、两个插件 `skills/` 下的 `SKILL.md` 与 `references/` 附件都由 `docs-site/content/` 下的 mdx 生成（对应关系在 `docs-site/docfirst.config.mjs` 的 `outputs`），改 mdx 后在 `docs-site` 运行 `pnpm doc:render`。`skills/fresh-eyes/SKILL.md` 是手写的。
+**生成文件别手改**：`AGENTS.md`、`CLAUDE.md`、`README.md`、两个插件 `skills/` 下的 `SKILL.md` 与 `references/` 附件都由 `docs-site/content/` 下的 mdx 生成（对应关系在 `docs-site/docfirst.config.mjs` 的 `outputs`），改 mdx 后在 `docs-site` 运行 `pnpm doc:render`。
 
 ## 本仓还有插件管理
 
@@ -53,4 +53,4 @@ description: plugins/devkit/AGENTS.md 由这一页生成——每次会话都得
   - 最后一步是取证不是刷新；`devkit.home.rm` 回「已删」之前目录必须真的不在
   - 子进程超时一律终止整棵进程树并确认退出（`src/node-process-tree.ts`），不许只 `child.kill()`
 - **`bin/cdp.mjs` 零依赖、单文件纯 JS、不进类型检查**；路径一概不看工作目录（文件里不出现 `process.cwd()`），写磁盘的位置不许在本包目录与任何 `node_modules` 里
-- **只登记自己的说明书**（`gwb-devkit`、`gwb-release`、`fresh-eyes`；插件管理登记 `gwb-plugin-manager`），别替别的插件登记：说明书名全局唯一，重名的那份不登记
+- **只登记自己的说明书**（`gwb-devkit`、`gwb-release`；插件管理登记 `gwb-plugin-manager`），别替别的插件登记：说明书名全局唯一，重名的那份不登记

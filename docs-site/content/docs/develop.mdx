@@ -116,4 +116,4 @@ pnpm doc:render                    # 按 content/outputs/ 重新生成 AGENTS.md
 pnpm build                         # 构建文档站；端口见 package.json 的 start 脚本（4322）
 ```
 
-**生成文件不手改**：`plugins/devkit/AGENTS.md`、`CLAUDE.md`、`README.md`、两个插件 `skills/` 下的 `SKILL.md` 与 `references/` 附件都由 `content/outputs/` 下的 mdx 生成（附件 `references/rules.md` 由现状区的 `rules/index.mdx` 生成），对应关系在 `docfirst.config.mjs` 的 `outputs`；改 mdx、运行 `pnpm doc:render`，mdx、生成文件、`.ledger.json` 放进同一个提交。`skills/fresh-eyes/SKILL.md` 是手写的，不经生成。
+**生成文件不手改**：`plugins/devkit/AGENTS.md`、`CLAUDE.md`、`README.md`、两个插件 `skills/` 下的 `SKILL.md` 与 `references/` 附件都由 `content/outputs/` 下的 mdx 生成（附件 `references/rules.md` 由现状区的 `rules/index.mdx` 生成），对应关系在 `docfirst.config.mjs` 的 `outputs`；改 mdx、运行 `pnpm doc:render`，mdx、生成文件、`.ledger.json` 放进同一个提交。

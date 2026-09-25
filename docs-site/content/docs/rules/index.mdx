@@ -52,7 +52,7 @@ description: 写 gwb 插件要守的规矩一条一行：做法在哪一页、�
 | 扩展点服务继承 cordis 的 `Service`，注册随调用方卸载自动撤销 | [服务](/docs/rules/services) | 没有工具检查 | 全部 |
 | 扩展点用服务，数据读写和动作用命令，同一能力只提供一种调用方式 | [服务](/docs/rules/services) | 没有工具检查 | 全部 |
 | 命令的 `name`、`description`、`usage` 都是非空字符串：`description` 一句话说做什么，参数形状写进 `usage`，无参数写「无参数」；`plugin` 可以不写，写了必须等于自己的完整包名 | [服务](/docs/rules/services) | 命令总线登记时检查：缺字段、只有空白、`plugin` 与调用方的包名不同都抛错 | `usage` 写没写对参数形状 |
-| 提供服务的插件在自己的类型声明里给 cordis 的 `Context` 补上这一项，服务的类型定义在自己的声明里、带文档注释 | [服务](/docs/rules/services) | 没有工具检查；`devkit.services` 从各包的 `.d.ts` 读它，没写的服务不在回执里 | 全部 |
+| 提供服务的插件在自己的类型声明里给 cordis 的 `Context` 补上这一项，服务的类型定义在自己的声明里、带文档注释 | [服务](/docs/rules/services) | 没有工具检查 | 全部 |
 | `gwbKernel` 用 `requireKernel` 取、不写进 `inject`；不写 `instanceof Service`；类的私有字段用 TS `private` | [服务](/docs/rules/services) | 没有工具检查 | 全部 |
 | 插件之间只通过服务和命令交互，不 import 别的插件 | [交互](/docs/rules/interaction) | 没有工具检查：发版前检查放行 node 侧对 peer 里写了的包的 import，写进 peer 的插件也在其中 | 全部 |
 | 共享磁盘数据格式或命令结构时，按区间比对契约版本，区间外拒绝加载 | [交互](/docs/rules/interaction) | 没有工具检查 | 全部 |

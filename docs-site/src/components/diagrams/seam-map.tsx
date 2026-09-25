@@ -41,7 +41,7 @@ function Badge({ x, y, n, byConvention }: { x: number; y: number; n: number; byC
 
 export function SeamMap() {
   return (
-    <svg viewBox="0 0 760 600" role="img" aria-label="gwb-lifecycle-plugins 仓的两个包与十一条接缝">
+    <svg viewBox="0 0 760 600" role="img" aria-label="gwb-lifecycle-plugins 仓的两个包与十条接缝">
       <Package x={20} y={80} w={520} h={370} />
       <PackageLabel x={528} y={98} name="本仓" path="gwb-lifecycle-plugins" anchor="end" />
       <Package x={40} y={120} w={300} h={310} />
@@ -57,13 +57,11 @@ export function SeamMap() {
       <SeamLine d="M520,212 H570" />
       <SeamLine d="M520,232 H560 V282 H570" />
       <SeamLine d="M300,430 V510" byConvention />
-      <SeamLine d="M52,214 H30 V532 H40" byConvention />
 
       <Box x={20} y={20} w={170} h={40} lines={['别的插件的命令', 'docs-site · docfirst']} />
       <Box x={230} y={20} w={200} h={40} lines={['工作台服务', 'gwbCommands · gwbNodeCli · gwbSkills']} />
 
       <Box x={52} y={150} w={130} h={36} lines={['建仓', 'scaffold']} tone="a" mono />
-      <Box x={52} y={196} w={130} h={36} lines={['服务总览', 'services']} tone="a" mono />
       <Box x={196} y={150} w={130} h={36} lines={['测试 home', 'home.*']} tone="a" mono />
       <Box x={196} y={196} w={130} h={36} lines={['改一版看一版', 'dev']} tone="a" mono />
       <Box x={196} y={242} w={130} h={36} lines={['发正式版', 'release']} tone="a" mono />
@@ -77,7 +75,6 @@ export function SeamMap() {
       <Box x={570} y={330} w={170} h={44} lines={['工作台页面', 'window.gwb']} />
       <Box x={570} y={260} w={170} h={44} lines={['pnpm 与包源', '@pnpm/exe · npmrc · registry']} />
 
-      <Box x={40} y={510} w={200} h={44} lines={['服务的类型声明', 'home 里各包的 .d.ts']} />
       <Box x={260} y={510} w={280} h={44} lines={['被测插件仓', 'build 脚本 · files · keywords · 布局']} />
 
       <Badge x={300} y={95} n={1} />
@@ -90,7 +87,6 @@ export function SeamMap() {
       <Badge x={545} y={212} n={8} />
       <Badge x={560} y={257} n={9} />
       <Badge x={300} y={475} n={10} byConvention />
-      <Badge x={30} y={400} n={11} byConvention />
 
       <Note x={20} y={585}>虚线框是包；实线接缝有代码接口，点线接缝只靠约定</Note>
     </svg>

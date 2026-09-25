@@ -1,10 +1,10 @@
 {
   "name": "@godcreator/gwb-devkit",
-  "version": "0.22.2",
+  "version": "0.23.0",
   "author": {
     "name": "godcreator"
   },
-  "description": "开发套件：建仓与往 workspace 仓加插件、开关隔离 home、列出 home 里的服务、把改动装进隔离 home 验证、发正式版，随包带写插件、发版与生态验收三份说明书",
+  "description": "开发套件：建仓与往 workspace 仓加插件、开关隔离 home、把改动装进隔离 home 验证、发正式版，随包带写插件与发版两份说明书",
   "type": "module",
   "exports": {
     ".": {
