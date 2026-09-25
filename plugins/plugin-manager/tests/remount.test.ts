@@ -1,10 +1,10 @@
 import { describe, expect, it } from 'vitest'
-import { remountOne, type RemountLog, type Schedule } from '../src/remount.js'
+import { remountNow, remountSelfLater, type RemountLog, type Schedule } from '../src/remount.js'
 import type { EntryTreeLike } from '../src/tree.js'
 
 /**
- * `remount` 一趟：停用 → 等拆完 → 启用 → 等挂上。条目树是假的：停用把 fiber 置成 DISPOSED 并
- * 摘掉，启用新建一个 ACTIVE 的 fiber——跟 loader 的 update 同一个形状。
+ * 重新加载一条条目：停用 → 等卸载完 → 启用 → 等加载完。条目树是假的：停用把 fiber 置成 DISPOSED 并
+ * 去掉，启用新建一个 ACTIVE 的 fiber——跟 loader 的 update 同一个形状。
  */
 
 const ACTIVE = 2
@@ -71,62 +71,49 @@ function manualSchedule(): { schedule: Schedule; flush: () => void; pending: () 
 
 const OWN = 'plugin-manager'
 
-describe('remountOne：别的条目在这条命令里做完', () => {
+describe('remountNow：在调用方的 await 链里重新加载一条', () => {
   it('停用再启用，回 remounted 和重新加载后的状态', async () => {
     const tree = fakeTree([OWN, 'hello'])
-    const result = await remountOne(tree, 'hello', OWN, quietLog(), manualSchedule().schedule, 10)
+    const result = await remountNow(tree, 'hello', quietLog(), 10)
     expect(result).toEqual({ id: 'hello', action: 'remounted', state: 'ACTIVE' })
     expect(tree.calls).toEqual(['hello off', 'hello on'])
   })
 
-  it('原本停用的条目：最后是启用的', async () => {
-    const tree = fakeTree([OWN, 'hello'])
-    await tree.update('hello', { disabled: true })
-    tree.calls.length = 0
-    const result = await remountOne(tree, 'hello', OWN, quietLog(), manualSchedule().schedule, 10)
-    expect(result).toEqual({ id: 'hello', action: 'remounted', state: 'ACTIVE' })
-  })
-
   it('动条目树时抛了：回 failed，state 里是那句错', async () => {
     const tree = fakeTree([OWN])
-    const result = await remountOne(tree, 'ghost', OWN, quietLog(), manualSchedule().schedule, 10)
+    const result = await remountNow(tree, 'ghost', quietLog(), 10)
     expect(result.action).toBe('failed')
     expect(result.state).toContain('cannot resolve entry ghost')
   })
+
+  it('目标是命令插件：停用时全部命令都撤掉（包括正在运行的这条），这条 await 链照样做完，条目回到启用', async () => {
+    const bus = new Map<string, (args: { entryId: string }) => Promise<unknown>>()
+    const tree = fakeTree([OWN, 'commands'], (id) => {
+      if (id === 'commands') bus.clear()
+    })
+    bus.set('plugin-manager.update', (args) => remountNow(tree, args.entryId, quietLog(), 10))
+
+    const handler = bus.get('plugin-manager.update')!
+    const result = await handler({ entryId: 'commands' })
+
+    expect(result).toEqual({ id: 'commands', action: 'remounted', state: 'ACTIVE' })
+    expect(tree.calls).toEqual(['commands off', 'commands on'])
+    expect(bus.size).toBe(0)
+    expect((tree.store['commands'] as { disabled: boolean }).disabled).toBe(false)
+  })
 })
 
-describe('remountOne：目标是插件管理自己', () => {
-  it('先回 deferred（动手前的状态），什么都没动；下一个宏任务才重新加载', async () => {
+describe('remountSelfLater：插件管理自己', () => {
+  it('当下什么都不动；下一个宏任务才停用再启用', async () => {
     const tree = fakeTree([OWN, 'hello'])
     const timers = manualSchedule()
     const log = quietLog()
-    const result = await remountOne(tree, OWN, OWN, log, timers.schedule, 10)
-    expect(result).toEqual({ id: OWN, action: 'deferred', state: 'ACTIVE' })
+    remountSelfLater(tree, OWN, log, timers.schedule, 10)
     expect(tree.calls).toEqual([])
     expect(timers.pending()).toBe(1)
 
     timers.flush()
     await expect.poll(() => tree.calls).toEqual([`${OWN} off`, `${OWN} on`])
     await expect.poll(() => log.lines.some((line) => line.includes('重新加载了：ACTIVE'))).toBe(true)
-  })
-})
-
-describe('remountOne：目标是命令插件', () => {
-  it('命令插件停用时全部命令都撤掉（包括 remount），这条 await 链照样做完，条目回到启用', async () => {
-    const bus = new Map<string, (args: { entryId: string }) => Promise<unknown>>()
-    const tree = fakeTree([OWN, 'commands'], (id) => {
-      if (id === 'commands') bus.clear()
-    })
-    const timers = manualSchedule()
-    bus.set('plugin-manager.remount', (args) => remountOne(tree, args.entryId, OWN, quietLog(), timers.schedule, 10))
-
-    const handler = bus.get('plugin-manager.remount')!
-    const result = await handler({ entryId: 'commands' })
-
-    expect(result).toEqual({ id: 'commands', action: 'remounted', state: 'ACTIVE' })
-    expect(tree.calls).toEqual(['commands off', 'commands on'])
-    expect(bus.size).toBe(0)
-    expect(timers.pending()).toBe(0)
-    expect((tree.store['commands'] as { disabled: boolean }).disabled).toBe(false)
   })
 })

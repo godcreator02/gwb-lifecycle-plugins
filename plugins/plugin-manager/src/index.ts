@@ -29,7 +29,7 @@ import {
   type UpdateArgs,
   type VersionChangesAfterAdd,
 } from './update.js'
-import { remountNow, remountOne, remountSelfLater, type RemountedEntry } from './remount.js'
+import { remountNow, remountSelfLater, type RemountedEntry } from './remount.js'
 import { KERNEL_PACKAGE } from './kernel-compat.js'
 import { CORDIS_PACKAGE, installedVersionMismatch, KERNEL_MANAGED_PACKAGES, kernelStatusInList, kernelUpgradeTargetOf, pluginsOutsideKernelRange, versionChangeOf, type VersionChange } from './kernel-upgrade.js'
 import { declaredPluginPeers, peerStatusOf } from './peers.js'
@@ -55,7 +55,6 @@ const ADD_ENTRY_COMMAND = 'plugin-manager.add-entry'
 const REMOVE_ENTRY_COMMAND = 'plugin-manager.remove-entry'
 const ENABLE_COMMAND = 'plugin-manager.enable'
 const DISABLE_COMMAND = 'plugin-manager.disable'
-const REMOUNT_COMMAND = 'plugin-manager.remount'
 const OUTDATED_COMMAND = 'plugin-manager.outdated'
 const UNINSTALL_COMMAND = 'plugin-manager.uninstall'
 const SEARCH_COMMAND = 'plugin-manager.search'
@@ -216,17 +215,6 @@ class PluginManager {
       await this.disable(requiredString(argsObjectOf(args, ['entryId']), 'entryId'))
       return { ok: true }
     })
-
-    registerBusyGuardedCommand(
-      REMOUNT_COMMAND,
-      '重新加载一条条目：停用→等卸载完→启用→等加载完，一条命令做完',
-      `参数 { entryId }（完整 entryId 或不带前缀的 id）。回执 { id, action, state }：action 是 remounted（在这条命令里做完，state 是重新加载后的 fiber 状态，ACTIVE 才算加载成功）或 deferred（目标是插件管理自己：先返回回执，下一个宏任务才重新加载，state 是动手前的状态，之后用 ${LIST_COMMAND} 核对 active）；操作条目树时抛错则回 ok: false，data 里 action 是 failed。原本停用的条目重新加载后是启用的；重新加载命令插件（gwb-commands）也在这条命令里做完；${BUSY_USAGE_NOTE}`,
-      async (args) => {
-        const result = await this.remount(requiredString(argsObjectOf(args, ['entryId']), 'entryId'))
-        if (result.action === 'failed') return { ok: false, error: `条目 ${result.id} 重新加载失败：${result.state}`, data: result }
-        return { ok: true, data: result }
-      },
-    )
 
     registerCommand(
       OUTDATED_COMMAND,
@@ -560,11 +548,6 @@ class PluginManager {
   private async remountPlanned(entry: PlannedEntry): Promise<RemountedEntry> {
     if (entry.disabled) return { id: entry.id, action: 'skipped', state: 'disabled' }
     return remountNow(this.tree, entry.id, this.log)
-  }
-
-  async remount(entryId: string): Promise<RemountedEntry> {
-    const id = this.existingBareId(entryId)
-    return remountOne(this.tree, id, bareId(ownEntryId(this.ctx)), this.log)
   }
 
   /** 包没装（调用方写错了）、是内核包或 cordis 直接抛；删条目与 pnpm 两步的失败转成回执 */

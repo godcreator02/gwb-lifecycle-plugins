@@ -305,30 +305,27 @@ describe('登记的命令', () => {
     const pm = mount({ entries: {} })
     expect(() => pm.run('plugin-manager.transfer-owner')).toThrow('没有登记 plugin-manager.transfer-owner')
   })
+
+  it('remount 不再登记：手动重新加载一条条目用 disable 再 enable', () => {
+    const pm = mount({ entries: {} })
+    expect(() => pm.run('plugin-manager.remount')).toThrow('没有登记 plugin-manager.remount')
+  })
 })
 
-describe('plugin-manager.remount', () => {
-  it('别的条目：在这条命令里做完，回 remounted 与重新加载后的状态', async () => {
-    const pm = mount({ entries: { foo: '@x/gwb-foo' } })
-    expect(await pm.run('plugin-manager.remount', { entryId: 'home:foo' })).toEqual({ ok: true, data: { id: 'foo', action: 'remounted', state: 'ACTIVE' } })
-  })
-
-  it('插件管理自己：先回 deferred', async () => {
-    const pm = mount({ entries: {} })
-    expect(await pm.run('plugin-manager.remount', { entryId: 'plugin-manager' })).toEqual({
-      ok: true,
-      data: { id: 'plugin-manager', action: 'deferred', state: 'ACTIVE' },
-    })
-    await settle()
-  })
-
-  it('动条目树时抛错：ok false，data 里 action 是 failed', async () => {
-    const pm = mount({ entries: { foo: '@x/gwb-foo' } })
+describe('plugin-manager.update 重新加载条目', () => {
+  it('动条目树时抛错：这条条目记为 failed，别的照常', async () => {
+    fakePnpm.captureExitCode = 1
+    fakePnpm.captureStdout = JSON.stringify({ '@x/gwb-foo': { current: '1.0.0', latest: '1.1.0' } })
+    writeHomeDependencies({ '@x/gwb-foo': '1.0.0' })
+    upgradesOnAdd('@x/gwb-foo', '1.0.0', '1.1.0')
+    const pm = mount({ entries: { foo: '@x/gwb-foo', 'foo-2': '@x/gwb-foo' } })
     pm.tree.failUpdateFor.add('foo')
-    const result = (await pm.run('plugin-manager.remount', { entryId: 'foo' })) as GwbResult
-    expect(result.ok).toBe(false)
-    expect(result.error).toBe('条目 foo 重新加载失败：Error: cannot update foo')
-    expect(result.data).toEqual({ id: 'foo', action: 'failed', state: 'Error: cannot update foo' })
+    const result = (await pm.run('plugin-manager.update', { all: true })) as GwbResult & { data: { updated: { entries: unknown[] }[] } }
+    expect(result.ok).toBe(true)
+    expect(result.data.updated[0]!.entries).toEqual([
+      { id: 'foo', action: 'failed', state: 'Error: cannot update foo' },
+      { id: 'foo-2', action: 'remounted', state: 'ACTIVE' },
+    ])
   })
 })
 

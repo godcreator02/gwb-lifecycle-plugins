@@ -5,12 +5,12 @@ import type { EntryTreeLike } from './tree.js'
 /** 停用/启用之后等 fiber 把手头的事做完，最多等这么久。超时就继续，读到什么状态报什么 */
 export const SETTLE_MS = 5_000
 
-/** 一条条目重新加载的结果 */
+/** `update` 回执里一条条目重新加载的结果 */
 export interface RemountedEntry {
   /** 不带前缀的 id */
   id: string
   /**
-   * `remounted`：停用再启用，重新 import 了新版本；`skipped`：本来就停用，保持停用（只在一键热升级里出现）；
+   * `remounted`：停用再启用，重新 import 了新版本；`skipped`：本来就停用，保持停用；
    * `deferred`：本插件自己那条，回执发出之后才重新加载；`failed`：操作条目树时抛错，`state` 里是那句错误
    */
   action: 'remounted' | 'skipped' | 'deferred' | 'failed'
@@ -68,22 +68,6 @@ export function remountSelfLater(tree: EntryTreeLike, id: string, log: RemountLo
         log.warn(`插件管理自己（${id}）重新加载失败：${String(err)}`)
       })
   })
-}
-
-/** `remount` 命令：`id` 与 `ownId` 都是不带前缀的 id。是本插件自己就回 `deferred`（`state` 是动手前的） */
-export function remountOne(
-  tree: EntryTreeLike,
-  id: string,
-  ownId: string,
-  log: RemountLog,
-  schedule: Schedule = nextMacrotask,
-  settleMs: number = SETTLE_MS,
-): Promise<RemountedEntry> {
-  if (id !== ownId) return remountNow(tree, id, log, settleMs)
-  const stateBeforeRemount = fiberStateOf(tree.store[id])
-  remountSelfLater(tree, id, log, schedule, settleMs)
-  log.info(`插件管理自己（${id}）在回执之后重新加载`)
-  return Promise.resolve({ id, action: 'deferred', state: stateBeforeRemount })
 }
 
 function fiberOf(entry: unknown): unknown {
