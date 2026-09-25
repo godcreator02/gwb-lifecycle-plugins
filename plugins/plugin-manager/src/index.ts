@@ -411,7 +411,7 @@ class PluginManager {
     registerCommand(
       SOURCE_ADD_COMMAND,
       '往机器级 npmrc 写一条包源（scope 路由），装第三方插件用',
-      '已有同 scope 就原地替换。写的是 ~/.npmrc（机器级）：@godcreator 的路由本来就在那里，不许经这条命令改。参数 { scope, registry?, owner?, token? }：registry 直接给源地址；owner 走 gitea 的简便写法——拼成 <base>/api/packages/<owner>/npm/（base 取设置 gitea.base-url，没配就用 git.tianshen02.online:28377），token 没给就取设置 gitea 分区的 token，取不到则回执 ok:false。token 行按源地址配对，同一个 token 配多条源不会重复写。回执 { ok, scope, registry, tokenWritten, replaced, lines?（token 已遮掉）, note? }',
+      '已有同 scope 就原地替换。写的是 ~/.npmrc（机器级）：@godcreator 的路由本来就在那里，不许经这条命令改。参数 { scope, registry?, owner?, token? }：registry 直接给源地址；owner 走 gitea 的简便写法——拼成 <base>/api/packages/<owner>/npm/（base 取设置 gitea.base-url，取不到 http(s) 地址就回执 ok:false——装 gitea 插件配好它，或改给 registry），token 没给就取设置 gitea 分区的 token，取不到则回执 ok:false。token 行按源地址配对，同一个 token 配多条源不会重复写。回执 { ok, scope, registry, tokenWritten, replaced, lines?（token 已遮掉）, note? }',
       async (args) => {
         const argsObject = argsObjectOf(args)
         const result = await addSource(deps, requiredString(argsObject, 'scope'), {

@@ -17,12 +17,16 @@ afterEach(() => {
 })
 
 describe('home 的 package.json', () => {
-  it('读得出 dependencies；清单不在、坏了都当空表', async () => {
-    expect(await readHomeDependencies(home)).toEqual({})
-    fs.writeFileSync(path.join(home, 'package.json'), '{ not json', 'utf8')
-    expect(await readHomeDependencies(home)).toEqual({})
+  it('读得出 dependencies', async () => {
     fs.writeFileSync(path.join(home, 'package.json'), JSON.stringify({ dependencies: { a: '1.0.0' } }), 'utf8')
     expect(await readHomeDependencies(home)).toEqual({ a: '1.0.0' })
+  })
+
+  it('清单不在、不是合法 JSON：抛错，报错里有清单路径', async () => {
+    const file = path.join(home, 'package.json')
+    await expect(readHomeDependencies(home)).rejects.toThrow(file)
+    fs.writeFileSync(file, '{ not json', 'utf8')
+    await expect(readHomeDependencies(home)).rejects.toThrow(`${file} 不是合法的 JSON`)
   })
 })
 

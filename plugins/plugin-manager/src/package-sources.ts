@@ -30,14 +30,15 @@ export interface SearchReceipt {
 export interface SourceAddResult {
   ok: boolean
   scope: string
-  registry: string
+  /** 写进去的源地址；owner 写法取不到 gitea.base-url 时没有 */
+  registry?: string
   /** token 行写没写（公开源不需要凭据，只写路由行） */
   tokenWritten: boolean
   /** 机器级原来就有这条 scope：这次是原地替换，不是追加 */
   replaced: boolean
   /** 写进去的行（已遮掉 token） */
   lines?: string[]
-  /** 值得说一声的：源地址按默认 gitea 实例拼的、home 级有同名 scope 指向别处、pnpm 用的是那一条 */
+  /** 值得说一声的：home 级有同名 scope 指向别处、pnpm 用的是那一条 */
   note?: string
   /** 没成时的一句话 */
   error?: string
@@ -80,9 +81,6 @@ export interface PackageSourcesDeps {
   runCommand(name: string, args: unknown): Promise<GwbResult>
   log: { info(message: string): void; warn(message: string): void }
 }
-
-/** 与 gitea 插件设置项 `base-url` 的默认值相同；它没配 base-url 时两边拼出同一个地址 */
-const DEFAULT_GITEA_BASE = 'https://git.tianshen02.online:28377'
 
 /** 给了 `scope` 只查那一条；不给就并发查全部配好的源，一条失败只进 `note`，全都没查成才 `ok: false` */
 export async function searchPlugins(deps: PackageSourcesDeps, scope?: string): Promise<SearchReceipt> {
@@ -176,6 +174,10 @@ export async function addSource(
   if (owner !== undefined) {
     assertGiteaOwnerShape(owner)
     const gitea = await giteaSourceOf(deps, owner)
+    if (!gitea.ok) {
+      deps.log.warn(`${scope} 的源没加上：${gitea.error}`)
+      return { ok: false, scope, tokenWritten: false, replaced: false, error: gitea.error }
+    }
     resolvedRegistry = gitea.registry
     if (token === undefined) {
       if (gitea.token === undefined) {
@@ -185,7 +187,6 @@ export async function addSource(
       }
       token = gitea.token
     }
-    if (gitea.note !== undefined) notes.push(gitea.note)
   } else {
     resolvedRegistry = registryWithTrailingSlash(registry)
   }
@@ -252,19 +253,22 @@ export async function removeSource(deps: PackageSourcesDeps, scope: string): Pro
 
 /**
  * owner → 源地址与 token，都从设置的 `gitea` 分区取，经 `settings.get` 命令读（设置服务只读得到调用方自己的分区）。
- * 设置插件没装、设置里没配，都只是退回默认实例、没有 token
+ * 取不到 http(s) 的 base-url（gitea 插件没装、设置插件没装、没配）就回失败；取不到 token 只是没有 token，由调用方决定
  */
-async function giteaSourceOf(deps: PackageSourcesDeps, owner: string): Promise<{ registry: string; token?: string; note?: string }> {
-  const notes: string[] = []
-  let giteaBase = DEFAULT_GITEA_BASE
+async function giteaSourceOf(deps: PackageSourcesDeps, owner: string): Promise<{ ok: true; registry: string; token?: string } | { ok: false; error: string }> {
   const baseUrlSetting = await deps.runCommand('settings.get', { section: 'gitea', key: 'base-url' })
-  if (baseUrlSetting.ok && typeof baseUrlSetting.data === 'string' && isRegistryUrl(baseUrlSetting.data)) giteaBase = baseUrlSetting.data
-  else notes.push('设置里没有 gitea.base-url，源地址按默认实例拼')
-  const registry = `${giteaBase.replace(/\/+$/, '')}/api/packages/${owner}/npm/`
+  if (!baseUrlSetting.ok || typeof baseUrlSetting.data !== 'string' || !isRegistryUrl(baseUrlSetting.data)) {
+    const seen = baseUrlSetting.ok ? `读到的是 ${JSON.stringify(baseUrlSetting.data)}` : (baseUrlSetting.error ?? '没说原因')
+    return {
+      ok: false,
+      error: `取不到 http(s) 的设置 gitea.base-url（${seen}），owner 写法拼不出源地址。装上 gitea 插件并配好 base-url，或者改给 registry 直接写源地址`,
+    }
+  }
+  const registry = `${baseUrlSetting.data.replace(/\/+$/, '')}/api/packages/${owner}/npm/`
   let token: string | undefined
   const tokenSetting = await deps.runCommand('settings.get', { section: 'gitea', key: 'token' })
   if (tokenSetting.ok && typeof tokenSetting.data === 'string' && tokenSetting.data !== '') token = tokenSetting.data
-  return { registry, ...(token === undefined ? {} : { token }), ...noteOf(notes) }
+  return { ok: true, registry, ...(token === undefined ? {} : { token }) }
 }
 
 /** 两层 npmrc 合起来看，home 级同名行优先，和 pnpm 读的顺序一致。只给检索用，值不出这条调用链 */

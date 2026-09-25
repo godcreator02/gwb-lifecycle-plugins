@@ -26,13 +26,16 @@ function entry(opts: { id: string; pkg: string; state?: number; disabled?: boole
 }
 
 describe('home 的 package.json 收窄', () => {
-  it('只收 dependencies 里的字符串格', () => {
-    expect(toDependencies({ dependencies: { a: '1.0.0', b: 2, c: '^0.1' } })).toEqual({ a: '1.0.0', c: '^0.1' })
+  const FILE = 'D:\\h\\package.json'
+
+  it('dependencies 原样收下；没写 dependencies 是空表', () => {
+    expect(toDependencies({ dependencies: { a: '1.0.0', c: '^0.1' } }, FILE)).toEqual({ a: '1.0.0', c: '^0.1' })
+    expect(toDependencies({}, FILE)).toEqual({})
   })
 
-  it('没有 dependencies、不是对象、null 一律当空表——不抛', () => {
-    for (const bad of [{}, { dependencies: [] }, null, 'nope', undefined]) {
-      expect(toDependencies(bad)).toEqual({})
+  it('清单不是对象、dependencies 不是对象、某一格不是字符串：抛错，报错里有清单路径', () => {
+    for (const bad of [null, 'nope', undefined, [], { dependencies: [] }, { dependencies: 'a' }, { dependencies: { a: '1.0.0', b: 2 } }]) {
+      expect(() => toDependencies(bad, FILE), JSON.stringify(bad)).toThrow(FILE)
     }
   })
 })

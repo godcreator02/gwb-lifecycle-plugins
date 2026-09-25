@@ -26,9 +26,9 @@ home 里的插件分两层：**包**是 pnpm 装进 `package.json` 与 `node_mod
 
 {/* ref file="../plugins/plugin-manager/src/index.ts" lines="425-435" */}
 
-home 的 `package.json` 读不到或不是 JSON 时当空表：它由 pnpm 写入，安装中途可能只写了一半，`list` 因此整体失败比少报几行更难排查；条目那一层照样报得出来。
+home 的 `package.json` 读不了、不是 JSON、`dependencies` 或其中某一格的形状不对，一律抛错，报错里带清单的路径；没写 `dependencies` 算空表。
 
-{/* ref file="../plugins/plugin-manager/src/home.ts" lines="25-28" */}
+{/* ref file="../plugins/plugin-manager/src/home.ts" lines="26-30" */}
 
 **守住它的测试**：
 
@@ -38,7 +38,7 @@ home 的 `package.json` 读不到或不是 JSON 时当空表：它由 pnpm 写�
 
 {/* has file="../plugins/plugin-manager/tests/inventory.test.ts" text="是否加载成功看的是 fiber 的状态" */}
 
-{/* has file="../plugins/plugin-manager/tests/home.test.ts" text="清单不在、坏了都当空表" */}
+{/* has file="../plugins/plugin-manager/tests/home.test.ts" text="清单不在、不是合法 JSON：抛错，报错里有清单路径" */}
 
 {/* has file="../plugins/plugin-manager/tests/commands.test.ts" text="包与条目两层对上，带 peer 里内核包的范围与没满足的别的 peer；条目指向没装的包报 installed: false" */}
 

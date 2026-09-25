@@ -44,14 +44,16 @@ export function installedVersionOf(manifest: unknown): string | undefined {
   return typeof version === 'string' ? version : undefined
 }
 
-/** home 的 `package.json` → 包名 → 版本范围。格式不对的部分当作没有，不因此作废整份 */
-export function toDependencies(raw: unknown): Record<string, string> {
-  if (!isRecord(raw)) return {}
+/** home 的 `package.json`（`file` 是它的路径，只用于报错）→ 包名 → 版本范围。没写 dependencies 是空表；清单不是对象、dependencies 不是对象、某一格不是字符串都抛错 */
+export function toDependencies(raw: unknown, file: string): Record<string, string> {
+  if (!isRecord(raw)) throw new Error(`${file} 不是一个 JSON 对象`)
   const dependencies = raw['dependencies']
-  if (!isRecord(dependencies)) return {}
+  if (dependencies === undefined) return {}
+  if (!isRecord(dependencies)) throw new Error(`${file} 的 dependencies 不是对象：${JSON.stringify(dependencies)}`)
   const versionRangesByPackage: Record<string, string> = {}
   for (const [pkg, spec] of Object.entries(dependencies)) {
-    if (typeof spec === 'string') versionRangesByPackage[pkg] = spec
+    if (typeof spec !== 'string') throw new Error(`${file} 的 dependencies 里 ${pkg} 的值不是字符串：${JSON.stringify(spec)}`)
+    versionRangesByPackage[pkg] = spec
   }
   return versionRangesByPackage
 }

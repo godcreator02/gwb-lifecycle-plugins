@@ -62,14 +62,22 @@ describe('source.add', () => {
     expect(JSON.stringify(got)).not.toContain('t-secret')
   })
 
-  it('设置里没有 base-url：按默认 gitea 实例拼，note 里说明', async () => {
+  it('设置里没有 base-url、或不是 http(s) 地址：ok:false，说明装 gitea 插件或改给 registry，机器级 npmrc 不动', async () => {
     settings['token'] = 't'
-    const got = await addSource(deps, '@j', { owner: 'J' })
-    expect(got.registry).toBe(`${GITEA}/api/packages/J/npm/`)
-    expect(got.note).toContain('gitea.base-url')
+    for (const baseUrl of [undefined, 'not-a-url']) {
+      if (baseUrl === undefined) delete settings['base-url']
+      else settings['base-url'] = baseUrl
+      const got = await addSource(deps, '@j', { owner: 'J' })
+      expect(got.ok).toBe(false)
+      expect(got.error).toContain('gitea.base-url')
+      expect(got.error).toContain('registry')
+      expect(got.registry).toBeUndefined()
+    }
+    expect(fs.existsSync(deps.userNpmrc)).toBe(false)
   })
 
   it('owner 写法取不到 token：ok:false，机器级 npmrc 不动', async () => {
+    settings['base-url'] = GITEA
     const got = await addSource(deps, '@j', { owner: 'J' })
     expect(got.ok).toBe(false)
     expect(got.error).toContain('gitea.token')

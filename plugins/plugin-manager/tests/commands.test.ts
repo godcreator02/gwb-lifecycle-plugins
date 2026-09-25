@@ -205,6 +205,7 @@ function mount(opts: { entries: Record<string, string>; data?: FakeDataPlugin; s
 
 beforeEach(() => {
   homeDir = fs.mkdtempSync(path.join(os.tmpdir(), 'pm-commands-'))
+  writeHomeDependencies({})
   fakePnpm.calls = []
   fakePnpm.runExitCode = 0
   fakePnpm.captureExitCode = 0

@@ -8,23 +8,25 @@ export function manifestFile(homeDir: string): string {
   return path.join(homeDir, MANIFEST)
 }
 
-async function readJsonOrUndefined(file: string): Promise<unknown> {
+/** 读不了、不是合法 JSON 都抛错，带上路径 */
+async function readJson(file: string): Promise<unknown> {
   let text: string
   try {
     text = await fs.promises.readFile(file, 'utf8')
-  } catch {
-    return undefined
+  } catch (err) {
+    throw new Error(`读不了 ${file}：${String(err)}`, { cause: err })
   }
   try {
     return JSON.parse(text) as unknown
-  } catch {
-    return undefined
+  } catch (err) {
+    throw new Error(`${file} 不是合法的 JSON：${String(err)}`, { cause: err })
   }
 }
 
-/** 包名 → 版本范围。清单读不到或不是 JSON 都当空表：pnpm 安装中途它可能只写了一半 */
+/** 包名 → 版本范围。清单读不了、不是 JSON、形状不对都抛错，报错带路径 */
 export async function readHomeDependencies(homeDir: string): Promise<Record<string, string>> {
-  return toDependencies(await readJsonOrUndefined(manifestFile(homeDir)))
+  const file = manifestFile(homeDir)
+  return toDependencies(await readJson(file), file)
 }
 
 export function installedPackageManifestFile(homeDir: string, pkg: string): string {

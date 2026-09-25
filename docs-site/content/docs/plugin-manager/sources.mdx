@@ -79,15 +79,11 @@ description: plugin-manager.search 在配好的 npm 源上检索插件，地址�
 
 ## `owner` 写法读 gitea 插件的设置
 
-**是什么**：`source.add { scope, owner }` 把源地址拼成 `<gitea 地址>/api/packages/<owner>/npm/`。gitea 地址取设置 `gitea.base-url`，没配时用代码里写的默认实例，`note` 里写明；没显式给 token 时取设置 `gitea.token`，取不到就回 `ok: false`——私有源没有凭据装不了，与其等到安装时失败，不如现在说清楚。
+**是什么**：`source.add { scope, owner }` 把源地址拼成 `<gitea 地址>/api/packages/<owner>/npm/`。gitea 地址取设置 `gitea.base-url`，取不到 http(s) 地址就回 `ok: false`，让人装上 gitea 插件配好它，或者改给 `registry`；没显式给 token 时取设置 `gitea.token`，取不到就回 `ok: false`——私有源没有凭据装不了，与其等到安装时失败，不如现在说清楚。
 
-{/* ref file="../plugins/plugin-manager/src/package-sources.ts" lines="253-268" */}
+{/* ref file="../plugins/plugin-manager/src/package-sources.ts" lines="254-272" */}
 
-**为什么经命令读**：设置服务 `ctx.gwbSettings` 只读得到调用方自己的分区，`gitea` 分区属于 gitea 插件，读它只能按名字调 `settings.get` 命令。设置插件没装、设置里没配，都只是退回默认地址、没有 token。
-
-`settings.get` 只回存下的值、不回落到声明时的默认值，所以 gitea 插件的默认地址在这里另写一份（`DEFAULT_GITEA_BASE`）：
-
-{/* ref file="../plugins/plugin-manager/src/package-sources.ts" lines="84-85" */}
+**为什么经命令读**：设置服务 `ctx.gwbSettings` 只读得到调用方自己的分区，`gitea` 分区属于 gitea 插件，读它只能按名字调 `settings.get` 命令。插件管理不另存 gitea 地址：设置插件或 gitea 插件没装、设置里没配，`owner` 写法就拼不出地址。
 
 ## 不改 home，不经 BUSY
 

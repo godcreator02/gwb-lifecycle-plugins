@@ -77,7 +77,7 @@ description: 插件管理是唯一写 home 的插件——装卸包、增删条�
 | 内核服务 `gwbKernel` 的 `dataDir` 与 `version` | home 目录（pnpm 的工作目录、`package.json` 所在的目录）；运行中的内核版本号，和各包 peer 里内核包的范围比对 | 构造时报错「ctx.gwbKernel 不在」，插件管理不加载；内核版本号不合法时 `list` 报错 |
 | loader 的条目树：`store`、`create`、`update`、`remove` | 读条目、加删条目、启用停用、重新加载 | 构造时报错：取不到条目树（插件管理不是经 `cordis.yml` 的条目加载的）；loader 的签名变了由类型检查发现 |
 | 用户装的 pnpm 12（`%LOCALAPPDATA%\pnpm\bin\pnpm.exe` 或 `%APPDATA%\npm\node_modules\pnpm\pnpm.exe`，版本不低于 12.4.2） | `add`、`remove`、`outdated --json` | 要运行 pnpm 的命令回 `ok: false`，原因里写明检查了哪两个位置、找到的版本不对时该装哪个版本；`list`、启停条目不受影响 |
-| home 的 `package.json` | 装了哪些包、各自的版本范围 | 读不到或解析不了就当空表：`list` 里只有条目那一层 |
+| home 的 `package.json` | 装了哪些包、各自的版本范围 | 读不了、不是 JSON、形状不对都抛错，报错带清单路径 |
 | home 的 `node_modules/<包名>` 这个目录链接指向的真实目录 | `update` 在 `pnpm add` 之前与之后各读一次，找出跟着换了目录的包 | 读不到当没装；在但读不了，`update` 报错并带上路径 |
 | 装在 home 里的每个包自己的 `package.json` | 读 `peerDependencies` 与 `peerDependenciesMeta`：内核包的范围、peer 里别的插件的范围，以及那些插件装着的 `version`；`update-kernel` 另读新装的内核包的 `version` 与 `peerDependencies.cordis`、各插件的 `keywords`；`update` 的 `specs` 在 `pnpm add` 之前与之后各读一次 `version`，填回执的 `from` 与 `to` | 文件不在就当不是插件，`kernelUntested` 是 `false`；peer 里的包文件不在就算没装；文件在但读不了、或不是合法 JSON，`list` 与 `update-kernel` 报错并带上文件路径；内核包 peer 里的 `cordis` 不是精确版本号时 `update-kernel` 不装 `cordis`、回 `ok: false`；`specs` 装完读不到某个包的 `version`，`update` 回 `ok: false`、一条条目都不动 |
 | 命令插件 `gwbCommands`（`@godcreator/gwb-commands`，局部注入） | 登记 16 条命令；热升级后按名字查找并执行 `shell.reload`；`source.add` 的 `owner` 写法按名字调 `settings.get` | 命令登记不上，插件管理没有调用方式；服务照常提供 |
@@ -87,7 +87,7 @@ description: 插件管理是唯一写 home 的插件——装卸包、增删条�
 | 说明书插件 `gwbSkills`（`@godcreator/gwb-skills`，局部注入） | 登记自带的说明书 | 没有说明书，插件管理照常加载 |
 | 各条 npm 源的检索接口 `GET <registry>/-/v1/search`（网络） | `search` 检索可装的插件 | 这条源在回执 `note` 里点名，别的源照常；全部没查成时 `search` 回 `ok: false` |
 | 机器级 `~/.npmrc` 与 home 级 `<home>/.npmrc` | 按 scope 找源地址与 token；`source.add` / `source.remove` 改机器级那份 | 文件不在当空文本；在但读不了，命令报错并带上路径 |
-| gitea 插件的设置：`gitea` 分区的 `base-url` 与 `token`，经设置插件的命令 `settings.get` 按名字读 | `source.add` 的 `owner` 写法拼源地址、取 token | 地址按代码里写的默认 gitea 实例拼；没显式给 token 时 `source.add` 回 `ok: false` |
+| gitea 插件的设置：`gitea` 分区的 `base-url` 与 `token`，经设置插件的命令 `settings.get` 按名字读 | `source.add` 的 `owner` 写法拼源地址、取 token | 取不到 http(s) 的 `base-url`、或没显式给 token 又取不到 `token`，`source.add` 回 `ok: false` |
 | cordis：`provide`、`effect`、`inject`、`logger` 与条目的加载状态 | 提供服务、局部注入、卸载时撤销、写日志、判断条目加载到哪一步 | 由内核提供，不会缺；cordis 的状态名变了，`list` 的「是否在运行」与重新加载的等待会判断错，由状态名对照测试拦住 |
 | 内核包 `@godcreator/gwb-kernel-desktop` 包根导出的类型（peer 里写的就是它） | `GwbContext`、`GwbResult`、`GwbKernelApi` 的类型 | 只有类型，形状改坏了类型检查失败 |
 
