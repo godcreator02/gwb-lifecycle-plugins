@@ -3,7 +3,6 @@
   "private": true,
   "type": "module",
   "scripts": {
-    "//build": "只构建要发的包（plugins/*）：devkit.dev 与 devkit.release 都在仓根运行它；文档站自己一套依赖，不进根 build 也不进根 check",
     "build": "pnpm -r --filter \"./plugins/*\" build",
     "check": "pnpm -r --no-bail check"
   }

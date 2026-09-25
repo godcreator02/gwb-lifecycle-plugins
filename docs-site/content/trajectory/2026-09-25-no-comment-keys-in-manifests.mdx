@@ -1,0 +1,33 @@
+---
+title: package.json 不写 // 开头的说明键，建仓模板也不再生成
+born-at: 2026-09-25T17:00
+type: choice
+parent: [2026-09-08-gwb-devkit]
+label: 清单去说明键
+domain: 生态规范
+---
+
+## 背景
+
+本仓的 `package.json`（仓根、devkit、插件管理）和 devkit 的两份建仓模板 `template/repo/package.json.tpl`、`template/pkg/package.json.tpl` 里，一直在键旁边写一条 `"//<键名>": "…"` 解释为什么这么写：`//peerDependencies`、`//devDependencies`、`//publishConfig`、`//repository`，以及 `scripts` 里的 `//build`、`//prepublishOnly` 等。建仓时模板原样生成，于是每个新插件仓也带着这批键。[自报家门](2026-09-18-package-self-report.md)那次只把这些说明删减到「只留真判据」，没有去掉这种写法。
+
+用户决定全部删掉。
+
+## 结论与边界
+
+`package.json` 不写 `//` 开头的键，子对象里的也不写。理由四条：JSON 没有注释，这类键只是普通字段；没有任何工具或代码读它；它随包发到源上，装包的人都拿到一份；讲的道理文档站里已经有（例如 `prepublishOnly` 为什么要留，依赖规矩页、开发页、`gwb-release` 说明书都写了），两份说法迟早不一致。
+
+做法：本仓三份清单与两份模板里的这类键整行删掉，内容不搬；规矩写进依赖规矩页「清单与构建的硬要求」和规矩总表；devkit 的 scaffold 测试断言建仓与加插件生成的每份 `package.json` 在任何一层都没有 `//` 开头的键。devkit 发一个补丁版本，之后新建的仓不再带这批键。已经建好的插件仓里的这类键不由本仓去删。
+
+自报家门卡里 `keywords` 判据与简介写法仍然成立，本卡只推翻其中「清单里的 `//` 说明只留真判据」那一句。
+
+pivots-from:: [自报家门](2026-09-18-package-self-report.md)
+
+## 否掉的候选
+
+- **只删 devkit 自己的，模板里留着给新手看**：模板生成的清单会发到源上，说明留在里面等于每个插件包都发一份；要看解释的人去读 devkit 文档站的规矩页
+- **把说明搬进文档站再删**：抽查过的几条（`prepublishOnly`、peer 写什么、`publishConfig`）文档站都已写过，搬一遍只会多出重复段落
+
+## 代价与遗留
+
+模板里 `//repository` 那条提醒「发到 gitea 后补上 `repository`，gitea 发布时读它把包关联到仓」删掉以后，现状文档里没有这句提醒，只在[自报家门](2026-09-18-package-self-report.md)卡里有记录。新插件仓发到 gitea 后要不要补 `repository`，只能靠作者自己记得。

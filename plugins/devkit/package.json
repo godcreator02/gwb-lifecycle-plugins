@@ -20,18 +20,14 @@
     "src",
     "template"
   ],
-  "//publishConfig": "devkit.release 发到这里（团队源）；发布 token 写在用户级 ~/.npmrc",
   "publishConfig": { "registry": "https://git.tianshen02.online:28377/api/packages/godcreator/npm/" },
   "scripts": {
-    "//build": "两步：esbuild 把 node 侧打成一个 dist/index.js（外置 node 内置模块、electron、cordis 与 peer 里的包，其余打包进去），tsc 只输出类型声明",
     "build": "node build.ts && tsc -p tsconfig.json --emitDeclarationOnly",
     "typecheck": "tsc --noEmit -p tsconfig.json",
     "test": "vitest run",
     "check": "pnpm run typecheck && pnpm run test",
     "prepublishOnly": "pnpm build"
   },
-  "//dependencies": "建文档站的两条命令（docs-site.create / docfirst.attach）只按名字在命令总线上找——本包不依赖站点插件与 docfirst 插件的任何包，三者互不依赖",
-  "//peerDependencies": "运行时从 home 里得到的东西：内核包、命令总线（inject 必需）、插件管理（import 它导出的 pnpm 定位、版本范围判定与命令名；devkit.dev 经它把开发版装进目标 home）；外壳、说明书、node 命令行三个插件经 ctx.inject 可选使用，写成 optional，没装不报",
   "peerDependencies": {
     "@godcreator/gwb-kernel-desktop": "^0.7.0",
     "@godcreator/gwb-commands": "^0.5.0",
@@ -45,7 +41,6 @@
     "@godcreator/gwb-shell": { "optional": true },
     "@godcreator/gwb-skills": { "optional": true }
   },
-  "//devDependencies": "yaml 是运行时用的库（建仓读 pnpm-workspace.yaml 与生成的 YAML），build.ts 把它打包进 dist/index.js；esbuild 是构建工具，测试里也拿它编译建仓生成的 TS/TSX；@mdx-js/mdx、remark-gfm 只给测试用：拿真的编译器核对建仓生成的 Markdown/MDX（文档站渲染 MDX 带 GFM 表格）",
   "devDependencies": {
     "@mdx-js/mdx": "^3.1.1",
     "@types/node": "^24.0.0",

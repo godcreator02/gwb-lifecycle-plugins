@@ -20,7 +20,6 @@
     "skills",
     "src"
   ],
-  "//publishConfig": "devkit.release 发到这里（团队源）；发布 token 写在用户级 ~/.npmrc",
   "publishConfig": { "registry": "https://git.tianshen02.online:28377/api/packages/godcreator/npm/" },
   "scripts": {
     "build": "node -e \"require('fs').rmSync('dist',{recursive:true,force:true})\" && tsc -p tsconfig.build.json",
@@ -28,10 +27,8 @@
     "lint": "oxlint . --deny-warnings",
     "test": "vitest run",
     "check": "pnpm run typecheck && pnpm run lint && pnpm run test",
-    "//prepublishOnly": "发版前强制构建一次：pnpm check 只跑类型检查、lint 和测试，不构建，少了这条会把上一版的 dist 原样发出去",
     "prepublishOnly": "pnpm build"
   },
-  "//peerDependencies": "运行时从 home 里得到的东西：内核包、命令总线（命令都登记在它上面）；数据、设置、说明书三个插件经 ctx.inject 可选使用，写成 optional，没装不报",
   "peerDependencies": {
     "@godcreator/gwb-kernel-desktop": "^0.7.0",
     "@godcreator/gwb-commands": "^0.5.0",
@@ -44,7 +41,6 @@
     "@godcreator/gwb-settings": { "optional": true },
     "@godcreator/gwb-skills": { "optional": true }
   },
-  "//devDependencies": "gwb-plugin-api 只为命令插件 0.5.0 的类型声明：它的 .d.ts 还从词汇表包取 GwbResult，缺了 commandBus.run 的回执成了 error 类型、lint 不过；命令插件改成从内核包取类型后删掉",
   "devDependencies": {
     "@cordisjs/plugin-include": "1.1.0",
     "@cordisjs/plugin-loader": "1.0.0-rc.7",

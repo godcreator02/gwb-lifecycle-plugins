@@ -10,27 +10,21 @@
   },
   "files": ["dist", "src"],
   "keywords": ["gwb", "gwb-plugin"],
-  "//publishConfig": "devkit.release 发到这里（建仓时的 registry 参数，不给是团队源）；发布 token 写在用户级 ~/.npmrc",
   "publishConfig": { "registry": "{{registry}}" },
-  "//repository": "发到 gitea 后补上这一条：{ type: git, url: https://git.tianshen02.online:28377/godcreator/<仓>.git }——gitea 发布时读它把包关联到仓（2026-09-18 实测：整个包关联到仓，仓与包不在同一个 owner 下也关联得上）",
   "scripts": {
-    "//build": "三步：node 侧 tsc、浏览器侧 esbuild（内核包页面 importmap 里的包名不打包，由页面提供）、样式 tailwindcss 按类名前缀输出",
     "build": "tsc -p tsconfig.build.json && node build.ts && tailwindcss -i src/client/styles.css -o dist/style.css",
     "typecheck": "tsc --noEmit -p tsconfig.json && tsc --noEmit -p src/client/tsconfig.json",
     "lint": "oxlint . --deny-warnings",
     "test": "vitest run --passWithNoTests",
     "check": "pnpm run typecheck && pnpm run lint && pnpm run test",
-    "//prepublishOnly": "发版前强制构建一次。pnpm check 不构建，少了这条会把上一版的 dist 原样发出去，而且不报错",
     "prepublishOnly": "pnpm build"
   },
   "engines": { "node": ">=24" },
-  "//peerDependencies": "peer 写运行时要从 home 里得到的东西：内核包（范围写 ^<验证时那个内核的版本号>）、用到的插件——命令总线（登记命令）与外壳（注册窗格、样式令牌）。插件管理拿这些范围和 home 里装的版本比；插件仓里 pnpm 把 peer 装进 node_modules，类型从那里取。node 侧构建产物里没有按值 import cordis（只 import type），所以 peer 里没有 cordis。规矩见 devkit 文档站「兼容哪个内核」与「依赖怎么写」",
   "peerDependencies": {
     "@godcreator/gwb-kernel-desktop": "^{{kernelVersion}}",
     "@godcreator/gwb-commands": "^0.5.0",
     "@godcreator/gwb-shell": "^0.13.7"
   },
-  "//devDependencies": "cordis 只写 dev（给本地构建与类型检查）；react 由页面的 importmap 提供，构建时不打包",
   "devDependencies": {
     "@tailwindcss/cli": "^4.3.0",
     "@tailwindcss/node": "^4.3.0",

@@ -515,6 +515,18 @@ describe('包内 template/：两区', () => {
     expect(ignored).not.toContain('.claude/**')
   })
 
+  it('生成的每份 package.json 在任何一层都没有 // 开头的说明键：JSON 没有注释，这类键没有工具读、会随包发出去', () => {
+    const fromScaffold = renderTemplate(TEMPLATE_ROOT, planScaffold({ name: 'hello', dir: 'D:\\tmp\\x', kernelVersion: KERNEL }))
+    const fromPlugin = renderPlugin(TEMPLATE_ROOT, planScaffoldPlugin({ name: 'world', repo: fakeWorkspace(), kernelVersion: KERNEL }))
+    const manifests = [...fromScaffold, ...fromPlugin].filter((f) => path.basename(f.rel) === 'package.json')
+    expect(manifests.map((f) => f.rel).sort()).toEqual(['package.json', 'package.json', 'plugins/hello/package.json'])
+    const commentKeysOf = (value: unknown): string[] =>
+      value !== null && typeof value === 'object'
+        ? Object.entries(value).flatMap(([key, child]) => [...(key.startsWith('//') ? [key] : []), ...commentKeysOf(child)])
+        : []
+    for (const manifest of manifests) expect(commentKeysOf(JSON.parse(manifest.text)), manifest.rel).toEqual([])
+  })
+
   it('模板里的占位符全在 placeholders 的表上——认不出的当场抛，那正是这条要钉的', () => {
     expect(() => renderTemplate(TEMPLATE_ROOT, planScaffold({ name: 'x', dir: 'D:\\tmp\\x', docs: false, kernelVersion: KERNEL }))).not.toThrow()
     expect(() => renderPlugin(TEMPLATE_ROOT, planScaffoldPlugin({ name: 'x', repo: fakeWorkspace(), kernelVersion: KERNEL }))).not.toThrow()
