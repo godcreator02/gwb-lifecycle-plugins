@@ -50,7 +50,7 @@ workspace 仓：仓根是一个不发布的 private 包（`pnpm build` / `pnpm c
 
 校验、派生、转成绝对路径、填缺省值都在这一处做完，没有读写磁盘。抛出的每一句都写明该怎么改。`dir` 经 `path.resolve` 转成绝对路径，`D:/a/b` 与 `D:\a\b` 得到同一个结果。`scope` 要是 `@` 开头的 npm 包名范围；`registry` 要是 http(s) 地址的规范写法（与 `new URL(registry).href` 逐字相同，所以写进 JSON 不用转义），不带账号、查询串与 `#`（发布 token 写在用户级 `~/.npmrc`）。不合规就拒，报错里写出规范写法，不替调用方改：
 
-{/* ref file="../plugins/devkit/src/scaffold.ts" lines="106-131" */}
+{/* ref file="../plugins/devkit/src/scaffold.ts" lines="118-143" */}
 
 加插件的计划**要读磁盘**（建仓的不读）：`repo` 必须已经是 workspace 仓才收，也就是 `pnpm-workspace.yaml` 的 `packages` 里有 `plugins/*` 这一条。
 
@@ -58,11 +58,11 @@ workspace 仓：仓根是一个不发布的 private 包（`pnpm build` / `pnpm c
 
 `packages` 用 yaml 库读，带不带引号、块列表还是流式列表、注释、CRLF 都认；文件写坏了、或 `packages` 不是字符串列表，报错写出文件与第几行第几列，不当成「没有这一条」。yaml 写在 dev 里，由 `build.ts` 打包进产物（见[开发](/docs/develop#提交前的检查)）：
 
-{/* ref file="../plugins/devkit/src/scaffold.ts" lines="149-186" */}
+{/* ref file="../plugins/devkit/src/scaffold.ts" lines="186-223" */}
 
 **整套模板先在内存里渲染完，再写磁盘。** 占位符出错是这条流程上最可能的失败，而目标目录一旦开始写就没有干净的回滚点。
 
-{/* ref file="../plugins/devkit/src/scaffold.ts" lines="280-290" */}
+{/* ref file="../plugins/devkit/src/scaffold.ts" lines="319-329" */}
 
 占位符一共九个，值都出自短名、校验过的包名范围、规范写法的地址与版本号三段，放进 JSON、TS、Markdown 都不用转义，原样替换。认不出的占位符当场抛错：生成的仓里留一个 `{{typo}}`，它会一直留在别人的 package.json 里，到那时已经没人知道它本来该是什么。所以给模板加了新占位符，`placeholders()` 必须同时加一项：
 
@@ -72,15 +72,15 @@ workspace 仓：仓根是一个不发布的 private 包（`pnpm build` / `pnpm c
 
 两部分各写到哪里由一个纯函数决定：`repo/` 写到仓根，`pkg/` 写到 `plugins/<短名>/`，**不属于这两部分的文件当场抛错**——模板里每个文件都得声明自己属于哪部分，没声明的文件写下去，谁也说不清它属于仓根还是插件包。
 
-{/* ref file="../plugins/devkit/src/scaffold.ts" lines="255-264" */}
+{/* ref file="../plugins/devkit/src/scaffold.ts" lines="294-303" */}
 
 建仓渲染仓根与插件包两部分；加插件只渲染插件包那部分，路径相对插件包根。`writeRepo` 的「目标必须还不存在」于是检查的是 `plugins/<短名>/`，仓根不碰。
 
-{/* ref file="../plugins/devkit/src/scaffold.ts" lines="280-299" */}
+{/* ref file="../plugins/devkit/src/scaffold.ts" lines="319-338" */}
 
 目标目录必须还不存在。建仓与加插件都是一次性动作，往已有目录里写文件没有干净的回滚点。
 
-{/* ref file="../plugins/devkit/src/scaffold.ts" lines="301-310" */}
+{/* ref file="../plugins/devkit/src/scaffold.ts" lines="340-349" */}
 
 ## 依赖的接口
 
