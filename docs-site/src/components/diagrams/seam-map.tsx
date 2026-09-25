@@ -41,9 +41,9 @@ function Badge({ x, y, n, byConvention }: { x: number; y: number; n: number; byC
 
 export function SeamMap() {
   return (
-    <svg viewBox="0 0 760 600" role="img" aria-label="devkit 仓的两个包与十一条接缝">
+    <svg viewBox="0 0 760 600" role="img" aria-label="gwb-lifecycle-plugins 仓的两个包与十一条接缝">
       <Package x={20} y={80} w={520} h={370} />
-      <PackageLabel x={528} y={98} name="devkit 仓" path="gwb-devkit" anchor="end" />
+      <PackageLabel x={528} y={98} name="本仓" path="gwb-lifecycle-plugins" anchor="end" />
       <Package x={40} y={120} w={300} h={310} />
       <PackageLabel x={52} y={138} name="开发套件" path="plugins/devkit" />
 

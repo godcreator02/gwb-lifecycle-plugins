@@ -1,9 +1,9 @@
 ---
 title: 关键设计
-description: devkit 仓里错了难改的几条决定——devkit 是普通插件、写插件只有打包安装验证一条路、包名与发到哪用 npm 的标准字段、开发版只进隔离 home、只按名字定位 home、查不出就报错、纯逻辑与真机器操作分开、两个包同仓、模板是唯一正本、借别的插件只借命令名；各自推出了什么、代价是什么
+description: gwb-lifecycle-plugins 仓里错了难改的几条决定——devkit 是普通插件、写插件只有打包安装验证一条路、包名与发到哪用 npm 的标准字段、开发版只进隔离 home、只按名字定位 home、查不出就报错、纯逻辑与真机器操作分开、两个包同仓、模板是唯一正本、借别的插件只借命令名；各自推出了什么、代价是什么
 ---
 
-**本页回答**：devkit 仓里哪些决定错了难改、为什么这么定；每条推出了什么、代价是什么；哪些事刻意不做。只写错了难改的：命令怎么用、每一步的细节在各包的页与说明书里。每个包的功能与接口见[开发套件](/docs/devkit)、[插件管理](/docs/plugin-manager)。
+**本页回答**：`gwb-lifecycle-plugins` 仓里哪些决定错了难改、为什么这么定；每条推出了什么、代价是什么；哪些事刻意不做。只写错了难改的：命令怎么用、每一步的细节在各包的页与说明书里。每个包的功能与接口见[开发套件](/docs/devkit)、[插件管理](/docs/plugin-manager)。
 
 ## 开发套件是一个普通插件
 
@@ -28,7 +28,7 @@ devkit 没有任何特权：装进 home 才有它的命令，和别的插件一�
 - **正式版只从提交过的状态发**：版本号在仓里改、随提交走；`devkit.release` 在 git 工作区不干净、同号已在发布目标上、发版前检查没过时一概不发，也不改仓里任何文件（[发正式版进 devkit](/trajectory/2026-09-14-release-comes-to-devkit)）
 - **最后一步是取证**：`devkit.dev` 回成功之前，确认装上的是这次的版本号、条目在运行、日志新增部分里没有 error
 
-代价：比直接覆盖文件慢；隔离 home 的 `dev-packs` 与 pnpm 存储里会攒下开发版，前者随隔离 home 一起删，存储要定期清理。
+代价：比直接覆盖文件慢；隔离 home 的 `dev-packs` 与 pnpm 存储里会积累开发版，前者随隔离 home 一起删，存储要定期清理。
 
 ## 包名与发到哪用 npm 的标准字段
 
@@ -105,6 +105,8 @@ devkit 没有任何特权：装进 home 才有它的命令，和别的插件一�
 {/* has file="../plugins/devkit/src/release.ts" text="import { KERNEL_PACKAGE, isCaretRange, kernelRangeCovers } from '@godcreator/gwb-plugin-manager'" */}
 
 放在一个仓里，这些地方一个提交就能改两边。
+
+仓名 `gwb-lifecycle-plugins` 说的是两个插件合起来管的范围：devkit 管建仓、验证、发版，插件管理管装、升级、卸载。改的只是仓名，发出去的包名 `@godcreator/gwb-devkit`、`@godcreator/gwb-plugin-manager` 与说明书名不变，改包名是破坏性变更（[仓改名 gwb-lifecycle-plugins](/trajectory/2026-09-25-repo-renamed-lifecycle-plugins)）。
 
 代价：发版要用 `packages` 指明发哪个包，两个一起发时插件管理排在前面；devkit 离了插件管理加载不了。改插件管理的命令名、参数、回执形状或主入口导出的函数是破坏性变更——插件管理窗格、`devkit.dev`、agent 的说明书都按它们写死了调用。
 

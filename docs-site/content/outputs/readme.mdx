@@ -25,7 +25,7 @@ plugin-manager.install {"pkg":"@godcreator/gwb-devkit"}
 
 ## 这个仓里还有什么
 
-这个仓是 pnpm workspace，开发套件在 `plugins/devkit/`，旁边还有一个包：
+这个仓叫 `gwb-lifecycle-plugins`，是 pnpm workspace，开发套件在 `plugins/devkit/`，旁边还有一个包：
 
 - `plugins/plugin-manager/`：插件管理 `@godcreator/gwb-plugin-manager`，home 里的一个普通插件，单独发版。两个包互相依赖的地方多（`devkit.dev` 经插件管理装开发版，peer 范围的比对规则只在插件管理里写一份、开发套件 import 它），放在一个仓里，改这些地方一个提交就能改两边；细节见文档站「关键设计」
 

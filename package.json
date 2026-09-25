@@ -1,5 +1,5 @@
 {
-  "name": "gwb-devkit-workspace",
+  "name": "gwb-lifecycle-plugins",
   "private": true,
   "type": "module",
   "scripts": {

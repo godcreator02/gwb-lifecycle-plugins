@@ -1,0 +1,45 @@
+---
+title: 仓改名 gwb-lifecycle-plugins：包名、说明书名不动
+born-at: 2026-09-25T16:30
+type: choice
+parent: [2026-09-08-gwb-devkit]
+label: 仓改名
+domain: 生态规范
+---
+
+## 背景
+
+gwb 单元做了一次目录整理：这个仓整目录从 `s28bv-gwbbase/gwb-devkit` 搬到 `igldu-gwbkernel/`，和同单元的 `gwb-base-plugins`、`gwb-ui-plugins`、`gwb-kernel` 放在一起，git 历史不变。搬家的同时仓改名为 `gwb-lifecycle-plugins`。
+
+这个仓里有两个插件：devkit（建仓、验证、发版）与插件管理（装、升级、卸载）。插件管理 2026-09-24 迁进来之后（见[插件管理迁入 devkit 仓](2026-09-24-plugin-manager-joins-devkit.md)），仓名 `gwb-devkit` 只说得出其中一个，看不出插件管理这个平台服务也在这里。
+
+## 结论与边界
+
+仓名定为 `gwb-lifecycle-plugins`：两个插件合起来覆盖一个插件从建仓到卸载的整个生命周期；后缀 `-plugins` 与同单元的 `gwb-base-plugins`、`gwb-ui-plugins` 一致，表示「放若干个插件的 workspace 仓」。
+
+改的只有仓这一层：仓目录名、根 `package.json` 的私有包名（`gwb-devkit-workspace` 改为 `gwb-lifecycle-plugins`，与 `gwb-base-plugins` 的根包名同一种写法）、文档站的包名与站名、现状页与生成文件正本里指这个仓的说法。
+
+不改的：
+
+- 已发布的包名 `@godcreator/gwb-devkit`、`@godcreator/gwb-plugin-manager`
+- 说明书名 `gwb-devkit`、`gwb-release`、`gwb-plugin-manager`，包目录 `plugins/devkit`、`plugins/plugin-manager`，说明书目录 `skills/gwb-devkit/`
+- 两个包 `package.json` 里 `repository.url` 指向的 gitea 远端 `godcreator/gwb-devkit.git`：远端仓没有改名，这是仓外的资源
+- 轨迹卡与 `probes/` 里的旧仓名、旧路径：那是当时的记录
+
+## 否掉的候选
+
+- **gwb-package-plugins**：package 太泛，工作台里每个插件都是一个包，这个词说不出这两个插件管的是什么
+- **gwb-meta-plugins**：边界太宽，「管插件的插件」还可以装进设置、说明书登记这类东西，名字挡不住后来的东西往里放
+- **gwb-plugin-tools**：后缀和 `-plugins` 那一组不一致，而且读起来像一个工具库，不像放插件的仓
+- **gwb-dev-plugins**：插件管理不只在开发时用，日常用的 `default` 里装、升级、卸载插件都靠它
+
+## 依据
+
+不改包名的理由：包名是发出去的契约。改 `@godcreator/gwb-devkit` 或 `@godcreator/gwb-plugin-manager` 是破坏性变更——每个 home 要卸掉旧包重装新包，下游插件 peer 里写着的包名全要改、全要重新发版。仓名只有在这台机器上找仓的人和 agent 看得到，改它不影响任何已装的 home。
+
+无物证：这是命名选型，没有实验。
+
+## 代价与遗留
+
+- 仓名与远端仓名不一致：本地仓叫 `gwb-lifecycle-plugins`，gitea 上仍是 `godcreator/gwb-devkit`，两个包的 `repository.url` 也仍指向它。远端要不要跟着改名、改了之后 `repository.url` 与本地 remote 一起改，留给人决定
+- 仓名与主包名不再相同：看到包名 `@godcreator/gwb-devkit`，要知道它的源码在 `gwb-lifecycle-plugins` 仓，用 `unit-folder.list` 查

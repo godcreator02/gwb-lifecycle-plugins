@@ -42,7 +42,7 @@ pnpm check          # 递归检查：typecheck（node 侧 + 浏览器侧）+ oxl
 
 ## 规矩在哪
 
-- 写插件要守的规矩（依赖怎么写、服务怎么提供和使用、插件之间怎么交互、页面代码与 importmap、卸载清理、兼容哪个内核）与每条由哪道检查把关：gwb-devkit 仓文档站的「写插件的规矩」一组页（`docs-site/content/docs/rules/`）
+- 写插件要守的规矩（依赖怎么写、服务怎么提供和使用、插件之间怎么交互、页面代码与 importmap、卸载清理、兼容哪个内核）与每条由哪道检查负责：gwb-lifecycle-plugins 仓（devkit 的源码仓）文档站的「写插件的规矩」一组页（`docs-site/content/docs/rules/`）
 - 写插件的步骤、改一版看一版、测试 home、在隔离 home 里验证与取证：说明书「gwb-devkit」
 - 发版、升版本号、依赖版本什么时候跟：说明书「gwb-release」
 - 写文档站、记轨迹卡：说明书「docfirst-docs」「trajectory」

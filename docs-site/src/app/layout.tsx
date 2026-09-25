@@ -24,12 +24,12 @@ function zone(name: string, root: Root): Node {
 
 /** 浏览器标签页上的标题：各页是「页面标题 | 站名」，没有页面标题时只有站名 */
 export const metadata: Metadata = {
-  title: { default: '开发套件', template: '%s | 开发套件' },
+  title: { default: 'gwb-lifecycle-plugins', template: '%s | gwb-lifecycle-plugins' },
 }
 
 export default function Layout({ children }: { children: ReactNode }) {
   const tree: Root = {
-    name: '开发套件',
+    name: 'gwb-lifecycle-plugins',
     children: [
       zone('现状', source.getPageTree()),
       zone('轨迹', sourceTrajectory.getPageTree()),
@@ -44,7 +44,7 @@ export default function Layout({ children }: { children: ReactNode }) {
     <html lang="zh-CN" suppressHydrationWarning>
       <body className="flex flex-col min-h-screen">
         <RootProvider>
-          <DocsLayout tree={tree} nav={{ title: '开发套件' }}>
+          <DocsLayout tree={tree} nav={{ title: 'gwb-lifecycle-plugins' }}>
             {children}
           </DocsLayout>
         </RootProvider>

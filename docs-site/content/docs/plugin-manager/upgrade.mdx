@@ -43,7 +43,7 @@ description: outdated 查过期包；update 的参数三选一（all 升全部�
 
 ## specs 装完核对版本号
 
-三种参数的 `pnpm add` 都带 `--save-exact`。但 pnpm 退出码 0 不等于装上了要的版本：home 清单里那一项原来写成 `^` 时，pnpm 12 沿用 `^`，锁文件里范围内的别的预发布版照样算满足（devkit 仓 `probes/2609241510_pnpm-add-exact-prefix/`）。所以 `specs` 在 `pnpm add` 前后各读一次 `node_modules/<包名>/package.json` 的 `version`：
+三种参数的 `pnpm add` 都带 `--save-exact`。但 pnpm 退出码 0 不等于装上了要的版本：home 清单里那一项原来写成 `^` 时，pnpm 12 沿用 `^`，锁文件里范围内的别的预发布版照样算满足（本仓 `probes/2609241510_pnpm-add-exact-prefix/`）。所以 `specs` 在 `pnpm add` 前后各读一次 `node_modules/<包名>/package.json` 的 `version`：
 
 - 写法是准确版本号（`x.y.z`，可带预发布段）的，装上的必须就是它；对不上回 `ok: false`，`error` 逐项写要的与装上的，并指出把清单那一项改成精确版本号，一条条目都不重新加载
 - tag 与 `file:` 写法看不出该是哪一版，不核对
@@ -120,9 +120,9 @@ description: outdated 查过期包；update 的参数三选一（all 升全部�
 
 `pnpm add` 之前与之后各读一次 home 的 dependencies 里每个包的真实目录（`node_modules/<包名>` 这个目录链接指向的、pnpm 虚拟存储里的目录）。目录变了、本身又没升级的包，它的条目在同一条命令里跟着重新加载；一次读得到、一次读不到也算变了。回执的 `dependents` 按包名列出这些包，每个带各条条目的结果；原本停用的照样 `skipped`，插件管理自己在里面时照旧记 `deferred`。
 
-pnpm 的虚拟存储目录名带着 peer 的版本：A 的 peer 写了 B，B 一升级，A 就被装进新目录（`A@1.0.0_B@1.0.0` 变成 `A@1.0.0_B@1.1.0`），而 pnpm 的输出里只写 B 变了。只重新加载 B 的话，正在运行的 A 还是从旧目录加载的、拿到的还是旧的 B；旧目录被清掉之后 A 再加载自己的文件就会失败（实验见 devkit 仓 `probes/2609242300_peer-between-plugins/`）。哪些包换了目录，直接比装之前与装之后的真实目录，不按 peer 关系去推 pnpm 的目录命名规则（见轨迹卡[跟着重新加载的包改成直接比真实目录](/trajectory/2026-09-25-dependents-by-realpath)）。
+pnpm 的虚拟存储目录名带着 peer 的版本：A 的 peer 写了 B，B 一升级，A 就被装进新目录（`A@1.0.0_B@1.0.0` 变成 `A@1.0.0_B@1.1.0`），而 pnpm 的输出里只写 B 变了。只重新加载 B 的话，正在运行的 A 还是从旧目录加载的、拿到的还是旧的 B；旧目录被清掉之后 A 再加载自己的文件就会失败（实验见本仓 `probes/2609242300_peer-between-plugins/`）。哪些包换了目录，直接比装之前与装之后的真实目录，不按 peer 关系去推 pnpm 的目录命名规则（见轨迹卡[跟着重新加载的包改成直接比真实目录](/trajectory/2026-09-25-dependents-by-realpath)）。
 
-读真实目录是读盘，在 `index.ts` 里做；比两次读到的目录、挑出要重新加载的包是纯函数。不合包名规则的键不拿去拼路径。
+读真实目录要读磁盘，在 `index.ts` 里做；比两次读到的目录、挑出要重新加载的包是纯函数。不合包名规则的键不拿去拼路径。
 
 {/* ref file="../plugins/plugin-manager/src/home.ts" lines="53-65" */}
 

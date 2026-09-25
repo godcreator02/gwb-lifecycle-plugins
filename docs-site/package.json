@@ -1,9 +1,9 @@
 {
-  "name": "gwb-devkit-docs-site",
+  "name": "gwb-lifecycle-plugins-docs-site",
   "version": "0.1.0",
   "private": true,
   "type": "module",
-  "description": "开发套件 的文档站：论断钉在这个仓的真实源码上，README 与机读版由 render 摆出",
+  "description": "gwb-lifecycle-plugins 的文档站：现状页的说法引用这个仓的真实源码，AGENTS、README 与说明书由 render 生成",
   "scripts": {
     "dev": "next dev -p 4322",
     "build": "next build",
