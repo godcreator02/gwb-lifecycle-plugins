@@ -43,7 +43,7 @@ description: 升版本号、改依赖版本号、发版时读。
 
 1. 在隔离 home 里验证过这一版（说明书 `gwb-devkit` 的「改一版看一版」）。插件包 peer 里内核包 `@godcreator/gwb-kernel-desktop` 的范围 `^x.y.z` 要包含验证时那个内核，不包含就改成 `^<那个内核的版本号>`
 2. 按第一节升版本号并提交，仓根 git 工作区干净
-3. `devkit.release {"dir":"<仓根>","packages":["plugins/<短名>"]}`。`packages` 必给，相对仓根、按依赖顺序（被依赖的在前），例：`["packages/model","packages/engine","plugins/gwb-bn-core"]`。每个包发到它 `package.json` 的 `publishConfig.registry`，没写就拒发（团队源写 `"publishConfig": { "registry": "https://git.tianshen02.online:28377/api/packages/godcreator/npm/" }`）；发布 token 要在用户级 `~/.npmrc` 里
+3. `devkit.release {"dir":"<仓根>","packages":["plugins/<短名>"]}`。`packages` 必给，相对仓根、按依赖顺序（被依赖的在前），例：`["packages/model","packages/engine","plugins/gwb-bn-core"]`。每个包发到它 `package.json` 的 `publishConfig.registry`，没写就拒发（团队源写 `"publishConfig": { "registry": "https://git.tianshen02.online:28377/api/packages/godcreator/npm/" }`）；发布 token 要在用户级 `~/.npmrc` 里。发到 gitea 的包在 `package.json` 写上 `"repository": { "type": "git", "url": "https://git.tianshen02.online:28377/<owner>/<仓名>.git" }`：gitea 靠它把包关联到仓，仓与包不在同一个 owner 下也能关联
 4. 回执 `ok: false`：发版前检查按包列全了没过的条目，一个包都没发。逐条改完、`pnpm check`、提交，再调第 3 步
 5. 升级日常用的 default：人在插件管理窗格点「全部更新」，或调 `plugin-manager.update {"all":true}`（只升几个给 `{"only":["<包名>"]}`，装指定版本给 `{"specs":{"<包名>":"<版本或 file:路径>"}}`）。新插件第一次装用 `plugin-manager.install {"pkg":"<包名>"}`。插件管理不整页重新加载：经 MCP 升级的，拿到成功回执后调一次 `shell.reload` 让界面换成新代码（细节见说明书 `gwb-plugin-manager`）。升到 gwb-mcp 自己时连接会断，重连后再核对
 
@@ -54,7 +54,7 @@ description: 升版本号、改依赖版本号、发版时读。
 1. **发之前**：在容器根下各仓的 `package.json` 里搜这个包名（仓在哪用 `unit-folder.list` 查），找出 dev 或 peer 里写了它的下游（peer 里写了它的，下次发版会被发版前检查拒；dev 里写了它的，要用新版时再跟），往每个下游仓文档站 feedback 区的 `inbox.mdx` 写一条「要跟 X 0.9」
 2. **发之后**：升 default 之前先让下游跟上，或用 `plugin-manager.update {"only":[…]}` 只升别的。插件的 peer 写了它用到的插件：升级之后 `plugin-manager.list` 的 `unmetPeers` 会报出 peer 范围不包含新版本的下游，`plugin-manager.update` 会把 peer 写了被升级包的插件一起重新加载，但不阻止它们和出了范围的上游一起运行。改了名字（命令名、说明书名、术语）的，再查两遍：
    * 拿旧名字搜 MCP 入口的 instructions、各仓 AGENTS 里讲命令的段落、所有随包说明书的描述
-   * 文档里点名的每个说明书名与命令名，拿 `skill.list` 与 `index` 现查一遍，指向不存在的就改
+   * 文档里点名的每个说明书名与命令名，拿 `skill.list` 与 `index` 再查一遍，指向不存在的就改
 
 **完成判据**：每个下游仓的 `inbox.mdx` 里都有这一条；default 升级后 `plugin-manager.list` 里所有条目 `active` 为 true；旧名字在上面几处搜不到。
 
