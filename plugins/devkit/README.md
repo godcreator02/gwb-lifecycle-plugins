@@ -26,7 +26,7 @@ plugin-manager.install {"pkg":"@godcreator/gwb-devkit"}
 
 这个仓是 pnpm workspace，开发套件在 `plugins/devkit/`，旁边还有一个包：
 
-* `plugins/plugin-manager/`：插件管理 `@godcreator/gwb-plugin-manager`，home 里的一个普通插件，单独发版。它和开发套件一起开发，因为两边互相依赖：`devkit.dev` 装完开发版调 `plugin-manager.remount` 重新加载、用 `plugin-manager.list` 核对结果，`devkit.home.new` 把它装进新 home；插件在 `package.json` 的 peer 里写的内核包 `@godcreator/gwb-kernel-desktop` 的范围，插件管理在 `list` 里拿它和 home 里装的内核比对，`devkit.release` 发版前用同一条规则检查——开发套件的 peer 里写着插件管理，从它的主入口 import 这条规则与找 pnpm 的函数。放在一个仓里，改这些地方一个提交就能改两边
+* `plugins/plugin-manager/`：插件管理 `@godcreator/gwb-plugin-manager`，home 里的一个普通插件，单独发版。它和开发套件一起开发，因为两边互相依赖：`devkit.dev` 把开发版的包文件交给目标 home 的 `plugin-manager.install` / `plugin-manager.update` 装并重新加载、用 `plugin-manager.list` 核对结果，`devkit.home.new` 把它装进新 home；插件在 `package.json` 的 peer 里写的内核包 `@godcreator/gwb-kernel-desktop` 的范围，插件管理在 `list` 里拿它和 home 里装的内核比对，`devkit.release` 发版前用同一条规则检查——开发套件的 peer 里写着插件管理，从它的主入口 import 这条规则与找 pnpm 的函数。放在一个仓里，改这些地方一个提交就能改两边
 
 ## 文档
 

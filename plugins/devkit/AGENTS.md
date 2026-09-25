@@ -12,7 +12,7 @@
 | 页      | 文件                | 讲什么                                                                     |
 | ------ | ----------------- | ----------------------------------------------------------------------- |
 | 入口     | `index.mdx`       | 接缝图：两个包与工作台、内核、别的插件之间有哪几条接缝                                             |
-| 关键设计   | `design.mdx`      | 为什么这么切分：普通插件、写插件只有发布安装验证一条路、开发版只进隔离 home、只按名字定位 home、纯逻辑与真机器分开、两个包为什么同仓 |
+| 关键设计   | `design.mdx`      | 为什么这么切分：普通插件、写插件只有打包安装验证一条路、开发版只进隔离 home、只按名字定位 home、纯逻辑与真机器分开、两个包为什么同仓 |
 | 开发     | `develop.mdx`     | 怎么装与确认、提交前的检查、在隔离 home 里验证、发版、文档站的检查与生成                                 |
 | 接缝     | `seams/`          | 每条接缝交换什么、两边各保证什么                                                        |
 | 开发套件   | `devkit/`         | 首页讲功能、10 条命令、说明书、模板、依赖、不做的事；分页讲建仓、测试 home、改一版看一版、CDP 驱动                 |
@@ -27,12 +27,12 @@
 `plugins/plugin-manager/` 是插件管理 `@godcreator/gwb-plugin-manager`：home 里的一个普通插件，由 `cordis.yml`
 里的一条条目加载，**单独发版**。它和开发套件放在同一个仓里，是因为两边互相依赖的地方多：
 
-* `devkit.dev` 装完开发版调 `plugin-manager.remount` 重新加载，再用 `plugin-manager.list` 取证；`devkit.home.new`
-  在新 home 启动前把内核包、cordis 与插件管理等基础插件装进去
+* `devkit.dev` 把开发版的包文件交给目标 home 的 `plugin-manager.install` / `plugin-manager.update {"specs":{…}}` 装并重新加载，
+  再用 `plugin-manager.list` 取证；`devkit.home.new` 在新 home 启动前把内核包、cordis 与插件管理等基础插件装进去
 * 插件 peer 里内核包 `@godcreator/gwb-kernel-desktop` 的范围两边都用：插件管理在 `list` 里拿它和 home 里装的内核比对，
   `devkit.release` 发版前拒绝没写对的插件包。**比对规则只有一份，在插件管理**：devkit 的 peer 里写着插件管理（`workspace:^`），
-  从它的主入口 import `locatePnpm`、`KERNEL_PACKAGE`、peer 范围的判定与 `tailLines`，不另存副本；删改这几个导出，devkit 跟着改
-* 插件 peer 里写的别的插件两边也都用：插件管理在 `list` 里报 `unmetPeers`、`update-all` 把 peer 写了被升级包、跟着换了目录的插件一起重新加载，
+  从它的主入口 import `locatePnpm`、`KERNEL_PACKAGE`、peer 范围的判定、`tailLines` 与 `devkit.dev` 调的三条命令名，不另存副本；删改这几个导出，devkit 跟着改
+* 插件 peer 里写的别的插件两边也都用：插件管理在 `list` 里报 `unmetPeers`、`update` 把 peer 写了被升级包、跟着换了目录的插件一起重新加载，
   `devkit.release` 发版前拒 peer 里不是插件的包、和源上 latest 不在同一条线的插件
 * **在 home 里启动 pnpm 一律带环境变量 `pnpm_config_auto_install_peers=false`**（devkit 的 `homePnpmPlan`、插件管理的 `spawnPlan`），在插件仓里不带——仓里开发靠自动补装把 peer 里的内核包与插件装进 `node_modules`，带上它 pnpm 会重装并拿掉这些 peer。
   home 里不带的话，pnpm 把插件 peer 里 home 没装的插件自动装进 `.pnpm`，成了没有条目、插件管理不认的包；
@@ -82,7 +82,7 @@ pnpm build          # 只构建 plugins/*，tsc 直接输出 dist/，没有打�
    `prepublishOnly` **别删**，少了它会把上一版的 `dist/` 原样发出去而且不报错（现象是
    「插件加载了但新写的东西全没生效」）
 
-**发版前先在隔离 home 装一遍验完**——`plugin-manager.update-all`（插件管理窗格的「全部更新」按钮）
+**发版前先在隔离 home 装一遍验完**——`plugin-manager.update {"all":true}`（插件管理窗格的「全部更新」按钮）
 直接升级日常 home，跳过了隔离验证；人点那个按钮是最后一步，不是验证的一步。
 
 **发完当场升级 default。** 说明书与命令都随包发布，不升级＝ agent 读到的还是上一版，
@@ -91,13 +91,13 @@ pnpm build          # 只构建 plugins/*，tsc 直接输出 dist/，没有打�
 
 **开发套件的 `files` 白名单五项，一项都不能少**：`dist`、`src`、`template`、`skills`、`bin`。
 
-| 少了哪项       | 什么马上坏掉                                                 |
-| ---------- | ------------------------------------------------------ |
-| `dist`     | 插件根本加载不了                                               |
-| `template` | `devkit.scaffold` 回「包内 template/ 不在」                   |
-| `skills`   | 说明书装不进 home，agent 读不到                                  |
-| `bin`      | `devkit.cdp` 指向一个不存在的文件，`devkit.dev` 的重新加载、刷新、取证三步一起失败 |
-| `src`      | 类型跳转与读源码断掉（不影响运行）                                      |
+| 少了哪项       | 什么马上坏掉                                               |
+| ---------- | ---------------------------------------------------- |
+| `dist`     | 插件根本加载不了                                             |
+| `template` | `devkit.scaffold` 回「包内 template/ 不在」                 |
+| `skills`   | 说明书装不进 home，agent 读不到                                |
+| `bin`      | `devkit.cdp` 指向一个不存在的文件，`devkit.dev` 的装包、刷新、取证三步一起失败 |
+| `src`      | 类型跳转与读源码断掉（不影响运行）                                    |
 
 插件管理的 `files` 是 `dist`、`skills`、`src` 三项。
 
@@ -166,13 +166,14 @@ config——写在 yml 里的那份界面看不见、agent 也不知道有它。
 
 ## 改一版看一版：替换插件的工具不能运行在被替换的进程里
 
-`devkit.dev` **运行在控制台 home 里、操作另一个 home**：磁盘上的部分（构建、发版、装进目标 home）在本进程做，
-页面上的部分（重新加载、刷新、取证）经 CDP 发到目标页面去。替换插件那一步要把条目停用再启用，工具自己运行在目标里
-就会把正在运行的自己停掉。**目标是 `default` 或开发套件自己所在的 home，两种都直接拒**。
+`devkit.dev` **运行在控制台 home 里、操作另一个 home**：磁盘上的部分（构建、打包）在本进程做，
+页面上的部分（经目标 home 的插件管理装包并重新加载、刷新、取证）经 CDP 发到目标页面去。替换插件那一步要把条目停用再启用，
+工具自己运行在目标里就会把正在运行的自己停掉。**目标是 `default` 或开发套件自己所在的 home，两种都直接拒**。
 
-**重新加载一条条目只发一条 `plugin-manager.remount`，不许拆成 `disable` 加 `enable` 两条**：被替换的是
-插件管理自己或命令总线时，第二条没人接收，条目停在 `disabled: true`。回执是 `deferred`
-（插件管理重新加载自己，回执之后才动手）就轮询 `plugin-manager.list` 等它回来，带超时。
+**装包与重新加载交给目标 home 的插件管理，本包不写目标 home 的清单、不在目标 home 里启动 pnpm**：已在 `dependencies`
+里的包合成一条 `plugin-manager.update {"specs":{…}}`，没装的插件逐个 `plugin-manager.install`；不许自己拆成 `remount`、
+`disable`、`enable` 几条——被替换的是插件管理自己或命令总线时，第二条没人接收。回执 `selfDeferred`（插件管理自己的条目
+回执之后才重新加载）就轮询 `plugin-manager.list` 等它回来，带超时；`restartRequired`（装了内核包）就重启目标 home。
 
 **目标 home 的运行时记录（`<home>/runtime.json`）本包只读不写。** 写它的是内核（启动时整份重写 pid /
 startedAt / appDir / cdp）与 mcp 插件（绑定端口之后补上 `mcp` 那个字段）。所以本包里**不许出现写这份
@@ -188,14 +189,13 @@ startedAt / appDir / cdp）与 mcp 插件（绑定端口之后补上 `mcp` 那�
 包括为了省事的内部调用：流程里那七步也是按名字调用驱动的，为的就是每一步都顺带核对一次。
 
 **不许把产物覆盖进 home 的 `node_modules`**：home 里那些文件是硬链接到 pnpm 全局存储的，覆盖写会
-改坏存储里的原件；而且 ESM 模块图按 URL 缓存，不换版本号，主进程里的代码就换不掉。**装上的版本号变了路径才变**
-（pnpm 虚拟存储目录名超长时截成前段加全名哈希，预发布段在哈希里，同一补丁号的两个开发版目录也不同），
-重新加载时才真的重新执行。
+改坏存储里的原件；而且 ESM 模块图按 URL 缓存，不换版本号，主进程里的代码就换不掉。开发版不进团队源：
+在临时目录组装发布内容、`pnpm pack` 到 `<目标 home>\dev-packs\`，插件管理照 `file:./dev-packs/<包文件>` 装。
 
-**装进目标 home 不许用 `pnpm add <包>@<号>`**：home 清单里已有 `^` 声明时 pnpm 写回去的是
-`^<号>`，锁文件里已解析的同一补丁号的旧预发布版会被当成满足、不重新解析，退出码照样是 0。所以是**清单里写死
-准确版本号再 `pnpm install`**，装完读 `node_modules/<包>/package.json` 核对版本，对不上直接
-`ok: false`、不重新加载。
+**包文件的路径每一版都必须不同，已存在就拒**：pnpm 虚拟存储的目录名只看包文件路径、不看内容，新包文件覆盖写到
+同一个路径，`pnpm add` 退出码 0 却装着旧代码，版本号相同所以核对也看不出来。版本号带到秒的时间戳、包文件名用
+`pnpm pack` 的默认写法，就每版一个新路径。**旧的包文件一个都不许删**：home 清单引用着的包文件删了，这个 home 里之后
+任何一次 `pnpm add`（插件管理的 `install`、`update`）都失败。
 
 **最后一步是取证不是刷新**：装上的是这次的版本号、条目真的 ACTIVE、日志新增的部分里没有 error，取不到就回
 `ok: false&#x60;。**`devkit.home.rm` 同一个规矩**：回「已删」之前目录必须真的不在（删除调用不报错不算数）。

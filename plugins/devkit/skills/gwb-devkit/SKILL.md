@@ -31,12 +31,10 @@ description: 写新插件、改插件、在隔离 home 里验证改动时读；�
 ## 改一版看一版
 
 1. 开一个隔离 home：`devkit.home.new {"short":"<插件短名或这次验什么>"}`，回执里是 home 名 `<short>-<yyMMddHHmm>`，自带内核包（运行这条命令的内核那个版本）、`cordis` 与一套基础插件。机器重启后回到已有的 home 用 `devkit.home.open {"name":"<名>"}`。回执里带着现有 home 清单，验完的旧 home 这时用 `devkit.home.rm {"name":"<名>","force":true}` 删掉
-2. `devkit.dev {"home":"<home 名>","dir":"<仓根>","packages":["plugins/<短名>"]}`。`packages` 相对仓根、按依赖顺序（被依赖的在前），workspace 仓必须给
-3. 目标 home 里还没有这个插件的条目时，回执的 note 说没有条目可重新加载。在那个 home 里建条目：
-   `devkit.cdp {"args":["<home 名>","cmd","plugin-manager.install","{\"pkg\":\"<包名>\",\"spec\":\"<回执里的开发版号>\"}"]}`，再调一次第 2 步
-4. 在那个 home 里调新写的命令看回执：`devkit.cdp {"args":["<home 名>","cmd","<命令名>","<JSON 参数>"]}`；界面上的效果按「在页面里取证」做
+2. `devkit.dev {"home":"<home 名>","dir":"<仓根>","packages":["plugins/<短名>"]}`。`packages` 相对仓根，只给插件与内核包的目录（库打包进用它的插件，给了直接拒），workspace 仓必须给。它把每个包打成包文件放进那个 home 的 `dev-packs`，经那个 home 的插件管理装：已装的包走 `plugin-manager.update`，还没装的插件走 `plugin-manager.install` 新建条目，不用自己建
+3. 在那个 home 里调新写的命令看回执：`devkit.cdp {"args":["<home 名>","cmd","<命令名>","<JSON 参数>"]}`；界面上的效果按「在页面里取证」做
 
-**完成判据**：`devkit.dev` 回执 `ok: true`（`evidence.installed` 是这次发的开发版号、条目 `ACTIVE`、日志新增部分没有 error）；`devkit.cdp … cmd plugin-manager.list` 里这个包的条目 `active` 为 true、版本是这次的开发版号；新命令的回执与预期一致。
+**完成判据**：`devkit.dev` 回执 `ok: true`（`evidence.installed` 是这次打包的开发版号、条目 `ACTIVE`、日志新增部分没有 error）；`devkit.cdp … cmd plugin-manager.list` 里这个包的条目 `active` 为 true、版本是这次的开发版号；新命令的回执与预期一致。
 
 ## 在页面里取证
 
@@ -63,7 +61,8 @@ description: 写新插件、改插件、在隔离 home 里验证改动时读；�
 * **说明书跟它描述的代码同仓同提交**，随那个包发布；每个插件只登记自己的说明书
 * **文档站的 README**：第一次在站目录 `pnpm doc:render` 之前，把手写 README 里要留的内容搬进 `content/outputs/readme.mdx`，render 会整份覆盖 README
 * **页面 importmap 里只有 react 的四个包名**，写死在内核包的页面入口 `dist/index.html` 里，别的包加不进名字：别的依赖一律打包进浏览器侧产物；模板的 `build.ts` 从那段 importmap 读外置名单，不手抄
-* **验证的必须是这一版**：改了内核（页面 importmap 里的 react 也由它提供）同样用 `devkit.dev`：`dir` 给内核仓根、`packages` 给 `["apps/desktop"]`，它把内核开发版连同内核要的 `cordis` 装进隔离 home，再重启那个 home（主进程里的内核换不掉），回执 `kernel.version` 就是页面上运行的内核版本；没发过内核开发版的隔离 home 里运行的是 `devkit.home.new` 装进去的内核包
+* **验证的必须是这一版**：改了内核（页面 importmap 里的 react 也由它提供）同样用 `devkit.dev`：`dir` 给内核仓根、`packages` 给 `["apps/desktop"]`，它把内核开发版连同内核要的 `cordis` 装进隔离 home，再重启那个 home（主进程里的内核换不掉），回执 `kernel.version` 就是页面上运行的内核版本；没装过内核开发版的隔离 home 里运行的是 `devkit.home.new` 装进去的内核包
 * **日志**：`%APPDATA%\gwb-kernel\homes\<home 名>\gwb.log`，内核、插件、页面三方的日志都在这一个文件里；哪些条目在运行看 `plugin-manager.list` 的 `active`
-* **一个隔离 home 同一时间只给一个会话用**：`short` 各起各的，不拿别的会话开的 home 来验。`devkit.dev` 运行期间不要在同一个 home 里调插件管理的改动命令（`install`、`uninstall`、`update-all`、`update-kernel`）：`devkit.dev` 自己改那个 home 的 `package.json` 再运行 `pnpm install`，不经插件管理，也没有锁，两个写 home 的 pnpm 同时运行会丢改动、而且都退出码 0
-* **home 里的包只通过安装来换**：`devkit.dev` 每次发新的开发版号再装。覆盖 `node_modules` 里的 `dist/` 会改到 pnpm 全局存储里的同一份文件，node 侧也换不掉
+* **一个隔离 home 同一时间只给一个会话用**：`short` 各起各的，不拿别的会话开的 home 来验。`devkit.dev` 经那个 home 的插件管理装包，同时来的第二个改动回 `BUSY`
+* **home 里的包只通过安装来换**：`devkit.dev` 每次换一个新的开发版号、打一个新的包文件再装。覆盖 `node_modules` 里的 `dist/` 会改到 pnpm 全局存储里的同一份文件，node 侧也换不掉
+* **别动隔离 home 里的 `dev-packs` 目录**：home 清单引用着那里的包文件，删了之后这个 home 里的 `pnpm add`（插件管理的安装与升级）全部失败；覆盖写同一个包文件，pnpm 照样装着旧代码
