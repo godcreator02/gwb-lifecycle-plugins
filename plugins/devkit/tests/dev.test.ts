@@ -346,6 +346,14 @@ describe('一次流程', () => {
     expect(out.data).not.toHaveProperty('update')
   })
 
+  it('已装的包与新插件同一次：先 update 已装的、再 install 新插件——新插件加载时 import 到的别的包（比如新版插件管理）已经是这次装的', async () => {
+    const NEW = '@godcreator/gwb-new'
+    const deps = fake({ files: { [path.resolve(REPO, 'plugins/new', 'package.json')]: pluginManifest(NEW) } })
+    await runDev(input({ packages: [PLUGIN_DIR, 'plugins/new'] }), deps)
+    expect(deps.commandArgs.map((one) => one.command).slice(0, 2)).toEqual(['plugin-manager.update', 'plugin-manager.install'])
+    expect(deps.commandArgs[1]?.args).toMatchObject({ pkg: NEW })
+  })
+
   it('install 没成：带上插件管理的原因，不刷新', async () => {
     const deps = fake({
       files: { [path.resolve(HOME, 'package.json')]: homeManifest({}) },

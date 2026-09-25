@@ -38,7 +38,7 @@ description: devkit.dev 一条命令把工作区的改动换进另一个 home �
 
 {/* ref file="../plugins/devkit/src/dev.ts" lines="11-12" */}
 
-**装包与重新加载都交给目标 home 的插件管理。** 开发套件只读目标 home 的 `package.json`：已在 `dependencies` 里的包合成一条 `plugin-manager.update {"specs":{"<包>":"file:./dev-packs/<包文件>"}}`，不在的插件逐个 `plugin-manager.install {"pkg","spec"}`（新建一条条目），先 install 再 update。写法是相对 home 的路径，清单里不写 home 所在的位置。内核包不在目标 home 里直接拒：内核没装进这个 home，开发版的内核包换不进去。
+**装包与重新加载都交给目标 home 的插件管理。** 开发套件只读目标 home 的 `package.json`：已在 `dependencies` 里的包合成一条 `plugin-manager.update {"specs":{"<包>":"file:./dev-packs/<包文件>"}}`，不在的插件逐个 `plugin-manager.install {"pkg","spec"}`（新建一条条目），先 update 再 install：新插件加载时 import 到的别的包（比如这次一起改的插件管理）要已经是这次装的，反过来它会先对着旧版加载失败一次。写法是相对 home 的路径，清单里不写 home 所在的位置。内核包不在目标 home 里直接拒：内核没装进这个 home，开发版的内核包换不进去。
 
 {/* ref file="../plugins/devkit/src/dev.ts" lines="214-235" */}
 
@@ -130,7 +130,7 @@ description: devkit.dev 一条命令把工作区的改动换进另一个 home �
 
 **在哪**：纯逻辑在 `src/dev.ts`，真实的机器操作在 `src/node-dev-deps.ts`（前台运行命令与超时终止整棵进程树在 `src/node-home-deps.ts` 与 `src/node-process-tree.ts`），页面上的操作在 `bin/cdp.mjs`（见 [CDP 驱动](/docs/devkit/cdp)），命令登记在 `src/index.ts`。
 
-**先读** `runDev`：六步的顺序在这一个函数里，长一点的步骤各是一个函数（`probeTargetHome`、`planDevPackages`、`packDevPackages`、`installNewPlugins`、`updateInstalledPackages`、`restartForKernel`、`collect`），位置不显然的那几步旁边有一句注释说明为什么在这里。
+**先读** `runDev`：六步的顺序在这一个函数里，长一点的步骤各是一个函数（`probeTargetHome`、`planDevPackages`、`packDevPackages`、`updateInstalledPackages`、`installNewPlugins`、`restartForKernel`、`collect`），位置不显然的那几步旁边有一句注释说明为什么在这里。
 
 **读序**：`guardHome`（拒什么）→ `runDev`（顺序）→ `planDevPackages` / `pluginManagerCallsFor`（收哪些包、各经哪条命令装）→ `updateInstalledPackages`（怎么接插件管理的回执）→ `collect`（拿什么当证据）→ `DevDeps`（哪些东西是注入的）。真实机器操作那一层最后读，它只执行、不判断。
 

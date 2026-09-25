@@ -34,7 +34,7 @@ const STEPS: { title: string; detail: string; lit: Part[]; flows: Flow[]; back?:
   },
   {
     title: '第 4 步：经插件管理装',
-    detail: '先记下 gwb.log 的长度当基线。已在 home 的 dependencies 里的包合成一条 plugin-manager.update {specs}，写法是 file:./dev-packs/<包文件>；不在的插件逐个 plugin-manager.install，新建一条条目。',
+    detail: '先记下 gwb.log 的长度当基线。已在 home 的 dependencies 里的包合成一条 plugin-manager.update {specs}，写法是 file:./dev-packs/<包文件>；然后不在的插件逐个 plugin-manager.install，新建一条条目（先换已装的，新插件加载时 import 到的才是这次装的）。',
     lit: ['install'], flows: ['packs-install'],
   },
   {

@@ -566,7 +566,7 @@ async function reloadPage(home: string, waitFor: string | undefined, deps: DevDe
 }
 
 /**
- * 问目标页面 → 仓根构建 → 打包进目标 home 的 dev-packs → 经目标 home 的插件管理装（新插件 install、已装的 update）
+ * 问目标页面 → 仓根构建 → 打包进目标 home 的 dev-packs → 经目标 home 的插件管理装（先 update 已装的、再 install 新插件）
  * → 整页刷新 → 取证。任何一步失败当场停。装了内核包时整页刷新换成重启目标 home
  */
 export async function runDev(input: DevInput, deps: DevDeps): Promise<DevOutcome> {
@@ -591,9 +591,8 @@ export async function runDev(input: DevInput, deps: DevDeps): Promise<DevOutcome
   // 日志基线取在安装之前：从这一刻起新增的每一行都是这次引起的
   const logFile = path.join(target.home, LOG_FILE)
   const baseline = deps.size(logFile)
-  const installFailure = await installNewPlugins(input.home, routed.calls.installs, shipped, deps)
-  if (installFailure !== undefined) return installFailure
 
+  // 先换已装的、再装新插件：新插件加载时 import 到的别的包（比如这次一起改的插件管理）要已经是这次装的，反过来它会先对着旧版加载失败一次
   const kernelShipped = shipped.find((one) => one.pkg === KERNEL_PACKAGE)
   let update: unknown
   let kernel: KernelRestart | undefined
@@ -603,6 +602,8 @@ export async function runDev(input: DevInput, deps: DevDeps): Promise<DevOutcome
     update = updated.update
     kernel = updated.kernel
   }
+  const installFailure = await installNewPlugins(input.home, routed.calls.installs, shipped, deps)
+  if (installFailure !== undefined) return installFailure
   let reload: unknown
   if (kernel === undefined) {
     const reloaded = await reloadPage(input.home, input.waitFor, deps)
