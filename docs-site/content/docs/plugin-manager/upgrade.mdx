@@ -15,7 +15,7 @@ description: outdated 查过期包；update-all 一次 pnpm add 精确版本，�
 
 **怎么做**：退出码 1 表示「有过期包」，是结果不是失败；找不到 pnpm、输出解析不了都转成 `ok: false` 的回执，界面上只显示一句提示。它不写文件，不经过 BUSY 检查，和正在运行的安装、升级同时运行也不影响它们（见[包：只经 applyToHome](/docs/plugin-manager/home#包只经-applytohome)）。
 
-{/* ref file="../plugins/plugin-manager/src/index.ts" lines="495-512" */}
+{/* ref file="../plugins/plugin-manager/src/index.ts" lines="492-512" */}
 
 **守住它的测试**：
 
@@ -44,7 +44,7 @@ description: outdated 查过期包；update-all 一次 pnpm add 精确版本，�
 
 **是什么**：升哪些包、它们的哪些条目要重新加载、按什么顺序，由一个纯函数在 `pnpm add` 之前算出，单独测。跟着重新加载的别的包要装完才知道，不在计划里，见下一节。
 
-{/* ref file="../plugins/plugin-manager/src/update-all.ts" lines="42-51" */}
+{/* ref file="../plugins/plugin-manager/src/update-all.ts" lines="35-42" */}
 
 - **精确版本**：用 `outdated` 查到的版本号，不用 `@latest` 标签——两次查询之间又发了一版，也不会装成回执上没写的那个
 - **每条条目各自重新加载**：被别的插件 inject 的插件重新加载时，cordis 会把依赖它的插件停用再启动，但那是重新运行内存里的旧代码，磁盘上的新版本没有加载，所以不能指望这种连带
@@ -88,11 +88,11 @@ description: outdated 查过期包；update-all 一次 pnpm add 精确版本，�
 
 {/* ref file="../plugins/plugin-manager/src/home.ts" lines="51-63" */}
 
-{/* ref file="../plugins/plugin-manager/src/index.ts" lines="538-559" */}
+{/* ref file="../plugins/plugin-manager/src/index.ts" lines="536-557" */}
 
-{/* ref file="../plugins/plugin-manager/src/update-all.ts" lines="102-119" */}
+{/* ref file="../plugins/plugin-manager/src/update-all.ts" lines="95-112" */}
 
-{/* ref file="../plugins/plugin-manager/src/index.ts" lines="113-118" */}
+{/* ref file="../plugins/plugin-manager/src/index.ts" lines="112-117" */}
 
 **守住它的测试**：
 
@@ -121,13 +121,13 @@ description: outdated 查过期包；update-all 一次 pnpm add 精确版本，�
 
 **插件管理自己在回执之后**：升级的包或跟着重新加载的包里有插件管理自己时，它那条条目在回执发出之后才重新加载，回执里 `selfDeferred` 是 `true`，它的条目 `action` 是 `deferred`。理由与[重新加载插件管理自己](/docs/plugin-manager/remount#目标是插件管理自己先回执后重新加载)相同。
 
-{/* ref file="../plugins/plugin-manager/src/index.ts" lines="572-582" */}
+{/* ref file="../plugins/plugin-manager/src/index.ts" lines="570-580" */}
 
 {/* has file="../plugins/plugin-manager/tests/commands.test.ts" text="升级清单里有插件管理自己：自己那条先回 deferred，回执之后才重新加载，再整页重新加载" */}
 
 **整页重新加载**：经命令插件调用外壳的 `shell.reload`，按命令名查找，不 import 外壳。回执的 `reload`：`done` 已经重新加载；`deferred` 等插件管理自己重新加载完再执行；`unavailable` 命令表里没有它或它失败了，界面要手动刷新，原因在 `note` 里。
 
-{/* ref file="../plugins/plugin-manager/src/index.ts" lines="120-143" */}
+{/* ref file="../plugins/plugin-manager/src/index.ts" lines="119-140" */}
 
 **升到 MCP 入口自己**：`gwb-mcp` 重新加载时，进行中的 MCP 请求会中断，agent 要重连一次，再用 `plugin-manager.list` 核对版本与 `active`。
 
@@ -147,7 +147,7 @@ description: outdated 查过期包；update-all 一次 pnpm add 精确版本，�
 
 **失败时**：内核包装不上，什么都没改；内核包装上了、而 peer 里的 `cordis` 不是精确版本号或装 `cordis` 失败，回执 `ok: false`，`error` 说明内核包已经是哪个版本、`cordis` 没对齐、先别重启——这时重启，新内核会运行在没对齐的 `cordis` 上。装 `cordis` 失败时回执带 `kernel` 与 pnpm 输出的最后几行。
 
-{/* ref file="../plugins/plugin-manager/src/index.ts" lines="585-638" */}
+{/* ref file="../plugins/plugin-manager/src/index.ts" lines="583-636" */}
 
 **范围不包含新内核的插件**：回执的 `pluginsOutsideRange` 列出 home 里 `keywords` 含 `gwb-plugin`、peer 里内核包的范围不包含新内核（或没写范围）的插件，按包名排。直接用 `list` 算 `kernelUntested` 的那个函数判断（见[内核兼容性](/docs/plugin-manager/kernel-compat)），同样只报告：重启后它们照常加载，要不要先升它们由人决定。
 

@@ -34,7 +34,7 @@ description: 插件在 peerDependencies 里写它用到的别的插件的 ^x.y.z
 
 **「装着的版本」从哪读**：home 的 `node_modules/<包名>/package.json` 在，就算装了，版本取它的 `version`。`list` 本来就读 home 的 dependencies 与条目里每个包的清单；插件 peer 里点名了别的包时再补读一次。不合包名规则的键不拿去拼路径，按没装报。
 
-{/* ref file="../plugins/plugin-manager/src/index.ts" lines="428-462" */}
+{/* ref file="../plugins/plugin-manager/src/index.ts" lines="425-459" */}
 
 **守住它的测试**：
 
