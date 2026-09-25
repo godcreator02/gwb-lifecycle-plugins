@@ -15,21 +15,23 @@ description: 连接 devkit、插件管理与工作台的四个服务：命令总
 
 **devkit 只把 `gwbCommands` 写进 `export const inject`**，其余三个都用 `ctx.inject([...], fn)` 局部注入：
 
-{/* ref file="../plugins/devkit/src/index.ts" lines="43-44" */}
+{/* has file="../plugins/devkit/src/index.ts" text="export const inject = ['gwbCommands']" */}
 
 devkit 对命令总线用了两个方法：`register(定义, 处理函数)` 登记命令，定义带 `name`、`plugin`（包名）、`description`、`usage`，撤销由命令总线登记在调用方的 effect 上，devkit 卸载时自动撤销；`list()` 只在就绪日志里用，列出此刻总线上本包的命令（见下面「约定」末尾）。devkit 不调别的插件的命令。
 
-{/* ref file="../plugins/devkit/src/index.ts" lines="269-277" */}
+{/* has file="../plugins/devkit/src/index.ts" text="plugin: '@godcreator/gwb-devkit'," */}
 
 `gwbNodeCli` 只用来登记一条命令行工具 `devkit.cdp`，`entry` 是包里 `bin/cdp.mjs` 的绝对路径；这条登记同样由 `gwbNodeCli` 自己放进调用方的 effect：
 
-{/* ref file="../plugins/devkit/src/index.ts" lines="287-302" */}
+{/* has file="../plugins/devkit/src/index.ts" text="scoped.gwbNodeCli.register({" */}
+
+{/* has file="../plugins/devkit/src/index.ts" text="entry: CDP_ENTRY," */}
 
 `gwbSkills` 登记包内 `skills/` 目录，`gwbShell` 只调一次 `describeSelf` 报一个显示名，devkit 没有窗格：
 
-{/* ref file="../plugins/devkit/src/index.ts" lines="552-560" */}
+{/* has file="../plugins/devkit/src/index.ts" text="scoped.effect(() => scoped.gwbSkills.register(new URL('../skills/', import.meta.url)))" */}
 
-{/* ref file="../plugins/devkit/src/index.ts" lines="280-285" */}
+{/* has file="../plugins/devkit/src/index.ts" text="scoped.gwbShell.describeSelf({ title: '开发套件', icon: 'wrench' })" */}
 
 devkit 源码里没有注入 `gwbSettings`，它没有设置项。
 
@@ -41,7 +43,9 @@ devkit 源码里没有注入 `gwbSettings`，它没有设置项。
 
 这些服务的类型来自各服务包自带的 `declare module 'cordis'`：两个插件对这些服务包都只做 `import type`（devkit 另从插件管理的主入口按值 import 几个函数，见[插件之间怎么交互](/docs/rules/interaction)），服务包写在 peer 里（必需的命令总线直接写，局部注入可选使用的标 `optional`，见[用到的插件写 peer](/docs/rules/plugin-peers)），运行时不 import：
 
-{/* ref file="../plugins/devkit/src/index.ts" lines="5-9" */}
+{/* has file="../plugins/devkit/src/index.ts" text="import type {} from '@godcreator/gwb-commands'" */}
+
+每个服务的 peer 写法、缺了会怎样，逐个列在[插件之间怎么连](/docs/wiring)。
 
 ## 约定
 
@@ -59,7 +63,7 @@ devkit 保证：
 
 devkit 的就绪日志从 `list()` 里筛出 `plugin` 等于包名 `@godcreator/gwb-devkit` 的命令，与登记命令时写的 `plugin` 相同：
 
-{/* ref file="../plugins/devkit/src/index.ts" lines="562-571" */}
+{/* has file="../plugins/devkit/src/index.ts" text=".filter((entry) => entry.plugin === '@godcreator/gwb-devkit')" */}
 
 ## 不负责的事
 

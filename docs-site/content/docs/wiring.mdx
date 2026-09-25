@@ -1,0 +1,236 @@
+---
+title: 插件之间怎么连
+description: 开发套件与插件管理各提供什么服务、命令与说明书，注入了谁、是必需还是局部注入、peer 怎么写，按名字调用了别家哪些命令，直接读写了哪些文件与别的约定通道
+---
+
+# 插件之间怎么连
+
+**本页回答**：本仓插件提供哪些服务、命令与事件；注入了哪些服务、是必需还是局部注入、peer 怎么写；按名字调用了别家哪些命令、用了哪些约定通道。
+
+每张表下面是钉码，按内容钉在服务名、`inject` 写法、peer 条目、命令名、文件名这些字面量上：源码里的字面量改了，这一页就报出来。这一页的格式与由谁查见规矩页[插件之间怎么连写成一页](/docs/rules/wiring)；`devkit.release` 发版前查源码注入与提供的每个服务名都在这一页里出现。
+
+peer 的写法照[用到的插件写 peer](/docs/rules/plugin-peers)：跨仓的插件写 `^<源上 latest>`，同仓的插件写 `workspace:^`、发版时换成 `^<版本号>`；只在 `ctx.inject([...], fn)` 里用、缺了只少一部分功能的标 `optional: true`。两个包都不按值 import `cordis`，peer 里没有它。
+
+## @godcreator/gwb-devkit
+
+### 提供
+
+| 类别 | 名字 | 说明 |
+| --- | --- | --- |
+| 命令 | `devkit.scaffold`、`devkit.scaffold.plugin` | 建仓、往已有的 workspace 仓加插件包，见[建仓与加插件](/docs/devkit/scaffold) |
+| 命令 | `devkit.home.new`、`devkit.home.open`、`devkit.home.list`、`devkit.home.rm` | 隔离 home 的开、重开、列出、删除，见[测试 home](/docs/devkit/home) |
+| 命令 | `devkit.dev` | 改一版看一版，见[改一版看一版](/docs/devkit/dev) |
+| 命令 | `devkit.release` | 发正式版，见[发正式版](/docs/devkit/release) |
+| 命令 | `devkit.cdp` | 经 `gwbNodeCli` 登记的命令行工具 `bin/cdp.mjs`，见 [CDP 驱动](/docs/devkit/cdp) |
+| 说明书 | `gwb-devkit`、`gwb-release` | 包根 `skills/` 下，经 `gwbSkills` 登记 |
+| 显示名 | 「开发套件」，图标 `wrench` | 经 `gwbShell.describeSelf` 报，没有窗格 |
+| 服务、事件 | 无 | |
+
+{/* has file="../plugins/devkit/src/index.ts" text="name: 'devkit.scaffold'," */}
+
+{/* has file="../plugins/devkit/src/index.ts" text="name: 'devkit.scaffold.plugin'," */}
+
+{/* has file="../plugins/devkit/src/index.ts" text="name: 'devkit.home.new'," */}
+
+{/* has file="../plugins/devkit/src/index.ts" text="name: 'devkit.home.open'," */}
+
+{/* has file="../plugins/devkit/src/index.ts" text="name: 'devkit.home.list'," */}
+
+{/* has file="../plugins/devkit/src/index.ts" text="name: 'devkit.home.rm'," */}
+
+{/* has file="../plugins/devkit/src/index.ts" text="name: 'devkit.dev'," */}
+
+{/* has file="../plugins/devkit/src/index.ts" text="name: 'devkit.release'," */}
+
+{/* has file="../plugins/devkit/src/index.ts" text="name: 'devkit.cdp'," */}
+
+{/* has file="../plugins/devkit/src/index.ts" text="scoped.gwbShell.describeSelf({ title: '开发套件', icon: 'wrench' })" */}
+
+### 注入
+
+| 服务 | 提供方包 | 必需 / 局部注入 | peer 写法 | 用来做什么 | 缺了会怎样 |
+| --- | --- | --- | --- | --- | --- |
+| `gwbCommands` | `@godcreator/gwb-commands` | 必需（`export const inject`） | `^0.5.0` | 登记除 `devkit.cdp` 外的 8 条命令；就绪日志用 `list()` 列出此刻总线上本包的命令 | 插件不加载：cordis 等到这个服务出现才调用 `apply`；`apply` 里取不到它就抛错 |
+| `gwbShell` | `@godcreator/gwb-shell` | 局部注入 | `^0.14.0`，`optional: true` | `describeSelf` 报显示名 | 插件清单里没有显示名，别的不受影响 |
+| `gwbNodeCli` | `@godcreator/gwb-node-cli` | 局部注入 | `^0.4.7`，`optional: true` | 把 `bin/cdp.mjs` 登记成 `devkit.cdp` | 没有 `devkit.cdp` 命令；`devkit.dev` 不受影响，它自己启动 `bin/cdp.mjs` 子进程 |
+| `gwbSkills` | `@godcreator/gwb-skills` | 局部注入 | `^0.4.5`，`optional: true` | 登记 `skills/` 下两份说明书 | agent 读不到这两份说明书，命令照常 |
+| `gwbKernel` | 内核包 `@godcreator/gwb-kernel-desktop` | 不写进 `inject`，用 `requireKernel` 取 | `^0.7.0` | `version`：`devkit.home.new` 装进新 home 的内核包版本、建仓时模板 peer 里内核包的下限；`dataDir`：本插件自己所在的 home，`devkit.dev` 拒绝以它为目标，建仓从它的 `node_modules` 读命令总线与外壳的版本 | 用到它的命令抛错「ctx.gwbKernel 不在」 |
+
+**外壳在 peer 里是可选的，但建仓要读它装着的版本**：`devkit.scaffold` 与 `devkit.scaffold.plugin` 直接读本 home 的 `node_modules/@godcreator/gwb-shell/package.json`（命令总线同理）取版本号写进模板 peer，不经 `gwbShell` 服务；home 里没装外壳时这两条命令报错、什么都不写，两条命令的 `usage` 里写着这个前提。
+
+peer 里另有插件管理 `@godcreator/gwb-plugin-manager`（`workspace:^`，必需）：devkit 按值 import 它主入口的几样，不注入它的服务，见下一节。
+
+{/* has file="../plugins/devkit/src/index.ts" text="export const inject = ['gwbCommands']" */}
+
+{/* has file="../plugins/devkit/src/index.ts" text="ctx.inject(['gwbShell'], (scoped) => {" */}
+
+{/* has file="../plugins/devkit/src/index.ts" text="ctx.inject(['gwbNodeCli'], (scoped) => {" */}
+
+{/* has file="../plugins/devkit/src/index.ts" text="ctx.inject(['gwbSkills'], (scoped) => {" */}
+
+{/* has file="../plugins/devkit/src/index.ts" text="scoped.gwbSkills.register(new URL('../skills/', import.meta.url))" */}
+
+{/* has file="../plugins/devkit/src/index.ts" text="kernelVersion: requireKernel(ctx).version" */}
+
+{/* has file="../plugins/devkit/src/index.ts" text="ownHome: requireKernel(ctx).dataDir" */}
+
+{/* has file="../plugins/devkit/src/scaffold.ts" text="shell: installedVersionInHome(homeDir, SHELL_PACKAGE)," */}
+
+{/* has file="../plugins/devkit/src/index.ts" text="外壳在开发套件的 peer 里是可选的，home 里没装外壳（或命令总线）时这条命令报错、什么都不写" */}
+
+{/* has file="../plugins/devkit/package.json" text="&quot;@godcreator/gwb-kernel-desktop&quot;: &quot;^0.7.0&quot;" */}
+
+{/* has file="../plugins/devkit/package.json" text="&quot;@godcreator/gwb-commands&quot;: &quot;^0.5.0&quot;" */}
+
+{/* has file="../plugins/devkit/package.json" text="&quot;@godcreator/gwb-plugin-manager&quot;: &quot;workspace:^&quot;" */}
+
+{/* has file="../plugins/devkit/package.json" text="&quot;@godcreator/gwb-node-cli&quot;: { &quot;optional&quot;: true }" */}
+
+{/* has file="../plugins/devkit/package.json" text="&quot;@godcreator/gwb-shell&quot;: { &quot;optional&quot;: true }" */}
+
+{/* has file="../plugins/devkit/package.json" text="&quot;@godcreator/gwb-skills&quot;: { &quot;optional&quot;: true }" */}
+
+### 按名字调用与约定通道
+
+| 通道 | 对方 | 名字 | 用来做什么 |
+| --- | --- | --- | --- |
+| 按值 import 主入口（[插件之间怎么交互](/docs/rules/interaction)明文允许的例外） | `@godcreator/gwb-plugin-manager` | `locatePnpm`、`homePnpmEnv`、`KERNEL_PACKAGE`、`isCaretRange`、`tailLines`、`LIST_COMMAND`、`INSTALL_COMMAND`、`UPDATE_COMMAND` | 找 pnpm、在 home 里启动 pnpm 的环境、内核包名与 peer 范围的判定、取输出最后几行、`devkit.dev` 调的三条命令名；规则只有插件管理那一份。缺了模块 import 不到，插件加载失败。见接缝页 [devkit 调插件管理](/docs/seams/plugin-manager-calls) |
+| 经 CDP 在目标 home 的页面里调命令 | 目标 home 的插件管理 | `plugin-manager.update`（带 `specs`）、`plugin-manager.install`、`plugin-manager.list` | `devkit.dev` 装包、新建条目、重新加载、等插件管理自己的条目回来、取证；没成回 `ok: false`，带插件管理回执里的原因 |
+| 经 CDP 在目标 home 的页面里调命令 | 目标 home 的外壳 | `shell.env` | 装了内核包、重启目标 home 之后轮询 `versions.kernel`，直到是这次打包的版本号 |
+| 读文件 | 各 home 的 `runtime.json`（内核与 MCP 入口插件写） | `<home>/runtime.json` | 按名字查 pid 与调试端口；只读不写 |
+| 读文件 | 目标 home 的日志 | `<home>/gwb.log` | `devkit.dev` 取证：新增部分里没有 error |
+| 读文件 | 目标 home 的清单 | `<home>/package.json` | `devkit.dev` 分出已装（走 `update`）与没装（走 `install`）的包；只读 |
+| 写文件 | 目标 home 的 `dev-packs/` | `<home>/dev-packs/<包文件>` | 开发版的包文件；每版一个新路径，旧的不删 |
+| 写文件与安装 | 新 home | `<home>/cordis.yml`、`pnpm add`（内核包、`cordis`、七个基础插件） | `devkit.home.new` 在新 home 启动之前写好基础插件的条目、装包（那时插件管理还没运行） |
+| 读文件 | 本 home 装着的命令总线与外壳 | `<本 home>/node_modules/@godcreator/gwb-commands/package.json`、`.../gwb-shell/package.json` | 建仓与加插件时模板 peer 的版本号；没装就报错 |
+| 环境变量与命令行参数 | 宿主安装版应用 | `GWB_HOME=<home 名>`、`--remote-debugging-port=<端口>` | `devkit.home.new` / `open` 再启动一次宿主，指定 home 与调试端口 |
+| 读被发版的包 | 包目录 `node_modules` 里装好的内核包与外壳 | 内核包的 `dist/index.html`（页面 importmap）、外壳的 `theme.reference.css`（主题令牌） | 发版前检查的浏览器侧 import 名单与样式检查的色名 |
+| 读被发版的仓 | 仓的文档站 | `docs-site/content/docs/wiring.mdx` | 发版前检查：插件源码注入与提供的服务名都在这一页里出现 |
+| 子进程 | pnpm、git、`tasklist` / `netstat` / `taskkill` | | 构建、打包、发布、`pnpm view` 查源；查工作区干不干净；查进程与端口、终止进程树 |
+
+{/* has file="../plugins/devkit/src/dev.ts" text="import { INSTALL_COMMAND, KERNEL_PACKAGE, LIST_COMMAND, UPDATE_COMMAND } from '@godcreator/gwb-plugin-manager'" */}
+
+{/* has file="../plugins/devkit/src/home.ts" text="import { KERNEL_PACKAGE, homePnpmEnv } from '@godcreator/gwb-plugin-manager'" */}
+
+{/* has file="../plugins/devkit/src/index.ts" text="import { locatePnpm } from '@godcreator/gwb-plugin-manager'" */}
+
+{/* has file="../plugins/devkit/src/release.ts" text="import { KERNEL_PACKAGE, isCaretRange } from '@godcreator/gwb-plugin-manager'" */}
+
+{/* has file="../plugins/devkit/src/node-dev-deps.ts" text="import { tailLines } from '@godcreator/gwb-plugin-manager'" */}
+
+{/* has file="../plugins/devkit/src/dev.ts" text="runCommandOnPage(home, UPDATE_COMMAND, PLUGIN_MANAGER_TIMEOUT_MS, deps, { specs })" */}
+
+{/* has file="../plugins/devkit/src/dev.ts" text="runCommandOnPage(home, INSTALL_COMMAND, PLUGIN_MANAGER_TIMEOUT_MS, deps, one)" */}
+
+{/* has file="../plugins/devkit/src/dev.ts" text="export const SHELL_ENV_COMMAND = 'shell.env'" */}
+
+{/* has file="../plugins/devkit/src/home.ts" text="export const RECORD_FILE = 'runtime.json'" */}
+
+{/* has file="../plugins/devkit/src/dev.ts" text="export const LOG_FILE = 'gwb.log'" */}
+
+{/* has file="../plugins/devkit/src/dev.ts" text="export const HOME_MANIFEST = 'package.json'" */}
+
+{/* has file="../plugins/devkit/src/dev.ts" text="export const DEV_PACKS_DIR = 'dev-packs'" */}
+
+{/* has file="../plugins/devkit/src/home.ts" text="deps.fs.writeText(path.join(home, 'cordis.yml'), baseYaml())" */}
+
+{/* has file="../plugins/devkit/src/home.ts" text="childEnv.GWB_HOME = name" */}
+
+{/* has file="../plugins/devkit/src/artifact-check.ts" text="path.join(pkgDir, 'node_modules', ...KERNEL_PACKAGE.split('/'), 'dist', 'index.html')" */}
+
+{/* has file="../plugins/devkit/src/style-check.ts" text="const SHELL_THEME_REFERENCE = './theme.reference.css'" */}
+
+{/* has file="../plugins/devkit/src/wiring-check.ts" text="export const WIRING_PAGE = 'docs-site/content/docs/wiring.mdx'" */}
+
+## @godcreator/gwb-plugin-manager
+
+### 提供
+
+| 类别 | 名字 | 说明 |
+| --- | --- | --- |
+| 服务 | `gwbPluginManager` | `ctx.provide` 提供的空对象，只表示「插件管理装着」：别的插件注入它，只为跟着插件管理一起加载、卸载。不继承 cordis 的 `Service`，所以运行时不 import `cordis` |
+| 命令 | `plugin-manager.list`、`install`、`add-entry`、`remove-entry`、`enable`、`disable`、`outdated`、`update`、`uninstall`、`search` | 见[插件管理](/docs/plugin-manager) |
+| 主入口导出 | `locatePnpm`、`isCaretRange`、`KERNEL_PACKAGE`、`homePnpmEnv`、`tailLines`、`LIST_COMMAND`、`INSTALL_COMMAND`、`UPDATE_COMMAND` | 给 devkit 按值 import，规则只有这一份 |
+| 说明书 | `gwb-plugin-manager` | 包根 `skills/` 下，经 `gwbSkills` 登记 |
+| 事件 | 无 | |
+
+{/* has file="../plugins/plugin-manager/src/index.ts" text="ctx.effect(() => ctx.provide('gwbPluginManager', PRESENCE))" */}
+
+{/* has file="../plugins/plugin-manager/src/index.ts" text="export type PluginManagerPresence = Record<string, never>" */}
+
+{/* has file="../plugins/plugin-manager/src/index.ts" text="gwbPluginManager: PluginManagerPresence" */}
+
+{/* has file="../plugins/plugin-manager/src/index.ts" text="export const LIST_COMMAND = 'plugin-manager.list'" */}
+
+{/* has file="../plugins/plugin-manager/src/index.ts" text="export const INSTALL_COMMAND = 'plugin-manager.install'" */}
+
+{/* has file="../plugins/plugin-manager/src/index.ts" text="export const UPDATE_COMMAND = 'plugin-manager.update'" */}
+
+{/* has file="../plugins/plugin-manager/src/index.ts" text="const ADD_ENTRY_COMMAND = 'plugin-manager.add-entry'" */}
+
+{/* has file="../plugins/plugin-manager/src/index.ts" text="const REMOVE_ENTRY_COMMAND = 'plugin-manager.remove-entry'" */}
+
+{/* has file="../plugins/plugin-manager/src/index.ts" text="const ENABLE_COMMAND = 'plugin-manager.enable'" */}
+
+{/* has file="../plugins/plugin-manager/src/index.ts" text="const DISABLE_COMMAND = 'plugin-manager.disable'" */}
+
+{/* has file="../plugins/plugin-manager/src/index.ts" text="const OUTDATED_COMMAND = 'plugin-manager.outdated'" */}
+
+{/* has file="../plugins/plugin-manager/src/index.ts" text="const UNINSTALL_COMMAND = 'plugin-manager.uninstall'" */}
+
+{/* has file="../plugins/plugin-manager/src/index.ts" text="const SEARCH_COMMAND = 'plugin-manager.search'" */}
+
+{/* has file="../plugins/plugin-manager/src/index.ts" text="export { locatePnpm } from './pnpm-location.js'" */}
+
+{/* has file="../plugins/plugin-manager/src/index.ts" text="export { isCaretRange, KERNEL_PACKAGE } from './kernel-compat.js'" */}
+
+{/* has file="../plugins/plugin-manager/src/index.ts" text="export { homePnpmEnv, tailLines } from './pnpm.js'" */}
+
+### 注入
+
+| 服务 | 提供方包 | 必需 / 局部注入 | peer 写法 | 用来做什么 | 缺了会怎样 |
+| --- | --- | --- | --- | --- | --- |
+| `gwbCommands` | `@godcreator/gwb-commands` | 局部注入 | `^0.5.1`，**必需**（不标 `optional`） | 登记 10 条命令 | 命令登记不上，插件管理没有任何对外接口；服务 `gwbPluginManager` 照常提供。局部注入是为了缺了命令总线时插件管理照样加载，peer 写必需是因为缺了它一样功能都没有——[用到的插件写 peer](/docs/rules/plugin-peers)允许的写法 |
+| `gwbSkills` | `@godcreator/gwb-skills` | 局部注入 | `^0.4.5`，`optional: true` | 登记自带的说明书 | 没有说明书，插件管理照常加载 |
+| `gwbKernel` | 内核包 `@godcreator/gwb-kernel-desktop` | 不写进 `inject`，用 `requireKernel` 取 | `^0.7.0` | `dataDir`：home 目录，pnpm 的工作目录、`package.json` 所在的目录；`version`：`list` 拿它和各插件 peer 里内核包的范围比 | 构造时报错「ctx.gwbKernel 不在」，插件管理不加载 |
+
+插件管理不写 `export const inject`。数据插件、设置插件不在 peer 里，插件管理不用它们。
+
+{/* has file="../plugins/plugin-manager/src/index.ts" text="this.ctx.inject(['gwbCommands'], (ctx) => {" */}
+
+{/* has file="../plugins/plugin-manager/src/index.ts" text="this.ctx.inject(['gwbSkills'], (ctx) => {" */}
+
+{/* has file="../plugins/plugin-manager/src/index.ts" text="const kernel = requireKernel(ctx)" */}
+
+{/* has file="../plugins/plugin-manager/package.json" text="&quot;@godcreator/gwb-kernel-desktop&quot;: &quot;^0.7.0&quot;" */}
+
+{/* has file="../plugins/plugin-manager/package.json" text="&quot;@godcreator/gwb-commands&quot;: &quot;^0.5.1&quot;" */}
+
+{/* has file="../plugins/plugin-manager/package.json" text="&quot;@godcreator/gwb-skills&quot;: { &quot;optional&quot;: true }" */}
+
+### 按名字调用与约定通道
+
+插件管理不按名字调别家的命令，也不推事件；它直接碰的是 loader、cordis 的内部状态与 home 里的文件。
+
+| 通道 | 对方 | 名字 | 用来做什么 |
+| --- | --- | --- | --- |
+| loader 的条目树 | `@cordisjs/plugin-loader`（内核加载） | `ctx.fiber.entry.parent.tree` 的 `store`、`create`、`update`、`remove` | 读条目、加删条目、启用停用、重新加载，改动由 loader 写回 `cordis.yml`；取不到条目树就在构造时报错。见接缝页[条目树 loader](/docs/seams/entry-tree) |
+| 抄了一份 cordis 的状态数字 | cordis 的 `FiberState`（`const enum`，引用不到） | `PENDING`、`LOADING`、`ACTIVE`、`FAILED`、`DISPOSED`、`UNLOADING` 的数字顺序 | `list` 的 `active` 与重新加载时判断条目到哪一步；`tests/fiber-state.test.ts` 对照 cordis 的定义 |
+| 子进程 | 用户装的 pnpm 12 | `pnpm add` / `remove` / `outdated --json`，环境带 `pnpm_config_auto_install_peers=false` | 装卸与升级 home 里的包；不自动补装缺的 peer |
+| 读文件 | home 的清单与装着的包 | `<home>/package.json`、`<home>/node_modules/<包>/package.json` 与它指向的真实目录 | 装了哪些包、版本、peer 报告；`update` 前后比真实目录找出跟着重新加载的包 |
+| 读文件 | 机器级与 home 级 npmrc | `~/.npmrc`、`<home>/.npmrc` | `search` 按 scope 找源地址与 token，只读不写 |
+| 网络 | 各条 npm 源 | `GET <源>/-/v1/search` | `search` 检索可装的插件 |
+
+{/* has file="../plugins/plugin-manager/src/tree.ts" text="const loaderTree: EntryTree | undefined = ctx.fiber.entry?.parent.tree" */}
+
+{/* has file="../plugins/plugin-manager/src/fiber.ts" text="export const FIBER_STATE = ['PENDING', 'LOADING', 'ACTIVE', 'FAILED', 'DISPOSED', 'UNLOADING'] as const" */}
+
+{/* has file="../plugins/plugin-manager/src/pnpm.ts" text="pnpm_config_auto_install_peers: 'false'" */}
+
+{/* has file="../plugins/plugin-manager/src/home.ts" text="const MANIFEST = 'package.json'" */}
+
+{/* has file="../plugins/plugin-manager/src/home.ts" text="return await fs.promises.realpath(link)" */}
+
+{/* has file="../plugins/plugin-manager/src/home.ts" text="const NPMRC = '.npmrc'" */}
+
+{/* has file="../plugins/plugin-manager/src/registry.ts" text="-/v1/search?text=" */}

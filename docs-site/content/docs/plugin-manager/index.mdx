@@ -80,24 +80,7 @@ description: 插件管理是唯一写 home 的插件——装卸包、增删启�
 
 ## 依赖
 
-| 依赖 | 用来做什么 | 缺了会怎样 |
-| --- | --- | --- |
-| 内核服务 `gwbKernel` 的 `dataDir` 与 `version` | home 目录（pnpm 的工作目录、`package.json` 所在的目录）；运行中的内核版本号，`list` 拿它和各插件 peer 里内核包的范围比 | 构造时报错「ctx.gwbKernel 不在」，插件管理不加载；内核版本号不合法时 `list` 报错 |
-| loader 的条目树：`store`、`create`、`update`、`remove`（从 `ctx.fiber.entry.parent.tree` 取） | 读条目、加删条目、启用停用、重新加载 | 构造时报错：取不到条目树（插件管理不是经 `cordis.yml` 的条目加载的）；loader 的签名变了由类型检查发现 |
-| cordis：`provide`、`effect`、`inject`、`logger`，条目 fiber 的状态与 `await()` | 提供服务、局部注入、卸载时撤销、写日志、判断条目加载到哪一步、重新加载时等卸载与加载做完 | 由内核提供，不会缺；cordis 的状态名变了，`list` 的 `active` 与重新加载的等待会判断错，由状态名对照测试拦住 |
-| 命令总线 `gwbCommands`（`@godcreator/gwb-commands`，局部注入） | 登记 10 条命令 | 命令登记不上，插件管理没有调用方式；服务照常提供 |
-| 说明书插件 `gwbSkills`（`@godcreator/gwb-skills`，局部注入） | 登记自带的说明书 | 没有说明书，插件管理照常加载 |
-| 用户装的 pnpm 12（`%LOCALAPPDATA%\pnpm\bin\pnpm.exe` 或 `%APPDATA%\npm\node_modules\pnpm\pnpm.exe`，不低于 12.4.2） | `add`、`remove`、`outdated --json` | 要运行 pnpm 的命令回 `ok: false`，原因里写明检查了哪两个位置、该怎么装；`list`、启停条目不受影响 |
-| home 的 `package.json` | 装了哪些包、各自写的版本 | 读不了、不是 JSON、形状不对都抛错，报错带清单路径 |
-| home 的 `node_modules/<包名>` 指向的真实目录 | `update` 在 `pnpm add` 之前与之后各读一次，找出跟着换了目录的包 | 读不到当没装；在但读不了，`update` 报错并带上路径 |
-| 装在 home 里的每个包自己的 `package.json` | `keywords`、`peerDependencies` 与 `peerDependenciesMeta`、`version`：peer 报告；`update` 前后的版本号；升内核时读内核包 peer 里的 `cordis` | 文件不在就当不是插件、peer 里的包算没装；在但读不了或不是合法 JSON，`list` 与 `update` 报错并带上文件路径；内核包 peer 里的 `cordis` 不是精确版本号时不装 `cordis`、回 `ok: false`；`specs` 装完读不到某个包的 `version`，回 `ok: false`、一条条目都不动 |
-| 机器级 `~/.npmrc` 与 home 级 `<home>/.npmrc` | `search` 按 scope 找源地址与 token，只读 | 文件不在当空文本；在但读不了，`search` 报错并带上路径 |
-| 各条 npm 源的检索接口 `GET <源>/-/v1/search`（网络） | `search` 检索可装的插件 | 这条源在回执 `note` 里点名，别的源照常；全部没查成时 `search` 回 `ok: false` |
-| 内核包 `@godcreator/gwb-kernel-desktop` 包根导出的类型 | `GwbContext`、`GwbResult`、`GwbKernelApi` 的类型 | 只有类型，形状改坏了类型检查失败 |
-
-插件管理不写 `export const inject`：命令、说明书两个插件都用 `ctx.inject` 局部注入，缺了只少一部分功能，插件管理照常加载。这两个插件写在 peer 里，命令总线必需，说明书插件标 `optional`（见[依赖怎么写](/docs/rules/deps#例子插件管理的清单)）；数据插件、设置插件不在 peer 里，插件管理不用它们；cordis、loader、include 写在 `devDependencies`；内核与这两个插件的类型都从 peer 里的包 `import type`，构建产物里没有它们的 import。
-
-{/* ref file="../plugins/plugin-manager/package.json" lines="31-38" */}
+注入了哪些服务、必需还是局部注入、peer 怎么写、缺了会怎样，直接读写了 loader 的条目树与 home 里的哪些文件、抄了 cordis 的哪份状态数字、启动了哪些子进程、问了哪些源，都在[插件之间怎么连](/docs/wiring#godcreatorgwb-plugin-manager)。每一处读不到、读不懂时怎么报错，写在各机制页（[home 的包与条目](/docs/plugin-manager/home)、[peer 满没满足](/docs/plugin-manager/peers)、[热升级](/docs/plugin-manager/upgrade)、[pnpm](/docs/plugin-manager/pnpm)、[找插件](/docs/plugin-manager/sources)）。cordis、loader、include 写在 `devDependencies`；内核与两个插件的类型都从 peer 里的包 `import type`，构建产物里没有它们的 import。
 
 内核对插件管理的承诺——home 的文件布局、loader 与 include 的版本、按真实路径解析包名——写在内核仓文档站的接缝页「home 布局与条目树」；插件管理用到 loader 的哪几样见接缝页[条目树 loader](/docs/seams/entry-tree)。
 
