@@ -1735,6 +1735,29 @@
         235
       ],
       "hash": "0e245b8d9fdb00082e39ceb483379567336c2be55c0c36c53ff3afb4d691820a"
+    },
+    "../plugins/devkit/package.json:36-48": {
+      "kind": "git",
+      "blob": "4199f73304f509519705222e7d908bfc89d6e470",
+      "commit": "04fb0466c3f6a167fb9dc93d83f5057e942998db",
+      "lines": [
+        36,
+        48
+      ],
+      "hash": "a7494d617fdd7f1ceb67cf40262bf6be6bc8c8f7c2b3bd52b79bd48f48a12d4c"
+    },
+    "../plugins/devkit/build.ts:15-47": {
+      "kind": "git",
+      "blob": "ab8f3fb7c8582f2fcfeaf592906c2bab4def498a",
+      "commit": "04fb0466c3f6a167fb9dc93d83f5057e942998db",
+      "lines": [
+        15,
+        47
+      ],
+      "hash": "6519631370ed97685f39cf15d277ac3d6d557c3d31e1db5712b724ceb045f5d3"
+    },
+    "has ../plugins/devkit/tests/built-artifact.test.ts \"过得了发版前检查\"": {
+      "kind": "has"
     }
   },
   "content/docs/devkit/scaffold.mdx": {

@@ -164,7 +164,7 @@ peer 里内核包的检查，比对规则从插件管理的主入口 import（�
 
 {/* has file="../plugins/devkit/src/index.ts" text="ctx.inject(['gwbSkills']" */}
 
-{/* ref file="../plugins/devkit/package.json" lines="35-47" */}
+{/* ref file="../plugins/devkit/package.json" lines="36-48" */}
 
 外壳、node 命令行、说明书三个服务用 `ctx.inject([...], fn)` 局部注入：缺哪个，只有那一部分停在等待状态，主插件照常加载。这三个插件在 peer 里标 `optional`，命令插件、插件管理与内核包是必需的 peer（见[用到的插件写 peer](/docs/rules/plugin-peers)）。服务怎么提供和使用的规矩见[cordis 服务怎么提供和使用](/docs/rules/services)。
 
