@@ -265,9 +265,9 @@ export function cordisInstallPlan(home: string, cordisVersion: string, pnpm: str
   return pnpmAddPlan(home, ['--save-exact', `cordis@${cordisVersion}`], pnpm)
 }
 
-/** 装基础插件：不写版本，取源上的 latest，清单里写 `^` 范围。home 里除了内核包与 cordis 只装插件 */
+/** 装基础插件：不写版本，取源上的 latest，带 `--save-exact`——home 清单一律写精确版本号，以后换版本才不会被 pnpm 沿用的 `^` 挡住。home 里除了内核包与 cordis 只装插件 */
 export function baseInstallPlan(home: string, pnpm: string): RunPlan {
-  return pnpmAddPlan(home, BASE_PLUGINS.map((p) => p.pkg), pnpm)
+  return pnpmAddPlan(home, ['--save-exact', ...BASE_PLUGINS.map((p) => p.pkg)], pnpm)
 }
 
 /** 装包（内核包、cordis、基础插件各一次）的超时 */

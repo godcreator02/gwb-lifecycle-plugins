@@ -75,9 +75,9 @@ home 在 `%APPDATA%\gwb-kernel\homes\<名>\`。打开哪一个由环境变量 `G
 
 {/* ref file="../plugins/devkit/src/home.ts" lines="333-358" */}
 
-**内核包与 `cordis` 在 home 的 `package.json` 里必须是精确版本号**，所以这两次都带 `--save-exact`，并且只在清单里还没有这两项的新 home 上这样装：清单里已有 `^` 声明时，pnpm 12 的 `pnpm add <包>@<精确版本> --save-exact` 退出码是 0，写回的却还是 `^`、装上的是范围里更新的版本。装完读 `node_modules` 里的清单核对版本，就是为了抓住这种不报错的偏差（实测见轨迹卡[清单里原来写 ^ 时 pnpm add 照样装上更新的预发布版](/trajectory/2026-09-24-pnpm-add-keeps-caret)）。
+**home 的 `package.json` 里一律是精确版本号**（和插件管理写清单的规矩一致），所以三次都带 `--save-exact`，并且只在清单里还没有这些项的新 home 上这样装：清单里已有 `^` 声明时，pnpm 12 的 `pnpm add <包>@<精确版本> --save-exact` 退出码是 0，写回的却还是 `^`、装上的是范围里更新的版本。装完读 `node_modules` 里的清单核对版本，就是为了抓住这种不报错的偏差（实测见轨迹卡[清单里原来写 ^ 时 pnpm add 照样装上更新的预发布版](/trajectory/2026-09-24-pnpm-add-keeps-caret)）。
 
-**顺序是内核包、`cordis`、基础插件**：`cordis` 的版本要照内核包 peer 里写的精确版本装，这个版本只有内核包装上之后才读得到；基础插件装的时候 home 根上已经有 `cordis`，它们的 peer `cordis` 解析到同一份，内核与插件用的是同一份 cordis。基础插件不带 `--save-exact`，清单里写 `^` 范围。
+**顺序是内核包、`cordis`、基础插件**：`cordis` 的版本要照内核包 peer 里写的精确版本装，这个版本只有内核包装上之后才读得到；基础插件装的时候 home 根上已经有 `cordis`，它们的 peer `cordis` 解析到同一份，内核与插件用的是同一份 cordis。基础插件不写版本，装的是源上的 latest。
 
 基础插件清单写死、不做参数，要加别的插件，装完再用 `plugin-manager.install`：
 
