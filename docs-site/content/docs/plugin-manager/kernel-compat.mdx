@@ -11,7 +11,7 @@ description: 插件在 peerDependencies 里给内核包 @godcreator/gwb-kernel-d
 
 插件包在 `package.json` 的 `peerDependencies` 里写 `"@godcreator/gwb-kernel-desktop": "^x.y.z"`，x.y.z 是它验过的那个内核的版本号。插件依赖内核提供的 cordis、loader 与 home 布局，这些随内核版本变化；内核是 home 里的一个 npm 包，用 npm 标准的 peer 写法声明兼容范围，pnpm 与插件管理读的是同一个字段。插件管理自己也这样写：
 
-{/* ref file="../plugins/plugin-manager/package.json" lines="31-32" */}
+{/* ref file="../plugins/plugin-manager/package.json" lines="31-32" hash="92d22590eb77" blob="114560e1631b" */}
 
 怎么写、什么时候改是写插件的规矩，见[兼容哪个内核](/docs/rules/kernel-compat)。
 
@@ -19,9 +19,9 @@ description: 插件在 peerDependencies 里给内核包 @godcreator/gwb-kernel-d
 
 只认 `^x.y.z` 这一种写法。主版本号为 0 时要求次版本号相同（`^0.3.0` 包含 `0.3.4`，不包含 `0.4.0` 与 `0.2.7`），≥1 时要求主版本号相同（`^1.4.0` 包含 `1.9.4`，不包含 `2.0.0`），并且不低于 x.y.z（`^0.3.2` 不包含 `0.3.0`）。只比 x.y.z 三段、不看预发布段，同一条线的开发版（`0.3.0-dev.…`）算在范围内。没写、写的不是 `^x.y.z`（`0.3.0`、`>=0.3.0`、`~0.3.0`、`^0.3`），一律算不包含。
 
-除了预发布段，这就是 npm 对 `^` 的解释，也和全生态升版本号的规则（说明书 [gwb-release](/outputs/skills/gwb-release)）对得上：0.x 时次版本号变了就可能有破坏性变化，≥1 以后只在主版本号上。只许一种写法，报告与发版前检查都不用处理各种范围语法。
+除了预发布段，这就是 npm 对 `^` 的解释，也和全生态升版本号的规则（说明书 [gwb-release](/docs/outputs/skills/gwb-release)）对得上：0.x 时次版本号变了就可能有破坏性变化，≥1 以后只在主版本号上。只许一种写法，报告与发版前检查都不用处理各种范围语法。
 
-{/* ref file="../plugins/plugin-manager/src/kernel-compat.ts" lines="22-50" */}
+{/* ref file="../plugins/plugin-manager/src/kernel-compat.ts" lines="22-50" hash="ac183bc0f08b" blob="b88e71e1b482" */}
 
 运行中的内核版本号来自内核服务 `gwbKernel` 的 `version`；它不是合法版本号说明内核坏了，直接报错。
 
@@ -37,13 +37,13 @@ description: 插件在 peerDependencies 里给内核包 @godcreator/gwb-kernel-d
 
 **只看插件**：`keywords` 里有 `gwb-plugin` 的包才比；peer 里没写内核包的插件不列这一项（发版前检查会拒它，见下）。库、第三方 cordis 插件（如 `@cordisjs/plugin-timer`）、清单读不到的包都不该声明兼容哪个内核，`unmetPeers` 一律为空——不然窗格里这些包都标黄，真正没适配当前内核的插件反而看不出来。内核包与 `cordis` 自己不在 `list` 里。
 
-{/* ref file="../plugins/plugin-manager/src/kernel-upgrade.ts" lines="54-59" */}
+{/* ref file="../plugins/plugin-manager/src/kernel-upgrade.ts" lines="54-59" hash="36ab316a5112" blob="25e9b993d026" */}
 
-{/* ref file="../plugins/plugin-manager/src/peers.ts" lines="58-77" */}
+{/* ref file="../plugins/plugin-manager/src/peers.ts" lines="58-77" hash="03f244122717" blob="26615cce6d6e" */}
 
 **读包清单**：按包名（含 scope）从 home 的 `node_modules` 读。文件不在（条目指向一个没装的包，或 pnpm 装到一半）就当不是插件、不列；文件在但读不了、或不是合法 JSON，`list` 直接报错并带上文件路径——那是 home 坏了，不该当成「范围不包含」报出来了事。
 
-{/* ref file="../plugins/plugin-manager/src/home.ts" lines="36-51" */}
+{/* ref file="../plugins/plugin-manager/src/home.ts" lines="36-51" hash="1660ad5366b3" blob="2689fa073ac6" */}
 
 {/* has file="../plugins/plugin-manager/tests/peers.test.ts" text="内核包对照正在运行的内核：范围不包含就列一项，installed 是运行中的内核版本" */}
 
@@ -67,6 +67,6 @@ description: 插件在 peerDependencies 里给内核包 @godcreator/gwb-kernel-d
 
 比对规则只写在插件管理的 `src/kernel-compat.ts` 里，经包主入口导出 `KERNEL_PACKAGE` 与 `isCaretRange`（见[主入口给 devkit 的导出](/docs/plugin-manager#主入口给-devkit-的导出)）；`kernelRangeCovers` 只给 `list` 自己用，不导出。devkit 的发版前检查 import 那两个，所以改了「只许 `^x.y.z`」这条规则，`devkit.release` 的检查跟着变；改签名或 devkit 依赖的行为是破坏性变更（见[什么算破坏性变更](/docs/plugin-manager#什么算破坏性变更)）。两边怎么对上见接缝页 [peer 里的内核包与插件](/docs/seams/kernel-peer)。
 
-{/* ref file="../plugins/plugin-manager/src/kernel-compat.ts" lines="1-1" */}
+{/* ref file="../plugins/plugin-manager/src/kernel-compat.ts" lines="1-1" hash="265c3bdf8461" blob="b88e71e1b482" */}
 
 {/* has file="../plugins/devkit/src/release.ts" text="import { KERNEL_PACKAGE, isCaretRange } from '@godcreator/gwb-plugin-manager'" */}

@@ -9,11 +9,11 @@ devkit.cdp {"args":["<home 名>","cmd","plugin-manager.list"]}
 devkit.cdp {"args":["<home 名>","click",".dv-tab@=日志"]}
 ```
 
-* **`cmd` 只用在隔离 home**：它经页面上的 `window.gwb.command` 调那个 home 的全部命令，发的是真操作。隔离 home 的基础插件里没有 MCP 入口，这就是在它里面调命令的方式
-* **`eval` 的文件里是一个函数表达式** `(args) => 一张表`，要 await 就写 async，返回值就是读数。表达式写在文件里，不写在命令行上：会被 PowerShell 的引号截断。一次性的读数脚本放在自己仓的 `out/`（gitignore）；提交进仓的脚本会随界面改动过时，而且不报错
-* **`shot` 缺省存到被截的那个 home 自己的目录**，`devkit.home.rm` 删 home 时一起删掉；要留下来就给一个绝对路径
-* **先点标签再取证**：dockview 只渲染激活的那个窗格，取证前 `click` 它的 `.dv-tab`。用 `click` 发真实的输入事件：页面里自己构造的事件不做命中测试，被浮层盖住的目标照样点得中，而这套界面最常出的错正是遮挡
-* **读颜色先关过渡**：注入一条 `transition: none` 再读；读到 `oklab(…)` 就是还在过渡中。窗口最小化时 Chromium 节流后台动画，等多久都可能读到起点值
+- **`cmd` 只用在隔离 home**：它经页面上的 `window.gwb.command` 调那个 home 的全部命令，发的是真操作。隔离 home 的基础插件里没有 MCP 入口，这就是在它里面调命令的方式
+- **`eval` 的文件里是一个函数表达式** `(args) => 一张表`，要 await 就写 async，返回值就是读数。表达式写在文件里，不写在命令行上：会被 PowerShell 的引号截断。一次性的读数脚本放在自己仓的 `out/`（gitignore）；提交进仓的脚本会随界面改动过时，而且不报错
+- **`shot` 缺省存到被截的那个 home 自己的目录**，`devkit.home.rm` 删 home 时一起删掉；要留下来就给一个绝对路径
+- **先点标签再取证**：dockview 只渲染激活的那个窗格，取证前 `click` 它的 `.dv-tab`。用 `click` 发真实的输入事件：页面里自己构造的事件不做命中测试，被浮层盖住的目标照样点得中，而这套界面最常出的错正是遮挡
+- **读颜色先关过渡**：注入一条 `transition: none` 再读；读到 `oklab(…)` 就是还在过渡中。窗口最小化时 Chromium 节流后台动画，等多久都可能读到起点值
 
 ## 工作台没启动的时候
 

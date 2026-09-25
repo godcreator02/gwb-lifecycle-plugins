@@ -7,8 +7,8 @@ description: 装插件、找插件或配第三方包源、升级插件、升内�
 
 home 里有两层：
 
-* **包**：pnpm 装进 home 的 `node_modules`，只是在磁盘上
-* **条目**：`cordis.yml` 里指向一个包的一行。有了条目，插件的代码才加载运行。一个包可以有好几条条目，各是一个实例、各存各的数据
+- **包**：pnpm 装进 home 的 `node_modules`，只是在磁盘上
+- **条目**：`cordis.yml` 里指向一个包的一行。有了条目，插件的代码才加载运行。一个包可以有好几条条目，各是一个实例、各存各的数据
 
 `plugin-manager.list` 同时报两层：每个包下有哪些条目，每条启用没有、`active`（加载成功）没有。内核包与 `cordis` 没有条目，按下面「升内核」换。命令作用在 MCP 入口连着的那个 home；要操作隔离 home，经 `devkit.cdp {"args":["<home 名>","cmd","plugin-manager.<命令>","<JSON 参数>"]}` 调。
 
@@ -66,35 +66,33 @@ home 级 `<home>/.npmrc` 里有同名 scope 时，生效的是 home 级那条。
 
 1. `plugin-manager.list`，列出 `unmetPeers` 不空的包。这些只是报告、照常加载；出了问题先怀疑它们
 2. 按没满足的那一项处理：
-   * 内核包：到那个插件的仓里在隔离 home 验证后改 peer 里内核包的范围，再发版（说明书 `gwb-devkit` 的「发版」）
-   * peer 里的插件太旧或没装：`update {"only":["<那个插件的包名>"]}` 或 `install`；装着的版本比范围新（上游出了破坏性版本）的，到写 peer 的那个插件的仓里适配后改 peer 再发版
-   * `range` 不是 `^x.y.z`：到那个插件的仓里改写法再发版
+   - 内核包：到那个插件的仓里在隔离 home 验证后改 peer 里内核包的范围，再发版（说明书 `gwb-devkit` 的「发版」）
+   - peer 里的插件太旧或没装：`update {"only":["<那个插件的包名>"]}` 或 `install`；装着的版本比范围新（上游出了破坏性版本）的，到写 peer 的那个插件的仓里适配后改 peer 再发版
+   - `range` 不是 `^x.y.z`：到那个插件的仓里改写法再发版
 
 **完成判据**：给出 `unmetPeers` 不空的全部包名与每条没满足的 peer。
 
 ## 增删改条目
 
 1. `plugin-manager.list` 找到条目的 entryId
-
 2. 调对应的命令：
 
-   | 要做什么        | 命令（前缀 `plugin-manager.`）                            |
-   | ----------- | --------------------------------------------------- |
-   | 给已装的包再加一条条目 | `add-entry {"pkg":"<包名>"}`                          |
-   | 删一条条目、留着包   | `remove-entry {"entryId":"…"}`，随时可以 `add-entry` 加回来 |
-   | 删包连同它的全部条目  | `uninstall {"pkg":"<包名>"}`，设置与数据留在磁盘上；依赖它的插件停在未加载   |
-   | 启用、停用       | `enable` / `disable {"entryId":"…"}`，立即生效           |
-   | 手动重新加载一条    | 先 `disable` 再 `enable`；命令插件、MCP 入口、插件管理自己除外，见下      |
+   | 要做什么 | 命令（前缀 `plugin-manager.`） |
+   | --- | --- |
+   | 给已装的包再加一条条目 | `add-entry {"pkg":"<包名>"}` |
+   | 删一条条目、留着包 | `remove-entry {"entryId":"…"}`，随时可以 `add-entry` 加回来 |
+   | 删包连同它的全部条目 | `uninstall {"pkg":"<包名>"}`，设置与数据留在磁盘上；依赖它的插件停在未加载 |
+   | 启用、停用 | `enable` / `disable {"entryId":"…"}`，立即生效 |
+   | 手动重新加载一条 | 先 `disable` 再 `enable`；命令插件、MCP 入口、插件管理自己除外，见下 |
 
 3. 插件加载失败、日志说「数据目录 … 属于 X」或「设置分区 … 属于 X」：这个 id 的数据或设置是别的包留下的（卸载后另一个同名包拿到了同一个 id）。插件管理不读也不改归属，照数据插件与设置插件报错里说的处理
-
 4. `plugin-manager.list` 核对
 
 **完成判据**：`list` 里条目的有无、启停与 `active` 都是你要的状态。
 
 ## 容易出错的地方
 
-* **别用 `disable` 加 `enable` 重新加载调用要经过的插件**：命令插件、MCP 入口、插件管理自己停用以后，`enable` 调不进去，条目停在停用状态。这几个换版本经 `update`，它在一条命令里做完停用与启用
-* **同一个 home 同一时刻只做一个改动**：`install`、`uninstall`、`update` 运行时再调会回 `BUSY`。`add-entry`、`remove-entry`、`enable`、`disable` 不受这道检查，`update` 运行时别动它要重新加载的条目。插件管理之外在同一个 home 里运行的 pnpm（`devkit.dev`、手工运行）它管不到，和插件管理的改动同时写 home 会丢改动，而且都退出码 0
-* **人在 home 里手工运行 pnpm 要设环境变量 `pnpm_config_auto_install_peers=false`**：命令行参数 `--config.auto-install-peers=false` 会被 pnpm 忽略。插件管理自己启动 pnpm 时已经带着，所以 `install` 不补装缺的 peer，缺的看 `list` 的 `unmetPeers`，要用就另外 `install`
-* **是不是插件只看包清单 `keywords` 里有没有 `gwb-plugin`**，名字不参与。`search` 回的是这条规则筛出的全部结果，不维护的旧包也在里面
+- **别用 `disable` 加 `enable` 重新加载调用要经过的插件**：命令插件、MCP 入口、插件管理自己停用以后，`enable` 调不进去，条目停在停用状态。这几个换版本经 `update`，它在一条命令里做完停用与启用
+- **同一个 home 同一时刻只做一个改动**：`install`、`uninstall`、`update` 运行时再调会回 `BUSY`。`add-entry`、`remove-entry`、`enable`、`disable` 不受这道检查，`update` 运行时别动它要重新加载的条目。插件管理之外在同一个 home 里运行的 pnpm（`devkit.dev`、手工运行）它管不到，和插件管理的改动同时写 home 会丢改动，而且都退出码 0
+- **人在 home 里手工运行 pnpm 要设环境变量 `pnpm_config_auto_install_peers=false`**：命令行参数 `--config.auto-install-peers=false` 会被 pnpm 忽略。插件管理自己启动 pnpm 时已经带着，所以 `install` 不补装缺的 peer，缺的看 `list` 的 `unmetPeers`，要用就另外 `install`
+- **是不是插件只看包清单 `keywords` 里有没有 `gwb-plugin`**，名字不参与。`search` 回的是这条规则筛出的全部结果，不维护的旧包也在里面

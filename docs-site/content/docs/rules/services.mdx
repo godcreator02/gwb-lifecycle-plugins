@@ -45,13 +45,13 @@ export default class GwbExample extends Service {
 
 **不需要认出调用方的服务（存在标记服务）用 `ctx.provide`。** 它只是一个普通对象，不用 import `cordis`，也就不写 peer `cordis`。插件管理就是这样：对外只有命令，服务 `gwbPluginManager` 只表示「插件管理装了」：
 
-{/* ref file="../plugins/plugin-manager/src/index.ts" lines="62-68" */}
+{/* ref file="../plugins/plugin-manager/src/index.ts" lines="62-68" hash="d3e1c817c32a" blob="22810c890bc5" */}
 
-{/* ref file="../plugins/plugin-manager/src/index.ts" lines="110-115" */}
+{/* ref file="../plugins/plugin-manager/src/index.ts" lines="110-115" hash="e4cfa73e8502" blob="22810c890bc5" */}
 
 服务名用 `gwb` 开头的小驼峰，跟插件名对应。**要让别的插件知道这个服务，就在自己的类型声明里给 cordis 的 `Context` 补上这一项**，服务的类型也定义在自己的声明里，在类型上写文档注释说清怎么用。插件管理就是这样写的：
 
-{/* ref file="../plugins/plugin-manager/src/index.ts" lines="682-686" */}
+{/* ref file="../plugins/plugin-manager/src/index.ts" lines="682-686" hash="cec1eec74dc1" blob="22810c890bc5" */}
 
 构建时 tsc 把这段连同类型定义输出进 `.d.ts`，用这个服务的插件读提供方的 `.d.ts` 就看得到类型定义的原文与文档注释。不用另在清单里写一份用法。
 
@@ -69,15 +69,15 @@ export default class GwbExample extends Service {
 
 模板生成的插件用第一种，两个服务都必需：
 
-{/* ref file="../plugins/devkit/template/pkg/src/index.ts.tpl" lines="16-20" */}
+{/* ref file="../plugins/devkit/template/pkg/src/index.ts.tpl" lines="16-20" hash="7853d7fb5a4f" blob="a997b3c37cb3" */}
 
 插件管理对说明书插件用第三种：说明书插件没装时插件管理照常加载，装上之后才登记自己的说明书：
 
-{/* ref file="../plugins/plugin-manager/src/index.ts" lines="146-151" */}
+{/* ref file="../plugins/plugin-manager/src/index.ts" lines="146-151" hash="397f310fcf69" blob="22810c890bc5" */}
 
 **往继承了 `Service` 的服务里注册，不用自己包 `ctx.effect`**；往 `ctx.provide` 提供的扩展点服务里注册，要自己包。外壳 `gwbShell` 与命令总线 `gwbCommands` 都继承了 `Service`，模板注册窗格与命令都直接调：
 
-{/* ref file="../plugins/devkit/template/pkg/src/index.ts.tpl" lines="31-44" */}
+{/* ref file="../plugins/devkit/template/pkg/src/index.ts.tpl" lines="31-44" hash="feca59d5e2c0" blob="a997b3c37cb3" */}
 
 ## 登记命令
 
@@ -91,7 +91,7 @@ export default class GwbExample extends Service {
 - **每次重新加载都该清掉的状态放在 `apply` 里**：重新加载只重新运行 `apply`，模块顶层的状态在同一版本重新加载时不会重置
 - **配置一律 `gwbSettings.define`**，条目上只写 `id`：写在 `cordis.yml` 条目上的配置界面看不见，agent 也不知道有它
 
-{/* ref file="../plugins/plugin-manager/src/vocab.ts" lines="3-10" */}
+{/* ref file="../plugins/plugin-manager/src/vocab.ts" lines="3-10" hash="3d10de88636e" blob="0ff124331907" */}
 
 ## 谁来查
 

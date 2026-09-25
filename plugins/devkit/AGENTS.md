@@ -8,17 +8,17 @@
 
 文档站的现状页在 `docs-site/content/docs/`，站点地址 `/docs/...` 与文件路径一一对应：
 
-| 页                           | 讲什么                                   |
-| --------------------------- | ------------------------------------- |
-| `index.mdx`                 | 是什么、写一个插件走一遍、按来意从哪页读起、模块索引与接缝表        |
-| `design.mdx`                | 错了难改的决定：为什么这么切分、两个包为什么同仓              |
-| `develop.mdx`               | 装与确认、提交前的检查、在隔离 home 里验证、发版、文档站的检查与生成 |
-| `devkit/`、`plugin-manager/` | 两个包的功能、命令、机制，一个模块一页                   |
-| `seams/`                    | 每条接缝连接哪些模块、接口是什么、各模块保证什么              |
-| `rules/`                    | 写插件的规矩总表                              |
-| `glossary.mdx`              | 术语、退役的词与命令                            |
+| 页 | 讲什么 |
+| --- | --- |
+| `index.mdx` | 是什么、写一个插件走一遍、按来意从哪页读起、模块索引与接缝表 |
+| `design.mdx` | 错了难改的决定：为什么这么切分、两个包为什么同仓 |
+| `develop.mdx` | 装与确认、提交前的检查、在隔离 home 里验证、发版、文档站的检查与生成 |
+| `devkit/`、`plugin-manager/` | 两个包的功能、命令、机制，一个模块一页 |
+| `seams/` | 每条接缝连接哪些模块、接口是什么、各模块保证什么 |
+| `rules/` | 写插件的规矩总表 |
+| `glossary.mdx` | 术语、退役的词与命令 |
 
-文档怎么写、六区、confirm 与提交的先后读 skill「docfirst-docs」；写插件、在隔离 home 里验证、发版读「gwb-devkit」；升版本号、改依赖版本号读「gwb-release」。
+文档怎么写、分区、钉码怎么确认读 skill「docfirst-docs」；写插件、在隔离 home 里验证、发版读「gwb-devkit」；升版本号、改依赖版本号读「gwb-release」。
 
 ## 怎么跑
 
@@ -28,25 +28,25 @@
 
 ## 本仓还有插件管理
 
-* devkit 从插件管理的主入口 import `locatePnpm`、`homePnpmEnv`、`KERNEL_PACKAGE`、peer 范围的判定、`tailLines` 与 `devkit.dev` 调的三条命令名，规则只有插件管理那一份，不另存副本；删改这几个导出，devkit 跟着改
-* **改插件管理的命令名、参数或回执形状，或删改上面那几个导出，是破坏性变更**：照「gwb-release」升 x，发之前先通知下游
-* **在 home 里启动 pnpm 一律带环境变量 `pnpm_config_auto_install_peers=false`**（环境用插件管理导出的 `homePnpmEnv` 算），在插件仓里不带；命令行参数 `--config.auto-install-peers=false` 会被 pnpm 忽略，不能拿它代替
+- devkit 从插件管理的主入口 import `locatePnpm`、`homePnpmEnv`、`KERNEL_PACKAGE`、peer 范围的判定、`tailLines` 与 `devkit.dev` 调的三条命令名，规则只有插件管理那一份，不另存副本；删改这几个导出，devkit 跟着改
+- **改插件管理的命令名、参数或回执形状，或删改上面那几个导出，是破坏性变更**：照「gwb-release」升 x，发之前先通知下游
+- **在 home 里启动 pnpm 一律带环境变量 `pnpm_config_auto_install_peers=false`**（环境用插件管理导出的 `homePnpmEnv` 算），在插件仓里不带；命令行参数 `--config.auto-install-peers=false` 会被 pnpm 忽略，不能拿它代替
 
 ## 硬约束
 
-* **开发套件产物开头那个 `require` 别删**：`build.ts` 用 `createRequire` 造的，打包进来的 yaml 靠它；删了 vitest 照样全绿，只有 `tests/built-artifact.test.ts` 会失败
-* **模板**：`template/pkg/` 是插件包的唯一正本，建仓与加插件都用它；`template/` 下每个文件带 `.tpl`、都要声明属于 `repo/` 还是 `pkg/`；加占位符同时改 `src/scaffold.ts` 的 `placeholders()`，占位符的值只能是短名、包名、规范写法的地址、版本号这类不用转义的东西，要显示名的地方用短名；改模板后运行 `tests/scaffold.test.ts`；模板里不写死 `@godcreator` 包的版本号，peer 里的内核包、命令总线、外壳都是占位符，由运行建仓命令的那个 home 填。细节见 `devkit/scaffold.mdx`
-* **建仓与加插件只写插件的文件**：不建文档站、不写文档页、不调别的插件的命令
-* **没有设置项**；将来要加一律用 `gwbSettings.define`，不读 `cordis.yml` 的 `config`
-* **每条命令的参数形状写进 `usage`**，无参数写「无参数」
-* **说明书只写步骤、完成判据和工具不会报出来的坑**：命令的参数、回执、拒绝条件只写在 `usage`；回执或报错里会写明怎么改的，说明书不预先列
-* **改一版看一版**（`devkit.dev`，机制见 `devkit/dev.mdx`）：
-  * 目标是 `default` 或开发套件自己所在的 home，直接拒
-  * 装包与重新加载只经目标 home 的插件管理：已装的包合成一条 `plugin-manager.update {"specs":{…}}`，不拆成 `disable` / `enable`
-  * `<home>/runtime.json` 只读不写
-  * 定位 home 只按名字：`devkit.dev` 与 `bin/cdp.mjs` 都不收端口，不许加「给个端口就连」的另一条路
-  * 不许把产物覆盖进 home 的 `node_modules`；包文件放 `<目标 home>\dev-packs\`，路径每版不同、已存在就拒、旧的一个都不删
-  * 最后一步是取证不是刷新；`devkit.home.rm` 回「已删」之前目录必须真的不在
-  * 子进程超时一律终止整棵进程树并确认退出（`src/node-process-tree.ts`），不许只 `child.kill()`
-* **`bin/cdp.mjs` 零依赖、单文件纯 JS、不进类型检查**；路径一概不看工作目录（文件里不出现 `process.cwd()`），写磁盘的位置不许在本包目录与任何 `node_modules` 里
-* **只登记自己的说明书**（`gwb-devkit`、`gwb-release`；插件管理登记 `gwb-plugin-manager`），别替别的插件登记：说明书名全局唯一，重名的那份不登记
+- **开发套件产物开头那个 `require` 别删**：`build.ts` 用 `createRequire` 造的，打包进来的 yaml 靠它；删了 vitest 照样全绿，只有 `tests/built-artifact.test.ts` 会失败
+- **模板**：`template/pkg/` 是插件包的唯一正本，建仓与加插件都用它；`template/` 下每个文件带 `.tpl`、都要声明属于 `repo/` 还是 `pkg/`；加占位符同时改 `src/scaffold.ts` 的 `placeholders()`，占位符的值只能是短名、包名、规范写法的地址、版本号这类不用转义的东西，要显示名的地方用短名；改模板后运行 `tests/scaffold.test.ts`；模板里不写死 `@godcreator` 包的版本号，peer 里的内核包、命令总线、外壳都是占位符，由运行建仓命令的那个 home 填。细节见 `devkit/scaffold.mdx`
+- **建仓与加插件只写插件的文件**：不建文档站、不写文档页、不调别的插件的命令
+- **没有设置项**；将来要加一律用 `gwbSettings.define`，不读 `cordis.yml` 的 `config`
+- **每条命令的参数形状写进 `usage`**，无参数写「无参数」
+- **说明书只写步骤、完成判据和工具不会报出来的坑**：命令的参数、回执、拒绝条件只写在 `usage`；回执或报错里会写明怎么改的，说明书不预先列
+- **改一版看一版**（`devkit.dev`，机制见 `devkit/dev.mdx`）：
+  - 目标是 `default` 或开发套件自己所在的 home，直接拒
+  - 装包与重新加载只经目标 home 的插件管理：已装的包合成一条 `plugin-manager.update {"specs":{…}}`，不拆成 `disable` / `enable`
+  - `<home>/runtime.json` 只读不写
+  - 定位 home 只按名字：`devkit.dev` 与 `bin/cdp.mjs` 都不收端口，不许加「给个端口就连」的另一条路
+  - 不许把产物覆盖进 home 的 `node_modules`；包文件放 `<目标 home>\dev-packs\`，路径每版不同、已存在就拒、旧的一个都不删
+  - 最后一步是取证不是刷新；`devkit.home.rm` 回「已删」之前目录必须真的不在
+  - 子进程超时一律终止整棵进程树并确认退出（`src/node-process-tree.ts`），不许只 `child.kill()`
+- **`bin/cdp.mjs` 零依赖、单文件纯 JS、不进类型检查**；路径一概不看工作目录（文件里不出现 `process.cwd()`），写磁盘的位置不许在本包目录与任何 `node_modules` 里
+- **只登记自己的说明书**（`gwb-devkit`、`gwb-release`；插件管理登记 `gwb-plugin-manager`），别替别的插件登记：说明书名全局唯一，重名的那份不登记

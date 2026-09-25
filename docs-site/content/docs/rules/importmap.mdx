@@ -29,11 +29,11 @@ description: 页面 importmap 写死在内核包的页面入口 dist/index.html 
 
 内核包不导出外置名单，也不在清单里声明它，名单只写在页面入口那一段 importmap 里。模板的 `build.ts` 经内核包的 `./package.json` 出口找到包目录，读 `dist/index.html`，取 importmap 的键当作 `external`；读不到这段 importmap 就报错，不回退到手写的名单：
 
-{/* ref file="../plugins/devkit/template/pkg/build.ts.tpl" lines="19-35" */}
+{/* ref file="../plugins/devkit/template/pkg/build.ts.tpl" lines="19-35" hash="e2c7362a3156" blob="73efdf3ed217" */}
 
 令牌的样式映射文件 `theme.reference.css` 也由外壳导出（包内路径 `@godcreator/gwb-shell/theme.reference.css`），模板的样式入口从外壳引，作为构建时的输入：
 
-{/* ref file="../plugins/devkit/template/pkg/src/client/styles.css.tpl" lines="19-22" */}
+{/* ref file="../plugins/devkit/template/pkg/src/client/styles.css.tpl" lines="19-22" hash="f37693c515f9" blob="68faca284316" */}
 
 devkit 的样式检查也从这份文件读色名：`style.css` 里 `text-` / `bg-` / `border-` / `from-` / `via-` / `to-` / `divide-` 开头的颜色类，色名只能是 `theme.reference.css` 或本插件 `style.css` 自己声明过的 `--color-<名>`，外加 transparent / inherit / current；用了 Tailwind 出厂调色板（`bg-blue-500` 这类）就不过。调色板的值写死在插件里，换主题、切亮暗都不跟着变，也不报错。同一道检查还查类选择器都带本插件的前缀、前缀排在变体前面、`var()` 的 fallback 不写死值，`devkit.dev` 构建之后、`devkit.release` 发之前各运行一次（见[发正式版](/docs/devkit/release)）。
 

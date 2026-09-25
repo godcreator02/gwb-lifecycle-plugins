@@ -13,12 +13,12 @@ description: 写新插件、改插件、在隔离 home 里验证改动、发正�
 2. 带界面的插件，先读外壳的说明书 `skill.read {"name":"gwb-shell"}`
 3. 建仓用 `devkit.scaffold`，往已有的 workspace 仓再加一个插件用 `devkit.scaffold.plugin`。没有团队源（`@godcreator`）发布权限的，两条都加 `scope` 与 `registry`，同一个仓里的插件用同一套；发布 token 写在用户级 `~/.npmrc`
 4. 把模板改成真插件，守「写插件的规矩」：
-   * `src/index.ts`：模板的 `<短名>.ping` 与窗格 `main` 换成真正的命令与窗格，命令照模板那条的写法登记
-   * `tests/`：不启动进程、不开窗口就能测的逻辑抽成纯函数来测
-   * 不要界面的插件：照生成的 README 里那张清单删掉浏览器侧的文件、脚本与依赖
-   * `package.json`：`description` 写一句话说这个插件做什么；用到的插件写进 peer；不用外壳就删掉 peer 里那一项；有了 `skills/` 目录就把 `skills` 加进 `files`
-   * 提供服务：在源码里给 `Context` 补上这一项（`declare module 'cordis' { interface Context { gwbExample: GwbExample } }`），`GwbExample` 定义在本包里、写文档注释说清怎么用。模板不输出 `.d.ts`，要加三处：包里加 `tsconfig.build.json`（`"extends": "./tsconfig.json"`，`compilerOptions` 写 `"noEmit": false, "declaration": true, "emitDeclarationOnly": true, "outDir": "dist", "rootDir": "src"`，`"include": ["src/index.ts"]`）；`build` 脚本在 `node build.ts` 之后加 `tsc -p tsconfig.build.json`；`exports["."]` 改成 `{ "types": "./dist/index.d.ts", "default": "./dist/index.js" }`
-   * 仓里有文档站的，在现状区写这个插件的页，功能、接口、依赖、不做的事四节；依赖写进 `docs/wiring.mdx`（格式见 `/docs/rules/wiring`，没有工具查），插件页的依赖一节只链过去
+   - `src/index.ts`：模板的 `<短名>.ping` 与窗格 `main` 换成真正的命令与窗格，命令照模板那条的写法登记
+   - `tests/`：不启动进程、不开窗口就能测的逻辑抽成纯函数来测
+   - 不要界面的插件：照生成的 README 里那张清单删掉浏览器侧的文件、脚本与依赖
+   - `package.json`：`description` 写一句话说这个插件做什么；用到的插件写进 peer；不用外壳就删掉 peer 里那一项；有了 `skills/` 目录就把 `skills` 加进 `files`
+   - 提供服务：在源码里给 `Context` 补上这一项（`declare module 'cordis' { interface Context { gwbExample: GwbExample } }`），`GwbExample` 定义在本包里、写文档注释说清怎么用。模板不输出 `.d.ts`，要加三处：包里加 `tsconfig.build.json`（`"extends": "./tsconfig.json"`，`compilerOptions` 写 `"noEmit": false, "declaration": true, "emitDeclarationOnly": true, "outDir": "dist", "rootDir": "src"`，`"include": ["src/index.ts"]`）；`build` 脚本在 `node build.ts` 之后加 `tsc -p tsconfig.build.json`；`exports["."]` 改成 `{ "types": "./dist/index.d.ts", "default": "./dist/index.js" }`
+   - 仓里有文档站的，在现状区写这个插件的页，功能、接口、依赖、不做的事四节；依赖写进 `docs/wiring.mdx`（格式见 `/docs/rules/wiring`，没有工具查），插件页的依赖一节只链过去
 5. 仓根 `pnpm build`，再 `pnpm check`
 
 **完成判据**：仓根 `pnpm check` 全绿。接着做「改一版看一版」。
@@ -39,8 +39,8 @@ description: 写新插件、改插件、在隔离 home 里验证改动、发正�
 
 **完成判据**：`devkit.dev` 回执 `ok: true`；`devkit.cdp … cmd plugin-manager.list` 里这个包的条目 `active` 为 true、版本是这次的开发版号；新命令的回执与预期一致。
 
-* **home 里的包只通过安装来换**：别覆盖 `node_modules` 里的 `dist/`，那会改到 pnpm 全局存储里的同一份文件，node 侧也换不掉；也别动 home 里的 `dev-packs` 目录，home 清单引用着那里的包文件，删了之后这个 home 里的安装与升级全部失败
-* **日志**：`%APPDATA%\gwb-kernel\homes\<home 名>\gwb.log`，内核、插件、页面三方的日志都在这一个文件里
+- **home 里的包只通过安装来换**：别覆盖 `node_modules` 里的 `dist/`，那会改到 pnpm 全局存储里的同一份文件，node 侧也换不掉；也别动 home 里的 `dev-packs` 目录，home 清单引用着那里的包文件，删了之后这个 home 里的安装与升级全部失败
+- **日志**：`%APPDATA%\gwb-kernel\homes\<home 名>\gwb.log`，内核、插件、页面三方的日志都在这一个文件里
 
 ## 在页面里取证
 
@@ -58,10 +58,10 @@ description: 写新插件、改插件、在隔离 home 里验证改动、发正�
 
 **完成判据**：`devkit.release` 回执 `ok: true`，`shipped` 里是这次的包、版本与发布目标；default 的 `plugin-manager.list` 里这个包的版本是刚发的正式版、条目 `active` 为 true；再调一次 `index`，看得到这个包的命令与说明书。
 
-* **发到 gitea 的包**在 `package.json` 写上 `"repository": { "type": "git", "url": "https://git.tianshen02.online:28377/<owner>/<仓名>.git" }`：gitea 靠它把包关联到仓，仓与包不在同一个 owner 下也能关联。没有工具查
-* **机器上的两处配置**，不在任何仓里，换机器或重装会丢：
-  * 用户级 `~/.npmrc`：`@godcreator` 的 scope 行与各个源的发布 token。仓里不配 `.npmrc`
-  * 用户级 pnpm 配置（`pnpm config get globalconfig` 报位置）：`minimumReleaseAgeExclude` 放行 `'@godcreator/*'`，丢了的症状是新机器上装不上刚发的包。仓与 home 的 `pnpm-workspace.yaml` 不写这一项，也不写 `strictPeerDependencies`：写了就逐项覆盖用户级的同名项
+- **发到 gitea 的包**在 `package.json` 写上 `"repository": { "type": "git", "url": "https://git.tianshen02.online:28377/<owner>/<仓名>.git" }`：gitea 靠它把包关联到仓，仓与包不在同一个 owner 下也能关联。没有工具查
+- **机器上的两处配置**，不在任何仓里，换机器或重装会丢：
+  - 用户级 `~/.npmrc`：`@godcreator` 的 scope 行与各个源的发布 token。仓里不配 `.npmrc`
+  - 用户级 pnpm 配置（`pnpm config get globalconfig` 报位置）：`minimumReleaseAgeExclude` 放行 `'@godcreator/*'`，丢了的症状是新机器上装不上刚发的包。仓与 home 的 `pnpm-workspace.yaml` 不写这一项，也不写 `strictPeerDependencies`：写了就逐项覆盖用户级的同名项
 
 ## 写插件的规矩
 
@@ -69,7 +69,7 @@ description: 写新插件、改插件、在隔离 home 里验证改动、发正�
 
 总表之外，还有几处没有工具查：
 
-* **内核的接口类型从内核包的包根 `import type`**：`import type { GwbContext } from '@godcreator/gwb-kernel-desktop'`。包根只导出类型，`isRecord`、`requireKernel` 这类无状态小函数由插件自带一份（devkit 的 `src/vocab.ts`）
-* **node 侧的测试只 import `.ts`**：node 侧的 tsc 没开 jsx
-* **说明书跟它描述的代码同仓同提交**，随那个包发布；每个插件只登记自己的说明书
-* **文档站的 README**：第一次在站目录 `pnpm doc:render` 之前，把手写 README 里要留的内容搬进 `content/outputs/readme.mdx`，render 会整份覆盖 README
+- **内核的接口类型从内核包的包根 `import type`**：`import type { GwbContext } from '@godcreator/gwb-kernel-desktop'`。包根只导出类型，`isRecord`、`requireKernel` 这类无状态小函数由插件自带一份（devkit 的 `src/vocab.ts`）
+- **node 侧的测试只 import `.ts`**：node 侧的 tsc 没开 jsx
+- **说明书跟它描述的代码同仓同提交**，随那个包发布；每个插件只登记自己的说明书
+- **文档站的 README**：第一次在站目录 `pnpm doc:render` 之前，把手写 README 里要留的内容搬进 `outputs` 映射里指向 README 的那份 mdx，render 会整份覆盖 README

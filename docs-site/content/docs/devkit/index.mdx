@@ -69,8 +69,8 @@ description: 开发套件是一个普通的 gwb 插件，把「在一个新文�
 
 | 说明书 | 管什么 | 正本 |
 | --- | --- | --- |
-| `gwb-devkit` | 新写插件、改插件、改一版看一版、在页面里取证、发版；附件 `references/rules.md` 是规矩总表，`references/evidence.md` 讲在页面里取证 | [gwb-devkit](/outputs/skills/gwb-devkit)、[附件 evidence](/outputs/skills/gwb-devkit-evidence)；规矩总表就是[写插件的规矩](/docs/rules)这一页 |
-| `gwb-release` | 全生态的版本号规则：升哪一位、改依赖版本号、发破坏性版本多做的两步 | [gwb-release](/outputs/skills/gwb-release) |
+| `gwb-devkit` | 新写插件、改插件、改一版看一版、在页面里取证、发版；附件 `references/rules.md` 是规矩总表，`references/evidence.md` 讲在页面里取证 | [gwb-devkit](/docs/outputs/skills/gwb-devkit)、[附件 evidence](/docs/outputs/skills/gwb-devkit-evidence)；规矩总表就是[写插件的规矩](/docs/rules)这一页 |
+| `gwb-release` | 全生态的版本号规则：升哪一位、改依赖版本号、发破坏性版本多做的两步 | [gwb-release](/docs/outputs/skills/gwb-release) |
 
 说明书只写步骤、完成判据和工具不会报出来的坑；命令的参数、回执、拒绝条件写在命令的 `usage` 里，说明书不重复。
 
@@ -87,7 +87,7 @@ description: 开发套件是一个普通的 gwb 插件，把「在一个新文�
 ## 不做的事
 
 - **不画界面**：没有窗格、没有浏览器侧代码，只向外壳报一个显示名；使用者是 agent，读回执
-- **不建文档站、不写文档页**：建仓与加插件只写插件的文件；生成初始站点归站点插件 `@godcreator/gwb-docs-site`，装六区与核对文档归 docfirst 插件 `@godcreator/gwb-docfirst-workflow`，本包不调它们的命令
+- **不建文档站、不写文档页**：建仓与加插件只写插件的文件；生成初始站点归站点插件 `@godcreator/gwb-docs-site`，装分区与核对文档归 docfirst 插件 `@godcreator/gwb-docfirst-workflow`，本包不调它们的命令
 - **不自己增删 home 里的条目、不写 home 的清单**：安装与条目归插件管理。`devkit.dev` 装没装过的插件时调目标 home 的 `plugin-manager.install`，由插件管理新建条目；唯一的例外是 `devkit.home.new` 在新 home 启动之前直接 `pnpm add` 装包、写好基础插件的 `cordis.yml`（那时插件管理还没装、home 还没启动）
 - **不写 `runtime.json`**：它由内核与 MCP 入口插件写，本包只读
 - **不升级日常用的 `default`**：`devkit.dev` 拒绝以 `default` 为目标，`devkit.release` 只发到源；升级 `default` 用插件管理

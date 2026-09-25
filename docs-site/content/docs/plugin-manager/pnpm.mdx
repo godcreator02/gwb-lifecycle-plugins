@@ -16,9 +16,9 @@ pnpm 由用户装好，插件管理不自带。每次要运行 pnpm 时按顺序
 
 找到之后运行一次 `--version`（最多等 30 秒）核对版本：主版本号要是 12，并且不低于 12.4.2。两个位置都没有、`--version` 运行失败、版本不对、不是 Windows、`LOCALAPPDATA` 或 `APPDATA` 不在，一律报错，报错里写明检查的是哪个路径、该怎么装；**不去试另一个位置，也不找 PATH、不读设置、不读 `PNPM_HOME`**。
 
-{/* ref file="../plugins/plugin-manager/src/pnpm-location.ts" lines="7-11" */}
+{/* ref file="../plugins/plugin-manager/src/pnpm-location.ts" lines="7-11" hash="84fa60349ebb" blob="b7b0f475391d" */}
 
-{/* ref file="../plugins/plugin-manager/src/pnpm-location.ts" lines="22-61" */}
+{/* ref file="../plugins/plugin-manager/src/pnpm-location.ts" lines="22-61" hash="f962d1c8777d" blob="b7b0f475391d" */}
 
 - **同一个 pnpm**：安装工作台、插件管理、devkit 用的是同一个。第一次装 home 时插件管理还不在，只能用机器上的 pnpm，插件管理自带一份就会有两个版本改同一个 home（见轨迹卡[插件管理不再自带 pnpm](/trajectory/2026-09-24-pnpm-two-fixed-locations)）。devkit 从插件管理的主入口 import `locatePnpm`，规则只有这一份（见[主入口给 devkit 的导出](/docs/plugin-manager#主入口给-devkit-的导出)）
 - **只认固定位置、不看 PATH**：PATH 上排在前面的是哪一份，每台机器都不一样；两个位置都是原生可执行文件，可以直接启动，不用开 shell，也就没有参数引号转义的问题
@@ -36,11 +36,11 @@ pnpm 由用户装好，插件管理不自带。每次要运行 pnpm 时按顺序
 
 **命令行参数与工作目录**：写 home 只有 `add <spec…>`（对齐 `cordis` 那一次是 `add --save-exact cordis@<版本>`）与 `remove <包名>` 两种，都经 `applyToHome` 运行；只读的是 `outdated --json`。工作目录一律是 home。参数以数组传给进程，不经 shell。
 
-{/* ref file="../plugins/plugin-manager/src/index.ts" lines="607-610" */}
+{/* ref file="../plugins/plugin-manager/src/index.ts" lines="607-610" hash="84c877d9f358" blob="22810c890bc5" */}
 
 **环境**：由 `homePnpmEnv` 算，主入口导出它，devkit 在 home 里启动 pnpm 也用它（见[主入口给 devkit 的导出](/docs/plugin-manager#主入口给-devkit-的导出)）。原样传下去，用户的 `~/.npmrc`、pnpm 配置（`@godcreator` 的包源、包龄豁免）照常读到；改两处。去掉 `ELECTRON_RUN_AS_NODE`：它只对 electron 有意义，留着会传给 pnpm 启动的依赖构建脚本。设 `pnpm_config_auto_install_peers=false`：插件的 peer 写了别的插件、home 里没装那个插件时，pnpm 默认把它自动装进 `node_modules/.pnpm`，不写进 home 的 `package.json`、没有条目，插件管理也不认它；命令行参数 `--config.auto-install-peers=false` 会被 pnpm 忽略，只有环境变量或 home 的 `pnpm-workspace.yaml` 关得掉（见 [peer 满没满足](/docs/plugin-manager/peers#缺的-peer-不会被自动装上)）。
 
-{/* ref file="../plugins/plugin-manager/src/pnpm.ts" lines="10-23" */}
+{/* ref file="../plugins/plugin-manager/src/pnpm.ts" lines="10-23" hash="a8e6203c4d42" blob="b62dd927fe34" */}
 
 {/* has file="../plugins/plugin-manager/tests/pnpm.test.ts" text="原样传下去，去掉 ELECTRON_RUN_AS_NODE、关掉自动补装 peer" */}
 
@@ -52,9 +52,9 @@ pnpm 由用户装好，插件管理不自带。每次要运行 pnpm 时按顺序
 
 **读回什么**：`add` / `remove` 只看退出码，0 是成功；成功时不保留输出，失败时回执 `error` 末尾带 stdout 与 stderr 合起来的最后 12 行，pnpm 把原因写在最后。进程没启动成功也不抛，退出码记为 `null`，原因在那几行里。`outdated` 要读 stdout 上的 JSON，另用 `runPnpmCapture` 完整保留 stdout，退出码 1 表示「有过期的包」，是结果不是失败；pnpm 升大版本时输出格式可能变，解析不了就回失败，原因里说明这一点。两种运行方式对输出的取舍相反，所以是两个函数。
 
-{/* ref file="../plugins/plugin-manager/src/pnpm.ts" lines="30-54" */}
+{/* ref file="../plugins/plugin-manager/src/pnpm.ts" lines="30-54" hash="5b9833852739" blob="b62dd927fe34" */}
 
-{/* ref file="../plugins/plugin-manager/src/pnpm.ts" lines="104-108" */}
+{/* ref file="../plugins/plugin-manager/src/pnpm.ts" lines="104-108" hash="f1f931d6e0a2" blob="b62dd927fe34" */}
 
 {/* has file="../plugins/plugin-manager/tests/pnpm-run.test.ts" text="可执行文件不在：不抛，exitCode 为 null，原因在 tail 里" */}
 
@@ -70,4 +70,4 @@ pnpm 由用户装好，插件管理不自带。每次要运行 pnpm 时按顺序
 
 这是「插件卸载时结束自己启动的子进程」那条规矩允许的例外，理由写在 `runPnpm` 的注释里：
 
-{/* ref file="../plugins/plugin-manager/src/pnpm.ts" lines="69-73" */}
+{/* ref file="../plugins/plugin-manager/src/pnpm.ts" lines="69-73" hash="0efdcbfa157b" blob="b62dd927fe34" */}

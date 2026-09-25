@@ -15,45 +15,45 @@ description: 连接 devkit 与插件管理：devkit 从插件管理的主入口 
 
 **一、`devkit.dev` 经 CDP 调三条命令。** devkit 运行在另一个 home 里，调用经 `bin/cdp.mjs` 的 `cmd` 动作发到目标页面的 `window.gwb.command`（通道见 [CDP 驱动 cdp.mjs](/docs/seams/cdp)）。devkit 先把每个包打成包文件放进目标 home 的 `dev-packs/`，再只读目标 home 的 `package.json`：已在 `dependencies` 里的包合成一条 `plugin-manager.update {"specs":{"<包>":"file:./dev-packs/<包文件>"}}`（内核包也在里面，`cordis` 不放：插件管理照装上的内核包 peer 自己对齐），不在的插件逐个 `plugin-manager.install {"pkg","spec"}`；内核包不在目标 home 里直接拒：
 
-{/* ref file="../plugins/devkit/src/dev.ts" lines="215-236" */}
+{/* ref file="../plugins/devkit/src/dev.ts" lines="215-236" hash="2e46a66826be" blob="48d80099fae0" */}
 
 回执只有外层一层 `ok`。`install` 的 `data` 是 `{ pkg, entryId }`，devkit 把 `entryId` 记进自己的回执。`update` 回 `ok: false` 时 devkit 整体失败、带上回执里的 `error`；这次装了内核包时，回执必须有 `restartRequired: true`（没有就判失败），devkit 重启目标 home、轮询 `shell.env` 直到页面报出的内核版本就是这次打包的；`selfDeferred: true` 时 devkit 从 `updated` 与 `dependents` 里找出 `action` 是 `deferred` 的条目属于哪些包，每 500 毫秒轮询一次 `plugin-manager.list`，60 秒内等到这些包的条目全都 `active: true`：
 
-{/* ref file="../plugins/devkit/src/dev.ts" lines="541-572" */}
+{/* ref file="../plugins/devkit/src/dev.ts" lines="541-572" hash="56a4fc0e1f7f" blob="48d80099fae0" */}
 
-{/* ref file="../plugins/devkit/src/dev.ts" lines="474-509" */}
+{/* ref file="../plugins/devkit/src/dev.ts" lines="474-509" hash="dd637e3b63e6" blob="48d80099fae0" */}
 
 插件管理的 `install` 与 `update`，`usage` 里写着参数与回执：
 
-{/* ref file="../plugins/plugin-manager/src/index.ts" lines="179-187" */}
+{/* ref file="../plugins/plugin-manager/src/index.ts" lines="179-187" hash="076d69b7812e" blob="22810c890bc5" */}
 
-{/* ref file="../plugins/plugin-manager/src/index.ts" lines="221-226" */}
+{/* ref file="../plugins/plugin-manager/src/index.ts" lines="221-226" hash="bdb48402ed73" blob="22810c890bc5" */}
 
 `specs` 的规则在插件管理的 `planSpecsUpdate`：包必须已在 home 的 `dependencies` 里，写了 `cordis` 直接报错，写法原样交给 pnpm；`file:` 写法装完不核对版本号，由 devkit 自己读 `node_modules` 里的清单核对：
 
-{/* ref file="../plugins/plugin-manager/src/update.ts" lines="109-125" */}
+{/* ref file="../plugins/plugin-manager/src/update.ts" lines="109-125" hash="9de063c8619c" blob="5c8109cad2ab" */}
 
 `plugin-manager.list` 的回执由 devkit 自己解析：`data` 就是包的数组，按 `pkg` 找包，读每条条目的 `entryId` 与 `active`，一个包的**全部**条目都算进取证；这次装的插件在表里一条条目都没有，取证判失败：
 
-{/* ref file="../plugins/devkit/src/dev.ts" lines="132-144" */}
+{/* ref file="../plugins/devkit/src/dev.ts" lines="132-144" hash="9dd3c077f4bf" blob="48d80099fae0" */}
 
 插件管理的 `list` 每个包带 `pkg`、`entries`，每条条目带完整 `entryId` 与按 fiber 状态算的 `active`：
 
-{/* ref file="../plugins/plugin-manager/src/inventory.ts" lines="9-23" */}
+{/* ref file="../plugins/plugin-manager/src/inventory.ts" lines="9-23" hash="2cce201cfe1a" blob="27235985746c" */}
 
 **二、`devkit.home.new` 自己写 `cordis.yml`、自己装内核包、`cordis` 与基础插件。** 新 home 在内核启动之前，由 devkit 在刚建的 home 目录里写一份七条条目的 `cordis.yml`，再用命令开头找到的 pnpm（两个固定位置之一，见 [pnpm 与包源](/docs/seams/pnpm-registry)）依次运行三次 `pnpm add`：内核包（运行中的内核版本）、`cordis`（装上的内核包 peer 里写的精确版本号，带 `--save-exact`）、七个基础插件（其中有插件管理，取源上的 latest）。三次的环境都由插件管理导出的 `homePnpmEnv` 算（带 `pnpm_config_auto_install_peers=false`）；home 清单因此只有 `cordis` 是精确版本号、其余是 `^` 范围，和插件管理写的一样。内核包与 `cordis` 装完读 `node_modules` 里的清单核对版本，对不上不启动：
 
-{/* ref file="../plugins/devkit/src/home.ts" lines="235-274" */}
+{/* ref file="../plugins/devkit/src/home.ts" lines="235-274" hash="85b9aad739e3" blob="9f8e8e37432b" */}
 
-{/* ref file="../plugins/devkit/src/home.ts" lines="336-361" */}
+{/* ref file="../plugins/devkit/src/home.ts" lines="336-361" hash="9402e7831248" blob="9f8e8e37432b" */}
 
 **三、devkit 从插件管理的主入口 import 几个函数与三条命令的名字。** 找 pnpm 的 `locatePnpm`、在 home 里启动 pnpm 用的环境 `homePnpmEnv`、内核包名 `KERNEL_PACKAGE`、peer 范围写法的判定 `isCaretRange`、取输出最后几行的 `tailLines`，规则只有插件管理里这一份；`devkit.dev` 调的命令名 `LIST_COMMAND`、`INSTALL_COMMAND`、`UPDATE_COMMAND` 也从这里取（见[主入口给 devkit 的导出](/docs/plugin-manager#主入口给-devkit-的导出)）。devkit 的 peer 里写着插件管理（仓里写 `workspace:^`，`devkit.release` 发版时写成 `^<插件管理的版本号>`），devkit 构建时把 peer 里的包留在外面，home 里 pnpm 把它解析到装着的那一份：
 
-{/* ref file="../plugins/plugin-manager/src/index.ts" lines="38-41" */}
+{/* ref file="../plugins/plugin-manager/src/index.ts" lines="38-41" hash="32891efcf8af" blob="22810c890bc5" */}
 
-{/* ref file="../plugins/plugin-manager/src/index.ts" lines="51-53" */}
+{/* ref file="../plugins/plugin-manager/src/index.ts" lines="51-53" hash="c4d22b1bf2be" blob="22810c890bc5" */}
 
-{/* ref file="../plugins/devkit/package.json" lines="30-37" */}
+{/* ref file="../plugins/devkit/package.json" lines="30-37" hash="753baaf00a05" blob="f60bd663281e" */}
 
 ## 约定
 

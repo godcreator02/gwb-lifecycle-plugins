@@ -36,11 +36,11 @@ workspace 仓：仓根是一个不发布的 private 包（`pnpm build` / `pnpm c
 
 六个类型，两条流程：建仓（参数 `ScaffoldInput` → 计划 `ScaffoldPlan` → 渲染好的 `RenderedFile[]`）、加插件（`ScaffoldPluginInput` → `ScaffoldPluginPlan` → 同样的 `RenderedFile[]`）。
 
-{/* ref file="../plugins/devkit/src/scaffold.ts" lines="28-96" */}
+{/* ref file="../plugins/devkit/src/scaffold.ts" lines="28-96" hash="172ffc538a2c" blob="99db9041bdf1" */}
 
 `ScaffoldPlan` 与 `ScaffoldPluginPlan` 算出来之后，后面每一步只看计划，不再回头看参数。两种参数里的 `peerVersions` 不是命令参数：`src/index.ts` 调 `homePeerVersions`，内核取运行中的内核服务的 `gwbKernel.version`，命令总线与外壳读这个 home 的 `node_modules/<包>/package.json`（没装就拒，报错写出读的是哪个文件）。计划里只留 x.y.z 三段（开发版去掉预发布段），渲染时分别填进生成的 `package.json` peer 里三个包的范围 `^x.y.z`。模板里因此不写死任何 `@godcreator` 包的版本号：写死的数字会随上游发版过时，上游一升 x，新仓第一次发版就被「和源上 latest 不在同一条线」拒掉（取舍见轨迹卡[建仓模板的 peer 版本号从 home 读](/trajectory/2026-09-25-scaffold-peers-from-home)）。
 
-{/* ref file="../plugins/devkit/src/scaffold.ts" lines="161-184" */}
+{/* ref file="../plugins/devkit/src/scaffold.ts" lines="161-184" hash="52d88833af6d" blob="99db9041bdf1" */}
 
 ## 提供的接口
 
@@ -48,41 +48,41 @@ workspace 仓：仓根是一个不发布的 private 包（`pnpm build` / `pnpm c
 
 模块导出一串纯函数，`src/index.ts` 按顺序调用：
 
-{/* ref file="../plugins/devkit/src/scaffold.ts" lines="145-159" */}
+{/* ref file="../plugins/devkit/src/scaffold.ts" lines="145-159" hash="cb658a9d0b77" blob="99db9041bdf1" */}
 
 校验、派生、转成绝对路径、填缺省值都在这一处做完，没有读写磁盘。抛出的每一句都写明该怎么改。`dir` 经 `path.resolve` 转成绝对路径，`D:/a/b` 与 `D:\a\b` 得到同一个结果。`scope` 要是 `@` 开头的 npm 包名范围；`registry` 要是 http(s) 地址的规范写法（与 `new URL(registry).href` 逐字相同，所以写进 JSON 不用转义），不带账号、查询串与 `#`（发布 token 写在用户级 `~/.npmrc`）。不合规就拒，报错里写出规范写法，不替调用方改：
 
-{/* ref file="../plugins/devkit/src/scaffold.ts" lines="118-143" */}
+{/* ref file="../plugins/devkit/src/scaffold.ts" lines="118-143" hash="8cc25d86a77c" blob="99db9041bdf1" */}
 
 加插件的计划**要读磁盘**（建仓的不读）：`repo` 必须已经是 workspace 仓才收，也就是 `pnpm-workspace.yaml` 的 `packages` 里有 `plugins/*` 这一条。
 
-{/* ref file="../plugins/devkit/src/scaffold.ts" lines="225-251" */}
+{/* ref file="../plugins/devkit/src/scaffold.ts" lines="225-251" hash="a6a1b5796c2b" blob="99db9041bdf1" */}
 
 `packages` 用 yaml 库读，带不带引号、块列表还是流式列表、注释、CRLF 都认；文件写坏了、或 `packages` 不是字符串列表，报错写出文件与第几行第几列，不当成「没有这一条」。yaml 写在 dev 里，由 `build.ts` 打包进产物（见[开发](/docs/develop#提交前的检查)）：
 
-{/* ref file="../plugins/devkit/src/scaffold.ts" lines="186-223" */}
+{/* ref file="../plugins/devkit/src/scaffold.ts" lines="186-223" hash="27ae86981ebd" blob="99db9041bdf1" */}
 
 **整套模板先在内存里渲染完，再写磁盘。** 占位符出错是这条流程上最可能的失败，而目标目录一旦开始写就没有干净的回滚点。
 
-{/* ref file="../plugins/devkit/src/scaffold.ts" lines="319-329" */}
+{/* ref file="../plugins/devkit/src/scaffold.ts" lines="319-329" hash="ca48ac2a596c" blob="99db9041bdf1" */}
 
 占位符一共九个，值都出自短名、校验过的包名范围、规范写法的地址与版本号三段，放进 JSON、TS、Markdown 都不用转义，原样替换。认不出的占位符当场抛错：生成的仓里留一个 `{{typo}}`，它会一直留在别人的 package.json 里，到那时已经没人知道它本来该是什么。所以给模板加了新占位符，`placeholders()` 必须同时加一项：
 
-{/* ref file="../plugins/devkit/src/scaffold.ts" lines="262-287" */}
+{/* ref file="../plugins/devkit/src/scaffold.ts" lines="262-287" hash="36e459ce1790" blob="99db9041bdf1" */}
 
 生成的 JSON 与 YAML 读不读得懂由测试对本包的模板核对，运行时不再读一遍：模板只有本包这一份，改了模板运行一次 `tests/scaffold.test.ts` 就知道。
 
 两部分各写到哪里由一个纯函数决定：`repo/` 写到仓根，`pkg/` 写到 `plugins/<短名>/`，**不属于这两部分的文件当场抛错**——模板里每个文件都得声明自己属于哪部分，没声明的文件写下去，谁也说不清它属于仓根还是插件包。
 
-{/* ref file="../plugins/devkit/src/scaffold.ts" lines="294-303" */}
+{/* ref file="../plugins/devkit/src/scaffold.ts" lines="294-303" hash="625515cfe917" blob="99db9041bdf1" */}
 
 建仓渲染仓根与插件包两部分；加插件只渲染插件包那部分，路径相对插件包根。`writeRepo` 的「目标必须还不存在」于是检查的是 `plugins/<短名>/`，仓根不碰。
 
-{/* ref file="../plugins/devkit/src/scaffold.ts" lines="319-338" */}
+{/* ref file="../plugins/devkit/src/scaffold.ts" lines="319-338" hash="ac454e190af7" blob="99db9041bdf1" */}
 
 目标目录必须还不存在。建仓与加插件都是一次性动作，往已有目录里写文件没有干净的回滚点。
 
-{/* ref file="../plugins/devkit/src/scaffold.ts" lines="340-349" */}
+{/* ref file="../plugins/devkit/src/scaffold.ts" lines="340-349" hash="85fb89653da1" blob="99db9041bdf1" */}
 
 ## 依赖的接口
 

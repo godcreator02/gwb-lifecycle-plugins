@@ -52,7 +52,7 @@ pnpm build          # 只构建 plugins/*，两个包都先清空 dist/：开发
 
 **开发套件的构建**：`build.ts` 用 esbuild 从 `src/index.ts` 把 node 侧打成一个 `dist/index.js`，外置 node 内置模块、`electron`、`cordis` 与 peer 里的包，其余（yaml、es-module-lexer）打包进去；类型声明由 tsc 另外输出到 `dist/`。`bin/cdp.mjs` 不打包，产物里对它的 import 原样留成 `../bin/cdp.mjs`：产物与源码都在包根下一层，`import.meta.url` 算出来的包内路径（`bin/`、`skills/`、`template/`）打包前后指向同一处。打包进来的 yaml 是 CommonJS、会 `require` node 内置模块，ESM 产物里本来没有 `require`，所以产物开头用 `createRequire` 造了一个——删了它 vitest 照样全绿（vitest 自己提供 `require`），只有 `tests/built-artifact.test.ts` 另起的那个 node 进程会失败：
 
-{/* ref file="../plugins/devkit/build.ts" lines="15-50" */}
+{/* ref file="../plugins/devkit/build.ts" lines="15-50" hash="8596bdea3caa" blob="23ebc86527f5" */}
 
 {/* has file="../plugins/devkit/tests/built-artifact.test.ts" text="另起一个 node 进程直接 import 得起来" */}
 
@@ -105,13 +105,14 @@ pnpm build          # 只构建 plugins/*，两个包都先清空 dist/：开发
 
 ## 文档站
 
-文档站在 `docs-site/`。六区各放什么、`doc:confirm` 与提交的先后、确认时点名哪几页，照说明书 `docfirst-docs`；轨迹卡怎么写照 `trajectory`。在 `docs-site` 目录里：
+文档站在 `docs-site/`。分区、钉码怎么确认、黄灯怎么复核，照说明书 `docfirst-docs`；轨迹卡怎么写照 `trajectory`。在 `docs-site` 目录里：
 
 ```powershell
-pnpm doc                           # docfirst check：页面引用的代码改了、生成文件与正本不一致，都会报出来
-pnpm doc:confirm <页的路径…>        # 引用的代码改了、页上的说法仍成立时确认；路径相对 docs-site/
-pnpm doc:render                    # 按 content/outputs/ 重新生成 AGENTS.md、CLAUDE.md、README.md 与说明书
-pnpm build                         # 构建文档站；端口见 package.json 的 start 脚本（4322）
+pnpm doc                                # docfirst check：页面引用的代码改了、生成文件与正本不一致，都会报出来
+pnpm doc:confirm                        # 机械写回：草稿换成正式记号、挪了位置的写回行号、重新生成生成文件
+pnpm doc:confirm <页的路径…> --accept    # 引用的代码改了、页上的说法仍成立时签掉黄灯；只点名自己改的页
+pnpm doc:render                         # 按 content/docs/outputs/ 重新生成 AGENTS.md、CLAUDE.md、README.md 与说明书
+pnpm build                              # 构建文档站；端口见 package.json 的 start 脚本（4322）
 ```
 
-**生成文件不手改**：`plugins/devkit/AGENTS.md`、`CLAUDE.md`、`README.md`、两个插件 `skills/` 下的 `SKILL.md` 与 `references/` 附件都由 `content/outputs/` 下的 mdx 生成（附件 `references/rules.md` 由现状区的 `rules/index.mdx` 生成），对应关系在 `docfirst.config.mjs` 的 `outputs`；改 mdx、运行 `pnpm doc:render`，mdx、生成文件、`.ledger.json` 放进同一个提交。
+**生成文件不手改**：`plugins/devkit/AGENTS.md`、`CLAUDE.md`、`README.md`、两个插件 `skills/` 下的 `SKILL.md` 与 `references/` 附件都由 `content/docs/outputs/` 下的 mdx 生成（附件 `references/rules.md` 由 `rules/index.mdx` 生成），对应关系在 `docfirst.config.mjs` 的 `outputs`；改 mdx、运行 `pnpm doc:render`，mdx 与生成文件放进同一个提交。

@@ -14,19 +14,19 @@ description: 连接插件管理与 cordis 的 loader、include：插件管理从
 
 **取树**：从插件管理自己那条条目的上一层取——`ctx.fiber.entry.parent.tree`，不用知道承载 `cordis.yml` 的那条条目叫什么。取到的按 loader 的类型 `EntryTree` 赋给收窄后的 `EntryTreeLike`，loader 的签名变了，类型检查在这里失败；运行时只检查取到的是个对象，取不到就是插件管理没经 `cordis.yml` 的条目加载。自己那条条目的完整 id 从 `ctx.fiber.entry.id` 取。
 
-{/* ref file="../plugins/plugin-manager/src/tree.ts" lines="6-42" */}
+{/* ref file="../plugins/plugin-manager/src/tree.ts" lines="6-42" hash="3427b273ac5e" blob="07cb08627b89" */}
 
 **写**：`create(options, parent)` 加一条并写回 `cordis.yml`、当场加载；`update(id, { disabled: true })` 停用、`update(id, { disabled: null })` 启用（`null` 表示删掉这个字段）；`remove(id)` 删一条。三个方法都只认不带前缀的 id；写回磁盘推迟到下一个宏任务，返回时磁盘上还是旧的。
 
 **读**：`store` 是一张不分层的表，键是不带前缀的 id；每一项读 `id`（完整 entryId）、`options.name`（包名）、`options.group`、`disabled`、`fiber.state`：
 
-{/* ref file="../plugins/plugin-manager/src/inventory.ts" lines="60-83" */}
+{/* ref file="../plugins/plugin-manager/src/inventory.ts" lines="60-83" hash="7d6de53c9bbd" blob="27235985746c" */}
 
 **状态值与等待**：cordis 的 `FiberState` 是 `const enum`，运行时拿不到，插件管理照抄一份名字表；重新加载时用 `fiber.await()` 等旧实例卸载完、新实例加载完：
 
-{/* ref file="../plugins/plugin-manager/src/fiber.ts" lines="3-34" */}
+{/* ref file="../plugins/plugin-manager/src/fiber.ts" lines="3-34" hash="607ad9b68d26" blob="071cae84dcc7" */}
 
-{/* ref file="../plugins/plugin-manager/src/remount.ts" lines="34-46" */}
+{/* ref file="../plugins/plugin-manager/src/remount.ts" lines="34-46" hash="867d1f991393" blob="337586a991f2" */}
 
 ## 约定
 
@@ -37,9 +37,9 @@ description: 连接插件管理与 cordis 的 loader、include：插件管理从
 - 调用条目树之后不读回 `cordis.yml` 核对，以内存里的条目树为准
 - `devDependencies` 里 loader、include、cordis 的版本与它 peer 里内核包下限那个内核用的一致
 
-{/* ref file="../plugins/plugin-manager/package.json" lines="31-32" */}
+{/* ref file="../plugins/plugin-manager/package.json" lines="31-32" hash="92d22590eb77" blob="114560e1631b" */}
 
-{/* ref file="../plugins/plugin-manager/package.json" lines="39-43" */}
+{/* ref file="../plugins/plugin-manager/package.json" lines="39-43" hash="e532aa97a49f" blob="114560e1631b" */}
 
 loader、include、cordis 需要保证的：`entry.parent.tree` 这条取法、三个方法的行为、`store` 里每一项的字段名、`FiberState` 的成员顺序、`fiber.await()` 在做完手头的事时返回。这些都是它们的内部结构，不是公开接口，**靠约定**：内核仓承诺这几个包的版本一变就升内核版本号的 x；插件管理在 peer 里用内核包的范围记下对应的内核版本（见 [peer 里的内核包与插件](/docs/seams/kernel-peer)）。内核换了其中任何一个，插件管理把 `devDependencies` 里的版本改成内核的、运行一遍测试，再改 peer 里的范围。
 

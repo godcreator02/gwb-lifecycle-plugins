@@ -15,35 +15,35 @@ description: 连接 devkit.home.*、devkit.dev 的定位与 cdp.mjs 和内核 ex
 
 **启动 home**：启动宿主自己那个 exe，环境里给 `GWB_HOME=<名>`（去掉 `ELECTRON_RUN_AS_NODE` 与 `npm_config_*`），命令行带 `--remote-debugging-port=<端口>` 与 `--disable-backgrounding-occluded-windows`。端口从 9400 起往上找 50 个，先沿用这个 home 上次记录里的端口：
 
-{/* ref file="../plugins/devkit/src/home.ts" lines="124-144" */}
+{/* ref file="../plugins/devkit/src/home.ts" lines="124-144" hash="c046a33fa626" blob="9f8e8e37432b" */}
 
-{/* ref file="../plugins/devkit/src/home.ts" lines="21-25" */}
+{/* ref file="../plugins/devkit/src/home.ts" lines="21-25" hash="4a25681feab5" blob="9f8e8e37432b" */}
 
 **runtime.json**：内核每次启动整份重写，退出不删。devkit 读 `pid`、`startedAt`、`cdp`，以及 MCP 入口插件补写的 `mcp`；内核还写了 `version`，devkit 不读。devkit 里有两份各自的解析。
 
 `src/home.ts` 的 `parseRecord`：`pid` 必须是正整数、`startedAt` 必须是有限数，否则整份当没有；缺 `cdp` 不算坏。`devkit.dev` 与 `home.*` 用它，定位时还核对 pid 还活着、且那个 pid 占着记录里的端口：
 
-{/* ref file="../plugins/devkit/src/home.ts" lines="62-83" */}
+{/* ref file="../plugins/devkit/src/home.ts" lines="62-83" hash="cc4829f27446" blob="9f8e8e37432b" */}
 
-{/* ref file="../plugins/devkit/src/home.ts" lines="490-517" */}
+{/* ref file="../plugins/devkit/src/home.ts" lines="490-517" hash="884343b8c9bc" blob="9f8e8e37432b" */}
 
 `bin/cdp.mjs` 的 `portOf`：只取 `cdp`，要求是 1–65535 的整数，不看 `pid`：
 
-{/* ref file="../plugins/devkit/bin/cdp.mjs" lines="138-153" */}
+{/* ref file="../plugins/devkit/bin/cdp.mjs" lines="138-153" hash="3f3a7a69fccd" blob="23ee1f594212" */}
 
 **home 根目录只有一种算法**：`%APPDATA%\gwb-kernel\homes`（Electron 的 `app.getPath('appData')` 在 Windows 上就是 `%APPDATA%`），与内核在 `GWB_HOME` 是名字时拼出的目录相同。算法写在零依赖的 `bin/cdp.mjs` 里，`src/index.ts` 从那里 import（类型写在手写的 `bin/cdp.d.mts`），两处用的是同一个函数。开发套件只支持 Windows：平台不是 Windows、或没有 `APPDATA`，都直接报错：
 
-{/* ref file="../plugins/devkit/bin/cdp.mjs" lines="69-77" */}
+{/* ref file="../plugins/devkit/bin/cdp.mjs" lines="69-77" hash="65442a548474" blob="23ee1f594212" */}
 
 {/* has file="../plugins/devkit/src/index.ts" text="import { homesRootOf } from '../bin/cdp.mjs'" */}
 
 **gwb.log**：`devkit.dev` 在装包之前记下日志文件的长度，最后只读新增的部分，按每行空白分隔的第二段判断级别，`error` 算失败、`warn` 另报。行格式 `<ISO 时间> <级别> <名字> <正文>` 由内核定：
 
-{/* ref file="../plugins/devkit/src/dev.ts" lines="240-253" */}
+{/* ref file="../plugins/devkit/src/dev.ts" lines="240-253" hash="86bf11a3fd47" blob="48d80099fae0" */}
 
 **home 名**：devkit 的命令只收 kebab-case 的 home 名：
 
-{/* ref file="../plugins/devkit/src/home.ts" lines="7-8" */}
+{/* ref file="../plugins/devkit/src/home.ts" lines="7-8" hash="1d7d09f23900" blob="9f8e8e37432b" */}
 
 内核对 `GWB_HOME` 不做形状检查：值里带路径分隔符就当目录用，否则拼到 `homes` 下。devkit 这条正则比内核严，它旁边的注释说「就是内核的校验正则」，与内核现状不符。
 

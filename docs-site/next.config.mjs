@@ -25,9 +25,8 @@ const config = {
     { source: '/docs/home', destination: '/docs/devkit/home', permanent: false },
     { source: '/docs/dev', destination: '/docs/devkit/dev', permanent: false },
     { source: '/docs/cdp', destination: '/docs/devkit/cdp', permanent: false },
-    // 交接页做完就删，旧地址跳到交接区首页
-    { source: '/spec/peer-between-plugins', destination: '/spec', permanent: false },
-    { source: '/spec/ecosystem-simplify', destination: '/spec', permanent: false },
+    // 生成正本挪进了现状区
+    { source: '/outputs/:path*', destination: '/docs/outputs/:path*', permanent: false },
   ],
 }
 

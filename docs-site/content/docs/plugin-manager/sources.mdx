@@ -5,7 +5,7 @@ description: plugin-manager.search（无参数）在配好的全部 npm 源上�
 
 # 找插件
 
-**本页回答**：`search` 查哪些源、怎么判断一个包是插件；源地址与 token 从哪读；第三方包源谁来配；`search` 为什么不经 BUSY。命令怎么组合着用见说明书 [gwb-plugin-manager](/outputs/skills/gwb-plugin-manager)。
+**本页回答**：`search` 查哪些源、怎么判断一个包是插件；源地址与 token 从哪读；第三方包源谁来配；`search` 为什么不经 BUSY。命令怎么组合着用见说明书 [gwb-plugin-manager](/docs/outputs/skills/gwb-plugin-manager)。
 
 代码在 `src/package-sources.ts`（命令逻辑，把下面几样接起来）、`src/sources.ts` 与 `src/search.ts`（纯逻辑）、`src/registry.ts`（网络）、`src/home.ts`（读 npmrc）。
 
@@ -21,21 +21,21 @@ description: plugin-manager.search（无参数）在配好的全部 npm 源上�
 
 `search` 没有参数，查两份 npmrc 里出现过的每个 scope，`@godcreator` 永远排第一（npmrc 里没写它时它走全局源），其余按名字排。各条源并发查，查成的合并进回执的 `packages`，没查成的在 `note` 里写明是哪条、为什么；全部没查成才回 `ok: false`。
 
-{/* ref file="../plugins/plugin-manager/src/package-sources.ts" lines="23-61" */}
+{/* ref file="../plugins/plugin-manager/src/package-sources.ts" lines="23-61" hash="e681657e609b" blob="7ae4be89025a" */}
 
 每条源的地址按 scope 从两份 npmrc 里找：先找 `@scope:registry=`，再找 `registry=`，每一种都是 home 级优先于机器级，都没写就是 npm 官方源。pnpm 安装时读的是同一批配置行，所以检索的源和安装的源是同一个，搜到的包名交给 `install`，pnpm 去的也是这条源。用环境变量或 pnpm 全局配置指定的源这里看不到；本机的配置都写在 `~/.npmrc` 里。
 
-{/* ref file="../plugins/plugin-manager/src/sources.ts" lines="68-78" */}
+{/* ref file="../plugins/plugin-manager/src/sources.ts" lines="68-78" hash="aa553473d382" blob="3ee96fe24727" */}
 
 每条源发 `GET <registry>/-/v1/search?text=<scope>&size=250`，这条源在 npmrc 里配了 token 就带 `Authorization: Bearer`（同名 scope 取 home 级那条的 token），最多等 10 秒。检索接口是 npmjs、Verdaccio、gitea 都实现的标准协议，这里不认识任何具体的源。token 只在这次请求里用，不进回执与日志。
 
-{/* ref file="../plugins/plugin-manager/src/registry.ts" lines="4-31" */}
+{/* ref file="../plugins/plugin-manager/src/registry.ts" lines="4-31" hash="87bafebce13a" blob="56c6ac868cbd" */}
 
 **是不是插件只看包清单 `keywords` 里有没有 `gwb-plugin`**，包名前缀、scope 都不参与判断。这个字段只在检索响应里有（单包详情接口会去掉它），一次请求就能判断完；判断完就从回执里拿掉，回执每行只有 `pkg`、`version`、`description`。gitea 的检索响应把 scope 与名字分开放，解析时拼回完整包名。
 
-{/* ref file="../plugins/plugin-manager/src/search.ts" lines="8-9" */}
+{/* ref file="../plugins/plugin-manager/src/search.ts" lines="8-9" hash="d3c195c0f170" blob="4a71ddaeeb3a" */}
 
-{/* ref file="../plugins/plugin-manager/src/search.ts" lines="48-51" */}
+{/* ref file="../plugins/plugin-manager/src/search.ts" lines="48-51" hash="8b851048cbb2" blob="4a71ddaeeb3a" */}
 
 {/* has file="../plugins/plugin-manager/tests/sources.test.ts" text="home 级同名 scope 优先于机器级" */}
 
@@ -51,18 +51,18 @@ description: plugin-manager.search（无参数）在配好的全部 npm 源上�
 
 插件管理只读两份 npmrc，只认三种行——scope 路由、凭据、全局源，其余行跳过；凭据行按源地址配对，不按 scope。文件不在当空文本，在但读不了就报错并带上路径。
 
-{/* ref file="../plugins/plugin-manager/src/sources.ts" lines="1-5" */}
+{/* ref file="../plugins/plugin-manager/src/sources.ts" lines="1-5" hash="b73dd96036d9" blob="3ee96fe24727" */}
 
-{/* ref file="../plugins/plugin-manager/src/home.ts" lines="67-82" */}
+{/* ref file="../plugins/plugin-manager/src/home.ts" lines="67-82" hash="59b5a04577fe" blob="2689fa073ac6" */}
 
 {/* has file="../plugins/plugin-manager/tests/home.test.ts" text="文件不在读成空文本；在就原样读出" */}
 
-配第三方包源不经命令：说明书 [gwb-plugin-manager](/outputs/skills/gwb-plugin-manager) 的「配第三方包源」写清往 `~/.npmrc` 加哪两行，agent 照着写完调 `search` 核对。`@godcreator` 的路由本来就写在 `~/.npmrc`，本机每个 home 的安装、每个源码仓的安装与发版都读它，写别的 scope 时那一行不动。
+配第三方包源不经命令：说明书 [gwb-plugin-manager](/docs/outputs/skills/gwb-plugin-manager) 的「配第三方包源」写清往 `~/.npmrc` 加哪两行，agent 照着写完调 `search` 核对。`@godcreator` 的路由本来就写在 `~/.npmrc`，本机每个 home 的安装、每个源码仓的安装与发版都读它，写别的 scope 时那一行不动。
 
 ## 不改 home，不经 BUSY
 
 `search` 用不带 BUSY 检查的方式登记，也不运行 pnpm。BUSY 防的是两次改动同时改 home 的 `package.json`；`search` 只读网络与文件，不碰 home。检索可能要等好几条源，排在安装后面只会让「可装」列表等到安装做完才出来。
 
-{/* ref file="../plugins/plugin-manager/src/index.ts" lines="236-248" */}
+{/* ref file="../plugins/plugin-manager/src/index.ts" lines="236-248" hash="ae6fa061604a" blob="22810c890bc5" */}
 
 真实 registry 的检索只能实机验证：`devkit.home.new` 开一个隔离 home，在里面调 `search`。

@@ -72,7 +72,7 @@ devkit 没有任何特权：装进 home 才有它的命令，和别的插件一�
 - 流程只写在说明书里，回执只带这次特有的东西，不复述流程
 - 页面属于哪个 home，只在 `cdp.mjs` 连上时核对一处
 
-{/* ref file="../plugins/devkit/src/node-probe-deps.ts" lines="31-39" */}
+{/* ref file="../plugins/devkit/src/node-probe-deps.ts" lines="31-39" hash="b639abd044e1" blob="be2ca89c7fc7" */}
 
 代价：这台机器上 `tasklist` 偶尔卡住时，列出、定位、停止、删除 home 都跟着失败，要人重试；改这些行为（比如把某个参数改成可选、给某种失败一个缺省结果）是破坏性变更。
 
@@ -90,7 +90,7 @@ devkit 没有任何特权：装进 home 才有它的命令，和别的插件一�
 
 {/* has file="../plugins/devkit/src/release.ts" text="export interface ReleaseDeps {" */}
 
-{/* tree dir="../plugins/devkit/src" depth="1" glob="*.ts" */}
+{/* tree dir="../plugins/devkit/src" depth="1" glob="*.ts" hash="31dfde174807" */}
 
 建仓是另一种形状：它只做计算与同步读写磁盘，不注入接口，测试直接写临时目录——把「往磁盘上写文件」换成假实现，等于没测。各模块在哪个文件、先读哪个，见[开发套件](/docs/devkit)的代码地图。
 

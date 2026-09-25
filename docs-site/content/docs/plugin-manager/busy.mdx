@@ -11,9 +11,9 @@ description: install、uninstall、update 三条命令在最外层经过同一�
 
 `install`、`uninstall`、`update` 登记时包在同一道检查里。已经有一个在运行时，重入的直接回 `{ ok: false, error: "BUSY…" }`，不执行、不排队；运行中抛错也会释放标志。一个内核进程只服务一个 home，进程内的一个标志就够。插件管理对外只有命令，没有绕开这道检查的调用方式。
 
-{/* ref file="../plugins/plugin-manager/src/busy.ts" lines="1-17" */}
+{/* ref file="../plugins/plugin-manager/src/busy.ts" lines="1-17" hash="d2a4fab732f6" blob="54c75b4db2f8" */}
 
-{/* ref file="../plugins/plugin-manager/src/index.ts" lines="162-164" */}
+{/* ref file="../plugins/plugin-manager/src/index.ts" lines="162-164" hash="f20ec6cdfc15" blob="22810c890bc5" */}
 
 {/* has file="../plugins/plugin-manager/tests/busy.test.ts" text="有改动在运行时重入回 BUSY，不执行" */}
 

@@ -15,9 +15,9 @@ description: 条目 id 是身份，一经确定不改；新条目的 id 是包�
 - 默认 id 是包名去掉 scope 与最外层 `gwb-` 前缀：`@godcreator/gwb-py-cli` → `py-cli`；一个字符都剩不下时用 `plugin`
 - 重名时加数字后缀：`py-cli-2`、`py-cli-3`，中间空着的号先补上
 
-{/* ref file="../plugins/plugin-manager/src/ids.ts" lines="3-7" */}
+{/* ref file="../plugins/plugin-manager/src/ids.ts" lines="3-7" hash="9fcdbc1f51f8" blob="d58cd4d73f02" */}
 
-{/* ref file="../plugins/plugin-manager/src/ids.ts" lines="35-54" */}
+{/* ref file="../plugins/plugin-manager/src/ids.ts" lines="35-54" hash="427d8e776c57" blob="d58cd4d73f02" */}
 
 {/* has file="../plugins/plugin-manager/tests/ids.test.ts" text="和 gwb-data、gwb-settings 的校验是同一套" */}
 
@@ -27,9 +27,9 @@ description: 条目 id 是身份，一经确定不改；新条目的 id 是包�
 
 `install` 与 `add-entry`（只收 `{ pkg }`）给新条目选 id 时只看条目树：默认 id 没被占就用它，被占了就从 `-2` 起找第一个空着的号。默认 id 去掉了 scope，`@a/gwb-foo` 和 `@b/foo` 都叫 `foo`，同时装着时后装的那个拿到 `foo-2`，两个插件各用各的数据与设置；同一个包再加一条条目也一样加后缀。
 
-{/* ref file="../plugins/plugin-manager/src/ids.ts" lines="56-62" */}
+{/* ref file="../plugins/plugin-manager/src/ids.ts" lines="56-62" hash="3b65ff97b5ce" blob="d58cd4d73f02" */}
 
-{/* ref file="../plugins/plugin-manager/src/index.ts" lines="568-570" */}
+{/* ref file="../plugins/plugin-manager/src/index.ts" lines="568-570" hash="5b8926006051" blob="22810c890bc5" */}
 
 <Diagram name="pm-pick-id" title="选 id 的三个例子：点上面的按钮切换，每个例子一步步做下去">
 - 同一个包装两条：`py-cli` 已被占着，第二条拿到 `py-cli-2`

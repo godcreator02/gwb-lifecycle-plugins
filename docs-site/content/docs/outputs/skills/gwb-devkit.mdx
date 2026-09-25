@@ -73,4 +73,4 @@ description: 写新插件、改插件、在隔离 home 里验证改动、发正�
 - **内核的接口类型从内核包的包根 `import type`**：`import type { GwbContext } from '@godcreator/gwb-kernel-desktop'`。包根只导出类型，`isRecord`、`requireKernel` 这类无状态小函数由插件自带一份（devkit 的 `src/vocab.ts`）
 - **node 侧的测试只 import `.ts`**：node 侧的 tsc 没开 jsx
 - **说明书跟它描述的代码同仓同提交**，随那个包发布；每个插件只登记自己的说明书
-- **文档站的 README**：第一次在站目录 `pnpm doc:render` 之前，把手写 README 里要留的内容搬进 `content/outputs/readme.mdx`，render 会整份覆盖 README
+- **文档站的 README**：第一次在站目录 `pnpm doc:render` 之前，把手写 README 里要留的内容搬进 `outputs` 映射里指向 README 的那份 mdx，render 会整份覆盖 README

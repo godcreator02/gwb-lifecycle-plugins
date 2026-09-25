@@ -41,7 +41,6 @@ description: 这个仓里反复出现的词各指什么、在哪一页定义；�
 | peer | 插件 `package.json` 的 `peerDependencies`：运行时从 home 里得到的包——按值 import 的 `cordis`、内核包、用到的别的插件。node 侧构建产物只能按包名 import 这里写了的包。只在 `ctx.inject([...], fn)` 里用的插件在 `peerDependenciesMeta` 标 `optional`，意思是 home 里可以没有它、有的话版本要在范围里。`plugin-manager.list` 报没满足的（`unmetPeers`），只报告不拦 | [用到的插件写 peer](/docs/rules/plugin-peers) |
 | 同一条线 | 两个版本号之间没有破坏性版本：主版本号为 0 时次版本号相同，≥1 时主版本号相同。`devkit.release` 拿它比 peer 里的插件和源上的 latest | [用到的插件写 peer](/docs/rules/plugin-peers) |
 | 纯逻辑 | 不读写磁盘、不启动进程、只看输入输出的那部分代码，测试用假实现运行完。对面是只执行、不判断的 `node-*-deps.ts` | [关键设计](/docs/design#纯逻辑与真机器操作分开) |
-| 六区 | docfirst 文档站的六个目录：现状、轨迹、交接、未来、生成文件正本、反馈候选 | [开发](/docs/develop#文档站) |
 
 一个词进表的门槛：在两页以上出现，或者读者第一次见会问「这是什么」。名字定了就别改，改名是历史，去轨迹区写一张卡。
 

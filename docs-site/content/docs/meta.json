@@ -9,6 +9,7 @@
     "seams",
     "---包---",
     "devkit",
-    "plugin-manager"
+    "plugin-manager",
+    "outputs"
   ]
 }
