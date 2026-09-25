@@ -1,6 +1,6 @@
 {
   "name": "@godcreator/gwb-plugin-manager",
-  "version": "0.14.0",
+  "version": "0.14.1",
   "author": {
     "name": "godcreator"
   },
@@ -30,7 +30,7 @@
   },
   "peerDependencies": {
     "@godcreator/gwb-kernel-desktop": "^0.7.0",
-    "@godcreator/gwb-commands": "^0.5.0",
+    "@godcreator/gwb-commands": "^0.5.1",
     "@godcreator/gwb-skills": "^0.4.5"
   },
   "peerDependenciesMeta": {
@@ -39,7 +39,6 @@
   "devDependencies": {
     "@cordisjs/plugin-include": "1.1.0",
     "@cordisjs/plugin-loader": "1.0.0-rc.7",
-    "@godcreator/gwb-plugin-api": "^0.4.1",
     "@types/node": "^24.0.0",
     "cordis": "4.0.0-rc.10",
     "oxlint": "1.81.0",

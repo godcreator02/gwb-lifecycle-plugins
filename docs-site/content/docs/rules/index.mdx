@@ -52,8 +52,6 @@ description: 写 gwb 插件要守的规矩：总表只收有工具查、或违�
 
 ## 这个仓自己还没照做的
 
-插件管理（`plugins/plugin-manager/`）与开发套件的清单都按上面的规矩写：peer 里是内核包与用到的插件。还差一处：
-
-- **插件管理的 dev 暂时列着接口类型包 `@godcreator/gwb-plugin-api`**：命令总线 0.5.0 的类型声明还从它取 `GwbResult`，少了它 `commandBus.run` 的回执成了 error 类型、oxlint 不过。命令总线改成从内核包取类型之后删掉
+插件管理（`plugins/plugin-manager/`）与开发套件的清单都按上面的规矩写：peer 里是内核包与用到的插件，此刻没有没照做的。
 
 总表从 27 条删到 7 条的取舍见轨迹卡[写插件的规矩只留有工具查的](/trajectory/2026-09-25-rules-only-checked-ones)。

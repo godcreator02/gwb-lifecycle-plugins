@@ -23,4 +23,4 @@ devkit 0.20.0 之前，`devkit.dev` 把开发版发到团队源、打 `dev` 标�
 
 default 的清单里除了插件、内核包与 `cordis`，还有接口类型包 `@godcreator/gwb-plugin-api`（0.4.1）。它是库，运行时用不到，home 里只该有插件。
 
-清掉要在 default 上运行 `pnpm remove`，经插件管理做；先确认没有插件还按值 import 它。命令总线 0.5.0 的类型声明还从它取类型，但那是插件仓里的开发依赖，与 home 无关。
+清掉要在 default 上运行 `pnpm remove`，经插件管理做；先确认没有插件还在 peer 里写它、按值 import 它。default 里还有 agent-hooks-skills、docs-site、dsh、unit-folder 四个插件的 peer 写着它（`plugin-manager.list` 的 `unmetPeers` 报出来的），这几个插件改造完再清。

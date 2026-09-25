@@ -97,7 +97,7 @@ description: 插件管理是唯一写 home 的插件——装卸包、增删启�
 
 插件管理不写 `export const inject`：命令、说明书两个插件都用 `ctx.inject` 局部注入，缺了只少一部分功能，插件管理照常加载。这两个插件写在 peer 里，命令总线必需，说明书插件标 `optional`（见[依赖怎么写](/docs/rules/deps#例子插件管理的清单)）；数据插件、设置插件不在 peer 里，插件管理不用它们；cordis、loader、include 写在 `devDependencies`；内核与这两个插件的类型都从 peer 里的包 `import type`，构建产物里没有它们的 import。
 
-{/* ref file="../plugins/plugin-manager/package.json" lines="32-39" */}
+{/* ref file="../plugins/plugin-manager/package.json" lines="31-38" */}
 
 内核对插件管理的承诺——home 的文件布局、loader 与 include 的版本、按真实路径解析包名——写在内核仓文档站的接缝页「home 布局与条目树」；插件管理用到 loader 的哪几样见接缝页[条目树 loader](/docs/seams/entry-tree)。
 
