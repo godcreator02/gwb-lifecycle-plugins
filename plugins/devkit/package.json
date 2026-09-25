@@ -36,7 +36,7 @@
   "//dependencies": "建文档站的两条命令（docs-site.create / docfirst.attach）只按名字在命令总线上找——本包不依赖站点插件与 docfirst 插件的任何包，三者互不依赖",
   "//peerDependencies": "运行时从 home 里得到的东西：内核包、命令总线（inject 必需）、插件管理（import 它导出的 pnpm 定位、版本范围判定与命令名；devkit.dev 经它把开发版装进目标 home）；外壳、说明书、node 命令行三个插件经 ctx.inject 可选使用，写成 optional，没装不报",
   "peerDependencies": {
-    "@godcreator/gwb-kernel-desktop": "^0.6.0",
+    "@godcreator/gwb-kernel-desktop": "^0.7.0",
     "@godcreator/gwb-commands": "^0.5.0",
     "@godcreator/gwb-plugin-manager": "workspace:^",
     "@godcreator/gwb-node-cli": "^0.4.7",

@@ -33,7 +33,7 @@
   },
   "//peerDependencies": "运行时从 home 里得到的东西：内核包、命令总线（命令都登记在它上面）；数据、设置、说明书三个插件经 ctx.inject 可选使用，写成 optional，没装不报",
   "peerDependencies": {
-    "@godcreator/gwb-kernel-desktop": "^0.6.0",
+    "@godcreator/gwb-kernel-desktop": "^0.7.0",
     "@godcreator/gwb-commands": "^0.5.0",
     "@godcreator/gwb-data": "^0.1.7",
     "@godcreator/gwb-settings": "^0.3.3",
