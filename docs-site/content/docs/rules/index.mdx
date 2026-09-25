@@ -55,7 +55,7 @@ description: 写 gwb 插件要守的规矩一条一行：做法在哪一页、�
 | `gwbKernel` 用 `requireKernel` 取、不写进 `inject`；不写 `instanceof Service`；类的私有字段用 TS `private` | [服务](/docs/rules/services) | 没有工具检查 | 全部 |
 | 插件之间只通过服务和命令交互，不 import 别的插件 | [交互](/docs/rules/interaction) | 没有工具检查：发版前检查放行 node 侧对 peer 里写了的包的 import，写进 peer 的插件也在其中 | 全部 |
 | 共享磁盘数据格式或命令结构时，按区间比对契约版本，区间外拒绝加载 | [交互](/docs/rules/interaction) | 没有工具检查 | 全部 |
-| 谁提供接口谁定义类型；调用方不手写、不用 `as` 强转成提供方的类型 | [交互](/docs/rules/interaction) | 没有工具检查 | 全部 |
+| 谁提供接口谁定义类型：服务的类型由提供方导出，命令回执的类型有调用方要 import 时才导出（形状以 `usage` 为准）；调用方不手写、不用 `as` 强转成提供方的类型 | [交互](/docs/rules/interaction) | 没有工具检查 | 全部 |
 | 插件的数据目录只由它自己读写 | [交互](/docs/rules/interaction) | 没有工具检查 | 全部 |
 | 自己启动或创建的一切，卸载时清理掉，并返回 promise | [卸载清理](/docs/rules/dispose) | 没有工具检查 | 全部 |
 | 插件包在 peer 里写内核包 `@godcreator/gwb-kernel-desktop`，范围 `^x.y.z` 包含运行中的内核 | [兼容哪个内核](/docs/rules/kernel-compat) | `devkit.release` 拒没写、写法不是 `^x.y.z`、范围不包含运行中的内核；`plugin-manager.list` 按包报范围不包含 home 里内核的插件 | — |
@@ -64,10 +64,9 @@ description: 写 gwb 插件要守的规矩一条一行：做法在哪一页、�
 
 ## 这个仓自己还没照做的
 
-插件管理（`plugins/plugin-manager/`）与开发套件的清单都按上面的规矩写：peer 里是内核包与用到的插件。还差三处：
+插件管理（`plugins/plugin-manager/`）与开发套件的清单都按上面的规矩写：peer 里是内核包与用到的插件。还差两处：
 
 - **插件管理的 dev 暂时列着接口类型包 `@godcreator/gwb-plugin-api`**：命令总线 0.5.0 的类型声明还从它取 `GwbResult`，少了它 `commandBus.run` 的回执成了 error 类型、oxlint 不过。命令总线改成从内核包取类型之后删掉
-- **插件管理的主入口不导出命令回执的类型**：调用方照命令的 `usage` 读回执，与「谁提供接口谁定义类型」不一致，是有意收窄主入口的代价（见轨迹卡[插件管理 0.13.0](/trajectory/2026-09-25-kernel-via-specs-caller-reloads)）
 - **模板的窗格入口手写了外壳传入的参数形状**：`template/pkg/src/client/index.tsx.tpl` 里的 `PaneArgs` 没从外壳 `import type`。外壳发出导出窗格入口类型的正式版之后，改成从外壳取、把模板里外壳的下限升上去
 
 {/* has file="../plugins/devkit/template/pkg/src/client/index.tsx.tpl" text="interface PaneArgs {" */}

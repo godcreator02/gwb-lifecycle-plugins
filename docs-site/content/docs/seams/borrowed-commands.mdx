@@ -3,7 +3,7 @@ title: 5 借用别的插件的命令
 description: 连接 devkit 与两个不在本仓的插件：建仓调 docs-site.create 与 docfirst.attach，只按命令名在命令总线上查，查不到就跳过，参数与回执靠约定
 ---
 
-**本页回答**：devkit 调了哪几条别人的命令、传什么、读回执里的哪个字段；命令不在时怎么办；两边各保证什么、这些约定写在哪。
+**本页回答**：devkit 调了哪几条别人的命令、传什么、读回执里的哪个字段；命令不在时怎么办；devkit 与被调的两个插件各保证什么、这些约定写在哪。
 
 ## 连接的模块
 
@@ -30,7 +30,7 @@ devkit 保证：
 - 建站那两步失败或命令不在，插件那部分照样留在磁盘上，建仓不算失败；回执的 `docs.built`、`docs.attached` 两个字段说到了哪一步，`note` 与 `nextSteps` 给出补建的两条命令
 - `docs-site.create` 在而 `docfirst.attach` 不在时，提醒「立刻补」：`docfirst.attach` 只在还没写过内容的骨架上装得上
 
-被调的插件需要保证的——命令名、参数形状、`data.port` 这个字段——**都靠约定**。写在这几处：devkit 源码里的命令名常量与 `usage` 文字、`scaffold.ts` 的 `docsBlock` 与 `nextSteps`、本仓 AGENTS 的「建站是两步」、被调插件各自的说明书（`docs-site`）。被调插件改了名字或形状，devkit 这边没有任何类型或测试会报错，表现是「当作没装」而跳过，或读到空的 `port`。
+站点插件与 docfirst 插件需要保证的——命令名、参数形状、`docs-site.create` 回执里 `data.port` 这个字段——**都靠约定**。写在这几处：devkit 源码里的命令名常量与 `usage` 文字、`scaffold.ts` 的 `docsBlock` 与 `nextSteps`、本仓 AGENTS 的「建站是两步」、被调插件各自的说明书（`docs-site`）。被调插件改了名字或形状，devkit 这边没有任何类型或测试会报错，表现是「当作没装」而跳过，或读到空的 `port`。
 
 ## 不负责的事
 
@@ -39,11 +39,9 @@ devkit 保证：
 
 ## 测试
 
-没有测试连真的站点插件与 docfirst 插件。`tests/commands.test.ts` 在假上下文上调 `devkit.scaffold`，假命令总线上有或没有这两条命令、成或不成，看回执：没装站点插件时插件文件照写、回执说没建站；只有 `docs-site.create` 时说要立刻补 `docfirst.attach`；两步都成时只报建成与端口、不带原始回执；骨架没生成时带上 `docs-site.create` 的原始回执：
+没有测试连真的站点插件与 docfirst 插件。devkit 的 `tests/commands.test.ts` 在假命令总线上让这两条命令在或不在、成或不成，核对建仓回执；`tests/scaffold.test.ts` 核对回执里给的补建步骤：
 
 {/* has file="../plugins/devkit/tests/commands.test.ts" text="两步都成：回执只报建成与端口，不带两条命令的原始回执" */}
-
-`tests/scaffold.test.ts` 测回执里给的补建步骤：
 
 {/* has file="../plugins/devkit/tests/scaffold.test.ts" text="骨架都没铺：给两步补建，并说装完写哪一页" */}
 

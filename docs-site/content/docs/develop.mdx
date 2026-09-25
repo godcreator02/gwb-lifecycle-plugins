@@ -23,7 +23,7 @@ plugin-manager.install {"pkg":"@godcreator/gwb-devkit"}
 
 ## 什么时候进这个仓
 
-**用 devkit 不进这个仓**，命令在任何装了它的 home 里都能调。**改这两个包本身才进来**：开发套件 `plugins/devkit/`、插件管理 `plugins/plugin-manager/`。改动只在隔离 home 里实际运行验证，不碰日常用的 `default`。两个包为什么在一个仓里见[关键设计](/docs/design#仓里放什么)。
+**用 devkit 不进这个仓**，命令在任何装了它的 home 里都能调。**改这两个包本身才进来**：开发套件 `plugins/devkit/`、插件管理 `plugins/plugin-manager/`。改动只在隔离 home 里实际运行验证，不碰日常用的 `default`。两个包为什么在一个仓里见[关键设计](/docs/design#开发套件与插件管理放在同一个仓)。
 
 ## 第一次准备
 
@@ -50,7 +50,17 @@ pnpm build          # 只构建 plugins/*，两个包都先清空 dist/：开发
 
 **构建先清空 `dist/`**：不清的话，源码里删掉的模块还留在 `dist/` 里，随 `files` 白名单一起发出去。两个包的 `build` 脚本都先删 `dist/`。
 
-开发套件的测试里只有 `tests/process-tree.test.ts` 启动真的子进程：超时终止整棵进程树要看孙进程真的没了，假实现证明不了。它几秒钟跑完，跟着 `pnpm check` 一起跑。
+**开发套件的构建**：`build.ts` 用 esbuild 从 `src/index.ts` 把 node 侧打成一个 `dist/index.js`，外置 node 内置模块、`electron`、`cordis` 与 peer 里的包，其余（yaml、es-module-lexer）打包进去；类型声明由 tsc 另外输出到 `dist/`。`bin/cdp.mjs` 不打包，产物里对它的 import 原样留成 `../bin/cdp.mjs`：产物与源码都在包根下一层，`import.meta.url` 算出来的包内路径（`bin/`、`skills/`、`template/`）打包前后指向同一处。打包进来的 yaml 是 CommonJS、会 `require` node 内置模块，ESM 产物里本来没有 `require`，所以产物开头用 `createRequire` 造了一个——删了它 vitest 照样全绿（vitest 自己提供 `require`），只有 `tests/built-artifact.test.ts` 另起的那个 node 进程会失败：
+
+{/* ref file="../plugins/devkit/build.ts" lines="15-50" */}
+
+{/* has file="../plugins/devkit/tests/built-artifact.test.ts" text="另起一个 node 进程直接 import 得起来" */}
+
+`tests/built-artifact.test.ts` 还对产物做一遍发版前检查的产物部分、加载产物调几条不碰 home 的命令，看包内路径解析得到：
+
+{/* has file="../plugins/devkit/tests/built-artifact.test.ts" text="过得了发版前检查" */}
+
+开发套件的测试里有两份启动真的子进程：`tests/process-tree.test.ts` 看超时之后孙进程真的没了（假实现证明不了），`tests/built-artifact.test.ts` 另起一个 node 进程 import 构建产物（没有 `dist/` 时整组跳过）。都几秒钟就运行完，跟着 `pnpm check` 一起运行。
 
 **开发套件的类型检查与测试用的是插件管理的 `dist/`**：插件管理的清单把主入口指到 `dist/index.js` 与 `dist/index.d.ts`，开发套件从那里 import。刚拉下来的仓、或者改了插件管理导出的函数，先 `pnpm build` 再 `pnpm check`，不然开发套件那一半报找不到模块，或者用的还是旧函数。
 
@@ -77,7 +87,7 @@ pnpm build          # 只构建 plugins/*，两个包都先清空 dist/：开发
 - 只发开发套件：`devkit.release {"dir":"<本仓根>","packages":["plugins/devkit"]}`
 - 发插件管理：`["plugins/plugin-manager"]`；两个一起发时插件管理排在前面：`["plugins/plugin-manager","plugins/devkit"]`，devkit 的 peer 里插件管理那一项写成这次发的 `^<版本号>`
 
-发完升级 `default` 时，升到开发套件或插件管理自己，回执可能收不到，重连后用 `plugin-manager.list` 核对。
+发完升级 `default` 时，升到插件管理自己，它的条目在回执发出之后才重新加载（回执 `selfDeferred: true`），过一会儿再用 `plugin-manager.list` 核对它 `active`。
 
 开发套件的 `package.json` 留着 `prepublishOnly`：手工发版（`gwb-release` 的「手工发版」）靠它先构建，删了会把上一版的 `dist/` 原样发出去而且不报错。
 

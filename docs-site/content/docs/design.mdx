@@ -1,71 +1,57 @@
 ---
 title: 关键设计
-description: devkit 仓为什么这么切分——devkit 是普通插件、写插件只有打包安装验证一条路、包名与发到哪用 npm 的标准字段、开发版只进隔离 home、只按名字定位 home、纯逻辑与真机器操作分开、devkit 与插件管理同仓、借别的插件只借命令名；各自推出了什么、放弃了什么
+description: devkit 仓里错了难改的几条决定——devkit 是普通插件、写插件只有打包安装验证一条路、包名与发到哪用 npm 的标准字段、开发版只进隔离 home、只按名字定位 home、查不出就报错、纯逻辑与真机器操作分开、两个包同仓、模板是唯一正本、借别的插件只借命令名；各自推出了什么、代价是什么
 ---
 
-**本页回答**：devkit 仓里的两个包为什么是现在这个形状；每条设计推出了什么、代价是什么；哪些事刻意不做。每个包的功能与接口见各自的首页：[开发套件](/docs/devkit)、[插件管理](/docs/plugin-manager)。
-
-## 仓里放什么
-
-devkit 仓是一个 workspace 仓，放两个插件包，外加一个文档站：
-
-| 包 | 目录 | 是什么 | 发到哪 |
-| --- | --- | --- | --- |
-| `@godcreator/gwb-devkit` | `plugins/devkit/` | 开发套件，一个普通插件 | 团队源，装进 home |
-| `@godcreator/gwb-plugin-manager` | `plugins/plugin-manager/` | 插件管理，home 里唯一增删包与条目的插件 | 团队源，装进 home |
-
-两个包各自发版，用 `devkit.release` 的 `packages` 参数指明发哪几个。放在同一个仓里的理由是它们之间改一处就要改另一处的地方多，见下面「devkit 与插件管理放在同一个仓」。
+**本页回答**：devkit 仓里哪些决定错了难改、为什么这么定；每条推出了什么、代价是什么；哪些事刻意不做。只写错了难改的：命令怎么用、每一步的细节在各包的页与说明书里。每个包的功能与接口见[开发套件](/docs/devkit)、[插件管理](/docs/plugin-manager)。
 
 ## 开发套件是一个普通插件
 
-devkit 没有任何特权：装进 home 才有它的命令，加载不成功就什么都没有，和别的插件一样由插件管理安装、升级、卸载。它提供的每条命令，都是「在一个新文件夹里开发一个新插件」这条路上的一步，让 agent 能调用，而不是一段要人记住的 PowerShell（[gwb-devkit 这个插件](/trajectory/2026-09-08-gwb-devkit)）。
+devkit 没有任何特权：装进 home 才有它的命令，和别的插件一样由插件管理安装、升级、卸载（[gwb-devkit 这个插件](/trajectory/2026-09-08-gwb-devkit)）。它提供的每条命令都是「在一个新文件夹里开发一个新插件」这条路上的一步，让 agent 能调用。
 
 推出了：
 
-- **使用者是 agent，所以没有界面**：结果全在回执里；参数形状写进每条命令的 `usage`，参数错了回执带完整用法——命令总线不带参数 schema，agent 能看到的只有这些
-- **说明书与模板随包发布**：写插件的说明书、发版规则、模板都在包里，装上哪一版就读到哪一版，不另外维护一份（[说明书与模板回到包里](/trajectory/2026-09-09-skills-and-templates-ride-package)）
-- **只登记自己的说明书**：说明书名全局唯一，替别人登记的那份会和别人自己登记的重名，被挤掉的常常是新的那份
-- **只有一个必需服务**：命令总线 `gwbCommands` 写在 `export const inject`，外壳、node 命令行、说明书三个服务都局部注入，缺了只少一部分功能
-- **命令行形式的工具经 `gwbNodeCli` 登记**：`bin/cdp.mjs` 登记之后自动成为同名命令，也就自动能经 MCP 入口调用，回执带 stdout、stderr 与退出码；不自己再写一遍启动子进程与超时
+- **使用者是 agent，所以没有界面**：结果全在回执里；参数形状写进每条命令的 `usage`，参数错了回执带完整用法——命令总线不带参数形状，agent 能看到的只有这些
+- **说明书与模板随包发布**：装上哪一版就读到哪一版，不另外维护一份（[说明书与模板回到包里](/trajectory/2026-09-09-skills-and-templates-ride-package)）；只登记自己的说明书，说明书名全局唯一
+- **只有一个必需服务**：命令总线写在 `export const inject`，外壳、node 命令行、说明书都局部注入，缺了只少一部分功能
 
-代价：devkit 的改动也要走发版、安装才能用上；改 devkit 自己不能用 `devkit.dev`（见下面「开发版只进隔离 home」）。
+代价：devkit 的改动也要走发版、安装才能用上；改 devkit 自己不能用 `devkit.dev` 装进它自己所在的 home（见下面「开发版只进隔离 home」）。
 
 ## 写插件只有一条路：打包、安装、验证
 
-每个插件都在自己的仓里开发，按 `files` 白名单打成包，再装进 home 验证：开发版打成包文件、经目标 home 的插件管理装进隔离 home，正式版发到包的发布目标（`publishConfig.registry`）、再装进日常用的 home。**安装这一步本身就在验证**：`exports` 漏了一个子路径、`files` 少带了一个目录，只有装出来才会暴露；在仓里用相对路径直接加载，这些问题一个都看不到。
+每个插件都在自己的仓里开发，按 `files` 白名单打成包再装进 home：开发版打成包文件、经目标 home 的插件管理装进隔离 home，正式版发到包的发布目标、再装进日常用的 home。**安装这一步本身就在验证**：`exports` 漏了一个子路径、`files` 少带了一个目录，只有装出来才会暴露。
 
 推出了：
 
-- **改一版看一版也换版本号**：`devkit.dev` 每次打一个开发版的包文件（`<patch+1>-dev.<到秒的时间>`），放进目标 home 的 `dev-packs` 目录，经那个 home 的插件管理装。包文件的路径变了，pnpm 虚拟存储里的目录才变，重新加载时 Node 才会重新执行新代码；覆盖 home 里 `node_modules` 下的文件会改坏 pnpm 全局存储里的原件（[改一版看一版进 devkit](/trajectory/2026-09-11-dev-loop-comes-to-devkit)、[开发版打成包文件、经插件管理装](/trajectory/2026-09-25-dev-via-pack-and-plugin-manager)）
-- **包文件每版一个新路径、只增不删**：新包文件覆盖写到同一个路径，pnpm 退出码 0 却装着旧代码；home 清单还引用着的包文件一删，这个 home 里之后的 `pnpm add` 全部失败（[pnpm 在 home 里对包文件的表现](/trajectory/2026-09-25-dev-install-via-file-tgz)）
-- **正式版只从提交过的状态发**：版本号在仓里改、随提交走；`devkit.release` 在 git 工作区不干净、同一个版本号已在发布目标上、发版前检查没过时一概不发，也不改仓里任何文件（[发正式版进 devkit](/trajectory/2026-09-14-release-comes-to-devkit)）
-- **最后一步是核对**：`devkit.dev` 回「成功」之前，要确认装上的是这次的版本号、条目在运行、日志新增部分里没有 error
+- **改一版看一版也换版本号**：`devkit.dev` 每次打一个开发版号的包文件放进目标 home 的 `dev-packs`。包文件的路径变了，pnpm 虚拟存储里的目录才变，重新加载时 Node 才会重新执行新代码；覆盖 home 里 `node_modules` 下的文件会改坏 pnpm 全局存储里的原件（[开发版打成包文件、经插件管理装](/trajectory/2026-09-25-dev-via-pack-and-plugin-manager)）
+- **包文件每版一个新路径、只增不删**：覆盖写同一个路径，pnpm 退出码 0 却装着旧代码；home 清单还引用着的包文件一删，这个 home 里之后的 `pnpm add` 全部失败（[pnpm 在 home 里对包文件的表现](/trajectory/2026-09-25-dev-install-via-file-tgz)）
+- **正式版只从提交过的状态发**：版本号在仓里改、随提交走；`devkit.release` 在 git 工作区不干净、同号已在发布目标上、发版前检查没过时一概不发，也不改仓里任何文件（[发正式版进 devkit](/trajectory/2026-09-14-release-comes-to-devkit)）
+- **最后一步是取证**：`devkit.dev` 回成功之前，确认装上的是这次的版本号、条目在运行、日志新增部分里没有 error
 
-代价：一次改一版看一版大约一分钟，比直接覆盖文件慢；隔离 home 的 `dev-packs` 与 pnpm 存储里会积攒开发版，前者随隔离 home 一起删，存储要定期清理。
+代价：比直接覆盖文件慢；隔离 home 的 `dev-packs` 与 pnpm 存储里会攒下开发版，前者随隔离 home 一起删，存储要定期清理。
 
 ## 包名与发到哪用 npm 的标准字段
 
-包的身份就是 `package.json` 的 `name`，发到哪就是 `publishConfig.registry`，不另造配置。`devkit.scaffold` 的 `scope`、`registry` 两个参数写的就是这两个字段（缺省 `@godcreator` 与团队源）；`devkit.release` 照每个包自己的 `publishConfig.registry` 发；开发版不经过任何源。没有团队源发布权限的开发者给自己的范围与源，就能走完建仓、改一版看一版、发正式版（[包名范围与发布目标交给开发者](/trajectory/2026-09-25-scope-and-publish-target)）。
+包的身份就是 `package.json` 的 `name`，发到哪就是 `publishConfig.registry`，不另造配置（[包名范围与发布目标交给开发者](/trajectory/2026-09-25-scope-and-publish-target)）。`devkit.scaffold` 的 `scope`、`registry` 两个参数写的就是这两个字段；`devkit.release` 照每个包自己的 `publishConfig.registry` 发；开发版不经过任何源。没有团队源发布权限的开发者给自己的范围与源，就能走完建仓、改一版看一版、发正式版。
 
 推出了：
 
-- **没写 `publishConfig.registry` 就拒发**：发到哪由包自己写明，不给缺省值，也不交给机器上 `~/.npmrc` 的范围行；报错里给出团队源地址作例子（[删掉给旧仓留的两个缺省值](/trajectory/2026-09-25-drop-legacy-defaults)）
-- **发版前检查不再只认 `@godcreator`**：peer 里的插件看清单的 `keywords` 判，不看包名范围，任何范围下的插件都和源上 latest 比同一条线；只有 dev 里的库仍只查 `@godcreator` 范围下的，外部开发者自己的库不强求
-- **问哪个源交给 `~/.npmrc`**：查别的包的 latest 不指定源，按用户级 `~/.npmrc` 的范围行找源；只有「这个版本号在发布目标上有没有」指定发布目标
+- **没写 `publishConfig.registry` 就拒发**：发到哪由包自己写明，不给缺省值，也不交给机器上 `~/.npmrc` 的范围行（[删掉给旧仓留的两个缺省值](/trajectory/2026-09-25-drop-legacy-defaults)）
+- **是不是插件看 `keywords`，不看包名范围**：发版前检查对任何范围下的插件都一样查；只有 dev 里的库只查 `@godcreator` 范围下的
+- **问别的包的 latest 交给 `~/.npmrc`**：不指定源，按用户级 `~/.npmrc` 的范围行找；只有「这个版本号在发布目标上有没有」指定发布目标
 
-代价：每个要发的包都得写 `publishConfig.registry`，发出去的包清单里也带着它；外部开发者装团队的插件、团队装外部开发者的插件，都得先把对方范围的源配进 `~/.npmrc`。
+代价：每个要发的包都得写 `publishConfig.registry`；装别的范围下的插件，那个范围的源得先配进 `~/.npmrc`。
 
 ## 开发版只进隔离 home
 
 开发和验证都在单独新建的隔离 home 里做，日常用的 `default` 只装正式版。
 
 - **`devkit.dev` 拒绝 `default`**：开发版进了 `default`，版本号看起来跟正式版没两样，界面上一点异常都看不出来
-- **`devkit.dev` 运行在控制台 home 里，操作另一个 home**：换插件要把条目停用再启用，工具自己运行在被换的 home 里，换到命令总线、外壳、MCP 入口或它自己时，调用方会跟着停掉。所以构建、打包在本进程做，安装、刷新、核对经 CDP 发到目标页面；目标就是 devkit 自己所在的 home 也拒
-- **开发版不进团队源**：源上的包同时被别的仓使用；开发版的包文件只放在那个隔离 home 里，别处装不到它
-- **安装与重新加载交给目标 home 的插件管理**：`plugin-manager.update` 在目标进程里装包、一条命令做完重新加载，插件管理自己的条目推迟到回执之后——被换的是插件管理自己或命令总线时，这边再发的第二条命令没人接收（[重新加载是一条命令](/trajectory/2026-09-17-remount-is-one-command)、[开发版打成包文件、经插件管理装](/trajectory/2026-09-25-dev-via-pack-and-plugin-manager)）
-- **升级 `default` 是发正式版之后的事**：`devkit.release` 只发到源、不碰任何 home；升级 `default` 由人点插件管理窗格的「全部更新」或调 `plugin-manager.update {"all":true}`，这一步在隔离 home 验证之后
+- **`devkit.dev` 运行在另一个 home 里，操作目标 home**：换插件要把条目停用再启用，工具自己运行在被换的 home 里，换到命令总线、MCP 入口或它自己时，调用方会跟着停掉。所以构建、打包在本进程做，安装、刷新、核对经 CDP 发到目标页面；目标就是 devkit 自己所在的 home 也拒
+- **安装与重新加载交给目标 home 的插件管理**：一条 `plugin-manager.update` 在目标进程里装包、重新加载，插件管理自己的条目推迟到回执之后——被换的是插件管理自己或命令总线时，这边再发的第二条命令没人接收（[重新加载是一条命令](/trajectory/2026-09-17-remount-is-one-command)）
+- **升级 `default` 是发正式版之后的事**：`devkit.release` 只发到源、不碰任何 home
 
-代价：改 devkit 自己不能用 `devkit.dev`，只能发正式版再 `plugin-manager.update {"all":true}`；想在隔离 home 里验证 devkit 自己，要从另一个 home 驱动。
+代价：改 devkit 自己只能发正式版再升级；想在隔离 home 里验证 devkit 自己，要从另一个 home 驱动。
 
 ## 只按名字定位一个 home
 
@@ -75,15 +61,28 @@ devkit 没有任何特权：装进 home 才有它的命令，加载不成功就�
 
 推出了：调试端口由 `devkit.home.new` / `open` 自动选，先沿用这个 home 上次那个；`runtime.json` 由内核写，devkit 只读。
 
-代价：记录坏了的 home 连不上，要停掉重开一次；CDP 驱动从此只能操作 gwb 的窗口。
+代价：记录坏了的 home 连不上，要停掉重开一次；CDP 驱动只能操作 gwb 的窗口。
+
+## 查不出就报错，认不出就拒
+
+**认不出的就拒、查不出的就报错，只在系统边界上校验，一个判断只写一份**（[devkit 0.22 删兜底](/trajectory/2026-09-25-devkit-no-fallbacks)）：
+
+- 进程表、端口占用、`pnpm view` 查不出，直接报错，不当成「没在运行」「没人监听」「没发过」
+- 每条命令拒认不出的参数键，报出是哪个
+- 流程只写在说明书里，回执只带这次特有的东西，不复述流程
+- 页面属于哪个 home，只在 `cdp.mjs` 连上时核对一处
+
+{/* ref file="../plugins/devkit/src/node-probe-deps.ts" lines="31-39" */}
+
+代价：这台机器上 `tasklist` 偶尔卡住时，列出、定位、停止、删除 home 都跟着失败，要人重试；改这些行为（比如把某个参数改成可选、给某种失败一个缺省结果）是破坏性变更。
 
 ## 纯逻辑与真机器操作分开
 
-判据只有一句：**这段逻辑能不能不启动进程、不开窗口、只给输入看输出。**
+判据一句话：**这段逻辑能不能不启动进程、不开窗口、只给输入看输出。**
 
-能的部分是纯逻辑：时序、检查、命名、版本号、「记录里的 pid 还是不是那个 home」「装上的是不是这次打包的版本」「插件声明的内核范围包不包含运行中的内核」「一个包的 `.d.ts` 给 cordis 补了哪些服务」这些判断都在这里，测试用假的依赖把整条流程运行完。不能的部分在四个 `node-*-deps.ts` 与 `node-process-tree.ts` 里，只负责在真机器上拿到答案：启动进程、超时终止整棵进程树、查进程表、查端口被谁占着、读写磁盘、连 CDP、问 npm 源。这一层不做判断，也不进单元测试；唯一的例外是超时终止整棵进程树，它用真的子进程测（孙进程真的没了，假实现证明不了）。
+能的部分是纯逻辑：时序、检查、命名、版本号、「记录里的 pid 还是不是那个 home」「装上的是不是这次打包的版本」「插件声明的内核范围包不包含运行中的内核」这些判断都在这里，测试用假的依赖把整条流程运行完。不能的部分在 `node-*-deps.ts` 与 `node-process-tree.ts` 里，只负责在真机器上拿到答案：启动进程、超时终止整棵进程树、查进程表与端口、读写磁盘、连 CDP、问 npm 源。这一层不做判断，也不进单元测试；唯一的例外是超时终止整棵进程树，用真的子进程测（孙进程真的没了，假实现证明不了）。
 
-两边靠显式接口隔开：`HomeDeps`、`DevDeps`、`ReleaseDeps` 三个接口由纯逻辑定义，运行时传 `node-*-deps.ts` 的实现，测试时传假实现。依赖方向是单向的：真机器那一层认识纯逻辑，纯逻辑不认识它。
+两边靠显式接口隔开：`HomeDeps`、`DevDeps`、`ReleaseDeps` 由纯逻辑定义，运行时传 `node-*-deps.ts` 的实现，测试时传假实现。依赖方向单向：真机器那一层认识纯逻辑，纯逻辑不认识它。
 
 {/* has file="../plugins/devkit/src/home.ts" text="export interface HomeDeps {" */}
 
@@ -91,32 +90,17 @@ devkit 没有任何特权：装进 home 才有它的命令，加载不成功就�
 
 {/* has file="../plugins/devkit/src/release.ts" text="export interface ReleaseDeps {" */}
 
-| 模块 | 纯逻辑 | 真机器操作 | 细节 |
-| --- | --- | --- | --- |
-| 建仓 | `src/scaffold.ts` | `src/scaffold.ts` 本身，直接读写磁盘 | [建仓与加插件](/docs/devkit/scaffold) |
-| 测试 home | `src/home.ts` | `src/node-home-deps.ts` | [测试 home](/docs/devkit/home) |
-| 改一版看一版 | `src/dev.ts` | `src/node-dev-deps.ts` | [改一版看一版](/docs/devkit/dev) |
-| 发正式版 | `src/release.ts`、`src/artifact-check.ts`（内核范围的比对规则从插件管理 import，产物里的 import 用 es-module-lexer 按 JS 语法找） | `src/node-dev-deps.ts` | [发正式版](/docs/devkit/release) |
-| 服务总览 | `src/services.ts` | `src/node-services-deps.ts` | [服务表与类型声明](/docs/seams/service-table) |
-| 前台运行命令 | — | `src/node-process-tree.ts`：启动子进程，超时终止整棵进程树并确认退出；devkit 在前台启动的 pnpm、git 与 CDP 驱动都经它 | [改一版看一版](/docs/devkit/dev) |
-| 进程与端口探测 | `src/probes.ts` | `src/node-probe-deps.ts`（只有 Windows 的 `tasklist` 与 `netstat`） | [测试 home](/docs/devkit/home) |
-| 小工具 | `src/vocab.ts`：`isRecord` 与 `requireKernel`（内核包只导出类型，这两个函数由插件自带）、团队范围与团队源两个常量、`parseHttpUrl` | — | — |
-| CDP 驱动 | `bin/cdp.mjs` 里算文件位置的几个函数 | `bin/cdp.mjs` 其余部分 | [CDP 驱动](/docs/devkit/cdp) |
-| 命令登记 | — | `src/index.ts`：登记命令、检查参数、组装回执 | — |
-
 {/* tree dir="../plugins/devkit/src" depth="1" glob="*.ts" */}
 
-建仓是另一种形状：它只做计算与同步读写磁盘，不需要注入接口，测试直接写临时目录。把「往磁盘上写文件」的函数换成假实现，等于没测。
+建仓是另一种形状：它只做计算与同步读写磁盘，不注入接口，测试直接写临时目录——把「往磁盘上写文件」换成假实现，等于没测。各模块在哪个文件、先读哪个，见[开发套件](/docs/devkit)的代码地图。
 
-读代码从 `src/index.ts` 的 `apply` 开始：那里登记了全部命令，一眼能看出对外有哪些命令；想知道某件事怎么判断，再去对应的纯逻辑模块。反方向的 import 一条都没有。
+## 开发套件与插件管理放在同一个仓
 
-## devkit 与插件管理放在同一个仓
+插件管理仍是 home 里的普通插件：由 `cordis.yml` 里的一条条目加载、单独发版、用 `plugin-manager.update` 升级。它和 devkit 放在一起，是因为两者互相依赖的地方多（[插件管理迁入 devkit 仓](/trajectory/2026-09-24-plugin-manager-joins-devkit)）：
 
-插件管理 `@godcreator/gwb-plugin-manager` 仍是 home 里的普通插件：由 `cordis.yml` 里的一条条目加载、单独发版、用 `plugin-manager.update` 升级。它和 devkit 放在一起，是因为两者互相依赖的地方多（[插件管理迁入 devkit 仓](/trajectory/2026-09-24-plugin-manager-joins-devkit)）：
-
-- `devkit.dev` 打包之后在目标页面里调 `plugin-manager.install` 与 `plugin-manager.update {"specs":{…}}` 装包并重新加载，再用 `plugin-manager.list` 核对；回执 `selfDeferred` 时轮询 `list` 等插件管理自己回来
-- `devkit.home.new` 把内核包、`cordis` 与插件管理等基础插件装进新 home，之后往这个 home 加插件用 `plugin-manager.install`、升内核用 `plugin-manager.update {"specs":{"@godcreator/gwb-kernel-desktop":"<版本>"}}`
-- 插件 peer 里内核包的范围两边都用：插件管理在 `list` 里拿它和运行中的内核比对，`devkit.release` 发版前拒绝没写对的插件包。比对规则只有一份，在插件管理的 `src/kernel-compat.ts`；devkit 的 peer 里写着插件管理，从它的主入口 import 这套规则，连同找 pnpm 的 `locatePnpm`（[两个插件删掉用不上的机制](/trajectory/2026-09-25-drop-unused-machinery)）
+- `devkit.dev` 在目标页面里调 `plugin-manager.install` 与 `plugin-manager.update {"specs":{…}}` 装包并重新加载，再用 `plugin-manager.list` 取证
+- `devkit.home.new` 把插件管理作为基础插件装进新 home，之后往这个 home 加插件、升内核都经它
+- 插件 peer 里内核包的范围两边都用：插件管理在 `list` 里拿它和运行中的内核比对，`devkit.release` 发版前拒绝没写对的插件包。比对规则只有一份，在插件管理；devkit 的 peer 里写着插件管理，从它的主入口 import 这套规则，连同找 pnpm 的 `locatePnpm`
 
 {/* has file="../plugins/devkit/src/release.ts" text="import { KERNEL_PACKAGE, isCaretRange, kernelRangeCovers } from '@godcreator/gwb-plugin-manager'" */}
 
@@ -124,15 +108,15 @@ devkit 没有任何特权：装进 home 才有它的命令，加载不成功就�
 
 代价：发版要用 `packages` 指明发哪个包，两个一起发时插件管理排在前面；devkit 离了插件管理加载不了。改插件管理的命令名、参数、回执形状或主入口导出的函数是破坏性变更——插件管理窗格、`devkit.dev`、agent 的说明书都按它们写死了调用。
 
-## 模板是唯一正本
+## 模板是唯一正本，仓只有一种布局
 
-仓的布局只有一种：workspace 仓，插件在 `plugins/<短名>/`。只有一个插件的仓也是这个布局，加第二个插件是一条命令，不会有「建小了要迁移」的时候（[只有一种仓的布局](/trajectory/2026-09-19-one-shape-workspace-always)）。
+仓的布局只有一种：workspace 仓，插件在 `plugins/<短名>/`。只有一个插件的仓也是这个布局，加第二个插件是一条命令（[只有一种仓的布局](/trajectory/2026-09-19-one-shape-workspace-always)）。
 
 - **建仓与加插件用同一份插件包模板** `template/pkg/`，两种命令生成的插件包格式一致靠这个，不靠纪律
-- **模板带的产物测试与发版前检查用同一套名单**：生成的插件包在被生成的仓里 `pnpm check` 就能查出发版时会被拒的包名 import（[模板与发版前检查](/docs/seams/template-release)）
-- **`devkit.dev` 与 `devkit.release` 的 `packages` 必给**：要装、要发的包目录由调用方列出，不给就拒；`devkit.scaffold.plugin` 只往 `pnpm-workspace.yaml` 里有 `plugins/*` 的仓里加插件（[删掉给旧仓留的两个缺省值](/trajectory/2026-09-25-drop-legacy-defaults)）
+- **模板带的产物测试与发版前检查用同一套名单**：生成的插件包在被生成的仓里 `pnpm check` 就能查出发版时会被拒的包名 import（[4 模板与发版前检查](/docs/seams/template-release)）
+- **`devkit.dev` 与 `devkit.release` 的 `packages` 必给**：要装、要发的包目录由调用方列出；`devkit.scaffold.plugin` 只往 `pnpm-workspace.yaml` 里有 `plugins/*` 的仓里加插件
 
-代价：不是 workspace 布局的仓用不了这几条命令，要先照模板迁成 workspace 仓。
+代价：不是 workspace 布局的仓用不了这几条命令，要先照模板迁。
 
 ## 借别的插件只借命令名
 
@@ -148,8 +132,8 @@ devkit 没有任何特权：装进 home 才有它的命令，加载不成功就�
 
 - **不收端口**：见「只按名字定位一个 home」
 - **不写 `runtime.json`**：已有内核与 MCP 入口插件两个写入者，第三个只会让记录说不清
-- **不构建内核**：启动 home 用宿主自己那个应用；改内核源码的验证走内核仓自己的流程
-- **不做设置项**：现在一项都不需要；将来要加用 `gwbSettings.define`，不读 `cordis.yml` 条目上的 `config`——写在 yml 里的那份界面看不见、agent 也不知道
-- **不自动清理**：`devkit.home.new` 的回执带着现有 home 清单，清理由人或 agent 在开新 home 时决定；工具只提供入口，不替人做判断
-- **不巡检别的仓**：不扫容器根下各仓的依赖与布局。依赖写法、peer 与产物在各仓发版时由 `devkit.release` 查；不是 workspace 布局的仓用不了 `devkit.dev`、`devkit.release` 与 `devkit.scaffold.plugin`，要先照模板迁
-- **没人用的命令就删**：本机源的启停、单独的停止 home、只看不验的 `dev-check`（[砍掉没人用的那一半](/trajectory/2026-09-11-cut-the-half-nobody-uses)），依赖对账、结构体检、`devkit.capabilities`（[两个插件删掉用不上的机制](/trajectory/2026-09-25-drop-unused-machinery)）都已删掉，退役名单在[术语表](/docs/glossary#退役的命令与参数)
+- **不构建内核**：启动 home 用宿主自己那个安装版应用；改内核源码的验证走内核仓自己的流程
+- **不做设置项**：一项都不需要；将来要加用 `gwbSettings.define`，不读 `cordis.yml` 条目上的 `config`——写在 yml 里的那份界面看不见、agent 也不知道
+- **不自动清理**：`devkit.home.new` 的回执带着现有 home 清单，删哪个由调用方决定
+- **不巡检别的仓**：依赖写法、peer 与产物在各仓发版时由 `devkit.release` 查
+- **不留没人用的命令与参数**：退役的名字与现在怎么做，列在[术语表](/docs/glossary#退役的命令与参数)

@@ -1,15 +1,59 @@
 ---
 title: 从这里开始
-description: devkit 仓是什么；开发套件、插件管理两个包之间、与仓外之间靠哪十一条接缝连起来（接缝图）；带着不同的目的来该接着读哪几页
+description: devkit 仓是什么、为什么存在；写一个插件从建仓到升级 default 走一遍，每一步落在哪个包、哪条接缝；带着不同的目的来该读哪几页；两个包的模块索引与十一条接缝
 ---
 
-**本页回答**：devkit 仓是什么；两个包怎样配合，每两个模块之间靠哪条接缝相连、接口是什么、细节在哪一页；每个包讲什么、在哪一页；带着不同的目的来，接着读哪几页。
+**本页回答**：devkit 仓是什么、为什么存在；写一个插件从建仓到装进日常用的 home，每一步由哪个包做、跨过哪条接缝；带着不同的目的来接着读哪几页；两个包各有哪些模块、模块之间与仓外靠哪十一条接缝相连。
 
-## 是什么
+## 是什么、为什么存在
 
-god 工作台写插件用的一套东西：开发套件 `gwb-devkit`（建仓、测试 home、改一版看一版、发正式版、服务总览、CDP 驱动）、插件管理 `gwb-plugin-manager`（唯一给 home 装包、改条目的插件），两个都是 home 里的普通插件。写插件要守的规矩在[写插件的规矩](/docs/rules)，为什么这么切分见[关键设计](/docs/design)，怎么改、怎么发版见[开发](/docs/develop)。
+god 工作台的本体只提供插件平台，功能全由插件实现。这个仓放的是**写插件、装插件用的两个插件**，都是 home 里的普通插件，没有任何特权：
 
-## 接缝图
+- **开发套件** `@godcreator/gwb-devkit`（`plugins/devkit/`）：把「在一个新文件夹里开发一个新插件」这条路上的每一步做成 agent 能调用的命令——建仓、开关隔离 home、把改动装进隔离 home 验证、发正式版、列出能用的服务、在页面里取证——外加随包发布的写插件说明书与发版规则。使用者是 agent，没有界面
+- **插件管理** `@godcreator/gwb-plugin-manager`（`plugins/plugin-manager/`）：home 里唯一写 home 的插件——装卸包、增删启停条目、热升级、换内核包，报告插件 peer 里的内核包与别的插件满没满足
+
+两个包各自发版，放在一个仓里是因为改一处就要改另一处的地方多（`devkit.dev` 经插件管理装开发版、peer 范围的比对规则只在插件管理里写一份）。为什么这么切分、哪些决定错了难改，见[关键设计](/docs/design)。
+
+## 写一个插件，从头走一遍
+
+说明书 `gwb-devkit` 是这条路的操作步骤，这里只标出每一步落在哪、跨过哪条接缝：
+
+1. **看能用什么**：`devkit.services` 从当前 home 里各包的 `.d.ts` 读出可以 inject 的服务、谁提供、类型定义原文——[11 服务表与类型声明](/docs/seams/service-table)
+2. **建仓**：`devkit.scaffold` 把模板渲染进一个新目录（workspace 仓，插件在 `plugins/<短名>/`），再按命令名调站点插件与 docfirst 插件建文档站——[建仓与加插件](/docs/devkit/scaffold)、[5 借用别的插件的命令](/docs/seams/borrowed-commands)。生成的插件包在运行建仓命令的内核上过得了发版前检查——[4 模板与发版前检查](/docs/seams/template-release)
+3. **改成真插件**：照[写插件的规矩](/docs/rules)写，仓根 `pnpm build`、`pnpm check`
+4. **开隔离 home**：`devkit.home.new` 在新 home 里装好内核包、`cordis` 与七个基础插件（插件管理是其中之一），用宿主安装版启动，调试端口自动选——[测试 home](/docs/devkit/home)、[7 内核与 home](/docs/seams/kernel-home)
+5. **改一版看一版**：`devkit.dev` 在仓根构建，每个包打成开发版的包文件放进隔离 home 的 `dev-packs`，经 CDP 在那个 home 的页面里调插件管理的 `install` / `update` 装包并重新加载，整页刷新，最后取证——[改一版看一版](/docs/devkit/dev)、[2 devkit 调插件管理](/docs/seams/plugin-manager-calls)、[6 CDP 驱动](/docs/seams/cdp)、[10 被测仓的形状](/docs/seams/repo-shape)
+6. **在页面里取证**：`devkit.cdp` 在隔离 home 的页面里点击、读数、截图——[CDP 驱动](/docs/devkit/cdp)
+7. **发正式版**：升版本号、提交，`devkit.release` 查过 git 工作区、产物、依赖写法、peer 里的内核包与插件之后，按依赖顺序发到各包的发布目标——[发正式版](/docs/devkit/release)、[3 peer 里的内核包与插件](/docs/seams/kernel-peer)、[9 pnpm 与包源](/docs/seams/pnpm-registry)
+8. **装进日常用的 home**：在 `default` 里 `plugin-manager.install` 或 `plugin-manager.update`，调用方拿到回执后自己 `shell.reload`——[插件管理](/docs/plugin-manager)、[8 条目树](/docs/seams/entry-tree)
+9. **清理**：`devkit.home.rm` 删掉验完的隔离 home
+
+插件管理与开发套件在第 1、2 步之外处处相连：第 4 步装进新 home 的插件管理，就是第 5 步装开发版、第 8 步升级 `default` 的那一个。
+
+## 按来意读
+
+- **写一个新插件、改一个插件**：先读说明书 `gwb-devkit`（`skill.read {"name":"gwb-devkit"}`），规矩在[写插件的规矩](/docs/rules)
+- **升版本号、发版**：说明书 `gwb-release`
+- **在本仓动手**（第一次准备、提交前的检查、在隔离 home 里验证本仓的改动、发版、文档站）：[开发](/docs/develop)
+- **改开发套件的某条命令**：[开发套件](/docs/devkit)的代码地图，再读那条命令的机制页
+- **改插件管理**：[插件管理](/docs/plugin-manager)；它和内核之间的约定在 [8 条目树](/docs/seams/entry-tree)，和开发套件之间的在 [2 devkit 调插件管理](/docs/seams/plugin-manager-calls)
+- **改建仓模板或发版前检查**：[4 模板与发版前检查](/docs/seams/template-release)，两边要在同一个提交里改
+- **词不认得**：[术语表](/docs/glossary)
+
+## 模块索引
+
+| 包 | 模块 | 源码 | 页 |
+| --- | --- | --- | --- |
+| 开发套件 | 包首页（命令、说明书、依赖、代码地图） | `plugins/devkit/src/index.ts` | [开发套件](/docs/devkit) |
+| 开发套件 | 建仓与加插件 | `src/scaffold.ts`、`template/` | [建仓与加插件](/docs/devkit/scaffold) |
+| 开发套件 | 测试 home | `src/home.ts`、`src/node-home-deps.ts`、`src/probes.ts` | [测试 home](/docs/devkit/home) |
+| 开发套件 | 改一版看一版 | `src/dev.ts`、`src/node-dev-deps.ts` | [改一版看一版](/docs/devkit/dev) |
+| 开发套件 | 发正式版 | `src/release.ts`、`src/artifact-check.ts` | [发正式版](/docs/devkit/release) |
+| 开发套件 | 服务总览 | `src/services.ts`、`src/node-services-deps.ts` | [11 服务表与类型声明](/docs/seams/service-table) |
+| 开发套件 | CDP 驱动 | `bin/cdp.mjs` | [CDP 驱动](/docs/devkit/cdp) |
+| 插件管理 | 包首页与各机制 | `plugins/plugin-manager/src/` | [插件管理](/docs/plugin-manager) |
+
+## 十一条接缝
 
 <Diagram name="seam-map" title="虚线框是包，连线是接缝，编号对应下面的表">
 - 本仓两个包：开发套件（建仓、服务总览、测试 home、改一版看一版、发正式版、CDP 驱动、建仓模板）、插件管理
@@ -17,41 +61,18 @@ god 工作台写插件用的一套东西：开发套件 `gwb-devkit`（建仓、
 - 实线接缝有代码接口；点线接缝（3、4、5、6、7、10、11）只靠约定：命令名、文件格式、字段名或「两处一起改」
 </Diagram>
 
-## 十一条接缝
-
-| # | 接缝 | 连接的模块 | 接口 | 细节在 |
+| # | 接缝 | 连接的模块 | 交换什么 | 页 |
 | --- | --- | --- | --- | --- |
-| 1 | 工作台服务 | 开发套件、插件管理 ↔ 命令总线、命令行工具、说明书 | 登记命令、登记 `devkit.cdp`、登记说明书 | [工作台服务](/docs/seams/workbench) |
-| 2 | devkit 调插件管理 | 开发套件 ↔ 插件管理 | 从插件管理主入口 import pnpm 定位、版本范围判定与命令名；经 CDP 调 `plugin-manager.install` / `update` / `list`（约定）；`home.new` 自己写条目、装内核包与基础插件（约定） | [devkit 调插件管理](/docs/seams/plugin-manager-calls) |
-| 3 | peer 里的内核包与插件（约定） | 插件 peer 里的内核包范围、用到的别的插件的范围 ↔ `devkit.release`、`plugin-manager.list` | 内核范围比对规则一份，在插件管理；peer 里的插件发版时比源上 latest、在 home 里比装着的版本 | [peer 里的内核包与插件](/docs/seams/kernel-peer) |
-| 4 | 模板与发版前检查（约定） | 建仓模板 ↔ `devkit.release` 的发版前检查 | 模板生成的插件包在同一个内核上过得了 peer 那几项；模板带的产物测试与发版前检查用同一套包名 import 名单 | [模板与发版前检查](/docs/seams/template-release) |
-| 5 | 借用别的插件的命令（约定） | 建仓 ↔ 站点插件、docfirst | 按名字调 `docs-site.create`、`docfirst.attach` | [借用别的插件的命令](/docs/seams/borrowed-commands) |
-| 6 | CDP 驱动（约定） | 开发套件 ↔ `cdp.mjs` ↔ 工作台页面 | 命令行参数、输出的 JSON、`window.gwb.command` | [CDP 驱动](/docs/seams/cdp) |
+| 1 | 工作台服务 | 开发套件、插件管理 ↔ 命令总线、node 命令行、说明书、外壳 | 登记命令、登记 `devkit.cdp`、登记说明书、报显示名 | [工作台服务](/docs/seams/workbench) |
+| 2 | devkit 调插件管理 | 开发套件 ↔ 插件管理 | 从插件管理主入口 import pnpm 定位、版本范围判定与命令名；经 CDP 调 `install` / `update` / `list`；`home.new` 自己装包、写条目 | [devkit 调插件管理](/docs/seams/plugin-manager-calls) |
+| 3 | peer 里的内核包与插件（约定） | 插件 peer 里的范围 ↔ `devkit.release`、`plugin-manager.list` | 内核范围的比对规则一份，在插件管理；peer 里的插件发版时比源上 latest、在 home 里比装着的版本 | [peer 里的内核包与插件](/docs/seams/kernel-peer) |
+| 4 | 模板与发版前检查（约定） | 建仓模板 ↔ `devkit.release` 的发版前检查 | 生成的清单与产物；两份包名 import 名单 | [模板与发版前检查](/docs/seams/template-release) |
+| 5 | 借用别的插件的命令（约定） | 建仓 ↔ 站点插件、docfirst 插件 | 按名字调 `docs-site.create`、`docfirst.attach` | [借用别的插件的命令](/docs/seams/borrowed-commands) |
+| 6 | CDP 驱动（约定） | 开发套件 ↔ `cdp.mjs` ↔ 工作台页面 | 命令行参数、stdout 上的 JSON、退出码、`window.gwb.command` | [CDP 驱动](/docs/seams/cdp) |
 | 7 | 内核与 home（约定） | `devkit.home.*`、CDP 驱动 ↔ 内核 exe | `GWB_HOME`、调试端口、`runtime.json`、home 根目录、`gwb.log` 的行格式 | [内核与 home](/docs/seams/kernel-home) |
-| 8 | 条目树 | 插件管理 ↔ cordis loader | `EntryTreeLike` 的 store / create / update / remove | [条目树](/docs/seams/entry-tree) |
-| 9 | pnpm 与包源 | 插件管理、开发套件 ↔ pnpm、npm 源、两份 npmrc、gitea 插件的设置 | 两个插件用同一个 pnpm（两个固定位置之一、核对版本）、打包开发版、发正式版；插件管理按 scope 找源、调 registry 的检索接口、读写 `~/.npmrc`、按名字调 `settings.get` 读 gitea 设置 | [pnpm 与包源](/docs/seams/pnpm-registry) |
+| 8 | 条目树 | 插件管理 ↔ cordis loader | 条目树的读、建、改、删 | [条目树](/docs/seams/entry-tree) |
+| 9 | pnpm 与包源 | 插件管理、开发套件 ↔ pnpm、npm 源、npmrc、gitea 插件的设置 | 同一个 pnpm；打包开发版、发正式版；按范围找源、检索插件、读写 `~/.npmrc` | [pnpm 与包源](/docs/seams/pnpm-registry) |
 | 10 | 被测仓的形状（约定） | 改一版看一版、发正式版、加插件 ↔ 被测插件仓 | 仓根 build 脚本、`files`、`keywords`、目录布局、git 工作区干净 | [被测仓的形状](/docs/seams/repo-shape) |
 | 11 | 服务表与类型声明（约定） | `devkit.services` ↔ home 里各包的 `.d.ts` | `declare module 'cordis' { interface Context { … } }` 与类型定义 | [服务表与类型声明](/docs/seams/service-table) |
 
-## 包
-
-| 包名 | 在哪 | 讲什么 | 页 |
-| --- | --- | --- | --- |
-| `@godcreator/gwb-devkit` | `plugins/devkit` | 开发套件：写插件这条路上每一步的命令 | [gwb-devkit](/docs/devkit) |
-| `@godcreator/gwb-plugin-manager` | `plugins/plugin-manager` | 插件管理：装卸包、增删条目、热升级、升内核、报告 peer 范围不包含当前内核的插件与 peer 里没满足的插件 | [gwb-plugin-manager](/docs/plugin-manager) |
-
-## 怎么读这张图
-
-- 图上只画模块与模块之间的接缝；每个包有哪些功能、提供什么接口，看各包自己的页
-- 一条接缝连接的两个模块可以各自替换：只要接口不变，换掉其中一个，另一个不用改
-- 每条接缝由什么测试保护，写在「细节在」那一列的页里；左栏接缝页标题前的数字就是图上的编号
-- 内核那边对插件管理的承诺（home 布局、loader 与 include 的版本）在内核仓文档站的接缝页「home 布局与条目树」
-
-## 按要做的事读
-
-- **写一个新插件**：[写插件的规矩](/docs/rules)，再看[开发套件](/docs/devkit)的建仓、改一版看一版、发正式版
-- **在本仓动手**（检查、在隔离 home 里验证、发版）：[开发](/docs/develop)
-- **改插件管理**：[插件管理](/docs/plugin-manager)；它和内核之间的约定在[条目树](/docs/seams/entry-tree)，和开发套件之间的在[devkit 调插件管理](/docs/seams/plugin-manager-calls)
-- **改建仓模板或发版前检查**：[模板与发版前检查](/docs/seams/template-release)；改服务总览：[服务表与类型声明](/docs/seams/service-table)
-- **在页面里点击、读数、截图**：[CDP 驱动](/docs/seams/cdp)
-- **词不认得**：[术语表](/docs/glossary)
+一条接缝连接的模块只要接口不变就能各自替换；每条接缝由什么测试保护，写在它自己那一页。内核那边对插件管理的承诺（home 布局、loader 与 include 的版本）写在内核仓文档站的接缝页「home 布局与条目树」。

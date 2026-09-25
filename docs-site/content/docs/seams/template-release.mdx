@@ -3,7 +3,7 @@ title: 4 模板与发版前检查
 description: 连接建仓模板 template/ 与 devkit.release 的发版前检查：模板生成的插件包在运行建仓命令的那个内核上过得了发版前检查；模板带的产物测试照发版前检查的两份包名 import 名单另写了一份，两份一致靠 scaffold 的测试查生成的文本
 ---
 
-**本页回答**：模板生成的插件包要满足发版前检查的哪几条；模板带的产物测试和发版前检查查的是不是同一套名单；两边一致靠什么。
+**本页回答**：模板生成的插件包要满足发版前检查的哪几条；模板带的产物测试和发版前检查查的是不是同一套名单；模板与发版前检查的名单一致靠什么。
 
 ## 连接的模块
 
@@ -13,7 +13,7 @@ description: 连接建仓模板 template/ 与 devkit.release 的发版前检查�
 
 ## 接口
 
-两边之间没有函数调用，接口是**模板生成的插件包清单与它的构建产物**。
+模板与发版前检查之间没有函数调用，接口是**模板生成的插件包清单与它的构建产物**。
 
 **peer**：生成的清单 peer 里只有内核包与模板用到的两个插件（命令总线、外壳），内核包的范围是 `^<运行建仓命令的内核的 x.y.z>`。发版前检查要求 peer 只有 `cordis`、内核包与插件，内核包写 `^x.y.z` 且包含运行中的内核：
 
@@ -25,7 +25,7 @@ description: 连接建仓模板 template/ 与 devkit.release 的发版前检查�
 
 {/* ref file="../plugins/devkit/template/pkg/tests/artifact.test.ts.tpl" lines="21-26" */}
 
-**浏览器侧产物的包名 import**：两边都只放行内核包页面入口 `dist/index.html` 里那段 importmap 的键，页面入口从插件包的 `node_modules` 里装好的内核包读：
+**浏览器侧产物的包名 import**：发版前检查与模板的产物测试都只放行内核包页面入口 `dist/index.html` 里那段 importmap 的键，页面入口从插件包的 `node_modules` 里装好的内核包读：
 
 {/* ref file="../plugins/devkit/src/artifact-check.ts" lines="240-257" */}
 
@@ -41,7 +41,7 @@ description: 连接建仓模板 template/ 与 devkit.release 的发版前检查�
 
 - 模板不保证生成的仓能直接 `devkit.release`：dev 依赖的范围过不过得了检查，要看发版那时源上的 latest；peer 里的两个插件要和那时源上的 latest 在同一条线
 - 产物测试不查 dev 范围、peer 写法与内核范围，这几项只在发版前检查里查
-- 两边找 import 的写法不同：发版前检查用 es-module-lexer 按 JS 语法找，产物测试只认顶格的静态 import（模板的 `build.ts` 不压行，外置的包名 import 由 esbuild 放在文件开头）。产物压成一行、或有动态 import 的仓，产物测试查不全，要等发版前检查
+- 发版前检查与产物测试找 import 的写法不同：发版前检查用 es-module-lexer 按 JS 语法找，产物测试只认顶格的静态 import（模板的 `build.ts` 不压行，外置的包名 import 由 esbuild 放在文件开头）。产物压成一行、或有动态 import 的仓，产物测试查不全，要等发版前检查
 - 模板的起始版本号是 0.1.0；升哪一位照说明书 `gwb-release`
 
 ## 测试

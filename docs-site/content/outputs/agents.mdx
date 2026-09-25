@@ -15,11 +15,11 @@ description: plugins/devkit/AGENTS.md 由这一页生成——每次会话都得
 
 | 页 | 讲什么 |
 | --- | --- |
-| `index.mdx` | 接缝图；按来意从哪页读起 |
-| `design.mdx` | 为什么这么切分、两个包为什么同仓 |
+| `index.mdx` | 是什么、写一个插件走一遍、按来意从哪页读起、模块索引与接缝表 |
+| `design.mdx` | 错了难改的决定：为什么这么切分、两个包为什么同仓 |
 | `develop.mdx` | 装与确认、提交前的检查、在隔离 home 里验证、发版、文档站的检查与生成 |
 | `devkit/`、`plugin-manager/` | 两个包的功能、命令、机制，一个模块一页 |
-| `seams/` | 每条接缝交换什么、两边各保证什么 |
+| `seams/` | 每条接缝连接哪些模块、接口是什么、各模块保证什么 |
 | `rules/` | 写插件的规矩总表 |
 | `glossary.mdx` | 术语、退役的词与命令 |
 
@@ -40,7 +40,7 @@ description: plugins/devkit/AGENTS.md 由这一页生成——每次会话都得
 ## 硬约束
 
 - **开发套件产物开头那个 `require` 别删**：`build.ts` 用 `createRequire` 造的，打包进来的 yaml 靠它；删了 vitest 照样全绿，只有 `tests/built-artifact.test.ts` 会失败
-- **模板**：`template/pkg/` 是插件包的唯一正本，建仓与加插件都用它；`template/` 下每个文件带 `.tpl`、都要声明属于哪一部分；加占位符同时改 `src/scaffold.ts` 的 `placeholders()`；`{{title}}` 每类文件只许写在一种位置，改模板后跑 `tests/scaffold.test.ts`；改模板里 `@godcreator` 包的版本号之前先 `pnpm view <包> dist-tags.latest`。细节见 `devkit/scaffold.mdx`
+- **模板**：`template/pkg/` 是插件包的唯一正本，建仓与加插件都用它；`template/` 下每个文件带 `.tpl`、都要声明属于哪一部分；加占位符同时改 `src/scaffold.ts` 的 `placeholders()`；`{{title}}` 每类文件只许写在一种位置，改模板后运行 `tests/scaffold.test.ts`；改模板里 `@godcreator` 包的版本号之前先 `pnpm view <包> dist-tags.latest`。细节见 `devkit/scaffold.mdx`
 - **建站是两步，都不是本包的命令**：`devkit.scaffold` 经命令总线按名字调 `docs-site.create`、`docfirst.attach`（都认站目录，不是仓根），哪个插件没装就跳过、不让建仓失败；本包不依赖这两个插件的任何包
 - **没有设置项**；将来要加一律用 `gwbSettings.define`，不读 `cordis.yml` 的 `config`
 - **每条命令的参数形状写进 `usage`**，无参数写「无参数」

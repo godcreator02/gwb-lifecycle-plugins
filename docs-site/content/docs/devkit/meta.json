@@ -1,5 +1,5 @@
 {
   "title": "gwb-devkit · 开发套件",
-  "description": "开发套件插件：首页讲整个包管什么、提供什么、依赖什么，其余每页讲一组命令的机制——建仓、测试 home、改一版看一版、发正式版、CDP 驱动",
+  "description": "开发套件插件：首页讲功能、接口、依赖与不做的事，其余每页讲一组命令的机制——建仓、测试 home、改一版看一版、发正式版、CDP 驱动",
   "pages": ["index", "scaffold", "home", "dev", "release", "cdp"]
 }

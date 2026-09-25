@@ -55,7 +55,7 @@ devkit 保证：`devkit.dev` 每一步都按 home 名调它，不传端口；把
 
 工作台页面需要保证的：外壳在页面上提供 `window.gwb.command`、页面上的脚本与样式表地址是带 home 绝对路径的 `file:///` 地址、home 目录在一个叫 `homes` 的目录下。
 
-**这些全部靠约定**：devkit 插件只从 `cdp.mjs` import 算 home 根目录的 `homesRootOf`（类型写在手写的 `bin/cdp.d.mts` 里，见[内核与 home](/docs/seams/kernel-home)），命令行与输出这一面两边没有共享的类型；参数形状写在 `cdp.mjs` 文件头、`devkit.cdp` 的 `usage` 与 `dev.ts` 的各次调用三处，JSON 的键写在 `cdp.mjs` 的 `run` 与 `dev.ts` 的 `receiptOf` / `reloadPage` 两处；页面这一侧的前提只写在 `cdp.mjs` 的注释里，外壳与内核仓都没有写成对外的承诺。
+**这些全部靠约定**：devkit 插件只从 `cdp.mjs` import 算 home 根目录的 `homesRootOf`（类型写在手写的 `bin/cdp.d.mts` 里，见[内核与 home](/docs/seams/kernel-home)），devkit 与 `cdp.mjs` 在命令行与输出上没有共享的类型；参数形状写在 `cdp.mjs` 文件头、`devkit.cdp` 的 `usage` 与 `dev.ts` 的各次调用三处，JSON 的键写在 `cdp.mjs` 的 `run` 与 `dev.ts` 的 `receiptOf` / `reloadPage` 两处；对工作台页面的前提只写在 `cdp.mjs` 的注释里，外壳与内核仓都没有写成对外的承诺。
 
 ## 不负责的事
 

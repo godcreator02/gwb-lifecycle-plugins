@@ -3,7 +3,7 @@ title: 11 服务表与类型声明
 description: 连接 devkit.services 与 home 里各包的 .d.ts：它扫调用它的那个 home 顶层 node_modules 里每个包的全部 .d.ts，找给 cordis Context 补的服务项；类型定义在自己声明里的包是提供方，类型从别处 import 的只是在用、不列——提供方怎么写声明靠约定
 ---
 
-**本页回答**：`devkit.services` 的数据从哪来；它在 `.d.ts` 里认哪种写法；怎么判断谁是提供方；多个提供方、没有提供方时回什么；devkit 与提供服务的插件各保证什么。这个模块没有单独的机制页，它的代码地图也在这里。
+**本页回答**：`devkit.services` 的数据从哪来；它在 `.d.ts` 里认哪种写法；怎么判断谁是提供方；多个提供方、没有提供方时回什么；devkit 与提供服务的插件各保证什么。
 
 ## 连接的模块
 
@@ -62,11 +62,3 @@ devkit 保证：只读不写；读的是这个 home 的磁盘，装着的包都�
 {/* has file="../plugins/devkit/tests/services.test.ts" text="只有提供方进 providers，用它的一方不列，按服务名排序" */}
 
 {/* has file="../plugins/devkit/tests/services.test.ts" text="两个包都带着定义：两个都列进 providers，definition 取先读到的那个" */}
-
-## 代码地图
-
-**在哪**：从 `.d.ts` 原文认服务的纯函数在 `src/services.ts`，读 home 磁盘在 `src/node-services-deps.ts`，命令登记在 `src/index.ts` 的 `registerServicesCommand`。
-
-**先读** `servicesOf`：谁算提供方、`definition` 取哪一份都在这一个函数里。
-
-**读序**：`contextFieldsOf`（认出补了哪些服务）→ `definitionOf`（类型定义在不在这个包里）→ `servicesOf`（合成回执）。读磁盘那一半最后读，它只列目录、读文件。

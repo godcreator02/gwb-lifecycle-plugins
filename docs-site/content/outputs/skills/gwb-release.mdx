@@ -46,7 +46,7 @@ description: 升版本号、改依赖版本号、发版时读。
 2. 按第一节升版本号并提交，仓根 git 工作区干净
 3. `devkit.release {"dir":"<仓根>","packages":["plugins/<短名>"]}`。`packages` 必给，相对仓根、按依赖顺序（被依赖的在前），例：`["packages/model","packages/engine","plugins/gwb-bn-core"]`。每个包发到它 `package.json` 的 `publishConfig.registry`，没写就拒发（团队源写 `"publishConfig": { "registry": "https://git.tianshen02.online:28377/api/packages/godcreator/npm/" }`）；发布 token 要在用户级 `~/.npmrc` 里
 4. 回执 `ok: false`：发版前检查按包列全了没过的条目，一个包都没发。逐条改完、`pnpm check`、提交，再调第 3 步
-5. 升级日常用的 default：人在插件管理窗格点「全部更新」，或调 `plugin-manager.update {"all":true}`（只升几个给 `{"only":["<包名>"]}`，装指定版本给 `{"specs":{"<包名>":"<版本或 file:路径>"}}`）。新插件第一次装用 `plugin-manager.install {"pkg":"<包名>"}`。升到 gwb-mcp 自己时连接会断，重连后再核对
+5. 升级日常用的 default：人在插件管理窗格点「全部更新」，或调 `plugin-manager.update {"all":true}`（只升几个给 `{"only":["<包名>"]}`，装指定版本给 `{"specs":{"<包名>":"<版本或 file:路径>"}}`）。新插件第一次装用 `plugin-manager.install {"pkg":"<包名>"}`。插件管理不整页重新加载：经 MCP 升级的，拿到成功回执后调一次 `shell.reload` 让界面换成新代码（细节见说明书 `gwb-plugin-manager`）。升到 gwb-mcp 自己时连接会断，重连后再核对
 
 **完成判据**：`devkit.release` 回执 `ok: true`，`shipped` 里是这次的包、版本与发到的源（`registry`）；default 的 `plugin-manager.list` 里这个包的版本是刚发的正式版、条目 `active` 为 true；再调一次 `index`，看得到这个包的命令与说明书。
 
