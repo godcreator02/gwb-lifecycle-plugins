@@ -128,3 +128,12 @@ module specifier "@godcreator/block-note"」。整页重载一次即愈（快照
 **顺带一条现象**：`devkit.home.new {"short":"static-importmap"}` 开出来的实例（pid 136532，由 default 里的 devkit 启动），我用 `Stop-Process` 停掉之后
 约 2 秒，default 自己走了一遍正常退出（default 的 `gwb.log` 里 `17:07:46.709Z info kernel 清理完成，退出`）。原因没查清，值得看一下 `home.new` 启动的
 子进程和 default 的生命周期有没有绑在一起；在弄清之前，停这种实例别用杀进程的办法。
+
+## 2026-09-25 建仓 README 模板删了「验证」「发版」两节，scaffold 页第 33 行跟着改
+
+来源：总控台（清理 gwb 各站复述说明书的内容）。
+
+`plugins/devkit/template/repo/README.md.tpl` 的「第一次装进工作台验证」「发版」两节已换成一行「验收」：这两节在复述
+`gwb-devkit` 与 `gwb-release`，而且建仓回执的 `nextSteps` 已经给了同样的步骤；每个新仓把它们带进 `readme.mdx` 以后就没人更新。
+`docs/devkit/scaffold.mdx` 第 33 行「README 里写的那条 `devkit.release` 是模板的内容」因此不再成立，要改成不举这个例子。
+没有直接改：那一页正好有另一个会话未提交的改动。
