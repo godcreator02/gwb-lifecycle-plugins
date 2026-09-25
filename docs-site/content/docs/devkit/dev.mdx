@@ -9,11 +9,11 @@ description: devkit.dev 一条命令把工作区的改动换进另一个 home �
 
 一句话：**把工作区里的改动装进另一个 home 正在运行的进程，并且证明它真的在运行。**
 
-七步，一步都不能省：问目标页面它是哪个 home、在仓根构建、把每个包打成包文件放进目标 home、经目标 home 的插件管理装（插件管理在同一条命令里重新加载条目）、整页刷新、取证。任何一步失败当场停，回执里写着停在哪一步。
+六步，一步都不能省：问目标页面它是哪个 home、在仓根构建、把每个包打成包文件放进目标 home、经目标 home 的插件管理装（插件管理在同一条命令里重新加载条目）、整页刷新、取证。任何一步失败当场停，回执里写着停在哪一步。
 
 {/* ref file="../plugins/devkit/src/dev.ts" lines="610-666" */}
 
-<Diagram name="dk-dev-loop" title="改一版看一版：改代码、调 devkit.dev 走完七步、读回执，再改下一版">
+<Diagram name="dk-dev-loop" title="改一版看一版：改代码、调 devkit.dev 走完六步、读回执，再改下一版">
 - 左列在控制台 home 里做：`devkit.dev` 收 `home`、`dir`、`packages`，仓根 `pnpm build`，每个包 `pnpm pack` 成包文件（版本号 `<patch+1>-dev.<yyyyMMddHHmmss>`），放进目标 home 的 `dev-packs` 目录
 - 右列在目标 home（隔离 home）里做，页面上的操作都经 `bin/cdp.mjs` 按 home 名连过去：先问页面它是哪个 home（`default` 与开发套件自己所在的 home 直接拒）；已装的包合成一条 `plugin-manager.update {"specs":{…}}`，没装的插件逐个 `plugin-manager.install`；插件管理装包并重新加载条目；整页刷新；最后取证
 - 取证三样：装上的是这次的版本号、条目是 `ACTIVE`、`gwb.log` 在装包之前那个长度之后新增的部分没有 error
@@ -112,7 +112,7 @@ description: devkit.dev 一条命令把工作区的改动换进另一个 home �
 
 **CDP 那一项为什么是启动子进程，而不是在进程内连接。** CDP 驱动必须在工作台没运行的时候也能单独用，所以它是零依赖单文件的脚本，不是一个可以 import 的模块。一次流程多启动几次进程，几百毫秒，对一次一分钟左右的流程可以忽略。
 
-**它也是按名字调用的**，不是按端口：驱动自己查记录、自己核对页面报的名字，于是流程里每一步都顺带核对一次「我连的还是那个 home 吗」。传端口的话，这七步就成了七次没人核对的重新定位。
+**它也是按名字调用的**，不是按端口：驱动自己查记录、自己核对页面报的名字，于是流程里每一步都顺带核对一次「我连的还是那个 home 吗」。传端口的话，这六步就成了六次没人核对的重新定位。
 
 ## 怎么单独测
 
@@ -126,7 +126,7 @@ description: devkit.dev 一条命令把工作区的改动换进另一个 home �
 
 **在哪**：纯逻辑在 `src/dev.ts`，真实的机器操作在 `src/node-dev-deps.ts`，页面上的操作在 `bin/cdp.mjs`（见 [CDP 驱动](/docs/devkit/cdp)），命令登记在 `src/index.ts`。
 
-**先读** `runDev`：七步的顺序在这一个函数里，长一点的步骤各是一个函数（`probeTargetHome`、`planDevPackages`、`packDevPackages`、`installNewPlugins`、`updateInstalledPackages`、`restartForKernel`、`collect`），位置不显然的那几步旁边有一句注释说明为什么在这里。
+**先读** `runDev`：六步的顺序在这一个函数里，长一点的步骤各是一个函数（`probeTargetHome`、`planDevPackages`、`packDevPackages`、`installNewPlugins`、`updateInstalledPackages`、`restartForKernel`、`collect`），位置不显然的那几步旁边有一句注释说明为什么在这里。
 
 **读序**：`guardHome`（拒什么）→ `runDev`（顺序）→ `planDevPackages` / `pluginManagerCallsFor`（收哪些包、各经哪条命令装）→ `updateInstalledPackages`（怎么接插件管理的回执）→ `collect`（拿什么当证据）→ `DevDeps`（哪些东西是注入的）。真实机器操作那一层最后读，它只执行、不判断。
 
