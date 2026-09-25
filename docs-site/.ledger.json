@@ -809,7 +809,7 @@
     "../plugins/plugin-manager/src/index.ts:2-6": {
       "kind": "git",
       "blob": "22810c890bc5b9321e698c5e3f1998b9e7d3b5e6",
-      "commit": "15440880739d0fe311259f29c75d86d61eed6089",
+      "commit": "c46a5ba3be8ee365dc8fca376d7395239ced6f57",
       "lines": [
         2,
         6
@@ -819,7 +819,7 @@
     "../plugins/plugin-manager/package.json:31-49": {
       "kind": "git",
       "blob": "afe66c94ef1e63c31e4da944ce22e49223b38779",
-      "commit": "15440880739d0fe311259f29c75d86d61eed6089",
+      "commit": "c46a5ba3be8ee365dc8fca376d7395239ced6f57",
       "lines": [
         31,
         49
@@ -828,21 +828,21 @@
     },
     "../plugins/devkit/template/pkg/package.json.tpl:19-39": {
       "kind": "git",
-      "blob": "cb2f18d69e2a789c293e493ab203b0a06ccfe87c",
-      "commit": "15440880739d0fe311259f29c75d86d61eed6089",
+      "blob": "b9aab2b74c32147b0acec95c8c845b4286b63f61",
+      "commit": "c46a5ba3be8ee365dc8fca376d7395239ced6f57",
       "lines": [
         19,
         39
       ],
       "hash": "e3b85296c98793cf7252168bed05857df53059495678c97da042748a40d86f4a"
     },
-    "../plugins/devkit/template/pkg/build.ts.tpl:12-20": {
+    "../plugins/devkit/template/pkg/build.ts.tpl:9-17": {
       "kind": "git",
-      "blob": "c579723b5ac6fe09901a9d6f2c4357e404529c36",
-      "commit": "15440880739d0fe311259f29c75d86d61eed6089",
+      "blob": "73efdf3ed217076543841f3f34298767c29fefda",
+      "commit": "c46a5ba3be8ee365dc8fca376d7395239ced6f57",
       "lines": [
-        12,
-        20
+        9,
+        17
       ],
       "hash": "6069865c6024f750721a8241ec4844a55ac1c784a4131731e2dc4e49d6cf2b42"
     }
@@ -873,7 +873,7 @@
     "../plugins/devkit/template/pkg/src/client/styles.css.tpl:19-22": {
       "kind": "git",
       "blob": "68faca284316a39bb17ca4cbdaecca01271eeb9f",
-      "commit": "15440880739d0fe311259f29c75d86d61eed6089",
+      "commit": "c46a5ba3be8ee365dc8fca376d7395239ced6f57",
       "lines": [
         19,
         22
@@ -883,13 +883,13 @@
     "has ../plugins/devkit/tests/artifact-check.test.ts \"浏览器侧 dist/client.js：名字只取内核包页面入口里的 importmap（从本包 node_modules 现读），别的依赖写了也不算\"": {
       "kind": "has"
     },
-    "../plugins/devkit/template/pkg/build.ts.tpl:22-38": {
+    "../plugins/devkit/template/pkg/build.ts.tpl:19-35": {
       "kind": "git",
-      "blob": "c579723b5ac6fe09901a9d6f2c4357e404529c36",
-      "commit": "15440880739d0fe311259f29c75d86d61eed6089",
+      "blob": "73efdf3ed217076543841f3f34298767c29fefda",
+      "commit": "c46a5ba3be8ee365dc8fca376d7395239ced6f57",
       "lines": [
-        22,
-        38
+        19,
+        35
       ],
       "hash": "e2c7362a3156c7cf36512564e9046c05c05e7e28ffc76d8cdad0ae981217deea"
     }
@@ -2958,38 +2958,38 @@
     },
     "../plugins/devkit/template/pkg/package.json.tpl:19-23": {
       "kind": "git",
-      "blob": "cb2f18d69e2a789c293e493ab203b0a06ccfe87c",
-      "commit": "15440880739d0fe311259f29c75d86d61eed6089",
+      "blob": "b9aab2b74c32147b0acec95c8c845b4286b63f61",
+      "commit": "c46a5ba3be8ee365dc8fca376d7395239ced6f57",
       "lines": [
         19,
         23
       ],
       "hash": "5356dd6e0aa448f6d02714ec6e12dee5dda5289bfc343dfec193681335533d60"
     },
-    "../plugins/devkit/template/pkg/build.ts.tpl:12-20": {
+    "has ../plugins/devkit/tests/scaffold.test.ts \"模板不带测试文件：产物与样式的检查由 devkit.dev / devkit.release 做，复制进各仓的副本不会跟着更新\"": {
+      "kind": "has"
+    },
+    "../plugins/devkit/template/pkg/build.ts.tpl:9-17": {
       "kind": "git",
-      "blob": "c579723b5ac6fe09901a9d6f2c4357e404529c36",
-      "commit": "15440880739d0fe311259f29c75d86d61eed6089",
+      "blob": "73efdf3ed217076543841f3f34298767c29fefda",
+      "commit": "c46a5ba3be8ee365dc8fca376d7395239ced6f57",
       "lines": [
-        12,
-        20
+        9,
+        17
       ],
       "hash": "6069865c6024f750721a8241ec4844a55ac1c784a4131731e2dc4e49d6cf2b42"
     },
-    "../plugins/devkit/template/pkg/build.ts.tpl:22-38": {
+    "../plugins/devkit/template/pkg/build.ts.tpl:19-35": {
       "kind": "git",
-      "blob": "c579723b5ac6fe09901a9d6f2c4357e404529c36",
-      "commit": "15440880739d0fe311259f29c75d86d61eed6089",
+      "blob": "73efdf3ed217076543841f3f34298767c29fefda",
+      "commit": "c46a5ba3be8ee365dc8fca376d7395239ced6f57",
       "lines": [
-        22,
-        38
+        19,
+        35
       ],
       "hash": "e2c7362a3156c7cf36512564e9046c05c05e7e28ffc76d8cdad0ae981217deea"
     },
-    "has ../plugins/devkit/tests/scaffold.test.ts \"node 侧也用 esbuild 打成一个文件：外置 peer、electron 与 cordis，tsc 只出类型声明\"": {
-      "kind": "has"
-    },
-    "has ../plugins/devkit/tests/scaffold.test.ts \"模板不带测试文件：产物与样式的检查由 devkit.dev / devkit.release 做，复制进各仓的副本不会跟着更新\"": {
+    "has ../plugins/devkit/tests/scaffold.test.ts \"node 侧也用 esbuild 打成一个文件：外置 peer、electron 与 cordis；不输出类型声明\"": {
       "kind": "has"
     }
   },
