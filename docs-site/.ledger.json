@@ -1346,6 +1346,16 @@
         103
       ],
       "hash": "4fce525048fb4f616fee716073b8697da327b0f085d0ff4c39fb8d837847bfce"
+    },
+    "../plugins/devkit/src/node-process-tree.ts:90-115": {
+      "kind": "git",
+      "blob": "5f2d6c31c86dd2e00570ed7338cc64756fcea593",
+      "commit": "4c21d4aaa2265466054c5f2982f2f2398ed699ce",
+      "lines": [
+        90,
+        115
+      ],
+      "hash": "a37300b20a8dc8046492fbd6c9413c1cc6cdf0d921789627aa9bc889b35ef610"
     }
   },
   "content/docs/devkit/home.mdx": {
@@ -2368,6 +2378,26 @@
         613
       ],
       "hash": "3aea947157a178c4010714b6438b920a7058e37547bd93b12b06fff606cef668"
+    },
+    "../plugins/devkit/src/node-dev-deps.ts:21-42": {
+      "kind": "git",
+      "blob": "248a10b278a6604ad55e83a50529544743f0fafd",
+      "commit": "4c21d4aaa2265466054c5f2982f2f2398ed699ce",
+      "lines": [
+        21,
+        42
+      ],
+      "hash": "6a41d714b23a21620aa030ff373f26c71f7bd6c604348d5901f3198b411a90ac"
+    },
+    "../plugins/devkit/src/node-dev-deps.ts:43-57": {
+      "kind": "git",
+      "blob": "248a10b278a6604ad55e83a50529544743f0fafd",
+      "commit": "4c21d4aaa2265466054c5f2982f2f2398ed699ce",
+      "lines": [
+        43,
+        57
+      ],
+      "hash": "5136757bfa164b753fb70dab1d58d4930e37f1437560c86607a051e03a49ef03"
     }
   },
   "content/docs/seams/entry-tree.mdx": {
