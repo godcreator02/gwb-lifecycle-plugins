@@ -502,6 +502,19 @@ describe('包内 template/：两区', () => {
     for (const file of files) expect(file.text, file.rel).not.toContain('gwb-repo-kit')
   })
 
+  it('生成的插件包：清单里没有 gwb 字段；测试不分快慢标签（没有 test:all、不带 --tags-filter，vitest 配置里没有 tags）；oxlint 不替仓根忽略 docs-site 与 .claude', () => {
+    const files = renderPlugin(TEMPLATE_ROOT, planScaffoldPlugin({ name: 'world', repo: fakeWorkspace(), kernelVersion: KERNEL }))
+    const text = (rel: string): string => files.find((f) => f.rel === rel)?.text ?? ''
+    const manifest = JSON.parse(text('package.json')) as { gwb?: unknown; scripts: Record<string, string> }
+    expect(manifest.gwb).toBeUndefined()
+    expect(manifest.scripts['test:all']).toBeUndefined()
+    expect(manifest.scripts['test']).not.toContain('--tags-filter')
+    expect(text('vitest.config.ts')).not.toContain('tags')
+    const ignored = (JSON.parse(text('.oxlintrc.json')) as { ignorePatterns: string[] }).ignorePatterns
+    expect(ignored).not.toContain('docs-site/**')
+    expect(ignored).not.toContain('.claude/**')
+  })
+
   it('模板里的占位符全在 placeholders 的表上——认不出的当场抛，那正是这条要钉的', () => {
     expect(() => renderTemplate(TEMPLATE_ROOT, planScaffold({ name: 'x', dir: 'D:\\tmp\\x', docs: false, kernelVersion: KERNEL }))).not.toThrow()
     expect(() => renderPlugin(TEMPLATE_ROOT, planScaffoldPlugin({ name: 'x', repo: fakeWorkspace(), kernelVersion: KERNEL }))).not.toThrow()
@@ -738,10 +751,9 @@ describe('title 按所在文件的上下文编码（GWB-25）', () => {
       return file.text
     }
 
-    it('每一份 JSON 都解析得了，title 原样落在 gwb.title 与 description 开头', () => {
+    it('每一份 JSON 都解析得了，title 原样落在 description 开头', () => {
       for (const file of files.filter((f) => f.rel.endsWith('.json'))) expect(() => JSON.parse(file.text), file.rel).not.toThrow()
-      const manifest = JSON.parse(textOfFile('plugins/hello/package.json')) as { gwb: { title: string }; description: string }
-      expect(manifest.gwb.title).toBe(HOSTILE_TITLE)
+      const manifest = JSON.parse(textOfFile('plugins/hello/package.json')) as { description: string }
       expect(manifest.description.startsWith(`${HOSTILE_TITLE}：`)).toBe(true)
       const shell = JSON.parse(textOfFile('package.json')) as { description: string }
       expect(shell.description.startsWith(`${HOSTILE_TITLE} 的 pnpm workspace`)).toBe(true)
@@ -794,8 +806,8 @@ describe('title 按所在文件的上下文编码（GWB-25）', () => {
 
     it('加插件用的是同一套编码', () => {
       const plugin = renderPlugin(TEMPLATE_ROOT, planScaffoldPlugin({ name: 'world', repo: fakeWorkspace(), title: HOSTILE_TITLE, kernelVersion: KERNEL }))
-      const manifest = JSON.parse(plugin.find((f) => f.rel === 'package.json')?.text ?? '') as { gwb: { title: string } }
-      expect(manifest.gwb.title).toBe(HOSTILE_TITLE)
+      const manifest = JSON.parse(plugin.find((f) => f.rel === 'package.json')?.text ?? '') as { description: string }
+      expect(manifest.description.startsWith(`${HOSTILE_TITLE}：`)).toBe(true)
     })
   })
 

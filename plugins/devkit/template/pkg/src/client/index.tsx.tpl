@@ -6,7 +6,7 @@ import { createRoot } from 'react-dom/client'
  *
  * 类名一律带 `{{cssPrefix}}:` 前缀：样式只作用于本插件，靠的是类名唯一，不靠 DOM 祖先关系（弹层
  * portal 到 body 也有样式）。样式入口在 `styles.css`，那几行 import 每一条都不能省，理由写在那边。
- * react 由页面的 importmap 提供（提供方是外壳），构建时不打包，见 build.ts。
+ * react 由页面的 importmap 提供（提供方是内核包），构建时不打包，见 build.ts。
  */
 
 /** 外壳调 mountPane 时传入的参数。只按形状声明，不引外壳的包——那是 node 侧的依赖 */

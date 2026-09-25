@@ -20,9 +20,6 @@
     "src",
     "template"
   ],
-  "gwb": {
-    "title": "开发套件"
-  },
   "//publishConfig": "devkit.release 发到这里（团队源）；发布 token 写在用户级 ~/.npmrc",
   "publishConfig": { "registry": "https://git.tianshen02.online:28377/api/packages/godcreator/npm/" },
   "scripts": {

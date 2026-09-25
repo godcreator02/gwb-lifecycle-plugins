@@ -9,9 +9,6 @@
     "./package.json": "./package.json"
   },
   "files": ["dist", "src"],
-  "gwb": {
-    "title": "{{title}}"
-  },
   "keywords": ["gwb", "gwb-plugin"],
   "//publishConfig": "devkit.release 发到这里（建仓时的 registry 参数，不给是团队源）；发布 token 写在用户级 ~/.npmrc",
   "publishConfig": { "registry": "{{registry}}" },
@@ -21,8 +18,7 @@
     "build": "tsc -p tsconfig.build.json && node build.ts && tailwindcss -i src/client/styles.css -o dist/style.css",
     "typecheck": "tsc --noEmit -p tsconfig.json && tsc --noEmit -p src/client/tsconfig.json",
     "lint": "oxlint . --deny-warnings",
-    "test": "vitest run --passWithNoTests --tags-filter=!slow",
-    "test:all": "vitest run --passWithNoTests",
+    "test": "vitest run --passWithNoTests",
     "check": "pnpm run typecheck && pnpm run lint && pnpm run test",
     "//prepublishOnly": "发版前强制构建一次。pnpm check 不构建，少了这条会把上一版的 dist 原样发出去，而且不报错",
     "prepublishOnly": "pnpm build"

@@ -12,8 +12,6 @@
   },
   "ignorePatterns": [
     "**/node_modules/**",
-    ".claude/**",
-    "docs-site/**",
     "**/*.js",
     "**/*.mjs",
     "**/*.config.ts",

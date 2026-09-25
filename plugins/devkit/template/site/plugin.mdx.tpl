@@ -29,7 +29,7 @@ description: 插件 {{pkgName}}（包 {{pkg}}）的功能、接口、依赖与�
 
 两个服务都写在 `src/index.ts` 的 `inject` 里，缺一个插件就不加载。
 
-浏览器侧的 react 由页面的 importmap 提供（提供方是外壳），构建时不打包。
+浏览器侧的 react 由页面的 importmap 提供（提供方是内核包），构建时不打包。
 
 ## 不做的事
 
