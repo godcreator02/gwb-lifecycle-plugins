@@ -100,23 +100,23 @@ description: 开发套件是一个普通的 gwb 插件，把「在一个新文�
 
 dev 范围与 peer 里的插件在不在同一条线：
 
-{/* ref file="../plugins/devkit/src/release.ts" lines="296-329" */}
+{/* ref file="../plugins/devkit/src/release.ts" lines="295-328" */}
 
 peer 里哪些包算 gwb 插件、要和源上 latest 比，读包目录 `node_modules` 里它的清单判，不看包名范围：
 
-{/* ref file="../plugins/devkit/src/release.ts" lines="224-237" */}
+{/* ref file="../plugins/devkit/src/release.ts" lines="223-236" */}
 
-{/* ref file="../plugins/devkit/src/release.ts" lines="239-248" */}
+{/* ref file="../plugins/devkit/src/release.ts" lines="238-247" */}
 
 peer 里只许哪几类包，是不是插件怎么判：
 
-{/* ref file="../plugins/devkit/src/release.ts" lines="331-352" */}
+{/* ref file="../plugins/devkit/src/release.ts" lines="330-351" */}
 
-{/* ref file="../plugins/devkit/src/release.ts" lines="217-222" */}
+{/* ref file="../plugins/devkit/src/release.ts" lines="216-221" */}
 
 peer 里内核包的检查，比对规则从插件管理的主入口 import（见[peer 里的内核包与插件](/docs/seams/kernel-peer)）：
 
-{/* ref file="../plugins/devkit/src/release.ts" lines="250-270" */}
+{/* ref file="../plugins/devkit/src/release.ts" lines="249-269" */}
 
 构建产物检查在 `src/artifact-check.ts`。哪些文件算 node 侧、哪些算浏览器侧，照模板生成的插件包的构建约定判断：node 侧是 `exports["."]` 的运行时入口（没有 `exports` 时是 `main`）加上顺着相对 import 走得到的文件，也就是内核的 loader 按包名 import 插件时加载的那些；浏览器侧是 `dist/client.js`（模板的 `build.ts` 用 esbuild 以 `platform: 'browser'` 输出的文件），同样顺着相对 import 走；两边都走不到的文件不查。node 侧放行的包名是 node 内置模块、`electron` 与本包 peer 里写了的包——peer 已被上面几条限定为 `cordis`、内核包与插件，都是 home 里装着、按包名解析得到的。页面 importmap 里的名字只取内核包页面入口里那段 importmap 的键：页面入口当场从包目录的 `node_modules/@godcreator/gwb-kernel-desktop/dist/index.html` 读（插件 peer 里写了内核包，pnpm 把它链接在那里），取 `<script type="importmap">` 里 `imports` 的键；读不到、没有这段 importmap 都拒，提示 peer 写上内核包 `^0.6.0` 起，别的依赖的清单不看：
 
@@ -183,7 +183,7 @@ peer 里内核包的检查，比对规则从插件管理的主入口 import（�
 
 {/* has file="../plugins/devkit/src/index.ts" text="ctx.inject(['gwbSkills']" */}
 
-{/* ref file="../plugins/devkit/package.json" lines="36-48" */}
+{/* ref file="../plugins/devkit/package.json" lines="38-50" */}
 
 外壳、node 命令行、说明书三个服务用 `ctx.inject([...], fn)` 局部注入：缺哪个，只有那一部分停在等待状态，主插件照常加载。这三个插件在 peer 里标 `optional`，命令插件、插件管理与内核包是必需的 peer（见[用到的插件写 peer](/docs/rules/plugin-peers)）。服务怎么提供和使用的规矩见[cordis 服务怎么提供和使用](/docs/rules/services)。
 
