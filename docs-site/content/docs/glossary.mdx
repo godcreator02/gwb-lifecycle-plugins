@@ -33,10 +33,10 @@ description: 这个仓里反复出现的词各指什么、在哪一页定义；�
 | 验活 | 读运行时记录之后，确认记录里的进程还在、那个端口还是它在监听。记录只说「曾经」，验活才说「此刻」 | [测试 home](/docs/devkit/home) |
 | 交叉核对 | 连上页面之后，拿页面自己报的 home 名跟要找的那个对一次。记录回答「要的是哪个」，页面回答「连上的实际是哪个」 | [CDP 驱动](/docs/devkit/cdp) |
 | 命令总线 | 命令插件提供的服务 `gwbCommands`：插件在上面登记命令，界面、命令行、agent 调的是同一批命令 | 基础插件仓文档站 |
-| 说明书 | 随包发布、由说明书插件登记给 agent 的 `SKILL.md`，经 `skill.read` 读。内容跟着它描述的代码一起发版 | [开发套件](/docs/devkit#说明书) |
+| 说明书 | 随包发布、由说明书插件登记给 agent 的 `SKILL.md`，经 `skill.read` 读。内容跟着它描述的代码一起发版 | [开发套件](/docs/devkit#三份说明书) |
 | 建仓 | `devkit.scaffold` 把新插件的初始文件写进一个新目录，插件文件与文档站分两部分完成 | [建仓与加插件](/docs/devkit/scaffold) |
 | workspace 仓 | 仓根是不发布的 private 包，插件在 `plugins/<短名>/`、别的包在 `packages/`。模板只生成这一种布局；代码注释里叫「薄壳」 | [建仓与加插件](/docs/devkit/scaffold) |
-| 发版前检查 | `devkit.release` 构建之后、发第一个包之前查的那几条：dev 范围、peer 只写 `cordis`、内核包与插件、peer 里的插件和源上 latest 在同一条线、构建产物里的包名 import 与空 import、peer 里内核包的范围。代码里的函数名与旧文档里叫「上车检票」 | [开发套件](/docs/devkit#发正式版的检查) |
+| 发版前检查 | `devkit.release` 构建之后、发第一个包之前查的那几条：dev 范围、peer 只写 `cordis`、内核包与插件、peer 里的插件和源上 latest 在同一条线、构建产物里的包名 import 与空 import、peer 里内核包的范围。代码里的函数名与旧文档里叫「上车检票」 | [发正式版](/docs/devkit/release) |
 | peer | 插件 `package.json` 的 `peerDependencies`：运行时从 home 里得到的包——按值 import 的 `cordis`、内核包、用到的别的插件。node 侧构建产物只能按包名 import 这里写了的包。可选使用的插件在 `peerDependenciesMeta` 标 `optional`。`plugin-manager.list` 报没满足的（`unmetPeers`），只报告不拦 | [用到的插件写 peer](/docs/rules/plugin-peers) |
 | 同一条线 | 两个版本号之间没有破坏性版本：主版本号为 0 时次版本号相同，≥1 时主版本号相同。`devkit.release` 拿它比 peer 里的插件和源上的 latest | [用到的插件写 peer](/docs/rules/plugin-peers) |
 | 服务总览 | `devkit.services` 的回执：调用它的那个 home 里各包的 `.d.ts` 给 cordis 的 `Context` 补了哪些服务、谁提供、类型定义原文 | [服务表与类型声明](/docs/seams/service-table) |

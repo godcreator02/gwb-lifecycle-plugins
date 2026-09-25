@@ -21,7 +21,7 @@ const EVERY_PACKAGE = ['dev 范围含源上的 latest', '产物里没有空 impo
 const PLUGIN_ONLY = ['peer 只许三类包', 'peer 插件与 latest 同线', '包名 import 的两份名单', '内核包范围含运行中内核']
 
 const STEPS: { title: string; detail: string; active: number; refused?: boolean }[] = [
-  { title: '全貌', detail: '六步依次做，前五步任何一处没过，一个包都不发。它只碰各包的发布目标（package.json 的 publishConfig.registry，没写是团队源）、不碰任何 home，不改仓里任何文件，从哪个 home 调用都可以。', active: -1 },
+  { title: '全貌', detail: '六步依次做，前五步任何一处没过，一个包都不发。它只碰各包的发布目标（package.json 的 publishConfig.registry，没写就拒）、不碰任何 home，不改仓里任何文件，从哪个 home 调用都可以。', active: -1 },
   { title: '第 1 步：git 工作区干净', detail: '在仓根运行 git status --porcelain=v1，有一条改动就拒，连构建都不运行；不是 git 仓也拒。发出去的必须是提交过的状态。', active: 0 },
   { title: '第 2 步：仓根 pnpm build', detail: '在仓根构建，不在包目录：同仓的包常常用着另一个包的产物。构建失败，一个都不发。', active: 1 },
   { title: '第 3 步：产物都在', detail: '按 package.json 的 files 白名单查：不带 ! 与通配的每一项都得在包目录里。不另列一份名单，免得两份对不上。', active: 2 },

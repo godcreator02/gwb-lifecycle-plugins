@@ -26,15 +26,15 @@ const STEPS: { title: string; detail: string; active: number }[] = [
     detail: '这个 home 上次用的端口空着就沿用。被占了才另选：别的 home 记录里写着的端口一律跳过（过时的记录也算占着），再从 9400 起逐个问有没有进程在监听。一个空的都找不到就不启动。',
     active: 1,
   },
-  { title: '第 3 步：定启动计划', detail: '启动的是宿主自己那个应用，日常是安装版（只带启动器，内核从 home 里的内核包加载），不构建内核、不认内核仓；宿主是开发态 electron 而读不出应用目录时拒。同一个 home 已有实例在运行也拒。', active: 2 },
-  { title: '第 4 步：装内核包、cordis 与基础插件', detail: '只有 new 做这一步：cordis.yml 不在才写，写七个基础插件的条目；在 home 目录里依次 pnpm add 三次：内核包（运行中的内核的精确版本，--save-exact）；装上的内核包清单里 peer 写的那个精确版本的 cordis（--save-exact）；七个基础插件。内核包与 cordis 装完都读 node_modules 里的清单核对版本。哪一步不成都不启动，回执带 pnpm 输出的最后几行。', active: 3 },
+  { title: '第 3 步：定启动计划', detail: '启动的是宿主自己那个应用，日常是安装版（只带启动器，内核从 home 里的内核包加载），不构建内核、不认内核仓；宿主是开发态 electron 就拒。同一个 home 已有实例在运行也拒。', active: 2 },
+  { title: '第 4 步：装内核包、cordis 与基础插件', detail: '只有 new 做这一步：往新建的 home 目录写 cordis.yml，七个基础插件各一条条目；在 home 目录里依次 pnpm add 三次：内核包（运行中的内核的精确版本，--save-exact）；装上的内核包清单里 peer 写的那个精确版本的 cordis（--save-exact）；七个基础插件。内核包与 cordis 装完都读 node_modules 里的清单核对版本。哪一步不成都不启动，回执带 pnpm 输出的最后几行。', active: 3 },
   {
     title: '第 5 步：启动',
     detail: '环境变量 GWB_HOME 是这个 home 的名字，去掉 ELECTRON_RUN_AS_NODE；命令行带 --remote-debugging-port=<端口> 与 --disable-backgrounding-occluded-windows（窗口被挡住时也照常渲染）。',
     active: 4,
   },
   { title: '第 6 步：观察五秒', detail: '「启动成功没有」没有接口可问，进程还活着是唯一的信号。这五秒只抓刚启动就退出这一种失败，报错指向这个 home 的 gwb.log。', active: 5 },
-  { title: '第 7 步：读运行时记录', detail: 'runtime.json 由内核写 pid、startedAt、appDir、cdp，MCP 入口插件补上 mcp；本包只读。读不到不算启动失败，但回执会说明：之后按名字找它全靠这份记录。', active: 6 },
+  { title: '第 7 步：读运行时记录', detail: 'runtime.json 由内核写 pid、startedAt、cdp，MCP 入口插件补上 mcp；本包只读这几项。读不到不算启动失败，但回执会说明：之后按名字找它全靠这份记录。', active: 6 },
   {
     title: '之后：只按名字找到它',
     detail: 'devkit.dev、devkit.cdp、devkit.home.open / rm 都只收 home 名，端口从 runtime.json 查。改了内核源码要验证，走内核仓自己的流程，开发套件不代劳。',

@@ -3,7 +3,7 @@ title: CDP 驱动
 description: bin/cdp.mjs（登记成 devkit.cdp）在一个工作台页面里操作：发浏览器层的真实输入、截图、执行工作台命令、问页面属于哪个 home；零依赖单文件，工作台没运行时也能直接用
 ---
 
-**本页回答**：`bin/cdp.mjs` 管到哪里为止、它为什么是零依赖的纯 JS 单文件，以及它为什么不跟本包别的代码共用任何东西。
+**本页回答**：`bin/cdp.mjs` 管到哪里为止、它为什么是零依赖的纯 JS 单文件、为什么不跟本包别的代码共用任何东西，以及它怎么测。在页面里取证的用法（动作怎么写、两条取证规矩）在说明书 `gwb-devkit` 的附件 `references/evidence.md`，本页不复述。
 
 ## 管什么
 
@@ -96,6 +96,8 @@ description: bin/cdp.mjs（登记成 devkit.cdp）在一个工作台页面里操
 
 三样：Node 的 `fetch` 与 `WebSocket`（连 Chromium 的调试端口）、目标页面上的 `window.gwb.command`（只有 `cmd` 动作用）、home 里的 `runtime.json`（每次读一遍，只读 `cdp` 字段）。三样都不是本包的代码。
 
+**内核要这样启动**，两个开关缺一不可（`devkit.home.new` / `open` 启动的都带着）：`--remote-debugging-port=<端口>` 打开调试入口，`--disable-backgrounding-occluded-windows` 关掉窗口被遮挡时的降频。少了后一个，窗口被别的窗口完全挡住时 Chromium 认为它不可见、停止渲染新帧，截图拿到的是旧画面、`requestAnimationFrame` 一次都不回调。
+
 **超时按动作分档，不是一个数。** 它防的是页面卡住，不是「这条命令做的事久」：工作台的一条命令可能在装依赖、在构建，十几秒回不来很正常，按十五秒中断的话，中断的是一条正在做事的命令，而那边不会因此停下，回执从此没人收。输入与求值那几种还是十五秒，它们要么立刻回，要么就是页面真卡住了。
 
 {/* ref file="../plugins/devkit/bin/cdp.mjs" lines="180-181" */}
@@ -127,5 +129,3 @@ description: bin/cdp.mjs（登记成 devkit.cdp）在一个工作台页面里操
 **读序**：决定文件写到哪的那一段（`shotFileOf` / `evalFileOf` / `assertWritable`，纯函数）→ `portOf`（home 名怎么变成端口）→ `connect`（连上唯一的那个页面，一个都没有与不止一个时都把候选列进报错）→ `assertHome`（连上的这个页面是不是它）→ `assertVerbAllowedOn`（这个动作能不能在这个 home 上做）→ `probeExpr`（选择器怎么变成一个点）→ `run` 里的 switch（一个动作一个分支）。
 
 **可跳过**：按键的虚拟键码表与鼠标事件的参数拼装，那是 CDP 规定的形状，不是这个脚本的判断。
-
-**内核要这样启动**，两个开关缺一不可：`--remote-debugging-port=<端口>` 打开调试入口，`--disable-backgrounding-occluded-windows` 关掉窗口被遮挡时的降频。少了后一个，窗口被别的窗口完全挡住时 Chromium 认为它不可见、停止渲染新帧，截图拿到的是旧画面、`requestAnimationFrame` 一次都不回调。

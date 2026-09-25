@@ -24,7 +24,7 @@ const STEPS: { title: string; detail: string; active: number; entries?: boolean 
     active: -1,
     entries: true,
   },
-  { title: '第 1 步：按 home 名查端口', detail: '第一个位置给数字当场拒。home 根是 %APPDATA%\\gwb-kernel\\homes；runtime.json 不在、或者没有 cdp 字段（启动时没带调试开关），都照实报连不上，让人停掉重开一次。', active: 0 },
+  { title: '第 1 步：按 home 名查端口', detail: '第一个位置一律当 home 名，给的是端口号就找不到那个 home 的记录、当场停。home 根是 %APPDATA%\\gwb-kernel\\homes；runtime.json 不在、或者没有 cdp 字段（启动时没带调试开关），都照实报连不上，让人停掉重开一次。', active: 0 },
   {
     title: '第 2 步：连上唯一的页面',
     detail: '问调试端口的 /json/list，去掉 devtools:// 页；一个都没有、或不止一个（用 --target 选）时，把候选页面的标题与地址列进报错。选定后用 WebSocket 连上它。',

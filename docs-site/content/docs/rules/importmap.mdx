@@ -41,7 +41,7 @@ description: 页面 importmap 写死在内核包的页面入口 dist/index.html 
 
 ## 发版前怎么查
 
-`devkit.release` 对浏览器侧产物（`dist/client.js` 顺着相对 import 走到的文件）里的每个包名 import，拿内核包页面入口里 importmap 的键比对。页面入口从包目录的 `node_modules/@godcreator/gwb-kernel-desktop/dist/index.html` 现读，读不到就拒，提示 peer 写上内核包、再 `pnpm install`（细节见[发正式版的检查](/docs/devkit#发正式版的检查)）：
+`devkit.release` 对浏览器侧产物（`dist/client.js` 顺着相对 import 走到的文件）里的每个包名 import，拿内核包页面入口里 importmap 的键比对。页面入口从包目录的 `node_modules/@godcreator/gwb-kernel-desktop/dist/index.html` 现读，读不到就拒，提示 peer 写上内核包、再 `pnpm install`（细节见[发正式版](/docs/devkit/release)）：
 
 {/* has file="../plugins/devkit/tests/artifact-check.test.ts" text="浏览器侧 dist/client.js：名字只取内核包页面入口里的 importmap（从本包 node_modules 现读），别的依赖写了也不算" */}
 
