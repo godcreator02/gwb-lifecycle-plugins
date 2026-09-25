@@ -37,7 +37,7 @@ import { searchPlugins, type PackageSourcesDeps } from './package-sources.js'
 
 // 开发套件复用的规则：它 import 这几个，不另存一份
 export { locatePnpm } from './pnpm-location.js'
-export { isCaretRange, KERNEL_PACKAGE, kernelRangeCovers } from './kernel-compat.js'
+export { isCaretRange, KERNEL_PACKAGE } from './kernel-compat.js'
 export { homePnpmEnv, tailLines } from './pnpm.js'
 
 const NAME = 'gwb-plugin-manager'

@@ -9,7 +9,7 @@ describe('isCaretRange：只认 ^x.y.z', () => {
   })
 })
 
-describe('kernelRangeCovers：devkit 发版检查与 list 的 unmetPeers 里内核包那一项共用这一条', () => {
+describe('kernelRangeCovers：list 的 unmetPeers 里内核包那一项用它比', () => {
   it('主版本号为 0 时次版本号相同、≥1 时主版本号相同，并且不低于下限', () => {
     expect(kernelRangeCovers('^0.5.0', '0.5.0')).toBe(true)
     expect(kernelRangeCovers('^0.5.0', '0.5.9')).toBe(true)

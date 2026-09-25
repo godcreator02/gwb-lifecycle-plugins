@@ -65,7 +65,7 @@ description: 插件在 peerDependencies 里给内核包 @godcreator/gwb-kernel-d
 
 `devkit.release` 构建之后、发第一个包之前，检查每个插件包 peer 里内核包的范围：必须写了、是 `^x.y.z`；有一个不对就一个都不发。它不拿范围对照哪个内核——那样能不能发版要看从哪个 home 调。不是插件的包不查。范围包不包含正在运行的内核，只由 `list` 在 home 里报。
 
-比对规则只写在插件管理的 `src/kernel-compat.ts` 里，经包主入口导出 `KERNEL_PACKAGE`、`isCaretRange`、`kernelRangeCovers`（见[主入口给 devkit 的导出](/docs/plugin-manager#主入口给-devkit-的导出)）。devkit 的发版前检查 import 其中的 `KERNEL_PACKAGE` 与 `isCaretRange`，所以改了「只许 `^x.y.z`」这条规则，`devkit.release` 的检查跟着变；改签名或 devkit 依赖的行为是破坏性变更（见[什么算破坏性变更](/docs/plugin-manager#什么算破坏性变更)）。两边怎么对上见接缝页 [peer 里的内核包与插件](/docs/seams/kernel-peer)。
+比对规则只写在插件管理的 `src/kernel-compat.ts` 里，经包主入口导出 `KERNEL_PACKAGE` 与 `isCaretRange`（见[主入口给 devkit 的导出](/docs/plugin-manager#主入口给-devkit-的导出)）；`kernelRangeCovers` 只给 `list` 自己用，不导出。devkit 的发版前检查 import 那两个，所以改了「只许 `^x.y.z`」这条规则，`devkit.release` 的检查跟着变；改签名或 devkit 依赖的行为是破坏性变更（见[什么算破坏性变更](/docs/plugin-manager#什么算破坏性变更)）。两边怎么对上见接缝页 [peer 里的内核包与插件](/docs/seams/kernel-peer)。
 
 {/* ref file="../plugins/plugin-manager/src/kernel-compat.ts" lines="1-3" */}
 
