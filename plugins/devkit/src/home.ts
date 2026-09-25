@@ -203,6 +203,8 @@ export interface HomeDeps {
   run(plan: RunPlan, timeoutMs: number): Promise<RunResult>
   /** 查 pid 对应的进程：running / gone / unknown 三种（见 probes 的 ProcessProbe） */
   processName(pid: number): Promise<ProcessProbe>
+  /** 一次列出全部进程：pid → 映像名；查不出回 undefined。要看多个 pid 时用它——每查一个 pid 都要一两秒 */
+  processTable(): Promise<Map<number, string> | undefined>
   portOwner(port: number): Promise<number | undefined>
   /** 结束一个进程：'killed' / 'gone'，别的失败一律抛 */
   kill(pid: number): 'killed' | 'gone'
@@ -221,6 +223,12 @@ export function isHomeProcess(name: string | undefined, execPath: string): boole
   if (name === undefined || name.trim() === '') return false
   const image = bareImage(name.trim())
   return image === 'electron' || image === bareImage(execPath)
+}
+
+function probeFromTable(table: Map<number, string> | undefined, pid: number): ProcessProbe {
+  if (table === undefined) return { state: 'unknown' }
+  const name = table.get(pid)
+  return name === undefined ? { state: 'gone' } : { state: 'running', name }
 }
 
 /** 记录里那个 pid 此刻是不是 home 进程。「查不出」回 undefined，不导出动作 */
@@ -460,12 +468,14 @@ export interface HomeEntry {
 /** 名字带着时间戳后缀，字典序就是时间序 */
 export async function listHomes(homesRoot: string, deps: HomeDeps): Promise<HomeEntry[]> {
   const entries: HomeEntry[] = []
+  let processTable: Map<number, string> | undefined | 'not-listed' = 'not-listed'
   for (const name of deps.fs.dirs(homesRoot)) {
     const home = path.join(homesRoot, name)
     const record = parseRecord(deps.fs.readText(recordFile(home)))
     let running = false
     if (record !== undefined) {
-      running = recordedPidIsHomeProcess(await deps.processName(record.pid), deps.execPath) === true
+      if (processTable === 'not-listed') processTable = await deps.processTable()
+      running = recordedPidIsHomeProcess(probeFromTable(processTable, record.pid), deps.execPath) === true
     }
     entries.push({
       name,

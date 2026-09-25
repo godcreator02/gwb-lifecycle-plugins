@@ -1,12 +1,14 @@
 import { execFile } from 'node:child_process'
 import fs from 'node:fs'
 import type { ProcessProbe } from './probes.js'
-import { parseNetstat, parseTasklist } from './probes.js'
+import { parseNetstat, parseTasklist, parseTasklistTable } from './probes.js'
 
 // 真机器上的读写文件、查进程、查端口、结束进程，没有单元测试；判断逻辑在 probes.ts 与 home.ts
 
-/** 查一次映像名的上限。tasklist 平时几十毫秒，卡住了查状态的命令不能跟着卡住 */
+/** 查一次映像名的上限。tasklist 在这台机器上一次要一到两秒（带不带 /FI 过滤都差不多），卡住了查状态的命令不能跟着卡住 */
 const PROCESS_NAME_TIMEOUT_MS = 5_000
+/** 列整张进程表的上限：输出比单个 pid 长，但耗时跟单查一次差不多 */
+const PROCESS_TABLE_TIMEOUT_MS = 10_000
 /** 查一次端口持有者的上限。netstat 要打出整张连接表，比 tasklist 慢 */
 const PORT_OWNER_TIMEOUT_MS = 5_000
 
@@ -54,6 +56,15 @@ export function processName(pid: number): Promise<ProcessProbe> {
         resolve(name === undefined ? { state: 'gone' } : { state: 'running', name })
       },
     )
+  })
+}
+
+/** 超时、命令不在、tasklist 自己出错都算「查不出」，回 undefined */
+export function processTable(): Promise<Map<number, string> | undefined> {
+  return new Promise((resolve) => {
+    execFile('tasklist', ['/NH', '/FO', 'CSV'], { timeout: PROCESS_TABLE_TIMEOUT_MS, windowsHide: true, maxBuffer: 16 * 1024 * 1024 }, (error, stdout) => {
+      resolve(error !== null ? undefined : parseTasklistTable(stdout))
+    })
   })
 }
 

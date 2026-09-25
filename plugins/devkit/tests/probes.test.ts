@@ -3,6 +3,7 @@ import {
   bareImage,
   parseNetstat,
   parseTasklist,
+  parseTasklistTable,
 } from '../src/probes.js'
 
 describe('映像名', () => {
@@ -16,6 +17,25 @@ describe('映像名', () => {
     expect(parseTasklist('"node.exe","14340","Console","1","123,456 K"')).toBe('node.exe')
     expect(parseTasklist('\r\n"electron.exe","900","Console","1","9 K"\r\n')).toBe('electron.exe')
     expect(parseTasklist('INFO: No tasks are running which match the specified criteria.')).toBeUndefined()
+  })
+
+  it('tasklist 的整张 CSV 表：每行取出 pid → 映像名，认不出的行跳过', () => {
+    const table = parseTasklistTable(
+      [
+        '"System Idle Process","0","Services","0","8 K"',
+        '"electron.exe","900","Console","1","9,120 K"',
+        '"node.exe","14340","Console","1","123,456 K"',
+        '',
+        'INFO: 这一行不是 CSV',
+      ].join('\r\n'),
+    )
+    expect(table).toEqual(
+      new Map([
+        [0, 'System Idle Process'],
+        [900, 'electron.exe'],
+        [14340, 'node.exe'],
+      ]),
+    )
   })
 })
 

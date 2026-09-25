@@ -119,6 +119,8 @@ interface FakeOptions {
   processes?: Record<number, string>
   /** 这些 pid 查不出（tasklist 超时或出错），跟「不在」是两回事 */
   unknownPids?: number[]
+  /** 列整张进程表失败（tasklist 超时或出错） */
+  processTableUnknown?: boolean
   spawnPid?: number | undefined
   spawnFails?: boolean
   /** 宿主命令行（argv），appSpawnPlan 的事实来源；缺省＝安装版形态（命令行上只有 exe 自己） */
@@ -144,6 +146,8 @@ function fakeDeps(options: FakeOptions = {}) {
     runCalls: [] as { plan: { command: string; args: string[]; cwd: string }; timeoutMs: number }[],
     slept: [] as number[],
     pollsAfterKill: 0,
+    processTableCalls: 0,
+    processNameCalls: 0,
   }
   const execPath = options.execPath ?? HOST
   const deps: HomeDeps = {
@@ -160,7 +164,13 @@ function fakeDeps(options: FakeOptions = {}) {
       state.runCalls.push({ plan, timeoutMs })
       return runs[Math.min(state.runCalls.length - 1, runs.length - 1)] ?? { ok: true, tail: '' }
     },
+    processTable() {
+      state.processTableCalls += 1
+      if (options.processTableUnknown === true) return Promise.resolve(undefined)
+      return Promise.resolve(new Map(Object.entries(options.processes ?? {}).map(([pid, name]) => [Number(pid), name])))
+    },
     processName(pid) {
+      state.processNameCalls += 1
       if (options.unknownPids?.includes(pid) === true) return Promise.resolve({ state: 'unknown' })
       const name = options.processes?.[pid]
       if (name !== undefined && state.killed.includes(pid)) {
@@ -563,6 +573,36 @@ describe('listHomes：谁在跑看记录里的 pid', () => {
       { name: NAME, home: HOME, pid: 4242, running: true, cdp: 9222, mcp },
       { name: 'shell-2609081430', home: other, pid: null, running: false, cdp: null, mcp: null },
     ])
+  })
+
+  it('home 再多也只列一次进程表，不逐个 pid 去查', async () => {
+    const names = ['a-2609250001', 'b-2609250002', 'c-2609250003']
+    const fs = fakeFs(
+      Object.fromEntries(names.map((name, i) => [recordFile(path.join(ROOT, name)), write({ ...RECORD, pid: 5000 + i })])),
+      { [ROOT]: names },
+    )
+    const { deps, state } = fakeDeps({ fs, processes: { 5000: 'electron.exe', 5002: 'notepad.exe' } })
+    const homes = await listHomes(ROOT, deps)
+    expect(homes.map((entry) => [entry.name, entry.running])).toEqual([
+      ['a-2609250001', true],
+      ['b-2609250002', false],
+      ['c-2609250003', false],
+    ])
+    expect(state.processTableCalls).toBe(1)
+    expect(state.processNameCalls).toBe(0)
+  })
+
+  it('进程表查不出：有记录的 home 一律报没在跑，不当成已退出去动它', async () => {
+    const fs = fakeFs({ [recordFile(HOME)]: write(RECORD) }, { [ROOT]: [NAME] })
+    const { deps } = fakeDeps({ fs, processes: { 4242: 'electron.exe' }, processTableUnknown: true })
+    expect(await listHomes(ROOT, deps)).toEqual([{ name: NAME, home: HOME, pid: null, running: false, cdp: null, mcp: null }])
+  })
+
+  it('一个有记录的 home 都没有：不列进程表', async () => {
+    const fs = fakeFs({}, { [ROOT]: [NAME] })
+    const { deps, state } = fakeDeps({ fs })
+    await listHomes(ROOT, deps)
+    expect(state.processTableCalls).toBe(0)
   })
 })
 

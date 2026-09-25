@@ -20,6 +20,16 @@ export function parseTasklist(text: string): string | undefined {
   return undefined
 }
 
+/** 不加过滤的 `tasklist /NH /FO CSV` → pid 到映像名的表；前两列是 `"映像名","pid"`，认不出的行跳过 */
+export function parseTasklistTable(text: string): Map<number, string> {
+  const table = new Map<number, string>()
+  for (const line of text.split('\n')) {
+    const columns = /^"([^"]+)","(\d+)"/.exec(line.trim())
+    if (columns?.[1] !== undefined && columns[2] !== undefined) table.set(Number(columns[2]), columns[1])
+  }
+  return table
+}
+
 /** `127.0.0.1:4873`、`[::]:4873` 都算听在 4873 上 */
 function endsWithPort(address: string | undefined, port: number): boolean {
   if (address === undefined) return false
