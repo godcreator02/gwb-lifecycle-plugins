@@ -1,17 +1,17 @@
 ---
 title: 热升级
-description: outdated 查过期包；update-all 一次 pnpm add 精确版本，同一条命令里逐条停用再启用，装之前与装之后真实目录变了的别的包一起重新加载，再整页重新加载，不重启；插件管理自己那条在回执发出后才重新加载；内核包与 cordis 不热升级，由 update-kernel 装好、重启后生效
+description: outdated 查过期包；update 的参数三选一（all 升全部过期包、only 升点名的过期包、specs 按给定写法装已装的包），一次 pnpm add，同一条命令里逐条停用再启用，装之前与装之后真实目录变了的别的包一起重新加载，再整页重新加载，不重启；插件管理自己那条在回执发出后才重新加载；内核包与 cordis 不热升级，由 update-kernel 装好、或随 specs 一起装，重启后生效
 ---
 
 # 热升级
 
-**本页回答**：怎么查出哪些包有新版本；为什么升级与重新加载必须在同一条命令里；升级计划按什么排；为什么真实目录变了的别的包（多半是 peer 写了被升级包的插件）也要一起重新加载、怎么找出它们；一次热升级从头到尾依次发生什么；内核包与 `cordis` 为什么另用一条命令升、它做了什么。重新加载一条条目的时序在[重新加载一条条目](/docs/plugin-manager/remount)。
+**本页回答**：怎么查出哪些包有新版本；`update` 的三种参数各做什么；为什么升级与重新加载必须在同一条命令里；升级计划按什么排；为什么真实目录变了的别的包（多半是 peer 写了被升级包的插件）也要一起重新加载、怎么找出它们；一次热升级从头到尾依次发生什么；内核包与 `cordis` 为什么另用一条命令升、它做了什么。重新加载一条条目的时序在[重新加载一条条目](/docs/plugin-manager/remount)。
 
 热升级管 home 里除内核包与 `cordis` 之外的全部包，插件管理自己和命令插件也在其中：它们各是 `cordis.yml` 里的一条条目，和别的插件一样升级。
 
 ## 查新版本
 
-**是什么**：`outdated` 运行一次 `pnpm outdated --json`，返回「包名 → `{ current, latest }`」，空对象表示全都最新。内核包与 `cordis` 从结果里拿掉：一键热升级升不了它们（见[升内核](#升内核)），列出来只会让界面上「全部更新」的数字里多出两个永远升不掉的包。
+**是什么**：`outdated` 运行一次 `pnpm outdated --json`，返回「包名 → `{ current, latest }`」，空对象表示全都最新。内核包与 `cordis` 从结果里拿掉：热升级换不掉它们（见[升内核](#升内核)），列出来只会让界面上「全部更新」的数字里多出两个永远升不掉的包。
 
 **怎么做**：退出码 1 表示「有过期包」，是结果不是失败；找不到 pnpm、输出解析不了都转成 `ok: false` 的回执，界面上只显示一句提示。它不写文件，不经过 BUSY 检查，和正在运行的安装、升级同时运行也不影响它们（见[包：只经 applyToHome](/docs/plugin-manager/home#包只经-applytohome)）。
 
@@ -25,9 +25,59 @@ description: outdated 查过期包；update-all 一次 pnpm add 精确版本，�
 
 {/* has file="../plugins/plugin-manager/tests/commands.test.ts" text="内核包与 cordis 不进回执：它们由 update-kernel 升" */}
 
+## 三种参数
+
+**是什么**：`update` 的参数三选一、恰好给一个。不给参数、给了空对象、三种里给了两种、有认不出的键，都直接报错，报错里带着三种写法；要升全部就给 `{"all":true}`。
+
+| 参数 | 装什么 | 查不查 `outdated` |
+| --- | --- | --- |
+| `{ "all": true }` | `outdated` 查到的全部过期包，各升到它查到的精确版本 | 查 |
+| `{ "only": ["<包名>", …] }` | 只升点名的几个过期包；名字不在 home 的 dependencies 里、是内核包或 `cordis` 直接报错，已是最新的写进 `note` | 查 |
+| `{ "specs": { "<包名>": "<写法>" } }` | 给已装的包按给定写法装：版本号、tag 或 `file:<绝对路径>`，每项 `<包名>@<写法>` 原样交给同一次 `pnpm add`，带 `--save-exact`；包不在 home 的 dependencies 里直接报错（首次安装用 `install`） | 不查 |
+
+**为什么全部升级要显式给**：一条改 home 的命令，不给参数时不能执行影响最大的那个动作：漏写参数就整个 home 一起升级、当场生效（见[轨迹卡](/trajectory/2026-09-25-update-takes-all-param)）。
+
+{/* ref file="../plugins/plugin-manager/src/index.ts" lines="981-1015" */}
+
+**`specs` 不整页重新加载**：装完照常逐条重新加载、跟着重新加载真实目录变了的包、插件管理自己推迟到回执之后重新加载，但不调外壳的 `shell.reload`，插件管理自己重新加载之后也不调。回执没有 `reload` 字段，`note` 写「specs 不整页重载，页面由调用方刷新」。理由：`shell.reload` 在主进程里同步重载页面，命令的回执还没送回页面，页面就开始重载了；经页面调用这条命令的调用方（例如经 CDP 在目标页面里调命令的工具）会收不到回执，所以由调用方自己在拿到回执之后刷新。`all` 与 `only` 照旧整页重新加载：人在插件管理窗格点「全部更新」，要看到新界面。
+
+{/* ref file="../plugins/plugin-manager/src/index.ts" lines="651-656" */}
+
+**`specs` 写精确版本号、装完核对**：`pnpm add` 一律带 `--save-exact`，home 的 `package.json` 里写精确版本号，下次重装不会解析到范围里的别的版本。pnpm 退出码 0 不等于装上了要的版本：清单里原来写成 `^` 时，pnpm 12 沿用 `^`，锁文件里范围内的别的预发布版照样算满足（见[升内核](#升内核)的「装完读回核对」）。所以装完读 `node_modules/<包名>/package.json`：写法是准确版本号（`x.y.z`，可带预发布段）的，装上的 `version` 必须就是它，对不上回 `ok: false`，`error` 逐项写要的与装上的版本号，一条条目都不重新加载、不整页重新加载；tag 与 `file:` 写法看不出该是哪一版，不核对。读不到某个包的版本号也回 `ok: false`。
+
+**`specs` 的回执**：`updated` 每项的 `from` 是装之前 `node_modules/<包名>/package.json` 里的 `version`（读不到就没有这个字段），`to` 是装完读到的 `version`，不是写法原文。
+
+{/* ref file="../plugins/plugin-manager/src/update.ts" lines="143-164" */}
+
+**`specs` 里有内核包**：内核包 `@godcreator/gwb-kernel-desktop` 与 `cordis` 可以写进 `specs`，和别的包在同一次 `pnpm add` 里装。主进程里的内核换不掉（理由见[升内核](#升内核)），所以这时不重新加载任何条目、不整页重新加载，`updated` 每项的 `entries` 是空数组，回执带 `restartRequired: true`，`note` 说重启工作台后才生效、重启由人决定。没有内核包时回执没有这个字段。只给 `cordis` 不给内核包直接报错：`cordis` 的版本跟着内核包 peer 里写的走，单独换用 `update-kernel`。
+
+{/* ref file="../plugins/plugin-manager/src/index.ts" lines="591-612" */}
+
+**守住它的测试**：
+
+{/* has file="../plugins/plugin-manager/tests/commands.test.ts" text="参数：不给、空对象、三种给了两种、认不出的键、all 不是 true、specs 是空对象，都直接抛错带用法，一次 pnpm 都不运行" */}
+
+{/* has file="../plugins/plugin-manager/tests/commands.test.ts" text="按给定写法一次 pnpm add --save-exact、不查 outdated；from / to 取装之前与装之后清单里的版本号（file: 写法不核对）；它的条目与真实目录变了的别的包重新加载，不整页重载、回执没有 reload" */}
+
+{/* has file="../plugins/plugin-manager/tests/commands.test.ts" text="specs 里有插件管理自己：别的在命令里做完，自己那条回执之后才重新加载，之后也不整页重载" */}
+
+{/* has file="../plugins/plugin-manager/tests/commands.test.ts" text="有内核包：连同 cordis 与别的包一次 pnpm add --save-exact；不重新加载任何条目、不整页重载，回执 restartRequired" */}
+
+{/* has file="../plugins/plugin-manager/tests/update.test.ts" text="包不在 home 的 dependencies 里：直接抛错，说出是哪几个、指向 install" */}
+
+{/* has file="../plugins/plugin-manager/tests/update.test.ts" text="只给 cordis 不给内核包：直接抛错，指向 update-kernel" */}
+
+{/* has file="../plugins/plugin-manager/tests/update.test.ts" text="装完读不到某个包的版本号：ok false，说出是哪几个" */}
+
+{/* has file="../plugins/plugin-manager/tests/update.test.ts" text="写法是准确版本号、装上的不是它：ok false，逐项说出要的与装上的" */}
+
+{/* has file="../plugins/plugin-manager/tests/update.test.ts" text="file: 与 tag 写法不核对：装上什么就报什么" */}
+
+{/* has file="../plugins/plugin-manager/tests/commands.test.ts" text="准确版本号对不上（清单里原来写的是 ^）：ok false，逐项说要的与装上的，一条条目都不重新加载、不整页重载" */}
+
 ## 升级与重新加载在同一条命令里
 
-**是什么**：`update-all` 一条命令做完：一次 `pnpm add` 把过期包升到精确版本 → 逐条重新加载（装之前与装之后真实目录变了的别的包也在其中）→ 整页重新加载。只升某几个包也用它，给 `only`；没有「只升包、不重新加载」的命令。
+**是什么**：`update` 一条命令做完：一次 `pnpm add` 把包装到计划的版本 → 逐条重新加载（装之前与装之后真实目录变了的别的包也在其中）→ 整页重新加载（`specs` 不整页重新加载，见上一节）。三种参数装完都走这同一套，`specs` 里有内核包时除外；没有「只升包、不重新加载」的命令。
 
 **为什么**：升完不重新加载，运行着的还是旧版本的代码，等于没升。旧版本目录也不会一直留着：home 里没有 `pnpm-workspace.yaml`（default 就没有）时用 pnpm 的默认值，旧目录保留约 7 天（pnpm 文档写 `modulesCacheMaxAge` 默认 10080 分钟）后清掉。升级与重新加载分成两条命令，中间运行的一直是旧版，隔得久了目录被清掉，旧版再读自己的文件就读不到：
 
@@ -36,43 +86,50 @@ description: outdated 查过期包；update-all 一次 pnpm add 精确版本，�
 - 同一条命令：`pnpm add` 一结束马上停用再启用，运行的就是新版，也不再依赖旧目录
 </Diagram>
 
-**例外**：命令本该保持原子、一条只做一件事，多步流程写进说明书由调用方一步步调。`update-all` 是允许的例外：升完不重新加载就等于没升，拆开只多出上图那段运行旧版的空档。`pnpm add` 失败时一条条目都不动。
+**例外**：命令本该保持原子、一条只做一件事，多步流程写进说明书由调用方一步步调。`update` 是允许的例外：升完不重新加载就等于没升，拆开只多出上图那段运行旧版的空档。`pnpm add` 失败时一条条目都不动。
 
-这一条只能实机验证：在隔离 home 里先装某个包的旧版本，再调 `plugin-manager.update-all`，看条目回到 `ACTIVE`、`list` 里是新版本。
+{/* ref file="../plugins/plugin-manager/src/index.ts" lines="614-647" */}
+
+这一条只能实机验证：在隔离 home 里先装某个包的旧版本，再调 `plugin-manager.update {"all":true}`，看条目回到 `ACTIVE`、`list` 里是新版本。
 
 ## 升级计划
 
-**是什么**：升哪些包、它们的哪些条目要重新加载、按什么顺序，由一个纯函数在 `pnpm add` 之前算出，单独测。跟着重新加载的别的包要装完才知道，不在计划里，见下一节。
+**是什么**：装哪些包、它们的哪些条目要重新加载、按什么顺序，由纯函数在 `pnpm add` 之前算出，单独测：`all` 与 `only` 按 `outdated` 的结果算，`specs` 按给定的写法算。跟着重新加载的别的包要装完才知道，不在计划里，见下一节。
 
-{/* ref file="../plugins/plugin-manager/src/update-all.ts" lines="35-42" */}
+{/* ref file="../plugins/plugin-manager/src/update.ts" lines="38-54" */}
 
-- **精确版本**：用 `outdated` 查到的版本号，不用 `@latest` 标签——两次查询之间又发了一版，也不会装成回执上没写的那个
+- **精确版本**：`all` 与 `only` 用 `outdated` 查到的版本号，不用 `@latest` 标签——两次查询之间又发了一版，也不会装成回执上没写的那个；`specs` 的写法原样交给 pnpm
 - **每条条目各自重新加载**：被别的插件 inject 的插件重新加载时，cordis 会把依赖它的插件停用再启动，但那是重新运行内存里的旧代码，磁盘上的新版本没有加载，所以不能指望这种连带
 - 包按包名排，包内的条目按条目树里的先后；本来就停用的条目保持停用，记为 `skipped`
 - **跟着重新加载的包排在升级的包之后**：装之前与装之后真实目录变了的别的包，按包名排，理由与找法见下一节
 - **插件管理自己那条标 `self`**：它照包名、照树里的先后排，不挪位置；执行到它时只记 `deferred`、跳过，回执发出之后才重新加载（见下面「插件管理自己在回执之后」），排在哪都一样
 - 给了 `only` 就只升点名的几个；名字不在 home 的 `package.json` 的 dependencies 里（多半拼错）直接报错、说出是哪个，一次 pnpm 都不运行；在 home 里但已是最新的，回执的 `note` 里列出来
-- **内核包与 `cordis` 不升**：`outdated` 本来就不含它们；`only` 点了它们的名直接报错，指向 `update-kernel`，一次 pnpm 都不运行。理由见下面[升内核](#升内核)
+- **`all` 与 `only` 不升内核包与 `cordis`**：`outdated` 本来就不含它们；`only` 点了它们的名直接报错，指向 `update-kernel`，一次 pnpm 都不运行。理由见下面[升内核](#升内核)；`specs` 可以带它们，见上面[三种参数](#三种参数)
+- **`specs` 的包必须已装**：键不在 home 的 dependencies 里直接报错，一次 pnpm 都不运行；只给 `cordis` 不给内核包也直接报错
 
 {/* ref file="../plugins/plugin-manager/src/kernel-upgrade.ts" lines="9-10" */}
 
-{/* ref file="../plugins/plugin-manager/src/update-all.ts" lines="65-71" */}
+{/* ref file="../plugins/plugin-manager/src/update.ts" lines="82-88" */}
+
+{/* ref file="../plugins/plugin-manager/src/update.ts" lines="112-141" */}
 
 **守住它的测试**：计划是纯函数，每一条都有测试。
 
-{/* has file="../plugins/plugin-manager/tests/update-all.test.ts" text="包只按名排、包内条目照树里的先后，自己所在的包与自己那条都不挪" */}
+{/* has file="../plugins/plugin-manager/tests/update.test.ts" text="包只按名排、包内条目照树里的先后，自己所在的包与自己那条都不挪" */}
 
-{/* has file="../plugins/plugin-manager/tests/update-all.test.ts" text="每个包用 outdated 查到的版本号" */}
+{/* has file="../plugins/plugin-manager/tests/update.test.ts" text="每个包用 outdated 查到的版本号" */}
 
-{/* has file="../plugins/plugin-manager/tests/update-all.test.ts" text="执行时保持停用，不重新加载" */}
+{/* has file="../plugins/plugin-manager/tests/update.test.ts" text="执行时保持停用，不重新加载" */}
 
-{/* has file="../plugins/plugin-manager/tests/update-all.test.ts" text="点了名、不在过期清单里的（已是最新）进 alreadyLatest" */}
+{/* has file="../plugins/plugin-manager/tests/update.test.ts" text="点了名、不在过期清单里的（已是最新）进 alreadyLatest" */}
 
-{/* has file="../plugins/plugin-manager/tests/update-all.test.ts" text="有不在 home 里的（多半拼错）：直接抛错，说出是哪几个" */}
+{/* has file="../plugins/plugin-manager/tests/update.test.ts" text="有不在 home 里的（多半拼错）：直接抛错，说出是哪几个" */}
 
 {/* has file="../plugins/plugin-manager/tests/commands.test.ts" text="only 里的包名不在 home 的 dependencies 里（多半拼错）：直接抛错、说出是哪个名字，一次 pnpm 都不运行" */}
 
-{/* has file="../plugins/plugin-manager/tests/update-all.test.ts" text="only 点了它们的名：抛错、说出是哪几个、指向 update-kernel" */}
+{/* has file="../plugins/plugin-manager/tests/update.test.ts" text="only 点了它们的名：抛错、说出是哪几个、指向 update-kernel" */}
+
+{/* has file="../plugins/plugin-manager/tests/update.test.ts" text="每项 <包名>@<写法> 原样交给 pnpm，按包名排" */}
 
 {/* has file="../plugins/plugin-manager/tests/commands.test.ts" text="pnpm 报内核包与 cordis 过期：不升它们，回执里也不提" */}
 
@@ -88,19 +145,19 @@ description: outdated 查过期包；update-all 一次 pnpm add 精确版本，�
 
 {/* ref file="../plugins/plugin-manager/src/home.ts" lines="51-63" */}
 
-{/* ref file="../plugins/plugin-manager/src/index.ts" lines="536-557" */}
+{/* ref file="../plugins/plugin-manager/src/index.ts" lines="628-647" */}
 
-{/* ref file="../plugins/plugin-manager/src/update-all.ts" lines="95-112" */}
+{/* ref file="../plugins/plugin-manager/src/update.ts" lines="166-183" */}
 
-{/* ref file="../plugins/plugin-manager/src/index.ts" lines="112-117" */}
+{/* ref file="../plugins/plugin-manager/src/index.ts" lines="130-135" */}
 
 **守住它的测试**：
 
-{/* has file="../plugins/plugin-manager/tests/update-all.test.ts" text="目录变了、本身没升级的包进 dependents，按包名排" */}
+{/* has file="../plugins/plugin-manager/tests/update.test.ts" text="目录变了、本身没升级的包进 dependents，按包名排" */}
 
-{/* has file="../plugins/plugin-manager/tests/update-all.test.ts" text="装之前读不到、装之后读得到（或反过来）也算目录变了" */}
+{/* has file="../plugins/plugin-manager/tests/update.test.ts" text="装之前读不到、装之后读得到（或反过来）也算目录变了" */}
 
-{/* has file="../plugins/plugin-manager/tests/update-all.test.ts" text="插件管理自己的目录变了：它照包名排进 dependents，自己那条条目标 self" */}
+{/* has file="../plugins/plugin-manager/tests/update.test.ts" text="插件管理自己的目录变了：它照包名排进 dependents，自己那条条目标 self" */}
 
 {/* has file="../plugins/plugin-manager/tests/home.test.ts" text="node_modules/<包名> 是目录链接：回它指向的真实目录" */}
 
@@ -110,13 +167,13 @@ description: outdated 查过期包；update-all 一次 pnpm add 精确版本，�
 
 ## 一次热升级依次发生什么
 
-<Diagram name="pm-upgrade" title="一键热升级的时间线：每一行是一个参与方，竖虚线是回执发出的时刻">
-- 调用方调用 `update-all`；插件管理查过期包，定计划，记下装之前每个包的真实目录
+<Diagram name="pm-upgrade" title="一次热升级的时间线：每一行是一个参与方，竖虚线是回执发出的时刻">
+- 调用方调用 `update`；插件管理查过期包（给 `specs` 时不查），定计划，记下装之前每个包的真实目录
 - 插件管理一次 `pnpm add` 精确版本；磁盘上 A@1.1 装上，peer 写了 A 的 B 也换进新目录；再读一次真实目录，B 变了，跟着重新加载
 - 条目 A 停用再启用，重新解析拿到 A@1.1，回到 `ACTIVE`；接着条目 B 同样停用再启用
 - 回执发出，调用方收到 `selfDeferred: true`、`reload: deferred`
 - 下一个宏任务里重新加载插件管理自己，拿到新版本
-- 外壳 `shell.reload` 整页重新加载，窗格拿到新版本的页面代码
+- 外壳 `shell.reload` 整页重新加载，窗格拿到新版本的页面代码（给 `specs` 时没有这一步，页面由调用方刷新）
 </Diagram>
 
 **插件管理自己在回执之后**：升级的包或跟着重新加载的包里有插件管理自己时，它那条条目在回执发出之后才重新加载，回执里 `selfDeferred` 是 `true`，它的条目 `action` 是 `deferred`。理由与[重新加载插件管理自己](/docs/plugin-manager/remount#目标是插件管理自己先回执后重新加载)相同。
@@ -125,9 +182,9 @@ description: outdated 查过期包；update-all 一次 pnpm add 精确版本，�
 
 {/* has file="../plugins/plugin-manager/tests/commands.test.ts" text="升级清单里有插件管理自己：自己那条先回 deferred，回执之后才重新加载，再整页重新加载" */}
 
-**整页重新加载**：经命令插件调用外壳的 `shell.reload`，按命令名查找，不 import 外壳。回执的 `reload`：`done` 已经重新加载；`deferred` 等插件管理自己重新加载完再执行；`unavailable` 命令表里没有它或它失败了，界面要手动刷新，原因在 `note` 里。
+**整页重新加载**：经命令插件调用外壳的 `shell.reload`，按命令名查找，不 import 外壳。回执的 `reload`：`done` 已经重新加载；`deferred` 等插件管理自己重新加载完再执行；`unavailable` 命令表里没有它或它失败了，界面要手动刷新，原因在 `note` 里。给 `specs` 时不整页重新加载，回执没有 `reload`（见[三种参数](#三种参数)），其中有内核包时另带 `restartRequired: true`。
 
-{/* ref file="../plugins/plugin-manager/src/index.ts" lines="119-140" */}
+{/* ref file="../plugins/plugin-manager/src/index.ts" lines="137-160" */}
 
 **升到 MCP 入口自己**：`gwb-mcp` 重新加载时，进行中的 MCP 请求会中断，agent 要重连一次，再用 `plugin-manager.list` 核对版本与 `active`。
 
@@ -139,7 +196,7 @@ description: outdated 查过期包；update-all 一次 pnpm add 精确版本，�
 
 {/* ref file="../plugins/plugin-manager/src/kernel-upgrade.ts" lines="42-52" */}
 
-**为什么不热升级**：内核在主进程里运行，停用再启用条目换不掉它；home 根上的 `cordis` 是内核与所有插件共用的那一份，内核与插件都已经 import 了它，换了也要重启才生效。所以 `outdated` 与 `list` 都不列这两个包，`update-all` 的 `only` 点了它们直接报错，`uninstall` 也不许卸它们（卸掉 home 就启动不了），由这条命令单独升，什么时候重启由人决定。
+**为什么不热升级**：内核在主进程里运行，停用再启用条目换不掉它；home 根上的 `cordis` 是内核与所有插件共用的那一份，内核与插件都已经 import 了它，换了也要重启才生效。所以 `outdated` 与 `list` 都不列这两个包，`update` 的 `only` 点了它们直接报错，`uninstall` 也不许卸它们（卸掉 home 就启动不了），由这条命令单独升，什么时候重启由人决定。另一条路是 `update` 的 `specs` 连同别的包一起给出内核包与 `cordis` 的写法，同样不重新加载、回执说要重启；这条路不读内核包 peer 里的 `cordis`，写哪个版本由调用方负责。
 
 **为什么 `cordis` 要跟着对齐**：内核包把 `cordis` 写成 peer，pnpm 把它解析到 home 根上的那一份；home 根上的版本和内核包要的不同，内核就运行在它没验过的 `cordis` 上。内核包 peer 里的 `cordis` 因此必须是精确版本号，写成范围就说不清 home 根上该装哪一个，这时命令不装 `cordis`、回 `ok: false`。
 

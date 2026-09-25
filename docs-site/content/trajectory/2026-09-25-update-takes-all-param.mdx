@@ -1,0 +1,41 @@
+---
+title: update-all 改名 update，全部升级要显式给 all，另加 specs 按给定写法装已装的包
+born-at: 2026-09-25T10:30
+type: choice
+parent: [2026-09-08-gwb-devkit]
+label: update 显式 all 加 specs
+domain: 插件管理
+---
+
+## 背景
+
+插件管理 0.11.0 的 `plugin-manager.update-all` 不给参数就把 `outdated` 查到的过期包全升到 latest，给 `only` 只升点名的几个。两件事逼着改它：
+
+- **不给参数就升全部，太容易误触**：agent 调一条命令时漏写参数、或者照着别处的示例少抄了 `only`，结果是整个 home 一起升级、逐条重新加载、整页重载，而且当场生效。一条会改 home 的命令，什么参数都不给时执行的偏偏是影响最大的那个动作
+- **`devkit.dev` 要改走插件管理**：它往目标 home 装开发版时自己改 home 的 `package.json` 再运行 `pnpm install`，不经插件管理、也不经 BUSY 检查，和插件管理的改动同时写 home 会丢改动而且都退出码 0。插件管理是唯一写 home 的插件，这条路要收进来，但插件管理只会「升到 latest」，装不了一个指定的开发版号、tag 或 `file:` 包
+
+## 结论与边界
+
+命令改名为 `plugin-manager.update`，参数三选一、恰好给一个，不给、给了两种、认不出的键都直接报错并带上用法：
+
+- `{ "all": true }`：原来不给参数的行为
+- `{ "only": [...] }`：原来 `only` 的行为和校验
+- `{ "specs": { "<包名>": "<写法>" } }`：新增。给已在 home 的 dependencies 里的包按给定写法一次 `pnpm add`，一律带 `--save-exact`，不查 `outdated`；写法是准确版本号的，装完读 `node_modules` 里的清单核对，装上的不是那个号就回 `ok: false`、逐项写要的与装上的、一条条目都不重新加载（tag 与 `file:` 看不出该是哪一版，不核对）；装完沿用同一套重新加载（这些包的条目、真实目录变了的别的包、插件管理自己推迟到回执之后），但不整页重载，回执没有 `reload`，`note` 说页面由调用方刷新。回执的 `from` / `to` 取装之前与装之后 `node_modules` 里清单的 `version`，不是写法原文。specs 里有内核包时连同 `cordis` 一起装，不重新加载任何条目也不整页重载，回执带 `restartRequired: true`；只给 `cordis` 不给内核包直接报错
+
+旧名字不留、不加别名。改命令名、改参数语义，照 gwb-release 升 x：插件管理 0.11.0 → 0.12.0。
+
+边界：`specs` 不管首次安装（那是 `install`，要加条目）；不核对内核包 peer 里的 `cordis` 与给的 `cordis` 是否一致，写哪个版本由调用方负责。
+
+`specs` 不整页重载：`shell.reload` 在主进程里同步调 `webContents.reload()`，命令的回执还没送回页面，页面就开始重载了。`devkit.dev` 经 CDP 在目标页面里调 `plugin-manager.update`，整页重载会让它丢掉回执；它本来就要按自己的等待条件刷新页面，所以页面交给调用方刷新。`all` 与 `only` 照旧整页重载：人在插件管理窗格点「全部更新」，要看到新界面。
+
+`--save-exact` 与准确版本号核对是一起定的：home 清单里留着 `^`，下次重装会解析到范围里别的版本；而清单里原来写成 `^` 时 pnpm 12 沿用 `^`、`--save-exact` 也拦不住它留着锁文件里同一范围的旧预发布版，退出码照样是 0（devkit 仓 `probes/2609241510_pnpm-add-exact-prefix/`）。只写 `--save-exact` 不核对，`devkit.dev` 装开发版时就可能把旧的那一版重新加载一遍、回执还说成功。
+
+## 否掉的候选
+
+- **保留 `update-all` 的名字，只加一个 `specs` 参数**：不给参数就升全部的问题还在，而且名字里的 all 和「只装这几个」的 specs 对不上
+- **另开一条命令专管按写法装**：装完之后逐条重新加载、跟着换了目录的包、插件管理自己推迟到回执之后、整页重载这一整套要再抄一份，两份迟早不一致；BUSY 检查也要多登记一条命令
+
+## 代价与遗留
+
+- 插件管理当天第二次升 x，下游都要跟：插件管理窗格（`gwb-ui-plugins` 的「全部更新」按钮）、`devkit.dev` 的报错提示与说明书、各仓 README 里「发完调 `plugin-manager.update-all`」的那一步
+- `plugin-manager.update` 这个名字以前用过一次（按包名升一个包，后来并进 `update-all` 的 `only`），现在回到这个名字、意思变成三种参数的总入口；旧会话记录里见到它要按日期分辨

@@ -1,9 +1,9 @@
 import { describe, expect, it } from 'vitest'
 import { fiberStateOf, settleFiber } from '../src/fiber.js'
-import { assertOnlyNotKernelManaged, assertOnlyPackagesInHome, planUpdateAll, plannedDependents } from '../src/update-all.js'
+import { assertOnlyNotKernelManaged, assertOnlyPackagesInHome, planOutdatedUpdate, planSpecsUpdate, plannedDependents, versionChangesAfterAdd } from '../src/update.js'
 
 /**
- * 一键热升级的计划：pnpm 参数、重新加载哪些条目、按什么顺序。fixture 照 uninstall.test 的样式——store 是
+ * `update` 的计划：pnpm 参数、重新加载哪些条目、按什么顺序。fixture 照 uninstall.test 的样式——store 是
  * `Object.create(null)` 的平表，包名在 `options.name`，停用在 `disabled`。
  */
 
@@ -49,14 +49,14 @@ const outdated = {
   [COMMANDS]: { current: '0.2.0', latest: '0.2.2' },
 }
 
-describe('planUpdateAll：一次 pnpm add，精确版本', () => {
+describe('planOutdatedUpdate：一次 pnpm add，精确版本', () => {
   it('pnpm 参数是一次 add，每个包用 outdated 查到的版本号，不用 @latest 标签', () => {
-    const plan = planUpdateAll(outdated, store, 'home:plugin-manager')
+    const plan = planOutdatedUpdate(outdated, store, 'home:plugin-manager')
     expect(plan.pnpmArgs).toEqual(['add', `${COMMANDS}@0.2.2`, `${HELLO}@0.2.1`, `${MANAGER}@0.3.0`])
   })
 
   it('空清单：pnpmArgs 空、packages 空、自己不在里面', () => {
-    const plan = planUpdateAll({}, store, 'home:plugin-manager')
+    const plan = planOutdatedUpdate({}, store, 'home:plugin-manager')
     expect(plan).toEqual({ pnpmArgs: [], packages: [], alreadyLatest: [] })
   })
 })
@@ -69,18 +69,17 @@ describe('assertOnlyNotKernelManaged：内核包与 cordis 热升级不了', () 
     expect(() => assertOnlyNotKernelManaged([KERNEL])).toThrow('plugin-manager.update-kernel')
   })
 
-  it('only 没点它们、不给 only：不抛', () => {
+  it('only 没点它们：不抛', () => {
     expect(() => assertOnlyNotKernelManaged([HELLO])).not.toThrow()
-    expect(() => assertOnlyNotKernelManaged(undefined)).not.toThrow()
   })
 })
 
-describe('planUpdateAll：条目的先后与自己那条的标记', () => {
+describe('planOutdatedUpdate：条目的先后与自己那条的标记', () => {
   const ZETA = '@x/gwb-zeta'
 
   it('包只按名排、包内条目照树里的先后，自己所在的包与自己那条都不挪；自己那条标 self', () => {
     const withZeta = fakeStore([entry({ id: 'zeta', pkg: ZETA, state: 2 }), ...Object.entries(store).map(([key, value]) => ({ key, value }))])
-    const plan = planUpdateAll({ ...outdated, [ZETA]: { current: '1.0.0', latest: '1.0.1' } }, withZeta, 'home:plugin-manager')
+    const plan = planOutdatedUpdate({ ...outdated, [ZETA]: { current: '1.0.0', latest: '1.0.1' } }, withZeta, 'home:plugin-manager')
     expect(plan.packages.map((p) => p.pkg)).toEqual([COMMANDS, HELLO, MANAGER, ZETA])
     const manager = plan.packages[2]!
     expect(manager.entries.map((e) => e.id)).toEqual(['plugin-manager', 'plugin-manager-2'])
@@ -89,20 +88,20 @@ describe('planUpdateAll：条目的先后与自己那条的标记', () => {
 
   it('裸 id 与完整 entryId 都认得出自己', () => {
     for (const ownEntryId of ['plugin-manager', 'home:plugin-manager']) {
-      const plan = planUpdateAll(outdated, store, ownEntryId)
+      const plan = planOutdatedUpdate(outdated, store, ownEntryId)
       expect(plan.packages.flatMap((p) => p.entries).filter((e) => e.self).map((e) => e.id)).toEqual(['plugin-manager'])
     }
   })
 
   it('自己不在清单里：没有哪条标 self', () => {
-    const plan = planUpdateAll({ [HELLO]: outdated[HELLO] }, store, 'home:plugin-manager')
+    const plan = planOutdatedUpdate({ [HELLO]: outdated[HELLO] }, store, 'home:plugin-manager')
     expect(plan.packages.flatMap((p) => p.entries).every((e) => !e.self)).toBe(true)
   })
 })
 
-describe('planUpdateAll：每条条目怎么处理', () => {
+describe('planOutdatedUpdate：每条条目怎么处理', () => {
   it('停用的条目带 disabled——执行时保持停用，不重新加载', () => {
-    const plan = planUpdateAll(outdated, store, 'home:plugin-manager')
+    const plan = planOutdatedUpdate(outdated, store, 'home:plugin-manager')
     const hello = plan.packages.find((p) => p.pkg === HELLO)!
     expect(hello.entries).toEqual([
       { id: 'hello', disabled: false, self: false },
@@ -112,7 +111,7 @@ describe('planUpdateAll：每条条目怎么处理', () => {
   })
 
   it('装了包、一条条目都没有的照样升，entries 为空；分组条目不归任何包', () => {
-    const plan = planUpdateAll({ ...outdated, '@x/gwb-tokens': { current: '0.0.5', latest: '0.0.6' } }, store, 'home:plugin-manager')
+    const plan = planOutdatedUpdate({ ...outdated, '@x/gwb-tokens': { current: '0.0.5', latest: '0.0.6' } }, store, 'home:plugin-manager')
     expect(plan.packages.find((p) => p.pkg === '@x/gwb-tokens')).toEqual({
       pkg: '@x/gwb-tokens',
       from: '0.0.5',
@@ -123,16 +122,16 @@ describe('planUpdateAll：每条条目怎么处理', () => {
   })
 })
 
-describe('planUpdateAll：only 限定', () => {
+describe('planOutdatedUpdate：only 限定', () => {
   it('只升点了名的；点了名、不在过期清单里的（已是最新）进 alreadyLatest，不进 pnpm 参数', () => {
-    const plan = planUpdateAll(outdated, store, 'home:plugin-manager', [HELLO, '@x/gwb-not-outdated'])
+    const plan = planOutdatedUpdate(outdated, store, 'home:plugin-manager', [HELLO, '@x/gwb-not-outdated'])
     expect(plan.pnpmArgs).toEqual(['add', `${HELLO}@0.2.1`])
     expect(plan.packages.map((p) => p.pkg)).toEqual([HELLO])
     expect(plan.alreadyLatest).toEqual(['@x/gwb-not-outdated'])
   })
 
   it('only 是空数组：什么都不升，也不是「全升」', () => {
-    const plan = planUpdateAll(outdated, store, 'home:plugin-manager', [])
+    const plan = planOutdatedUpdate(outdated, store, 'home:plugin-manager', [])
     expect(plan.pnpmArgs).toEqual([])
     expect(plan.packages).toEqual([])
   })
@@ -145,10 +144,118 @@ describe('assertOnlyPackagesInHome：only 里的包名必须在 home 的 depende
     expect(() => assertOnlyPackagesInHome([HELLO, '@x/gwb-helo', '@x/gwb-nope'], homeDependencies)).toThrow('@x/gwb-helo、@x/gwb-nope')
   })
 
-  it('都在 home 里、给了空数组、没给 only：不抛', () => {
+  it('都在 home 里、给了空数组：不抛', () => {
     expect(() => assertOnlyPackagesInHome([HELLO, COMMANDS], homeDependencies)).not.toThrow()
     expect(() => assertOnlyPackagesInHome([], homeDependencies)).not.toThrow()
-    expect(() => assertOnlyPackagesInHome(undefined, homeDependencies)).not.toThrow()
+  })
+})
+
+describe('planSpecsUpdate：给已装的包按给定写法装', () => {
+  const KERNEL = '@godcreator/gwb-kernel-desktop'
+  const homeDependencies = { [HELLO]: '^0.2.0', [MANAGER]: '^0.2.0', [KERNEL]: '0.6.0', cordis: '4.0.0-rc.10' }
+
+  it('每项 <包名>@<写法> 原样交给 pnpm，按包名排；条目照树里的先后、自己那条标 self；没有内核包', () => {
+    const plan = planSpecsUpdate({ [MANAGER]: 'file:D:/repo/pm.tgz', [HELLO]: '0.2.1-dev.3' }, homeDependencies, store, 'home:plugin-manager')
+    expect(plan.addSpecs).toEqual([`${HELLO}@0.2.1-dev.3`, `${MANAGER}@file:D:/repo/pm.tgz`])
+    expect(plan.packages).toEqual([
+      {
+        pkg: HELLO,
+        entries: [
+          { id: 'hello', disabled: false, self: false },
+          { id: 'hello-2', disabled: true, self: false },
+        ],
+      },
+      {
+        pkg: MANAGER,
+        entries: [
+          { id: 'plugin-manager', disabled: false, self: true },
+          { id: 'plugin-manager-2', disabled: false, self: false },
+        ],
+      },
+    ])
+    expect(plan.includesKernel).toBe(false)
+  })
+
+  it('有内核包（可以连同 cordis）：includesKernel 为真', () => {
+    const plan = planSpecsUpdate({ [KERNEL]: '0.6.1-dev.1', cordis: '4.0.0-rc.11', [HELLO]: 'latest' }, homeDependencies, store, 'home:plugin-manager')
+    expect(plan.includesKernel).toBe(true)
+    expect(plan.addSpecs).toEqual([`${KERNEL}@0.6.1-dev.1`, `${HELLO}@latest`, 'cordis@4.0.0-rc.11'])
+  })
+
+  it('包不在 home 的 dependencies 里：直接抛错，说出是哪几个、指向 install', () => {
+    expect(() => planSpecsUpdate({ [HELLO]: '0.2.1', '@x/gwb-new': '1.0.0' }, homeDependencies, store, 'home:plugin-manager')).toThrow(
+      'specs 里的 @x/gwb-new 不在 home 的 package.json 的 dependencies 里',
+    )
+    expect(() => planSpecsUpdate({ '@x/gwb-new': '1.0.0' }, homeDependencies, store, 'home:plugin-manager')).toThrow('plugin-manager.install')
+  })
+
+  it('只给 cordis 不给内核包：直接抛错，指向 update-kernel', () => {
+    expect(() => planSpecsUpdate({ cordis: '4.0.0-rc.11' }, homeDependencies, store, 'home:plugin-manager')).toThrow('plugin-manager.update-kernel')
+  })
+
+  it('包名或写法不合规：直接抛错', () => {
+    expect(() => planSpecsUpdate({ [HELLO]: '-r' }, homeDependencies, store, 'home:plugin-manager')).toThrow('不合规')
+    expect(() => planSpecsUpdate({ [HELLO]: '0.2.1 --force' }, homeDependencies, store, 'home:plugin-manager')).toThrow('不合规')
+    expect(() => planSpecsUpdate({ '-r': '1.0.0' }, homeDependencies, store, 'home:plugin-manager')).toThrow('包名 "-r" 不合规')
+  })
+})
+
+describe('versionChangesAfterAdd：回执里的 from / to 取装之前与装之后读到的版本号', () => {
+  it('装之前读不到的没有 from；to 是装完读到的版本号（准确版本号对上了、tag 不核对）', () => {
+    const result = versionChangesAfterAdd(
+      { [HELLO]: '0.2.1-dev.3', [MANAGER]: 'latest' },
+      new Map([
+        [HELLO, '0.2.0'],
+        [MANAGER, undefined],
+      ]),
+      new Map([
+        [HELLO, '0.2.1-dev.3'],
+        [MANAGER, '0.3.0'],
+      ]),
+    )
+    expect(result).toEqual({
+      ok: true,
+      changes: new Map([
+        [HELLO, { from: '0.2.0', to: '0.2.1-dev.3' }],
+        [MANAGER, { to: '0.3.0' }],
+      ]),
+    })
+  })
+
+  it('装完读不到某个包的版本号：ok false，说出是哪几个', () => {
+    const result = versionChangesAfterAdd({ [HELLO]: '0.2.1', [MANAGER]: '1.0.0' }, new Map(), new Map([[HELLO, '0.2.1']]))
+    expect(result).toEqual({ ok: false, error: `pnpm add 退出码 0，但装完读不到 ${MANAGER} 在 home 的 node_modules 里的 package.json 的 version` })
+  })
+
+  it('写法是准确版本号、装上的不是它：ok false，逐项说出要的与装上的', () => {
+    const result = versionChangesAfterAdd(
+      { [HELLO]: '0.2.1', [MANAGER]: '0.3.0-dev.2', '@x/gwb-ok': '1.0.0' },
+      new Map(),
+      new Map([
+        [HELLO, '0.2.2-dev.1'],
+        [MANAGER, '0.3.0-dev.1'],
+        ['@x/gwb-ok', '1.0.0'],
+      ]),
+    )
+    expect(result.ok).toBe(false)
+    const error = result.ok ? '' : result.error
+    expect(error).toContain(`${HELLO} 是 0.2.2-dev.1，要的是 0.2.1`)
+    expect(error).toContain(`${MANAGER} 是 0.3.0-dev.1，要的是 0.3.0-dev.2`)
+    expect(error).not.toContain('@x/gwb-ok')
+  })
+
+  it('file: 与 tag 写法不核对：装上什么就报什么', () => {
+    const result = versionChangesAfterAdd({ [HELLO]: 'file:D:/repo/hello.tgz', [MANAGER]: 'dev' }, new Map(), new Map([
+      [HELLO, '0.2.1-dev.9'],
+      [MANAGER, '0.3.0-dev.4'],
+    ]))
+    expect(result).toEqual({
+      ok: true,
+      changes: new Map([
+        [HELLO, { to: '0.2.1-dev.9' }],
+        [MANAGER, { to: '0.3.0-dev.4' }],
+      ]),
+    })
   })
 })
 

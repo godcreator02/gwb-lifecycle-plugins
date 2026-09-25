@@ -27,7 +27,7 @@ export function PmCommands() {
         y={40}
         w={252}
         h={120}
-        lines={['16 条命令 plugin-manager.*', 'list · install · uninstall · outdated', 'update-all · add-entry · remove-entry', 'enable · disable · remount', 'update-kernel · transfer-owner', 'search · source.add / list / remove']}
+        lines={['16 条命令 plugin-manager.*', 'list · install · uninstall · outdated', 'update · add-entry · remove-entry', 'enable · disable · remount', 'update-kernel · transfer-owner', 'search · source.add / list / remove']}
         tone="a"
       />
       <Box x={482} y={172} w={252} h={52} lines={['服务 gwbPluginManager', '值是空对象 {}']} dashed />

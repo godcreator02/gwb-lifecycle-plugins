@@ -303,7 +303,7 @@ describe('条目命令', () => {
     await expect(pm.run('plugin-manager.remove-entry', 'foo')).rejects.toThrow('参数要是一个对象')
     await expect(pm.run('plugin-manager.enable', {})).rejects.toThrow('entryId 要是个非空字符串')
     await expect(pm.run('plugin-manager.search', { scope: '' })).rejects.toThrow('scope 给了就要是非空字符串')
-    await expect(pm.run('plugin-manager.update-all', { only: [''] })).rejects.toThrow('only 给了就要是个非空字符串数组')
+    await expect(pm.run('plugin-manager.update', { only: [''] })).rejects.toThrow('only 要是个非空字符串数组')
   })
 })
 
@@ -437,10 +437,10 @@ describe('plugin-manager.outdated', () => {
   })
 })
 
-describe('plugin-manager.update-all', () => {
+describe('plugin-manager.update', () => {
   it('全都最新：不运行 pnpm add，note 说全都最新', async () => {
     const pm = mount({ entries: {} })
-    expect(await pm.run('plugin-manager.update-all')).toEqual({ ok: true, data: { ok: true, updated: [], dependents: [], selfDeferred: false, note: '全都最新' } })
+    expect(await pm.run('plugin-manager.update', { all: true })).toEqual({ ok: true, data: { ok: true, updated: [], dependents: [], selfDeferred: false, note: '全都最新' } })
     expect(fakePnpm.calls.map((call) => call.args[0])).toEqual(['outdated'])
   })
 
@@ -450,7 +450,7 @@ describe('plugin-manager.update-all', () => {
     writeHomeDependencies({ '@x/gwb-foo': '^1.0.0', '@x/gwb-other': '^1.0.0' })
     const pm = mount({ entries: { foo: '@x/gwb-foo', 'foo-2': '@x/gwb-foo' }, shellReload: true })
     pm.tree.store['foo-2']!.disabled = true
-    expect(await pm.run('plugin-manager.update-all', { only: ['@x/gwb-foo', '@x/gwb-other'] })).toEqual({
+    expect(await pm.run('plugin-manager.update', { only: ['@x/gwb-foo', '@x/gwb-other'] })).toEqual({
       ok: true,
       data: {
         ok: true,
@@ -478,7 +478,7 @@ describe('plugin-manager.update-all', () => {
   it('only 里的包名不在 home 的 dependencies 里（多半拼错）：直接抛错、说出是哪个名字，一次 pnpm 都不运行', async () => {
     writeHomeDependencies({ '@x/gwb-foo': '^1.0.0' })
     const pm = mount({ entries: { foo: '@x/gwb-foo' } })
-    await expect(pm.run('plugin-manager.update-all', { only: ['@x/gwb-foo', '@x/gwb-fooo'] })).rejects.toThrow('@x/gwb-fooo')
+    await expect(pm.run('plugin-manager.update', { only: ['@x/gwb-foo', '@x/gwb-fooo'] })).rejects.toThrow('@x/gwb-fooo')
     expect(fakePnpm.calls).toEqual([])
   })
 
@@ -486,7 +486,7 @@ describe('plugin-manager.update-all', () => {
     fakePnpm.captureExitCode = 1
     fakePnpm.captureStdout = JSON.stringify({ '@x/gwb-foo': { current: '1.0.0', latest: '1.1.0' } })
     const pm = mount({ entries: { foo: '@x/gwb-foo' } })
-    const result = (await pm.run('plugin-manager.update-all')) as GwbResult & { data: { reload: string; note: string } }
+    const result = (await pm.run('plugin-manager.update', { all: true })) as GwbResult & { data: { reload: string; note: string } }
     expect(result.data.reload).toBe('unavailable')
     expect(result.data.note).toBe('命令表里没有 shell.reload（外壳没装或版本太旧），界面要手动刷新')
   })
@@ -495,7 +495,7 @@ describe('plugin-manager.update-all', () => {
     fakePnpm.captureExitCode = 1
     fakePnpm.captureStdout = JSON.stringify({ [OWN_PKG]: { current: '0.7.0', latest: '0.7.1' } })
     const pm = mount({ entries: {}, shellReload: true })
-    expect(await pm.run('plugin-manager.update-all')).toEqual({
+    expect(await pm.run('plugin-manager.update', { all: true })).toEqual({
       ok: true,
       data: {
         ok: true,
@@ -515,7 +515,7 @@ describe('plugin-manager.update-all', () => {
     fakePnpm.captureStdout = JSON.stringify({ '@x/gwb-foo': { current: '1.0.0', latest: '1.1.0' } })
     fakePnpm.runExitCode = 1
     const pm = mount({ entries: { foo: '@x/gwb-foo' } })
-    expect(await pm.run('plugin-manager.update-all')).toEqual({
+    expect(await pm.run('plugin-manager.update', { all: true })).toEqual({
       ok: false,
       error: 'pnpm add @x/gwb-foo@1.1.0 失败（退出码 1）。一条条目都没动\npnpm 说的原因',
       data: { ok: false, updated: [], dependents: [], selfDeferred: false, error: 'pnpm add @x/gwb-foo@1.1.0 失败（退出码 1）。一条条目都没动', tail: 'pnpm 说的原因' },
@@ -537,7 +537,7 @@ describe('plugin-manager.update-all', () => {
     const pm = mount({ entries: { foo: '@x/gwb-foo', bar: '@x/gwb-bar', 'bar-off': '@x/gwb-bar', plain: '@x/gwb-plain' }, shellReload: true })
     pm.tree.store['bar-off']!.disabled = true
     const plainFiberBefore = pm.tree.store['plain']!.fiber
-    expect(await pm.run('plugin-manager.update-all')).toEqual({
+    expect(await pm.run('plugin-manager.update', { all: true })).toEqual({
       ok: true,
       data: {
         ok: true,
@@ -572,7 +572,7 @@ describe('plugin-manager.update-all', () => {
       linkInstalled(OWN_PKG, '@godcreator+gwb-plugin-manager@0.9.0_@x+gwb-foo@1.1.0')
     }
     const pm = mount({ entries: { foo: '@x/gwb-foo' }, shellReload: true })
-    expect(await pm.run('plugin-manager.update-all')).toEqual({
+    expect(await pm.run('plugin-manager.update', { all: true })).toEqual({
       ok: true,
       data: {
         ok: true,
@@ -595,7 +595,7 @@ describe('plugin-manager.update-all', () => {
       cordis: { current: '4.0.0-rc.9', latest: '4.0.0-rc.10' },
     })
     const pm = mount({ entries: { foo: '@x/gwb-foo' }, shellReload: true })
-    expect(await pm.run('plugin-manager.update-all')).toEqual({
+    expect(await pm.run('plugin-manager.update', { all: true })).toEqual({
       ok: true,
       data: {
         ok: true,
@@ -612,16 +612,160 @@ describe('plugin-manager.update-all', () => {
     fakePnpm.captureExitCode = 1
     fakePnpm.captureStdout = JSON.stringify({ [KERNEL_PKG]: { current: '0.3.0', latest: '0.3.1' } })
     const pm = mount({ entries: {} })
-    expect(await pm.run('plugin-manager.update-all')).toEqual({ ok: true, data: { ok: true, updated: [], dependents: [], selfDeferred: false, note: '全都最新' } })
+    expect(await pm.run('plugin-manager.update', { all: true })).toEqual({ ok: true, data: { ok: true, updated: [], dependents: [], selfDeferred: false, note: '全都最新' } })
     expect(fakePnpm.calls.map((call) => call.args[0])).toEqual(['outdated'])
   })
 
   it('only 点了内核包或 cordis：直接抛错、指向 update-kernel，一次 pnpm 都不运行', async () => {
     writeHomeDependencies({ '@x/gwb-foo': '^1.0.0', [KERNEL_PKG]: '0.3.0', cordis: '4.0.0-rc.9' })
     const pm = mount({ entries: { foo: '@x/gwb-foo' } })
-    await expect(pm.run('plugin-manager.update-all', { only: ['@x/gwb-foo', KERNEL_PKG] })).rejects.toThrow('plugin-manager.update-kernel')
-    await expect(pm.run('plugin-manager.update-all', { only: ['cordis'] })).rejects.toThrow('only 里的 cordis 由内核决定版本')
+    await expect(pm.run('plugin-manager.update', { only: ['@x/gwb-foo', KERNEL_PKG] })).rejects.toThrow('plugin-manager.update-kernel')
+    await expect(pm.run('plugin-manager.update', { only: ['cordis'] })).rejects.toThrow('only 里的 cordis 由内核决定版本')
     expect(fakePnpm.calls).toEqual([])
+  })
+
+  it('参数：不给、空对象、三种给了两种、认不出的键、all 不是 true、specs 是空对象，都直接抛错带用法，一次 pnpm 都不运行', async () => {
+    const pm = mount({ entries: {} })
+    await expect(pm.run('plugin-manager.update')).rejects.toThrow('要升全部就给 {"all":true}')
+    await expect(pm.run('plugin-manager.update', {})).rejects.toThrow('要升全部就给 {"all":true}')
+    await expect(pm.run('plugin-manager.update', { all: true, only: ['@x/gwb-foo'] })).rejects.toThrow('all、only、specs 只能给一个，这次给了 all、only')
+    await expect(pm.run('plugin-manager.update', { only: ['@x/gwb-foo'], specs: { '@x/gwb-foo': '1.0.0' } })).rejects.toThrow('这次给了 only、specs')
+    await expect(pm.run('plugin-manager.update', { all: true, force: true })).rejects.toThrow('认不出参数 force')
+    await expect(pm.run('plugin-manager.update', { all: false })).rejects.toThrow('all 只能是 true')
+    await expect(pm.run('plugin-manager.update', { specs: {} })).rejects.toThrow('specs 要是个非空对象')
+    await expect(pm.run('plugin-manager.update', { specs: { '@x/gwb-foo': '' } })).rejects.toThrow('specs 要是个非空对象')
+    expect(fakePnpm.calls).toEqual([])
+  })
+})
+
+describe('plugin-manager.update 的 specs', () => {
+  it('按给定写法一次 pnpm add --save-exact、不查 outdated；from / to 取装之前与装之后清单里的版本号（file: 写法不核对）；它的条目与真实目录变了的别的包重新加载，不整页重载、回执没有 reload', async () => {
+    writeHomeDependencies({ '@x/gwb-foo': '^1.0.0', '@x/gwb-bar': '^1.0.0' })
+    linkInstalled('@x/gwb-foo', '@x+gwb-foo@1.0.0')
+    writeInstalledManifest('@x/gwb-foo', { version: '1.0.0' })
+    linkInstalled('@x/gwb-bar', '@x+gwb-bar@1.0.0_@x+gwb-foo@1.0.0')
+    fakePnpm.afterRun = () => {
+      linkInstalled('@x/gwb-foo', '@x+gwb-foo@file+D+repo+foo.tgz')
+      writeInstalledManifest('@x/gwb-foo', { version: '1.1.0-dev.2' })
+      linkInstalled('@x/gwb-bar', '@x+gwb-bar@1.0.0_@x+gwb-foo@file+D+repo+foo.tgz')
+    }
+    const pm = mount({ entries: { foo: '@x/gwb-foo', bar: '@x/gwb-bar' }, shellReload: true })
+    expect(await pm.run('plugin-manager.update', { specs: { '@x/gwb-foo': 'file:D:/repo/foo.tgz' } })).toEqual({
+      ok: true,
+      data: {
+        ok: true,
+        updated: [{ pkg: '@x/gwb-foo', from: '1.0.0', to: '1.1.0-dev.2', entries: [{ id: 'foo', action: 'remounted', state: 'ACTIVE' }] }],
+        dependents: [{ pkg: '@x/gwb-bar', entries: [{ id: 'bar', action: 'remounted', state: 'ACTIVE' }] }],
+        selfDeferred: false,
+        note: 'specs 不整页重载，页面由调用方刷新',
+      },
+    })
+    expect(fakePnpm.calls.map((call) => call.args)).toEqual([['add', '@x/gwb-foo@file:D:/repo/foo.tgz', '--save-exact']])
+    expect(pm.shellReloads).toBe(0)
+  })
+
+  it('specs 里有插件管理自己：别的在命令里做完，自己那条回执之后才重新加载，之后也不整页重载', async () => {
+    writeHomeDependencies({ [OWN_PKG]: '^0.11.0' })
+    writeInstalledManifest(OWN_PKG, { version: '0.11.0' })
+    fakePnpm.afterRun = () => writeInstalledManifest(OWN_PKG, { version: '0.12.0-dev.1' })
+    const pm = mount({ entries: {}, shellReload: true })
+    expect(await pm.run('plugin-manager.update', { specs: { [OWN_PKG]: '0.12.0-dev.1' } })).toEqual({
+      ok: true,
+      data: {
+        ok: true,
+        updated: [{ pkg: OWN_PKG, from: '0.11.0', to: '0.12.0-dev.1', entries: [{ id: 'plugin-manager', action: 'deferred', state: 'ACTIVE' }] }],
+        dependents: [],
+        selfDeferred: true,
+        note: 'specs 不整页重载，页面由调用方刷新',
+      },
+    })
+    await settle()
+    expect(pm.logs.some((line) => line.includes('插件管理自己（plugin-manager）重新加载了'))).toBe(true)
+    expect(pm.shellReloads).toBe(0)
+  })
+
+  it('装之前 node_modules 里读不到清单：回执里没有 from', async () => {
+    writeHomeDependencies({ '@x/gwb-foo': '^1.0.0' })
+    fakePnpm.afterRun = () => writeInstalledManifest('@x/gwb-foo', { version: '1.0.1' })
+    const pm = mount({ entries: { foo: '@x/gwb-foo' }, shellReload: true })
+    const result = (await pm.run('plugin-manager.update', { specs: { '@x/gwb-foo': 'latest' } })) as GwbResult & { data: { updated: unknown[] } }
+    expect(result.data.updated).toEqual([{ pkg: '@x/gwb-foo', to: '1.0.1', entries: [{ id: 'foo', action: 'remounted', state: 'ACTIVE' }] }])
+  })
+
+  it('包不在 home 的 dependencies 里：直接抛错、指向 install，一次 pnpm 都不运行', async () => {
+    writeHomeDependencies({ '@x/gwb-foo': '^1.0.0' })
+    const pm = mount({ entries: { foo: '@x/gwb-foo' } })
+    await expect(pm.run('plugin-manager.update', { specs: { '@x/gwb-new': '1.0.0' } })).rejects.toThrow('首次安装用 plugin-manager.install')
+    expect(fakePnpm.calls).toEqual([])
+  })
+
+  it('只给 cordis 不给内核包：直接抛错、指向 update-kernel，一次 pnpm 都不运行', async () => {
+    writeHomeDependencies({ [KERNEL_PKG]: '0.6.0', cordis: '4.0.0-rc.10' })
+    const pm = mount({ entries: {} })
+    await expect(pm.run('plugin-manager.update', { specs: { cordis: '4.0.0-rc.11' } })).rejects.toThrow('plugin-manager.update-kernel')
+    expect(fakePnpm.calls).toEqual([])
+  })
+
+  it('有内核包：连同 cordis 与别的包一次 pnpm add --save-exact；不重新加载任何条目、不整页重载，回执 restartRequired', async () => {
+    writeHomeDependencies({ [KERNEL_PKG]: '0.6.0', cordis: '4.0.0-rc.10', '@x/gwb-foo': '^1.0.0' })
+    writeInstalledManifest(KERNEL_PKG, { version: '0.6.0' })
+    writeInstalledManifest('cordis', { version: '4.0.0-rc.10' })
+    writeInstalledManifest('@x/gwb-foo', { version: '1.0.0' })
+    fakePnpm.afterRun = () => {
+      writeInstalledManifest(KERNEL_PKG, { version: '0.6.1-dev.1' })
+      writeInstalledManifest('cordis', { version: '4.0.0-rc.11' })
+      writeInstalledManifest('@x/gwb-foo', { version: '1.1.0' })
+    }
+    const pm = mount({ entries: { foo: '@x/gwb-foo' }, shellReload: true })
+    const storeBefore = JSON.stringify(pm.tree.store)
+    const result = (await pm.run('plugin-manager.update', {
+      specs: { [KERNEL_PKG]: '0.6.1-dev.1', cordis: '4.0.0-rc.11', '@x/gwb-foo': '1.1.0' },
+    })) as GwbResult & { data: Record<string, unknown> }
+    expect(result.ok).toBe(true)
+    expect(result.data).toMatchObject({
+      ok: true,
+      updated: [
+        { pkg: KERNEL_PKG, from: '0.6.0', to: '0.6.1-dev.1', entries: [] },
+        { pkg: '@x/gwb-foo', from: '1.0.0', to: '1.1.0', entries: [] },
+        { pkg: 'cordis', from: '4.0.0-rc.10', to: '4.0.0-rc.11', entries: [] },
+      ],
+      dependents: [],
+      selfDeferred: false,
+      restartRequired: true,
+    })
+    expect(result.data['reload']).toBeUndefined()
+    expect(result.data['note']).toContain('重启工作台')
+    expect(fakePnpm.calls.map((call) => call.args)).toEqual([['add', `${KERNEL_PKG}@0.6.1-dev.1`, '@x/gwb-foo@1.1.0', 'cordis@4.0.0-rc.11', '--save-exact']])
+    expect(JSON.stringify(pm.tree.store)).toBe(storeBefore)
+    expect(pm.shellReloads).toBe(0)
+  })
+
+  it('没有内核包、准确版本号对上了：照常重新加载，回执没有 restartRequired，pnpm add 也带 --save-exact', async () => {
+    writeHomeDependencies({ '@x/gwb-foo': '^1.0.0' })
+    fakePnpm.afterRun = () => writeInstalledManifest('@x/gwb-foo', { version: '1.1.0' })
+    const pm = mount({ entries: {}, shellReload: true })
+    const result = (await pm.run('plugin-manager.update', { specs: { '@x/gwb-foo': '1.1.0' } })) as GwbResult & { data: Record<string, unknown> }
+    expect(result.ok).toBe(true)
+    expect(result.data['restartRequired']).toBeUndefined()
+    expect(result.data['updated']).toEqual([{ pkg: '@x/gwb-foo', to: '1.1.0', entries: [] }])
+    expect(result.data['reload']).toBeUndefined()
+    expect(pm.shellReloads).toBe(0)
+    expect(fakePnpm.calls.map((call) => call.args)).toEqual([['add', '@x/gwb-foo@1.1.0', '--save-exact']])
+  })
+
+  it('准确版本号对不上（清单里原来写的是 ^）：ok false，逐项说要的与装上的，一条条目都不重新加载、不整页重载', async () => {
+    writeHomeDependencies({ '@x/gwb-foo': '^1.1.0-dev.1', '@x/gwb-bar': '^1.0.0' })
+    writeInstalledManifest('@x/gwb-foo', { version: '1.1.0-dev.1' })
+    fakePnpm.afterRun = () => writeInstalledManifest('@x/gwb-foo', { version: '1.1.0-dev.3' })
+    const pm = mount({ entries: { foo: '@x/gwb-foo' }, shellReload: true })
+    const fiberBefore = pm.tree.store['foo']!.fiber
+    const result = (await pm.run('plugin-manager.update', { specs: { '@x/gwb-foo': '1.1.0-dev.2' } })) as GwbResult & { data: Record<string, unknown> }
+    expect(result.ok).toBe(false)
+    expect(result.error).toContain('@x/gwb-foo 是 1.1.0-dev.3，要的是 1.1.0-dev.2')
+    expect(result.error).toContain('一条条目都没动')
+    expect(result.data).toMatchObject({ ok: false, updated: [], dependents: [], selfDeferred: false })
+    expect(pm.tree.store['foo']!.fiber).toBe(fiberBefore)
+    expect(pm.shellReloads).toBe(0)
   })
 })
 

@@ -1,7 +1,7 @@
 'use client'
 
 /**
- * 一键热升级的时间线：横轴是时间，每条横道是一个参与方（B 的 peer 写了被升级的 A，跟着重新加载）。每一步在它那条横道上点亮一个方框；
+ * 一次热升级（update 的 all 或 only）的时间线：横轴是时间，每条横道是一个参与方（B 的 peer 写了被升级的 A，跟着重新加载）。每一步在它那条横道上点亮一个方框；
  * 已经发生的保持显示，还没发生的调淡。竖虚线是回执发出的时刻：插件管理自己那条在它之后才重新加载。
  */
 
@@ -17,10 +17,10 @@ interface Event {
 
 const STEPS: { title: string; detail: string; events: Event[] }[] = [
   {
-    title: '调用 update-all，定计划',
-    detail: '先查过期包，再由纯函数算出计划：升哪些包、每个包的每条条目都要重新加载、插件管理自己那条标出来留到回执之后；再记下装之前每个包的真实目录。',
+    title: '调用 update，定计划',
+    detail: '先查过期包（给 specs 时不查，按给定写法算），再由纯函数算出计划：升哪些包、每个包的每条条目都要重新加载、插件管理自己那条标出来留到回执之后；再记下装之前每个包的真实目录。',
     events: [
-      { lane: 0, lines: ['update-all'] },
+      { lane: 0, lines: ['update', '{ all: true }'] },
       { lane: 1, lines: ['查过期包', '定计划'] },
     ],
   },
@@ -65,7 +65,7 @@ export function PmUpgrade() {
 
   return (
     <>
-      <svg viewBox="0 0 760 414" role="img" aria-label="一键热升级的时间线">
+      <svg viewBox="0 0 760 414" role="img" aria-label="一次热升级的时间线">
         {LANES.map((lane, index) => (
           <g key={lane}>
             <line x1={14} y1={LANE_Y(index) + 40} x2={746} y2={LANE_Y(index) + 40} stroke={BORDER} />

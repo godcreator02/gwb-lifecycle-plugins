@@ -7,7 +7,7 @@ description: 插件管理是唯一写 home 的插件——装卸包、增删条�
 
 **本页回答**：插件管理有哪些功能、别的模块怎么用它、它依赖什么、哪些事不归它管。包名 `@godcreator/gwb-plugin-manager`，源码目录 `plugins/plugin-manager/`，入口文件 `src/index.ts`。
 
-插件管理是 home 里的一个普通插件：由 `cordis.yml` 里的一条条目加载，单独发版，和别的插件一样用 `plugin-manager.update-all` 升级。它和 devkit 放在同一个仓里开发，原因见轨迹卡[插件管理迁入 devkit 仓](/trajectory/2026-09-24-plugin-manager-joins-devkit)。
+插件管理是 home 里的一个普通插件：由 `cordis.yml` 里的一条条目加载，单独发版，和别的插件一样用 `plugin-manager.update` 升级。它和 devkit 放在同一个仓里开发，原因见轨迹卡[插件管理迁入 devkit 仓](/trajectory/2026-09-24-plugin-manager-joins-devkit)。
 
 ## 功能
 
@@ -20,12 +20,12 @@ description: 插件管理是唯一写 home 的插件——装卸包、增删条�
 - **卸载一个包**：先删它的全部条目、再卸包，数据与设置留在磁盘上，见[安装与卸载](/docs/plugin-manager/install#卸载先删条目后卸包)
 - **加删条目、启用或停用一条条目**：条目只经 loader 的条目树改，见[home 的两层与唯一写入者](/docs/plugin-manager/home#条目只经-loader-的条目树)
 - **重新加载一条条目**：停用 → 等旧的卸载完 → 启用，一条命令做完，见[重新加载一条条目](/docs/plugin-manager/remount)
-- **查新版本、一键热升级**：升级与重新加载在同一条命令里，不重启；装之前与装之后真实目录变了的别的包（多半是 peer 写了被升级包的插件）一起重新加载；内核包与 `cordis` 不在其中，见[热升级](/docs/plugin-manager/upgrade)
+- **查新版本、热升级**：全部过期包、点名的几个过期包、或按给定写法（版本号、tag、`file:<绝对路径>`）装已装的包，三种恰好选一种；升级与重新加载在同一条命令里，不重启；装之前与装之后真实目录变了的别的包（多半是 peer 写了被升级包的插件）一起重新加载；过期清单里没有内核包与 `cordis`，按写法装时可以带上它们，那一次不重新加载、回执说要重启，见[热升级](/docs/plugin-manager/upgrade)
 - **升内核**：先装新的内核包，再把 home 根上的 `cordis` 对齐到内核包 peer 里写的版本；不重新加载任何条目，重启工作台后生效，见[升内核](/docs/plugin-manager/upgrade#升内核)
 - **选条目 id**：沿用本包留在磁盘上的旧 id，避开别的包的数据与设置，见[id 与归属](/docs/plugin-manager/ids)
 - **转归属**：插件改了包名时把一个 id 的数据与设置转给新包，见[id 与归属](/docs/plugin-manager/ids#转归属transfer-owner)
 - **同一时刻只允许一个改动**：安装、卸载、热升级、升内核、重新加载重入时回 BUSY，所以同一个 home 里同一时刻最多一个写 home 的 pnpm，见[home 的两层与唯一写入者](/docs/plugin-manager/home#同一时刻只允许一个改动busy)
-- **只用两个固定位置的 pnpm 12**：官方安装脚本的默认位置、npm 全局装的 pnpm 包，第一个存在的作数，核对版本；直接启动、不设超时，见 [pnpm](/docs/plugin-manager/pnpm)
+- **只用两个固定位置的 pnpm 12**：官方安装脚本的默认位置、npm 全局装的 pnpm 包，用第一个存在的，核对版本；直接启动、不设超时，见 [pnpm](/docs/plugin-manager/pnpm)
 - **找可装的插件**：在配好的每条 npm 源上检索，地址按 scope 从两份 npmrc 里找、和 pnpm 安装读同一批配置行；是不是插件只看包清单 `keywords` 里的 `gwb-plugin`，见[找插件与配包源](/docs/plugin-manager/sources)
 - **配第三方包源**：往机器级 `~/.npmrc` 增删 scope 路由与凭据，`@godcreator` 不改不删，token 不进回执；这几条不改 home、不经 BUSY，见[找插件与配包源](/docs/plugin-manager/sources#包源只写机器级-npmrc)
 
@@ -44,7 +44,7 @@ description: 插件管理是唯一写 home 的插件——装卸包、增删条�
 - `plugin-manager.disable`：停用一条条目
 - `plugin-manager.remount`：重新加载一条条目（经 BUSY 检查）
 - `plugin-manager.outdated`：查已装的包哪些有新版本，内核包与 `cordis` 不在里面
-- `plugin-manager.update-all`：一键热升级过期的包，不重启；装之前与装之后真实目录变了的别的包一起重新加载；内核包与 `cordis` 不升（经 BUSY 检查）
+- `plugin-manager.update`：热升级 home 里已装的包，不重启；参数三选一、恰好给一个：`{ all: true }` 升全部过期包，`{ only: [包名…] }` 只升这几个过期包（内核包与 `cordis` 直接报错），`{ specs: { 包名: 写法 } }` 按给定写法装已装的包（不查 `outdated`、写精确版本号、准确版本号装完核对、不整页重新加载；带了内核包就连同 `cordis` 写精确版本号、不重新加载任何条目，回执 `restartRequired: true`；只给 `cordis` 直接报错）；不给参数直接报错。装之前与装之后真实目录变了的别的包一起重新加载（经 BUSY 检查）
 - `plugin-manager.update-kernel`：升内核包，再把 home 根上的 `cordis` 对齐到内核要的版本，重启工作台后生效，参数 `{ version? }`（经 BUSY 检查）
 - `plugin-manager.transfer-owner`：把一个 id 的数据与设置的归属转给另一个包
 - `plugin-manager.search`：在配好的 npm 源上检索插件，参数 `{ scope? }`，不给就查全部源
@@ -52,19 +52,19 @@ description: 插件管理是唯一写 home 的插件——装卸包、增删条�
 - `plugin-manager.source.list`：列出机器级与 home 级两份 npmrc 里的包源
 - `plugin-manager.source.remove`：从机器级 `~/.npmrc` 删一条包源
 
-{/* ref file="../plugins/plugin-manager/src/index.ts" lines="49-64" */}
+{/* ref file="../plugins/plugin-manager/src/index.ts" lines="65-80" */}
 
 **服务 `gwbPluginManager`**：值是空对象 `{}`，只表示插件管理装了；别的插件（例如插件管理窗格所在的插件）inject 它，只为跟着插件管理一起加载、卸载。命令有没有破坏性变化看插件管理的版本号：
 
-{/* ref file="../plugins/plugin-manager/src/index.ts" lines="66-72" */}
+{/* ref file="../plugins/plugin-manager/src/index.ts" lines="82-88" */}
 
-**导出的回执类型**：调用方 `import type` 引用，不手写回执的形状——`InstallResult`、`UninstallResult`、`OutdatedReceipt`、`UpdateAllResult`、`UpdatedPackage`、`DependentPackage`、`UpdateKernelResult`、`TransferOwnerResult`、`PluginManagerPresence` 定义在入口文件里，另外转出这几个（`list` 回执里每个包是 `PluginPackageView`、每条条目是 `EntrySnapshot`；找插件与配包源的回执 `SearchReceipt`、`SourceAddResult`、`SourceListResult`、`SourceRemoveResult` 定义在 `package-sources.ts`）：
+**导出的回执类型**：调用方 `import type` 引用，不手写回执的形状——`InstallResult`、`UninstallResult`、`OutdatedReceipt`、`UpdateResult`、`UpdatedPackage`、`DependentPackage`、`UpdateKernelResult`、`TransferOwnerResult`、`PluginManagerPresence` 定义在入口文件里，另外转出这几个（`list` 回执里每个包是 `PluginPackageView`、每条条目是 `EntrySnapshot`；找插件与配包源的回执 `SearchReceipt`、`SourceAddResult`、`SourceListResult`、`SourceRemoveResult` 定义在 `package-sources.ts`；`update` 的参数类型 `UpdateArgs` 定义在 `update.ts`）：
 
-{/* ref file="../plugins/plugin-manager/src/index.ts" lines="25-31" */}
+{/* ref file="../plugins/plugin-manager/src/index.ts" lines="40-47" */}
 
-**给 devkit 复用的函数**：找 pnpm（`locatePnpm`）、内核范围比对（`KERNEL_PACKAGE`、`isCaretRange`、`kernelRangeCovers`、`declaredKernelRange`）、取输出的最后几行（`tailLines`）从包主入口按值导出。devkit 在 peer 里写了插件管理，直接 import 这几个，不另存一份；devkit 构建时不打包依赖，运行时用的是 home 里装着的那一版插件管理。
+**给 devkit 复用的函数**：找 pnpm（`locatePnpm`）、内核范围与版本号比对（`KERNEL_PACKAGE`、`isCaretRange`、`caretRangeCovers`、`kernelRangeCovers`、`declaredKernelRange`）、取输出的最后几行（`tailLines`）从包主入口按值导出，devkit 调的三条命令的名字（`LIST_COMMAND`、`INSTALL_COMMAND`、`UPDATE_COMMAND`）也从这里导出。devkit 在 peer 里写了插件管理，直接 import 这几个，不另存一份；devkit 构建时不打包依赖，运行时用的是 home 里装着的那一版插件管理。
 
-{/* ref file="../plugins/plugin-manager/src/index.ts" lines="33-36" */}
+{/* ref file="../plugins/plugin-manager/src/index.ts" lines="49-52" */}
 
 **说明书 `gwb-plugin-manager`**：给 agent 讲这些命令怎么调用，放在包根的 `skills/`，装了说明书插件就交给它登记，agent 经 MCP 入口的 `skill.read` 读。正本是 [gwb-plugin-manager](/outputs/skills/gwb-plugin-manager)，包里的 `SKILL.md` 是生成物：
 
@@ -78,10 +78,10 @@ description: 插件管理是唯一写 home 的插件——装卸包、增删条�
 | loader 的条目树：`store`、`create`、`update`、`remove`、`resolve` | 读条目、加删条目、启用停用、重新加载 | 构造时报错：取不到条目树（插件管理不是经 `cordis.yml` 的条目加载的），或条目树少了某个方法（loader 的接口变了），都说清是哪一种 |
 | 用户装的 pnpm 12（`%LOCALAPPDATA%\pnpm\bin\pnpm.exe` 或 `%APPDATA%\npm\node_modules\pnpm\pnpm.exe`，版本不低于 12.4.2） | `add`、`remove`、`outdated --json` | 要运行 pnpm 的命令回 `ok: false`，原因里写明检查了哪两个位置、找到的版本不对时该装哪个版本；`list`、启停条目不受影响 |
 | home 的 `package.json` | 装了哪些包、各自的版本范围 | 读不到或解析不了就当空表：`list` 里只有条目那一层 |
-| home 的 `node_modules/<包名>` 这个目录链接指向的真实目录 | `update-all` 在 `pnpm add` 之前与之后各读一次，找出跟着换了目录的包 | 读不到当没装；在但读不了，`update-all` 报错并带上路径 |
-| 装在 home 里的每个包自己的 `package.json` | 读 `peerDependencies` 与 `peerDependenciesMeta`：内核包的范围、peer 里别的插件的范围，以及那些插件装着的 `version`；`update-kernel` 另读新装的内核包的 `version` 与 `peerDependencies.cordis`、各插件的 `keywords` | 文件不在就当不是插件，`kernelUntested` 是 `false`；peer 里的包文件不在就算没装；文件在但读不了、或不是合法 JSON，`list` 与 `update-kernel` 报错并带上文件路径；内核包 peer 里的 `cordis` 不是精确版本号时 `update-kernel` 不装 `cordis`、回 `ok: false` |
+| home 的 `node_modules/<包名>` 这个目录链接指向的真实目录 | `update` 在 `pnpm add` 之前与之后各读一次，找出跟着换了目录的包 | 读不到当没装；在但读不了，`update` 报错并带上路径 |
+| 装在 home 里的每个包自己的 `package.json` | 读 `peerDependencies` 与 `peerDependenciesMeta`：内核包的范围、peer 里别的插件的范围，以及那些插件装着的 `version`；`update-kernel` 另读新装的内核包的 `version` 与 `peerDependencies.cordis`、各插件的 `keywords`；`update` 的 `specs` 在 `pnpm add` 之前与之后各读一次 `version`，填回执的 `from` 与 `to` | 文件不在就当不是插件，`kernelUntested` 是 `false`；peer 里的包文件不在就算没装；文件在但读不了、或不是合法 JSON，`list` 与 `update-kernel` 报错并带上文件路径；内核包 peer 里的 `cordis` 不是精确版本号时 `update-kernel` 不装 `cordis`、回 `ok: false`；`specs` 装完读不到某个包的 `version`，`update` 回 `ok: false`、一条条目都不动 |
 | 命令插件 `gwbCommands`（`@godcreator/gwb-commands`，局部注入） | 登记 16 条命令；热升级后按名字查找并执行 `shell.reload`；`source.add` 的 `owner` 写法按名字调 `settings.get` | 命令登记不上，插件管理没有调用方式；服务照常提供 |
-| 外壳插件的 `shell.reload` 命令（按命令名查找） | 热升级后整页重新加载 | `update-all` 的回执 `reload` 是 `unavailable`，界面要手动刷新 |
+| 外壳插件的 `shell.reload` 命令（按命令名查找） | 热升级后整页重新加载 | `update` 的回执 `reload` 是 `unavailable`，界面要手动刷新 |
 | 数据插件 `gwbData`（`@godcreator/gwb-data`，局部注入） | 读和转数据目录的归属记录 | 选 id 时看不到数据目录的归属；`transfer-owner` 回执里 `data` 是 `false` |
 | 设置插件 `gwbSettings`（`@godcreator/gwb-settings`，局部注入） | 读和转设置分区的归属记录 | 选 id 时看不到设置的归属；`transfer-owner` 回执里 `settings` 是 `false` |
 | 说明书插件 `gwbSkills`（`@godcreator/gwb-skills`，局部注入） | 登记自带的说明书 | 没有说明书，插件管理照常加载 |
@@ -106,7 +106,7 @@ description: 插件管理是唯一写 home 的插件——装卸包、增删条�
 - **不删数据与设置**：卸载包、删条目都不动它们，内容归数据插件与设置插件管；插件管理只读、只转它们的归属记录
 - **不拦范围不包含当前内核的插件**：`kernelUntested` 只报告；发版前拒绝 peer 里没写对内核包范围的插件是 `devkit.release` 的事
 - **不重启工作台**：`update-kernel` 装完只在回执里说要重启，重启由人决定；主进程里的内核热替换不了
-- **一键热升级不动内核包与 `cordis`**：它们的版本由内核决定，经 `update-kernel` 一起升；`list`、`outdated` 不列它们，`uninstall` 不许卸它们
+- **热升级换不掉内核包与 `cordis`**：它们的版本由内核决定，经 `update-kernel` 一起升；`list`、`outdated` 不列它们，`update` 的 `only` 点了它们直接报错，`uninstall` 不许卸它们。`update` 的 `specs` 可以连同别的包一起装它们，但那一次不重新加载任何条目，重启由人决定
 - **不拦 peer 没满足的插件，也不替它装或升级 peer 里的插件**：`unmetPeers` 只报告，装不装、升不升由人或 agent 决定；发版前拒绝 peer 没写对的包是 `devkit.release` 的事
 - **不替人装 pnpm，也不找 PATH 上的 pnpm**：两个固定位置都没有、或版本不对，就报错说明该怎么装
 - **不猜承载 `cordis.yml` 的条目叫什么**：条目树从自己那条条目的上一层取

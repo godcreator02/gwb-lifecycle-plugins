@@ -19,7 +19,7 @@ description: 16 条命令是插件管理唯一的调用方式；服务 gwbPlugin
 | `enable` / `disable` | `{ entryId }` | 无 | [两层](/docs/plugin-manager/home#条目只经-loader-的条目树) |
 | `remount` | `{ entryId }` | `{ id, action, state }` | [重新加载](/docs/plugin-manager/remount) |
 | `outdated` | 无 | `{ ok, updates: { 包名: { current, latest } } }`，不含内核包与 `cordis` | [热升级](/docs/plugin-manager/upgrade#查新版本) |
-| `update-all` | `{ only? }` | `{ updated, dependents, selfDeferred, reload, note? }` | [热升级](/docs/plugin-manager/upgrade) |
+| `update` | 三选一、恰好给一个：`{ all: true }`、`{ only: [包名…] }`、`{ specs: { 包名: 写法 } }`（一律 `--save-exact`，写法是准确版本号的装完核对，对不上回 `ok: false`；不整页重新加载，回执没有 `reload`，页面由调用方刷新）；不给参数直接报错 | `{ updated: [{ pkg, from?, to, entries }], dependents, selfDeferred, reload?, restartRequired?, note? }`；`specs` 里有内核包时不重新加载、带 `restartRequired: true` | [三种参数](/docs/plugin-manager/upgrade#三种参数) |
 | `update-kernel` | `{ version? }` | `{ ok, kernel: { from?, to }, cordis: { from?, to }, restartRequired, pluginsOutsideRange, note }` | [升内核](/docs/plugin-manager/upgrade#升内核) |
 | `transfer-owner` | `{ id, pkg }` | `{ id, pkg, data, settings }` | [转归属](/docs/plugin-manager/ids#转归属transfer-owner) |
 | `search` | `{ scope? }` | `{ ok, packages: [{ pkg, version, description, keywords }], note? }` | [找插件](/docs/plugin-manager/sources#从哪装就在哪搜) |
@@ -70,7 +70,7 @@ description: 16 条命令是插件管理唯一的调用方式；服务 gwbPlugin
 
 ## 回执类型由插件管理导出
 
-**是什么**：命令的参数与回执类型由插件管理自己导出（`InstallResult`、`UpdateAllResult`、`DependentPackage`、`UpdateKernelResult`、`VersionChange`、`UninstallResult`、`RemountedEntry`、`PluginPackageView`、`KernelCompatStatus`、`PeerStatus`、`UnmetPeer` 等），命令名也导出成常量（`LIST_COMMAND` 等）。
+**是什么**：命令的参数与回执类型由插件管理自己导出（`InstallResult`、`UpdateArgs`、`UpdateResult`、`DependentPackage`、`UpdateKernelResult`、`VersionChange`、`UninstallResult`、`RemountedEntry`、`PluginPackageView`、`KernelCompatStatus`、`PeerStatus`、`UnmetPeer` 等），命令名也导出成常量（`LIST_COMMAND` 等）。
 
 **为什么**：谁提供接口，谁定义类型。类型放在调用方那边，就等于调用方持有契约，插件管理改了回执也没人拦得住。
 
@@ -78,7 +78,7 @@ description: 16 条命令是插件管理唯一的调用方式；服务 gwbPlugin
 
 ## 改了命令形状就升 x
 
-**是什么**：插件管理的版本号独立于内核，还在 0.x。改了命令名、参数或回执的形状，删了命令，改了服务的值，都是破坏性变更：升 x。包主入口给 devkit 复用的函数（见[接口](/docs/plugin-manager#接口)）改名、删掉、改签名或改了 devkit 依赖的行为，也是破坏性变更，升 x。加命令、加可选参数、回执加字段、修 bug 升 y——加 `update-kernel` 属于加命令；把回执里已有的字段删掉、改名或改含义属于改形状，`list` 与 `outdated` 不再列某一类包属于改含义。
+**是什么**：插件管理的版本号独立于内核，还在 0.x。改了命令名、参数或回执的形状，删了命令，改了服务的值，都是破坏性变更：升 x。包主入口给 devkit 复用的函数（见[接口](/docs/plugin-manager#接口)）改名、删掉、改签名或改了 devkit 依赖的行为，也是破坏性变更，升 x。加命令、加可选参数、回执加字段、修 bug 升 y——加 `update-kernel` 属于加命令；把回执里已有的字段删掉、改名或改含义属于改形状，`list` 与 `outdated` 不再列某一类包属于改含义；不给参数时的行为变了（比如从执行某个动作变成报错）属于改参数。
 
 **为什么**：下游（插件管理窗格、别的插件、agent 的说明书、`devkit.dev`）按命令名与回执形状写死了调用，devkit 还在 peer 里写了插件管理、import 它导出的函数；x 变了，它们写的版本范围就不再匹配，要各自确认、适配后再升。有没有破坏性变更只看版本号，服务值上不另放版本数字。
 
