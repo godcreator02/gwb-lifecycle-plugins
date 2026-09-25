@@ -19,11 +19,11 @@ workspace 仓：仓根是一个不发布的 private 包（`pnpm build` / `pnpm c
 
 <Diagram name="dk-scaffold" title="devkit.scaffold 建仓的七步：前三步在本包里，第 4、5 步经命令总线交给别的插件">
 - 第 1 步 `planScaffold` 算计划：校验短名、`scope` 与 `registry`，派生包名 `<scope>/gwb-<短名>` 与插件名、定下发布目标，peer 里内核包的范围取运行中内核版本号的 x.y.z 三段；不碰磁盘
-- 第 2 步在内存里渲染 `template/repo/`、`template/pkg/` 与插件页，`title` 按所在文件编码；认不出的占位符、读不懂的 JSON / YAML / frontmatter 当场抛错
+- 第 2 步在内存里渲染 `template/repo/`、`template/pkg/` 与插件页，`title` 按所在文件编码；认不出的占位符当场抛错
 - 第 3 步 `writeRepo` 写磁盘：目标目录必须还不存在；仓根写四个文件，插件包写到 `plugins/<短名>/`
 - 第 4 步经命令总线调站点插件的 `docs-site.create`，生成 `docs-site/` 的初始站点（回执 `docs.built`）；第 5 步紧接着调 docfirst 插件的 `docfirst.attach` 装六区（回执 `docs.attached`）。这两步画成虚线框：哪个插件没装就跳过，建仓不算失败
 - 第 6 步：`docs-site/docfirst.config.mjs` 在，才写插件页 `docs-site/content/docs/plugins/<短名>.mdx`
-- 第 7 步回执：`nextSteps` 按 `built` 与 `attached` 分三种情况写下一步
+- 第 7 步回执：`nextSteps` 只写这次建仓特有的——仓与插件包在哪、站按 `built` 与 `attached` 建到了哪一步与端口，流程指向说明书 `gwb-devkit` 的「新写一个插件」
 </Diagram>
 
 ## 不知道什么
@@ -42,7 +42,7 @@ workspace 仓：仓根是一个不发布的 private 包（`pnpm build` / `pnpm c
 
 ## 提供的接口
 
-对外两条命令：`devkit.scaffold { name, dir, title?, docs?, port?, scope?, registry? }` 与 `devkit.scaffold.plugin { name, repo, title?, scope?, registry? }`。两条的回执都带 `pkg`（完整包名）、`registry`（写进 `publishConfig.registry` 的发布目标）与 `pluginPage`：写下的插件页的绝对路径，没写时是 `null`。**参数不对时把整份用法说明放进报错**，而不只回一句「参数错误」：这两条命令的主要调用方是 agent，命令总线不带参数形状，它能不能看出自己错在哪全靠这段话。
+对外两条命令：`devkit.scaffold { name, dir, title?, docs?, scope?, registry? }` 与 `devkit.scaffold.plugin { name, repo, title?, scope?, registry? }`。两条的回执都带 `pkg`（完整包名）、`registry`（写进 `publishConfig.registry` 的发布目标）与 `pluginPage`：写下的插件页的绝对路径，没写时是 `null`。**参数不对时把整份用法说明放进报错**，而不只回一句「参数错误」：这两条命令的主要调用方是 agent，命令总线不带参数形状，它能不能看出自己错在哪全靠这段话。认不出的参数键直接拒，报出是哪个键（devkit 的每条命令都这样）。文档站的端口不是参数：由站点插件的 `docs-site.create` 自己选，回执 `docs.port` 从它的回执里取。
 
 模块导出一串纯函数，`src/index.ts` 按顺序调用：
 
@@ -60,7 +60,7 @@ workspace 仓：仓根是一个不发布的 private 包（`pnpm build` / `pnpm c
 
 {/* ref file="../plugins/devkit/src/scaffold.ts" lines="198-245" */}
 
-**整套模板先在内存里渲染完、生成的结构化文件读一遍，再写磁盘。** 占位符出错、`title` 把生成的文件弄坏，是这条流程上最可能的失败，而目标目录一旦开始写就没有干净的回滚点。
+**整套模板先在内存里渲染完，再写磁盘。** 占位符出错是这条流程上最可能的失败，而目标目录一旦开始写就没有干净的回滚点。
 
 {/* ref file="../plugins/devkit/src/scaffold.ts" lines="481-494" */}
 
@@ -74,9 +74,7 @@ Markdown / MDX 开头的 frontmatter 是 YAML，里面的 `title` 写在双引�
 
 {/* ref file="../plugins/devkit/src/scaffold.ts" lines="413-423" */}
 
-模板把 `{{title}}` 写在了别的位置（比如 `.ts` 的双引号或注释里），编码对不上，生成的代码是坏的，这一层查不出来；靠测试拿一个带各种特殊字符的 title 真编译、真执行生成的文件。渲染完的 JSON 与 YAML 整份解析，frontmatter 要是一层「键: 标量」，读不懂就抛：
-
-{/* ref file="../plugins/devkit/src/scaffold.ts" lines="425-446" */}
+模板把 `{{title}}` 写在了别的位置（比如 `.ts` 的双引号或注释里），编码对不上，生成的代码是坏的，这一层查不出来；靠测试拿一个带各种特殊字符的 title 真编译、真执行生成的文件。生成的 JSON 与 YAML 读不读得懂、frontmatter 是不是一层「键: 标量」，也由测试对本包的模板核对，运行时不再读一遍：模板只有本包这一份，改了模板跑一次 `tests/scaffold.test.ts` 就知道。
 
 两部分各写到哪里由一个纯函数决定：`repo/` 写到仓根，`pkg/` 写到 `plugins/<短名>/`，**不属于这两部分的文件当场抛错**——模板里每个文件都得声明自己属于哪部分，没声明的文件写下去，谁也说不清它属于仓根还是插件包。
 
@@ -95,11 +93,11 @@ Markdown / MDX 开头的 frontmatter 是 YAML，里面的 `title` 写在双引�
 | 接口 | 用来做什么 | 运行时的实现 | 测试时的实现 |
 | --- | --- | --- | --- |
 | `node:fs` | 读包内模板、检查仓的布局、把渲染好的文件写下去 | 直接调用，不注入 | 不替换，真写临时目录 |
-| 包内 `template/`（三部分） | 初始文件的正本，`packageRoot()` 向上找 `package.json` 定位 | 发布出去的包里那份 | 同一份，测试读的就是它 |
+| 包内 `template/`（三部分） | 初始文件的正本，`packageRoot` 从本模块所在目录向上找 `package.json` 定位，找到盘根都没有就抛 | 发布出去的包里那份 | 同一份，测试读的就是它 |
 | `docs-site.create` | 生成 fumadocs 初始站点 | 站点插件提供，在命令总线上按名字找 | 不测：装没装都不影响插件文件写到磁盘 |
 | `docfirst.attach` | 在初始站点上装六区 | docfirst 插件提供，同上 | 同上 |
 | `docs-site/docfirst.config.mjs` 在不在 | 判断站装好了六区、可以写插件页 | `docfirst.attach` 装六区时生成 | 临时目录里手写一份 |
-| yaml 库 | 读 `pnpm-workspace.yaml` 的 `packages`、读生成的 YAML 与 frontmatter | 打包进 `dist/index.js` 的那一份 | 不替换，测试直接 import 它 |
+| yaml 库 | 读 `pnpm-workspace.yaml` 的 `packages` | 打包进 `dist/index.js` 的那一份 | 不替换，测试直接 import 它 |
 
 **建站是两步，顺序不能反，中间不能插别的事。**
 
@@ -107,11 +105,11 @@ Markdown / MDX 开头的 frontmatter 是 YAML，里面的 `title` 写在双引�
 
 `docfirst.attach` 只在还没写过内容的初始站点上装得了，这条由它自己检查。生成初始站点与装六区连着做，中间没人改过文件，整个覆盖才安全；给一个用了半年的站做自动改写不安全。`devkit.scaffold` 里这两步紧挨着，正是那个安全的时刻。
 
-**站没建成不算建仓失败。** 插件的文件早已写到磁盘，所以回执里这两个字段才是实际结果：
+**站没建成不算建仓失败。** 插件的文件早已写到磁盘，所以回执里这两个字段才是实际结果；两条命令哪条失败了，回执才带上它的原始回执（`create` / `attach`），成了的不带：
 
 {/* ref file="../plugins/devkit/src/index.ts" lines="604-616" */}
 
-`built` 表示初始站点生成了没有，`attached` 表示六区装了没有，`nextSteps` 按这两个字段分三种情况。回执里给一条不存在的 `cd docs-site` 比不给更糟，所以生成的 README 里讲文档站的那段话，也是在渲染之前按「站点插件在不在」定下来的：
+`built` 表示初始站点生成了没有，`attached` 表示六区装了没有，`nextSteps` 按这两个字段分三种情况说站建到了哪一步、没建成的怎么补。回执里给一条不存在的 `cd docs-site` 比不给更糟，所以生成的 README 里讲文档站的那段话，也是在渲染之前按「站点插件在不在」定下来的：
 
 {/* ref file="../plugins/devkit/src/index.ts" lines="487-488" */}
 
@@ -127,17 +125,17 @@ Markdown / MDX 开头的 frontmatter 是 YAML，里面的 `title` 写在双引�
 
 {/* ref file="../plugins/devkit/src/index.ts" lines="515-519" */}
 
-`devkit.scaffold.plugin` 在写任何文件之前先查插件页在不在，在就拒，不覆盖。没写插件页的几种情况（没建站、只有初始站点、六区没装成），`nextSteps` / `nextStepsPlugin` 都写明装好六区之后在哪个路径写插件页、写哪几节。
+`devkit.scaffold.plugin` 在写任何文件之前先查插件页在不在，在就拒，不覆盖。没写插件页的几种情况（没建站、只有初始站点、六区没装成），`nextSteps` / `nextStepsPlugin` 都写明装好六区之后在哪个路径写插件页。
 
 ## 怎么单独测
 
 给一份参数，看抛什么、算出什么；给一个临时目录，看磁盘上写下了什么。整个过程不启动进程、不开窗口，`tests/scaffold.test.ts` 直接测这几件事：
 
-短名的正则会不会放过 `x--` 这种结尾；`planScaffold` 的派生与缺省值；给了 `scope`、`registry` 时包名、`publishConfig.registry`、README、插件页与回执跟着变，内核包与模板用到的两个插件仍在 `@godcreator` 下，不给时是团队范围与团队源，不合规的范围与地址（不带 `@`、大写、非 http(s)、不是规范写法、带账号或查询串）建仓与加插件都拒；`planScaffoldPlugin` 对不存在的 repo、`pnpm-workspace.yaml` 的 `packages` 里没有 `plugins/*` 的拒绝，以及带引号、块列表、流式列表、注释、CRLF 几种写法都收，YAML 写坏了、`packages` 不是字符串列表时报出文件与行列；`dir` / `repo` 用正斜杠写与用反斜杠写得到同一个路径；`docsBlock` 在建站与不建站时写的是两段不同的话；`nextSteps` / `nextStepsPlugin` 各种情况写了什么、`packages` 参数有没有带上；生成的 `package.json` 在 peer 里写了内核包 `^<运行命令的内核版本号>`、过得了发版前检查的比对，开发版内核只取 x.y.z 三段；认不出的占位符真的会抛错；`.tpl` 后缀与三部分的去向（`landRel`）对不对；包内 `template/` 里每个文件都声明了属于哪部分；生成的清单 peer 里有内核包、只在 node 侧按值 import 了 `cordis` 时才写 peer `cordis`，命令总线与外壳写在 peer、不写 dev；生成的 node 侧源码从 peer 里的内核包 `import type` 接口类型；构建脚本从内核包页面入口 `dist/index.html` 里的 importmap 读外置名单、不写 react 包名的字面量，产物测试同样从装好的内核包读名单、样式入口从外壳引令牌映射；产物测试的颜色类白名单从外壳的 `theme.reference.css` 与样式入口读色名，不手抄；插件页写出插件名、包名、命令与显示名；生成的 `description` 是一句话、不带计数，生成的文件里没有已退役的 `gwb-repo-kit`；在临时 workspace 仓里真的生成一个 `plugins/<短名>/`；`writeRepo` 对已存在的目录真的拒绝。
+短名的正则会不会放过 `x--` 这种结尾；`planScaffold` 的派生与缺省值；给了 `scope`、`registry` 时包名、`publishConfig.registry`、README、插件页与回执跟着变，内核包与模板用到的两个插件仍在 `@godcreator` 下，不给时是团队范围与团队源，不合规的范围与地址（不带 `@`、大写、非 http(s)、不是规范写法、带账号或查询串）建仓与加插件都拒；`planScaffoldPlugin` 对不存在的 repo、`pnpm-workspace.yaml` 的 `packages` 里没有 `plugins/*` 的拒绝，以及带引号、块列表、流式列表、注释、CRLF 几种写法都收，YAML 写坏了、`packages` 不是字符串列表时报出文件与行列；`dir` / `repo` 用正斜杠写与用反斜杠写得到同一个路径；`docsBlock` 在建站与不建站时写的是两段不同的话、都不写死端口；`nextSteps` / `nextStepsPlugin` 各种情况写了什么、`packages` 参数有没有带上、流程指向说明书而不在回执里复述；生成的 `package.json` 在 peer 里写了内核包 `^<运行命令的内核版本号>`、过得了发版前检查的比对，开发版内核只取 x.y.z 三段；认不出的占位符真的会抛错；`.tpl` 后缀与三部分的去向（`landRel`）对不对；包内 `template/` 里每个文件都声明了属于哪部分；生成的清单 peer 里有内核包、只在 node 侧按值 import 了 `cordis` 时才写 peer `cordis`，命令总线与外壳写在 peer、不写 dev；生成的 node 侧源码从 peer 里的内核包 `import type` 接口类型；构建脚本从内核包页面入口 `dist/index.html` 里的 importmap 读外置名单、不写 react 包名的字面量，产物测试同样从装好的内核包读名单、样式入口从外壳引令牌映射；产物测试的颜色类白名单从外壳的 `theme.reference.css` 与样式入口读色名，不手抄；插件页写出插件名、包名、命令与显示名；生成的 `description` 是一句话、不带计数，生成的文件里没有已退役的 `gwb-repo-kit`；在临时 workspace 仓里真的生成一个 `plugins/<短名>/`；`writeRepo` 对已存在的目录真的拒绝；`packageRoot` 找到盘根都没有就抛。
 
-`title` 那几条用一个凑齐了引号、反斜杠、`{}`、`<>`、Markdown 标点、`${y}`、`*/` 的 title 渲染整套模板，再用真的解析器与编译器读生成的文件：JSON 用 `JSON.parse`，YAML 与 frontmatter 用 yaml 库，node 侧入口与浏览器侧窗格用 esbuild 编成 CommonJS 后执行、看窗格标题与 `<h1>` 的文字，README 与插件页用 MDX 编译器（带 GFM 表格）渲染、看标题与表格那一格。模板里坏了一份 JSON 或 YAML 时，渲染就抛、目标目录还不存在；回执与 README 里给的命令参数都过得了 `JSON.parse`。
+`title` 那几条用一个凑齐了引号、反斜杠、`{}`、`<>`、Markdown 标点、`${y}`、`*/` 的 title 渲染整套模板，再用真的解析器与编译器读生成的文件：JSON 用 `JSON.parse`，YAML 与 frontmatter 用 yaml 库，node 侧入口与浏览器侧窗格用 esbuild 编成 CommonJS 后执行、看窗格标题与 `<h1>` 的文字，README 与插件页用 MDX 编译器（带 GFM 表格）渲染、看标题与表格那一格。建仓、加插件、插件页生成的全部 JSON、YAML 与 frontmatter，普通显示名与这个 title 各渲染一遍，都要读得懂；回执与 README 里给的命令参数都过得了 `JSON.parse`。
 
-模板文件清单那一条最容易被忽略：`files` 白名单漏掉 `template`，包照样发得出去、也装得上，直到有人调 `devkit.scaffold` 才报「包内 template/ 不在」。
+模板文件清单那一条最容易被忽略：`files` 白名单漏掉 `template`，包照样发得出去、也装得上，直到有人调 `devkit.scaffold` 才读不到模板文件。
 
 **新布局在真实的 pnpm 里能不能用，单元测试回答不了**——实验目录 `probes/2609191042_workspace-scaffold/` 用构建产物真的生成了一个仓，跑完 install / build / check：只有一个成员时 `--filter "./plugins/*"` 照样工作、oxlint 在插件包目录里找到包内配置、仓根的 check 递归到成员，三样都通过。实验目录 `probes/2609251020_scaffold-hostile-title/` 用同样的办法生成一个 title 带各种特殊字符、`dir` 用正斜杠写的仓，install / build / check 全过。
 
@@ -158,6 +156,6 @@ Markdown / MDX 开头的 frontmatter 是 YAML，里面的 `title` 写在双引�
 
 **先读**：`planScaffold`，建仓流程的入口与全部校验；加插件从 `planScaffoldPlugin` 读起。
 
-**读序**：先算计划，`placeholders` 与 `render` 把模板变成内存里的文件表（`titleEncoderFor` 决定 `title` 怎么编码），`landRel` 决定三部分各写到哪，`assertStructuredFiles` 把生成的结构化文件读一遍，`writeRepo` 写磁盘，`nextSteps` / `nextStepsPlugin` 生成回执末尾的下一步。建文档站在这之后，由 `index.ts` 经命令总线发出去；站装好六区之后 `pluginPageTarget` 给出插件页的位置，`writePluginPage` 写下去。
+**读序**：先算计划，`placeholders` 与 `render` 把模板变成内存里的文件表（`titleEncoderFor` 决定 `title` 怎么编码），`landRel` 决定三部分各写到哪，`writeRepo` 写磁盘，`nextSteps` / `nextStepsPlugin` 生成回执末尾的下一步。建文档站在这之后，由 `index.ts` 经命令总线发出去；站装好六区之后 `pluginPageTarget` 给出插件页的位置，`writePluginPage` 写下去。
 
 **可跳过**：`template/` 下那 17 个 `.tpl` 是给别的仓用的内容，不是这部分的逻辑。要看模板长什么样就看那两个目录本身，这一页不抄。

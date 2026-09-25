@@ -1,6 +1,6 @@
 /**
  * 接缝 11：devkit.services 只有一路数据——调用它的那个 home 顶层 node_modules 里各包的 .d.ts。
- * 上面是它在 .d.ts 里认的写法，中间是命令，下面是每个包按「类型定义在不在自己的声明里」分进的两栏。
+ * 上面是它在 .d.ts 里认的写法，中间是命令，下面是每个包按「类型定义在不在自己的声明里」分成的两种：提供方列出，只在用的不列。
  */
 
 import { Arrow, Box, FG, Frame, MONO, MUTED, NARROW, Note } from './parts'
@@ -32,7 +32,7 @@ export function SeamServiceTable() {
       <Arrow from={[250, 232]} to={[300, 280]} />
 
       <Box x={10} y={280} w={185} h={62} lines={['providers', '类型定义在', '自己的声明里']} tone="b" size={13} />
-      <Box x={205} y={280} w={185} h={62} lines={['declaredAlsoBy', '类型从别的包', 'import 来']} size={13} />
+      <Box x={205} y={280} w={185} h={62} lines={['不列', '类型从别的包', 'import 来']} size={13} />
 
       <Note x={10} y={374} size={12} color={MUTED}>
         definition：第一个提供方里那个类型的定义原文与文档注释

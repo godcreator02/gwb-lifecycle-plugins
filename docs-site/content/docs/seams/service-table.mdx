@@ -1,6 +1,6 @@
 ---
 title: 11 服务表与类型声明
-description: 连接 devkit.services 与 home 里各包的 .d.ts：它扫调用它的那个 home 顶层 node_modules 里每个包的全部 .d.ts，找给 cordis Context 补的服务项；类型定义在自己声明里的包是提供方，类型从别处 import 的记进 declaredAlsoBy——提供方怎么写声明靠约定
+description: 连接 devkit.services 与 home 里各包的 .d.ts：它扫调用它的那个 home 顶层 node_modules 里每个包的全部 .d.ts，找给 cordis Context 补的服务项；类型定义在自己声明里的包是提供方，类型从别处 import 的只是在用、不列——提供方怎么写声明靠约定
 ---
 
 **本页回答**：`devkit.services` 的数据从哪来；它在 `.d.ts` 里认哪种写法；怎么判断谁是提供方；多个提供方、没有提供方时回什么；插件要让别人知道自己的服务该怎么写。
@@ -13,7 +13,7 @@ description: 连接 devkit.services 与 home 里各包的 .d.ts：它扫调用�
 <Diagram name="seam-service-table" title="devkit.services 只有一路数据：home 里各包的 .d.ts">
 - 上面是 home 顶层 `node_modules` 里每个包的全部 `.d.ts`，命令在里面找 `declare module 'cordis' { interface Context { 服务名: 类型 } }`，取服务名、类型名、是不是可选（`名?:`）
 - 中间是 `devkit.services`，无参数
-- 下面两栏：类型定义（interface、class 或 type 别名）就在这个包自己的 `.d.ts` 里的，这个包记进 `providers`；类型是从别的包 import 来的，记进 `declaredAlsoBy`
+- 下面：类型定义（interface、class 或 type 别名）就在这个包自己的 `.d.ts` 里的，这个包记进 `providers`；类型是从别的包 import 来的只是在用，不列
 - `definition` 是第一个提供方里那个类型的定义原文连同紧挨着的文档注释；`providers` 多于一个说明有包带着重复或过期的声明，命令照实列出，不过滤
 </Diagram>
 
@@ -27,13 +27,13 @@ description: 连接 devkit.services 与 home 里各包的 .d.ts：它扫调用�
 
 {/* ref file="../plugins/devkit/src/services.ts" lines="55-66" */}
 
-**谁是提供方**：在同一个包的 `.d.ts` 里找这个类型名的定义（从行首写起的 `interface`、`class`、`type` 别名，连同紧挨在前面的文档注释），找到就是提供方；`import type { X }`、`import { type X }` 只是引用，找不到定义的包记进 `declaredAlsoBy`：
+**谁是提供方**：在同一个包的 `.d.ts` 里找这个类型名的定义（从行首写起的 `interface`、`class`、`type` 别名，连同紧挨在前面的文档注释），找到就是提供方；`import type { X }`、`import { type X }` 只是引用，找不到定义的包不列：
 
 {/* ref file="../plugins/devkit/src/services.ts" lines="72-98" */}
 
 {/* ref file="../plugins/devkit/src/services.ts" lines="108-134" */}
 
-**回执**：`{ home, services: [{ service, providers, type, optional, definition?, declaredAlsoBy }] }`，按服务名排序；`providers` 与 `declaredAlsoBy` 的每一项写成 `<包名>@<版本>`：
+**回执**：`{ home, services: [{ service, providers, type, optional, definition? }] }`，按服务名排序；`providers` 的每一项写成 `<包名>@<版本>`。命令无参数，给了任何参数键都拒：
 
 {/* ref file="../plugins/devkit/src/index.ts" lines="431-446" */}
 
@@ -59,6 +59,6 @@ devkit 保证：只读不写；读的是这个 home 的磁盘，装着的包都�
 
 {/* has file="../plugins/devkit/tests/services.test.ts" text="import type 只是引用，不算定义；名字前缀相同的别的类型不算" */}
 
-{/* has file="../plugins/devkit/tests/services.test.ts" text="提供方、用它的一方各归各，按服务名排序" */}
+{/* has file="../plugins/devkit/tests/services.test.ts" text="只有提供方进 providers，用它的一方不列，按服务名排序" */}
 
 {/* has file="../plugins/devkit/tests/services.test.ts" text="两个包都带着定义：两个都列进 providers，definition 取先读到的那个" */}

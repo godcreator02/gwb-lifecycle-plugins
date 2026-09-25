@@ -19,7 +19,7 @@ description: 连接 devkit、插件管理与三个不在本仓的插件：建仓
 
 {/* ref file="../plugins/plugin-manager/src/index.ts" lines="54-55" */}
 
-**建仓：`docs-site.create` 与 `docfirst.attach`**。插件那部分写到磁盘之后才调，两条都传站目录 `<仓>\docs-site`，不是仓根。`docs-site.create` 传 `{ dir, title, port? }`，回执里只读 `data.port`；`docfirst.attach` 传 `{ dir, title }`，只看 `ok` 与 `error`：
+**建仓：`docs-site.create` 与 `docfirst.attach`**。插件那部分写到磁盘之后才调，两条都传站目录 `<仓>\docs-site`，不是仓根。`docs-site.create` 传 `{ dir, title }`，端口由站点插件自己选，回执里只读 `data.port`；`docfirst.attach` 传 `{ dir, title }`，只看 `ok` 与 `error`：
 
 {/* ref file="../plugins/devkit/src/index.ts" lines="640-655" */}
 

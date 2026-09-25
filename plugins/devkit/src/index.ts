@@ -64,8 +64,7 @@ const SCAFFOLD_USAGE = [
   '  title  可选，显示名，缺省用 name',
   `  scope  可选，包名范围（${String(SCOPE_RE)}），缺省 ${TEAM_SCOPE}。没有团队源发布权限的开发者给自己的范围`,
   `  registry 可选，插件包 package.json 的 publishConfig.registry，devkit.release 发到这里。要是 http(s) 地址的规范写法（new URL(x).href 与原文相同，如 "http://localhost:4873/"），不带账号、查询串与 #；缺省是团队源 ${TEAM_REGISTRY}。发布 token 写在用户级 ~/.npmrc`,
-  `  docs   可选，缺省 true——插件文件写到磁盘之后顺带建站，两步：${CREATE_SITE_COMMAND} 生成 fumadocs 骨架、${ATTACH_SITE_COMMAND} 在骨架上装六区；六区装好之后再写插件页的初稿 docs-site/content/docs/plugins/<短名>.mdx。两条都经命令总线找，没装那个插件就跳过那一步（回执里说怎么补），不算建仓失败。false 就只生成插件文件`,
-  '  port   可选，文档站端口。不给由站点插件自己选（跳过别的站已占用的端口，从 4310 起找没人用的）',
+  `  docs   可选，缺省 true——插件文件写到磁盘之后顺带建站，两步：${CREATE_SITE_COMMAND} 生成 fumadocs 骨架（端口由站点插件自己选，回执 docs.port 报出）、${ATTACH_SITE_COMMAND} 在骨架上装六区；六区装好之后再写插件页的初稿 docs-site/content/docs/plugins/<短名>.mdx。两条都经命令总线找，没装那个插件就跳过那一步（回执里说怎么补），不算建仓失败。false 就只生成插件文件`,
   '例：{"name":"hello","dir":"D:\\\\tmp\\\\hello","title":"打个招呼"}',
 ].join('\n')
 
@@ -136,11 +135,7 @@ interface Wiring {
 export function apply(ctx: GwbContext): void {
   const log = ctx.logger(name)
   const bus = ctx.gwbCommands
-  if (bus === undefined) {
-    // export const inject 在，理论上走不到这里；走到就直说，别让命令表不声不响地空着
-    log.warn('gwbCommands 服务不在（inject 没生效？）——命令一条没挂')
-    return
-  }
+  if (bus === undefined) throw new Error('gwbCommands 服务不在（export const inject 没生效？）——开发套件的命令一条都登记不了')
   const wiring: Wiring = {
     ctx,
     log,
@@ -207,6 +202,8 @@ function registerHomeCommands({ ctx, log, commands, homeDeps }: Wiring): void {
     },
     async (args) => {
       if (!isRecord(args)) return { ok: false, error: `参数要是个对象。\n${HOME_USAGE}` }
+      const unknownKeys = unknownKeysRefusal(args, ['short'], HOME_USAGE)
+      if (unknownKeys !== undefined) return unknownKeys
       const short = asHomeName(args.short)
       if (short === undefined) return { ok: false, error: `short 缺了或不是 kebab-case。\n${HOME_USAGE}` }
       const root = homesRootOf()
@@ -242,6 +239,8 @@ function registerHomeCommands({ ctx, log, commands, homeDeps }: Wiring): void {
     },
     async (args) => {
       if (!isRecord(args)) return { ok: false, error: `参数要是个对象。\n${HOME_USAGE}` }
+      const unknownKeys = unknownKeysRefusal(args, ['name'], HOME_USAGE)
+      if (unknownKeys !== undefined) return unknownKeys
       const homeName = asHomeName(args.name)
       if (homeName === undefined) return { ok: false, error: `name 缺了或不是 kebab-case。\n${HOME_USAGE}` }
       const root = homesRootOf()
@@ -273,6 +272,8 @@ function registerHomeCommands({ ctx, log, commands, homeDeps }: Wiring): void {
     },
     async (args) => {
       if (!isRecord(args)) return { ok: false, error: `参数要是个对象。\n${HOME_USAGE}` }
+      const unknownKeys = unknownKeysRefusal(args, ['name', 'force'], HOME_USAGE)
+      if (unknownKeys !== undefined) return unknownKeys
       const homeName = asHomeName(args.name)
       if (homeName === undefined) return { ok: false, error: `name 缺了或不是 kebab-case。\n${HOME_USAGE}` }
       const outcome = await removeHome(path.join(homesRootOf(), homeName), homeName, args.force === true, homeDeps)
@@ -284,7 +285,9 @@ function registerHomeCommands({ ctx, log, commands, homeDeps }: Wiring): void {
 
   commands.register(
     { name: 'devkit.home.list', plugin: '@godcreator/gwb-devkit', description: '列出全部测试 home 与各自的端口', usage: '无参数。每个 home 报名字（带时间戳）、是否在运行、调试端口、MCP 入口的端口与地址（runtime.json 的 mcp 字段）' },
-    async () => {
+    async (args) => {
+      const refusal = noArgsRefusal(args)
+      if (refusal !== undefined) return refusal
       const root = homesRootOf()
       return { ok: true, data: { root, homes: await listHomes(root, homeDeps) } }
     },
@@ -334,12 +337,25 @@ async function cdpTargetOf(
   args: Record<string, unknown>,
   homeDeps: HomeDeps,
 ): Promise<{ ok: true; cdp: number; name: string } | { ok: false; error: string }> {
-  if (args.cdp !== undefined) return { ok: false, error: `不认识参数 cdp。\n${DEV_USAGE}` }
   const homeName = asHomeName(args.home)
   if (homeName === undefined) return { ok: false, error: `home 缺了或不是个合格的 home 名（kebab-case）。\n${DEV_USAGE}` }
   const found = await resolveTarget(homesRootOf(), homeName, homeDeps)
   if (!found.ok) return { ok: false, error: found.error }
   return { ok: true, cdp: found.cdp, name: homeName }
+}
+
+/** 认不出的参数键直接拒，报出是哪几个：不猜调用方本想写哪个，也不当没看见 */
+function unknownKeysRefusal(args: Record<string, unknown>, known: readonly string[], usage: string): { ok: false; error: string } | undefined {
+  const unknownKeys = Object.keys(args).filter((key) => !known.includes(key))
+  if (unknownKeys.length === 0) return undefined
+  return { ok: false, error: `不认识参数 ${unknownKeys.join('、')}。\n${usage}` }
+}
+
+/** 无参数的命令：不给参数或给空对象都收，给了任何键都拒 */
+function noArgsRefusal(args: unknown): { ok: false; error: string } | undefined {
+  if (args === undefined) return undefined
+  if (!isRecord(args)) return { ok: false, error: `这条命令无参数，实得 ${JSON.stringify(args)}` }
+  return unknownKeysRefusal(args, [], '这条命令无参数')
 }
 
 /** `packages` 必给：非空数组，每一项是非空字符串（包目录，相对仓根）。不合格就拒，不丢掉不合格的项 */
@@ -365,6 +381,8 @@ function registerDevCommand({ ctx, log, commands, homeDeps }: Wiring): void {
     },
     async (args) => {
       if (!isRecord(args)) return { ok: false, error: `参数要是个对象。\n${DEV_USAGE}` }
+      const unknownKeys = unknownKeysRefusal(args, ['home', 'dir', 'packages', 'waitFor'], DEV_USAGE)
+      if (unknownKeys !== undefined) return unknownKeys
       const packagesArg = packagesArgOf(args, DEV_USAGE)
       if (!packagesArg.ok) return packagesArg
       const target = await cdpTargetOf(args, homeDeps)
@@ -408,6 +426,8 @@ function registerReleaseCommand({ ctx, log, commands }: Wiring): void {
     },
     async (args) => {
       if (!isRecord(args)) return { ok: false, error: `参数要是个对象。\n${RELEASE_USAGE}` }
+      const unknownKeys = unknownKeysRefusal(args, ['dir', 'packages'], RELEASE_USAGE)
+      if (unknownKeys !== undefined) return unknownKeys
       const packagesArg = packagesArgOf(args, RELEASE_USAGE)
       if (!packagesArg.ok) return packagesArg
       const { packages } = packagesArg
@@ -438,9 +458,11 @@ function registerServicesCommand({ ctx, commands }: Wiring): void {
       plugin: '@godcreator/gwb-devkit',
       description: '这个 home 里有哪些可以 inject 的服务：谁提供、类型定义原文（方法签名与注释），从各包的 .d.ts 里现读',
       usage:
-        '无参数。扫这个 home 顶层 node_modules 里每个包的全部 .d.ts，找 declare module \'cordis\' { interface Context { 服务名: 类型 } }。类型定义在自己声明里的包是提供方，类型从别处 import 来的只是在用。回执 { ok, data: { home, services: [{ service, providers: [<包名>@<版本>], type, optional, definition?, declaredAlsoBy: [<包名>@<版本>] }] } }，按服务名排序；definition 是第一个提供方里那个类型的定义原文连同文档注释，没有提供方时不带。providers 正常只有一个，多于一个说明有包带着重复或过期的声明。要用某个服务：在 peer 里写上提供方，import type 它的类型，ctx.inject 取用',
+        '无参数。扫这个 home 顶层 node_modules 里每个包的全部 .d.ts，找 declare module \'cordis\' { interface Context { 服务名: 类型 } }。类型定义在自己声明里的包是提供方，类型从别处 import 来的只是在用。回执 { ok, data: { home, services: [{ service, providers: [<包名>@<版本>], type, optional, definition? }] } }，按服务名排序；definition 是第一个提供方里那个类型的定义原文连同文档注释，没有提供方时不带。providers 正常只有一个，多于一个说明有包带着重复或过期的声明。要用某个服务：在 peer 里写上提供方，import type 它的类型，ctx.inject 取用',
     },
-    () => {
+    (args) => {
+      const refusal = noArgsRefusal(args)
+      if (refusal !== undefined) return refusal
       const home = requireKernel(ctx).dataDir
       return { ok: true, data: { home, services: servicesOf(readHomeTypeDeclarations(home)) } }
     },
@@ -461,11 +483,9 @@ function publishIdentityArgsOf(args: Record<string, unknown>): { scope?: string;
   return picked
 }
 
-/** 包内 `template/` 目录；这一版没把它带进包时是 null */
-function templateRootOrNull(requiredSubdir: string): string | null {
-  const root = packageRoot()
-  const templateRoot = root === null ? null : path.join(root, 'template')
-  return templateRoot === null || !fs.existsSync(path.join(templateRoot, requiredSubdir)) ? null : templateRoot
+/** 包内 `template/` 目录。它在 `files` 白名单里，随包发布 */
+function templateRoot(): string {
+  return path.join(packageRoot(import.meta.dirname), 'template')
 }
 
 function registerScaffoldCommand(wiring: Wiring): void {
@@ -476,14 +496,12 @@ function registerScaffoldCommand(wiring: Wiring): void {
       plugin: '@godcreator/gwb-devkit',
       description: '在一个新目录里生成一个 gwb 插件仓（默认连文档站一起建）',
       usage:
-        `{name（必给，kebab-case 短名）, dir（必给，绝对路径且必须还不存在）, title?, docs?（缺省 true）, port?, scope?（包名范围，缺省 ${TEAM_SCOPE}）, registry?（写进插件包 publishConfig.registry 的发布目标，缺省团队源）}。插件的模板在本包；建站是两步，都经命令总线交出去——${CREATE_SITE_COMMAND}（站点插件）生成 fumadocs 骨架，${ATTACH_SITE_COMMAND}（docfirst 插件）在骨架上装六区；六区装好之后写插件页的初稿（回执 pluginPage）。哪个插件没装就跳过那一步、回执里说怎么补，插件文件照样写到磁盘。参数不对会把完整说明回给你`,
+        `{name（必给，kebab-case 短名）, dir（必给，绝对路径且必须还不存在）, title?, docs?（缺省 true）, scope?（包名范围，缺省 ${TEAM_SCOPE}）, registry?（写进插件包 publishConfig.registry 的发布目标，缺省团队源）}。插件的模板在本包；建站是两步，都经命令总线交出去——${CREATE_SITE_COMMAND}（站点插件）生成 fumadocs 骨架，${ATTACH_SITE_COMMAND}（docfirst 插件）在骨架上装六区；六区装好之后写插件页的初稿（回执 pluginPage）。哪个插件没装就跳过那一步、回执里说怎么补，插件文件照样写到磁盘。参数不对会把完整说明回给你`,
     },
     async (args) => {
       if (!isRecord(args)) return { ok: false, error: `参数要是个对象。\n${SCAFFOLD_USAGE}` }
-      const templateRoot = templateRootOrNull('')
-      if (templateRoot === null) {
-        return { ok: false, error: '包内 template/ 不在——这一版没把它带进包（files 白名单漏了），换一版' }
-      }
+      const unknownKeys = unknownKeysRefusal(args, ['name', 'dir', 'title', 'docs', 'scope', 'registry'], SCAFFOLD_USAGE)
+      if (unknownKeys !== undefined) return unknownKeys
       // 想不想建站与建不建得成是两件事：站点插件没装时 README 里那段话也得跟着改，所以在渲染之前定下来
       const canDocs = args.docs !== false && hasCommand(CREATE_SITE_COMMAND)
       const kernelVersion = requireKernel(ctx).version
@@ -494,7 +512,6 @@ function registerScaffoldCommand(wiring: Wiring): void {
           dir: typeof args.dir === 'string' ? args.dir : '',
           ...(typeof args.title === 'string' && args.title.trim() !== '' ? { title: args.title } : {}),
           docs: canDocs,
-          ...(typeof args.port === 'number' ? { port: args.port } : {}),
           ...publishIdentityArgsOf(args),
           kernelVersion,
         })
@@ -504,8 +521,8 @@ function registerScaffoldCommand(wiring: Wiring): void {
       let files
       let page
       try {
-        files = renderTemplate(templateRoot, plan)
-        page = renderPluginPage(templateRoot, plan)
+        files = renderTemplate(templateRoot(), plan)
+        page = renderPluginPage(templateRoot(), plan)
         writeRepo(plan.dir, files)
       } catch (err) {
         return { ok: false, error: `建仓没成：${err instanceof Error ? err.message : String(err)}` }
@@ -529,11 +546,7 @@ function registerScaffoldCommand(wiring: Wiring): void {
           files: files.length,
           docs,
           pluginPage,
-          nextSteps: nextSteps(plan, {
-            built: docs.built,
-            attached: docs.attached,
-            ...(docs.port === undefined ? {} : { port: docs.port }),
-          }),
+          nextSteps: nextSteps(plan, docs),
         },
       }
     },
@@ -551,10 +564,8 @@ function registerScaffoldPluginCommand({ ctx, log, commands }: Wiring): void {
     },
     async (args) => {
       if (!isRecord(args)) return { ok: false, error: `参数要是个对象。\n${SCAFFOLD_PLUGIN_USAGE}` }
-      const templateRoot = templateRootOrNull('pkg')
-      if (templateRoot === null) {
-        return { ok: false, error: '包内 template/pkg/ 不在——这一版没把它带进包（files 白名单漏了），换一版' }
-      }
+      const unknownKeys = unknownKeysRefusal(args, ['name', 'repo', 'title', 'scope', 'registry'], SCAFFOLD_PLUGIN_USAGE)
+      if (unknownKeys !== undefined) return unknownKeys
       const kernelVersion = requireKernel(ctx).version
       let plan
       try {
@@ -575,8 +586,8 @@ function registerScaffoldPluginCommand({ ctx, log, commands }: Wiring): void {
       }
       let files
       try {
-        files = renderPlugin(templateRoot, plan)
-        const page = renderPluginPage(templateRoot, plan)
+        files = renderPlugin(templateRoot(), plan)
+        const page = renderPluginPage(templateRoot(), plan)
         writeRepo(plan.dir, files)
         if (pluginPage !== null) writePluginPage(pluginPage, page)
       } catch (err) {
@@ -610,24 +621,16 @@ interface DocsOutcome {
   /** 站端口。站点插件选的，生成成功才有 */
   port?: number
   note: string
-  /** 两条命令各自的原始回执，出错时看这里 */
+  /** 失败的那条命令的原始回执：`docs-site.create` 没成带 `create`，`docfirst.attach` 没成带 `attach`；成了的不带 */
   create?: unknown
   attach?: unknown
 }
 
 /**
- * 两步都按名字经命令总线交给别的插件：站点插件生成骨架，docfirst 插件在刚生成的骨架上装六区。
+ * 两步都按名字经命令总线交给别的插件：站点插件生成骨架（端口它自己选，从回执里取），docfirst 插件在刚生成的骨架上装六区。
  * 哪一步的插件没装就停在那里、说清怎么补；两条命令都认站目录（`<仓>/docs-site`），不是仓根
  */
-async function buildDocsSite(
-  { log, commands, hasCommand }: Wiring,
-  plan: {
-    dir: string
-    title: string
-    docs: boolean
-    port: number | undefined
-  },
-): Promise<DocsOutcome> {
+async function buildDocsSite({ log, commands, hasCommand }: Wiring, plan: { dir: string; title: string; docs: boolean }): Promise<DocsOutcome> {
   const siteDir = path.join(plan.dir, 'docs-site')
   const attachHint = `${ATTACH_SITE_COMMAND} {"dir":"${siteDir}"}`
   if (!plan.docs) {
@@ -636,26 +639,22 @@ async function buildDocsSite(
       attached: false,
       note: hasCommand(CREATE_SITE_COMMAND)
         ? '没建站：调用时给了 docs: false'
-        : `没建站：这个 home 没装站件（命令总线上没有 ${CREATE_SITE_COMMAND}）。件那半已经落盘了——装上 @godcreator/gwb-docs-site（plugin-manager.install）之后自己补两步：${CREATE_SITE_COMMAND} {"dir":"${siteDir}","title":"${plan.title}"} 铺骨架，再 ${attachHint} 装六区`,
+        : `没建站：这个 home 没装站点插件（命令总线上没有 ${CREATE_SITE_COMMAND}）。插件文件已经写到磁盘上——装上 @godcreator/gwb-docs-site（plugin-manager.install）之后自己补两步：${CREATE_SITE_COMMAND} {"dir":"${siteDir}","title":"${plan.title}"} 生成骨架，再 ${attachHint} 装六区`,
     }
   }
-  const created = await commands.run(CREATE_SITE_COMMAND, {
-    dir: siteDir,
-    title: plan.title,
-    ...(plan.port === undefined ? {} : { port: plan.port }),
-  })
+  const created = await commands.run(CREATE_SITE_COMMAND, { dir: siteDir, title: plan.title })
   if (!created.ok) {
-    log.warn(`devkit.scaffold 的站那半没成：${created.error ?? '没说原因'}`)
+    log.warn(`devkit.scaffold 生成站的骨架没成：${created.error ?? '没说原因'}`)
     return {
       built: false,
       attached: false,
-      note: `骨架没铺成（${CREATE_SITE_COMMAND}：${created.error ?? '没说原因'}）。件那半已经落盘、README 里讲站的那段话是按「要建」写的——补建一次，或者把那段改掉`,
+      note: `骨架没生成（${CREATE_SITE_COMMAND}：${created.error ?? '没说原因'}）。插件文件已经写到磁盘上，README 里讲站的那段话是按「要建」写的——补建一次，或者把那段改掉`,
       create: created,
     }
   }
   const rawPort = isRecord(created.data) ? created.data.port : undefined
   const port = typeof rawPort === 'number' && Number.isInteger(rawPort) ? rawPort : undefined
-  log.info(`devkit.scaffold：fumadocs 骨架铺好了 → ${siteDir}`)
+  log.info(`devkit.scaffold：fumadocs 骨架生成好了 → ${siteDir}`)
 
   // 这时正是刚生成骨架、中间没人改过文件的时刻，attach 装得了
   if (!hasCommand(ATTACH_SITE_COMMAND)) {
@@ -663,30 +662,26 @@ async function buildDocsSite(
       built: true,
       attached: false,
       ...(port === undefined ? {} : { port }),
-      note: `骨架铺好了，六区没装：这个 home 没装 docfirst 件（命令总线上没有 ${ATTACH_SITE_COMMAND}）。装上 @godcreator/gwb-docfirst-workflow 之后**立刻**跑 ${attachHint}——它只在还没写过内容的骨架上装得了，往里写过东西就得人工接线`,
-      create: created,
+      note: `骨架生成好了，六区没装：这个 home 没装 docfirst 插件（命令总线上没有 ${ATTACH_SITE_COMMAND}）。装上 @godcreator/gwb-docfirst-workflow 之后**立刻**运行 ${attachHint}——它只在还没写过内容的骨架上装得了，往里写过东西就得人工接线`,
     }
   }
   const attached = await commands.run(ATTACH_SITE_COMMAND, { dir: siteDir, title: plan.title })
   if (!attached.ok) {
-    log.warn(`devkit.scaffold 的装配那步没成：${attached.error ?? '没说原因'}`)
+    log.warn(`devkit.scaffold 装六区没成：${attached.error ?? '没说原因'}`)
     return {
       built: true,
       attached: false,
       ...(port === undefined ? {} : { port }),
-      note: `骨架铺好了，六区没装成（${ATTACH_SITE_COMMAND}：${attached.error ?? '没说原因'}）。站是个光骨架，pnpm doc 那几条还不在——补一次 ${attachHint}`,
-      create: created,
+      note: `骨架生成好了，六区没装成（${ATTACH_SITE_COMMAND}：${attached.error ?? '没说原因'}）。站只有骨架，pnpm doc 那几条还不在——补一次 ${attachHint}`,
       attach: attached,
     }
   }
-  log.info(`devkit.scaffold：六区装配好了 → ${siteDir}`)
+  log.info(`devkit.scaffold：六区装好了 → ${siteDir}`)
   return {
     built: true,
     attached: true,
     ...(port === undefined ? {} : { port }),
     note: '站建好了（骨架 + 六区，两步）。依赖没装——去 docs-site 里 pnpm install',
-    create: created,
-    attach: attached,
   }
 }
 

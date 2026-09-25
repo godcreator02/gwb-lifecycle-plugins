@@ -45,8 +45,6 @@ export interface ScaffoldInput {
   title?: string
   /** 连文档站一起建吗。缺省建 */
   docs?: boolean
-  /** 文档站端口。不给就由站点插件的 `docs-site.create` 自己选（跳过别的站已占用的，从 4310 起找空位） */
-  port?: number
   /** 运行 `devkit.scaffold` 的那个内核的版本号。生成的插件包在 peer 里写内核包 `^<它的 x.y.z>` */
   kernelVersion: string
   /** 包名范围，`@` 开头。不给是 `TEAM_SCOPE` */
@@ -70,8 +68,6 @@ export interface ScaffoldPlan {
   dir: string
   /** 这次建不建站。建站经命令总线按名字交给站点插件与 docfirst 插件，本包不依赖它们的包 */
   docs: boolean
-  /** 站端口，没指定就是 undefined（由站点插件选，本包不猜一个写进 README） */
-  port: number | undefined
   /** 生成的插件包 peer 里内核包范围的下限：运行建仓命令的内核版本号的 x.y.z 三段 */
   kernelVersion: string
 }
@@ -115,13 +111,13 @@ export interface RenderedFile {
   text: string
 }
 
-/** 本包的根。向上找 package.json、不写死层数：从源码运行时本模块在 `src/`，从构建产物运行时在 `dist/` */
-export function packageRoot(from: string = import.meta.dirname): string | null {
+/** `from` 所在的包的根。向上找 package.json、不写死层数：从源码运行时本模块在 `src/`，从构建产物运行时在 `dist/` */
+export function packageRoot(from: string): string {
   let dir = from
   for (;;) {
     if (fs.existsSync(path.join(dir, 'package.json'))) return dir
     const up = path.dirname(dir)
-    if (up === dir) return null
+    if (up === dir) throw new Error(`从 ${from} 往上找到盘根都没有 package.json`)
     dir = up
   }
 }
@@ -178,10 +174,6 @@ export function planScaffold(input: ScaffoldInput): ScaffoldPlan {
   // 只在这一处转成绝对路径：调用方给相对路径时，「相对谁」得有个明确的答案
   const dir = path.resolve(rawDir)
   const title = titleOrShortName(input.title, name)
-  const port = input.port
-  if (port !== undefined && (!Number.isInteger(port) || port < 1024 || port > 65535)) {
-    throw new Error(`port 要是 1024–65535 的整数，实得 ${String(port)}`)
-  }
   return {
     name,
     title,
@@ -190,7 +182,6 @@ export function planScaffold(input: ScaffoldInput): ScaffoldPlan {
     pluginName: `gwb-${name}`,
     dir,
     docs: input.docs !== false,
-    port,
     kernelVersion: versionCore(input.kernelVersion),
   }
 }
@@ -234,16 +225,6 @@ function workspacePackageGlobs(text: string, file: string): string[] | null {
   })
 }
 
-/** 生成的 Markdown / MDX 的 frontmatter：一层「键: 值」，值都是标量 */
-function assertFrontmatter(text: string, file: string): void {
-  const yaml = parseYaml(text, file)
-  const root = yaml.doc.contents
-  if (!isMap(root)) throw yamlError(yaml, root?.range[0] ?? 0, '：frontmatter 要是「键: 值」')
-  for (const { key, value } of root.items) {
-    if (!isScalar(value)) throw yamlError(yaml, (value ?? key).range[0], `：${String(key)} 的值要是一个标量`)
-  }
-}
-
 /** 要读磁盘：repo 必须已经是 workspace 仓（`pnpm-workspace.yaml` 的 packages 里有 `plugins/*` 那条） */
 export function planScaffoldPlugin(input: ScaffoldPluginInput): ScaffoldPluginPlan {
   const name = validShortName(input.name)
@@ -273,7 +254,7 @@ export function planScaffoldPlugin(input: ScaffoldPluginInput): ScaffoldPluginPl
   }
 }
 
-/** README 里讲文档站的那段：建了讲怎么运行，没建讲怎么补。端口只在人指定过时写出来，不指定时由站点插件选 */
+/** README 里讲文档站的那段：建了讲怎么运行，没建讲怎么补。README 在站建出来之前渲染，端口那时还没选出来，只说去哪儿看 */
 export function docsBlock(plan: ScaffoldPlan): string {
   const siteDir = path.join(plan.dir, 'docs-site')
   if (!plan.docs) {
@@ -292,10 +273,6 @@ docfirst.attach ${JSON.stringify({ dir: siteDir })}
 就得手工配置。命令不在就是那个插件没装：\`plugin-manager.install\`
 \`@godcreator/gwb-docs-site\` / \`@godcreator/gwb-docfirst-workflow\`。`
   }
-  const dev =
-    plan.port === undefined
-      ? 'pnpm dev            # 端口写在 docs-site/package.json 的 dev 脚本里（站点插件从 4310 起选的空闲端口）'
-      : `pnpm dev            # http://localhost:${String(plan.port)}`
   return `## 文档站
 
 文档在 \`docs-site/\`，自己一套依赖：
@@ -304,7 +281,7 @@ docfirst.attach ${JSON.stringify({ dir: siteDir })}
 cd docs-site
 pnpm install
 pnpm doc            # docfirst check：文档里引用的源码改了会报黄
-${dev}
+pnpm dev            # 端口写在 docs-site/package.json 的 dev 脚本里（站点插件从 4310 起选的空闲端口）
 \`\`\`
 
 改了文档引用的源码，先 \`git commit\` 再 \`pnpm doc:confirm\`——git 比较器只对已提交、
@@ -422,29 +399,6 @@ export function render(text: string, values: Record<string, string>, file: strin
   return open + substitute(yaml, values, file, jsonStringContent) + close + substitute(body, values, file, titleEncoderFor(file))
 }
 
-/** 渲染好的一份结构化文件读一遍：JSON 与 YAML 整份解析，Markdown 的 frontmatter 按一层「键: 标量」读 */
-function assertStructuredFile({ rel, text }: RenderedFile): void {
-  const extension = path.extname(rel)
-  if (extension === '.json') {
-    try {
-      JSON.parse(text)
-    } catch (err) {
-      throw new Error(`生成的 ${rel} 不是合法的 JSON：${err instanceof Error ? err.message : String(err)}`)
-    }
-  } else if (extension === '.yaml' || extension === '.yml') {
-    parseYaml(text, rel)
-  } else if (extension === '.md' || extension === '.mdx') {
-    const front = FRONTMATTER.exec(text)
-    if (front !== null) assertFrontmatter(front[2] ?? '', rel)
-  }
-}
-
-/** 渲染好的文件在写磁盘之前逐个读一遍，读不懂就抛——这时一个文件都还没写 */
-export function assertStructuredFiles(files: RenderedFile[]): RenderedFile[] {
-  for (const file of files) assertStructuredFile(file)
-  return files
-}
-
 /** 模板文件的相对路径 → 写到磁盘的相对路径（去掉 .tpl）。不带后缀的原样保留 */
 export function targetRel(rel: string): string {
   return rel.endsWith(TEMPLATE_SUFFIX) ? rel.slice(0, -TEMPLATE_SUFFIX.length) : rel
@@ -479,29 +433,25 @@ export function listTemplateFiles(root: string): string[] {
 }
 
 /**
- * 仓根与插件包两部分先整套渲染在内存里，占位符出错、生成的 JSON / YAML 读不懂，都在写磁盘之前就抛；
- * 插件页另由 `renderPluginPage` 渲染
+ * 仓根与插件包两部分先整套渲染在内存里，占位符出错在写磁盘之前就抛；插件页另由 `renderPluginPage` 渲染。
+ * 生成的 JSON / YAML / frontmatter 读不读得懂由 `tests/scaffold.test.ts` 对本包的模板核对
  */
 export function renderTemplate(templateRoot: string, plan: ScaffoldPlan): RenderedFile[] {
   const values = placeholders(plan)
   const repoAndPackageFiles = listTemplateFiles(templateRoot).filter((rel) => !rel.startsWith(`${SITE_ZONE}/`))
-  return assertStructuredFiles(
-    repoAndPackageFiles.map((rel) => {
-      const landed = landRel(rel, plan.name)
-      return { rel: landed, text: render(fs.readFileSync(path.join(templateRoot, rel), 'utf8'), values, landed) }
-    }),
-  )
+  return repoAndPackageFiles.map((rel) => {
+    const landed = landRel(rel, plan.name)
+    return { rel: landed, text: render(fs.readFileSync(path.join(templateRoot, rel), 'utf8'), values, landed) }
+  })
 }
 
 /** 往已有的 workspace 仓加插件：只渲染插件包部分（`pkg/`），rel 相对插件包根 */
 export function renderPlugin(templateRoot: string, plan: Placeholdable): RenderedFile[] {
   const values = corePlaceholders(plan)
-  return assertStructuredFiles(
-    listTemplateFiles(path.join(templateRoot, PKG_ZONE)).map((rel) => {
-      const landed = targetRel(rel)
-      return { rel: landed, text: render(fs.readFileSync(path.join(templateRoot, PKG_ZONE, rel), 'utf8'), values, landed) }
-    }),
-  )
+  return listTemplateFiles(path.join(templateRoot, PKG_ZONE)).map((rel) => {
+    const landed = targetRel(rel)
+    return { rel: landed, text: render(fs.readFileSync(path.join(templateRoot, PKG_ZONE, rel), 'utf8'), values, landed) }
+  })
 }
 
 /** 目标目录必须还不存在：往已有目录里写文件没有干净的回滚点 */
@@ -523,9 +473,7 @@ export function pluginPageRel(name: string): string {
 /** 插件页草稿，rel 相对仓根 */
 export function renderPluginPage(templateRoot: string, plan: Placeholdable): RenderedFile {
   const rel = landRel(PLUGIN_PAGE_TEMPLATE, plan.name)
-  const page = { rel, text: render(fs.readFileSync(path.join(templateRoot, PLUGIN_PAGE_TEMPLATE), 'utf8'), corePlaceholders(plan), rel) }
-  assertStructuredFiles([page])
-  return page
+  return { rel, text: render(fs.readFileSync(path.join(templateRoot, PLUGIN_PAGE_TEMPLATE), 'utf8'), corePlaceholders(plan), rel) }
 }
 
 /**
@@ -544,53 +492,30 @@ export function writePluginPage(target: string, page: RenderedFile): void {
   fs.writeFileSync(target, page.text, 'utf8')
 }
 
+/** 回执里指向说明书的那一步：流程只写在说明书里，回执只带这次建仓特有的路径与包目录 */
+function followManualStep(repoDir: string, name: string): string {
+  const devCall = commandCall('devkit.dev', { home: '<隔离 home 名>', dir: repoDir, packages: [`plugins/${name}`] })
+  return `往下照说明书 gwb-devkit 的「新写一个插件」第 4 步起做（${commandCall('skill.read', { name: 'gwb-devkit' })}）；在隔离 home 里验证时是 ${devCall}`
+}
+
 /**
- * `site` 是站实际建成了没有，不是计划里想不想建：给一条不存在的 `cd docs-site` 比不给还坏。
+ * 只写这次建仓特有的：仓与插件包在哪、站实际建到哪一步（`site`，不是计划里想不想建）与端口；流程指向说明书。
  * 骨架生成了而六区没装是第三种情况：站在磁盘上，但 `pnpm doc` 那几条脚本还没有，插件页也没写
  */
-export function nextSteps(
-  plan: ScaffoldPlan,
-  site?: { built: boolean; attached?: boolean; port?: number },
-): string[] {
-  const built = site?.built ?? plan.docs
-  // 不给 site 就照计划里的意思说：计划要建站，就是两步都要走
-  const attached = site === undefined ? plan.docs : (site.attached ?? false)
-  const port = site?.port ?? plan.port
+export function nextSteps(plan: ScaffoldPlan, site: { built: boolean; attached: boolean; port?: number }): string[] {
   const siteDir = path.join(plan.dir, 'docs-site')
   const pageRel = pluginPageRel(plan.name)
-  const writePageYourself = `在 ${pageRel} 写插件页：功能、接口（命令与窗格）、依赖的服务、不做的事`
-  const steps = [
-    `cd ${plan.dir}`,
-    'pnpm install',
-    'pnpm build          # 仓根递归构建各插件（tsc + esbuild + tailwindcss 三步）——先构建：check 里的产物测试读 dist/',
-    'pnpm check          # 仓根递归：typecheck（node 侧与浏览器侧）+ oxlint + vitest，模板自带两份测试（类名前缀、构建产物）',
-  ]
-  if (built && attached) {
-    steps.push(
-      `插件页起稿已写到 ${pageRel}（插件名、包名、命令、窗格、依赖的服务）：按插件的实际功能改写`,
-      `文档站那部分（自己一套依赖，跟插件分开装）：cd ${siteDir} && pnpm install && pnpm doc${
-        port === undefined ? '' : `，pnpm dev 运行在 http://localhost:${String(port)}`
-      }`,
-      '先 git init 做第一个提交，再在 docs-site 里 pnpm doc:confirm——git 比较器只对已提交、工作区干净的内容记录',
-    )
-  } else if (built) {
-    steps.push(
-      `站只有骨架、六区还没装：${commandCall('docfirst.attach', { dir: siteDir })}——**立刻补**，它只在还没加过页的骨架上装得了；装完之后${writePageYourself}`,
-    )
+  const writePageAfterwards = `装完在 ${pageRel} 写插件页`
+  const siteAt = `文档站在 ${siteDir}${site.port === undefined ? '' : `，端口 ${String(site.port)}`}`
+  let siteStep: string
+  if (site.built && site.attached) {
+    siteStep = `${siteAt}；插件页起稿已写到 ${pageRel}`
+  } else if (site.built) {
+    siteStep = `${siteAt}，只有骨架、六区没装：立刻补 ${commandCall('docfirst.attach', { dir: siteDir })}（它只在还没加过页的骨架上装得了），${writePageAfterwards}`
   } else {
-    steps.push(
-      `没有文档站。补一个是两步：${commandCall('docs-site.create', { dir: siteDir, title: plan.title })}（站点插件生成骨架），紧接着 ${commandCall('docfirst.attach', { dir: siteDir })}（docfirst 插件装六区）；装完之后${writePageYourself}`,
-    )
+    siteStep = `没建站。要补是两步：${commandCall('docs-site.create', { dir: siteDir, title: plan.title })}，紧接着 ${commandCall('docfirst.attach', { dir: siteDir })}；${writePageAfterwards}`
   }
-  const packages = [`plugins/${plan.name}`]
-  steps.push(
-    `进隔离 home：devkit.home.new 开一个，${commandCall('devkit.dev', { home: '<名>', dir: plan.dir, packages })} 发出开发版并装进去（回执说没有条目可重新加载）`,
-    `建条目：在这个隔离 home 里经 devkit.cdp 的 cmd 调 ${commandCall('plugin-manager.install', { pkg: plan.pkg, spec: '<回执里那个开发版号>' })}（经 MCP 调会装进 default）；之后每改一版用 devkit.dev（packages 同上）`,
-    `验收：${plan.name}.ping 回 {ok:true,…}；plugins/${plan.name} 的窗格显示「你好」，计数按钮点得动`,
-    `发正式版照 skill「gwb-release」：升版本号、提交、${commandCall('devkit.release', { dir: plan.dir, packages })}，发完马上升级 default`,
-    `加第二个插件：${commandCall('devkit.scaffold.plugin', { repo: plan.dir, name: '<短名>' })}；写插件读 skill「gwb-devkit」；文档写什么读 skill「docfirst-docs」`,
-  )
-  return steps
+  return [`仓在 ${plan.dir}，插件包 ${plan.pkg} 在 plugins/${plan.name}/`, siteStep, followManualStep(plan.dir, plan.name)]
 }
 
 /** 回执里给的一条命令调用：参数用 JSON.stringify 写，Windows 路径的反斜杠转义过，照抄就是合法 JSON */
@@ -602,19 +527,12 @@ function commandCall(command: string, args: Record<string, unknown>): string {
 export function nextStepsPlugin(plan: ScaffoldPluginPlan, pageTarget: string | null): string[] {
   const pageStep =
     pageTarget === null
-      ? `仓里没有装好六区的文档站，插件页没写。以后建了站，在 ${pluginPageRel(plan.name)} 写插件页：功能、接口（命令与窗格）、依赖的服务、不做的事`
-      : `插件页起稿已写到 ${pageTarget}（插件名、包名、命令、窗格、依赖的服务）：按插件的实际功能改写`
-  const packages = [`plugins/${plan.name}`]
+      ? `仓里没有装好六区的文档站，插件页没写；以后建了站，在 ${pluginPageRel(plan.name)} 写插件页`
+      : `插件页起稿已写到 ${pageTarget}`
   return [
-    `cd ${plan.repoDir}`,
-    'pnpm install',
-    'pnpm build          # 仓根递归构建，新插件一起构建',
-    'pnpm check          # 模板插件自带两份测试（类名前缀、构建产物）',
+    `插件包 ${plan.pkg} 在 ${plan.dir}`,
     pageStep,
-    `进隔离 home：devkit.home.new 开一个，${commandCall('devkit.dev', { home: '<名>', dir: plan.repoDir, packages })} 发出开发版并装进去（回执说没有条目可重新加载）`,
-    `建条目：在这个隔离 home 里经 devkit.cdp 的 cmd 调 ${commandCall('plugin-manager.install', { pkg: plan.pkg, spec: '<回执里那个开发版号>' })}（经 MCP 调会装进 default）；之后每改一版用 devkit.dev（packages 同上）`,
-    `验收：${plan.name}.ping 回 {ok:true,…}；plugins/${plan.name} 的窗格显示「你好」，计数按钮点得动`,
-    `发正式版照 skill「gwb-release」：升版本号、提交、${commandCall('devkit.release', { dir: plan.repoDir, packages })}（同一次还要发别的包就按依赖顺序排进数组），发完马上升级 default`,
-    '把新插件写进 README 的插件清单（正本在 docs-site/content/outputs/，改完 doc:render）；写插件读 skill「gwb-devkit」',
+    followManualStep(plan.repoDir, plan.name),
+    'README 的插件清单由人补上这个插件（正本在 docs-site/content/outputs/，改完 doc:render）',
   ]
 }

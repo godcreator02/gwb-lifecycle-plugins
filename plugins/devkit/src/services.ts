@@ -23,8 +23,6 @@ export interface ServiceEntry {
   optional: boolean
   /** 第一个提供方里这个类型的定义原文，连同紧挨着的文档注释；没有提供方时没有这个字段 */
   definition?: string
-  /** 也声明了这个服务、类型却是从别的包 import 来的包（用它的一方） */
-  declaredAlsoBy: string[]
 }
 
 const CORDIS_MODULE_BLOCK = /declare module ['"]cordis['"]\s*\{/g
@@ -107,21 +105,18 @@ function definitionIn(declarations: PackageTypeDeclarations, type: string): stri
 
 /**
  * 各包的 .d.ts → 服务总览，按服务名排序。一个包给 `Context` 补了某个服务、这个服务的类型又定义在它自己的声明里，
- * 它就是提供方；类型从别处 import 来的只是在用
+ * 它就是提供方；类型从别处 import 来的只是在用，不列
  */
 export function servicesOf(packages: PackageTypeDeclarations[]): ServiceEntry[] {
   const entries = new Map<string, ServiceEntry>()
   for (const declarations of packages) {
     const label = `${declarations.pkg}@${declarations.version}`
     for (const field of declarations.declarationTexts.flatMap(contextFieldsOf)) {
-      const entry = entries.get(field.service) ?? { service: field.service, providers: [], type: field.type, optional: field.optional, declaredAlsoBy: [] }
+      const entry = entries.get(field.service) ?? { service: field.service, providers: [], type: field.type, optional: field.optional }
       entries.set(field.service, entry)
-      if (entry.providers.includes(label) || entry.declaredAlsoBy.includes(label)) continue
+      if (entry.providers.includes(label)) continue
       const definition = definitionIn(declarations, field.type)
-      if (definition === undefined) {
-        entry.declaredAlsoBy.push(label)
-        continue
-      }
+      if (definition === undefined) continue
       if (entry.providers.length === 0) {
         entry.type = field.type
         entry.optional = field.optional

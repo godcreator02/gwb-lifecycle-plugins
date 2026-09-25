@@ -73,6 +73,13 @@ function mountDevkit(opts: { homeDir: string; busCommands?: Record<string, (args
   }
 }
 
+describe('加载', () => {
+  it('命令总线不在就抛：插件加载失败，而不是命令表不声不响地空着', () => {
+    const ctx = { logger: () => ({ info() {}, warn() {}, error() {}, debug() {} }), inject: () => () => {} }
+    expect(() => apply(ctx as never)).toThrow(/gwbCommands/)
+  })
+})
+
 describe('参数不对：回 ok false，带上那条命令的用法', () => {
   it('参数不是对象', async () => {
     const devkit = mountDevkit({ homeDir: tempDir('dk-home-') })
@@ -100,10 +107,40 @@ describe('参数不对：回 ok false，带上那条命令的用法', () => {
     expect((await devkit.run('devkit.home.rm', { name: '' })).error).toContain('name 缺了或不是 kebab-case')
   })
 
-  it('devkit.dev：给 cdp 当场拒，home 名不合格也拒', async () => {
+  it('devkit.dev：home 名不合格就拒', async () => {
     const devkit = mountDevkit({ homeDir: tempDir('dk-home-') })
-    expect((await devkit.run('devkit.dev', { cdp: 9401, dir: 'D:\\x', packages: ['plugins/x'] })).error).toContain('不认识参数 cdp')
     expect((await devkit.run('devkit.dev', { home: 'Bad', packages: ['plugins/x'] })).error).toContain('home 缺了或不是个合格的 home 名')
+  })
+
+  it('每条命令都拒认不出的参数键，报出是哪几个键，连同那条命令的用法', async () => {
+    const devkit = mountDevkit({ homeDir: tempDir('dk-home-') })
+    const calls: [string, Record<string, unknown>, string][] = [
+      ['devkit.home.new', { short: 'x', cdp: 9401 }, 'home 命令的参数'],
+      ['devkit.home.open', { name: 'x', port: 1 }, 'home 命令的参数'],
+      ['devkit.home.rm', { name: 'x', froce: true }, 'home 命令的参数'],
+      ['devkit.home.list', { all: true }, '无参数'],
+      ['devkit.dev', { home: 'x', dir: 'D:\\x', packages: ['plugins/x'], cdp: 9401 }, 'devkit.dev 的参数'],
+      ['devkit.release', { dir: 'D:\\x', packages: ['plugins/x'], tag: 'next' }, 'devkit.release 的参数'],
+      ['devkit.services', { home: 'x' }, '无参数'],
+      ['devkit.scaffold', { name: 'x', dir: 'D:\\x', port: 4321 }, 'devkit.scaffold 的参数'],
+      ['devkit.scaffold.plugin', { name: 'x', repo: 'D:\\x', docs: false }, 'devkit.scaffold.plugin 的参数'],
+    ]
+    for (const [name, args, usageHeader] of calls) {
+      const unknownKey = Object.keys(args).at(-1) ?? ''
+      const receipt = await devkit.run(name, args)
+      expect(receipt.ok, name).toBe(false)
+      expect(receipt.error, name).toContain(`不认识参数 ${unknownKey}`)
+      expect(receipt.error, name).toContain(usageHeader)
+    }
+  })
+
+  it('无参数的命令：不给参数或给空对象都收', async () => {
+    const homeDir = tempDir('dk-home-')
+    fs.mkdirSync(path.join(homeDir, 'node_modules'))
+    const devkit = mountDevkit({ homeDir })
+    for (const args of [undefined, {}]) {
+      expect(await devkit.run('devkit.services', args)).toEqual({ ok: true, data: { home: homeDir, services: [] } })
+    }
   })
 
   it('devkit.release：dir 不是绝对路径、不在，都拒', async () => {
@@ -119,7 +156,7 @@ describe('参数不对：回 ok false，带上那条命令的用法', () => {
     const wrongPackages: unknown[] = [undefined, [], 'plugins/x', ['plugins/x', 1], ['']]
     for (const name of ['devkit.dev', 'devkit.release']) {
       for (const packages of wrongPackages) {
-        const receipt = await devkit.run(name, { home: 'x-2609250000', dir, ...(packages === undefined ? {} : { packages }) })
+        const receipt = await devkit.run(name, { ...(name === 'devkit.dev' ? { home: 'x-2609250000' } : {}), dir, ...(packages === undefined ? {} : { packages }) })
         expect(receipt.ok, `${name} ${JSON.stringify(packages)}`).toBe(false)
         expect(receipt.error, `${name} ${JSON.stringify(packages)}`).toContain('packages 必给')
       }
@@ -145,7 +182,7 @@ describe('devkit.scaffold 与 devkit.scaffold.plugin', () => {
     expect(data.pkg).toBe('@godcreator/gwb-hello')
     expect(data.files).toBeGreaterThan(0)
     expect(data.docs).toMatchObject({ built: false, attached: false })
-    expect(data.docs.note).toContain('没装站件')
+    expect(data.docs.note).toContain('没建站')
     expect(data.pluginPage).toBeNull()
     expect(fs.existsSync(path.join(dir, 'plugins', 'hello', 'package.json'))).toBe(true)
   })
@@ -157,8 +194,29 @@ describe('devkit.scaffold 与 devkit.scaffold.plugin', () => {
     const data = receipt.data as { docs: { built: boolean; attached: boolean; port?: number; note: string }; nextSteps: string[] }
     expect(data.docs).toMatchObject({ built: true, attached: false, port: 4321 })
     expect(data.docs.note).toContain('六区没装')
+    // 成功了的那条命令的原始回执不带：只有失败时才要看它
+    expect(data.docs).not.toHaveProperty('create')
     expect(devkit.busCalls).toEqual([{ name: 'docs-site.create', args: { dir: path.join(dir, 'docs-site'), title: 'hello' } }])
     expect(data.nextSteps.join('\n')).toContain('docfirst.attach')
+    expect(data.nextSteps.join('\n')).toContain('4321')
+  })
+
+  it('两步都成：回执只报建成与端口，不带两条命令的原始回执', async () => {
+    const dir = path.join(tempDir('dk-scaffold-'), 'hello')
+    const devkit = mountDevkit({
+      homeDir: tempDir('dk-home-'),
+      busCommands: { 'docs-site.create': () => ({ ok: true, data: { port: 4321 } }), 'docfirst.attach': () => ({ ok: true, data: {} }) },
+    })
+    const data = (await devkit.run('devkit.scaffold', { name: 'hello', dir })).data as { docs: Record<string, unknown> }
+    expect(Object.keys(data.docs).sort()).toEqual(['attached', 'built', 'note', 'port'])
+  })
+
+  it('骨架没铺成：带上 docs-site.create 的原始回执', async () => {
+    const dir = path.join(tempDir('dk-scaffold-'), 'hello')
+    const failed = { ok: false, error: '端口全被占了' }
+    const devkit = mountDevkit({ homeDir: tempDir('dk-home-'), busCommands: { 'docs-site.create': () => failed } })
+    const data = (await devkit.run('devkit.scaffold', { name: 'hello', dir })).data as { docs: Record<string, unknown> }
+    expect(data.docs).toMatchObject({ built: false, attached: false, create: failed })
   })
 
   it('目标目录已经存在：建仓没成，不覆盖', async () => {

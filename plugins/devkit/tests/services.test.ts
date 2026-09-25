@@ -90,7 +90,7 @@ describe('definitionOf：取定义原文连同紧挨着的文档注释', () => {
 })
 
 describe('servicesOf：类型定义在自己声明里的是提供方，import 来的只是在用', () => {
-  it('提供方、用它的一方各归各，按服务名排序', () => {
+  it('只有提供方进 providers，用它的一方不列，按服务名排序', () => {
     const got = servicesOf([
       pkg('@godcreator/gwb-shell', '0.13.7', SHELL_DTS),
       pkg('@godcreator/gwb-commands', '0.5.0', COMMANDS_DTS),
@@ -99,7 +99,8 @@ describe('servicesOf：类型定义在自己声明里的是提供方，import �
     expect(got.map((entry) => entry.service)).toEqual(['gwbCommands', 'gwbData', 'gwbShell', 'gwbSkills'])
     const commands = got.find((entry) => entry.service === 'gwbCommands')!
     expect(commands.providers).toEqual(['@godcreator/gwb-commands@0.5.0'])
-    expect(commands.declaredAlsoBy).toEqual(['@godcreator/gwb-shell@0.13.7'])
+    // 类型从别处 import 来的包只是在用，回执里不列
+    expect(Object.keys(commands).sort()).toEqual(['definition', 'optional', 'providers', 'service', 'type'])
     expect(commands.optional).toBe(true)
     expect(commands.definition).toContain('run(name: string')
     expect(got.find((entry) => entry.service === 'gwbShell')?.providers).toEqual(['@godcreator/gwb-shell@0.13.7'])
@@ -108,7 +109,6 @@ describe('servicesOf：类型定义在自己声明里的是提供方，import �
   it('没有提供方的服务照样列出，providers 为空、不带 definition', () => {
     const data = servicesOf([pkg('@godcreator/gwb-shell', '0.13.7', SHELL_DTS)]).find((entry) => entry.service === 'gwbData')!
     expect(data.providers).toEqual([])
-    expect(data.declaredAlsoBy).toEqual(['@godcreator/gwb-shell@0.13.7'])
     expect('definition' in data).toBe(false)
   })
 

@@ -111,13 +111,6 @@ describe('planScaffold：校验与派生', () => {
     expect(planScaffold({ name: 'x', dir: 'D:\\tmp\\x', docs: false, kernelVersion: KERNEL }).docs).toBe(false)
   })
 
-  it('port 不给就是 undefined（本包不猜一个写进 README）；给了要在 1024–65535', () => {
-    expect(planScaffold({ name: 'x', dir: 'D:\\tmp\\x', kernelVersion: KERNEL }).port).toBeUndefined()
-    expect(planScaffold({ name: 'x', dir: 'D:\\tmp\\x', port: 4321, kernelVersion: KERNEL }).port).toBe(4321)
-    for (const bad of [80, 70000, 4321.5]) {
-      expect(() => planScaffold({ name: 'x', dir: 'D:\\tmp\\x', port: bad, kernelVersion: KERNEL })).toThrow(/port/)
-    }
-  })
 })
 
 describe('planScaffoldPlugin：往薄壳仓加件', () => {
@@ -179,7 +172,7 @@ describe('包名范围与发布目标（GWB-17）', () => {
     const files = renderTemplate(TEMPLATE_ROOT, plan)
     expect(files.find((f) => f.rel === 'README.md')?.text).toContain('`@someone/gwb-hello`')
     expect(renderPluginPage(TEMPLATE_ROOT, plan).text).toContain('@someone/gwb-hello')
-    expect(nextSteps(plan).join('\n')).toContain('"pkg":"@someone/gwb-hello"')
+    expect(nextSteps(plan, { built: false, attached: false }).join('\n')).toContain('@someone/gwb-hello')
     const manifest = JSON.parse(files.find((f) => f.rel === 'plugins/hello/package.json')?.text ?? '') as { peerDependencies: Record<string, string> }
     expect(Object.keys(manifest.peerDependencies).sort()).toEqual([KERNEL_PACKAGE, `${TEAM_SCOPE}/gwb-commands`, `${TEAM_SCOPE}/gwb-shell`].sort())
   })
@@ -219,16 +212,12 @@ describe('包名范围与发布目标（GWB-17）', () => {
 })
 
 describe('docsBlock：README 里讲站的那段', () => {
-  it('建了站就讲怎么跑；端口给了才敢写死，没给只说去哪儿看', () => {
-    const withPort = placeholders(planScaffold({ name: 'x', dir: 'D:\\tmp\\x', port: 4321, kernelVersion: KERNEL })).docsBlock ?? ''
-    expect(withPort).toContain('cd docs-site')
-    expect(withPort).toContain('http://localhost:4321')
-
-    const noPort = placeholders(planScaffold({ name: 'x', dir: 'D:\\tmp\\x', kernelVersion: KERNEL })).docsBlock ?? ''
-    expect(noPort).toContain('cd docs-site')
-    // 猜一个端口写进 README，读者照着敲的那条 pnpm dev 就是错的
-    expect(noPort).not.toMatch(/localhost:\d/)
-    expect(noPort).toContain('docs-site/package.json')
+  it('建了站就讲怎么跑；端口不写死，只说去哪儿看', () => {
+    const block = placeholders(planScaffold({ name: 'x', dir: 'D:\\tmp\\x', kernelVersion: KERNEL })).docsBlock ?? ''
+    expect(block).toContain('cd docs-site')
+    // README 在站建出来之前就渲染好了，那时端口还没选出来
+    expect(block).not.toMatch(/localhost:\d/)
+    expect(block).toContain('docs-site/package.json')
   })
 
   it('没建站就讲怎么补一个——两步，而且点名那两个件的命令', () => {
@@ -242,65 +231,69 @@ describe('docsBlock：README 里讲站的那段', () => {
   })
 })
 
-describe('nextSteps：按站真建到哪一步分三支', () => {
+describe('nextSteps：只写这次建仓特有的，流程指向说明书', () => {
   const plan = planScaffold({ name: 'x', dir: 'D:\\tmp\\x', kernelVersion: KERNEL })
+  const allSites = [
+    { built: true, attached: true, port: 4321 },
+    { built: true, attached: false, port: 4321 },
+    { built: false, attached: false },
+  ]
 
-  it('骨架铺了、六区也装了，才给 docs-site 那几步，端口有就报出来', () => {
+  it('每一支都报仓的路径、包名，指向说明书 gwb-devkit 的「新写一个插件」，devkit.dev 的 packages 指到 plugins/ 下', () => {
+    for (const site of allSites) {
+      const steps = nextSteps(plan, site).join('\n')
+      expect(steps).toContain('D:\\tmp\\x')
+      expect(steps).toContain('@godcreator/gwb-x')
+      expect(steps).toContain('gwb-devkit')
+      expect(steps).toContain('新写一个插件')
+      expect(steps).toContain('"packages":["plugins/x"]')
+    }
+  })
+
+  it('流程不在回执里复述：没有装包、发版、构建那几步，也没有「手工建条目」', () => {
+    for (const site of allSites) {
+      const steps = nextSteps(plan, site).join('\n')
+      for (const gone of ['pnpm install', 'pnpm build', 'devkit.release', 'plugin-manager.install', '没有条目可重新加载', 'devkit.cdp']) {
+        expect(steps, gone).not.toContain(gone)
+      }
+    }
+  })
+
+  it('站装好六区：报站目录、端口与已写好的插件页', () => {
     const steps = nextSteps(plan, { built: true, attached: true, port: 4321 }).join('\n')
-    expect(steps).toContain('docs-site')
+    expect(steps).toContain(path.join(plan.dir, 'docs-site'))
     expect(steps).toContain('4321')
-    expect(steps).toContain('doc:confirm')
+    expect(steps).toContain(`插件页起稿已写到 ${pluginPageRel('x')}`)
   })
 
-  it('骨架铺了但六区没装：给 attach 那条，不给 pnpm doc——那几条脚本还不存在', () => {
-    const steps = nextSteps(plan, { built: true, attached: false }).join('\n')
+  it('骨架铺了但六区没装：给 attach 那条，并说装完写哪一页', () => {
+    const steps = nextSteps(plan, { built: true, attached: false, port: 4321 }).join('\n')
     expect(steps).toContain('docfirst.attach')
-    expect(steps).not.toContain('doc:confirm')
+    expect(steps).not.toContain('docs-site.create')
+    expect(steps).toContain(pluginPageRel('x'))
   })
 
-  it('骨架都没铺就给两步补建——回执里给一条不存在的 cd docs-site 比不给还坏', () => {
+  it('骨架都没铺：给两步补建，并说装完写哪一页', () => {
     const steps = nextSteps(plan, { built: false, attached: false }).join('\n')
-    expect(steps).not.toContain('cd D:\\tmp\\x\\docs-site')
     expect(steps).toContain('docs-site.create')
     expect(steps).toContain('docfirst.attach')
+    expect(steps).toContain(pluginPageRel('x'))
   })
 
-  it('不给 site 就照计划里的意思说', () => {
-    expect(nextSteps(planScaffold({ name: 'x', dir: 'D:\\tmp\\x', docs: false, kernelVersion: KERNEL })).join('\n')).toContain(
-      'docs-site.create',
-    )
-    // 计划里要建站 = 两步都走，走到底那一支
-    expect(nextSteps(plan).join('\n')).toContain('doc:confirm')
-  })
-
-  it('dev 与 release 都带 packages 指到 plugins/ 下', () => {
-    const steps = nextSteps(plan).join('\n')
-    expect(steps).toContain('"packages":["plugins/x"]')
-    expect(steps).toContain('devkit.release')
-    expect(steps).toContain('gwb-release')
-    expect(steps).toContain('plugin-manager.install')
-    expect(steps).not.toContain('pnpm publish')
-    expect(steps).not.toContain('--registry')
-  })
-
-  it('nextStepsPlugin：不建站；写了插件页就报出路径，没写就说以后建站要补哪一页；尾巴是 README 的插件清单', () => {
+  it('nextStepsPlugin：报插件包路径与包名；写了插件页就报出路径，没写就说以后建站要补哪一页；README 的插件清单由人补', () => {
     const repo = fakeWorkspace()
     const plan = planScaffoldPlugin({ name: 'w', repo, kernelVersion: KERNEL })
     const written = nextStepsPlugin(plan, 'D:\\repo\\docs-site\\content\\docs\\plugins\\w.mdx').join('\n')
+    expect(written).toContain(plan.dir)
+    expect(written).toContain('@godcreator/gwb-w')
     expect(written).toContain('"packages":["plugins/w"]')
+    expect(written).toContain('新写一个插件')
     expect(written).toContain('doc:render')
     expect(written).not.toContain('docs-site.create')
+    expect(written).not.toContain('plugin-manager.install')
     expect(written).toContain('D:\\repo\\docs-site\\content\\docs\\plugins\\w.mdx')
     const notWritten = nextStepsPlugin(plan, null).join('\n')
     expect(notWritten).toContain(pluginPageRel('w'))
-    expect(notWritten).toContain('依赖的服务')
-  })
-
-  it('nextSteps：站装好六区时报插件页已写；没装好时每一支都说装完之后写哪一页', () => {
-    expect(nextSteps(plan, { built: true, attached: true }).join('\n')).toContain(`插件页起稿已写到 ${pluginPageRel('x')}`)
-    for (const site of [{ built: true, attached: false }, { built: false, attached: false }]) {
-      expect(nextSteps(plan, site).join('\n')).toContain(pluginPageRel('x'))
-    }
   })
 })
 
@@ -625,6 +618,10 @@ describe('packageRoot：向上找', () => {
     fs.mkdirSync(path.join(dir, 'dist'), { recursive: true })
     expect(packageRoot(path.join(dir, 'dist'))).toBe(dir)
   })
+
+  it('一直找到盘根都没有 package.json 就抛', () => {
+    expect(() => packageRoot(path.parse(sandbox()).root)).toThrow(/package\.json/)
+  })
 })
 
 /**
@@ -802,49 +799,53 @@ describe('title 按所在文件的上下文编码（GWB-25）', () => {
     })
   })
 
-  describe('生成的结构化文件解析不过就拒，一个文件都不写', () => {
-    const PLUGIN_PAGE_TPL = `${SITE_ZONE}/plugin.mdx.tpl`
-
-    /** 临时目录里搭一份模板：仓根部分一份 JSON、插件包部分一份 */
-    function fakeTemplate(files: Record<string, string>): string {
-      const root = path.join(sandbox(), 'template')
-      for (const [rel, text] of Object.entries(files)) {
-        fs.mkdirSync(path.dirname(path.join(root, rel)), { recursive: true })
-        fs.writeFileSync(path.join(root, rel), text, 'utf8')
+  describe('生成的结构化文件都读得懂：模板是本包自己的，由这里核对，运行时不再读一遍', () => {
+    /** JSON 与 YAML 整份解析，Markdown / MDX 的 frontmatter 要是一层「键: 标量」；读不懂的回文件名与原因 */
+    function unreadableFiles(files: Array<{ rel: string; text: string }>): string[] {
+      const problems: string[] = []
+      for (const { rel, text } of files) {
+        const extension = path.extname(rel)
+        try {
+          if (extension === '.json') JSON.parse(text)
+          else if (extension === '.yaml' || extension === '.yml') {
+            const [error] = YAML.parseDocument(text).errors
+            if (error !== undefined) throw error
+          } else if (extension === '.md' || extension === '.mdx') {
+            const front = /^---\r?\n([\s\S]*?)\r?\n---\r?\n/.exec(text)
+            if (front === null) continue
+            const doc = YAML.parseDocument(front[1] ?? '')
+            const [error] = doc.errors
+            if (error !== undefined) throw error
+            const root = doc.contents
+            if (!YAML.isMap(root) || root.items.some((pair) => !YAML.isScalar(pair.value))) throw new Error('frontmatter 要是一层「键: 标量」')
+          }
+        } catch (err) {
+          problems.push(`${rel}：${err instanceof Error ? err.message : String(err)}`)
+        }
       }
-      return root
+      return problems
     }
 
-    it('JSON 坏了：renderTemplate 抛错、点名是哪个文件；这时目标目录还不存在', () => {
-      const root = fakeTemplate({ 'repo/package.json.tpl': '{"name": {{name}}}\n', 'pkg/package.json.tpl': '{}\n' })
-      const dir = path.join(sandbox(), 'repo')
-      expect(() => renderTemplate(root, planScaffold({ name: 'x', dir, kernelVersion: KERNEL }))).toThrow(/package\.json.*JSON/)
-      expect(fs.existsSync(dir)).toBe(false)
-    })
-
-    it('YAML 坏了：同样在渲染时就抛', () => {
-      const root = fakeTemplate({ "repo/pnpm-workspace.yaml.tpl": "packages: ['plugins/*'\n", 'pkg/package.json.tpl': '{}\n' })
-      expect(() => renderTemplate(root, planScaffold({ name: 'x', dir: 'D:\\tmp\\x', kernelVersion: KERNEL }))).toThrow(/pnpm-workspace\.yaml/)
-    })
-
-    it('插件页的 frontmatter：YAML 写坏了、不是一层「键: 标量」，渲染时就抛，写出文件与位置', () => {
-      const plan = planScaffoldPlugin({ name: 'x', repo: fakeWorkspace(), kernelVersion: KERNEL })
-      const broken: Array<[string, RegExp]> = [
-        ['---\ntitle: "{{title}}\n---\n\n# x\n', /x\.mdx 第 \d+ 行第 \d+ 列不是合法的 YAML/],
-        ['---\ntitle:\n  - a\n---\n\n# x\n', /x\.mdx 第 2 行第 3 列：title 的值要是一个标量/],
-        ['---\n- a\n---\n\n# x\n', /x\.mdx 第 1 行第 1 列：frontmatter 要是「键: 值」/],
-      ]
-      for (const [page, why] of broken) {
-        const root = fakeTemplate({ [PLUGIN_PAGE_TPL]: page })
-        expect(() => renderPluginPage(root, plan), JSON.stringify(page)).toThrow(why)
+    it('建仓、加插件、插件页，普通显示名与各种特殊字符的显示名都一样', () => {
+      for (const title of ['打招呼', HOSTILE_TITLE]) {
+        for (const docs of [true, false]) {
+          const scaffold = planScaffold({ name: 'hello', dir: 'D:\\tmp\\x', title, docs, kernelVersion: KERNEL })
+          expect(unreadableFiles([...renderTemplate(TEMPLATE_ROOT, scaffold), renderPluginPage(TEMPLATE_ROOT, scaffold)])).toEqual([])
+        }
+        const plugin = planScaffoldPlugin({ name: 'world', repo: fakeWorkspace(), title, kernelVersion: KERNEL })
+        expect(unreadableFiles([...renderPlugin(TEMPLATE_ROOT, plugin), renderPluginPage(TEMPLATE_ROOT, plugin)])).toEqual([])
       }
-      const root = fakeTemplate({ [PLUGIN_PAGE_TPL]: '---\ntitle: "{{title}}"\ndescription: 插件 gwb-x（包 @godcreator/gwb-x）的功能\n---\n\n# x\n' })
-      expect(() => renderPluginPage(root, plan)).not.toThrow()
     })
 
-    it('加插件：插件包里的 JSON 坏了也在渲染时抛', () => {
-      const root = fakeTemplate({ 'pkg/package.json.tpl': '{"a": 1,}\n' })
-      expect(() => renderPlugin(root, planScaffoldPlugin({ name: 'x', repo: fakeWorkspace(), kernelVersion: KERNEL }))).toThrow(/package\.json/)
+    it('核对本身认得出坏文件：JSON、YAML、frontmatter 不是一层标量', () => {
+      expect(
+        unreadableFiles([
+          { rel: 'a.json', text: '{"a": 1,}' },
+          { rel: 'b.yaml', text: "packages: ['plugins/*'\n" },
+          { rel: 'c.mdx', text: '---\ntitle:\n  - a\n---\n\n# x\n' },
+          { rel: 'd.mdx', text: '---\ntitle: 好的\n---\n\n# x\n' },
+        ]).map((line) => line.split('：')[0]),
+      ).toEqual(['a.json', 'b.yaml', 'c.mdx'])
     })
   })
 })
@@ -946,9 +947,10 @@ describe('路径参数正斜杠、反斜杠都认（09-14 反馈）', () => {
     const plan = planScaffold({ name: 'x', dir: 'D:\\tmp\\x', title: '他说"你好"', docs: false, kernelVersion: KERNEL })
     const siteDir = path.join(plan.dir, 'docs-site')
     const create = `docs-site.create ${JSON.stringify({ dir: siteDir, title: plan.title })}`
+    const site = { built: false, attached: false }
     expect(placeholders(plan).docsBlock).toContain(create)
-    expect(nextSteps(plan).join('\n')).toContain(create)
-    for (const step of [...nextSteps(plan), ...nextStepsPlugin(planScaffoldPlugin({ name: 'w', repo: fakeWorkspace(), kernelVersion: KERNEL }), null)]) {
+    expect(nextSteps(plan, site).join('\n')).toContain(create)
+    for (const step of [...nextSteps(plan, site), ...nextStepsPlugin(planScaffoldPlugin({ name: 'w', repo: fakeWorkspace(), kernelVersion: KERNEL }), null)]) {
       // 回执里凡是 `命令名 {…}` 的写法，花括号那一段都要是合法 JSON（`<名>` 这种要人替换的占位只出现在字符串里）
       for (const match of step.matchAll(/[a-z-]+(?:\.[a-z-]+)+ (\{[^{}]*(?:\[[^\]]*\])?[^{}]*\})/g)) {
         expect(() => JSON.parse(match[1] ?? ''), `${step}\n里的 ${match[1] ?? ''}`).not.toThrow()
