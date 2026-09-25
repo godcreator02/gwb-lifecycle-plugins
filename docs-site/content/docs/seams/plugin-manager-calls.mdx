@@ -15,13 +15,13 @@ description: 连接 devkit 与插件管理：devkit 从插件管理的主入口 
 
 **一、`devkit.dev` 经 CDP 调三条命令。** devkit 运行在另一个 home 里，调用经 `bin/cdp.mjs` 的 `cmd` 动作发到目标页面的 `window.gwb.command`（通道见 [CDP 驱动 cdp.mjs](/docs/seams/cdp)）。devkit 先把每个包打成包文件放进目标 home 的 `dev-packs/`，再只读目标 home 的 `package.json`：已在 `dependencies` 里的包合成一条 `plugin-manager.update {"specs":{"<包>":"file:./dev-packs/<包文件>"}}`（内核包也在里面，`cordis` 不放：插件管理照装上的内核包 peer 自己对齐），不在的插件逐个 `plugin-manager.install {"pkg","spec"}`；内核包不在目标 home 里直接拒：
 
-{/* ref file="../plugins/devkit/src/dev.ts" lines="214-235" */}
+{/* ref file="../plugins/devkit/src/dev.ts" lines="215-236" */}
 
 回执只有外层一层 `ok`。`install` 的 `data` 是 `{ pkg, entryId }`，devkit 把 `entryId` 记进自己的回执。`update` 回 `ok: false` 时 devkit 整体失败、带上回执里的 `error`；这次装了内核包时，回执必须有 `restartRequired: true`（没有就判失败），devkit 重启目标 home、轮询 `shell.env` 直到页面报出的内核版本就是这次打包的；`selfDeferred: true` 时 devkit 从 `updated` 与 `dependents` 里找出 `action` 是 `deferred` 的条目属于哪些包，每 500 毫秒轮询一次 `plugin-manager.list`，60 秒内等到这些包的条目全都 `active: true`：
 
-{/* ref file="../plugins/devkit/src/dev.ts" lines="522-553" */}
+{/* ref file="../plugins/devkit/src/dev.ts" lines="541-572" */}
 
-{/* ref file="../plugins/devkit/src/dev.ts" lines="455-490" */}
+{/* ref file="../plugins/devkit/src/dev.ts" lines="474-509" */}
 
 插件管理的 `install` 与 `update`，`usage` 里写着参数与回执：
 
@@ -35,7 +35,7 @@ description: 连接 devkit 与插件管理：devkit 从插件管理的主入口 
 
 `plugin-manager.list` 的回执由 devkit 自己解析：`data` 就是包的数组，按 `pkg` 找包，读每条条目的 `entryId` 与 `active`，一个包的**全部**条目都算进取证；这次装的插件在表里一条条目都没有，取证判失败：
 
-{/* ref file="../plugins/devkit/src/dev.ts" lines="131-143" */}
+{/* ref file="../plugins/devkit/src/dev.ts" lines="132-144" */}
 
 插件管理的 `list` 每个包带 `pkg`、`entries`，每条条目带完整 `entryId` 与按 fiber 状态算的 `active`：
 
@@ -53,7 +53,7 @@ description: 连接 devkit 与插件管理：devkit 从插件管理的主入口 
 
 {/* ref file="../plugins/plugin-manager/src/index.ts" lines="51-53" */}
 
-{/* ref file="../plugins/devkit/package.json" lines="31-38" */}
+{/* ref file="../plugins/devkit/package.json" lines="30-37" */}
 
 ## 约定
 
