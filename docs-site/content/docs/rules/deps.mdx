@@ -68,7 +68,7 @@ export function apply(ctx: Context) {
 
 ## 谁来查
 
-- **`devkit.release` 的发版前检查**（插件包）：peer 里 `cordis`、内核包与插件以外的包拒；node 侧产物的包名 import 不在「node 内置模块、`electron`、peer」里拒；浏览器侧产物的包名 import 不在页面 importmap 里拒；产物里有空 import、相对 import 指向的文件不在拒；`@godcreator` 范围下的 dev 范围不包含源上 latest 拒；`files` 白名单里的产物不在拒。细节见[发正式版](/docs/devkit/release)
+- **`devkit.release` 的发版前检查**（插件包）：peer 里 `cordis`、内核包与插件以外的包拒；node 侧产物的包名 import 不在「node 内置模块、`electron`、peer」里拒；浏览器侧产物的包名 import 不在页面 importmap 里拒；产物里有空 import、相对 import 指向的文件不在拒；`files` 白名单里的产物不在拒；dev 依赖不查，写了源上没有的版本，仓根 `pnpm install` 当场失败。细节见[发正式版](/docs/devkit/release)
 - **模板带的产物测试**：构建之后随 `pnpm check` 查两侧的包名 import 与 node 侧相对 import 带 `.js`，发版之前就报出来
 - **只靠人守**：类型引用到的包列全（发版前检查不做关掉 `skipLibCheck` 的类型检查）、tsconfig 的 `paths` 与 `link:` / `file:` 依赖、`prepublishOnly` 留着、`cordis` 同时写进 peer 与 `dependencies`、清单里没有 `//` 开头的说明键
 

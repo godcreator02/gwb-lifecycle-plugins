@@ -36,7 +36,7 @@ import {
   writeRepo,
 } from '../src/scaffold.js'
 import { TEAM_REGISTRY, TEAM_SCOPE } from '../src/vocab.js'
-import { KERNEL_PACKAGE, isCaretRange, kernelRangeCovers } from '@godcreator/gwb-plugin-manager'
+import { KERNEL_PACKAGE, isCaretRange } from '@godcreator/gwb-plugin-manager'
 
 /**
  * 建仓与加插件的纯逻辑。**写磁盘的那几条真的写临时目录**——`writeRepo` 做的就是往磁盘上写文件，
@@ -413,7 +413,6 @@ describe('包内 template/：两区', () => {
       const range = kernelPeerOf(manifestText)
       expect(range).toBe(`^${KERNEL}`)
       expect(isCaretRange(range ?? '')).toBe(true)
-      expect(kernelRangeCovers(range, KERNEL)).toBe(true)
     }
   })
 

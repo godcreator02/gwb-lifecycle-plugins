@@ -3,14 +3,10 @@ import { describe, expect, it } from 'vitest'
 import { TEAM_REGISTRY } from '../src/vocab.js'
 import { KERNEL_PACKAGE } from '@godcreator/gwb-plugin-manager'
 import {
-  caretCeiling,
-  caretFloor,
-  checkTicket,
-  compareVersions,
   dirtyLines,
-  inCaret,
   kernelPeerProblems,
   isPluginManifest,
+  peerLineProblems,
   peerProblems,
   publishTargetOf,
   runRelease,
@@ -32,10 +28,6 @@ const B = '@godcreator/gwb-fake-b'
 
 const SHELL = '@godcreator/gwb-shell'
 const API = '@godcreator/gwb-plugin-api'
-const REACT = '@godcreator/gwb-shared-react'
-
-/** 运行中的内核版本号 */
-const KERNEL = '0.3.0'
 
 /** 插件包 peer 里写对了的内核包 */
 const KERNEL_PEER = { [KERNEL_PACKAGE]: '^0.3.0' }
@@ -49,10 +41,6 @@ function manifestOf(name: string, version: string, files: string[] = ['dist']): 
   return JSON.stringify({ name, version, files, exports: EXPORTS, publishConfig: PUBLISH_CONFIG })
 }
 
-function full(name: string, version: string, peerDependencies: Record<string, string>, devDependencies: Record<string, string>): string {
-  return JSON.stringify({ name, version, files: ['dist'], exports: EXPORTS, publishConfig: PUBLISH_CONFIG, peerDependencies, devDependencies })
-}
-
 /** 插件包的清单：keywords 含 gwb-plugin；gwb、其余字段给了才写 */
 function pluginManifestOf(name: string, version: string, gwb?: Record<string, unknown>, extra: Record<string, unknown> = {}): string {
   return JSON.stringify({ name, version, files: ['dist'], exports: EXPORTS, publishConfig: PUBLISH_CONFIG, keywords: ['gwb', 'gwb-plugin'], ...(gwb === undefined ? {} : { gwb }), ...extra })
@@ -63,75 +51,46 @@ const OTHER_SCOPE_PLUGIN = '@someone/gwb-x'
 
 /** peer 里哪些包的清单是插件（keywords 含 gwb-plugin）。cordis 官方插件不算 */
 const PLUGIN_PEERS: ReadonlySet<string> = new Set([SHELL, B, A, OTHER_SCOPE_PLUGIN])
-const NO_PLUGIN_PEERS: ReadonlySet<string> = new Set()
 
-const T = (peers: Record<string, string>, devs: Record<string, string>, version = '0.3.0', plugin = false) => ({
+const T = (peers: Record<string, string>, version = '0.3.0', plugin = false) => ({
   name: A,
   version,
   peers,
-  devs,
   plugin,
 })
 
-describe('checkTicket：版本号与 dev 范围', () => {
-  it('dev 钉＝latest、workspace:* 跳过——干净；peer 里的内核包不归它查', () => {
-    const got = checkTicket(T({ [KERNEL_PACKAGE]: '^0.1.0' }, { [SHELL]: '0.9.0', [B]: 'workspace:*' }), { [SHELL]: '0.9.0' }, NO_PLUGIN_PEERS)
-    expect(got).toEqual({ pkg: `${A}@0.3.0`, problems: [] })
-  })
-
-  it('dev 范围罩住 latest 即放行（精确钉与 ^ 皆可）；出范围才拒', () => {
-    const exactInRange = checkTicket(T({}, { [SHELL]: '0.8.0' }), { [SHELL]: '0.8.3' }, NO_PLUGIN_PEERS)
-    expect(exactInRange.problems).toEqual([])
-    const caretDev = checkTicket(T({}, { [SHELL]: '^0.8.0' }), { [SHELL]: '0.8.3' }, NO_PLUGIN_PEERS)
-    expect(caretDev.problems).toEqual([])
-    const outRange = checkTicket(T({}, { [SHELL]: '0.8.0' }), { [SHELL]: '0.9.0' }, NO_PLUGIN_PEERS)
-    expect(outRange.problems[0]).toContain('出范围')
-    expect(outRange.problems[0]).toContain('先适配代码')
-  })
-
-  it('dev 比 latest 新、问不出 latest、dev 写法认不出：都拒', () => {
-    const got = checkTicket(T({}, { [SHELL]: '0.9.1', [API]: '0.1.2', [REACT]: '~0.0.4' }), { [SHELL]: '0.9.0', [REACT]: '0.0.4' }, NO_PLUGIN_PEERS)
-    expect(got.problems).toEqual([
-      expect.stringContaining('没发的号'),
-      expect.stringContaining('问不出'),
-      expect.stringContaining('要写 ^<验过的号>'),
-    ])
-  })
-
-})
-
-describe('checkTicket：peer 里的插件和源上 latest 在同一条线', () => {
-  const P = (peers: Record<string, string>) => T(peers, {}, '0.3.0', true)
+describe('peerLineProblems：peer 里的插件和源上 latest 在同一条线', () => {
+  const P = (peers: Record<string, string>) => T(peers, '0.3.0', true)
 
   it('0.x 只看 x：同一个次版本号就放行，下限比 latest 高、低都不管', () => {
-    expect(checkTicket(P({ [SHELL]: '^0.13.3' }), { [SHELL]: '0.13.9' }, PLUGIN_PEERS).problems).toEqual([])
-    expect(checkTicket(P({ [SHELL]: '^0.13.9' }), { [SHELL]: '0.13.3' }, PLUGIN_PEERS).problems).toEqual([])
+    expect(peerLineProblems(P({ [SHELL]: '^0.13.3' }), { [SHELL]: '0.13.9' }, PLUGIN_PEERS)).toEqual([])
+    expect(peerLineProblems(P({ [SHELL]: '^0.13.9' }), { [SHELL]: '0.13.3' }, PLUGIN_PEERS)).toEqual([])
   })
 
-  it('0.x 的 x 不同：拒，说先适配再抬到哪', () => {
-    const got = checkTicket(P({ [SHELL]: '^0.13.3' }), { [SHELL]: '0.14.0' }, PLUGIN_PEERS)
-    expect(got.problems).toEqual([expect.stringContaining('不在同一条线')])
-    expect(got.problems[0]).toContain('"^0.14.0"')
+  it('0.x 的 x 不同：拒，说先适配再改到哪', () => {
+    const got = peerLineProblems(P({ [SHELL]: '^0.13.3' }), { [SHELL]: '0.14.0' }, PLUGIN_PEERS)
+    expect(got).toEqual([expect.stringContaining('不在同一条线')])
+    expect(got[0]).toContain('"^0.14.0"')
   })
 
   it('≥1 只看主版本号', () => {
-    expect(checkTicket(P({ [SHELL]: '^1.2.0' }), { [SHELL]: '1.9.0' }, PLUGIN_PEERS).problems).toEqual([])
-    expect(checkTicket(P({ [SHELL]: '^1.2.0' }), { [SHELL]: '2.0.0' }, PLUGIN_PEERS).problems).toHaveLength(1)
+    expect(peerLineProblems(P({ [SHELL]: '^1.2.0' }), { [SHELL]: '1.9.0' }, PLUGIN_PEERS)).toEqual([])
+    expect(peerLineProblems(P({ [SHELL]: '^1.2.0' }), { [SHELL]: '2.0.0' }, PLUGIN_PEERS)).toHaveLength(1)
   })
 
   it('别的范围下的插件同样比：不在同一条线就拒', () => {
-    const got = checkTicket(P({ [OTHER_SCOPE_PLUGIN]: '^0.2.0' }), { [OTHER_SCOPE_PLUGIN]: '0.3.1' }, PLUGIN_PEERS)
-    expect(got.problems).toEqual([expect.stringContaining(`peer ${OTHER_SCOPE_PLUGIN} 是 "^0.2.0",源上 latest 0.3.1(不在同一条线`)])
-    expect(checkTicket(P({ [OTHER_SCOPE_PLUGIN]: '^0.3.0' }), { [OTHER_SCOPE_PLUGIN]: '0.3.1' }, PLUGIN_PEERS).problems).toEqual([])
+    const got = peerLineProblems(P({ [OTHER_SCOPE_PLUGIN]: '^0.2.0' }), { [OTHER_SCOPE_PLUGIN]: '0.3.1' }, PLUGIN_PEERS)
+    expect(got).toEqual([expect.stringContaining(`peer ${OTHER_SCOPE_PLUGIN} 是 "^0.2.0",源上 latest 0.3.1(不在同一条线`)])
+    expect(peerLineProblems(P({ [OTHER_SCOPE_PLUGIN]: '^0.3.0' }), { [OTHER_SCOPE_PLUGIN]: '0.3.1' }, PLUGIN_PEERS)).toEqual([])
   })
 
   it('不是 ^x.y.z、问不出 latest：拒；内核包、workspace:、不是 gwb 插件的 peer（cordis 官方插件）不在这里查', () => {
-    const got = checkTicket(P({ [SHELL]: '>=0.13.0', [B]: '^0.2.0', [KERNEL_PACKAGE]: '^0.1.0', [A]: 'workspace:*', '@cordisjs/plugin-timer': '^1.1.3' }), {}, PLUGIN_PEERS)
-    expect(got.problems).toEqual([expect.stringContaining('peer 只许写 ^x.y.z'), expect.stringContaining('问不出')])
+    const got = peerLineProblems(P({ [SHELL]: '>=0.13.0', [B]: '^0.2.0', [KERNEL_PACKAGE]: '^0.1.0', [A]: 'workspace:*', '@cordisjs/plugin-timer': '^1.1.3' }), {}, PLUGIN_PEERS)
+    expect(got).toEqual([expect.stringContaining('peer 只许写 ^x.y.z'), expect.stringContaining('问不出')])
   })
 
   it('不是插件包：peer 不查', () => {
-    expect(checkTicket(T({ [SHELL]: '^0.13.3' }, {}), { [SHELL]: '0.14.0' }, PLUGIN_PEERS).problems).toEqual([])
+    expect(peerLineProblems(T({ [SHELL]: '^0.13.3' }), { [SHELL]: '0.14.0' }, PLUGIN_PEERS)).toEqual([])
   })
 })
 
@@ -152,43 +111,6 @@ describe('sameReleaseLine 与 isPluginManifest', () => {
   })
 })
 
-describe('compareVersions：逐段数字比', () => {
-  it('0.10.0 大于 0.9.9——字符串比会翻车的那种', () => {
-    expect(compareVersions('0.10.0', '0.9.9')).toBe(1)
-    expect(compareVersions('0.9.9', '0.10.0')).toBe(-1)
-  })
-  it('认不出的号直接抛错，不补零、不当 0', () => {
-    expect(() => compareVersions('0.1', '0.1.0')).toThrow(/"0.1" 不是版本号/)
-    expect(() => compareVersions('0.1.0', 'latest')).toThrow(/"latest" 不是版本号/)
-  })
-  it('同三段时带预发布段的小：0.2.1-dev.x < 0.2.1，但大于 0.2.0', () => {
-    expect(compareVersions('0.2.1-dev.202609151533', '0.2.1')).toBe(-1)
-    expect(compareVersions('0.2.1-dev.202609151533', '0.2.0')).toBe(1)
-  })
-  it('两边三段相同、都带预发布段：直接抛——dev 的下限只收正式号，发版前检查碰不到这种比较', () => {
-    expect(() => compareVersions('0.7.2-dev.1', '0.7.2-dev.2')).toThrow(/预发布段/)
-  })
-})
-
-describe('caret 语义', () => {
-  it('上限：第一个非零段进一', () => {
-    expect(caretCeiling('1.2.3')).toBe('2.0.0')
-    expect(caretCeiling('0.8.3')).toBe('0.9.0')
-    expect(caretCeiling('0.0.4')).toBe('0.0.5')
-  })
-  it('范围内外；预发布号一概不算在内', () => {
-    expect(inCaret('0.8.0', '0.8.9')).toBe(true)
-    expect(inCaret('0.8.0', '0.9.0')).toBe(false)
-    expect(inCaret('0.8.0', '0.7.9')).toBe(false)
-    expect(inCaret('0.8.0', '0.8.1-dev.202609181200')).toBe(false)
-  })
-  it('只认 ^x.y.z', () => {
-    expect(caretFloor('^0.9.0')).toBe('0.9.0')
-    expect(caretFloor('>=0.9.0')).toBeUndefined()
-    expect(caretFloor('^0.9')).toBeUndefined()
-  })
-})
-
 describe('peerProblems：插件包的 peer 只写 cordis、内核包与别的插件', () => {
   const manifests: Record<string, unknown> = {
     [SHELL]: { keywords: ['gwb', 'gwb-plugin'] },
@@ -199,16 +121,16 @@ describe('peerProblems：插件包的 peer 只写 cordis、内核包与别的插
   const peerManifestOf = (pkg: string): unknown => manifests[pkg]
 
   it('peer 只有 cordis 与内核包：干净', () => {
-    expect(peerProblems(T({ cordis: '^4.0.0-rc.9', ...KERNEL_PEER }, {}, '0.3.0', true), peerManifestOf)).toEqual([])
+    expect(peerProblems(T({ cordis: '^4.0.0-rc.9', ...KERNEL_PEER }, '0.3.0', true), peerManifestOf)).toEqual([])
   })
 
   it('peer 写别的插件（gwb 插件与 cordis 官方插件）：放行', () => {
-    const got = peerProblems(T({ [SHELL]: '^0.13.7', '@cordisjs/plugin-timer': '^1.1.3', ...KERNEL_PEER }, {}, '0.3.0', true), peerManifestOf)
+    const got = peerProblems(T({ [SHELL]: '^0.13.7', '@cordisjs/plugin-timer': '^1.1.3', ...KERNEL_PEER }, '0.3.0', true), peerManifestOf)
     expect(got).toEqual([])
   })
 
   it('peer 写了不是插件的包：拒，说库打包进产物写 dev；清单读不到：拒，说先 pnpm install', () => {
-    const got = peerProblems(T({ [API]: '^0.2.7', react: '^19.0.0', ghost: '^1.0.0', ...KERNEL_PEER }, {}, '0.3.0', true), peerManifestOf)
+    const got = peerProblems(T({ [API]: '^0.2.7', react: '^19.0.0', ghost: '^1.0.0', ...KERNEL_PEER }, '0.3.0', true), peerManifestOf)
     expect(got).toEqual([
       expect.stringContaining(`peer 写了 ${API},它不是插件`),
       expect.stringContaining('peer 写了 react,它不是插件'),
@@ -247,46 +169,28 @@ describe('ticketManifestOf：是不是插件、全部 peer', () => {
 })
 
 describe('kernelPeerProblems：插件包 peer 里的内核包', () => {
-  const P = (peers: Record<string, string>, plugin = true) => T(peers, {}, '0.3.0', plugin)
+  const P = (peers: Record<string, string>, plugin = true) => T(peers, '0.3.0', plugin)
 
-  it('写了 ^x.y.z 且包含运行中的内核：放行（0.x 次版本号相同，≥1 主版本号相同，都不低于下限）', () => {
-    expect(kernelPeerProblems(P({ [KERNEL_PACKAGE]: '^0.3.0' }), '0.3.4')).toEqual([])
-    expect(kernelPeerProblems(P({ [KERNEL_PACKAGE]: '^1.0.0' }), '1.9.4')).toEqual([])
-    expect(kernelPeerProblems(P({ [KERNEL_PACKAGE]: '^0.3.0' }), '0.3.1-dev.202609241500')).toEqual([])
+  it('写了 ^x.y.z 就放行：不对照调用 devkit.release 的那个 home 里的内核', () => {
+    for (const range of ['^0.3.0', '^0.2.7', '^1.9.4']) expect(kernelPeerProblems(P({ [KERNEL_PACKAGE]: range })), range).toEqual([])
   })
 
   it('不是插件包：不查', () => {
-    expect(kernelPeerProblems(P({}, false), KERNEL)).toEqual([])
+    expect(kernelPeerProblems(P({}, false))).toEqual([])
   })
 
   it('没写：拒，说在哪儿写、写什么', () => {
-    const got = kernelPeerProblems(P({ cordis: '^4.0.0-rc.9' }), KERNEL)
+    const got = kernelPeerProblems(P({ cordis: '^4.0.0-rc.9' }))
     expect(got).toEqual([expect.stringContaining(`peer 里没写内核包 ${KERNEL_PACKAGE}`)])
-    expect(got[0]).toContain(`"${KERNEL_PACKAGE}": "^0.3.0"`)
-  })
-
-  it('运行中的是开发版内核：建议的范围只取 x.y.z 三段', () => {
-    expect(kernelPeerProblems(P({}), '0.3.1-dev.202609241500')[0]).toContain(`"${KERNEL_PACKAGE}": "^0.3.1"`)
+    expect(got[0]).toContain(`"${KERNEL_PACKAGE}": "^<验证时那个内核的版本号>"`)
   })
 
   it('写法不是 ^x.y.z：拒（精确号、>=、~、少一段、带预发布段都算）', () => {
     for (const bad of ['0.3.0', '>=0.3.0', '~0.3.0', '^0.3', '^0.3.0-dev.1']) {
-      const got = kernelPeerProblems(P({ [KERNEL_PACKAGE]: bad }), KERNEL)
+      const got = kernelPeerProblems(P({ [KERNEL_PACKAGE]: bad }))
       expect(got, bad).toEqual([expect.stringContaining('不是 ^x.y.z')])
-      expect(got[0]).toContain('"^0.3.0"')
+      expect(got[0]).toContain('"^<验证时那个内核的版本号>"')
     }
-  })
-
-  it('不包含运行中的内核：拒，说在运行中的内核上验过之后改成什么', () => {
-    const older = kernelPeerProblems(P({ [KERNEL_PACKAGE]: '^0.2.7' }), KERNEL)
-    expect(older).toEqual([expect.stringContaining('不包含运行中的内核 0.3.0')])
-    expect(older[0]).toContain('改成 "^0.3.0"')
-    expect(kernelPeerProblems(P({ [KERNEL_PACKAGE]: '^0.3.2' }), KERNEL)).toHaveLength(1)
-    expect(kernelPeerProblems(P({ [KERNEL_PACKAGE]: '^1.9.4' }), '2.0.0')).toHaveLength(1)
-  })
-
-  it('运行中的内核版本号不合法：直接抛错', () => {
-    expect(() => kernelPeerProblems(P(KERNEL_PEER), 'dev')).toThrow(/内核版本号不是合法的版本号/)
   })
 })
 
@@ -359,7 +263,7 @@ describe('porcelain 认脏', () => {
 describe('发正式版', () => {
   it('守卫在最前、构建次之、按给定顺序发、范围是 ^新号', async () => {
     const deps = fake()
-    const out = await runRelease({ repoDir: REPO, runningKernel: KERNEL, packages: ['a', 'b'] }, deps)
+    const out = await runRelease({ repoDir: REPO, packages: ['a', 'b'] }, deps)
     expect(out.ok).toBe(true)
     if (!out.ok) return
     expect(deps.calls[0]).toContain('git status')
@@ -377,14 +281,14 @@ describe('发正式版', () => {
     const deps = fake({
       latest: { [SHELL]: '0.9.0', [API]: '0.2.0' },
       files: {
-        [path.resolve(REPO, 'a/package.json')]: full(A, '0.1.0', { [SHELL]: '^0.8.0' }, { [SHELL]: '0.8.0' }),
+        [path.resolve(REPO, 'a/package.json')]: pluginManifestOf(A, '0.1.0', undefined, { devDependencies: { [SHELL]: '0.8.0' } }),
         [path.resolve(REPO, 'b/package.json')]: pluginManifestOf(B, '0.2.0', undefined, {
           peerDependencies: { [API]: '^0.1.1', ...KERNEL_PEER },
           devDependencies: { [API]: '0.1.1' },
         }),
       },
     })
-    const out = await runRelease({ repoDir: REPO, runningKernel: KERNEL, packages: ['a', 'b'] }, deps)
+    const out = await runRelease({ repoDir: REPO, packages: ['a', 'b'] }, deps)
     expect(out.ok).toBe(false)
     if (out.ok) return
     expect(deps.calls.some((one) => one.includes('pnpm build'))).toBe(true)
@@ -392,12 +296,28 @@ describe('发正式版', () => {
     expect(out.error).toContain('发版前检查没过')
     expect(out.error).toContain(`${A}@0.1.0`)
     expect(out.error).toContain(`${B}@0.2.0`)
-    expect(out.error).toContain('出范围')
+    expect(out.error).toContain(`peer 里没写内核包 ${KERNEL_PACKAGE}`)
     expect(out.error).toContain(`peer 写了 ${API}`)
-    // a 不是插件包：peer 不查；a 一条（dev 出范围），b 两条（dev 出范围、peer 的清单读不到）。
+    // a 一条（peer 里没写内核包），b 一条（peer 的清单读不到）；dev 落后于源上 latest 不算问题。
     // 清单读不到就认不出它是不是插件，不拿它和 latest 比
     expect(out.error).not.toContain(`peer ${API} 是 "^0.1.1",源上 latest`)
-    expect(out.error).toContain('2 个包 3 条')
+    expect(out.error).not.toContain(`dev ${SHELL}`)
+    expect(out.error).toContain('2 个包 2 条')
+  })
+
+  it('dev 依赖不查：落后于源上 latest、出了范围、写法不是 ^ 都照常发，也不去源上问它的 latest', async () => {
+    const deps = fake({
+      latest: { [SHELL]: '0.9.0' },
+      files: {
+        [path.resolve(REPO, 'a/package.json')]: pluginManifestOf(A, '0.1.0', undefined, {
+          peerDependencies: KERNEL_PEER,
+          devDependencies: { [SHELL]: '0.8.0', [API]: '~0.0.4', [B]: '^9.0.0' },
+        }),
+      },
+    })
+    const out = await runRelease({ repoDir: REPO, packages: ['a'] }, deps)
+    expect(out.ok).toBe(true)
+    expect(deps.calls.some((one) => one.startsWith('latest '))).toBe(false)
   })
 
   it('插件包的产物有不在名单上的包名 import、有空 import：拒', async () => {
@@ -407,7 +327,7 @@ describe('发正式版', () => {
         [path.resolve(REPO, 'a/dist/index.js')]: "import YAML from 'yaml';\nimport {} from '@godcreator/gwb-shell';\n",
       },
     })
-    const out = await runRelease({ repoDir: REPO, runningKernel: KERNEL, packages: ['a'] }, deps)
+    const out = await runRelease({ repoDir: REPO, packages: ['a'] }, deps)
     expect(out.ok).toBe(false)
     if (out.ok) return
     expect(out.error).toContain("import 了 'yaml'")
@@ -419,24 +339,24 @@ describe('发正式版', () => {
     const deps = fake({
       files: {
         [path.resolve(REPO, 'a/package.json')]: pluginManifestOf(A, '0.1.0'),
-        [path.resolve(REPO, 'b/package.json')]: pluginManifestOf(B, '0.2.0', undefined, { peerDependencies: { [KERNEL_PACKAGE]: '^0.2.7' } }),
+        [path.resolve(REPO, 'b/package.json')]: pluginManifestOf(B, '0.2.0', undefined, { peerDependencies: { [KERNEL_PACKAGE]: '>=0.2.7' } }),
       },
     })
-    const out = await runRelease({ repoDir: REPO, runningKernel: KERNEL, packages: ['a', 'b'] }, deps)
+    const out = await runRelease({ repoDir: REPO, packages: ['a', 'b'] }, deps)
     expect(out.ok).toBe(false)
     if (out.ok) return
     expect(deps.calls.some((one) => one.includes('pnpm build'))).toBe(true)
     expect(deps.calls.some((one) => one.startsWith('publish'))).toBe(false)
     expect(out.error).toContain('2 个包 2 条')
     expect(out.error).toContain(`${A}@0.1.0:\n  - peer 里没写内核包 ${KERNEL_PACKAGE}`)
-    expect(out.error).toContain(`${B}@0.2.0:\n  - peer 里内核包 ${KERNEL_PACKAGE} 写的是 "^0.2.7"`)
+    expect(out.error).toContain(`${B}@0.2.0:\n  - peer 里内核包 ${KERNEL_PACKAGE} 写的是 ">=0.2.7"`)
   })
 
   it('插件包 peer 里的插件和源上 latest 不在同一条线：构建之后、发之前拒，一个都不发；同一条线照常发，latest 从源上问', async () => {
     const shellManifest = { [path.resolve(REPO, 'a/node_modules/@godcreator/gwb-shell/package.json')]: JSON.stringify({ name: SHELL, keywords: ['gwb', 'gwb-plugin'] }) }
     const pluginA = pluginManifestOf(A, '0.1.0', undefined, { peerDependencies: { ...KERNEL_PEER, [SHELL]: '^0.13.7' } })
     const wrong = fake({ latest: { [SHELL]: '0.14.0' }, files: { [path.resolve(REPO, 'a/package.json')]: pluginA, ...shellManifest } })
-    const refused = await runRelease({ repoDir: REPO, runningKernel: KERNEL, packages: ['a'] }, wrong)
+    const refused = await runRelease({ repoDir: REPO, packages: ['a'] }, wrong)
     expect(refused.ok).toBe(false)
     if (refused.ok) return
     expect(wrong.calls).toContain(`latest ${SHELL}`)
@@ -444,20 +364,20 @@ describe('发正式版', () => {
     expect(refused.error).toContain(`${A}@0.1.0:\n  - peer ${SHELL} 是 "^0.13.7",源上 latest 0.14.0(不在同一条线`)
 
     const right = fake({ latest: { [SHELL]: '0.13.9' }, files: { [path.resolve(REPO, 'a/package.json')]: pluginA, ...shellManifest } })
-    const shipped = await runRelease({ repoDir: REPO, runningKernel: KERNEL, packages: ['a'] }, right)
+    const shipped = await runRelease({ repoDir: REPO, packages: ['a'] }, right)
     expect(shipped.ok).toBe(true)
   })
 
-  it('插件包 peer 里的内核包范围包含运行中的内核：照常发', async () => {
-    const deps = fake({ files: { [path.resolve(REPO, 'a/package.json')]: pluginManifestOf(A, '0.1.0', undefined, { peerDependencies: KERNEL_PEER }) } })
-    const out = await runRelease({ repoDir: REPO, runningKernel: '0.3.2', packages: ['a'] }, deps)
+  it('插件包 peer 里的内核包写成 ^x.y.z 就照常发：范围不对照调用它的那个 home 里的内核', async () => {
+    const deps = fake({ files: { [path.resolve(REPO, 'a/package.json')]: pluginManifestOf(A, '0.1.0', undefined, { peerDependencies: { [KERNEL_PACKAGE]: '^0.1.0' } }) } })
+    const out = await runRelease({ repoDir: REPO, packages: ['a'] }, deps)
     expect(out.ok).toBe(true)
     expect(deps.calls).toContain(`publish 0.1.0 @${path.resolve(REPO, 'a')}`)
   })
 
   it('git 树不干净就拒，构建都不跑', async () => {
     const deps = fake({ dirty: [' M src/x.ts', '?? out/'] })
-    const out = await runRelease({ repoDir: REPO, runningKernel: KERNEL, packages: ['a'] }, deps)
+    const out = await runRelease({ repoDir: REPO, packages: ['a'] }, deps)
     expect(out).toMatchObject({ ok: false })
     if (!out.ok) expect(out.error).toContain('M src/x.ts')
     expect(deps.calls.some((one) => one.includes('pnpm build'))).toBe(false)
@@ -466,21 +386,21 @@ describe('发正式版', () => {
 
   it('问不出 git 状态也拒——正式版只从 git 仓里发', async () => {
     const deps = fake({ gitError: true })
-    const out = await runRelease({ repoDir: REPO, runningKernel: KERNEL, packages: ['a'] }, deps)
+    const out = await runRelease({ repoDir: REPO, packages: ['a'] }, deps)
     expect(out).toMatchObject({ ok: false })
     if (!out.ok) expect(out.error).toContain('git')
   })
 
   it('包目录下没有能读的 package.json 时说清「包目录给的是相对仓根的路径」', async () => {
     const deps = fake()
-    const out = await runRelease({ repoDir: REPO, runningKernel: KERNEL, packages: ['nope'] }, deps)
+    const out = await runRelease({ repoDir: REPO, packages: ['nope'] }, deps)
     expect(out).toMatchObject({ ok: false })
     if (!out.ok) expect(out.error).toContain('相对仓根')
   })
 
   it('声明的号已经在源上就拒，话里带着「先抬号」', async () => {
     const deps = fake({ published: [`${A}@0.1.0`] })
-    const out = await runRelease({ repoDir: REPO, runningKernel: KERNEL, packages: ['a'] }, deps)
+    const out = await runRelease({ repoDir: REPO, packages: ['a'] }, deps)
     expect(out).toMatchObject({ ok: false })
     if (!out.ok) expect(out.error).toContain('先抬')
     expect(deps.calls.some((one) => one.startsWith('publish'))).toBe(false)
@@ -488,21 +408,21 @@ describe('发正式版', () => {
 
   it('产物不全都拦在发之前', async () => {
     const deps = fake({ files: { [path.resolve(REPO, 'a/package.json')]: manifestOf(A, '0.1.0', ['nope']) } })
-    const out = await runRelease({ repoDir: REPO, runningKernel: KERNEL, packages: ['a'] }, deps)
+    const out = await runRelease({ repoDir: REPO, packages: ['a'] }, deps)
     expect(out).toMatchObject({ ok: false })
     if (!out.ok) expect(out.error).toContain('nope')
   })
 
   it('构建没成就一个都不发', async () => {
     const deps = fake({ failRun: 'build' })
-    const out = await runRelease({ repoDir: REPO, runningKernel: KERNEL, packages: ['a'] }, deps)
+    const out = await runRelease({ repoDir: REPO, packages: ['a'] }, deps)
     expect(out).toMatchObject({ ok: false })
     expect(deps.calls.some((one) => one.startsWith('publish'))).toBe(false)
   })
 
   it('第二个包发失败：回执里带上已经发出去的那一个', async () => {
     const deps = fake({ failPublish: path.normalize('/b') })
-    const out = await runRelease({ repoDir: REPO, runningKernel: KERNEL, packages: ['a', 'b'] }, deps)
+    const out = await runRelease({ repoDir: REPO, packages: ['a', 'b'] }, deps)
     expect(out).toMatchObject({ ok: false })
     expect(out.ok === false && out.data?.shipped).toHaveLength(1)
   })
@@ -546,7 +466,7 @@ describe('发布目标（GWB-17）', () => {
         [path.resolve(REPO, 'a/package.json')]: JSON.stringify({ name: A, version: '0.1.0', files: ['dist'], exports: EXPORTS, publishConfig: { registry: LOCAL } }),
       },
     })
-    const out = await runRelease({ repoDir: REPO, runningKernel: KERNEL, packages: ['a', 'b'] }, deps)
+    const out = await runRelease({ repoDir: REPO, packages: ['a', 'b'] }, deps)
     expect(out.ok).toBe(true)
     expect(deps.calls).toContain(`已发过? ${A}@0.1.0 → ${LOCAL}`)
     expect(deps.calls).toContain(`已发过? ${B}@0.2.0 → ${TEAM_REGISTRY}`)
@@ -560,7 +480,7 @@ describe('发布目标（GWB-17）', () => {
         [path.resolve(REPO, 'b/package.json')]: JSON.stringify({ name: B, version: '0.2.0', files: ['dist'], exports: EXPORTS }),
       },
     })
-    const out = await runRelease({ repoDir: REPO, runningKernel: KERNEL, packages: ['a', 'b'] }, deps)
+    const out = await runRelease({ repoDir: REPO, packages: ['a', 'b'] }, deps)
     expect(out.ok).toBe(false)
     if (!out.ok) {
       expect(out.error).toContain(B)
@@ -575,7 +495,7 @@ describe('发布目标（GWB-17）', () => {
         [path.resolve(REPO, 'b/package.json')]: JSON.stringify({ name: B, version: '0.2.0', files: ['dist'], exports: EXPORTS, publishConfig: { registry: 'localhost:9999' } }),
       },
     })
-    const out = await runRelease({ repoDir: REPO, runningKernel: KERNEL, packages: ['a', 'b'] }, deps)
+    const out = await runRelease({ repoDir: REPO, packages: ['a', 'b'] }, deps)
     expect(out.ok).toBe(false)
     if (!out.ok) {
       expect(out.error).toContain(B)
@@ -600,11 +520,11 @@ describe('发布目标（GWB-17）', () => {
         ...nodeModules('@cordisjs/plugin-timer', ['cordis', 'plugin']),
       },
     })
-    const out = await runRelease({ repoDir: REPO, runningKernel: KERNEL, packages: ['a'] }, deps)
+    const out = await runRelease({ repoDir: REPO, packages: ['a'] }, deps)
     expect(out.ok).toBe(false)
     if (!out.ok) expect(out.error).toContain(`peer ${OTHER_SCOPE_PLUGIN} 是 "^0.4.0",源上 latest 0.5.0(不在同一条线`)
     const asked = deps.calls.filter((one) => one.startsWith('latest ')).sort()
-    // 别的范围下的库（dev）不查 latest：外部开发者自己的库不强求
+    // dev 一律不查 latest：只要装得上，落后于源上 latest 不影响运行
     expect(asked).toEqual([`latest ${OTHER_SCOPE_PLUGIN}`, `latest ${SHELL}`].sort())
   })
 })

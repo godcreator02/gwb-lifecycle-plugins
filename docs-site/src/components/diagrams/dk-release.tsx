@@ -17,8 +17,8 @@ const ITEMS: ChainItem[] = [
   { lines: ['6 按顺序发到发布目标', '临时目录里组装'] },
 ]
 
-const EVERY_PACKAGE = ['dev 范围含源上的 latest', '产物里没有空 import', '相对 import 的文件都在']
-const PLUGIN_ONLY = ['peer 只许三类包', 'peer 插件与 latest 同线', '包名 import 的两份名单', '内核包范围含运行中内核']
+const EVERY_PACKAGE = ['产物里没有空 import', '相对 import 的文件都在']
+const PLUGIN_ONLY = ['peer 只许三类包', 'peer 插件与 latest 同线', '包名 import 的两份名单', '内核包写成 ^x.y.z']
 
 const STEPS: { title: string; detail: string; active: number; refused?: boolean }[] = [
   { title: '全貌', detail: '六步依次做，前五步任何一处没过，一个包都不发。它只碰各包的发布目标（package.json 的 publishConfig.registry，没写就拒）、不碰任何 home，不改仓里任何文件，从哪个 home 调用都可以。', active: -1 },
@@ -28,7 +28,7 @@ const STEPS: { title: string; detail: string; active: number; refused?: boolean 
   { title: '第 4 步：版本号没发过', detail: '同一个版本号永不重发：包的发布目标上已经有这个版本号就拒；publishConfig.registry 写了但不是 http(s) 地址也拒。要发新的一版，先升 package.json 的版本号、提交，再调用。', active: 3 },
   {
     title: '第 5 步：发版前检查',
-    detail: '要发的包全部一起查、问题一次列全。每个包查右边上半的三项（dev 范围一项只看 @godcreator 范围下的包；peer 插件同线那项不分范围）；keywords 含 gwb-plugin 的插件包另查下半的四项。',
+    detail: '要发的包全部一起查、问题一次列全。每个包查右边上半的两项，dev 依赖不查；keywords 含 gwb-plugin 的插件包另查下半的四项（peer 插件同线那项不分包名范围）。',
     active: 4,
   },
   {

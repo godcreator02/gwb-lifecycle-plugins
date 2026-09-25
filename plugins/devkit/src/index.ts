@@ -111,8 +111,8 @@ const RELEASE_USAGE = [
   '**版本号在仓里升**：发的是 package.json 里写的版本号，同一个版本号已在源上就拒——要发新的一版，先升版本号、提交，再调用',
   '**仓根 git 工作区不干净就拒**：正式版只从提交过的状态发',
   `**发到包自己的 publishConfig.registry**：没写这个字段、或写的不是 http(s) 地址就拒（团队源是 ${TEAM_REGISTRY}）。「同号已在源上」问的也是这个源`,
-  `**发版前检查没过就拒**（构建之后，所有包一次列全）：${TEAM_SCOPE} 范围下的 dev 范围包含源上 dist-tags.latest；产物里没有空 import（import { type X } 留下的）`,
-  '**插件包另加**（keywords 含 gwb-plugin）：peer 里只许 cordis、内核包 @godcreator/gwb-kernel-desktop 与别的插件（包目录 node_modules 里它的清单 keywords 含 gwb-plugin，或是 cordis 官方插件），peer 里每个 gwb 插件（不分范围）和源上 dist-tags.latest 在同一条线（0.x 只看 x，≥1 只看主版本号；问哪个源由 ~/.npmrc 的范围行决定）；node 侧产物（exports["."] 入口顺着相对 import 走到的文件）的包名 import 只有 node 内置模块、electron 与 peer 里写了的包；浏览器侧产物（dist/client.js）只 import 页面 importmap 里的名字——内核包页面入口 dist/index.html 里那段 importmap 的键（react 的四个），从包目录 node_modules 里装好的内核包读；peer 里写了内核包、写法是 ^x.y.z、范围包含运行中的内核（主版本号为 0 时次版本号相同，≥1 时主版本号相同，并且不低于下限）',
+  '**发版前检查没过就拒**（构建之后，所有包一次列全）：产物里没有空 import（import { type X } 留下的）、相对 import 指向的文件都在；dev 依赖不查',
+  '**插件包另加**（keywords 含 gwb-plugin）：peer 里只许 cordis、内核包 @godcreator/gwb-kernel-desktop 与别的插件（包目录 node_modules 里它的清单 keywords 含 gwb-plugin，或是 cordis 官方插件），peer 里每个 gwb 插件（不分范围）和源上 dist-tags.latest 在同一条线（0.x 只看 x，≥1 只看主版本号；问哪个源由 ~/.npmrc 的范围行决定）；node 侧产物（exports["."] 入口顺着相对 import 走到的文件）的包名 import 只有 node 内置模块、electron 与 peer 里写了的包；浏览器侧产物（dist/client.js）只 import 页面 importmap 里的名字——内核包页面入口 dist/index.html 里那段 importmap 的键（react 的四个），从包目录 node_modules 里装好的内核包读；peer 里写了内核包、写法是 ^x.y.z（范围包不包含哪个内核不查，验证之后由人改）',
   '**这条命令只发到源、不碰任何 home**，从哪个 home 调用都行；升级 default 是下一步的事，用 plugin-manager.update {"all":true}',
   '例：{"dir":"D:\\\\unitfolders\\\\evew5-gwbapps\\\\gwb-block-note","packages":["packages/model","packages/engine","packages/client","plugins/gwb-bn-core","plugins/gwb-bn-comment"]}',
 ].join('\n')
@@ -411,14 +411,14 @@ function registerDevCommand({ ctx, log, commands, homeDeps }: Wiring): void {
 }
 
 /** 只发到源、不碰任何 home，从哪个 home 调都行；升级 default 不接在后面：先在隔离 home 验过，再由插件管理自己升级 */
-function registerReleaseCommand({ ctx, log, commands }: Wiring): void {
+function registerReleaseCommand({ log, commands }: Wiring): void {
   commands.register(
     {
       name: 'devkit.release',
       plugin: '@godcreator/gwb-devkit',
       description: '发正式版到包的 publishConfig.registry（git 工作区干净→构建→验产物→发版前检查→在临时目录里组装并发布）',
       usage:
-        '{dir 必给（仓根绝对路径）, packages 必给（包目录的非空数组，相对仓根，按依赖顺序）}。一条走完：仓根 git 工作区干净（有未提交改动就拒，一个都不发）→ 仓根 pnpm build → 照 files 白名单验产物 → 同号已在发布目标上就拒（发布目标是包自己 package.json 的 publishConfig.registry；没写、或写的不是 http(s) 地址就拒）→ 发版前检查（每个要发的包：@godcreator 范围下的 dev 范围包含源上 dist-tags.latest，workspace: 跳过，范围内落后放行；产物里没有空 import、相对 import 指向的文件都在。keywords 含 gwb-plugin 的插件包另加：peer 里只许 cordis、内核包 @godcreator/gwb-kernel-desktop 与别的插件（包目录 node_modules 里它的清单 keywords 含 gwb-plugin，或是 cordis 官方插件），peer 里每个 gwb 插件（不分范围）和源上 dist-tags.latest 在同一条线（0.x 只看 x，≥1 只看主版本号；问哪个源由 ~/.npmrc 的范围行决定）；node 侧产物——exports["."] 的运行时入口（没有 exports 时是 main）顺着相对 import 走到的文件——的包名 import 只有 node 内置模块、electron 与 peer 里写了的包；浏览器侧产物——dist/client.js，同样顺着相对 import 走——只 import 页面 importmap 里的名字，也就是内核包页面入口 dist/index.html 里那段 importmap 的键，从包目录 node_modules 里装好的内核包现读；peer 里写了内核包、写法是 ^x.y.z、范围包含运行中的内核 gwbKernel.version——主版本号为 0 时次版本号相同，≥1 时主版本号相同，并且不低于下限，预发布段不看。没过就一个都不发，回执按包一次列全）→ 在临时目录里组装发布内容并发到发布目标（不改仓里任何文件；tag latest；发布内容清单的 publishConfig.registry 写发布目标，命令行不带 --registry；workspace: 依赖写成 ^<工作区里那个号>，这一次同发的写成 ^新号）→ 按给定顺序发完。**版本号在仓里升**（改 package.json 并提交），同一个版本号永不重发。只发到源、不碰任何 home；升级 default 用 plugin-manager.update {"all":true}',
+        '{dir 必给（仓根绝对路径）, packages 必给（包目录的非空数组，相对仓根，按依赖顺序）}。一条走完：仓根 git 工作区干净（有未提交改动就拒，一个都不发）→ 仓根 pnpm build → 照 files 白名单验产物 → 同号已在发布目标上就拒（发布目标是包自己 package.json 的 publishConfig.registry；没写、或写的不是 http(s) 地址就拒）→ 发版前检查（每个要发的包：产物里没有空 import、相对 import 指向的文件都在；dev 依赖不查。keywords 含 gwb-plugin 的插件包另加：peer 里只许 cordis、内核包 @godcreator/gwb-kernel-desktop 与别的插件（包目录 node_modules 里它的清单 keywords 含 gwb-plugin，或是 cordis 官方插件），peer 里每个 gwb 插件（不分范围）和源上 dist-tags.latest 在同一条线（0.x 只看 x，≥1 只看主版本号；问哪个源由 ~/.npmrc 的范围行决定）；node 侧产物——exports["."] 的运行时入口（没有 exports 时是 main）顺着相对 import 走到的文件——的包名 import 只有 node 内置模块、electron 与 peer 里写了的包；浏览器侧产物——dist/client.js，同样顺着相对 import 走——只 import 页面 importmap 里的名字，也就是内核包页面入口 dist/index.html 里那段 importmap 的键，从包目录 node_modules 里装好的内核包现读；peer 里写了内核包、写法是 ^x.y.z，范围包不包含哪个内核不查。没过就一个都不发，回执按包一次列全）→ 在临时目录里组装发布内容并发到发布目标（不改仓里任何文件；tag latest；发布内容清单的 publishConfig.registry 写发布目标，命令行不带 --registry；workspace: 依赖写成 ^<工作区里那个号>，这一次同发的写成 ^新号）→ 按给定顺序发完。**版本号在仓里升**（改 package.json 并提交），同一个版本号永不重发。只发到源、不碰任何 home；升级 default 用 plugin-manager.update {"all":true}',
     },
     async (args) => {
       if (!isRecord(args)) return { ok: false, error: `参数要是个对象。\n${RELEASE_USAGE}` }
@@ -433,7 +433,7 @@ function registerReleaseCommand({ ctx, log, commands }: Wiring): void {
       const pnpm = await locatePnpm()
       if (!pnpm.ok) return { ok: false, error: pnpm.error }
       log.info(`devkit.release：仓 ${path.resolve(dir)}（${packages.join('、')}）`)
-      const outcome = await runRelease({ repoDir: path.resolve(dir), packages, runningKernel: requireKernel(ctx).version }, releaseDepsWith(pnpm.file))
+      const outcome = await runRelease({ repoDir: path.resolve(dir), packages }, releaseDepsWith(pnpm.file))
       if (!outcome.ok) {
         log.warn(`devkit.release 没成：${outcome.error}`)
         return outcome.data === undefined

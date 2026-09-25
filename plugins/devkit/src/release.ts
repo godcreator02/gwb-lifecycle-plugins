@@ -1,8 +1,8 @@
 import path from 'node:path'
 import { BUILD_TIMEOUT_MS, PLUGIN_KEYWORD, literalArtifacts, pnpmPlan, type RunPlan, type RunResult } from './dev.js'
-import { KERNEL_PACKAGE, isCaretRange, kernelRangeCovers } from '@godcreator/gwb-plugin-manager'
+import { KERNEL_PACKAGE, isCaretRange } from '@godcreator/gwb-plugin-manager'
 import { artifactProblems } from './artifact-check.js'
-import { isRecord, packageManifestOf, parseHttpUrl, TEAM_REGISTRY, TEAM_SCOPE, VERSION, versionCore } from './vocab.js'
+import { isRecord, packageManifestOf, parseHttpUrl, TEAM_REGISTRY } from './vocab.js'
 
 /** git 工作区的状态。`dirty` 里是 porcelain 条目原文（两列状态加路径） */
 export type GitStatus = { ok: true; dirty: string[] } | { ok: false; error: string }
@@ -34,8 +34,6 @@ export interface ReleaseInput {
   repoDir: string
   /** 要发的包目录，相对仓根，按依赖顺序（被依赖的排前面）。至少一个，命令入口 `packagesArgOf` 查过 */
   packages: string[]
-  /** 运行中的内核版本号（devkit 自己的 `gwbKernel.version`）。插件包 peer 里内核包的范围必须包含它 */
-  runningKernel: string
 }
 
 export interface ReleasedPackage {
@@ -66,73 +64,12 @@ export function dirtyLines(tail: string): string[] {
     .filter((line) => /^[ MADRCU?!]{1,3}\s+\S/.test(line))
 }
 
-const TEAM_PACKAGE_PREFIX = `${TEAM_SCOPE}/`
-const CARET = /^\^(\d+\.\d+\.\d+)$/
-
-interface ParsedVersion {
-  core: number[]
-  prerelease: string | undefined
-}
-
-/** 认不出直接抛错：比较的两边都该是查过的版本号（源上的 latest 由 `ReleaseDeps.latest` 按版本号的样子挑出来） */
-function parseVersion(version: string): ParsedVersion {
-  const match = VERSION.exec(version)
-  if (match === null) throw new Error(`"${version}" 不是版本号(要 x.y.z,可带 -预发布段),没法比大小`)
-  return { core: [Number(match[1]), Number(match[2]), Number(match[3])], prerelease: match[4] }
-}
-
-/**
- * 三段逐段按数字比（0.10.0 大于 0.9.9，按字符串比会错）；三段相同时带预发布段的小于不带的。
- * 两边三段相同又都带预发布段就抛：dev 的下限只收正式号，发版前检查不会拿两个预发布号比
- */
-export function compareVersions(a: string, b: string): number {
-  const left = parseVersion(a)
-  const right = parseVersion(b)
-  for (let i = 0; i < 3; i++) {
-    const x = left.core[i] ?? 0
-    const y = right.core[i] ?? 0
-    if (x !== y) return x < y ? -1 : 1
-  }
-  if (left.prerelease !== undefined && right.prerelease !== undefined) {
-    throw new Error(`"${a}" 与 "${b}" 三段相同、都带预发布段:本包不比两个预发布号`)
-  }
-  if (left.prerelease === right.prerelease) return 0
-  return left.prerelease === undefined ? 1 : -1
-}
-
-/** dev 写成精确号时只收正式号 `x.y.z`（不带预发布段） */
-function isFormalVersion(range: string): boolean {
-  const match = VERSION.exec(range)
-  return match !== null && match[4] === undefined
-}
-
-/** `^x.y.z` 的下限；别的写法回 undefined */
-export function caretFloor(range: string): string | undefined {
-  return CARET.exec(range.trim())?.[1]
-}
-
-/** `^<floor>` 的上限（不含）：第一个非零段进一，其后归零。0.0.z 锁补丁号、0.y.z 锁次版本号 */
-export function caretCeiling(floor: string): string {
-  const [major = 0, minor = 0, patch = 0] = floor.split('.').map((one) => Number.parseInt(one, 10) || 0)
-  if (major > 0) return `${String(major + 1)}.0.0`
-  if (minor > 0) return `0.${String(minor + 1)}.0`
-  return `0.0.${String(patch + 1)}`
-}
-
-/** 正式号 `version` 在不在 `^<floor>` 范围里。带预发布段的号一概不算（semver 不拿预发布号满足不带预发布的范围） */
-export function inCaret(floor: string, version: string): boolean {
-  if (version.includes('-')) return false
-  return compareVersions(version, floor) >= 0 && compareVersions(version, caretCeiling(floor)) < 0
-}
-
-/** 发版前检查要看的那部分清单：包自己的版本号，全部 peer（含内核包），团队范围（`TEAM_SCOPE`）下的 dev，是不是插件 */
+/** 发版前检查要看的那部分清单：包自己的版本号，全部 peer（含内核包），是不是插件。dev 依赖不查 */
 export interface TicketManifest {
   name: string
   version: string
   /** peerDependencies 的全部条目，不分范围 */
   peers: Record<string, string>
-  /** devDependencies 里团队范围下的条目：外部开发者自己范围下的库不查 latest */
-  devs: Record<string, string>
   /** `keywords` 里有 `gwb-plugin` */
   plugin: boolean
 }
@@ -143,11 +80,11 @@ export interface Ticket {
   problems: string[]
 }
 
-function trimmedStringEntriesOf(table: unknown, keep: (key: string) => boolean): Record<string, string> {
+function trimmedStringEntriesOf(table: unknown): Record<string, string> {
   const entries: Record<string, string> = {}
   if (typeof table !== 'object' || table === null) return entries
   for (const [key, value] of Object.entries(table as Record<string, unknown>)) {
-    if (keep(key) && typeof value === 'string') entries[key] = value.trim()
+    if (typeof value === 'string') entries[key] = value.trim()
   }
   return entries
 }
@@ -164,12 +101,11 @@ export interface ReleaseManifest extends TicketManifest {
 export function ticketManifestOf(text: string | undefined): ReleaseManifest | undefined {
   const doc = packageManifestOf(text)
   if (doc === undefined) return undefined
-  const { name, version, files, peerDependencies, devDependencies, keywords } = doc
+  const { name, version, files, peerDependencies, keywords } = doc
   return {
     name,
     version,
-    peers: trimmedStringEntriesOf(peerDependencies, () => true),
-    devs: trimmedStringEntriesOf(devDependencies, (key) => key.startsWith(TEAM_PACKAGE_PREFIX)),
+    peers: trimmedStringEntriesOf(peerDependencies),
     plugin: Array.isArray(keywords) && keywords.includes('gwb-plugin'),
     files: Array.isArray(files) ? files.filter((one): one is string => typeof one === 'string') : [],
     doc,
@@ -224,34 +160,33 @@ export function sameReleaseLine(a: string, b: string): boolean {
   return first[1] !== '0' || first[2] === second[2]
 }
 
+/** 建议写的范围：下限是验证时用的那个内核。发版前检查不知道是哪个，由写插件的人填 */
+const SUGGESTED_KERNEL_RANGE = '^<验证时那个内核的版本号>'
+
 /**
- * 不是插件包的不查。拒三类：peer 里没写内核包；写法不是 `^x.y.z`；范围不包含运行中的内核。
- * 建议写的范围是 `^<运行中的内核的 x.y.z>`。运行中的内核版本号不合法直接抛错（它来自内核自己的包清单）
+ * 不是插件包的不查。拒两类：peer 里没写内核包；写法不是 `^x.y.z`。范围包不包含哪个内核不查：
+ * 对照调用这条命令的 home 里的内核，能不能发版就取决于从哪个 home 调
  */
-export function kernelPeerProblems(manifest: TicketManifest, runningKernel: string): string[] {
+export function kernelPeerProblems(manifest: TicketManifest): string[] {
   if (!manifest.plugin) return []
   const declared = manifest.peers[KERNEL_PACKAGE]
-  if (kernelRangeCovers(declared, runningKernel)) return []
-  const suggested = `^${versionCore(runningKernel)}`
   if (declared === undefined) {
     return [
-      `peer 里没写内核包 ${KERNEL_PACKAGE}:在运行中的内核 ${runningKernel} 上验过之后,在 package.json 的 peerDependencies 里写 "${KERNEL_PACKAGE}": "${suggested}"`,
+      `peer 里没写内核包 ${KERNEL_PACKAGE}:在隔离 home 里验过之后,在 package.json 的 peerDependencies 里写 "${KERNEL_PACKAGE}": "${SUGGESTED_KERNEL_RANGE}"`,
     ]
   }
   if (!isCaretRange(declared)) {
-    return [`peer 里内核包 ${KERNEL_PACKAGE} 写的是 "${declared}",不是 ^x.y.z:peer 只许这一种写法,改成 "${suggested}"`]
+    return [`peer 里内核包 ${KERNEL_PACKAGE} 写的是 "${declared}",不是 ^x.y.z:peer 只许这一种写法,改成 "${SUGGESTED_KERNEL_RANGE}"`]
   }
-  return [
-    `peer 里内核包 ${KERNEL_PACKAGE} 写的是 "${declared}",不包含运行中的内核 ${runningKernel}(主版本号为 0 时次版本号相同,≥1 时主版本号相同,并且不低于范围的下限):在 ${runningKernel} 上验过之后,改成 "${suggested}"`,
-  ]
+  return []
 }
 
 /**
- * peer 里的 gwb 插件（`gwbPluginPeers`，不分范围；内核包不在里面，它比运行中的内核）的范围要和源上 latest 在同一条线上：
+ * peer 里的 gwb 插件（`gwbPluginPeers`，不分范围；内核包不在里面，它只查写法）的范围要和源上 latest 在同一条线上：
  * 0.x 只看 x，≥1 只看主版本号。不在同一条线就是上游出了破坏版，先适配再升范围；`workspace:` 的不查。
- * 不是插件包的不查：库的 peer 不进 home
+ * `latest` 是各 peer 在源上的 `dist-tags.latest`（问不出的缺席）。不是插件包的不查：库的 peer 不进 home
  */
-function peerLineProblems(manifest: TicketManifest, latest: Record<string, string | undefined>, gwbPluginPeers: ReadonlySet<string>): string[] {
+export function peerLineProblems(manifest: TicketManifest, latest: Record<string, string | undefined>, gwbPluginPeers: ReadonlySet<string>): string[] {
   if (!manifest.plugin) return []
   const problems: string[] = []
   for (const [pkg, range] of Object.entries(manifest.peers)) {
@@ -264,42 +199,10 @@ function peerLineProblems(manifest: TicketManifest, latest: Record<string, strin
     if (latestOnRegistry === undefined) {
       problems.push(`peer ${pkg} 是 "${range}":问不出源上的 dist-tags.latest(源不通,或它还没发过正式版),查不了`)
     } else if (!sameReleaseLine(range.slice(1), latestOnRegistry)) {
-      problems.push(`peer ${pkg} 是 "${range}",源上 latest ${latestOnRegistry}(不在同一条线:上游出了破坏版):先适配代码、在隔离 home 验过,再把 peer 抬到 "^${latestOnRegistry}"`)
+      problems.push(`peer ${pkg} 是 "${range}",源上 latest ${latestOnRegistry}(不在同一条线:上游出了破坏版):先适配代码、在隔离 home 验过,再把 peer 改成 "^${latestOnRegistry}"`)
     }
   }
   return problems
-}
-
-/**
- * `latest` 是各上游包在源上的 `dist-tags.latest`（问不出的缺席）。拒两类：
- * 团队范围下的 dev 写法认不出下限、源上 latest 问不出、下限比源上 latest 还新、或 latest 已出 dev 范围
- * （范围内落后、含相等放行）；peer 里的 gwb 插件（`gwbPluginPeers`，不分范围）和源上 latest 不在同一条线。`workspace:` 的不查
- */
-export function checkTicket(manifest: TicketManifest, latest: Record<string, string | undefined>, gwbPluginPeers: ReadonlySet<string>): Ticket {
-  const problems: string[] = []
-
-  for (const [pkg, range] of Object.entries(manifest.devs)) {
-    if (range.startsWith('workspace:')) continue
-    const latestOnRegistry = latest[pkg]
-    const testedFloor = isFormalVersion(range) ? range : caretFloor(range)
-    if (testedFloor === undefined) {
-      problems.push(`dev ${pkg} 写的是 "${range}":dev 要写 ^<验过的号>(或精确号)`)
-      continue
-    }
-    if (latestOnRegistry === undefined) {
-      problems.push(`dev ${pkg} 是 "${range}":问不出源上的 dist-tags.latest(源不通,或它还没发过正式版),查不了`)
-      continue
-    }
-
-    if (compareVersions(testedFloor, latestOnRegistry) > 0) {
-      problems.push(`dev ${pkg} 是 "${range}",比源上 latest ${latestOnRegistry} 还新——写了一个没发的号,改回 "^${latestOnRegistry}"`)
-    } else if (!inCaret(testedFloor, latestOnRegistry)) {
-      problems.push(`dev ${pkg} 是 "${range}",源上 latest ${latestOnRegistry}(出范围:上游出了破坏版):先适配代码,再把 dev 抬到 "^${latestOnRegistry}",跑 check`)
-    }
-  }
-  problems.push(...peerLineProblems(manifest, latest, gwbPluginPeers))
-
-  return { pkg: `${manifest.name}@${manifest.version}`, problems }
 }
 
 /**
@@ -402,11 +305,10 @@ async function planPackages(input: ReleaseInput, deps: ReleaseDeps): Promise<Ref
   return { planned, ranges }
 }
 
-/** 各包团队范围下的 dev 依赖与 peer 里的 gwb 插件（不分范围）在源上的 latest；问哪个源由 `.npmrc` 按包名范围决定 */
+/** 各包 peer 里的 gwb 插件（不分范围）在源上的 latest；问哪个源由 `.npmrc` 按包名范围决定。dev 依赖不问 */
 async function latestOfUpstreams(planned: PlannedPackage[], deps: ReleaseDeps): Promise<Record<string, string | undefined>> {
   const upstreams = new Set<string>()
-  for (const { manifest, gwbPluginPeers } of planned) {
-    for (const [pkg, range] of Object.entries(manifest.devs)) if (!range.startsWith('workspace:')) upstreams.add(pkg)
+  for (const { gwbPluginPeers } of planned) {
     for (const pkg of gwbPluginPeers) upstreams.add(pkg)
   }
   const latest: Record<string, string | undefined> = {}
@@ -414,12 +316,12 @@ async function latestOfUpstreams(planned: PlannedPackage[], deps: ReleaseDeps): 
   return latest
 }
 
-function ticketFor(plannedPackage: PlannedPackage, latest: Record<string, string | undefined>, runningKernel: string, deps: ReleaseDeps): Ticket {
+function ticketFor(plannedPackage: PlannedPackage, latest: Record<string, string | undefined>, deps: ReleaseDeps): Ticket {
   const { pkgDir, manifest, gwbPluginPeers, peerManifestOf } = plannedPackage
   const problems = [
-    ...checkTicket(manifest, latest, gwbPluginPeers).problems,
+    ...peerLineProblems(manifest, latest, gwbPluginPeers),
     ...peerProblems(manifest, peerManifestOf),
-    ...kernelPeerProblems(manifest, runningKernel),
+    ...kernelPeerProblems(manifest),
     ...artifactProblems(pkgDir, manifest.doc, manifest.plugin, deps),
   ]
   return { pkg: `${manifest.name}@${manifest.version}`, problems }
@@ -451,7 +353,7 @@ export async function runRelease(input: ReleaseInput, deps: ReleaseDeps): Promis
   if ('ok' in plan) return plan
 
   const latest = await latestOfUpstreams(plan.planned, deps)
-  const tickets = plan.planned.map((plannedPackage) => ticketFor(plannedPackage, latest, input.runningKernel, deps))
+  const tickets = plan.planned.map((plannedPackage) => ticketFor(plannedPackage, latest, deps))
   if (tickets.some((ticket) => ticket.problems.length > 0)) return { ok: false, error: ticketRefusal(tickets) }
 
   const shipped = await publishInOrder(plan.planned, plan.ranges, deps)

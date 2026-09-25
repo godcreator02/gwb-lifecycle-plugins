@@ -32,10 +32,10 @@ description: 升版本号、改依赖版本号、发版时读。
 上游发版时下游一个数字都不动，由下游在自己发版时决定跟不跟。
 
 1. 确定要不要跟：
-   * 自己发版时，`devkit.release` 拿每个 `@godcreator` 范围下的 dev 对照源上 `dist-tags.latest`：还在范围内（含相等）放行，一个数字都不动；已出范围（上游出了新的次版本线）必须跟。插件包 peer 里的每个插件（不分包名范围）只比和 latest 在不在同一条线（0.x 比 x，≥1 比主版本号）：同一条线放行，不在同一条线必须跟
+   * 自己发版时，`devkit.release` 拿插件包 peer 里的每个插件（不分包名范围）和源上 `dist-tags.latest` 比在不在同一条线（0.x 比 x，≥1 比主版本号）：同一条线放行，一个数字都不动；不在同一条线（上游出了破坏性版本）必须跟。dev 依赖不查：落后于 latest、甚至出了范围都照样发，只要 `pnpm install` 装得上——dev 只在构建与类型检查时用，不影响运行
    * 要用上游的新东西：下限升到带那个东西的版本。上游是别的插件（经 `ctx.inject` 用它的服务、import 它的类型）的，它写在 peer 里，改的就是 peer 的下限；home 里装的版本不够新时 `plugin-manager.list` 的 `unmetPeers` 会报出来（规矩见 gwb-devkit 附件 `references/rules.md` 的「用到的插件写 peer」）
 2. 改写法：`@godcreator` 的库、接口定义包写在 dev，`^<源上已经发了的版本>`（精确号也合法）；用到的别的插件写在 peer，只许 `^<源上已经发了的版本>`，可选使用的在 `peerDependenciesMeta` 标 `optional: true`；同仓的包写 `workspace:*`，`devkit.release` 发版时写成 `^<版本>`。插件包 peer 里的内核包 `@godcreator/gwb-kernel-desktop` 写 `^<验证时那个内核的版本号>`（见第三节第 1 步）。依赖写进 peer、dev 还是 `dependencies`，照 gwb-devkit 附件 `references/rules.md` 的「依赖怎么写」
-3. 出范围的先适配代码，再 `pnpm install`、`pnpm check`
+3. 要跟的先适配代码，再 `pnpm install`、`pnpm check`
 
 **完成判据**：`pnpm install` 成功（下限写了源上没有的版本会在这里失败）；`pnpm check` 全绿。
 
@@ -51,7 +51,7 @@ description: 升版本号、改依赖版本号、发版时读。
 
 ## 四、发破坏性版本多做的两步
 
-1. **发之前**：在容器根下各仓的 `package.json` 里搜这个包名（仓在哪用 `unit-folder.list` 查），找出 dev 或 peer 里写了它的下游（它们下次发版会被发版前检查拒），往每个下游仓文档站 feedback 区的 `inbox.mdx` 写一条「要跟 X 0.9」
+1. **发之前**：在容器根下各仓的 `package.json` 里搜这个包名（仓在哪用 `unit-folder.list` 查），找出 dev 或 peer 里写了它的下游（peer 里写了它的，下次发版会被发版前检查拒；dev 里写了它的，要用新版时再跟），往每个下游仓文档站 feedback 区的 `inbox.mdx` 写一条「要跟 X 0.9」
 2. **发之后**：升 default 之前先让下游跟上，或用 `plugin-manager.update {"only":[…]}` 只升别的。插件的 peer 写了它用到的插件：升级之后 `plugin-manager.list` 的 `unmetPeers` 会报出 peer 范围不包含新版本的下游，`plugin-manager.update` 会把 peer 写了被升级包的插件一起重新加载，但不阻止它们和出了范围的上游一起运行。改了名字（命令名、说明书名、术语）的，再查两遍：
    * 拿旧名字搜 MCP 入口的 instructions、各仓 AGENTS 里讲命令的段落、所有随包说明书的描述
    * 文档里点名的每个说明书名与命令名，拿 `skill.list` 与 `index` 现查一遍，指向不存在的就改
@@ -62,15 +62,14 @@ description: 升版本号、改依赖版本号、发版时读。
 
 ### `devkit.release` 做什么
 
-依次：仓根 git 工作区干净 → 仓根 `pnpm build` → 照 `files` 白名单检查产物在不在 → 同一个版本号已在发布目标上就拒（问不出有没有也拒） → 发版前检查 → 在临时目录组装发布内容、发到发布目标并打 `latest`（`workspace:` 依赖写成 `^`：同一次发的写 `^新版本号`，其余写 `^<工作区里的版本号>`）。发布目标是包 `package.json` 的 `publishConfig.registry`，没写、或写的不是 http(s) 地址就拒；它写进发布内容清单的 `publishConfig.registry`，命令行不带 `--registry`。它不改仓里任何文件，只往各包的发布目标发包、不改任何 home；「运行中的内核」指调它的那个 home 里的内核。
+依次：仓根 git 工作区干净 → 仓根 `pnpm build` → 照 `files` 白名单检查产物在不在 → 同一个版本号已在发布目标上就拒（问不出有没有也拒） → 发版前检查 → 在临时目录组装发布内容、发到发布目标并打 `latest`（`workspace:` 依赖写成 `^`：同一次发的写 `^新版本号`，其余写 `^<工作区里的版本号>`）。发布目标是包 `package.json` 的 `publishConfig.registry`，没写、或写的不是 http(s) 地址就拒；它写进发布内容清单的 `publishConfig.registry`，命令行不带 `--registry`。它不改仓里任何文件，只往各包的发布目标发包、不改任何 home，从哪个 home 调结果都一样。dev 依赖不查。
 
 发版前检查，每个包：
 
-| 检什么                                                                                                  | 没过             |
-| ---------------------------------------------------------------------------------------------------- | -------------- |
-| `@godcreator` 范围下的 dev（别的范围下的库不查）：写法认不出下限、下限比源上 latest 新、latest 已出范围、或问不出源上的 latest（`workspace:` 跳过） | 拒；范围内落后（含相等）放行 |
-| 构建产物里有空 import（`import {} from '…'`，源码写了 `import { type X }`），或相对 import 指向的文件不在                     | 拒              |
-| 构建产物按 JS 语法读不下去（字符串、模板、正则没闭合，括号不配对）。import 按 JS 语法找：字符串、模板字面量、正则、注释里写着的 `import(…)` 不算，压成一行的产物照样认    | 拒，写明文件与行列号     |
+| 检什么                                                                                               | 没过         |
+| ------------------------------------------------------------------------------------------------- | ---------- |
+| 构建产物里有空 import（`import {} from '…'`，源码写了 `import { type X }`），或相对 import 指向的文件不在                  | 拒          |
+| 构建产物按 JS 语法读不下去（字符串、模板、正则没闭合，括号不配对）。import 按 JS 语法找：字符串、模板字面量、正则、注释里写着的 `import(…)` 不算，压成一行的产物照样认 | 拒，写明文件与行列号 |
 
 插件包（`keywords` 含 `gwb-plugin`）另查：
 
@@ -80,7 +79,7 @@ description: 升版本号、改依赖版本号、发版时读。
 | peer 里的 gwb 插件（清单 `keywords` 含 `gwb-plugin`，不分包名范围；内核包、`workspace:` 除外；问哪个源由 `~/.npmrc` 的范围行决定）写法不是 `^x.y.z`、问不出源上的 latest、或和源上 latest 不在同一条线（主版本号为 0 时比次版本号，≥1 时比主版本号） | 拒：先适配代码、在隔离 home 验过，再把 peer 改成 `^<latest>`                                              |
 | node 侧产物（`exports["."]` 入口顺着相对 import 走到的文件）的包名 import 不是 node 内置模块、`electron`、本包 peer 里写了的包                                                                            | 拒：用到的插件写进 peer，自用的库打包进产物                                                                |
 | 浏览器侧产物（`dist/client.js` 顺着相对 import 走到的文件）的包名 import 不在页面 importmap 里——名字是内核包页面入口 `dist/index.html` 里那段 importmap 的键，从包目录 `node_modules` 里装好的内核包读                       | 拒；内核包的页面入口读不到（包目录 `node_modules` 里没装内核包，提示 peer 写上它、再 `pnpm install`）、里面没有 importmap 也拒 |
-| peer 里没写内核包 `@godcreator/gwb-kernel-desktop`、写法不是 `^x.y.z`、或范围不包含运行中的内核（主版本号为 0 时次版本号相同，≥1 时主版本号相同，并且不低于下限；预发布段不看）                                                      | 拒，写明该改成的 `^<运行中的内核的 x.y.z>`                                                             |
+| peer 里没写内核包 `@godcreator/gwb-kernel-desktop`，或写法不是 `^x.y.z`。范围包不包含哪个内核不查，照第三节第 1 步由人改                                                                                   | 拒，写明改成 `^<验证时那个内核的版本号>`                                                                 |
 
 ### 手工发版
 
@@ -90,7 +89,7 @@ description: 升版本号、改依赖版本号、发版时读。
 
 都不在任何仓里，换机器或重装会丢：
 
-* **用户级 `~/.npmrc`**：`@godcreator` 的 scope 行与各个源的发布 token。发版前检查问 `@godcreator` 包的 latest 靠这一行找源，没有它就问不出、拒发。仓里不配 `.npmrc`；发到哪写在每个要发的包自己的 `publishConfig.registry`，没写 `devkit.release` 就拒发（`devkit.scaffold` 生成的插件包已照它的 `registry` 参数写好，不给参数写团队源）
+* **用户级 `~/.npmrc`**：`@godcreator` 的 scope 行与各个源的发布 token。发版前检查问 peer 里 `@godcreator` 插件的 latest 靠这一行找源，没有它就问不出、拒发。仓里不配 `.npmrc`；发到哪写在每个要发的包自己的 `publishConfig.registry`，没写 `devkit.release` 就拒发（`devkit.scaffold` 生成的插件包已照它的 `registry` 参数写好，不给参数写团队源）
 * **用户级 pnpm 配置**（`pnpm config get globalconfig` 报位置）：`minimumReleaseAgeExclude` 放行 `'@godcreator/*'`。pnpm 11 起刚发的包要放一天才准装，丢了它的症状是新机器上装不上刚发的包
 
 仓与 home 的 `pnpm-workspace.yaml` 只写各自需要的项，`minimumReleaseAgeExclude` 与 `strictPeerDependencies` 都留给用户级配置与 pnpm 默认值：`pnpm-workspace.yaml` 里写了哪一项，就逐项覆盖用户级的同名项。

@@ -148,7 +148,7 @@ Markdown / MDX 开头的 frontmatter 是 YAML，里面的 `title` 写在双引�
 
 - **`template/` 下的文件一律带 `.tpl` 后缀**，写到磁盘时去掉：`npm pack` 固定不打包 `.gitignore`，给所有文件统一加后缀，一条规则就管住了全部文件
 - **`.oxlintrc.json` 放在插件包里、不放仓根**：oxlint 按工作目录找配置，插件包自带配置，搬到哪个仓都不用改
-- **模板里 `@godcreator` 包的版本号跟着源走**：peer 里是内核包与模板用到的两个插件（命令总线 `gwb-commands`、外壳 `gwb-shell`），别的 `@godcreator` 包写 dev，都写 `^<版本>`；peer 里的插件要和源上的 `dist-tags.latest` 在同一条线，dev 的范围要包含它。不在同一条线、范围不含 latest，新仓第一次发版就被发版前检查拦下；写了源上没有的版本，新仓 `pnpm install` 直接失败。所以改模板里的版本号之前先用 `pnpm view <包> dist-tags.latest` 查
+- **模板里 `@godcreator` 包的版本号跟着源走**：peer 里是内核包与模板用到的两个插件（命令总线 `gwb-commands`、外壳 `gwb-shell`），别的 `@godcreator` 包写 dev，都写 `^<版本>`；peer 里的插件要和源上的 `dist-tags.latest` 在同一条线，不在同一条线，新仓第一次发版就被发版前检查拦下；写了源上没有的版本，新仓 `pnpm install` 直接失败。所以改模板里的版本号之前先用 `pnpm view <包> dist-tags.latest` 查
 
 ## 代码地图
 

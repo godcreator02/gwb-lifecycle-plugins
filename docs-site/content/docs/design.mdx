@@ -37,7 +37,7 @@ devkit 没有任何特权：装进 home 才有它的命令，和别的插件一�
 推出了：
 
 - **没写 `publishConfig.registry` 就拒发**：发到哪由包自己写明，不给缺省值，也不交给机器上 `~/.npmrc` 的范围行（[删掉给旧仓留的两个缺省值](/trajectory/2026-09-25-drop-legacy-defaults)）
-- **是不是插件看 `keywords`，不看包名范围**：发版前检查对任何范围下的插件都一样查；只有 dev 里的库只查 `@godcreator` 范围下的
+- **是不是插件看 `keywords`，不看包名范围**：发版前检查对任何范围下的插件都一样查；dev 依赖不查
 - **问别的包的 latest 交给 `~/.npmrc`**：不指定源，按用户级 `~/.npmrc` 的范围行找；只有「这个版本号在发布目标上有没有」指定发布目标
 
 代价：每个要发的包都得写 `publishConfig.registry`；装别的范围下的插件，那个范围的源得先配进 `~/.npmrc`。
@@ -80,7 +80,7 @@ devkit 没有任何特权：装进 home 才有它的命令，和别的插件一�
 
 判据一句话：**这段逻辑能不能不启动进程、不开窗口、只给输入看输出。**
 
-能的部分是纯逻辑：时序、检查、命名、版本号、「记录里的 pid 还是不是那个 home」「装上的是不是这次打包的版本」「插件声明的内核范围包不包含运行中的内核」这些判断都在这里，测试用假的依赖把整条流程运行完。不能的部分在 `node-*-deps.ts` 与 `node-process-tree.ts` 里，只负责在真机器上拿到答案：启动进程、超时终止整棵进程树、查进程表与端口、读写磁盘、连 CDP、问 npm 源。这一层不做判断，也不进单元测试；唯一的例外是超时终止整棵进程树，用真的子进程测（孙进程真的没了，假实现证明不了）。
+能的部分是纯逻辑：时序、检查、命名、版本号、「记录里的 pid 还是不是那个 home」「装上的是不是这次打包的版本」「peer 里的插件和源上 latest 在不在同一条线」这些判断都在这里，测试用假的依赖把整条流程运行完。不能的部分在 `node-*-deps.ts` 与 `node-process-tree.ts` 里，只负责在真机器上拿到答案：启动进程、超时终止整棵进程树、查进程表与端口、读写磁盘、连 CDP、问 npm 源。这一层不做判断，也不进单元测试；唯一的例外是超时终止整棵进程树，用真的子进程测（孙进程真的没了，假实现证明不了）。
 
 两边靠显式接口隔开：`HomeDeps`、`DevDeps`、`ReleaseDeps` 由纯逻辑定义，运行时传 `node-*-deps.ts` 的实现，测试时传假实现。依赖方向单向：真机器那一层认识纯逻辑，纯逻辑不认识它。
 
@@ -100,9 +100,9 @@ devkit 没有任何特权：装进 home 才有它的命令，和别的插件一�
 
 - `devkit.dev` 在目标页面里调 `plugin-manager.install` 与 `plugin-manager.update {"specs":{…}}` 装包并重新加载，再用 `plugin-manager.list` 取证
 - `devkit.home.new` 把插件管理作为基础插件装进新 home，之后往这个 home 加插件、升内核都经它
-- 插件 peer 里内核包的范围两边都用：插件管理在 `list` 里拿它和运行中的内核比对，`devkit.release` 发版前拒绝没写对的插件包。比对规则只有一份，在插件管理；devkit 的 peer 里写着插件管理，从它的主入口 import 这套规则，连同找 pnpm 的 `locatePnpm`
+- 插件 peer 里内核包的范围两边都用：插件管理在 `list` 里拿它和运行中的内核比对，`devkit.release` 发版前拒绝没写或写法不对的插件包。规则只有一份，在插件管理；devkit 的 peer 里写着插件管理，从它的主入口 import 判断写法的 `isCaretRange`，连同找 pnpm 的 `locatePnpm`
 
-{/* has file="../plugins/devkit/src/release.ts" text="import { KERNEL_PACKAGE, isCaretRange, kernelRangeCovers } from '@godcreator/gwb-plugin-manager'" */}
+{/* has file="../plugins/devkit/src/release.ts" text="import { KERNEL_PACKAGE, isCaretRange } from '@godcreator/gwb-plugin-manager'" */}
 
 放在一个仓里，这些地方一个提交就能改两边。
 

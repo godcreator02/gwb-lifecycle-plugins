@@ -1,6 +1,6 @@
 ---
 title: 兼容哪个内核
-description: 插件在 peerDependencies 里写内核包 @godcreator/gwb-kernel-desktop 的范围 ^x.y.z；devkit.release 发版前查写法、查范围包不包含运行中的内核，plugin-manager.list 拿它和 home 里装的内核比
+description: 插件在 peerDependencies 里写内核包 @godcreator/gwb-kernel-desktop 的范围 ^x.y.z；devkit.release 发版前只查写法，plugin-manager.list 拿它和 home 里装的内核比
 ---
 
 # 兼容哪个内核
@@ -9,7 +9,7 @@ description: 插件在 peerDependencies 里写内核包 @godcreator/gwb-kernel-d
 
 ## 规则
 
-**插件包在 `peerDependencies` 里写内核包 `@godcreator/gwb-kernel-desktop`，范围写 `^x.y.z`，x.y.z 是验证这个插件时所用的内核版本。** 运行中的内核在这个范围里，插件才发得出去。只查插件包（`keywords` 里有 `gwb-plugin`），库和工具包不写。
+**插件包在 `peerDependencies` 里写内核包 `@godcreator/gwb-kernel-desktop`，范围写 `^x.y.z`，x.y.z 是验证这个插件时所用的内核版本。** 范围包不包含验证时那个内核，由写插件的人在隔离 home 里验过之后保证。只查插件包（`keywords` 里有 `gwb-plugin`），库和工具包不写。
 
 内核包和 `cordis` 一样装在每个 home 的根上（安装包只带启动器，启动器从 home 里加载内核），所以兼容性用标准的 peer 写：pnpm 把它解析到 home 里装着的那一份，安装时顺带比一次范围（只警告）。插件运行时不 import 内核包，只从它的包根 `import type` 接口类型（`GwbContext` 等），编译后不留 import；这条 peer 声明兼容哪些内核，也让 pnpm 把内核包装进插件的 `node_modules`，类型检查、构建脚本与发版前检查都从那里读它。
 
@@ -27,13 +27,13 @@ devkit 自己的清单（peer 里另外几项是它用到的插件，见[用到�
 
 ## 谁在查
 
-**`devkit.release` 发版前检查**：对每个要发的插件包，peer 里没写内核包、写法不是 `^x.y.z`、范围不包含运行中的内核，三种都拒，一个包都不发；拒绝理由里写着该改成的 `^<运行中的内核的 x.y.z>`。「运行中的内核」是调 `devkit.release` 的那个 home 里的内核：
+**`devkit.release` 发版前检查**：对每个要发的插件包，peer 里没写内核包、写法不是 `^x.y.z`，两种都拒，一个包都不发；拒绝理由里写着改成 `^<验证时那个内核的版本号>`。范围包不包含哪个内核它不查：发版前检查能拿来比的只有调 `devkit.release` 的那个 home 里的内核，比了的话能不能发版就取决于从哪个 home 调：
 
-{/* ref file="../plugins/devkit/src/release.ts" lines="227-247" */}
+{/* ref file="../plugins/devkit/src/release.ts" lines="163-182" */}
 
 **`plugin-manager.list` 按包报**：拿插件 peer 里内核包的范围和 home 里装的内核比，不包含的按包报出来。它只报告，不阻止加载（回执怎么读见插件管理那组页面里的[同名一页](/docs/plugin-manager/kernel-compat)）。
 
-比对规则只有一份，在插件管理的 `src/kernel-compat.ts`；devkit 的发版前检查从插件管理的主入口 import 它，两处的判断一定相同（见[peer 里的内核包与插件](/docs/seams/kernel-peer)）。
+比对规则只有一份，在插件管理的 `src/kernel-compat.ts`；devkit 的发版前检查从插件管理的主入口 import 其中判断写法的 `isCaretRange`，两处认的写法一定相同（见[peer 里的内核包与插件](/docs/seams/kernel-peer)）。
 
 ## 内核升级之后
 
@@ -51,4 +51,4 @@ devkit 自己的清单（peer 里另外几项是它用到的插件，见[用到�
 
 ## 为什么
 
-插件管理这类插件依赖 loader 条目树之类内核没写进文档的结构，内核一改就可能把它弄坏；与其让内核维护一份下游名单、改动时逐个通知，不如每个插件自己声明兼容的内核范围，由插件管理报告、由发版前检查拦下没在当前内核上验过的发版。内核包装在 home 里之后，这份声明就能用 peer 这个标准写法表达，不用另造清单字段，pnpm 安装时也会顺带检查。内核包比的是运行中的内核（「在这个内核上验过」），peer 里别的插件比的是源上的 latest 在不在同一条线（「上游有没有出破坏性版本」），见[用到的插件写 peer](/docs/rules/plugin-peers)。
+插件管理这类插件依赖 loader 条目树之类内核没写进文档的结构，内核一改就可能把它弄坏；与其让内核维护一份下游名单、改动时逐个通知，不如每个插件自己声明兼容的内核范围，由插件管理在 home 里报告对不上的插件，由发版前检查拦下没写或写错的声明。内核包装在 home 里之后，这份声明就能用 peer 这个标准写法表达，不用另造清单字段，pnpm 安装时也会顺带检查。home 里拿内核包的范围比装着的内核（「在这个内核上验过」），peer 里别的插件比的是源上的 latest 在不在同一条线（「上游有没有出破坏性版本」），见[用到的插件写 peer](/docs/rules/plugin-peers)。
