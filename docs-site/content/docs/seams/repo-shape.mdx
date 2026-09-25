@@ -23,7 +23,7 @@ description: 连接 devkit.dev、devkit.release、devkit.scaffold.plugin 与被�
 
 **仓根能 `pnpm build`**：`devkit.dev` 与 `devkit.release` 都在调用方给的 `dir` 上运行 `pnpm build`，不在包目录里构建；失败就停：
 
-{/* ref file="../plugins/devkit/src/dev.ts" lines="625-627" */}
+{/* ref file="../plugins/devkit/src/dev.ts" lines="624-626" */}
 
 **包目录由调用方列出**：`devkit.dev` 与 `devkit.release` 的 `packages` 必给，是非空的字符串数组，每项是相对仓根的包目录；不给或写错直接拒，不猜哪些是包：
 
@@ -33,7 +33,7 @@ description: 连接 devkit.dev、devkit.release、devkit.scaffold.plugin 与被�
 
 **`files` 白名单就是产物清单**：构建之后，白名单里不带 `!`、不带通配的每一项都得在包目录里；组装发布内容与开发版的包文件时只复制这些，带通配的直接拒：
 
-{/* ref file="../plugins/devkit/src/dev.ts" lines="117-120" */}
+{/* ref file="../plugins/devkit/src/dev.ts" lines="116-119" */}
 
 {/* ref file="../plugins/devkit/src/node-dev-deps.ts" lines="181-189" */}
 
@@ -41,7 +41,7 @@ description: 连接 devkit.dev、devkit.release、devkit.scaffold.plugin 与被�
 
 {/* ref file="../plugins/devkit/src/release.ts" lines="195-195" */}
 
-{/* ref file="../plugins/devkit/src/dev.ts" lines="455-458" */}
+{/* ref file="../plugins/devkit/src/dev.ts" lines="454-457" */}
 
 **产物分两侧，按模板的构建约定认**：`devkit.release` 的构建产物检查把 `exports["."]` 的运行时入口（没有 `exports` 时是 `main`）当作 node 侧入口，把包目录下的 `dist/client.js` 当作浏览器侧入口，各自顺着相对 import 走；入口找不到、相对 import 指向的文件不在，都拒。产物不在这几个位置的仓，那部分文件不被查到：
 
@@ -61,7 +61,7 @@ description: 连接 devkit.dev、devkit.release、devkit.scaffold.plugin 与被�
 
 **`pnpm-workspace.yaml` 的 `packages` 里有 `plugins/*`**：`devkit.scaffold.plugin` 只往这样的仓里加插件，别的一概拒。`packages` 按 YAML 读，带不带引号、块列表还是流式列表都认；读不懂的写法报出是第几行，不当成「没有这一条」：
 
-{/* ref file="../plugins/devkit/src/scaffold.ts" lines="258-266" */}
+{/* ref file="../plugins/devkit/src/scaffold.ts" lines="258-263" */}
 
 **git 工作区干净**：`devkit.release` 在构建之前运行 `git status --porcelain=v1`，有一条改动就一个都不发；不是 git 仓也拒。`devkit.dev` 不查：
 
