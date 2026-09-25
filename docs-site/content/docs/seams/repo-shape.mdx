@@ -23,39 +23,39 @@ description: 连接 devkit.dev、devkit.release、devkit.scaffold.plugin 与被�
 
 **仓根能 `pnpm build`**：`devkit.dev` 与 `devkit.release` 都在调用方给的 `dir` 上运行 `pnpm build`，不在包目录里构建；失败就停：
 
-{/* ref file="../plugins/devkit/src/dev.ts" lines="618-620" */}
+{/* ref file="../plugins/devkit/src/dev.ts" lines="629-631" */}
 
 **`files` 白名单就是产物清单**：构建之后，白名单里不带 `!`、不带通配的每一项都得在包目录里；组装发布内容与开发版的包文件时只复制这些，带通配的直接拒：
 
 {/* ref file="../plugins/devkit/src/dev.ts" lines="120-123" */}
 
-{/* ref file="../plugins/devkit/src/node-dev-deps.ts" lines="170-178" */}
+{/* ref file="../plugins/devkit/src/node-dev-deps.ts" lines="165-173" */}
 
 **`keywords` 含 `gwb-plugin` 表示插件**：`devkit.release` 只对它查 peer（含 peer 里内核包的范围）与构建产物里包名 import 的两份名单；`devkit.dev` 只收插件与内核包，别的包（库）直接拒：
 
 {/* ref file="../plugins/devkit/src/release.ts" lines="191-191" */}
 
-{/* ref file="../plugins/devkit/src/dev.ts" lines="448-451" */}
+{/* ref file="../plugins/devkit/src/dev.ts" lines="459-462" */}
 
 **产物分两侧，按模板的构建约定认**：`devkit.release` 的构建产物检查把 `exports["."]` 的运行时入口（没有 `exports` 时是 `main`）当作 node 侧入口，把包目录下的 `dist/client.js` 当作浏览器侧入口，各自顺着相对 import 走；入口找不到、相对 import 指向的文件不在，都拒。产物不在这几个位置的仓，那部分文件不被查到：
 
-{/* ref file="../plugins/devkit/src/artifact-check.ts" lines="184-203" */}
+{/* ref file="../plugins/devkit/src/artifact-check.ts" lines="219-238" */}
 
 **peer 里的包装在包目录的 `node_modules` 里**：发版前检查读 `<包目录>/node_modules/<包>/package.json` 判断 peer 里的包是不是插件，读不到就拒并提示先 `pnpm install`；浏览器侧产物有包名 import 时，页面 importmap 里的名字从 `<包目录>/node_modules/@godcreator/gwb-kernel-desktop/dist/index.html` 里那段 importmap 现读（插件 peer 里写了内核包，pnpm 把它链接在那里），读不到同样拒，提示 peer 写上内核包 `^0.6.0` 起：
 
-{/* ref file="../plugins/devkit/src/artifact-check.ts" lines="205-222" */}
+{/* ref file="../plugins/devkit/src/artifact-check.ts" lines="240-257" */}
 
 **成员放在哪**：组装发布内容时找 `workspace:` 依赖的版本，从仓根往下扫两层，不认目录名：
 
-{/* ref file="../plugins/devkit/src/node-dev-deps.ts" lines="78-109" */}
+{/* ref file="../plugins/devkit/src/node-dev-deps.ts" lines="72-103" */}
 
 这里的「仓根」是从包目录往上找到的第一个有 `pnpm-workspace.yaml` 的目录；一路找到盘根都没有就报错，这个包不发：
 
-{/* ref file="../plugins/devkit/src/node-dev-deps.ts" lines="111-120" */}
+{/* ref file="../plugins/devkit/src/node-dev-deps.ts" lines="105-114" */}
 
 **`pnpm-workspace.yaml` 的 `packages` 里有 `plugins/*`**：`devkit.scaffold.plugin` 只往这样的仓里加插件，仓根就是插件包的旧布局仓直接拒，报错里写着怎么迁。`packages` 按 YAML 读，带不带引号、块列表还是流式列表都认；读不懂的写法报出是第几行，不当成「没有这一条」：
 
-{/* ref file="../plugins/devkit/src/scaffold.ts" lines="167-175" */}
+{/* ref file="../plugins/devkit/src/scaffold.ts" lines="216-224" */}
 
 **git 工作区干净**：`devkit.release` 在构建之前运行 `git status --porcelain=v1`，有一条改动就一个都不发；不是 git 仓也拒。`devkit.dev` 不查：
 
