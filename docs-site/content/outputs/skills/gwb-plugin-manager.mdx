@@ -114,4 +114,4 @@ home 里有两层：
 - **源地址按 scope 从两份 npmrc 找**：先找 `@scope:registry=`，再找 `registry=`，每一种都是 home 级 `<home>/.npmrc` 优先于机器级 `~/.npmrc`，都没写就是 npm 官方源。这和 pnpm 安装读的是同一批配置行，从哪装就在哪搜
 - **包源命令只写机器级 `~/.npmrc`**，本机所有 home 共用；home 级那份只放手工加的行。在隔离 home 里调 `source.add` 改的也是机器级，验完删掉。home 级有同名 scope 时生效的是 home 级那条，`source.add` 的 `note` 会提醒
 - **`@godcreator` 这条包源只读**：本机所有安装与发版都靠它，`source.add` 与 `source.remove` 碰到它当场报错
-- **token**：凭据行按源地址配对，同一个 token 配几条源各是一行；换源后旧源的凭据行没有别的 scope 指向时一起删掉。回执与日志里的 token 都遮成 `***`。私有源取不到 token 时 `source.add` 回 `ok: false`
+- **token**：凭据行按源地址配对，同一个 token 配几条源各是一行；换源后旧源的凭据行没有别的 scope 指向时一起删掉。回执与日志里的 token 都遮成 `***`。`owner` 写法没传 token、设置里也取不到时 `source.add` 回 `ok: false`；`registry` 写法不传 token 就只写路由行
