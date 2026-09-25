@@ -15,19 +15,19 @@ description: 连接 devkit、插件管理与三个不在本仓的插件：建仓
 
 **按名字查**：两个插件都不 import 被调插件的包，命令名写成本包里的常量，调用前用 `gwbCommands.list()` 查一次，每次调用都重新查，不缓存：
 
-{/* ref file="../plugins/devkit/src/index.ts" lines="50-54" */}
+{/* ref file="../plugins/devkit/src/index.ts" lines="51-55" */}
 
-{/* ref file="../plugins/plugin-manager/src/index.ts" lines="39-40" */}
+{/* ref file="../plugins/plugin-manager/src/index.ts" lines="54-55" */}
 
 **建仓：`docs-site.create` 与 `docfirst.attach`**。插件那部分写到磁盘之后才调，两条都传站目录 `<仓>\docs-site`，不是仓根。`docs-site.create` 传 `{ dir, title, port? }`，回执里只读 `data.port`；`docfirst.attach` 传 `{ dir, title }`，只看 `ok` 与 `error`：
 
-{/* ref file="../plugins/devkit/src/index.ts" lines="636-651" */}
+{/* ref file="../plugins/devkit/src/index.ts" lines="640-655" */}
 
-{/* ref file="../plugins/devkit/src/index.ts" lines="664-675" */}
+{/* ref file="../plugins/devkit/src/index.ts" lines="668-679" */}
 
 **插件管理：`shell.reload`**。一键热升级最后调它整页重新加载，不传参数，只看 `ok` 与 `error`：
 
-{/* ref file="../plugins/plugin-manager/src/index.ts" lines="855-863" */}
+{/* ref file="../plugins/plugin-manager/src/index.ts" lines="958-966" */}
 
 插件管理的 `source.add` 另外按名字调设置插件的 `settings.get`，读 gitea 插件分区里的地址与 token；它只为配包源服务，写在[9 pnpm 与包源](/docs/seams/pnpm-registry)。
 
