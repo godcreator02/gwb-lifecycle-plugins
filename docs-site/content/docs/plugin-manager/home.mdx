@@ -66,9 +66,9 @@ home 的 `package.json` 读不到或不是 JSON 时当空表：它由 pnpm 写�
 
 条目树在构造时从插件管理自己那条条目的上一层取（`ctx.fiber.entry.parent.tree`），不用知道承载 `cordis.yml` 的那条条目叫什么。按 loader 自己的类型 `EntryTree` 取，再赋给收窄后的 `EntryTreeLike`：loader 改了这几个方法的签名，类型检查就在这里失败。
 
-{/* ref file="../plugins/plugin-manager/src/tree.ts" lines="6-21" */}
+{/* ref file="../plugins/plugin-manager/src/tree.ts" lines="6-19" */}
 
-{/* ref file="../plugins/plugin-manager/src/tree.ts" lines="35-40" */}
+{/* ref file="../plugins/plugin-manager/src/tree.ts" lines="28-33" */}
 
 **守住它的测试**：用 `devDependencies` 里固定版本的 loader 与 include 搭一个和内核相同的环境，把条目树的用法运行一遍。这几个版本要和 peer 里内核包范围下限那个内核用的一致（见[内核兼容性](/docs/plugin-manager/kernel-compat)）。
 

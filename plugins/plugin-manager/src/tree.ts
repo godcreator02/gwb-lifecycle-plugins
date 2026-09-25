@@ -11,23 +11,16 @@ export interface EntryTreeLike {
   /** 不带前缀的 id → Entry 的表，不分层。同一棵树里的分组也在这张表上，没有嵌套 */
   store: Record<string, unknown>
   /** 加一条：写回 yml + 立即加载。`parent` 给 null 就是放在 yml 顶层 */
-  create(options: Record<string, unknown>, parent?: string | null, position?: number): Promise<string>
+  create(options: Record<string, unknown>, parent?: string | null): Promise<string>
   /** 删除一条 + 写回 yml */
   remove(id: string): void
   /** 改 options + 写回 yml。值给 null 是**删掉那个字段** */
-  update(id: string, options: Record<string, unknown>, parent?: string | null, position?: number): Promise<void>
-  /** 取一条。**只认不带前缀的 id**——传入完整 entryId 会直接抛错 */
-  resolve(id: string): unknown
+  update(id: string, options: Record<string, unknown>): Promise<void>
 }
 
 export function asTree(candidate: unknown): EntryTreeLike {
   if (!isRecord(candidate)) {
     throw new Error('取不到承载 cordis.yml 的条目树——这个插件只能通过 cordis.yml 里的条目加载，不能被别的插件直接 ctx.plugin 加载。')
-  }
-  for (const method of ['create', 'remove', 'update', 'resolve']) {
-    if (typeof candidate[method] !== 'function') {
-      throw new Error(`条目树上没有 ${method}()——loader 的接口变了，这个插件要跟着改。`)
-    }
   }
   return candidate as unknown as EntryTreeLike
 }

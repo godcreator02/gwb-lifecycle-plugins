@@ -48,9 +48,7 @@ pnpm build          # 只构建 plugins/*，两个包都先清空 dist/：开发
 
 **`pnpm check` 不构建。** 它检查的是源码，全绿只说明源码没问题，跟「装出来能不能运行」是两件事。
 
-**构建先清空 `dist/`**：不清的话，源码里删掉的模块还留在 `dist/` 里，随 `files` 白名单一起发出去。插件管理的产物测试查 `dist/` 里每个 `.js` 都有对应的 `src` 文件：
-
-{/* has file="../plugins/plugin-manager/tests/artifact.test.ts" text="每个 .js 都有对应的 src 文件" */}
+**构建先清空 `dist/`**：不清的话，源码里删掉的模块还留在 `dist/` 里，随 `files` 白名单一起发出去。两个包的 `build` 脚本都先删 `dist/`。
 
 开发套件的测试里只有 `tests/process-tree.test.ts` 启动真的子进程：超时终止整棵进程树要看孙进程真的没了，假实现证明不了。它几秒钟跑完，跟着 `pnpm check` 一起跑。
 

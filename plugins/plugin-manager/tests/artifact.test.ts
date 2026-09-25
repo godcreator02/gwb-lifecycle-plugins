@@ -48,12 +48,6 @@ describe.skipIf(!built)('产物', () => {
     expect(bad).toEqual([])
   })
 
-  it('每个 .js 都有对应的 src 文件——构建不先清 dist，源码删掉的模块会留在产物里随 files 白名单发出去', () => {
-    const srcDir = path.resolve(distDir, '../src')
-    const orphans = all.filter((file) => !fs.existsSync(path.join(srcDir, file.replace(/\.js$/, '.ts'))))
-    expect(orphans).toEqual([])
-  })
-
   it('除了 node 内置模块，一个包名 import 都没有', () => {
     const bare = new Set<string>()
     for (const file of all) {

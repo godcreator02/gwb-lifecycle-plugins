@@ -75,7 +75,7 @@ description: 插件管理是唯一写 home 的插件——装卸包、增删条�
 | 依赖 | 用来做什么 | 缺了会怎样 |
 | --- | --- | --- |
 | 内核服务 `gwbKernel` 的 `dataDir` 与 `version` | home 目录（pnpm 的工作目录、`package.json` 所在的目录）；运行中的内核版本号，和各包 peer 里内核包的范围比对 | 构造时报错「ctx.gwbKernel 不在」，插件管理不加载；内核版本号不合法时 `list` 报错 |
-| loader 的条目树：`store`、`create`、`update`、`remove`、`resolve` | 读条目、加删条目、启用停用、重新加载 | 构造时报错：取不到条目树（插件管理不是经 `cordis.yml` 的条目加载的），或条目树少了某个方法（loader 的接口变了），都说清是哪一种 |
+| loader 的条目树：`store`、`create`、`update`、`remove` | 读条目、加删条目、启用停用、重新加载 | 构造时报错：取不到条目树（插件管理不是经 `cordis.yml` 的条目加载的）；loader 的签名变了由类型检查发现 |
 | 用户装的 pnpm 12（`%LOCALAPPDATA%\pnpm\bin\pnpm.exe` 或 `%APPDATA%\npm\node_modules\pnpm\pnpm.exe`，版本不低于 12.4.2） | `add`、`remove`、`outdated --json` | 要运行 pnpm 的命令回 `ok: false`，原因里写明检查了哪两个位置、找到的版本不对时该装哪个版本；`list`、启停条目不受影响 |
 | home 的 `package.json` | 装了哪些包、各自的版本范围 | 读不到或解析不了就当空表：`list` 里只有条目那一层 |
 | home 的 `node_modules/<包名>` 这个目录链接指向的真实目录 | `update` 在 `pnpm add` 之前与之后各读一次，找出跟着换了目录的包 | 读不到当没装；在但读不了，`update` 报错并带上路径 |

@@ -28,7 +28,7 @@ god 工作台写插件用的一套东西：开发套件 `gwb-devkit`（建仓、
 | 5 | 借用别的插件的命令（约定） | 建仓、插件管理 ↔ 站点插件、docfirst、外壳 | 按名字调 `docs-site.create`、`docfirst.attach`、`shell.reload` | [借用别的插件的命令](/docs/seams/borrowed-commands) |
 | 6 | CDP 驱动（约定） | 开发套件 ↔ `cdp.mjs` ↔ 工作台页面 | 命令行参数、输出的 JSON、`window.gwb.command` | [CDP 驱动](/docs/seams/cdp) |
 | 7 | 内核与 home（约定） | `devkit.home.*`、CDP 驱动 ↔ 内核 exe | `GWB_HOME`、调试端口、`runtime.json`、home 根目录、`gwb.log` 的行格式 | [内核与 home](/docs/seams/kernel-home) |
-| 8 | 条目树 | 插件管理 ↔ cordis loader | `EntryTreeLike` 的 store / create / update / remove / resolve | [条目树](/docs/seams/entry-tree) |
+| 8 | 条目树 | 插件管理 ↔ cordis loader | `EntryTreeLike` 的 store / create / update / remove | [条目树](/docs/seams/entry-tree) |
 | 9 | pnpm 与包源 | 插件管理、开发套件 ↔ pnpm、npm 源、两份 npmrc、gitea 插件的设置 | 两个插件用同一个 pnpm（两个固定位置之一、核对版本）、打包开发版、发正式版；插件管理按 scope 找源、调 registry 的检索接口、读写 `~/.npmrc`、按名字调 `settings.get` 读 gitea 设置 | [pnpm 与包源](/docs/seams/pnpm-registry) |
 | 10 | 被测仓的形状（约定） | 改一版看一版、发正式版、加插件 ↔ 被测插件仓 | 仓根 build 脚本、`files`、`keywords`、目录布局、git 工作区干净 | [被测仓的形状](/docs/seams/repo-shape) |
 | 11 | 服务表与类型声明（约定） | `devkit.services` ↔ home 里各包的 `.d.ts` | `declare module 'cordis' { interface Context { … } }` 与类型定义 | [服务表与类型声明](/docs/seams/service-table) |

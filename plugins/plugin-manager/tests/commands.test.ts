@@ -23,11 +23,14 @@ const fakePnpm = vi.hoisted(() => ({
   afterRun: undefined as ((args: readonly string[]) => void) | undefined,
 }))
 
+vi.mock('../src/pnpm-location.js', () => ({
+  locatePnpm: () => Promise.resolve({ ok: true, file: 'fake-pnpm.exe', version: '0.0.0' }),
+}))
+
 vi.mock('../src/pnpm.js', async (importOriginal) => {
   const actual = await importOriginal<typeof import('../src/pnpm.js')>()
   return {
     ...actual,
-    locatePnpm: () => ({ ok: true, file: 'fake-pnpm.exe', version: '0.0.0' }),
     runPnpm: (opts: { pnpm: string; cwd: string; args: readonly string[] }) => {
       fakePnpm.calls.push({ args: opts.args, cwd: opts.cwd })
       fakePnpm.afterRun?.(opts.args)
@@ -80,7 +83,6 @@ function fakeTree(entries: Record<string, string>): FakeTree {
     remove: (id) => {
       delete store[id]
     },
-    resolve: (id) => store[id],
     update: (id, options) => {
       if (failUpdateFor.has(id)) return Promise.reject(new Error(`cannot update ${id}`))
       const entry = store[id]

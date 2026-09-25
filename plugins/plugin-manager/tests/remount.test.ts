@@ -33,7 +33,6 @@ function fakeTree(ids: readonly string[], onDisable?: (id: string) => void): Fak
     calls,
     create: () => Promise.reject(new Error('不该调')),
     remove: () => undefined,
-    resolve: (id) => store[id],
     update: (id, options) => {
       const entry = store[id]
       if (entry === undefined) return Promise.reject(new Error(`cannot resolve entry ${id}`))
