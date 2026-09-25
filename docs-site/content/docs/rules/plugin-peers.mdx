@@ -25,9 +25,9 @@ peer 的意思是「运行时从 home 里得到这个包」。插件的 peer 因
 
 **`devkit.release` 发版前检查**（只查插件包，`keywords` 含 `gwb-plugin`）：peer 里 `cordis` 与内核包以外的每个包，读包目录 `node_modules` 里它的清单，`keywords` 含 `gwb-plugin` 或同时含 `cordis` 与 `plugin`（cordis 官方插件）才算插件，不是插件、清单读不到都拒；peer 里的每个 gwb 插件（清单 `keywords` 含 `gwb-plugin`，不分包名范围；内核包、`workspace:` 与 cordis 官方插件除外）范围要是 `^x.y.z`，并且和源上 `dist-tags.latest` 在同一条线（问哪个源由用户级 `~/.npmrc` 的范围行决定）——主版本号为 0 时只比次版本号，≥1 时只比主版本号。不在同一条线说明上游出了破坏性版本，拒绝理由里写着适配、验过之后改成的 `^<latest>`：
 
-{/* ref file="../plugins/devkit/src/release.ts" lines="239-248" */}
+{/* ref file="../plugins/devkit/src/release.ts" lines="238-247" */}
 
-{/* ref file="../plugins/devkit/src/release.ts" lines="272-294" */}
+{/* ref file="../plugins/devkit/src/release.ts" lines="271-293" */}
 
 {/* has file="../plugins/devkit/tests/release.test.ts" text="插件包 peer 里的插件和源上 latest 不在同一条线：构建之后、发之前拒，一个都不发" */}
 
@@ -39,7 +39,7 @@ peer 的意思是「运行时从 home 里得到这个包」。插件的 peer 因
 
 pnpm 默认把 home 里没装的 peer 自动装进 `node_modules/.pnpm`：它不写进 home 的 `package.json`、没有条目，插件管理也不认它，只是写 peer 的插件能 import 到它。devkit 与插件管理在 home 里启动 pnpm 时一律带环境变量 `pnpm_config_auto_install_peers=false`；插件仓里不关，仓里开发正是靠自动补装把 peer 里的内核包与插件装进 `node_modules`、拿到类型的；命令行参数 `--config.auto-install-peers=false` 会被 pnpm 忽略，只有环境变量或 home 的 `pnpm-workspace.yaml` 里的 `autoInstallPeers: false` 关得掉。缺了的 peer 由人装，`list` 的 `unmetPeers` 把它报出来。
 
-{/* ref file="../plugins/devkit/src/dev.ts" lines="296-311" */}
+{/* ref file="../plugins/devkit/src/dev.ts" lines="295-310" */}
 
 {/* ref file="../plugins/plugin-manager/src/pnpm-path.ts" lines="7-16" */}
 
@@ -47,7 +47,7 @@ pnpm 默认把 home 里没装的 peer 自动装进 `node_modules/.pnpm`：它不
 
 devkit 用命令总线登记命令（写在 `export const inject` 里，必需），从插件管理的主入口 import 几个函数（必需，见[插件之间怎么交互](/docs/rules/interaction)），外壳、说明书、node 命令行三个插件经局部注入可选使用：
 
-{/* ref file="../plugins/devkit/package.json" lines="35-48" */}
+{/* ref file="../plugins/devkit/package.json" lines="37-50" */}
 
 装进一个外壳还是 0.12.4 的 home，`plugin-manager.list` 里 devkit 这个包带着：
 

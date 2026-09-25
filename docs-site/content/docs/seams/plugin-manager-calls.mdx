@@ -15,13 +15,13 @@ description: 连接 devkit 与插件管理：devkit 从插件管理的主入口 
 
 **一、`devkit.dev` 经 CDP 调三条命令。** devkit 运行在另一个 home 里，调用经 `bin/cdp.mjs` 的 `cmd` 动作发到目标页面的 `window.gwb.command`（通道见 [CDP 驱动 cdp.mjs](/docs/seams/cdp)）。devkit 先把每个包打成包文件放进目标 home 的 `dev-packs/`，再只读目标 home 的 `package.json`：已在 `dependencies` 里的包合成一条 `plugin-manager.update {"specs":{"<包>":"file:./dev-packs/<包文件>"}}`（有内核包时连同它 peer 里 cordis 的精确版本号），不在的插件逐个 `plugin-manager.install {"pkg","spec"}`：
 
-{/* ref file="../plugins/devkit/src/dev.ts" lines="248-270" */}
+{/* ref file="../plugins/devkit/src/dev.ts" lines="244-266" */}
 
 `install` 回 `{ ok, pkg, entryId }`，devkit 把 `entryId` 记进回执。`update` 回 `ok: false` 时 devkit 整体失败、带上回执里的 `error`；回执 `restartRequired: true` 时 devkit 重启目标 home（装了内核包而没有这个字段也判失败）；回执 `selfDeferred: true` 时 devkit 从 `updated` 与 `dependents` 里找出 `action` 是 `deferred` 的条目属于哪些包，每 500 毫秒轮询一次 `plugin-manager.list`，60 秒内等到这些包的条目全都 `active: true`：
 
-{/* ref file="../plugins/devkit/src/dev.ts" lines="575-606" */}
+{/* ref file="../plugins/devkit/src/dev.ts" lines="570-601" */}
 
-{/* ref file="../plugins/devkit/src/dev.ts" lines="520-543" */}
+{/* ref file="../plugins/devkit/src/dev.ts" lines="515-538" */}
 
 插件管理这边的两条命令：
 
@@ -35,7 +35,7 @@ description: 连接 devkit 与插件管理：devkit 从插件管理的主入口 
 
 `plugin-manager.list` 的回执由 devkit 自己解析：回执的 `data` 就是包的数组，按 `pkg` 找包，读每条条目的 `entryId` 与 `active`，一个包的**全部**条目都算进取证；这次装的插件在表里一条条目都没有，取证判失败：
 
-{/* ref file="../plugins/devkit/src/dev.ts" lines="165-177" */}
+{/* ref file="../plugins/devkit/src/dev.ts" lines="161-173" */}
 
 插件管理的 `list` 每个包带 `pkg`、`entries`，每条条目带完整 `entryId` 与按 fiber 状态算的 `active`：
 
@@ -43,9 +43,9 @@ description: 连接 devkit 与插件管理：devkit 从插件管理的主入口 
 
 **二、`devkit.home.new` 自己写 `cordis.yml`、自己装内核包、cordis 与基础插件。** 新 home 在内核启动之前，由 devkit 写一份七条条目的 `cordis.yml`（文件已存在就不写），再用命令开头找到的 pnpm（两个固定位置之一，见[pnpm 与包源](/docs/seams/pnpm-registry)）依次运行三次 `pnpm add`：内核包（运行中的内核版本，精确版本号）、`cordis`（装上的内核包 peer 里写的精确版本号）、七个基础插件（其中有插件管理）。三次都带环境变量 `pnpm_config_auto_install_peers=false`，基础插件 peer 里写的插件不会被 pnpm 自动补装。内核包与 `cordis` 装完读 `node_modules` 里的清单核对版本，对不上不启动：
 
-{/* ref file="../plugins/devkit/src/home.ts" lines="251-287" */}
+{/* ref file="../plugins/devkit/src/home.ts" lines="259-295" */}
 
-{/* ref file="../plugins/devkit/src/home.ts" lines="360-387" */}
+{/* ref file="../plugins/devkit/src/home.ts" lines="368-395" */}
 
 **三、devkit 从插件管理的主入口 import 几个函数与三条命令的名字。** 找 pnpm 的 `locatePnpm`、内核包名 `KERNEL_PACKAGE`、peer 范围的判定 `isCaretRange` / `kernelRangeCovers` / `declaredKernelRange`、取输出最后几行的 `tailLines`，规则只有插件管理里这一份；`devkit.dev` 调的命令名 `LIST_COMMAND`、`INSTALL_COMMAND`、`UPDATE_COMMAND` 也从这里取。devkit 的 peer 里写着插件管理（仓里写 `workspace:^`，`devkit.release` 发版时写成 `^<插件管理的版本号>`），home 里 pnpm 把它解析到装着的那一份：
 
@@ -53,7 +53,7 @@ description: 连接 devkit 与插件管理：devkit 从插件管理的主入口 
 
 {/* ref file="../plugins/plugin-manager/src/index.ts" lines="65-73" */}
 
-{/* ref file="../plugins/devkit/package.json" lines="36-43" */}
+{/* ref file="../plugins/devkit/package.json" lines="38-45" */}
 
 ## 约定
 
