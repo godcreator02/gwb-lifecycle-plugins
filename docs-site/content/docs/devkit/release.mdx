@@ -109,10 +109,14 @@ node 侧放行的包名：
 **样式检查**在 `src/style-check.ts`，`devkit.release` 与 `devkit.dev` 共用。插件包构建后有 `dist/style.css` 才查：
 
 - 前缀取样式入口里 `prefix(<名>)` 的名字。样式入口是 `src/` 下唯一一个写了 `prefix(…)` 的 css 文件，没有、有多个都拒
-- 产物层：`dist/style.css` 的类选择器都以 `.<前缀>\:` 开头（`.dark` 放行）；没有 `data-gwb-plugin`；`var()` 的 fallback 里没有写死的值（tw-animate-css 自带的那几条放行）；颜色类的色名只能是外壳 `theme.reference.css` 声明的令牌、本插件样式入口或产物自己声明的 `--color-<名>`，外加 transparent / inherit / current
-- 源码层：样式入口所在目录（递归）下 `.tsx` 的字符串字面量切成 token，前缀排在变体后面的报并写出改法；带前缀却编不出规则的报；不带前缀、但样式入口去掉 `prefix(…)` 后编得出规则的报「漏了前缀」。`group`、`peer` 这类标记类本来就不出规则，不算编不出；`outline` 是 shadcn 组件的变体名，不算漏了前缀
+- 产物层：`dist/style.css` 的类选择器都以 `.<前缀>\:` 开头（`.dark` 放行）；`@scope` 块里的规则不查前缀，改查块的根：根选择器列表的每一项都要有 `.<前缀>\:` 开头的类，没写根、写不出根的也报，界限 `to (…)` 不要求前缀——katex 这类在运行时生成类名、没法加前缀的第三方 css 就放进这种块，理由见轨迹卡[第三方 css 放进根带前缀的 @scope](/trajectory/2026-09-26-style-check-third-party-scope)；没有 `data-gwb-plugin`；`var()` 的 fallback 里没有写死的值（tw-animate-css 自带的那几条放行）；颜色类的色名只能是外壳 `theme.reference.css` 声明的令牌、本插件样式入口或产物自己声明的 `--color-<名>`，外加 transparent / inherit / current
+- 源码层：样式入口所在目录（递归）下 `.tsx` 的字符串字面量切成 token，前缀排在变体后面的报并写出改法；带前缀却编不出规则的报，产物里当 `@scope` 根或界限用的类除外（这种类只用来限定范围，本来就不是工具类）；不带前缀、但样式入口去掉 `prefix(…)` 后编得出规则的报「漏了前缀」。`group`、`peer` 这类标记类本来就不出规则，不算编不出；`outline` 是 shadcn 组件的变体名，不算漏了前缀
 
-{/* ref file="../plugins/devkit/src/style-check.ts" lines="432-454" hash="ce5591738058" blob="db7285a9e731" */}
+{/* ref file="../plugins/devkit/src/style-check.ts" lines="555-582" hash="d4ebedd071b8" blob="25c9a8aef1bf" */}
+
+`@scope` 块里的类不查前缀、块的根要带前缀，这两条是这样判的：
+
+{/* ref file="../plugins/devkit/src/style-check.ts" lines="199-213" hash="eb7c19b1bdcb" blob="25c9a8aef1bf" */}
 
 源码层要用 Tailwind 编译。devkit 不自带 Tailwind：被检查的包 dev 里有 `@tailwindcss/cli`（构建样式本来就要它），从它在 pnpm 虚拟存储里的真实目录解析旁边的 `@tailwindcss/node`，和构建用的是同一个版本；找不到就拒，写明原因：
 
@@ -158,9 +162,11 @@ node 侧放行的包名：
 
 {/* has file="../plugins/devkit/tests/release.test.ts" text="dev 依赖不查：落后于源上 latest、出了范围、写法不是 ^ 都照常发" */}
 
-`tests/artifact-check.test.ts` 给一张假文件表测产物检查：两侧入口怎么认、压成一行的各种写法都找到、字符串与注释里的 `import(…)` 不算、页面入口读不到就报。`tests/style-check.test.ts` 给假文件表与假编译器测样式检查：样式入口认不出、类选择器不带前缀、fallback 写死、调色板、前缀排在变体后面、带前缀编不出、漏了前缀各报什么；拿真实 Tailwind 的核对在 baseui、外壳、dsh、块笔记核心四个真实包上做过（块笔记核心没过，见它仓里的 feedback）。`tests/wiring-check.test.ts` 给假文件表测注入与 peer：三种注入写法与类型参数、认不出的写法逐处报、不是注入的属性读取与类型成员不管、类型入口里补的名字怎么读、几个声明方时按运行时代码判、只写在 dev、必需注入标了 optional、写 peer 会成环时放行、仓里没有文档站也不报。`tests/node-dev-deps.test.ts` 测组装发布内容的纯函数：发布用清单怎么改写、`workspace:` 找不到就抛、`pnpm view` 的结果怎么判。
+`tests/artifact-check.test.ts` 给一张假文件表测产物检查：两侧入口怎么认、压成一行的各种写法都找到、字符串与注释里的 `import(…)` 不算、页面入口读不到就报。`tests/style-check.test.ts` 给假文件表与假编译器测样式检查：样式入口认不出、类选择器不带前缀、`@scope` 块放行与根不带前缀、fallback 写死、调色板、前缀排在变体后面、带前缀编不出、漏了前缀各报什么；拿真实 Tailwind 的核对在 baseui、外壳、dsh、块笔记核心四个真实包上做过（块笔记核心没过，见它仓里的 feedback）。`tests/wiring-check.test.ts` 给假文件表测注入与 peer：三种注入写法与类型参数、认不出的写法逐处报、不是注入的属性读取与类型成员不管、类型入口里补的名字怎么读、几个声明方时按运行时代码判、只写在 dev、必需注入标了 optional、写 peer 会成环时放行、仓里没有文档站也不报。`tests/node-dev-deps.test.ts` 测组装发布内容的纯函数：发布用清单怎么改写、`workspace:` 找不到就抛、`pnpm view` 的结果怎么判。
 
 {/* has file="../plugins/devkit/tests/artifact-check.test.ts" text="压成一行的各种写法：静态 import、副作用 import、import * as、export from、export *、export * as、动态 import 都找到" */}
+
+{/* has file="../plugins/devkit/tests/style-check.test.ts" text="根选择器没有带前缀的类：报，写明要求与写法；没写根的、选择器列表里有一项不带前缀的也报" */}
 
 ## 代码地图
 

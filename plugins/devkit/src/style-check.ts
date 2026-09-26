@@ -111,14 +111,137 @@ export function classSelectors(css: string): string[] {
   return [...found]
 }
 
+// ── @scope：第三方 css 的放行范围 ─────────────────────────────────────────────
+
+/** 一个 `@scope` 块：`start` 是 `@scope` 的位置，`end` 是块末 `}` 之后；根与界限是括号里的原文，没写回 undefined */
+interface ScopeBlock {
+  start: number
+  end: number
+  /** 去掉多余空白的 `@scope …` 那一段，报错时照它点名 */
+  prelude: string
+  root: string | undefined
+  limit: string | undefined
+  /** 括号不配对、`to` 后面没有括号、括号后面还有别的：认不出 */
+  wellFormed: boolean
+}
+
+const SCOPE_AT_RULE = /@scope(?![\w-])/g
+
+/** `open` 处的开括号配对到的闭括号的位置；配不上回 -1 */
+function matchingClose(text: string, open: number, pair: '()' | '{}'): number {
+  let depth = 0
+  for (let i = open; i < text.length; i++) {
+    if (text[i] === pair[0]) depth++
+    else if (text[i] === pair[1] && --depth === 0) return i
+  }
+  return -1
+}
+
+/** `@scope` 与 `{` 之间那段：`[(<根>)] [to (<界限>)]` */
+function parseScopePrelude(text: string): Pick<ScopeBlock, 'root' | 'limit' | 'wellFormed'> {
+  let rest = text.trim()
+  let root: string | undefined
+  let limit: string | undefined
+  if (rest.startsWith('(')) {
+    const close = matchingClose(rest, 0, '()')
+    if (close === -1) return { root: undefined, limit: undefined, wellFormed: false }
+    root = rest.slice(1, close).trim()
+    rest = rest.slice(close + 1).trim()
+  }
+  if (rest.startsWith('to')) {
+    rest = rest.slice(2).trim()
+    const close = rest.startsWith('(') ? matchingClose(rest, 0, '()') : -1
+    if (close === -1) return { root, limit: undefined, wellFormed: false }
+    limit = rest.slice(1, close).trim()
+    rest = rest.slice(close + 1).trim()
+  }
+  return { root, limit, wellFormed: rest === '' }
+}
+
+/** 去掉注释的 css 里每个 `@scope` 块（嵌在 `@media` 或别的 `@scope` 里的也算） */
+function scopeBlocks(css: string): ScopeBlock[] {
+  const blocks: ScopeBlock[] = []
+  for (const at of css.matchAll(SCOPE_AT_RULE)) {
+    const start = at.index
+    const open = css.indexOf('{', start)
+    const close = open === -1 ? -1 : matchingClose(css, open, '{}')
+    const preludeText = css.slice(start + '@scope'.length, open === -1 ? css.length : open)
+    const prelude = `@scope ${preludeText.trim()}`.replaceAll(/\s+/g, ' ').trim()
+    const parsed = parseScopePrelude(preludeText)
+    // 块没闭合：到文件末尾都算块里，同时按根认不出报出来
+    blocks.push({ start, end: close === -1 ? css.length : close + 1, prelude, ...parsed, wellFormed: parsed.wellFormed && close !== -1 })
+  }
+  return blocks
+}
+
+/** 选择器列表按顶层逗号切开：`:is(.a, .b)` 里的逗号不切 */
+function selectorList(selectors: string): string[] {
+  const items: string[] = []
+  let depth = 0
+  let from = 0
+  for (let i = 0; i < selectors.length; i++) {
+    const c = selectors[i]
+    if (c === '(') depth++
+    else if (c === ')') depth--
+    else if (c === ',' && depth === 0) {
+      items.push(selectors.slice(from, i))
+      from = i + 1
+    }
+  }
+  items.push(selectors.slice(from))
+  return items.map((item) => item.trim())
+}
+
+function hasPrefixedClass(selector: string, prefix: string): boolean {
+  return [...selector.matchAll(CLASS_SELECTOR)].some((cls) => cls[0].startsWith(`.${prefix}\\:`))
+}
+
+/** 根选择器列表里每一项都得有本插件前缀的类，块里的规则才只命中本插件画出来的元素 */
+function scopeRootIsPrefixed(block: ScopeBlock, prefix: string): boolean {
+  if (!block.wellFormed || block.root === undefined || block.root === '') return false
+  return selectorList(block.root).every((selector) => hasPrefixedClass(selector, prefix))
+}
+
+/** `@scope` 块之外的类选择器：块里的规则由根限定范围，不查前缀 */
+function unscopedClassSelectors(css: string): string[] {
+  const plain = withoutComments(css)
+  const chars = plain.split('')
+  for (const block of scopeBlocks(plain)) {
+    for (let k = block.start; k < block.end; k++) if (chars[k] !== '\n') chars[k] = ' '
+  }
+  return classSelectors(chars.join(''))
+}
+
+/** 在 `@scope` 的根或界限里出现过的类，去掉转义（`.fk\:render-root` → `fk:render-root`），和源码里的 token 同一种写法 */
+function scopeBoundaryClasses(css: string): Set<string> {
+  const found = new Set<string>()
+  for (const block of scopeBlocks(withoutComments(css))) {
+    for (const selectors of [block.root, block.limit]) {
+      if (selectors === undefined) continue
+      for (const cls of selectors.matchAll(CLASS_SELECTOR)) found.add(cls[0].slice(1).replaceAll(/\\(.)/g, '$1'))
+    }
+  }
+  return found
+}
+
+function scopeRootProblems(css: string, prefix: string): string[] {
+  const bad = [...new Set(scopeBlocks(withoutComments(css)).filter((block) => !scopeRootIsPrefixed(block, prefix)).map((block) => block.prelude))].sort()
+  if (bad.length === 0) return []
+  return [
+    `${STYLE_ARTIFACT} 里有 ${String(bad.length)} 个 @scope 的根选择器没有 .${prefix}\\: 开头的类：${bad.join('、')}。@scope 块里的类名不查前缀，靠的是根只命中本插件画出来的元素：` +
+      `根写成本插件带前缀的类，@scope (.${prefix}\\:<名>) { … }，选择器列表里每一项都要带；界限 to (…) 不要求前缀`,
+  ]
+}
+
 function unprefixedSelectorProblems(css: string, prefix: string): string[] {
-  const bad = classSelectors(css)
+  const bad = unscopedClassSelectors(css)
     .filter((selector) => !selector.startsWith(`.${prefix}\\:`) && selector !== DARK_FLAG)
     .sort()
   if (bad.length === 0) return []
   return [
     `${STYLE_ARTIFACT} 里有 ${String(bad.length)} 个类选择器不带 ${prefix}: 前缀：${bad.join('、')}。样式只作用于本插件靠的就是类名前缀，` +
-      `不带前缀的类会命中页面上别的插件画出来的元素：样式入口里手写的规则、@import 进来的 css 里的类名都改成 ${prefix}: 开头的工具类（或删掉），只有 .dark 放行`,
+      `不带前缀的类会命中页面上别的插件画出来的元素：样式入口里手写的规则、@import 进来的 css 里的类名都改成 ${prefix}: 开头的工具类（或删掉），只有 .dark 放行；` +
+      `katex 这类在运行时生成类名、没法加前缀的第三方 css，整份放进根是本插件前缀类的 @scope 块：@scope (.${prefix}\\:<名>) { … }，块里的类名不查前缀`,
   ]
 }
 
@@ -375,9 +498,9 @@ async function compiled(compile: TailwindCompile, css: string, base: string, lab
 
 /**
  * 源码层：样式入口所在目录（递归）下 .tsx 里字符串字面量切出的 token。
- * 前缀排在变体后面的报；带前缀却编不出规则的报；不带前缀、但入口去掉 prefix() 后编得出规则的报「漏了前缀」
+ * 前缀排在变体后面的报；带前缀却编不出规则的报（产物里当 `@scope` 根或界限用的类除外）；不带前缀、但入口去掉 prefix() 后编得出规则的报「漏了前缀」
  */
-async function sourceClassProblems(pkgDir: string, entry: StyleEntry, io: StyleCheckIo): Promise<string[]> {
+async function sourceClassProblems(pkgDir: string, entry: StyleEntry, scopeBoundaries: ReadonlySet<string>, io: StyleCheckIo): Promise<string[]> {
   const entryDir = path.dirname(entry.file)
   const entryRel = relativeToPackage(pkgDir, entry.file)
   const tsxFiles = io.filesUnder(entryDir).filter((one) => one.endsWith('.tsx')).sort()
@@ -415,7 +538,7 @@ async function sourceClassProblems(pkgDir: string, entry: StyleEntry, io: StyleC
         `${token}（${where(sites, token)}）：前缀要排在最前，写成 ${prefix}${token.replace(prefixAfterVariant, ':')}——前缀排在变体后面 Tailwind 不报错，只是一条规则都不出`,
     ),
     ...prefixed
-      .filter((token) => !prefixedWithRule.has(token))
+      .filter((token) => !prefixedWithRule.has(token) && !scopeBoundaries.has(token))
       .sort()
       .map(
         (token) =>
@@ -431,7 +554,7 @@ async function sourceClassProblems(pkgDir: string, entry: StyleEntry, io: StyleC
 
 /**
  * 带界面插件的样式检查。不是插件包、或构建后没有 `dist/style.css` 的不查。
- * 产物层查类名前缀、data-gwb-plugin、var() 的 fallback、颜色类只用主题令牌；源码层查 .tsx 里的类名前缀
+ * 产物层查类名前缀（`@scope` 块里不查，改查它的根带前缀）、data-gwb-plugin、var() 的 fallback、颜色类只用主题令牌；源码层查 .tsx 里的类名前缀
  */
 export async function styleProblems(pkgDir: string, pkg: { name: string; plugin: boolean }, io: StyleCheckIo): Promise<string[]> {
   if (!pkg.plugin) return []
@@ -441,7 +564,12 @@ export async function styleProblems(pkgDir: string, pkg: { name: string; plugin:
   if (!found.ok) return [found.error]
   const { entry } = found
 
-  const problems = [...unprefixedSelectorProblems(css, entry.prefix), ...pluginAttributeProblems(css), ...literalFallbackProblems(css)]
+  const problems = [
+    ...unprefixedSelectorProblems(css, entry.prefix),
+    ...scopeRootProblems(css, entry.prefix),
+    ...pluginAttributeProblems(css),
+    ...literalFallbackProblems(css),
+  ]
   const shellColors = shellColorNamesOf(pkgDir, pkg.name, io)
   if (shellColors.ok) {
     const allowed = new Set([...COLOR_KEYWORDS, ...shellColors.names, ...declaredColorNames(entry.css), ...declaredColorNames(css, entry.prefix)])
@@ -449,6 +577,6 @@ export async function styleProblems(pkgDir: string, pkg: { name: string; plugin:
   } else {
     problems.push(shellColors.error)
   }
-  problems.push(...(await sourceClassProblems(pkgDir, entry, io)))
+  problems.push(...(await sourceClassProblems(pkgDir, entry, scopeBoundaryClasses(css), io)))
   return problems
 }

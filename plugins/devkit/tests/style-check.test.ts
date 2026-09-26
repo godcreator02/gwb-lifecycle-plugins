@@ -182,6 +182,55 @@ describe('产物 dist/style.css', () => {
   })
 })
 
+describe('产物里的 @scope：第三方 css 放进根带前缀的 @scope', () => {
+  const KATEX = '.katex{font:1.21em KaTeX_Main}.katex .mfrac>span{text-align:center}'
+
+  it('根带前缀的 @scope 里不带前缀的类放行：压缩后的 @scope(…)、带 to (…) 界限（界限不要求前缀）、嵌在 @media 里的都认得；@font-face 不误报', async () => {
+    const css = [
+      '.fk\\:flex{display:flex}',
+      '@font-face{font-family:KaTeX_Main;src:url(fonts/KaTeX_Main-Regular.woff2) format("woff2")}',
+      `@scope(.fk\\:render-root) to (.katex-html .hole){${KATEX}}`,
+      `@scope (div.fk\\:math) {${KATEX}}`,
+      `@media (min-width:10px){@scope(.fk\\:render-root){.katex-display{margin:1em 0}}}`,
+    ].join('')
+    expect(await styleProblems(PKG, PLUGIN, io(cleanPlugin({ 'dist/style.css': css })))).toEqual([])
+  })
+
+  it('根选择器没有带前缀的类：报，写明要求与写法；没写根的、选择器列表里有一项不带前缀的也报', async () => {
+    const css = [`@scope (.katex){${KATEX}}`, `@scope{.katex{}}`, `@scope (.fk\\:a, .other){.katex{}}`, `@scope (.fk\\:ok){.katex{}}`].join('')
+    const got = await styleProblems(PKG, PLUGIN, io(cleanPlugin({ 'dist/style.css': css })))
+    expect(got).toEqual([expect.stringContaining('有 3 个 @scope 的根选择器没有 .fk\\: 开头的类：@scope、@scope (.fk\\:a, .other)、@scope (.katex)')])
+    expect(got[0]).toContain('@scope (.fk\\:<名>) { … }')
+  })
+
+  it('块内照样查：写死的 fallback、data-gwb-plugin、主题令牌之外的颜色类', async () => {
+    const css = '@scope (.fk\\:render-root){.katex{padding:var(--gwb-spacing, 2px)}[data-gwb-plugin] .katex{}.fk\\:bg-blue-500{}}'
+    const got = await styleProblems(PKG, PLUGIN, io(cleanPlugin({ 'dist/style.css': css })))
+    expect(got).toEqual([
+      expect.stringContaining('出现了 data-gwb-plugin'),
+      expect.stringContaining('1 处 var() 的 fallback 写死了值：var(--gwb-spacing, 2px)'),
+      expect.stringContaining('有 1 个颜色类用了主题令牌之外的色名：.fk\\:bg-blue-500'),
+    ])
+  })
+
+  it('块外不带前缀的照样报，只报块外那几个；报错里写明第三方 css 可以放进 @scope', async () => {
+    const css = `.stray{}@scope (.fk\\:render-root){${KATEX}}.katex-after{}@media (hover:hover){@scope (.fk\\:render-root){.katex{}}.loose:hover{}}`
+    const got = await styleProblems(PKG, PLUGIN, io(cleanPlugin({ 'dist/style.css': css })))
+    expect(got).toEqual([expect.stringContaining('有 3 个类选择器不带 fk: 前缀：.katex-after、.loose、.stray')])
+    expect(got[0]).toContain('@scope (.fk\\:<名>)')
+  })
+
+  it('源码里只当 @scope 根或界限用的前缀类编不出规则也不报；别的编不出的照报', async () => {
+    const files = cleanPlugin({
+      'src/client/App.tsx': 'export const App = () => <div className="fk:flex fk:render-root"><i className="fk:hole fk:nope" /></div>',
+      'dist/style.css': `.fk\\:flex{display:flex}@scope(.fk\\:render-root) to (.fk\\:hole){${KATEX}}`,
+    })
+    expect(await styleProblems(PKG, PLUGIN, io(files))).toEqual([
+      'fk:nope（src/client/App.tsx）：带 fk: 前缀却编不出规则——工具类或变体名拼错了，或有变体排在了前缀前面；不是类名的字符串别用 fk: 开头',
+    ])
+  })
+})
+
 describe('源码里的类名', () => {
   it('literals：注释里的引号不算，转义的引号不断开，模板串的插值换成空白', () => {
     const source = "// it's a comment\n/* `not` */ const a = 'x\\'y'; const b = `p ${q} r`; const c = \"z\""

@@ -1,0 +1,26 @@
+node v24.14.1，2026-09-26 16:06
+bn:render-root 单独编得出规则：false
+--- 编译输出 ---
+/*! tailwindcss v4.3.3 | MIT License | https://tailwindcss.com */
+.bn\:flex {
+  display: flex;
+}
+@scope (.bn\:render-root) to (.bn\:hole) {
+  .katex {
+    font: normal 1.21em KaTeX_Main;
+  }
+  .katex .mfrac > span {
+    text-align: center;
+  }
+}
+@media (min-width: 10px) {
+  @scope (.bn\:render-root) {
+    .katex-display {
+      margin: 1em 0;
+    }
+  }
+}
+
+--- optimize({ minify: true }) ---
+/*! tailwindcss v4.3.3 | MIT License | https://tailwindcss.com */
+.bn\:flex{display:flex}@scope(.bn\:render-root) to (.bn\:hole){.katex{font:1.21em KaTeX_Main}.katex .mfrac>span{text-align:center}}@media (min-width:10px){@scope(.bn\:render-root){.katex-display{margin:1em 0}}}

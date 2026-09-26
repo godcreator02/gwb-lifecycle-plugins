@@ -1,0 +1,1 @@
+# 让 pnpm 往上找 workspace 根时停在这里，不并进仓根的 workspace
