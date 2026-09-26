@@ -27,6 +27,7 @@ const RECEIPT_TYPE_NAMES = [
   'Installed',
   'EntryAdded',
   'Uninstalled',
+  'Acknowledged',
   'UpdateInfo',
   'OutdatedMap',
   'OutdatedFound',

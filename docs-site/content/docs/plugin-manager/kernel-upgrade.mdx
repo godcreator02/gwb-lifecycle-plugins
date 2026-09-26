@@ -16,7 +16,7 @@ description: 内核包也经 update 的 specs 换，可以连同别的包一次�
 3. `pnpm add --save-exact cordis@<那个版本>`，装完读回核对 `cordis` 装上的就是它
 4. **不重新加载任何条目**：`updated` 每项的 `entries` 是空数组，末尾多一项插件管理自己对齐的 `cordis`；`dependents` 是空数组
 
-{/* ref file="../plugins/plugin-manager/src/index.ts" lines="341-387" hash="2ea77ac58d4e" blob="8fed14154427" */}
+{/* ref file="../plugins/plugin-manager/src/index.ts" lines="342-388" hash="2ea77ac58d4e" blob="9c26468ce597" */}
 
 `outdated` 不报内核有没有新版本；写 `latest` 就装源上的最新版，回执里内核包的 `from` 与 `to` 相同就是已是最新。
 
@@ -28,7 +28,7 @@ description: 内核包也经 update 的 specs 换，可以连同别的包一次�
 
 {/* ref file="../plugins/plugin-manager/src/kernel-upgrade.ts" lines="10-11" hash="36526a391df4" blob="f053bf9413fd" */}
 
-{/* ref file="../plugins/plugin-manager/src/index.ts" lines="481-485" hash="dc426da265cc" blob="8fed14154427" */}
+{/* ref file="../plugins/plugin-manager/src/index.ts" lines="482-486" hash="dc426da265cc" blob="9c26468ce597" */}
 
 {/* has file="../plugins/plugin-manager/tests/commands.test.ts" text="uninstall：内核包与 cordis 不许卸载，直接抛错，一次 pnpm 都不运行" */}
 
@@ -66,7 +66,7 @@ description: 内核包也经 update 的 specs 换，可以连同别的包一次�
 
 后两种时重启，新内核会运行在没对齐的 `cordis` 上；照 `error` 修好再调一次。
 
-{/* ref file="../plugins/plugin-manager/src/receipts.ts" lines="159-160" hash="a6fe8597406f" blob="3d191e167e13" */}
+{/* ref file="../plugins/plugin-manager/src/receipts.ts" lines="162-163" hash="a6fe8597406f" blob="2d2406f47c3c" */}
 
 {/* has file="../plugins/plugin-manager/tests/commands.test.ts" text="第一次 pnpm add 失败：不装 cordis，外层 error 带输出的最后几行，没有 data" */}
 

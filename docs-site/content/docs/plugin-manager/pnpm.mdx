@@ -36,7 +36,7 @@ pnpm 由用户装好，插件管理不自带。每次要运行 pnpm 时按顺序
 
 **命令行参数与工作目录**：写 home 只有 `add <spec…>`（对齐 `cordis` 那一次是 `add --save-exact cordis@<版本>`）与 `remove <包名>` 两种，都经 `applyToHome` 运行；只读的是 `outdated --json`。工作目录一律是 home。参数以数组传给进程，不经 shell。
 
-{/* ref file="../plugins/plugin-manager/src/index.ts" lines="586-589" hash="84c877d9f358" blob="8fed14154427" */}
+{/* ref file="../plugins/plugin-manager/src/index.ts" lines="587-590" hash="84c877d9f358" blob="9c26468ce597" */}
 
 **环境**：由 `homePnpmEnv` 算，主入口导出它，devkit 在 home 里启动 pnpm 也用它（见[主入口给 devkit 的导出](/docs/plugin-manager#主入口给-devkit-的导出)）。原样传下去，用户的 `~/.npmrc`、pnpm 配置（`@godcreator` 的包源、包龄豁免）照常读到；改两处。去掉 `ELECTRON_RUN_AS_NODE`：它只对 electron 有意义，留着会传给 pnpm 启动的依赖构建脚本。设 `pnpm_config_auto_install_peers=false`：插件的 peer 写了别的插件、home 里没装那个插件时，pnpm 默认把它自动装进 `node_modules/.pnpm`，不写进 home 的 `package.json`、没有条目，插件管理也不认它；命令行参数 `--config.auto-install-peers=false` 会被 pnpm 忽略，只有环境变量或 home 的 `pnpm-workspace.yaml` 关得掉（见 [peer 满没满足](/docs/plugin-manager/peers#缺的-peer-不会被自动装上)）。
 

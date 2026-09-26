@@ -74,6 +74,9 @@ export interface Uninstalled {
   pkg: string
 }
 
+/** `plugin-manager.remove-entry`、`enable`、`disable` 的整个回执：成功不带 `data`；失败是处理函数抛错，由命令总线转成 `error` */
+export type Acknowledged = { ok: true } | { ok: false; error: string }
+
 /** 一个包的版本差距 */
 export interface UpdateInfo {
   /** home 里装着的版本 */

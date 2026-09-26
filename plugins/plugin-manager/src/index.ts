@@ -5,6 +5,7 @@ import { isRecord, noteOf, requireKernel } from './vocab.js'
 import type {} from '@godcreator/gwb-commands'
 import type {} from '@godcreator/gwb-skills'
 import type {
+  Acknowledged,
   DependentPackage,
   EntryAdded,
   Installed,
@@ -175,17 +176,17 @@ class PluginManager {
       },
     )
 
-    registerCommand(REMOVE_ENTRY_COMMAND, '删一条条目（不删包）', '参数 { entryId }', (args) => {
+    registerCommand(REMOVE_ENTRY_COMMAND, '删一条条目（不删包）', '参数 { entryId }', (args): Acknowledged => {
       this.removeEntry(requiredString(argsObjectOf(args, ['entryId']), 'entryId'))
       return { ok: true }
     })
 
-    registerCommand(ENABLE_COMMAND, '启用一条条目', '参数 { entryId }', async (args) => {
+    registerCommand(ENABLE_COMMAND, '启用一条条目', '参数 { entryId }', async (args): Promise<Acknowledged> => {
       await this.enable(requiredString(argsObjectOf(args, ['entryId']), 'entryId'))
       return { ok: true }
     })
 
-    registerCommand(DISABLE_COMMAND, '停用一条条目', '参数 { entryId }', async (args) => {
+    registerCommand(DISABLE_COMMAND, '停用一条条目', '参数 { entryId }', async (args): Promise<Acknowledged> => {
       await this.disable(requiredString(argsObjectOf(args, ['entryId']), 'entryId'))
       return { ok: true }
     })

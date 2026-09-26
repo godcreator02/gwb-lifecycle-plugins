@@ -63,6 +63,6 @@ description: plugin-manager.search（无参数）在配好的全部 npm 源上�
 
 `search` 用不带 BUSY 检查的方式登记，也不运行 pnpm。BUSY 防的是两次改动同时改 home 的 `package.json`；`search` 只读网络与文件，不碰 home。检索可能要等好几条源，排在安装后面只会让「可装」列表等到安装做完才出来。
 
-{/* ref file="../plugins/plugin-manager/src/index.ts" lines="215-227" hash="ae6fa061604a" blob="8fed14154427" */}
+{/* ref file="../plugins/plugin-manager/src/index.ts" lines="216-228" hash="ae6fa061604a" blob="9c26468ce597" */}
 
 真实 registry 的检索只能实机验证：`devkit.home.new` 开一个隔离 home，在里面调 `search`。
