@@ -1,0 +1,19 @@
+---
+title: '说明书与规矩总表指向 /docs/rules/<页>，插件作者用 skill.read 读不到'
+description: '来源：gwb-ui-plugins（外壳说明书实测），2026-09-26；总控台会话投递'
+docfirst: none
+---
+
+## 现场
+
+实测让插件作者只凭说明书与发布包写窗格。`skill.read {"name":"gwb-devkit","file":"references/rules.md"}` 里每条规矩都链到
+`/docs/rules/<页>`（deps、plugin-peers、importmap、dispose、services、interaction、kernel-compat、wiring），`gwb-devkit`
+说明书（`plugins/devkit/skills/gwb-devkit/SKILL.md:21,68`）说「每条的做法与例子在那一页」，对应的是本仓文档站的 mdx。
+作者手上只有 MCP 入口与装好的包，这些页读不到；这次靠总表一行一条的说法做完了，没卡住，但「做法与例子」实际拿不到。
+
+外壳说明书 gwb-shell 同类的一句（指向本仓 `docs-site/content/docs/rules/*.mdx`）这次已改成只指向 `references/rules.md`。
+
+## 期望
+
+要照做的做法与例子随包发：把规矩分页里对插件作者有用的部分并进 `references/rules.md`，或各页也作为附件生成进
+`skills/gwb-devkit/references/`（`skill.read` 能读），链接改指附件。

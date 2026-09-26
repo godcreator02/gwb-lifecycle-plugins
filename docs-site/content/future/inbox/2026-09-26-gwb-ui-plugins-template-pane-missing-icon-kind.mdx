@@ -1,0 +1,18 @@
+---
+title: '模板窗格没写 icon、kind，也没调 describeSelf，和说明书 gwb-shell 的步骤对不上'
+description: '来源：gwb-ui-plugins（外壳说明书实测），2026-09-26；总控台会话投递'
+docfirst: none
+---
+
+## 现场
+
+2026-09-26 让插件作者只凭说明书与外壳 `.d.ts` 写窗格（实测）。说明书 gwb-shell 写着「下面各节从 `devkit.scaffold`
+生成的插件出发」，它的第 1、2 步要求 `registerPane` 写 `icon`、`kind`，并调 `ctx.gwbShell.describeSelf({ title, icon })`
+报插件显示名（状态栏「新建」按它给窗格分组）。模板 `plugins/devkit/template/pkg/src/index.ts.tpl:33` 只写了
+`{ id: 'main', title: '{{name}}', client, style }`，没有 `describeSelf`。作者照模板走，状态栏「新建」里这个插件按包名分组，
+标签画 `#`。
+
+## 期望
+
+模板的 `registerPane` 带上 `icon`（一个 lucide 名字，如 `square`）与 `kind: 'tool'`，并调一次
+`shell.describeSelf({ title: '{{name}}', icon: … })`。外壳说明书这边已先写明「模板没写这几项，照这里补上」，模板补上后那句可以删。

@@ -1,0 +1,21 @@
+---
+title: '样式检查把 JSX 属性值当成漏了前缀的类名，报错里建议的改法也是错的'
+description: '来源：gwb-ui-plugins（外壳说明书实测），2026-09-26；总控台会话投递'
+docfirst: none
+---
+
+## 现场
+
+实测插件在 `.tsx` 里写了 `data-probe="filter"`。`devkit.dev` 回 `ok: false`，报「漏了前缀，写成 `paneprobe:filter`」。
+`plugins/devkit/src/style-check.ts` 的 `literals()`（:297）收下 `.tsx` 里全部字符串字面量，`tokenSitesOf()`（:337）按空白切开后
+逐个交给 Tailwind 编译，`filter` 本身是工具类，于是被当成漏写前缀的类名。同样会中的还有 `aria-*`、`placeholder`、`title`、
+`role` 等属性值与普通文案里的 `hidden`、`flex`、`block`、`contents` 这类词。
+
+说明书 gwb-shell 已写「扫全部字符串字面量，不是类名的挪进 `.ts`」，外壳这边这次又补了「JSX 属性值同样会被扫」。
+但报错里的建议「写成 `<前缀>:filter`」对属性值是错的，照着改会把一个 data 属性值改坏。
+
+## 期望
+
+二选一：
+- 只扫 `className`（及 `cn(...)`、`cva(...)` 这类拼类名的调用）里的字面量，属性值不扫
+- 仍扫全部字面量，但字面量出现在 JSX 属性（`className` 以外）里时，报错改说「这个字符串和工具类同名：不是类名就换个名字，或挪进 .ts」，不给「加前缀」的建议
