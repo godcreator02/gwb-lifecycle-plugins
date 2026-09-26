@@ -32,7 +32,7 @@
     "@godcreator/gwb-commands": "^0.5.0",
     "@godcreator/gwb-plugin-manager": "workspace:^",
     "@godcreator/gwb-node-cli": "^0.4.7",
-    "@godcreator/gwb-shell": "^0.14.0",
+    "@godcreator/gwb-shell": "^0.15.0",
     "@godcreator/gwb-skills": "^0.4.5"
   },
   "peerDependenciesMeta": {

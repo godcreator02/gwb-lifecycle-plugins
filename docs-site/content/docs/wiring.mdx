@@ -51,7 +51,7 @@ peer 的写法照[用到的插件写 peer](/docs/rules/plugin-peers)：跨仓的
 | 服务 | 提供方包 | 必需 / 局部注入 | peer 写法 | 用来做什么 | 缺了会怎样 |
 | --- | --- | --- | --- | --- | --- |
 | `gwbCommands` | `@godcreator/gwb-commands` | 必需（`export const inject`） | `^0.5.0` | 登记除 `devkit.cdp` 外的 8 条命令；就绪日志用 `list()` 列出此刻总线上本包的命令 | 插件不加载：cordis 等到这个服务出现才调用 `apply`；`apply` 里取不到它就抛错 |
-| `gwbShell` | `@godcreator/gwb-shell` | 局部注入 | `^0.14.0`，`optional: true` | `describeSelf` 报显示名 | 插件清单里没有显示名，别的不受影响 |
+| `gwbShell` | `@godcreator/gwb-shell` | 局部注入 | `^0.15.0`，`optional: true` | `describeSelf` 报显示名 | 插件清单里没有显示名，别的不受影响 |
 | `gwbNodeCli` | `@godcreator/gwb-node-cli` | 局部注入 | `^0.4.7`，`optional: true` | 把 `bin/cdp.mjs` 登记成 `devkit.cdp` | 没有 `devkit.cdp` 命令；`devkit.dev` 不受影响，它自己启动 `bin/cdp.mjs` 子进程 |
 | `gwbSkills` | `@godcreator/gwb-skills` | 局部注入 | `^0.4.5`，`optional: true` | 登记 `skills/` 下两份说明书 | agent 读不到这两份说明书，命令照常 |
 | `gwbKernel` | 内核包 `@godcreator/gwb-kernel-desktop` | 不写进 `inject`，用 `requireKernel` 取 | `^0.7.0` | `version`：`devkit.home.new` 装进新 home 的内核包版本、建仓时模板 peer 里内核包的下限；`dataDir`：本插件自己所在的 home，`devkit.dev` 拒绝以它为目标，建仓从它的 `node_modules` 读命令总线与外壳的版本 | 用到它的命令抛错「ctx.gwbKernel 不在」 |
@@ -213,7 +213,7 @@ peer 里另有插件管理 `@godcreator/gwb-plugin-manager`（`workspace:^`，�
 | 通道 | 对方 | 名字 | 用来做什么 |
 | --- | --- | --- | --- |
 | loader 的条目树 | `@cordisjs/plugin-loader`（内核加载） | `ctx.fiber.entry.parent.tree` 的 `store`、`create`、`update`、`remove` | 读条目、加删条目、启用停用、重新加载，改动由 loader 写回 `cordis.yml`；取不到条目树就在构造时报错。见接缝页[条目树 loader](/docs/seams/entry-tree) |
-| 抄了一份 cordis 的状态数字 | cordis 的 `FiberState`（`const enum`，引用不到） | `PENDING`、`LOADING`、`ACTIVE`、`FAILED`、`DISPOSED`、`UNLOADING` 的数字顺序 | `list` 的 `active` 与重新加载时判断条目到哪一步；`tests/fiber-state.test.ts` 对照 cordis 的定义 |
+| 复制的 cordis 状态数字 | cordis 的 `FiberState`（`const enum`，引用不到） | `PENDING`、`LOADING`、`ACTIVE`、`FAILED`、`DISPOSED`、`UNLOADING` 的数字顺序 | `list` 的 `active` 与重新加载时判断条目到哪一步；`tests/fiber-state.test.ts` 对照 cordis 的定义 |
 | 子进程 | 用户装的 pnpm 12 | `pnpm add` / `remove` / `outdated --json`，环境带 `pnpm_config_auto_install_peers=false` | 装卸与升级 home 里的包；不自动补装缺的 peer |
 | 读文件 | home 的清单与装着的包 | `<home>/package.json`、`<home>/node_modules/<包>/package.json` 与它指向的真实目录 | 装了哪些包、版本、peer 报告；`update` 前后比真实目录找出跟着重新加载的包 |
 | 读文件 | 机器级与 home 级 npmrc | `~/.npmrc`、`<home>/.npmrc` | `search` 按 scope 找源地址与 token，只读不写 |
