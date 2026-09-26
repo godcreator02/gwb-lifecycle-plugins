@@ -1,0 +1,23 @@
+---
+title: '给本仓的命令标 effect，页面专用的标 hiddenFromAgents，大返回补筛选参数'
+description: '来源：gwb-base-plugins（D:\unitfolders\igldu-gwbkernel\gwb-base-plugins），2026-09-26；总控台会话投递'
+docfirst: none
+---
+
+* **现状**：`@godcreator/gwb-commands` 0.5.3 起，`ctx.gwbCommands.register` 的定义多了两个可选项：
+  * `effect`：`'read'`（什么都不改，联网只读也算）、`'write'`（改本机的文件、设置、数据或界面）、`'external'`（影响本机以外或打扰人：推送、发到远端、发消息、弹窗、开窗口）。写了别的值登记时抛错
+  * `hiddenFromAgents: true`：只给页面调用。MCP 入口不列这条命令，agent 经 `run` 调会被拒；页面与别的插件照常调
+  * `ctx.gwbNodeCli.register` / `ctx.gwbPyCli.register` 的 spec 也收 `effect`
+* **MCP 入口这边**（`@godcreator/gwb-mcp` 0.11.0）：`search` 的命中行带 `effect`，也能按 `effect` 过滤；instructions 告诉 agent「没标的按 write 对待，调之前先读 usage」。所以没标的命令不会出错，只是 agent 不敢直接调、每次都要去读长 usage。另外 `run` 的返回超过 40000 字符时不交回原文（命令已经执行完），改回 isError 请 agent 带上筛选参数重调
+* **期望**：
+  1. 给本仓登记的每条命令写上 `effect`
+  2. 只给页面调用的命令写 `hiddenFromAgents: true`
+  3. 返回可能很大的列表类命令，补上筛选或条数参数，并写进 usage
+  4. 用到新字段的包，把 peer 里 `@godcreator/gwb-commands` 的下限升到 `^0.5.3`（旧版总线会忽略这两项，不报错）。按 gwb-release，这些都只升 y
+* **怎么标由本仓定**。下面是按 2026-09-26 在 default home 上逐条调用、读 usage 得出的建议，供参考：
+| 命令 | 建议 |
+| --- | --- |
+| `plugin-manager.list`、`plugin-manager.outdated`、`plugin-manager.search`、`devkit.home.list` | read |
+| `plugin-manager.install/add-entry/remove-entry/enable/disable/update/uninstall` | write |
+| `devkit.home.new`、`devkit.home.open`、`devkit.home.rm`、`devkit.dev`、`devkit.scaffold`、`devkit.scaffold.plugin`、`devkit.cdp` | write（home.new / open 会开窗口，要不要算 external 由本仓定） |
+| `devkit.release` | external：发到源上 |
