@@ -1,0 +1,31 @@
+---
+title: 样式检查按编出来的声明认颜色类，不再按类名认
+born-at: 2026-09-26T16:45
+type: choice
+parent: [2026-09-08-gwb-devkit]
+label: 颜色类按声明认
+domain: devkit
+---
+
+## 背景
+
+样式检查的「颜色只用主题令牌」原来按类名认颜色类：`text-` / `bg-` / `border-` / `from-` / `via-` / `to-` / `divide-` 开头的类，前缀后面那段当色名，再用一张「不是色名」的名单排除字号、对齐、边侧宽度。块笔记系列迁样式时连着撞上名单没收的工具类：论文插件的 `border-dotted`，查询插件的 `border-dashed`、`border-collapse`、`border-separate`、`border-spacing-*`、`text-ellipsis`，全被当成用了出厂调色板。拿 Tailwind 4.3.3 的工具类表核对，这几个前缀后面不是色名的还有很多：`bg-cover`、`bg-linear-to-r`、`from-50%`、`divide-x-reverse`、`text-balance`、`text-shadow-lg`，另外 `border-t-primary` 这种只给一边的颜色类，色名前面还多一段边侧。
+
+## 结论与边界
+
+- 颜色类按产物里一条规则的声明认：声明引用了 `var(--<前缀>-color-<名>)`（或 `var(--color-<名>)`），`<名>` 不在放行名单里就报这条规则上的类。Tailwind 编出厂调色板一定编成这种变量引用（`theme(reference)` 下带写死的 fallback），前缀后面不是色名的工具类编出来不引用色名变量
+- 外壳令牌是 `@theme inline` 映射，编出来直接是页面变量（`var(--primary)`），本来就不会被报；放行名单照旧由外壳 `theme.reference.css`、样式入口、产物三处声明的 `--color-<名>` 组成
+- 覆盖面随之变成所有颜色工具类：`ring-`、`shadow-`、`accent-`、`fill-` 这些原来不查的前缀用了调色板也报。它们原本就会被「fallback 写死值」那条拒，所以不会多拒原来能发的包
+- 同一次修掉的还有两处：fallback 只由 `var()` 与逗号组成的（渐变工具类的 `--tw-gradient-stops`）不算写死值；源码层去掉 `prefix(…)` 那次编译同时去掉 `@apply` 里的前缀，样式入口里 `@utility` 用带前缀的 `@apply` 不再让检查编译失败
+
+## 否掉的候选
+
+- **补全「不是色名」的名单**：Tailwind 每个版本都在加工具类，名单要按版本逐个核对，漏一个就是一次误报；主题里加一个字号键也得跟着改名单
+
+## 代价
+
+- 任意值（`bg-[#123]`）与手写规则里写死的颜色查不到：它们编出来不引用色名变量。原来按类名认也查不到任意值；手写的 `.fk\:bg-brand{…}` 原来会按名字报，现在不报
+
+## 依据
+
+devkit 0.23.9 的 `plugins/devkit/tests/style-check.test.ts`「用真实 Tailwind 编出来的产物与源码」一组：用 Tailwind 4.3.3 与外壳 0.15.0 的 `theme.reference.css` 编出产物，上面列的非颜色工具类与令牌颜色类全过，`bg-blue-500`、`text-red-600/50`、`border-t-blue-500`、`divide-red-500`、`from-blue-500`、`ring-blue-500` 全报。

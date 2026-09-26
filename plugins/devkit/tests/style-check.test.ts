@@ -1,5 +1,7 @@
+import fs from 'node:fs'
 import path from 'node:path'
 import { describe, expect, it } from 'vitest'
+import { tailwindOf } from '../src/node-dev-deps.js'
 import {
   classSelectors,
   declaredColorNames,
@@ -47,8 +49,8 @@ const SHELL_FILES = {
 }
 
 /** 假文件表：键相对包目录 */
-function io(files: Record<string, string>, tailwind: Awaited<ReturnType<StyleCheckIo['tailwindOf']>> = { ok: true, compile: fakeCompile() }): StyleCheckIo & { asked: string[] } {
-  const table = new Map(Object.entries(files).map(([rel, text]) => [path.resolve(PKG, rel), text]))
+function io(files: Record<string, string>, tailwind: Awaited<ReturnType<StyleCheckIo['tailwindOf']>> = { ok: true, compile: fakeCompile() }, pkgDir = PKG): StyleCheckIo & { asked: string[] } {
+  const table = new Map(Object.entries(files).map(([rel, text]) => [path.resolve(pkgDir, rel), text]))
   const asked: string[] = []
   return {
     asked,
@@ -135,9 +137,10 @@ describe('产物 dist/style.css', () => {
     expect(got).toEqual([expect.stringContaining('出现了 data-gwb-plugin')])
   })
 
-  it('c. var() 的 fallback 写死了值：报；只由 var() 组成、currentcolor、空、tw-animate-css 自带的、@property/@supports 里的放行', async () => {
+  it('c. var() 的 fallback 写死了值：报；只由 var() 组成（含 var() 列表）、currentcolor、空、tw-animate-css 自带的、@property/@supports 里的放行', async () => {
     const css = [
       '.fk\\:a{padding:var(--gwb-spacing, 0.25rem);color:var(--x,var(--y));border-color:var(--z,currentcolor);gap:var(--g,)}',
+      '.fk\\:from-primary{--tw-gradient-stops:var(--tw-gradient-via-stops, var(--tw-gradient-position), var(--tw-gradient-from) var(--tw-gradient-from-position))}',
       '.fk\\:b{animation-duration:var(--tw-duration,.15s)}',
       '@property --tw-foo{syntax:"*";initial-value:var(--q, 1px)}',
       '@supports (color:red){.fk\\:c{width:var(--w, 2px)}}',
@@ -148,12 +151,12 @@ describe('产物 dist/style.css', () => {
   })
 
   it('d. 颜色类只用主题令牌：外壳 theme.reference.css、样式入口、产物里（含带前缀改写的）声明的色名放行，出厂调色板报', async () => {
-    const entry = `${ENTRY}@theme inline { --color-src-plugin: var(--fk-src-plugin); }`
+    const entry = `${ENTRY}@theme { --color-src-plugin: var(--fk-src-plugin); }`
     const css = [
-      '.fk\\:bg-primary{}.fk\\:text-background{}.fk\\:border-transparent{}',
-      '.fk\\:bg-src-plugin{}.fk\\:bg-brand{}:root{--fk-color-brand:#123}',
-      '.fk\\:text-sm{}.fk\\:border-t{}.fk\\:border-2{}.fk\\:text-center{}',
-      '.fk\\:bg-blue-500{}.fk\\:hover\\:text-red-600:hover{}',
+      '.fk\\:bg-primary{background-color:var(--primary)}.fk\\:text-background{color:var(--background)}.fk\\:border-transparent{border-color:transparent}',
+      '.fk\\:bg-src-plugin{background-color:var(--fk-color-src-plugin)}.fk\\:bg-brand{background-color:var(--fk-color-brand)}:root{--fk-color-brand:#123}',
+      '.fk\\:text-sm{font-size:var(--gwb-text-sm)}.fk\\:border-t{border-top-width:1px}.fk\\:border-dashed{border-style:dashed}.fk\\:text-center{text-align:center}',
+      '.fk\\:bg-blue-500{background-color:var(--fk-color-blue-500)}@media (hover:hover){.fk\\:hover\\:text-red-600:hover{color:var(--fk-color-red-600)}}',
     ].join('')
     const got = await styleProblems(PKG, PLUGIN, io(cleanPlugin({ 'src/client/styles.css': entry, 'dist/style.css': css })))
     expect(got).toEqual([expect.stringContaining('有 2 个颜色类用了主题令牌之外的色名：.fk\\:bg-blue-500、.fk\\:hover\\:text-red-600')])
@@ -178,7 +181,14 @@ describe('产物 dist/style.css', () => {
   it('declaredColorNames 与 paletteColorSelectors', () => {
     expect(declaredColorNames('--color-a: x; --fk-color-b: y; /* --color-c: z */')).toEqual(['a'])
     expect(declaredColorNames('--color-a: x; --fk-color-b: y;', 'fk')).toEqual(['a', 'b'])
-    expect(paletteColorSelectors('.fk\\:bg-a\\/50{}.fk\\:bg-z{}', new Set(['a']))).toEqual(['.fk\\:bg-z'])
+    const css = [
+      '.fk\\:bg-a\\/50{background-color:color-mix(in oklab,var(--fk-color-a) 50%,transparent)}',
+      '.fk\\:bg-z{background-color:var(--color-z)}',
+      '.dark .fk\\:dark\\:text-y{color:var(--fk-color-y)}',
+      '.fk\\:text-q\\/50{color:var(--q);@supports (color:color-mix(in lab,red,red)){color:color-mix(in oklab,var(--fk-color-q) 50%,transparent)}}',
+      '.fk\\:border-dotted{border-style:dotted}',
+    ].join('')
+    expect(paletteColorSelectors(css, 'fk', new Set(['a']))).toEqual(['.fk\\:bg-z', '.fk\\:dark\\:text-y', '.fk\\:text-q\\/50'])
   })
 })
 
@@ -204,7 +214,7 @@ describe('产物里的 @scope：第三方 css 放进根带前缀的 @scope', () 
   })
 
   it('块内照样查：写死的 fallback、data-gwb-plugin、主题令牌之外的颜色类', async () => {
-    const css = '@scope (.fk\\:render-root){.katex{padding:var(--gwb-spacing, 2px)}[data-gwb-plugin] .katex{}.fk\\:bg-blue-500{}}'
+    const css = '@scope (.fk\\:render-root){.katex{padding:var(--gwb-spacing, 2px)}[data-gwb-plugin] .katex{}.fk\\:bg-blue-500{background-color:var(--fk-color-blue-500)}}'
     const got = await styleProblems(PKG, PLUGIN, io(cleanPlugin({ 'dist/style.css': css })))
     expect(got).toEqual([
       expect.stringContaining('出现了 data-gwb-plugin'),
@@ -270,5 +280,74 @@ describe('源码里的类名', () => {
     const checked = io(files)
     expect(await styleProblems(PKG, PLUGIN, checked)).toEqual([expect.stringContaining('所在目录下一个 .tsx 都没有')])
     expect(checked.asked).toEqual([])
+  })
+})
+
+/**
+ * 用真实的 Tailwind 4 编：devkit 的 dev 里装了 @tailwindcss/cli、tailwindcss 与外壳，编译器照发版时的找法（tailwindOf）从 devkit 包目录找。
+ * 文件表仍是假的，只把包目录放在 devkit 自己下面，入口里的 @import 才能从 src/ 往上解析到 node_modules
+ */
+describe('用真实 Tailwind 编出来的产物与源码', () => {
+  const DEVKIT = path.resolve(import.meta.dirname, '..')
+  const REAL_ENTRY = `${ENTRY}@import 'tailwindcss/utilities.css' layer(utilities) source(none);\n`
+  const SHELL_THEME = path.join(DEVKIT, 'node_modules/@godcreator/gwb-shell/dist/theme.reference.css')
+
+  async function realCompile(): Promise<TailwindCompile> {
+    const found = await tailwindOf(DEVKIT)
+    if (!found.ok) throw new Error(found.error)
+    return found.compile
+  }
+
+  /** 源码里写这些类、产物由同一份入口编出来：两层看到的是同一套工具类 */
+  async function realPlugin(entry: string, tokens: string[]): Promise<{ files: Record<string, string>; compile: TailwindCompile }> {
+    const compile = await realCompile()
+    const artifact = (await compile(entry, path.join(DEVKIT, 'src'))).build(tokens)
+    const files = {
+      'src/styles.css': entry,
+      'src/App.tsx': `export const App = () => <div className="${tokens.join(' ')}" />`,
+      'dist/style.css': artifact,
+      'node_modules/@godcreator/gwb-shell/package.json': fs.readFileSync(path.join(DEVKIT, 'node_modules/@godcreator/gwb-shell/package.json'), 'utf8'),
+      'node_modules/@godcreator/gwb-shell/dist/theme.reference.css': fs.readFileSync(SHELL_THEME, 'utf8'),
+    }
+    return { files, compile }
+  }
+
+  it('颜色类前缀后面跟的不是色名：线型、表格边框与间距、溢出与换行、对齐、字号、边侧宽度、背景尺寸、渐变位置都不报；用主题令牌的颜色类不报', async () => {
+    const tokens = [
+      ...['solid', 'dashed', 'dotted', 'double', 'hidden', 'none'].map((style) => `fk:border-${style}`),
+      'fk:border-collapse', 'fk:border-separate', 'fk:border-spacing-0', 'fk:border-spacing-2', 'fk:border-spacing-x-1',
+      'fk:text-ellipsis', 'fk:text-clip', 'fk:text-wrap', 'fk:text-nowrap', 'fk:text-balance', 'fk:text-pretty',
+      'fk:text-center', 'fk:text-start', 'fk:text-sm', 'fk:text-2xl',
+      'fk:divide-x', 'fk:divide-y-2', 'fk:divide-x-reverse', 'fk:divide-dashed', 'fk:divide-dotted',
+      'fk:border', 'fk:border-2', 'fk:border-t', 'fk:border-x-4',
+      'fk:bg-cover', 'fk:bg-no-repeat', 'fk:bg-center', 'fk:bg-clip-text', 'fk:bg-linear-to-r', 'fk:from-10%', 'fk:to-90%',
+      'fk:bg-primary', 'fk:text-muted-foreground', 'fk:border-t-border', 'fk:divide-border', 'fk:from-primary', 'fk:hover:bg-accent', 'fk:bg-primary/50',
+    ]
+    const { files, compile } = await realPlugin(REAL_ENTRY, tokens)
+    expect(await styleProblems(DEVKIT, PLUGIN, io(files, { ok: true, compile }, DEVKIT))).toEqual([])
+  })
+
+  it('出厂调色板照报：各种颜色工具类（带透明度、只给一边、分隔线、渐变、ring）都认得', async () => {
+    const tokens = ['fk:bg-blue-500', 'fk:text-red-600/50', 'fk:border-t-blue-500', 'fk:divide-red-500', 'fk:from-blue-500', 'fk:ring-blue-500', 'fk:border-dashed']
+    const { files } = await realPlugin(REAL_ENTRY, tokens)
+    const allowed = new Set(declaredColorNames(fs.readFileSync(SHELL_THEME, 'utf8')))
+    expect(paletteColorSelectors(files['dist/style.css'], 'fk', allowed)).toEqual([
+      '.fk\\:bg-blue-500',
+      '.fk\\:border-t-blue-500',
+      '.fk\\:divide-red-500',
+      '.fk\\:from-blue-500',
+      '.fk\\:ring-blue-500',
+      '.fk\\:text-red-600\\/50',
+    ])
+  })
+
+  it('样式入口里 @utility 用带前缀的 @apply：去掉前缀那次也编得过；漏了前缀照报，自定义的工具类漏了前缀也报', async () => {
+    const entry = `${REAL_ENTRY}@utility chip {\n  @apply fk:inline-flex fk:items-center fk:hover:bg-accent;\n}\n`
+    const { files, compile } = await realPlugin(entry, ['fk:chip', 'fk:flex'])
+    files['src/Row.tsx'] = "const loose = 'flex chip'"
+    expect(await styleProblems(DEVKIT, PLUGIN, io(files, { ok: true, compile }, DEVKIT))).toEqual([
+      'chip（src/Row.tsx）：漏了 fk: 前缀，写成 fk:chip——不带前缀的类名一条规则都不出，页面上那一处没样式也不报错',
+      'flex（src/Row.tsx）：漏了 fk: 前缀，写成 fk:flex——不带前缀的类名一条规则都不出，页面上那一处没样式也不报错',
+    ])
   })
 })

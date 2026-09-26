@@ -329,14 +329,17 @@ function fallbackOf(call: string): string | undefined {
   return undefined
 }
 
-/** fallback 里有写死值的 var() 调用。放行：没有 fallback、空、currentcolor、只由 var() 组成、tw-animate-css 自带的那几条 */
+/**
+ * fallback 里有写死值的 var() 调用。放行：没有 fallback、空、currentcolor、tw-animate-css 自带的那几条，
+ * 以及只由 var() 与分隔的逗号、空白组成的（渐变工具类的 `var(--tw-gradient-via-stops, var(…), var(…) var(…))`）
+ */
 export function literalFallbacks(css: string): string[] {
   const bad = new Set<string>()
   for (const call of varCalls(blankMechanism(withoutComments(css)))) {
     const fallback = fallbackOf(call)
     if (fallback === undefined || fallback === '' || fallback === 'currentcolor') continue
     if (BAKED_BY_TW_ANIMATE.has(call)) continue
-    if (fallback.replaceAll(/var\([^()]*\)/g, ' ').trim() === '') continue
+    if (fallback.replaceAll(/var\([^()]*\)/g, '').replaceAll(/[\s,]/g, '') === '') continue
     bad.add(call)
   }
   return [...bad].sort()
@@ -351,11 +354,6 @@ function literalFallbackProblems(css: string): string[] {
   ]
 }
 
-/** 查的颜色类前缀 */
-const COLOR_FAMILY = '(?:text|bg|border|from|via|to|divide)-'
-/** 这几个前缀后面跟的不一定是色名：字号与对齐（text-sm、text-center）、边侧与宽度（border-t、border-2） */
-const NOT_A_COLOR_NAME = /^(?:[bltrxy2](?:-\d+)?|\d|center|left|right|justify|start|end|xs|sm|base|lg|xl|2xl|3xl|4xl)$/
-const COLOR_KEYWORDS = ['transparent', 'inherit', 'current']
 
 /** css 里 `--color-<名>:` 声明的色名；给了前缀时 Tailwind 改写过的 `--<前缀>-color-<名>:` 也算 */
 export function declaredColorNames(css: string, prefix?: string): string[] {
@@ -363,16 +361,48 @@ export function declaredColorNames(css: string, prefix?: string): string[] {
   return [...withoutComments(css).matchAll(declared)].map((m) => m[1]!)
 }
 
-/** 用了放行名单之外色名的类选择器 */
-export function paletteColorSelectors(css: string, allowed: ReadonlySet<string>): string[] {
-  const bad = new Set<string>()
-  const colorClass = new RegExp(`(?:^|\\\\:)${COLOR_FAMILY}([\\w-]+)`, 'g')
-  for (const selector of classSelectors(css)) {
-    for (const m of selector.matchAll(colorClass)) {
-      const name = m[1]!
-      if (NOT_A_COLOR_NAME.test(name)) continue
-      if (!allowed.has(name)) bad.add(selector)
+/** 一条样式规则：选择器，和它自己的声明（嵌在它里面的 `@supports` 这类块里的声明也算它的） */
+interface StyleRule {
+  selectors: string
+  declarations: string[]
+}
+
+/** 去掉注释的 css 里每条样式规则；`@media` 这类块自己不算规则，嵌在里面的规则照收 */
+function styleRules(css: string): StyleRule[] {
+  const rules: StyleRule[] = []
+  /** 每层打开的块，它里面的声明归哪条规则；顶层与 `@media` 里直接写的声明不归任何规则 */
+  const owners: (StyleRule | undefined)[] = []
+  let from = 0
+  for (let i = 0; i < css.length; i++) {
+    const c = css[i]
+    if (c !== '{' && c !== '}' && c !== ';') continue
+    const segment = css.slice(from, i).trim()
+    from = i + 1
+    const owner = owners.at(-1)
+    if (c === '{') {
+      if (segment.startsWith('@')) {
+        owners.push(owner)
+      } else {
+        const rule: StyleRule = { selectors: segment, declarations: [] }
+        rules.push(rule)
+        owners.push(rule)
+      }
+      continue
     }
+    if (segment !== '') owner?.declarations.push(segment)
+    if (c === '}') owners.pop()
+  }
+  return rules
+}
+
+/** 声明里引用了放行名单之外色名（`var(--<前缀>-color-<名>)`、`var(--color-<名>)`）的规则上的类选择器，`.dark` 不算 */
+export function paletteColorSelectors(css: string, prefix: string, allowed: ReadonlySet<string>): string[] {
+  const bad = new Set<string>()
+  const colorVariable = new RegExp(`var\\(\\s*--(?:${prefix}-)?color-([\\w-]+)`, 'g')
+  for (const rule of styleRules(withoutComments(css))) {
+    const usesPalette = rule.declarations.some((declaration) => [...declaration.matchAll(colorVariable)].some((m) => !allowed.has(m[1]!)))
+    if (!usesPalette) continue
+    for (const cls of rule.selectors.matchAll(CLASS_SELECTOR)) if (cls[0] !== DARK_FLAG) bad.add(cls[0])
   }
   return [...bad].sort()
 }
@@ -399,8 +429,8 @@ function shellColorNamesOf(pkgDir: string, pkgName: string, io: Pick<StyleCheckI
   return { ok: true, names: declaredColorNames(theme) }
 }
 
-function paletteProblems(css: string, allowed: ReadonlySet<string>): string[] {
-  const bad = paletteColorSelectors(css, allowed)
+function paletteProblems(css: string, prefix: string, allowed: ReadonlySet<string>): string[] {
+  const bad = paletteColorSelectors(css, prefix, allowed)
   if (bad.length === 0) return []
   return [
     `${STYLE_ARTIFACT} 里有 ${String(bad.length)} 个颜色类用了主题令牌之外的色名：${bad.join('、')}。颜色类只用主题令牌——外壳 theme.reference.css 与本插件样式入口声明的 --color-<名>，` +
@@ -488,6 +518,17 @@ function where(sites: TokenSites, token: string): string {
   return [...(sites.get(token) ?? [])].sort().join('、')
 }
 
+/**
+ * 样式入口去掉 `prefix(<名>)`，`@apply` 里各个类名开头的 `<名>:` 一起去掉：
+ * 没有前缀的那次编译里 `<名>:` 是不存在的变体，带前缀的 `@apply` 会让整个入口编不过
+ */
+function entryWithoutPrefix(css: string, prefix: string): string {
+  const prefixInApply = new RegExp(`(?<=\\s)${prefix}:`, 'g')
+  return css
+    .replace(new RegExp(`\\s*\\bprefix\\(\\s*${prefix}\\s*\\)`), '')
+    .replaceAll(/@apply\s[^;{}]*/g, (apply) => apply.replaceAll(prefixInApply, ''))
+}
+
 async function compiled(compile: TailwindCompile, css: string, base: string, label: string): Promise<{ ok: true; compiler: TailwindCompiler } | { ok: false; error: string }> {
   try {
     return { ok: true, compiler: await compile(css, base) }
@@ -526,8 +567,7 @@ async function sourceClassProblems(pkgDir: string, entry: StyleEntry, scopeBound
 
   const withPrefix = await compiled(tailwind.compile, entry.css, entryDir, `样式入口 ${entryRel} `)
   if (!withPrefix.ok) return [withPrefix.error]
-  const unprefixedCss = entry.css.replace(new RegExp(`\\s*\\bprefix\\(\\s*${entry.prefix}\\s*\\)`), '')
-  const withoutPrefix = await compiled(tailwind.compile, unprefixedCss, entryDir, `样式入口 ${entryRel} 去掉 prefix(${entry.prefix}) 后`)
+  const withoutPrefix = await compiled(tailwind.compile, entryWithoutPrefix(entry.css, entry.prefix), entryDir, `样式入口 ${entryRel} 去掉 prefix(${entry.prefix}) 后`)
   if (!withoutPrefix.ok) return [withoutPrefix.error]
 
   const prefixedWithRule = tokensWithRule(withPrefix.compiler, prefixed)
@@ -572,8 +612,8 @@ export async function styleProblems(pkgDir: string, pkg: { name: string; plugin:
   ]
   const shellColors = shellColorNamesOf(pkgDir, pkg.name, io)
   if (shellColors.ok) {
-    const allowed = new Set([...COLOR_KEYWORDS, ...shellColors.names, ...declaredColorNames(entry.css), ...declaredColorNames(css, entry.prefix)])
-    problems.push(...paletteProblems(css, allowed))
+    const allowed = new Set([...shellColors.names, ...declaredColorNames(entry.css), ...declaredColorNames(css, entry.prefix)])
+    problems.push(...paletteProblems(css, entry.prefix, allowed))
   } else {
     problems.push(shellColors.error)
   }

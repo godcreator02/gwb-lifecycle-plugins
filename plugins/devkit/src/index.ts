@@ -89,7 +89,7 @@ const HOME_USAGE = [
 /** 样式检查查什么：devkit.dev 与 devkit.release 的 usage 共用这一句 */
 const STYLE_CHECK_SUMMARY =
   'src/ 下恰好一个写了 prefix(<前缀>) 的样式入口；dist/style.css 的类选择器都是 .<前缀>\\: 开头（.dark 放行；@scope 块里的不查，但每个 @scope 的根选择器列表每一项都要有 .<前缀>\\: 开头的类，界限 to (…) 不要求）、没有 data-gwb-plugin、var() 的 fallback 里没有写死的值、' +
-  '颜色类（text-/bg-/border-/from-/via-/to-/divide-）只用主题令牌（外壳 theme.reference.css 与本插件样式入口声明的 --color-<名>）；样式入口所在目录下 .tsx 字符串里的类名：前缀排在最前、带前缀的编得出规则（dist/style.css 里当 @scope 根或界限用的类除外）、' +
+  '颜色只用主题令牌（规则的声明里引用的 var(--<前缀>-color-<名>) 只能是外壳 theme.reference.css 与本插件样式入口声明的 --color-<名>，出厂调色板就是这样被认出来的）；样式入口所在目录下 .tsx 字符串里的类名：前缀排在最前、带前缀的编得出规则（dist/style.css 里当 @scope 根或界限用的类除外）、' +
   '不带前缀却编得出规则的报「漏了前缀」。编译用包自己 dev 里 @tailwindcss/cli 旁边的 @tailwindcss/node，找不到就报'
 
 /** 插件包的注入与 peer 一致查什么：devkit.release 的两份 usage 共用这一句 */

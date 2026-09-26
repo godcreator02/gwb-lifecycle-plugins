@@ -1,6 +1,6 @@
 {
   "name": "@godcreator/gwb-devkit",
-  "version": "0.23.8",
+  "version": "0.23.9",
   "author": {
     "name": "godcreator"
   },
@@ -41,10 +41,12 @@
     "@godcreator/gwb-skills": { "optional": true }
   },
   "devDependencies": {
+    "@tailwindcss/cli": "^4.3.3",
     "@types/node": "^24.0.0",
     "cordis": "4.0.0-rc.10",
     "es-module-lexer": "^2.3.2",
     "esbuild": "^0.28.2",
+    "tailwindcss": "^4.3.3",
     "typescript": "^7.0.2",
     "vitest": "^4.1.10",
     "yaml": "^2.9.1"
