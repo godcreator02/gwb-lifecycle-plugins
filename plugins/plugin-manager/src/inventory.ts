@@ -1,40 +1,10 @@
 import { FIBER_STATE } from './fiber.js'
-import type { PeerStatus } from './peers.js'
+import type { EntrySnapshot, ReconciledPackage } from './receipts.js'
 import { isRecord } from './vocab.js'
 
 // 零 I/O 纯逻辑：这个文件里不 import node:fs
 
 const FIBER_ACTIVE = FIBER_STATE.indexOf('ACTIVE')
-
-/** cordis.yml 里一条条目此刻的样子 */
-export interface EntrySnapshot {
-  /** 不带前缀的 id。改这条条目要用它——`tree.resolve` 只认这个 */
-  id: string
-  /** 完整 entryId（`home:commands`）。插件从自己的 ctx 上读到的是这个 */
-  entryId: string
-  /** 加载的是哪个包。group 这类内建条目是 `cordis:group` */
-  pkg: string
-  /** cordis.yml 里 `disabled: true` */
-  disabled: boolean
-  /** fiber 的状态是 ACTIVE。看状态不看 fiber 在不在：inject 没满足的插件也有 fiber，只是到不了 ACTIVE */
-  active: boolean
-  /** `group: true` 的那种条目——它是个分组，不是插件 */
-  group: boolean
-}
-
-/** home 的 dependencies 与条目树对照出的一个包 */
-export interface ReconciledPackage {
-  pkg: string
-  /** home 的 `package.json` 的 dependencies 里它对应的值。条目引用一个没装的包时没有这个字段 */
-  spec?: string
-  /** home 的 dependencies 里有它 */
-  installed: boolean
-  /** 它在 cordis.yml 里的条目，按树里的先后。空数组只表示「一条条目都没有」，不推断原因 */
-  entries: EntrySnapshot[]
-}
-
-/** 一个包在 `list` 里的样子：对照结果加上它 peer 里写的包（含内核包）满没满足 */
-export interface PluginPackageView extends ReconciledPackage, PeerStatus {}
 
 /** 包清单里的 `version`；清单读不到或没写时是 undefined */
 export function installedVersionOf(manifest: unknown): string | undefined {

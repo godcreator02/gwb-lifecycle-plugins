@@ -1,5 +1,5 @@
-import { isPluginRow, parseSearch, type PluginRow, type SearchRow } from './search.js'
-import type { Outcome } from './vocab.js'
+import type { Outcome, PluginRow } from './receipts.js'
+import { isPluginRow, parseSearch, type SearchRow } from './search.js'
 
 /** 一条源最多等这么久。等不到只算这一条没查成，别的源照常 */
 const SEARCH_TIMEOUT_MS = 10_000

@@ -1,8 +1,8 @@
 import { bareId, installSpec } from './ids.js'
-import { readEntries, type EntrySnapshot } from './inventory.js'
+import { readEntries } from './inventory.js'
 import { isExactVersion, KERNEL_PACKAGE } from './kernel-compat.js'
-import { CORDIS_PACKAGE, installedVersionMismatch, KERNEL_MANAGED_PACKAGES, versionChangeOf, type VersionChange } from './kernel-upgrade.js'
-import type { OutdatedMap } from './outdated.js'
+import { CORDIS_PACKAGE, installedVersionMismatch, KERNEL_MANAGED_PACKAGES, versionChangeOf } from './kernel-upgrade.js'
+import type { EntrySnapshot, OutdatedMap, VersionChange } from './receipts.js'
 
 /** `plugin-manager.update` 的参数：三种恰好给一种 */
 export type UpdateArgs = { all: true } | { only: string[] } | { specs: Record<string, string> }

@@ -11,7 +11,7 @@ description: 插件在 peerDependencies 里给内核包 @godcreator/gwb-kernel-d
 
 插件包在 `package.json` 的 `peerDependencies` 里写 `"@godcreator/gwb-kernel-desktop": "^x.y.z"`，x.y.z 是它验过的那个内核的版本号。插件依赖内核提供的 cordis、loader 与 home 布局，这些随内核版本变化；内核是 home 里的一个 npm 包，用 npm 标准的 peer 写法声明兼容范围，pnpm 与插件管理读的是同一个字段。插件管理自己也这样写：
 
-{/* ref file="../plugins/plugin-manager/package.json" lines="31-32" hash="92d22590eb77" blob="114560e1631b" */}
+{/* ref file="../plugins/plugin-manager/package.json" lines="34-35" hash="92d22590eb77" blob="84bbca76e905" */}
 
 怎么写、什么时候改是写插件的规矩，见[兼容哪个内核](/docs/rules/kernel-compat)。
 
@@ -37,9 +37,9 @@ description: 插件在 peerDependencies 里给内核包 @godcreator/gwb-kernel-d
 
 **只看插件**：`keywords` 里有 `gwb-plugin` 的包才比；peer 里没写内核包的插件不列这一项（发版前检查会拒它，见下）。库、第三方 cordis 插件（如 `@cordisjs/plugin-timer`）、清单读不到的包都不该声明兼容哪个内核，`unmetPeers` 一律为空——不然窗格里这些包都标黄，真正没适配当前内核的插件反而看不出来。内核包与 `cordis` 自己不在 `list` 里。
 
-{/* ref file="../plugins/plugin-manager/src/kernel-upgrade.ts" lines="54-59" hash="36ab316a5112" blob="25e9b993d026" */}
+{/* ref file="../plugins/plugin-manager/src/kernel-upgrade.ts" lines="49-54" hash="36ab316a5112" blob="f053bf9413fd" */}
 
-{/* ref file="../plugins/plugin-manager/src/peers.ts" lines="58-77" hash="03f244122717" blob="26615cce6d6e" */}
+{/* ref file="../plugins/plugin-manager/src/peers.ts" lines="40-59" hash="03f244122717" blob="d5e1b931da3a" */}
 
 **读包清单**：按包名（含 scope）从 home 的 `node_modules` 读。文件不在（条目指向一个没装的包，或 pnpm 装到一半）就当不是插件、不列；文件在但读不了、或不是合法 JSON，`list` 直接报错并带上文件路径——那是 home 坏了，不该当成「范围不包含」报出来了事。
 

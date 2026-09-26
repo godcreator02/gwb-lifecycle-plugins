@@ -1,16 +1,8 @@
 import { readNpmrc } from './home.js'
 import { searchRegistry } from './registry.js'
-import { mergeScoped, type PluginRow } from './search.js'
+import type { Outcome, PluginRow, SearchFound } from './receipts.js'
+import { mergeScoped } from './search.js'
 import { BOOTSTRAP_SCOPE, parseSources, registryFor } from './sources.js'
-import type { Outcome } from './vocab.js'
-
-/** 检索成了的回执 */
-interface SearchFound {
-  /** 全部配好的源上的插件。**空数组 = 查成了、一个都没有**，和「没查成」分得开 */
-  packages: PluginRow[]
-  /** 有源没查成时，点名是哪几条（其余照常） */
-  note?: string
-}
 
 /** `search` 读的两份 npmrc，只读不写 */
 export interface PackageSourcesDeps {

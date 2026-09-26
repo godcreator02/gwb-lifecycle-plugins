@@ -1,5 +1,6 @@
 import { caretRangeCovers, KERNEL_PACKAGE, kernelRangeCovers } from './kernel-compat.js'
 import { CORDIS_PACKAGE, isPluginManifest } from './kernel-upgrade.js'
+import type { PeerStatus, UnmetPeer } from './receipts.js'
 import { isRecord } from './vocab.js'
 
 // 零 I/O 纯逻辑：这个文件里不 import node:fs
@@ -11,25 +12,6 @@ export interface DeclaredPeer {
   range: string
   /** peerDependenciesMeta 里标了 `optional: true` */
   optional: boolean
-}
-
-/** 一条没满足的 peer */
-export interface UnmetPeer {
-  pkg: string
-  /** peerDependencies 里写的范围，原样照抄；不是 `^x.y.z` 也照抄，并算作没满足 */
-  range: string
-  /** home 里装着的版本号，内核包是正在运行的内核版本；没装时没有这个字段 */
-  installed?: string
-}
-
-/** 一个包在 `list` 回执里和 peer 有关的字段 */
-export interface PeerStatus {
-  /**
-   * 插件（keywords 含 gwb-plugin）peer 里除了 cordis 之外、没满足的包：没装（可选的 peer 没装不算）、
-   * 或版本不在范围里。内核包对照正在运行的内核，别的包对照 home 里装着的版本。
-   * 每个包都有这个字段，不是插件的包、清单读不到的包、全都满足时是空数组
-   */
-  unmetPeers: UnmetPeer[]
 }
 
 function isOptionalPeer(manifest: Record<string, unknown>, pkg: string): boolean {

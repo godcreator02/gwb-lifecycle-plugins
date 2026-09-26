@@ -1,22 +1,10 @@
 import { fiberStateOf, settleFiber } from './fiber.js'
+import type { RemountedEntry } from './receipts.js'
 import { isRecord } from './vocab.js'
 import type { EntryTreeLike } from './tree.js'
 
 /** 停用/启用之后等 fiber 把手头的事做完，最多等这么久。超时就继续，读到什么状态报什么 */
 export const SETTLE_MS = 5_000
-
-/** `update` 回执里一条条目重新加载的结果 */
-export interface RemountedEntry {
-  /** 不带前缀的 id */
-  id: string
-  /**
-   * `remounted`：停用再启用，重新 import 了新版本；`skipped`：本来就停用，保持停用；
-   * `deferred`：本插件自己那条，回执发出之后才重新加载；`failed`：操作条目树时抛错，`state` 里是那句错误
-   */
-  action: 'remounted' | 'skipped' | 'deferred' | 'failed'
-  /** 重新加载之后 fiber 到哪一步（ACTIVE / PENDING / FAILED…）。skipped 是 disabled，deferred 是动手前的状态 */
-  state: string
-}
 
 /** 事先拿到的 logger：本插件重新加载自己时，ctx 上的东西都不能用 */
 export interface RemountLog {

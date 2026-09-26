@@ -1,15 +1,29 @@
 import os from 'node:os'
 import type { GwbContext } from '@godcreator/gwb-kernel-desktop'
-import { isRecord, noteOf, requireKernel, type Outcome } from './vocab.js'
+import { isRecord, noteOf, requireKernel } from './vocab.js'
 // 这两条 type import 只为引入对方的 `declare module 'cordis'`；这两个插件写在 peer 里，说明书标 optional，都经嵌套注入使用
 import type {} from '@godcreator/gwb-commands'
 import type {} from '@godcreator/gwb-skills'
+import type {
+  DependentPackage,
+  EntryAdded,
+  Installed,
+  KernelInstalledButCordisNot,
+  OutdatedFound,
+  Outcome,
+  PluginPackageView,
+  RemountedEntry,
+  Uninstalled,
+  Updated,
+  UpdatedPackage,
+  VersionChange,
+} from './receipts.js'
 import { installedPackageRealpath, npmrcFiles, readHomeDependencies, readInstalledPackageManifest } from './home.js'
 import { assertPkgName, bareId, installSpec, isPkgName, pickId } from './ids.js'
-import { installedVersionOf, readEntries, reconcile, type PluginPackageView } from './inventory.js'
+import { installedVersionOf, readEntries, reconcile } from './inventory.js'
 import { describeAddFailure, describePnpm, runPnpm, runPnpmCapture, type PnpmResult } from './pnpm.js'
 import { locatePnpm } from './pnpm-location.js'
-import { parseOutdated, type UpdateInfo } from './outdated.js'
+import { parseOutdated } from './outdated.js'
 import { entriesForPackage } from './uninstall.js'
 import { ownEntryId, treeOf, type EntryTreeLike } from './tree.js'
 import { BusyGate } from './busy.js'
@@ -29,9 +43,9 @@ import {
   type UpdateArgs,
   type VersionChangesAfterAdd,
 } from './update.js'
-import { remountNow, remountSelfLater, type RemountedEntry } from './remount.js'
+import { remountNow, remountSelfLater } from './remount.js'
 import { KERNEL_PACKAGE } from './kernel-compat.js'
-import { CORDIS_PACKAGE, installedVersionMismatch, KERNEL_MANAGED_PACKAGES, kernelUpgradeTargetOf, versionChangeOf, type VersionChange } from './kernel-upgrade.js'
+import { CORDIS_PACKAGE, installedVersionMismatch, KERNEL_MANAGED_PACKAGES, kernelUpgradeTargetOf, versionChangeOf } from './kernel-upgrade.js'
 import { declaredPluginPeers, peerStatusOf } from './peers.js'
 import { searchPlugins, type PackageSourcesDeps } from './package-sources.js'
 
@@ -66,41 +80,6 @@ const SEARCH_COMMAND = 'plugin-manager.search'
 export type PluginManagerPresence = Record<string, never>
 
 const PRESENCE: PluginManagerPresence = {}
-
-/** `update` 装了的一个包 */
-interface UpdatedPackage {
-  pkg: string
-  /** 装之前 home 里的版本号；`specs` 装之前 node_modules 里读不到它的清单时没有这个字段 */
-  from?: string
-  /** 装上的版本号（`specs` 也是装完读到的版本号，不是写法原文） */
-  to: string
-  /** 它的每条条目各自的处理结果；装了内核包、不重新加载时是空数组 */
-  entries: RemountedEntry[]
-}
-
-/** `update` 中没升级、但 pnpm add 前后真实目录变了，跟着重新加载的一个包 */
-interface DependentPackage {
-  pkg: string
-  /** 它的每条条目各自的处理结果 */
-  entries: RemountedEntry[]
-}
-
-/** `update` 成功的回执 */
-interface Updated {
-  /** 装了的包；specs 里有内核包时末尾还有插件管理自己对齐的 cordis */
-  updated: UpdatedPackage[]
-  /** 跟着重新加载的包，在 `updated` 之后处理 */
-  dependents: DependentPackage[]
-  /** 本插件自己在升级或跟着重新加载的包里：它的条目在回执发出后才重新加载 */
-  selfDeferred: boolean
-  /** 只在 specs 里有内核包时出现：装上的内核版本与正在运行的不同，重启工作台后才生效 */
-  restartRequired?: boolean
-  /** 需要提醒的情况：全都最新、only 里列出但已是最新的包、要不要重启 */
-  note?: string
-}
-
-/** specs 里有内核包、内核包已经装上而 cordis 没对齐时的失败回执：`data.kernel` 是已经装上的内核版本 */
-type KernelInstalledButCordisNot = { ok: false; error: string; data: { kernel: VersionChange } }
 
 type CommandHandler = (args?: unknown) => unknown
 type RegisterCommand = (name: string, description: string, usage: string, handler: CommandHandler) => void
@@ -190,7 +169,7 @@ class PluginManager {
       ADD_ENTRY_COMMAND,
       '给已装的包再加一条条目',
       '参数 { pkg }。id 自动生成：包名去掉 scope 与 gwb- 前缀转成 kebab-case，条目树上已有就加 -2、-3 后缀。回执 data { entryId }',
-      async (args) => {
+      async (args): Promise<Outcome<EntryAdded>> => {
         const entryId = await this.addEntry(requiredString(argsObjectOf(args, ['pkg']), 'pkg'))
         return { ok: true, data: { entryId } }
       },
@@ -283,7 +262,7 @@ class PluginManager {
   }
 
   /** 调用方写错（包名、版本范围不合规、包已经装了）直接抛；pnpm 失败、条目加不进去转成回执 */
-  async install(pkg: string, spec?: string): Promise<Outcome<{ pkg: string; entryId: string }>> {
+  async install(pkg: string, spec?: string): Promise<Outcome<Installed>> {
     const packageSpec = installSpec(pkg, spec)
     const installedSpec = (await readHomeDependencies(this.homeDir))[pkg]
     if (installedSpec !== undefined) {
@@ -312,7 +291,7 @@ class PluginManager {
    * `pnpm outdated --json` 的退出码 1 表示「存在过期包」，是结果不是失败。它不写文件，和写 home 的 pnpm 同时运行没有影响，所以不经 BUSY。
    * 内核包与 cordis 从结果里拿掉：`all` / `only` 升不了它们
    */
-  async outdated(): Promise<Outcome<{ updates: Record<string, UpdateInfo> }>> {
+  async outdated(): Promise<Outcome<OutdatedFound>> {
     const pnpmLookup = await locatePnpm()
     if (!pnpmLookup.ok) return { ok: false, error: pnpmLookup.error }
 
@@ -499,7 +478,7 @@ class PluginManager {
   }
 
   /** 包没装（调用方写错了）、是内核包或 cordis 直接抛；删条目与 pnpm 两步的失败转成回执 */
-  async uninstall(pkg: string): Promise<Outcome<{ pkg: string }>> {
+  async uninstall(pkg: string): Promise<Outcome<Uninstalled>> {
     assertPkgName(pkg)
     if (KERNEL_MANAGED_PACKAGES.has(pkg)) {
       throw new Error(`${pkg} 是 home 运行必需的包，不许卸载：卸掉之后 home 启动不了。内核包用 ${UPDATE_COMMAND} {"specs":{"${KERNEL_PACKAGE}":"<版本号>"}} 换，${CORDIS_PACKAGE} 随它对齐`)

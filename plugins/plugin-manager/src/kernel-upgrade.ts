@@ -1,4 +1,5 @@
 import { KERNEL_PACKAGE, isExactVersion } from './kernel-compat.js'
+import type { VersionChange } from './receipts.js'
 import { PLUGIN_KEYWORD } from './search.js'
 import { isRecord } from './vocab.js'
 
@@ -8,12 +9,6 @@ export const CORDIS_PACKAGE = 'cordis'
 
 /** 版本由内核决定、`all` / `only` 不动的包：内核包经 `update` 的 specs 换（主进程里的内核热替换不了），home 根上的 cordis 必须等于内核包 peer 里写的版本、由插件管理自己对齐 */
 export const KERNEL_MANAGED_PACKAGES: ReadonlySet<string> = new Set([KERNEL_PACKAGE, CORDIS_PACKAGE])
-
-/** 升级回执里一个包的新旧版本。装之前 home 里没有这个包时没有 `from` */
-export interface VersionChange {
-  from?: string
-  to: string
-}
 
 export function versionChangeOf(from: string | undefined, to: string): VersionChange {
   return from === undefined ? { to } : { from, to }

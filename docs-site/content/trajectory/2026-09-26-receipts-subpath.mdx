@@ -1,0 +1,36 @@
+---
+title: 插件管理的回执类型经只有类型的子路径 ./receipts 导出，给界面 import type
+born-at: 2026-09-26T09:10
+type: choice
+parent: [2026-09-08-gwb-devkit]
+label: 回执类型子路径
+domain: 插件管理
+---
+
+## 背景
+
+插件管理 0.13.0 把回执类型从主入口拿掉，理由是当时没有调用方 import 它们：插件管理窗格与 devkit 都照各命令的 `usage` 读回执。规矩页也写着「有调用方要 import 时才由提供方导出」。
+
+现在有了调用方：界面插件 `gwb-baseui` 的插件管理窗格在浏览器侧手写了一份回执形状（`update-receipt.ts`、`index.tsx` 里 `outdated` 的形状、`market-rows.ts` 里 `search` 的形状），前两处的注释写着不 import 插件管理的类型。插件管理改了回执，窗格的类型检查看不出来。人同意先从插件管理试：让窗格能 `import type` 回执类型。
+
+回执类型原来散在各实现文件里：`inventory.ts`、`peers.ts`、`outdated.ts`、`search.ts`、`remount.ts`、`kernel-upgrade.ts`、`package-sources.ts`、`index.ts`、`vocab.ts`，`install`、`add-entry`、`uninstall` 的回执只是行内写的对象类型。其中 `index.ts` 引了 `node:os` 与内核包，`vocab.ts` 引了内核包，`remount.ts` 经 `tree.ts` 引到内核包。
+
+pivots-from:: [升内核并进 specs](2026-09-25-kernel-via-specs-caller-reloads.md)
+
+## 结论与边界
+
+- 回执类型全部挪进 `src/receipts.ts`，行内写的三个回执起名 `Installed`、`EntryAdded`、`Uninstalled`，`outdated` 的回执起名 `OutdatedFound`；类型的字段一个不改。各实现文件从它取类型，不另写一份
+- `src/receipts.ts` 只有类型、一个模块都不引用，`Outcome` 也挪进来（它本来就不依赖内核包，只是写在引了内核包的 `vocab.ts` 里）
+- `package.json` 的 `exports` 加 `"./receipts": { "types": "./dist/receipts.d.ts" }`，只有 `types` 条件，照外壳 `./pane` 子路径的写法；`tsconfig.build.json` 的 `include` 加上 `src/receipts.ts`，它总会被构建出来
+- `tests/receipts.test.ts` 守三件事：子路径在 `exports` 里只有 `types`；源文件没有任何引用；构建出的 `dist/receipts.d.ts` 顺着相对引用走到的声明文件里没有包名，导出界面要用的那些类型名
+- `./receipts` 里的类型名算契约：删掉、改名是破坏性变更。这次只是加一个子路径，类型形状不变，版本号照 gwb-release 属于 y 级
+
+## 否掉的候选
+
+- **从主入口导出回执类型**：构建出的 `dist/index.d.ts` 引内核包、给 `cordis` 补 `Context` 的类型，它转出去的 `pnpm-location.d.ts` 用到 node 的全局类型 `NodeJS.Platform`。窗格的浏览器侧 tsconfig 只有 DOM 类型，`import type` 主入口就得把内核包、`cordis` 与 `@types/node` 都列进界面插件的 dev，node 的全局类型也跟着进了浏览器侧的类型检查
+- **各实现文件原地导出、子路径入口只做转发**：`remount.ts`、`vocab.ts` 顺着引用走到内核包，入口 d.ts 的引用链上还是有包名；要让链上干净，就得把类型从这些文件里挪出来，那不如一个文件放全
+
+## 代价与遗留
+
+- 回执形状现在有两处写：命令的 `usage` 文字与 `src/receipts.ts` 的类型，改回执时两处要一起改，没有工具核对二者一致
+- 窗格还没改成 `import type`：要等插件管理带这个子路径的版本发出去，界面插件的 dev 写上它再改，这一步在界面插件仓做

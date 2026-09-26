@@ -148,6 +148,7 @@ peer 里另有插件管理 `@godcreator/gwb-plugin-manager`（`workspace:^`，�
 | 服务 | `gwbPluginManager` | `ctx.provide` 提供的空对象，只表示「插件管理装着」：别的插件注入它，只为跟着插件管理一起加载、卸载。不继承 cordis 的 `Service`，所以运行时不 import `cordis` |
 | 命令 | `plugin-manager.list`、`install`、`add-entry`、`remove-entry`、`enable`、`disable`、`outdated`、`update`、`uninstall`、`search` | 见[插件管理](/docs/plugin-manager) |
 | 主入口导出 | `locatePnpm`、`isCaretRange`、`KERNEL_PACKAGE`、`homePnpmEnv`、`tailLines`、`LIST_COMMAND`、`INSTALL_COMMAND`、`UPDATE_COMMAND` | 给 devkit 按值 import，规则只有这一份 |
+| 子路径 `./receipts` 导出（只有类型） | 各条命令回执的类型，如 `PluginPackageView`、`Updated`、`SearchFound`、`Outcome` | 给插件管理窗格的浏览器侧 `import type`，见[插件管理](/docs/plugin-manager#子路径-receipts回执的类型) |
 | 说明书 | `gwb-plugin-manager` | 包根 `skills/` 下，经 `gwbSkills` 登记 |
 | 事件 | 无 | |
 

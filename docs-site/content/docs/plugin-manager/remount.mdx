@@ -20,7 +20,7 @@ description: update 装完包后逐条重新加载条目：停用 → 等旧的�
 
 每一步用 cordis 的 `fiber.await()` 等它把手头的事做完，最多等 5 秒；会卡住的只有某个插件的 `apply` 自己不返回，所以超时就继续，读到什么状态报什么。
 
-{/* ref file="../plugins/plugin-manager/src/remount.ts" lines="34-46" hash="867d1f991393" blob="337586a991f2" */}
+{/* ref file="../plugins/plugin-manager/src/remount.ts" lines="22-34" hash="867d1f991393" blob="5777a53110fb" */}
 
 {/* ref file="../plugins/plugin-manager/src/fiber.ts" lines="18-34" hash="c206f4b25ddb" blob="071cae84dcc7" */}
 
@@ -34,7 +34,7 @@ description: update 装完包后逐条重新加载条目：停用 → 等旧的�
 
 `update` 回执里每条条目是 `{ id, action, state }`。`action` 是 `remounted`（在这条命令里做完）、`skipped`（本来就停用，保持停用）、`deferred`（插件管理自己那条，见下）或 `failed`（操作条目树时抛错，`state` 里是那句错误；别的条目照常处理，外层 `ok` 仍是 `true`）。`state` 是 cordis 的 fiber 状态名，`ACTIVE` 才算加载成功；cordis 的状态是 `const enum`，运行时拿不到，插件管理照抄一份名字表，由测试核对。
 
-{/* ref file="../plugins/plugin-manager/src/remount.ts" lines="8-19" hash="08a55bb38c37" blob="337586a991f2" */}
+{/* ref file="../plugins/plugin-manager/src/receipts.ts" lines="114-125" hash="08a55bb38c37" blob="3d191e167e13" */}
 
 {/* ref file="../plugins/plugin-manager/src/fiber.ts" lines="3-16" hash="668b7d27ed94" blob="071cae84dcc7" */}
 
@@ -56,7 +56,7 @@ description: update 装完包后逐条重新加载条目：停用 → 等旧的�
 
 排到下一个宏任务的那段代码只持有条目树、id 与事先拿到的 logger——那时插件管理原来的实例已经卸载，ctx 上的东西都不能用。`devkit.dev` 收到 `selfDeferred: true` 就轮询 `plugin-manager.list`，等插件管理的条目回到 `active`（见接缝页 [devkit 调插件管理](/docs/seams/plugin-manager-calls)）。
 
-{/* ref file="../plugins/plugin-manager/src/remount.ts" lines="60-71" hash="9f442a4ed2cd" blob="337586a991f2" */}
+{/* ref file="../plugins/plugin-manager/src/remount.ts" lines="48-59" hash="9f442a4ed2cd" blob="5777a53110fb" */}
 
 {/* has file="../plugins/plugin-manager/tests/remount.test.ts" text="当下什么都不动；下一个宏任务才停用再启用" */}
 

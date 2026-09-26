@@ -3,22 +3,17 @@
  * 带 name / version / description / keywords。keywords 只在检索响应里有，单包详情接口会去掉它
  */
 
+import type { PluginRow } from './receipts.js'
 import { isRecord } from './vocab.js'
 
 /** 插件在包清单 `keywords` 里写的关键词。库、共享包没有它 */
 export const PLUGIN_KEYWORD = 'gwb-plugin'
 
-/** 检索出来的一条：包名、registry 上的最新版本、一句简介、包自己写的 keywords */
-export interface SearchRow {
-  pkg: string
-  version?: string
-  description?: string
+/** 检索出来的一条：`search` 回执里的一行，再加上包自己写的 keywords */
+export interface SearchRow extends PluginRow {
   /** 包清单里写的 keywords；registry 没给、不是数组、元素不是字符串的都滤掉 */
   keywords: string[]
 }
-
-/** `search` 回执里的一行：不带 keywords，是不是插件已在检索时按它筛过 */
-export type PluginRow = Omit<SearchRow, 'keywords'>
 
 /** 整份响应认不出时是 undefined，和「查成了但没有结果」（空数组）分得开 */
 export type ParsedSearch = SearchRow[] | undefined

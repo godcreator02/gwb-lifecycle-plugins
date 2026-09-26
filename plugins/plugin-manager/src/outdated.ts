@@ -3,17 +3,8 @@
  * 每条 `{ current, latest, wanted, isDeprecated, dependencyType }`；全都最新时退出码 0，stdout 是 `{}` 或空
  */
 
+import type { OutdatedMap } from './receipts.js'
 import { isRecord } from './vocab.js'
-
-export interface UpdateInfo {
-  /** home 里装着的版本 */
-  current: string
-  /** registry 上的最新版 */
-  latest: string
-}
-
-/** 包名 → 版本差距。空对象是全都最新 */
-export type OutdatedMap = Record<string, UpdateInfo>
 
 function nonEmptyStringOrUndefined(value: unknown): string | undefined {
   return typeof value === 'string' && value !== '' ? value : undefined

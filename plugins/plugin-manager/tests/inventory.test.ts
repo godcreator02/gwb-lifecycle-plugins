@@ -1,5 +1,6 @@
 import { describe, expect, it } from 'vitest'
-import { installedVersionOf, readEntries, reconcile, toDependencies, type EntrySnapshot } from '../src/inventory.js'
+import { installedVersionOf, readEntries, reconcile, toDependencies } from '../src/inventory.js'
+import type { EntrySnapshot } from '../src/receipts.js'
 
 interface FakeEntry {
   key: string

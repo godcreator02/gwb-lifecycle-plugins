@@ -32,7 +32,7 @@ description: 连接插件包 package.json 的 peer（内核包的范围、用到
 
 {/* ref file="../plugins/plugin-manager/src/kernel-compat.ts" lines="22-50" hash="ac183bc0f08b" blob="b88e71e1b482" */}
 
-{/* ref file="../plugins/plugin-manager/src/index.ts" lines="38-41" hash="32891efcf8af" blob="22810c890bc5" */}
+{/* ref file="../plugins/plugin-manager/src/index.ts" lines="52-55" hash="32891efcf8af" blob="8fed14154427" */}
 
 **devkit 的发版前检查**：`devkit.release` 只查 `keywords` 含 `gwb-plugin` 的包，从插件管理 import `KERNEL_PACKAGE`、`isCaretRange`，只查 peer 里写没写内核包、写法是不是 `^x.y.z`，不对照哪个内核，没过的回执里写建议的范围：
 
@@ -40,9 +40,9 @@ description: 连接插件包 package.json 的 peer（内核包的范围、用到
 
 **插件管理的 `list`**：从 home 的 `node_modules` 读每个包的 `package.json`，只看插件，拿插件管理所在那个 home 正在运行的内核（`gwbKernel.version`）比，范围不包含就在 `unmetPeers` 里列 `{ pkg: "@godcreator/gwb-kernel-desktop", range, installed: <运行中的内核版本> }`（见[内核兼容性](/docs/plugin-manager/kernel-compat)）：
 
-{/* ref file="../plugins/plugin-manager/src/kernel-upgrade.ts" lines="54-59" hash="36ab316a5112" blob="25e9b993d026" */}
+{/* ref file="../plugins/plugin-manager/src/kernel-upgrade.ts" lines="49-54" hash="36ab316a5112" blob="f053bf9413fd" */}
 
-{/* ref file="../plugins/plugin-manager/src/peers.ts" lines="58-77" hash="03f244122717" blob="26615cce6d6e" */}
+{/* ref file="../plugins/plugin-manager/src/peers.ts" lines="40-59" hash="03f244122717" blob="d5e1b931da3a" */}
 
 **peer 里的别的插件**：`"<插件包名>": "^x.y.z"`，只在 `ctx.inject([...], fn)` 里用的在 `peerDependenciesMeta` 标 `optional: true`（规矩见[用到的插件写 peer](/docs/rules/plugin-peers)）。devkit 与插件管理问的不是同一件事：devkit 在发版时问「上游有没有出破坏性版本」，拿范围下限和源上 latest 比在不在同一条线；插件管理在 home 里问「装着的这一版在不在范围里」，拿范围和装着的版本比，用的是 `caretRangeCovers`（插件管理内部的函数；比内核包时用的 `kernelRangeCovers` 只在它外面多一层「内核版本号不合法就抛错」，也不导出，见 [peer 满没满足](/docs/plugin-manager/peers)）。
 
@@ -52,7 +52,7 @@ description: 连接插件包 package.json 的 peer（内核包的范围、用到
 
 {/* ref file="../plugins/plugin-manager/src/kernel-compat.ts" lines="32-44" hash="12b7f5f720cb" blob="b88e71e1b482" */}
 
-{/* ref file="../plugins/plugin-manager/src/peers.ts" lines="58-77" hash="03f244122717" blob="26615cce6d6e" */}
+{/* ref file="../plugins/plugin-manager/src/peers.ts" lines="40-59" hash="03f244122717" blob="d5e1b931da3a" */}
 
 ## 约定
 

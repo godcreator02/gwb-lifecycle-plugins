@@ -13,6 +13,9 @@
       "types": "./dist/index.d.ts",
       "default": "./dist/index.js"
     },
+    "./receipts": {
+      "types": "./dist/receipts.d.ts"
+    },
     "./package.json": "./package.json"
   },
   "files": [

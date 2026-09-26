@@ -21,7 +21,7 @@ description: plugin-manager.search（无参数）在配好的全部 npm 源上�
 
 `search` 没有参数，查两份 npmrc 里出现过的每个 scope，`@godcreator` 永远排第一（npmrc 里没写它时它走全局源），其余按名字排。各条源并发查，查成的合并进回执的 `packages`，没查成的在 `note` 里写明是哪条、为什么；全部没查成才回 `ok: false`。
 
-{/* ref file="../plugins/plugin-manager/src/package-sources.ts" lines="23-61" hash="e681657e609b" blob="7ae4be89025a" */}
+{/* ref file="../plugins/plugin-manager/src/package-sources.ts" lines="15-53" hash="e681657e609b" blob="24466d9ca6e4" */}
 
 每条源的地址按 scope 从两份 npmrc 里找：先找 `@scope:registry=`，再找 `registry=`，每一种都是 home 级优先于机器级，都没写就是 npm 官方源。pnpm 安装时读的是同一批配置行，所以检索的源和安装的源是同一个，搜到的包名交给 `install`，pnpm 去的也是这条源。用环境变量或 pnpm 全局配置指定的源这里看不到；本机的配置都写在 `~/.npmrc` 里。
 
@@ -33,9 +33,9 @@ description: plugin-manager.search（无参数）在配好的全部 npm 源上�
 
 **是不是插件只看包清单 `keywords` 里有没有 `gwb-plugin`**，包名前缀、scope 都不参与判断。这个字段只在检索响应里有（单包详情接口会去掉它），一次请求就能判断完；判断完就从回执里拿掉，回执每行只有 `pkg`、`version`、`description`。gitea 的检索响应把 scope 与名字分开放，解析时拼回完整包名。
 
-{/* ref file="../plugins/plugin-manager/src/search.ts" lines="8-9" hash="d3c195c0f170" blob="4a71ddaeeb3a" */}
+{/* ref file="../plugins/plugin-manager/src/search.ts" lines="9-10" hash="d3c195c0f170" blob="4acddc515fd4" */}
 
-{/* ref file="../plugins/plugin-manager/src/search.ts" lines="48-51" hash="8b851048cbb2" blob="4a71ddaeeb3a" */}
+{/* ref file="../plugins/plugin-manager/src/search.ts" lines="43-46" hash="8b851048cbb2" blob="4acddc515fd4" */}
 
 {/* has file="../plugins/plugin-manager/tests/sources.test.ts" text="home 级同名 scope 优先于机器级" */}
 
@@ -63,6 +63,6 @@ description: plugin-manager.search（无参数）在配好的全部 npm 源上�
 
 `search` 用不带 BUSY 检查的方式登记，也不运行 pnpm。BUSY 防的是两次改动同时改 home 的 `package.json`；`search` 只读网络与文件，不碰 home。检索可能要等好几条源，排在安装后面只会让「可装」列表等到安装做完才出来。
 
-{/* ref file="../plugins/plugin-manager/src/index.ts" lines="236-248" hash="ae6fa061604a" blob="22810c890bc5" */}
+{/* ref file="../plugins/plugin-manager/src/index.ts" lines="215-227" hash="ae6fa061604a" blob="8fed14154427" */}
 
 真实 registry 的检索只能实机验证：`devkit.home.new` 开一个隔离 home，在里面调 `search`。
