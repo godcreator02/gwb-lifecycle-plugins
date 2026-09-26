@@ -1,0 +1,26 @@
+---
+title: '要跟外壳 0.15：peer 里外壳改成 ^0.15.0（代码不用改）'
+description: '来源：gwb-ui-plugins（D:\unitfolders\igldu-gwbkernel\gwb-ui-plugins），2026-09-26；总控台会话投递'
+docfirst: none
+---
+
+`@godcreator/gwb-shell` 0.15.0 是破坏性版本：删掉了查实没有任何使用者的几样东西，并把两处悄悄容错改成直接报错。
+查法：所有单元的源码、default 里装着的 34 个插件的构建产物、所有 home 与备份里的布局文件。
+
+## 变了什么
+
+- 删掉窗格之间的消息总线 `args.shell.bus`（`ShellBridge` 里不再有 `bus`）
+- 删掉服务方法 `gwbShell.panes()`、`gwbShell.plugins()`；`GwbShellApi` 只剩 `registerPane`、`describeSelf`。要查注册表用命令 `shell.panes`、`shell.plugins`
+- 包根不再导出命令名常量（`PANES_COMMAND` 等 16 个）与类型 `ShellEnv`、`LayoutDoc`、`SavedLayout`、`PaneOwner`、`RegisteredPane`、`RegisteredPlugin`；包根只导出 `GwbShellApi`、`PaneSpec`、`PluginInfo` 与 `ctx.gwbShell` 的类型
+- 布局文件只认 v3（v2 的迁移删了）
+- `registerPane` 的 `kind` 写错当场抛错（只认 `'tool'`、`'document'`，不给是 `'tool'`），以前是 warn 后按 `tool` 登记
+- `shell.desktop.switch` 目标桌面不在时回 `ok: false`，`id` / `name` 给了却不是非空字符串也回 `ok: false`；以前回 `ok: true`
+
+## 怎么跟
+
+用到的都还在：`registerPane`、`describeSelf`、`./pane` 子路径里的 `PaneArgs` / `PaneHandle` / `ShellBridge`（除 `bus`）、`openPane`、`setPaneContent`、`keepPane`、`setPaneTitle`、`retarget`、`portal`、`onVisibility`、令牌表。
+所以只改一个数字：peer 里 `@godcreator/gwb-shell` 改成 `^0.15.0`，`pnpm install`、`pnpm check`，在隔离 home 验过后照 gwb-release 升 y 发版。
+没跟之前，装了外壳 0.15 的 home 里 `plugin-manager.list` 会把本仓插件标成「peer 没满足」，运行不受影响。
+## 本仓的情况
+
+`plugins/devkit`：peer 里外壳 `^0.14.0`，源码只 `import type {}`，没用到删掉的东西。总控台会话这次一并跟上。
