@@ -1,6 +1,7 @@
 {
   "pages": [
     "index",
+    "flows",
     "design",
     "develop",
     "wiring",

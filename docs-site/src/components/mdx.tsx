@@ -6,10 +6,16 @@
  */
 import defaultMdxComponents from 'fumadocs-ui/mdx'
 import { File, Files, Folder } from 'fumadocs-ui/components/files'
+import { Step, Steps } from 'fumadocs-ui/components/steps'
+import { Callout } from 'fumadocs-ui/components/callout'
+import { Accordion, Accordions } from 'fumadocs-ui/components/accordion'
 import type { MDXComponents } from 'mdx/types'
 import type { ReactNode } from 'react'
 import { DocfirstPre } from '@godcreator/docfirst-workflow/fumadocs/pre'
 import { Diagram } from './diagram'
+import { DirSwap } from './explain/dir-swap'
+import { ReloadPicker } from './explain/reload-picker'
+import { RemountRace } from './explain/remount-race'
 import type { ComponentName } from './registry'
 
 type Loose = MDXComponents[string]
@@ -23,7 +29,15 @@ const table: Record<ComponentName, Loose> = {
   Files: Files as Loose,
   Folder: Folder as Loose,
   File: File as Loose,
+  Steps: Steps as Loose,
+  Step: Step as Loose,
+  Callout: Callout as Loose,
+  Accordions: Accordions as Loose,
+  Accordion: Accordion as Loose,
   Diagram: Diagram as Loose,
+  DirSwap: DirSwap as Loose,
+  ReloadPicker: ReloadPicker as Loose,
+  RemountRace: RemountRace as Loose,
 }
 
 export function getMDXComponents(components: MDXComponents = {}): MDXComponents {

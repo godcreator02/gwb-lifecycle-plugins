@@ -41,5 +41,15 @@ export default {
     ...fumadocs.defaultRoster,
     // 示意图：图本身 agent 看不见，生成 markdown 时只保留「[图] 标题」和子元素里的文字说明
     Diagram: (node, h) => [h.paragraph(`[图] ${h.attr(node, 'title') ?? h.attr(node, 'name') ?? ''}`), ...h.children()],
+    // fumadocs 自带的骨架组件：分步与折叠只是排版，机读版保留里面的正文
+    Steps: 'children',
+    Step: 'children',
+    Accordions: 'children',
+    Accordion: (node, h) => [h.paragraph(h.attr(node, 'title') ?? ''), ...h.children()],
+    Callout: (node, h) => [h.paragraph(`[${h.attr(node, 'title') ?? '提示'}]`), ...h.children()],
+    // 讲解页的小演示（src/components/explain/）：演示本身 agent 看不见，页面要说的话都写在正文里
+    DirSwap: (node, h) => h.paragraph('[演示] 装上新版本之后，链接与运行中的代码各指向哪个目录'),
+    ReloadPicker: (node, h) => h.paragraph('[演示] 挑几个包升级，看谁的目录变了、谁被重新加载'),
+    RemountRace: (node, h) => h.paragraph('[演示] 停用后马上启用与等旧实例卸载完再启用的时间线'),
   },
 }

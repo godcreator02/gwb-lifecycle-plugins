@@ -6,8 +6,23 @@
  * **React 表没有** → 站渲染时报 Expected component。
  *
  * Files / Folder / File 是 fumadocs 自己的文件树组件：目录树引用生成的就是它们，
- * 它们的规则在格式包的默认表里。Diagram 是示意图，见 diagram.tsx。
+ * 它们的规则在格式包的默认表里。Steps / Step、Callout、Accordions / Accordion 也是 fumadocs 自带的；
+ * Diagram 是示意图，见 diagram.tsx；DirSwap、ReloadPicker、RemountRace 是讲解页里的小演示，在 explain/ 下。
  * registry.ts 只有可擦除的类型，Node 直接运行。
  */
-export const componentNames = ['Note', 'Files', 'Folder', 'File', 'Diagram'] as const
+export const componentNames = [
+  'Note',
+  'Files',
+  'Folder',
+  'File',
+  'Steps',
+  'Step',
+  'Callout',
+  'Accordions',
+  'Accordion',
+  'Diagram',
+  'DirSwap',
+  'ReloadPicker',
+  'RemountRace',
+] as const
 export type ComponentName = (typeof componentNames)[number]

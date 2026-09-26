@@ -3,6 +3,7 @@
 @import 'fumadocs-ui/css/preset.css';
 /* 引用状态点的样式随 docfirst-workflow 包发布 */
 @import '@godcreator/docfirst-workflow/fumadocs/light.css';
+@import '../components/explain/explain.css';
 
 html {
   scrollbar-gutter: stable;
