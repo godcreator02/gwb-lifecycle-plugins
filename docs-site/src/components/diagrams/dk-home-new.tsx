@@ -1,7 +1,7 @@
 'use client'
 
 /**
- * devkit.home.new 开一个测试 home 的七格：取名、选调试端口、定启动计划、装内核包、cordis 与基础插件、启动、观察五秒、读运行时记录。
+ * devkit.home.new 开一个测试 home 的七步：取名、选调试端口、定启动计划、装内核包、cordis 与基础插件、启动、观察五秒、读运行时记录。
  * 可能失败的步骤都排在启动之前。最下面一行是之后怎么用它：只按名字找到它；改内核源码的验证是内核仓自己的流程。
  */
 
@@ -12,7 +12,7 @@ const ITEMS: ChainItem[] = [
   { lines: ['1 取名', '<短名>-<yyMMddHHmm>'], mono: true },
   { lines: ['2 选调试端口', '先沿用上次的，被占了才另选'] },
   { lines: ['3 定启动计划', '启动宿主自己那个应用'] },
-  { lines: ['4 写 cordis.yml，pnpm add 三次', '内核包 → cordis → 七个基础插件'] },
+  { lines: ['4 写 cordis.yml，pnpm add 三次', '内核包 → cordis → 基础插件（含 timer）'] },
   { lines: ['5 启动', 'GWB_HOME=<名> + 两个调试开关'] },
   { lines: ['6 观察五秒', '进程刚启动就退出 → 报错'] },
   { lines: ['7 读 runtime.json', '内核写 cdp 等，MCP 入口补 mcp'] },
@@ -27,7 +27,7 @@ const STEPS: { title: string; detail: string; active: number }[] = [
     active: 1,
   },
   { title: '第 3 步：定启动计划', detail: '启动的是宿主自己那个应用，日常是安装版（只带启动器，内核从 home 里的内核包加载），不构建内核、不认内核仓；宿主是开发态 electron 就拒。同一个 home 已有实例在运行也拒。', active: 2 },
-  { title: '第 4 步：装内核包、cordis 与基础插件', detail: '只有 new 做这一步：往新建的 home 目录写 cordis.yml，七个基础插件各一条条目；在 home 目录里依次 pnpm add 三次：内核包（运行中的内核的精确版本，--save-exact）；装上的内核包清单里 peer 写的那个精确版本的 cordis（--save-exact）；七个基础插件。内核包与 cordis 装完都读 node_modules 里的清单核对版本。哪一步不成都不启动，回执带 pnpm 输出的最后几行。', active: 3 },
+  { title: '第 4 步：装内核包、cordis 与基础插件', detail: '只有 new 做这一步：往新建的 home 目录写 cordis.yml，每个基础插件一条条目；在 home 目录里依次 pnpm add 三次：内核包（运行中的内核的精确版本）；装上的内核包清单里 peer 写的那个精确版本的 cordis（--save-exact）；基础插件，其中有提供 timer 服务的 @cordisjs/plugin-timer。内核包与 cordis 装完都读 node_modules 里的清单核对版本。哪一步不成都不启动，回执带 pnpm 输出的最后几行。', active: 3 },
   {
     title: '第 5 步：启动',
     detail: '环境变量 GWB_HOME 是这个 home 的名字，去掉 ELECTRON_RUN_AS_NODE；命令行带 --remote-debugging-port=<端口> 与 --disable-backgrounding-occluded-windows（窗口被挡住时也照常渲染）。',
@@ -37,7 +37,7 @@ const STEPS: { title: string; detail: string; active: number }[] = [
   { title: '第 7 步：读运行时记录', detail: 'runtime.json 由内核写 pid、startedAt、cdp，MCP 入口插件补上 mcp；本包只读这几项。读不到不算启动失败，但回执会说明：之后按名字找它全靠这份记录。', active: 6 },
   {
     title: '之后：只按名字找到它',
-    detail: 'devkit.dev、devkit.cdp、devkit.home.open / rm 都只收 home 名，端口从 runtime.json 查。改了内核源码要验证，走内核仓自己的流程，开发套件不代劳。',
+    detail: 'devkit.dev、devkit.cdp、devkit.home.open / rm 都只收 home 名，端口从 runtime.json 查。改了内核源码要验证，走内核仓自己的流程，开发套件不做。',
     active: 7,
   },
 ]

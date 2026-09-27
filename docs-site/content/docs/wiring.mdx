@@ -101,7 +101,7 @@ peer 里另有插件管理 `@godcreator/gwb-plugin-manager`（`workspace:^`，�
 | 读文件 | 目标 home 的日志 | `<home>/gwb.log` | `devkit.dev` 取证：新增部分里没有 error |
 | 读文件 | 目标 home 的清单 | `<home>/package.json` | `devkit.dev` 分出已装（走 `update`）与没装（走 `install`）的包；只读 |
 | 写文件 | 目标 home 的 `dev-packs/` | `<home>/dev-packs/<包文件>` | 开发版的包文件；每版一个新路径，旧的不删 |
-| 写文件与安装 | 新 home | `<home>/cordis.yml`、`pnpm add`（内核包、`cordis`、七个基础插件） | `devkit.home.new` 在新 home 启动之前写好基础插件的条目、装包（那时插件管理还没运行） |
+| 写文件与安装 | 新 home | `<home>/cordis.yml`、`pnpm add`（内核包、`cordis`、基础插件，其中有 `@cordisjs/plugin-timer`） | `devkit.home.new` 在新 home 启动之前写好基础插件的条目、装包（那时插件管理还没运行） |
 | 读文件 | 本 home 装着的命令总线与外壳 | `<本 home>/node_modules/@godcreator/gwb-commands/package.json`、`.../gwb-shell/package.json` | 建仓与加插件时模板 peer 的版本号；没装就报错 |
 | 环境变量与命令行参数 | 宿主安装版应用 | `GWB_HOME=<home 名>`、`--remote-debugging-port=<端口>` | `devkit.home.new` / `open` 再启动一次宿主，指定 home 与调试端口 |
 | 读被发版的包 | 包目录 `node_modules` 里装好的内核包与外壳 | 自身与 peer 的 `./browser-imports`（代码提供方；旧项目兼容旧 kernel HTML）、外壳的 `theme.reference.css`（主题令牌） | 发版前检查的浏览器侧 import 名单与样式检查的色名 |
@@ -208,7 +208,7 @@ peer 里另有插件管理 `@godcreator/gwb-plugin-manager`（`workspace:^`，�
 
 ### 按名字调用与约定通道
 
-插件管理不按名字调用别的插件的命令，也不推事件；它直接碰的是 loader、cordis 的内部状态与 home 里的文件。
+插件管理不按名字调用别的插件的命令，也不发事件；它直接操作的是 loader、cordis 的内部状态与 home 里的文件。
 
 | 通道 | 对方 | 名字 | 用来做什么 |
 | --- | --- | --- | --- |

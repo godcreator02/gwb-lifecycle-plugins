@@ -12,6 +12,7 @@ import {
   REMOVE_TRIES,
   asHomeName,
   baseInstallPlan,
+  baseYaml,
   bringDownHome,
   composeName,
   cordisInstallPlan,
@@ -256,6 +257,11 @@ describe('装进新 home 的东西：内核包、cordis 与基础插件', () => 
     expect(plan.args).toEqual(['add', ...BASE_PLUGINS.map((one) => one.pkg)])
   })
 
+  it('基础插件里有提供 timer 服务的 @cordisjs/plugin-timer：装包命令里有它，cordis.yml 里有它的条目（id 与 default 里的一致）', () => {
+    expect(baseInstallPlan(HOME, PNPM, HOST_ENV).args).toContain('@cordisjs/plugin-timer')
+    expect(baseYaml()).toContain("- id: plugin-timer\n  name: '@cordisjs/plugin-timer'\n")
+  })
+
   it('装上的包清单：版本是要装的那个才回清单；读不到、不是 JSON、版本对不上都拒，说清是哪个文件、装上的是哪个版本', () => {
     expect(installedManifestAtVersion(cordisManifest(), 'cordis', '4.0.0-rc.9', HOME)).toMatchObject({ ok: true, manifest: { version: '4.0.0-rc.9' } })
     expect(installedManifestAtVersion(undefined, 'cordis', '4.0.0-rc.9', HOME)).toMatchObject({
@@ -410,8 +416,9 @@ describe('launchHome：拼宿主拉起计划、起它、落记录、看五秒', 
     expect(state.runCalls[0]?.plan).toMatchObject({ command: PNPM, args: ['add', `${KERNEL_PACKAGE}@${KERNEL_VERSION}`] })
     expect(state.runCalls[1]?.plan).toMatchObject({ command: PNPM, args: ['add', '--save-exact', 'cordis@4.0.0-rc.9'] })
     expect(state.runCalls[2]?.plan.args).toContain('@godcreator/gwb-commands')
+    expect(state.runCalls[2]?.plan.args).toContain('@cordisjs/plugin-timer')
     expect(state.runCalls[2]?.plan.args).not.toContain('--save-exact')
-    expect(deps.fs.exists(path.join(HOME, 'cordis.yml'))).toBe(true)
+    expect(deps.fs.readText(path.join(HOME, 'cordis.yml'))).toContain("- id: plugin-timer\n  name: '@cordisjs/plugin-timer'\n")
     expect(state.spawned).toHaveLength(1)
   })
 

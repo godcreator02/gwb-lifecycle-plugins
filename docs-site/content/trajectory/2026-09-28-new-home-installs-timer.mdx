@@ -1,0 +1,32 @@
+---
+title: 新 home 默认装 timer：@cordisjs/plugin-timer 并进 devkit.home.new 的基础插件
+born-at: 2026-09-28T10:00
+type: choice
+parent: [2026-09-08-gwb-devkit]
+label: 新 home 装 timer
+domain: 隔离 home
+---
+
+pivots-from:: [cordis 插件写 peer](2026-09-27-cordis-plugins-in-peer.md)
+
+## 背景
+
+上一张卡让注入了 `timer` 的插件（windows-backup、collab、cgm-alert）把 `@cordisjs/plugin-timer` 写进 peer，遗留了一件事：`devkit.home.new` 开的隔离 home 里没有 timer，这些插件装进去一直等不到服务、加载不上，`plugin-manager.list` 报出 `unmetPeers` 之后还要人手装一次再加条目。人要求新 home 默认装上它，装进去就能直接加载。
+
+## 结论与边界
+
+`@cordisjs/plugin-timer` 并进 `devkit.home.new` 的基础插件清单，条目 id 与 `default` 里的一样是 `plugin-timer`。它和别的基础插件在同一次 `pnpm add` 里装、不写版本，取源上的 latest。
+
+写这张卡时源上的 latest 是 1.1.3，peer 写 `cordis: ^4.0.0-rc.9`，内核 0.10.0 的 peer 要 `cordis` 4.0.0-rc.10，范围包含它，所以不钉版本。以后 timer 的 latest 要的 `cordis` 跟内核对不上时，pnpm 只警告（home 里关了自动补装 peer），要在那时再决定钉哪个版本。
+
+清单仍然写死、不做参数：只有这一个第三方 cordis 插件需要默认装。
+
+## 否掉的候选
+
+- **单独一项、单独一次 `pnpm add`**：timer 和别的基础插件一样是插件、一样取 latest、一样一条条目，分开写只多一段代码和一次装包
+- **加一个参数让调用方指定额外要装的插件**：只有 timer 这一个使用者；要装别的插件，开完 home 之后用 `plugin-manager.install`
+
+## 代价与遗留
+
+- 新 home 多装一个包，`@cordisjs` 不在 `~/.npmrc` 的范围行里，从默认源装
+- 已经开着的隔离 home 不受影响，要用 timer 的仍要手装

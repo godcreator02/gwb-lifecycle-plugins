@@ -31,7 +31,7 @@ description: 连接 devkit、插件管理与 pnpm、npm 源、两份 npmrc：两
 | `pnpm publish --no-git-checks --tag latest` | 临时目录里组装好的发布内容 | `devkit.release` | 发布目标，写在发布内容清单的 `publishConfig.registry`，命令行不带 `--registry` |
 | `pnpm view <包@版本> version` | 系统临时目录 | `devkit.release` | 发布目标：带范围的包名带 `--config.<范围>:registry=<发布目标>`，不带范围的带 `--registry` |
 | `pnpm view <包> dist-tags.latest` | 系统临时目录 | `devkit.release` | 不指定，按 `~/.npmrc` 的 scope 路由 |
-| `pnpm add <内核包、cordis（带 --save-exact）、七个基础插件>` | 新 home | `devkit.home.new` | 不指定 |
+| `pnpm add <内核包、cordis（带 --save-exact）、基础插件>` | 新 home | `devkit.home.new` | 不指定：`@godcreator` 的包按 `~/.npmrc` 的 scope 路由，`cordis` 与 `@cordisjs/plugin-timer` 走默认源 |
 
 `devkit.dev` 不在目标 home 里启动 pnpm：装包是目标 home 的插件管理在它自己的进程里运行的 `pnpm add`（见 [devkit 调插件管理](/docs/seams/plugin-manager-calls)）。
 
@@ -53,7 +53,7 @@ description: 连接 devkit、插件管理与 pnpm、npm 源、两份 npmrc：两
 
 {/* ref file="../plugins/devkit/src/release.ts" lines="122-135" hash="eea1577f56fb" blob="9c241c13d24e" */}
 
-发布目标写进临时目录里发布内容清单的 `publishConfig.registry`，命令行不带 `--registry`；问「这个版本号在源上有没有」时指定发布目标。pnpm 12 里 `publishConfig.registry` 盖得过 `~/.npmrc` 的 scope 路由与命令行的 `--registry`，而 `--registry` 盖不过 scope 路由——`pnpm view` 也一样，带范围的包名要用 `--config.<范围>:registry=` 才指定得了（实验见本仓 `probes/2609251140_pnpm-publish-config-registry/`）：
+发布目标写进临时目录里发布内容清单的 `publishConfig.registry`，命令行不带 `--registry`；问「这个版本号在源上有没有」时指定发布目标。pnpm 12 里 `publishConfig.registry` 优先于 `~/.npmrc` 的 scope 路由与命令行的 `--registry`，而 `--registry` 不优先于 scope 路由——`pnpm view` 也一样，带范围的包名要用 `--config.<范围>:registry=` 才指定得了（实验见本仓 `probes/2609251140_pnpm-publish-config-registry/`）：
 
 {/* ref file="../plugins/devkit/src/node-dev-deps.ts" lines="185-198" hash="561b92e3cc22" blob="7ad0027b33e7" */}
 

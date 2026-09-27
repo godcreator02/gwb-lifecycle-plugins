@@ -243,6 +243,8 @@ export const BASE_PLUGINS: ReadonlyArray<{ id: string; pkg: string }> = [
   { id: 'skills', pkg: '@godcreator/gwb-skills' },
   { id: 'plugin-manager', pkg: '@godcreator/gwb-plugin-manager' },
   { id: 'baseui', pkg: '@godcreator/gwb-baseui' },
+  // 提供 timer 服务。内核不提供它，注入了 timer 的插件装进没有它的 home 会一直等不到服务；条目 id 与 default 里的一致
+  { id: 'plugin-timer', pkg: '@cordisjs/plugin-timer' },
 ] as const
 
 /** 基础插件的 cordis.yml 内容 */

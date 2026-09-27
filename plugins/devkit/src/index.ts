@@ -76,7 +76,7 @@ const SCAFFOLD_PLUGIN_USAGE = [
 
 const HOME_USAGE = [
   'home 命令的参数：',
-  '  devkit.home.new  { short 必给（kebab-case 短名） }——开 <short>-<yyMMddHHmm> 的新 home。启动之前装好内核包（运行中的内核的精确版本）、cordis（内核包要的精确版本）与七个基础插件，再用宿主安装版启动，调试端口自动选',
+  '  devkit.home.new  { short 必给（kebab-case 短名） }——开 <short>-<yyMMddHHmm> 的新 home。启动之前装好内核包（运行中的内核的精确版本）、cordis（内核包要的精确版本）与基础插件（命令、外壳、数据、设置、说明书、插件管理、基础界面，加上提供 timer 服务的 @cordisjs/plugin-timer），再用宿主安装版启动，调试端口自动选',
   '  devkit.home.open { name 必给（完整 home 名） }——重开一个已有的 home，不 build。机器重启之后回到现场走这条',
   '  devkit.home.rm   { name，force? }——删一个 home。没在运行的直接删；还在运行的要 force（连停带删，等进程真退再删）；目录真不在了才回已删',
   '                     default 是日常用的 home：不 force 不删，而且它在运行时 force 也不删——自己关掉它的窗口再来',
@@ -204,7 +204,7 @@ function registerHomeCommands({ ctx, log, commands, homeDeps }: Wiring): void {
       plugin: '@godcreator/gwb-devkit',
       description: '开一个测试 home（装内核包、cordis 与基础插件，用宿主安装版启动，调试端口自动选）',
       usage:
-        '{short 必给（kebab-case）}——名字是 <short>-<yyMMddHHmm>。启动之前往新 home 里依次 pnpm add 三次（写好 cordis.yml 条目）：先装内核包 @godcreator/gwb-kernel-desktop，版本是运行这条命令的内核的 gwbKernel.version；再装装上的内核包 peerDependencies.cordis 写的那个精确版本的 cordis，带 --save-exact（home 清单里只有它写精确版本号）；最后装七个基础插件（源上的 latest）。内核包与 cordis 装完都读 node_modules 里的清单核对版本。安装包只带启动器、从 home 里加载内核，所以内核包必须装上；哪一步没成都不启动。然后用宿主自己那个 exe 再开一个窗口（安装版认 GWB_HOME；不构建内核、不认内核仓），调试端口自动选一个空的。现有的 home 用 devkit.home.list 列出，验完的用 devkit.home.rm 删',
+        '{short 必给（kebab-case）}——名字是 <short>-<yyMMddHHmm>。启动之前往新 home 里依次 pnpm add 三次（写好 cordis.yml 条目）：先装内核包 @godcreator/gwb-kernel-desktop，版本是运行这条命令的内核的 gwbKernel.version；再装装上的内核包 peerDependencies.cordis 写的那个精确版本的 cordis，带 --save-exact（home 清单里只有它写精确版本号）；最后装基础插件（源上的 latest）：命令、外壳、数据、设置、说明书、插件管理、基础界面，加上提供 timer 服务的 @cordisjs/plugin-timer，cordis.yml 里各一条条目。内核包与 cordis 装完都读 node_modules 里的清单核对版本。安装包只带启动器、从 home 里加载内核，所以内核包必须装上；哪一步没成都不启动。然后用宿主自己那个 exe 再开一个窗口（安装版认 GWB_HOME；不构建内核、不认内核仓），调试端口自动选一个空的。现有的 home 用 devkit.home.list 列出，验完的用 devkit.home.rm 删',
     },
     async (args) => {
       if (!isRecord(args)) return { ok: false, error: `参数要是个对象。\n${HOME_USAGE}` }
