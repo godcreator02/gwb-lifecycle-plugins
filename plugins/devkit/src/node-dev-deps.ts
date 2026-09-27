@@ -11,6 +11,7 @@ import { removeTree, runCaptured } from './node-home-deps.js'
 import { nodeFs } from './node-probe-deps.js'
 import { VERSION } from './vocab.js'
 import { runWithTreeTimeout, timeoutNote } from './node-process-tree.js'
+import { collectBrowserImports } from './browser-providers.js'
 
 // DevDeps 与 ReleaseDeps 在这台机器上的实现：读写磁盘、启动进程、经 bin/cdp.mjs 连 CDP。
 // 真机器操作的部分没有单元测试，判断都在 dev.ts 与 release.ts 里；distManifest 与找工作区的两个函数有测试
@@ -360,6 +361,11 @@ async function gitStatusOf(repoDir: string): Promise<{ ok: true; dirty: string[]
 
 /** 发正式版在这台机器上的实现。`pnpm` 是命令开头找到的那个；组装发布内容与开发版的打包共用 withStagedDistribution */
 export const releaseDepsWith = (pnpm: string): ReleaseDeps => ({
+  browserProviders: (pkgDir, manifest) => collectBrowserImports(pkgDir, manifest, {
+    readText: nodeFs.readText,
+    realpath: fs.realpathSync,
+    importModule: (url) => import(`${url}?release=${Date.now()}`),
+  }),
   run: (plan: RunPlan, timeoutMs: number) => runCaptured(plan, timeoutMs),
   publish: (input) => publishStaged({ ...input, pnpm }),
   published: async (spec, registry) =>

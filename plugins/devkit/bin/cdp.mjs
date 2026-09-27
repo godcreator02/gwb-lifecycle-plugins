@@ -396,9 +396,9 @@ function callExpressionOf(target, rawArgs) {
   return `(${fs.readFileSync(target, 'utf8')})(${JSON.stringify(args)})`
 }
 
-/** 页面上的 `file://` 地址（外壳插入的脚本与样式表）里带着 home 的绝对路径，问一次正在运行的页面就知道 */
+/** 页面自身及脚本、样式表的 file URL 带着 home 路径；外壳未挂载时也能核对 home。 */
 const HOME_EXPR = `(() => {
-  const urls = [];
+  const urls = [location.href];
   for (const el of document.querySelectorAll('script[src], link[href]')) urls.push(el.src || el.href);
   return urls.filter((u) => typeof u === 'string' && u.startsWith('file:///'));
 })()`

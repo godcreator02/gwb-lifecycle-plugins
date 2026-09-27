@@ -2,6 +2,7 @@ import fs from 'node:fs'
 import path from 'node:path'
 import { fileURLToPath } from 'node:url'
 import { build } from 'esbuild'
+import { browserImports } from '@godcreator/gwb-shell/browser-imports'
 
 /** node 侧与浏览器侧都用 esbuild 打成一个文件，外置名单之外的依赖全部打包进去 */
 const here = path.dirname(fileURLToPath(import.meta.url))
@@ -14,24 +15,6 @@ function nodeSideExternals(): string[] {
   const manifest: unknown = JSON.parse(fs.readFileSync(path.join(here, 'package.json'), 'utf8'))
   const peers = isRecord(manifest) && isRecord(manifest['peerDependencies']) ? Object.keys(manifest['peerDependencies']) : []
   return ['electron', 'cordis', ...peers]
-}
-
-/**
- * 浏览器侧外置名单只从提供方读：react 的四个包名由内核包提供，写死在它页面入口 dist/index.html 的 importmap 里，
- * 构建时从装好的内核包里读（peer 写了它，pnpm 装在本包的 node_modules 里）。外置了 importmap 里没有的名字，
- * 运行时就是「Failed to resolve module specifier」
- */
-function importmapNamesOfKernel(): string[] {
-  const manifestPath = fileURLToPath(import.meta.resolve('@godcreator/gwb-kernel-desktop/package.json'))
-  const pageEntry = path.join(path.dirname(manifestPath), 'dist', 'index.html')
-  const importmapScript = /<script type="importmap">([\s\S]*?)<\/script>/.exec(fs.readFileSync(pageEntry, 'utf8'))
-  if (importmapScript === null) {
-    throw new Error(`${pageEntry} 里没有 <script type="importmap">：外置名单只从内核包页面入口的这段 importmap 读，读不到就不构建`)
-  }
-  const importmap: unknown = JSON.parse(importmapScript[1]!)
-  const imports = isRecord(importmap) ? importmap['imports'] : undefined
-  if (!isRecord(imports)) throw new Error(`${pageEntry} 的 importmap 里没有 imports`)
-  return Object.keys(imports)
 }
 
 function isRecord(value: unknown): value is Record<string, unknown> {
@@ -61,7 +44,7 @@ await build({
 await build({
   entryPoints: ['src/client/index.tsx'],
   outfile: 'dist/client.js',
-  external: importmapNamesOfKernel(),
+  external: Object.keys(browserImports()),
   format: 'esm',
   platform: 'browser',
   target: 'es2022',

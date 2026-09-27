@@ -124,7 +124,7 @@ const RELEASE_USAGE = [
   `**发到包自己的 publishConfig.registry**：没写这个字段、或写的不是 http(s) 地址就拒（团队源是 ${TEAM_REGISTRY}）。「同号已在源上」问的也是这个源`,
   '**发版前检查没过就拒**（构建之后，所有包一次列全）：产物里相对 import 指向的文件都在；dev 依赖不查',
   `**带界面的插件包另加样式检查**（构建后有 dist/style.css 才查）：${STYLE_CHECK_SUMMARY}`,
-  '**插件包另加**（keywords 含 gwb-plugin）：peer 里只许 cordis、内核包 @godcreator/gwb-kernel-desktop 与别的插件（包目录 node_modules 里它的清单 keywords 含 gwb-plugin），peer 里每个 gwb 插件（不分范围）和源上 dist-tags.latest 在同一条线（0.x 只看 x，≥1 只看主版本号；问哪个源由 ~/.npmrc 的范围行决定）；node 侧产物（exports["."] 入口顺着相对 import 走到的文件）的包名 import 只有 node 内置模块、electron 与 peer 里写了的包；浏览器侧产物（dist/client.js）只 import 页面 importmap 里的名字——内核包页面入口 dist/index.html 里那段 importmap 的键（react 的四个），从包目录 node_modules 里装好的内核包读；peer 里写了内核包、写法是 ^x.y.z（范围包不包含哪个内核不查，验证之后由人改）；' +
+  '**插件包另加**（keywords 含 gwb-plugin）：peer 里只许 cordis、内核包 @godcreator/gwb-kernel-desktop 与别的插件（包目录 node_modules 里它的清单 keywords 含 gwb-plugin），peer 里每个 gwb 插件（不分范围）和源上 dist-tags.latest 在同一条线（0.x 只看 x，≥1 只看主版本号；问哪个源由 ~/.npmrc 的范围行决定）；node 侧产物（exports["."] 入口顺着相对 import 走到的文件）的包名 import 只有 node 内置模块、electron 与 peer 里写了的包；浏览器侧产物（dist/client.js 与自身提供的模块）只 import 自身及直接 peer 的 ./browser-imports 代码出口提供的名字；检查同步映射、本地文件、包内路径、files 白名单与冲突；未声明提供方的旧项目兼容读取旧内核 HTML importmap；peer 里写了内核包、写法是 ^x.y.z（范围包不包含哪个内核不查，验证之后由人改）；' +
     WIRING_CHECK_SUMMARY,
   '**这条命令只发到源、不碰任何 home**，从哪个 home 调用都行；升级 default 是下一步的事，用 plugin-manager.update {"all":true}',
   '例：{"dir":"D:\\\\unitfolders\\\\evew5-gwbapps\\\\gwb-block-note","packages":["packages/model","packages/engine","packages/client","plugins/gwb-bn-core","plugins/gwb-bn-comment"]}',
@@ -428,7 +428,7 @@ function registerReleaseCommand({ log, commands }: Wiring): void {
       plugin: '@godcreator/gwb-devkit',
       description: '发正式版到包的 publishConfig.registry（git 工作区干净→构建→验产物→发版前检查→在临时目录里组装并发布）',
       usage:
-        '{dir 必给（仓根绝对路径）, packages 必给（包目录的非空数组，相对仓根，按依赖顺序）}。一条走完：仓根 git 工作区干净（有未提交改动就拒，一个都不发）→ 仓根 pnpm build → 照 files 白名单验产物 → 同号已在发布目标上就拒（发布目标是包自己 package.json 的 publishConfig.registry；没写、或写的不是 http(s) 地址就拒）→ 发版前检查（每个要发的包：产物里相对 import 指向的文件都在；dev 依赖不查。keywords 含 gwb-plugin 的插件包另加：peer 里只许 cordis、内核包 @godcreator/gwb-kernel-desktop 与别的插件（包目录 node_modules 里它的清单 keywords 含 gwb-plugin），peer 里每个 gwb 插件（不分范围）和源上 dist-tags.latest 在同一条线（0.x 只看 x，≥1 只看主版本号；问哪个源由 ~/.npmrc 的范围行决定）；node 侧产物——exports["."] 的运行时入口（没有 exports 时是 main）顺着相对 import 走到的文件——的包名 import 只有 node 内置模块、electron 与 peer 里写了的包；浏览器侧产物——dist/client.js，同样顺着相对 import 走——只 import 页面 importmap 里的名字，也就是内核包页面入口 dist/index.html 里那段 importmap 的键，从包目录 node_modules 里装好的内核包现读；peer 里写了内核包、写法是 ^x.y.z，范围包不包含哪个内核不查；' +
+        '{dir 必给（仓根绝对路径）, packages 必给（包目录的非空数组，相对仓根，按依赖顺序）}。一条走完：仓根 git 工作区干净（有未提交改动就拒，一个都不发）→ 仓根 pnpm build → 照 files 白名单验产物 → 同号已在发布目标上就拒（发布目标是包自己 package.json 的 publishConfig.registry；没写、或写的不是 http(s) 地址就拒）→ 发版前检查（每个要发的包：产物里相对 import 指向的文件都在；dev 依赖不查。keywords 含 gwb-plugin 的插件包另加：peer 里只许 cordis、内核包 @godcreator/gwb-kernel-desktop 与别的插件（包目录 node_modules 里它的清单 keywords 含 gwb-plugin），peer 里每个 gwb 插件（不分范围）和源上 dist-tags.latest 在同一条线（0.x 只看 x，≥1 只看主版本号；问哪个源由 ~/.npmrc 的范围行决定）；node 侧产物——exports["."] 的运行时入口（没有 exports 时是 main）顺着相对 import 走到的文件——的包名 import 只有 node 内置模块、electron 与 peer 里写了的包；浏览器侧产物——dist/client.js 与自身提供的模块，同样顺着相对 import 走——只 import 自身及直接 peer 的 ./browser-imports 代码出口提供的名字；检查同步映射、本地文件、包内路径、files 白名单与冲突；未声明提供方的旧项目兼容读取旧内核 HTML importmap；peer 里写了内核包、写法是 ^x.y.z，范围包不包含哪个内核不查；' +
         WIRING_CHECK_SUMMARY +
         '；构建后有 dist/style.css 的插件包再做样式检查：' +
         STYLE_CHECK_SUMMARY +

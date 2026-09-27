@@ -20,11 +20,11 @@ description: 连接建仓模板 template/ 与 devkit.release 的发版前检查�
 
 **node 侧产物的包名 import**：发版前检查只放行 node 内置模块、`electron` 与本包 peer 里写了的包；模板的 `build.ts` 用 esbuild 把 node 侧打成一个文件，外置的正是 peer 里的包与 `electron`（外加 `cordis`：按值 import 了它却没写进 peer，产物里留下包名、被发版前检查拦住）：
 
-{/* ref file="../plugins/devkit/template/pkg/build.ts.tpl" lines="9-17" hash="6069865c6024" blob="73efdf3ed217" */}
+{/* ref file="../plugins/devkit/template/pkg/build.ts.tpl" lines="10-18" hash="6069865c6024" blob="e7a859dd25b4" */}
 
-**浏览器侧产物的包名 import**：发版前检查只放行内核包页面入口 `dist/index.html` 里那段 importmap 的键；模板的 `build.ts` 从插件包 `node_modules` 里装好的内核包读同一段 importmap，当作浏览器侧的外置名单：
+**浏览器侧产物的包名 import**：模板从 shell 的 browser-imports 代码出口取外置名单，发版检查读取自身与直接 peer 的相同出口，并验证目标文件和冲突：
 
-{/* ref file="../plugins/devkit/template/pkg/build.ts.tpl" lines="19-35" hash="e2c7362a3156" blob="73efdf3ed217" */}
+{/* ref file="../plugins/devkit/template/pkg/build.ts.tpl" hash="6da9ed9fad2e" blob="e7a859dd25b4" */}
 
 ## 约定
 
@@ -45,6 +45,6 @@ description: 连接建仓模板 template/ 与 devkit.release 的发版前检查�
 
 {/* has file="../plugins/devkit/tests/scaffold.test.ts" text="node 侧也用 esbuild 打成一个文件：外置 peer、electron 与 cordis；不输出类型声明" */}
 
-{/* has file="../plugins/devkit/tests/scaffold.test.ts" text="生成的 build.ts 不手抄外置名单：从内核包页面入口的 importmap 读键" */}
+{/* has file="../plugins/devkit/tests/scaffold.test.ts" text="生成的 build.ts 从提供方代码出口读外置名单" */}
 
 {/* has file="../plugins/devkit/tests/scaffold.test.ts" text="模板不带测试文件：产物与样式的检查由 devkit.dev / devkit.release 做，复制进各仓的副本不会跟着更新" */}

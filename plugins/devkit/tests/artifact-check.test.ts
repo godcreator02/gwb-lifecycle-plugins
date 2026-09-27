@@ -1,4 +1,5 @@
 import path from 'node:path'
+import { pathToFileURL } from 'node:url'
 import { describe, expect, it } from 'vitest'
 import { allowedOnNodeSide, artifactProblems, exportTarget, importmapNamesOf, importsOf, packageNameOf } from '../src/artifact-check.js'
 import { KERNEL_PACKAGE } from '@godcreator/gwb-plugin-manager'
@@ -187,6 +188,16 @@ describe('importmapNamesOf：页面入口 html 里那段 importmap 的名字', (
 })
 
 describe('artifactProblems', () => {
+  it('提供方发布的模块也沿相对 import 检查，即使它没有窗格', () => {
+    const files = io({ 'dist/index.js': '', 'dist/runtime.js': "import './missing.js'; import 'unknown';" })
+    const got = artifactProblems(PKG, plugin(), true, { ...files, browserImports: { runtime: pathToFileURL(path.join(PKG, 'dist/runtime.js')).href } })
+    expect(got).toEqual([expect.stringContaining("'./missing.js'"), expect.stringContaining("import 了 'unknown'")])
+  })
+  it('代码提供方的名单取代旧页面名单，没声明的包名仍拒绝', () => {
+    const files = io({ 'dist/index.js': '', 'dist/client.js': "import 'custom/runtime'; import 'other';" })
+    expect(artifactProblems(PKG, plugin(), true, { ...files, browserImports: { 'custom/runtime': pathToFileURL(path.resolve('/provider/runtime.js')).href } }))
+      .toEqual([expect.stringContaining("import 了 'other'")])
+  })
   it('node 侧顺着相对 import 走：peer 里写了的 cordis 放行，别的包名拒；走不到的文件不查', () => {
     const got = artifactProblems(
       PKG,

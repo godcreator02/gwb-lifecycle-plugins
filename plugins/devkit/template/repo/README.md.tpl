@@ -16,7 +16,7 @@
   那个 home 里的版本；以后用到别的插件也写进 peer：写在顶层 `inject` 里的写普通 peer，只在 `ctx.inject([...], cb)` 里用的
   在 `peerDependenciesMeta` 标 `optional: true`，都不另写 dev；`cordis` 只写 devDependencies（给本地构建与类型检查）；
 - **浏览器侧**（`src/client/`）：窗格里显示「你好」和一个计数按钮。类名一律以 `{{cssPrefix}}:` 开头，样式只作用于本插件
-  （cssPrefix 是短名去掉非小写字母，Tailwind 的 prefix 只收 a-z）；react 由页面的 importmap 提供（提供方是内核包），构建时不打包；
+  （cssPrefix 是短名去掉非小写字母，Tailwind 的 prefix 只收 a-z）；react 由页面的 importmap 提供（提供方是 shell），构建时不打包；
 - **自述**（`package.json` 的 description）：一句话说这个插件做什么；
 - **测试**：`tests/` 放自己的逻辑测试，模板不带。构建产物的包名 import、类名前缀、颜色只用主题令牌这些检查由 devkit 做：
   `devkit.dev` 构建之后查，`devkit.release` 发之前查；

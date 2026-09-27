@@ -14,7 +14,7 @@ description: 按「运行时这份代码由谁提供」决定写 peer、dev、de
 构建产物里剩下的包名 import（直接写包名、不带相对路径的 import，比如 `from 'cordis'`）只能是：
 
 - node 侧代码：node 内置模块、`electron` 与 peer 里写了的包（也就是 `cordis`、内核包、用到的插件，都是 home 里装着、按包名解析得到的）
-- 浏览器侧代码：页面 importmap 里的名字，也就是内核包页面入口 `dist/index.html` 里写死的 react 四个包名（见[页面代码与 importmap](/docs/rules/importmap)）
+- 浏览器侧代码：自身和 peer 的 browser-imports 代码出口提供的名字（见[页面代码与 importmap](/docs/rules/importmap)）
 
 判据只看构建产物，构建产物里多出一个别的包名 import 就是违反。模板的 `build.ts` 用 esbuild 把两侧各打成一个文件，外置名单就是上面两份，其余依赖全部打包进去，照模板构建就不会违反。
 
@@ -25,7 +25,7 @@ description: 按「运行时这份代码由谁提供」决定写 peer、dev、de
 | 宿主提供、插件按值 import（`extends Service` 这类） | peer `cordis`，dev 里也写一份给本地构建和类型检查 |
 | 内核（运行时不 import；声明兼容哪些内核，接口类型只 `import type`） | peer `@godcreator/gwb-kernel-desktop`，范围 `^<验证时的内核版本号>` |
 | 运行环境自带（node 内置模块、`electron`） | 不声明 |
-| 页面通过 importmap 提供（react 的四个包名，由内核包提供） | dev；浏览器侧代码构建时外置 |
+| 页面通过 importmap 提供（React 的四个包名，由 shell 提供） | dev；浏览器侧代码构建时外置 |
 | 另一个插件（经 `ctx.inject` 用它的服务、import 它的类型） | peer，范围 `^x.y.z`；只在 `ctx.inject([...], fn)` 里用的在 `peerDependenciesMeta` 标 `optional: true`（见[用到的插件写 peer](/docs/rules/plugin-peers)）。只按命令名调它的命令的不写 |
 | 本插件运行时自己用的库、接口定义包 | dev；打包进构建产物，产物里不留它的包名 import |
 | 构建时才用到的输入（样式映射文件、tailwind 之类） | dev |
@@ -63,7 +63,7 @@ cordis 靠协议键在多份拷贝之间工作，插件自带一份也照样 pro
 
 插件管理不按值 import `cordis`（它的服务用 `ctx.provide` 提供一个普通对象），所以 peer 里没有 `cordis`。peer 里是内核包与它用到的两个插件：命令总线必需（命令都登记在它上面），说明书插件经局部注入可选使用，标 `optional`。它运行的 pnpm 是用户装在机器上的外部程序，照上表最后一行不声明，用的时候在两个固定位置检测它在不在（见[插件管理的 pnpm](/docs/plugin-manager/pnpm)），所以没有 `dependencies`；`cordis`、loader、include 在 dev。命令总线的下限是 0.5.1：从这一版起它的类型声明从内核包取 `GwbResult`，插件管理不用另写接口类型包：
 
-{/* ref file="../plugins/plugin-manager/package.json" lines="34-51" hash="b492be5e1771" blob="84bbca76e905" */}
+{/* ref file="../plugins/plugin-manager/package.json" lines="34-51" hash="400ed290848b" blob="0ff58e700599" */}
 
 它对内核包和别的插件都只 import 类型，构建产物里这几句整句消失：
 
@@ -77,7 +77,7 @@ cordis 靠协议键在多份拷贝之间工作，插件自带一份也照样 pro
 
 模板的 `build.ts` 按上面两份名单外置：node 侧外置 peer 里的包、`electron` 与 `cordis`（按值 import 了 `cordis` 却没写进 peer，产物里留下包名、被发版前检查拦住）：
 
-{/* ref file="../plugins/devkit/template/pkg/build.ts.tpl" lines="9-17" hash="6069865c6024" blob="73efdf3ed217" */}
+{/* ref file="../plugins/devkit/template/pkg/build.ts.tpl" lines="10-18" hash="6069865c6024" blob="e7a859dd25b4" */}
 
 ## 为什么
 

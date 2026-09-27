@@ -2,6 +2,7 @@ import path from 'node:path'
 import { BUILD_TIMEOUT_MS, PLUGIN_KEYWORD, literalArtifacts, pnpmPlan, type RunPlan, type RunResult } from './dev.js'
 import { KERNEL_PACKAGE, isCaretRange } from '@godcreator/gwb-plugin-manager'
 import { artifactProblems } from './artifact-check.js'
+import type { BrowserProviders } from './browser-providers.js'
 import { styleProblems, type StyleCheckIo } from './style-check.js'
 import { wiringProblems, type WiringCheckIo } from './wiring-check.js'
 import { isRecord, packageManifestOf, parseHttpUrl, TEAM_REGISTRY } from './vocab.js'
@@ -26,6 +27,7 @@ export interface ReleaseDeps {
   /** 仓根的 git 工作区干不干净。问不出（不是 git 仓、没装 git）也是一种答案：拒 */
   gitStatus(repoDir: string): Promise<GitStatus>
   readText(file: string): string | undefined
+  browserProviders?(pkgDir: string, manifest: Record<string, unknown>): Promise<BrowserProviders>
   exists(target: string): boolean
   filesUnder: StyleCheckIo['filesUnder']
   tailwindOf: StyleCheckIo['tailwindOf']
@@ -316,11 +318,15 @@ async function latestOfUpstreams(planned: PlannedPackage[], deps: ReleaseDeps): 
 
 async function ticketFor(repoDir: string, plannedPackage: PlannedPackage, latest: Record<string, string | undefined>, deps: ReleaseDeps): Promise<Ticket> {
   const { pkgDir, manifest, gwbPluginPeers, peerManifestOf } = plannedPackage
+  const providers = manifest.plugin ? await deps.browserProviders?.(pkgDir, manifest.doc) : undefined
+  const providerIo = providers === undefined || !providers.declared
+    ? deps : { ...deps, browserImports: providers.imports }
   const problems = [
+    ...(providers?.problems ?? []),
     ...peerLineProblems(manifest, latest, gwbPluginPeers),
     ...peerProblems(manifest, peerManifestOf),
     ...kernelPeerProblems(manifest),
-    ...artifactProblems(pkgDir, manifest.doc, manifest.plugin, deps),
+    ...artifactProblems(pkgDir, manifest.doc, manifest.plugin, providerIo),
     ...(await styleProblems(pkgDir, manifest, deps)),
     ...(manifest.plugin ? wiringProblems({ pkgDir, repoDir, manifest: { ...manifest.doc, name: manifest.name } }, deps) : []),
   ]

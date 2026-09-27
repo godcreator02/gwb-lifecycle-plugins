@@ -1,48 +1,64 @@
 ---
 title: 页面代码与 importmap
-description: 页面 importmap 写死在内核包的页面入口 dist/index.html 里，只有 react 的四个包名；浏览器侧代码怎么外置、别的依赖怎么打包、外置名单从哪读
+description: 插件用代码声明浏览器模块，kernel 负责登记与页面准备；构建和发版检查复用提供方的 browser-imports 出口
 ---
 
-# 页面代码与 importmap
+页面里的裸名 import 由 importmap 解析。kernel 提供机制，shell 提供 React，其他插件可以提供自己的运行时。
+使用方必须明确依赖提供方，不能把一个名字外置之后期待页面碰巧装了它。
 
-**本页回答**：插件的浏览器侧代码里哪些包由页面的 importmap 提供、哪些要自己打包；importmap 里的名字写在哪；外置名单从哪来。
+## 使用现有提供方
 
-## 规则
+React 的四个名字由 shell 提供：`react`、`react/jsx-runtime`、`react-dom`、`react-dom/client`。
+使用方把 shell 写进 peer，从其代码出口取外置名单：
 
-**页面 importmap 写死在内核包 `@godcreator/gwb-kernel-desktop` 的页面入口 `dist/index.html` 里**，只有 react 的四个包名（`react`、`react/jsx-runtime`、`react-dom`、`react-dom/client`），地址指向内核包自己打包好的 `dist/react/`。别的包——插件也好、库也好——都没有办法往 importmap 里加名字。
+```ts
+import { browserImports } from '@godcreator/gwb-shell/browser-imports'
 
-## 怎么判
+// esbuild 的浏览器侧配置
+external: Object.keys(browserImports())
+```
 
-同一个模块在页面上出现两份就会出错（全局单例、hooks、跨组件树的 context 这类），才该由页面统一提供。只是体积大、或者好几个插件都用，不算，各自打包进构建产物——页面从本机 `file://` 加载，重复几百 KB 可以接受。现在满足这条的只有 react，它由内核包打包。
+模板采用这份代码。React 仍是插件本地开发依赖，供类型检查和构建工具使用；浏览器产物不再打入另一份 React。
+没有提供方承诺的依赖打包进自己的产物。使用另一个提供方时，peer 也写上它，从它的出口取名单。
 
-浏览器侧代码照这几条写：
+{/* ref file="../plugins/devkit/template/pkg/build.ts.tpl" hash="6da9ed9fad2e" blob="e7a859dd25b4" */}
 
-- **react 的四个包名外置**：构建时不打包，运行时由页面 importmap 解析
-- **其余依赖一律打包进构建产物**，包括别的插件发布的接口定义包、块笔记的解析库这类体积大的库。外置成包名而 importmap 里没有这个名字，运行时就是「Failed to resolve module specifier」
-- **外置名单只从内核包的页面入口读**：外置名单是构建时不打包、留给 importmap 提供的包名清单。插件 peer 里写了内核包，pnpm 把它装进插件的 `node_modules`，构建脚本从那里读 `dist/index.html` 里 `<script type="importmap">` 的 `imports` 的键，不手抄
-- **react 升大版本就是内核包升 x**
-- **插件之间共享 React context**，只能靠 react 自己（全页一份）或者通过 props 传；各插件自带的库里的 context 在插件之间不通
+## 提供模块
 
-用到 react 的插件，把那几个包写进 dev（见[依赖怎么写](/docs/rules/deps)）：构建时外置，运行时由页面解析。
+包的 `exports["./browser-imports"]` 指向一个纯 ESM 模块，导出同步、无副作用的 `browserImports()`：
 
-## 例子：模板的浏览器侧构建
+```ts
+export function browserImports() {
+  return { 'example/runtime': new URL('./runtime.js', import.meta.url).href }
+}
+```
 
-内核包不导出外置名单，也不在清单里声明它，名单只写在页面入口那一段 importmap 里。模板的 `build.ts` 经内核包的 `./package.json` 出口找到包目录，读 `dist/index.html`，取 importmap 的键当作 `external`；读不到这段 importmap 就报错，不回退到手写的名单：
+这是普通代码出口，不是插件主入口。它只计算映射，不能初始化服务、读取当前 home 或要求 Electron 环境。
+出口和运行时文件都必须进入 `files` 发布白名单。插件主进程复用它：
 
-{/* ref file="../plugins/devkit/template/pkg/build.ts.tpl" lines="19-35" hash="e2c7362a3156" blob="73efdf3ed217" */}
+```ts
+ctx.effect(() => ctx.gwbKernel.registerImports(browserImports()))
+```
 
-令牌的样式映射文件 `theme.reference.css` 也由外壳导出（包内路径 `@godcreator/gwb-shell/theme.reference.css`），模板的样式入口从外壳引，作为构建时的输入：
+只接受精确裸名和本地 `.js` / `.mjs` 文件 URL。同名同地址可以复用，不同地址冲突会拒绝整个登记。
+没有 `gwb.shared` 字段、额外 JSON 或 home 扫描。
 
-{/* ref file="../plugins/devkit/template/pkg/src/client/styles.css.tpl" lines="19-22" hash="f37693c515f9" blob="68faca284316" */}
+## 加载顺序与生命周期
 
-devkit 的样式检查也从这份文件读色名：`style.css` 里一条规则的声明引用的色名变量（`var(--<前缀>-color-<名>)`），色名只能是 `theme.reference.css` 或本插件样式入口、`style.css` 自己声明过的 `--color-<名>`；用了 Tailwind 出厂调色板（`bg-blue-500`、`ring-red-500` 这类）编出来就引用 `--<前缀>-color-blue-500` 这种变量，检查不过。调色板的值写死在插件里，换主题、切亮暗都不跟着变，也不报错。同一道检查还查类选择器都带本插件的前缀（`@scope` 块里的不查，块的根要带前缀，见[写插件的规矩](/docs/rules)总表）、前缀排在变体前面、`var()` 的 fallback 不写死值，`devkit.dev` 构建之后、`devkit.release` 发之前各运行一次（见[发正式版](/docs/devkit/release)）。
+提供方先登记，调用方再执行 `await window.gwb.prepareImports(required?)`，之后才动态 import。
+kernel 加载 shell、shell 加载窗格已经执行这一步。调用方通过 cordis 注入保证依赖先就绪；
+`required` 中有名字未登记会直接报错，准备函数不等待未来插件。
 
-## 谁来查
+新名字可以在下一次准备时追加。主进程撤销登记不会卸载页面模块；已注入的地址变更或撤销时需要整页重载。
+提供方发新版本后刷新页面，kernel 更新后重启 home。
 
-`devkit.release` 对浏览器侧产物（`dist/client.js` 顺着相对 import 走到的文件）里的每个包名 import，拿内核包页面入口里 importmap 的键比对。页面入口从包目录的 `node_modules/@godcreator/gwb-kernel-desktop/dist/index.html` 现读，读不到就拒，提示 peer 写上内核包、再 `pnpm install`（细节见[发正式版](/docs/devkit/release)）：
+## 发版检查
 
-{/* has file="../plugins/devkit/tests/artifact-check.test.ts" text="浏览器侧 dist/client.js：名字只取内核包页面入口里的 importmap（从本包 node_modules 现读），别的依赖写了也不算" */}
+devkit 只求值被发布包自身与直接 peer 的 `./browser-imports` 出口，不加载插件主入口。
+它核对导出函数、同步映射、本地 URL、目标位于提供方包内、文件存在且被 `files` 包含，并拒绝同名不同地址。
+浏览器产物与自身提供的运行时模块沿相对 import 检查；裸名必须在合并后的名单里。
 
-## 为什么
+{/* ref file="../plugins/devkit/src/browser-providers.ts" hash="c462856ebd73" blob="1c6d33bd1d69" */}
 
-react 是全生态每个带界面的插件都用的运行时，和 cordis 一样由宿主给：升 react 就是升内核，不用再约定「谁来提供 react」。页面上需要共享的只有 react，这张表不会在运行时变，所以写死在页面入口里，内核不用在启动时计算、也不用推送给页面。名单只存这一处，模板的构建脚本和发版前检查都读这个文件，内核包也就不用为名单另开一个出口。别的共享代码各自打包，页面上多几份只多占体积、不影响正确性。浏览器侧产物里的包名 import 不在名单里，发版前检查就拒，写错的人发版那一刻就知道。决定的经过见轨迹卡[外置名单改读内核包页面入口](/trajectory/2026-09-25-importmap-names-from-page-entry)。
+没有任何提供方代码出口的旧项目继续使用旧 kernel HTML 的静态 importmap 检查。这是 devkit 的兼容路径；
+新 kernel 不提供静态表，迁移到新 kernel 的插件必须改用代码出口。历史 `gwb.shared` 机制不恢复。

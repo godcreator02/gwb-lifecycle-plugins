@@ -273,6 +273,14 @@ describe('porcelain 认脏', () => {
 })
 
 describe('发正式版', () => {
+  it('提供方声明不合法时一个包都不发', async () => {
+    const deps = fake({ files: { [path.resolve(REPO, 'a/package.json')]: pluginManifestOf(A, '0.1.0', undefined, { peerDependencies: KERNEL_PEER }) } })
+    deps.browserProviders = async () => ({ declared: true, imports: {}, problems: ['runtime 的提供方冲突'] })
+    const out = await runRelease({ repoDir: REPO, packages: ['a'] }, deps)
+    expect(out.ok).toBe(false)
+    if (!out.ok) expect(out.error).toContain('runtime 的提供方冲突')
+    expect(deps.calls.some(one => one.startsWith('publish'))).toBe(false)
+  })
   it('守卫在最前、构建次之、按给定顺序发、范围是 ^新号', async () => {
     const deps = fake()
     const out = await runRelease({ repoDir: REPO, packages: ['a', 'b'] }, deps)

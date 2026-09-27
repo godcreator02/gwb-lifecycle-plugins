@@ -54,7 +54,7 @@ description: install 在一条命令里装一个还没装的包（清单写 ^ �
 <Diagram name="pm-home-contents" title="home 的 node_modules 里只有插件、内核包与 cordis；插件运行时用到的东西各由谁提供">
 - 内核包 `@godcreator/gwb-kernel-desktop` 与 `cordis` 装在 home 根上，由创建 home 的一方装，内核包经 `update` 的 `specs` 换、`cordis` 由插件管理照内核包对齐；`cordis` 的版本等于内核包 peer 里写的那个，内核与插件 import 的是同一份
 - 插件用到的别的插件写在它的 peer 里，是 home 里另一个有条目的插件，装不装由人决定；没装或版本不在范围里，`list` 的 `unmetPeers` 报出来
-- 页面上必须只有一份的运行时代码经页面的 importmap 提供：importmap 写死在内核包的页面入口 `dist/index.html` 里，只有 react 的四个包名，别的包加不进名字
+- 页面上必须只有一份的运行时代码经页面的 importmap 提供：kernel 负责登记与准备，提供方通过代码交出模块地址；React 由 shell 提供，更新提供方后整页重载
 - 插件自己用的库、接口定义包打包进它自己的构建产物
 - 只取类型的 import（内核包导出的接口类型、别的插件的类型）编译后就消失了
 </Diagram>

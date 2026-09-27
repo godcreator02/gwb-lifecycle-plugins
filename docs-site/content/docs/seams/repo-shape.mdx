@@ -16,7 +16,7 @@ description: 连接 devkit.dev、devkit.release、devkit.scaffold.plugin 与被�
 - `<仓根>/pnpm-workspace.yaml`：组装发布内容时从包目录往上找到的第一个有它的目录是仓根；`devkit.scaffold.plugin` 要求它的 `packages` 里有 `plugins/*`
 - `plugins/<短名>/`：`devkit.scaffold.plugin` 把插件包写到这里，目录必须还不存在
 - `<包>/package.json`：`files` 是产物清单，`keywords` 含 `gwb-plugin` 表示插件，node 侧入口是 `exports["."]`，`publishConfig.registry` 是 `devkit.release` 的发布目标
-- `<包>/dist/client.js` 是浏览器侧产物入口，`<包>/node_modules/` 里装着 peer 里的包、内核包的页面入口 `dist/index.html` 给出页面 importmap 的名字，这两条只有 `devkit.release` 用
+- `<包>/dist/client.js` 是浏览器侧产物入口，`<包>/node_modules/` 里装着 peer 里的包、提供方的 ./browser-imports 代码出口给出页面模块名字，这两条只有 `devkit.release` 用
 </Diagram>
 
 ## 接口
@@ -35,29 +35,29 @@ description: 连接 devkit.dev、devkit.release、devkit.scaffold.plugin 与被�
 
 {/* ref file="../plugins/devkit/src/dev.ts" lines="97-100" hash="c53a8f4c178d" blob="48d80099fae0" */}
 
-{/* ref file="../plugins/devkit/src/node-dev-deps.ts" lines="217-223" hash="8c0a0fbe45af" blob="45ca83174ec6" */}
+{/* ref file="../plugins/devkit/src/node-dev-deps.ts" lines="218-224" hash="8c0a0fbe45af" blob="7ad0027b33e7" */}
 
 **`keywords` 含 `gwb-plugin` 表示插件**：`devkit.release` 只对它查 peer（含 peer 里内核包的范围）与构建产物里包名 import 的两份名单；`devkit.dev` 只收插件与内核包，别的包（库）直接拒：
 
-{/* ref file="../plugins/devkit/src/release.ts" lines="114-114" hash="317b9b806e49" blob="cf95a093af6c" */}
+{/* ref file="../plugins/devkit/src/release.ts" lines="116-116" hash="317b9b806e49" blob="9c241c13d24e" */}
 
 {/* ref file="../plugins/devkit/src/dev.ts" lines="415-418" hash="15dd703f95a5" blob="48d80099fae0" */}
 
 **产物分 node 侧与浏览器侧，按模板的构建约定认**：`devkit.release` 的构建产物检查把 `exports["."]` 的运行时入口（没有 `exports` 时是 `main`）当作 node 侧入口，把包目录下的 `dist/client.js` 当作浏览器侧入口，各自顺着相对 import 走；入口找不到、相对 import 指向的文件不在，都拒。产物不在这几个位置的仓，那部分文件不被查到：
 
-{/* ref file="../plugins/devkit/src/artifact-check.ts" lines="231-261" hash="46ba1c4b3e50" blob="c2881acba8e8" */}
+{/* ref file="../plugins/devkit/src/artifact-check.ts" lines="236-270" hash="2fe54abfbd7b" blob="6e9954621b9b" */}
 
-**peer 里的包装在包目录的 `node_modules` 里**：发版前检查读 `<包目录>/node_modules/<包>/package.json` 判断 peer 里的包是不是插件，读不到就拒并提示先 `pnpm install`；浏览器侧产物有包名 import 时，页面 importmap 里的名字从 `<包目录>/node_modules/@godcreator/gwb-kernel-desktop/dist/index.html` 里那段 importmap 现读（插件 peer 里写了内核包，pnpm 把它链接在那里），读不到同样拒，提示 peer 写上内核包、再 `pnpm install`：
+**peer 里的包装在包目录的 `node_modules` 里**：发版前检查读 `<包目录>/node_modules/<包>/package.json` 判断 peer 里的包是不是插件，读不到就拒并提示先 `pnpm install`；浏览器侧名单读取自身与直接 peer 的 browser-imports 出口，未声明出口的旧项目兼容旧 kernel HTML：
 
-{/* ref file="../plugins/devkit/src/artifact-check.ts" lines="263-280" hash="7e7b5d0544aa" blob="c2881acba8e8" */}
+{/* ref file="../plugins/devkit/src/artifact-check.ts" lines="272-289" hash="7e7b5d0544aa" blob="6e9954621b9b" */}
 
 **成员放在哪**：组装发布内容时找 `workspace:` 依赖的版本，从仓根往下扫两层，不认目录名；找不到那个包、或扫到读不懂的 `package.json`，直接报错：
 
-{/* ref file="../plugins/devkit/src/node-dev-deps.ts" lines="76-102" hash="1b46466d6d27" blob="45ca83174ec6" */}
+{/* ref file="../plugins/devkit/src/node-dev-deps.ts" lines="77-103" hash="1b46466d6d27" blob="7ad0027b33e7" */}
 
 这里的「仓根」是从包目录往上找到的第一个有 `pnpm-workspace.yaml` 的目录；一路找到盘根都没有就报错，这个包不发：
 
-{/* ref file="../plugins/devkit/src/node-dev-deps.ts" lines="120-129" hash="53ef6c8aefb8" blob="45ca83174ec6" */}
+{/* ref file="../plugins/devkit/src/node-dev-deps.ts" lines="121-130" hash="53ef6c8aefb8" blob="7ad0027b33e7" */}
 
 **`pnpm-workspace.yaml` 的 `packages` 里有 `plugins/*`**：`devkit.scaffold.plugin` 只往这样的仓里加插件，别的一概拒。`packages` 按 YAML 读，带不带引号、块列表还是流式列表都认；读不懂的写法报出是第几行，不当成「没有这一条」：
 
@@ -65,7 +65,7 @@ description: 连接 devkit.dev、devkit.release、devkit.scaffold.plugin 与被�
 
 **git 工作区干净**：`devkit.release` 在构建之前运行 `git status --porcelain=v1`，有一条改动就一个都不发；不是 git 仓也拒。`devkit.dev` 不查：
 
-{/* ref file="../plugins/devkit/src/release.ts" lines="242-251" hash="e996260268bf" blob="cf95a093af6c" */}
+{/* ref file="../plugins/devkit/src/release.ts" lines="244-253" hash="e996260268bf" blob="9c241c13d24e" */}
 
 ## 约定
 

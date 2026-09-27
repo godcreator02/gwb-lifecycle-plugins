@@ -1,5 +1,6 @@
 import { builtinModules } from 'node:module'
 import path from 'node:path'
+import { fileURLToPath } from 'node:url'
 import { KERNEL_PACKAGE } from '@godcreator/gwb-plugin-manager'
 import { initSync, parse, type ImportSpecifier } from 'es-module-lexer'
 import { isRecord } from './vocab.js'
@@ -147,6 +148,8 @@ export function importmapNamesOf(html: string): string[] | undefined {
 
 export interface ArtifactIo {
   readText(file: string): string | undefined
+  /** 提供方代码出口算出的映射；缺省时仅支持旧内核静态 importmap。 */
+  browserImports?: Readonly<Record<string, string>>
 }
 
 interface WalkedModules {
@@ -216,13 +219,15 @@ function nodeSideBareImportProblems(pkgDir: string, nodeModules: Map<string, Mod
 function browserSideBareImportProblems(pkgDir: string, browserModules: Map<string, ModuleImports>, io: ArtifactIo): string[] {
   const browserBare = [...browserModules].flatMap(([file, imports]) => imports.bare.map((spec) => ({ file, spec })))
   if (browserBare.length === 0) return []
-  const importmap = kernelImportmapNamesOf(pkgDir, io)
+  const importmap = io.browserImports === undefined
+    ? kernelImportmapNamesOf(pkgDir, io)
+    : { names: new Set(Object.keys(io.browserImports)), problems: [] }
   const problems = [...importmap.problems]
   for (const { file, spec } of browserBare) {
     if (importmap.names.has(spec)) continue
     problems.push(
       `浏览器侧产物 ${relativeToPackage(pkgDir, file)} import 了 '${spec}'：页面 importmap 里没有这个名字` +
-        `（只有 ${importmap.names.size === 0 ? '无' : [...importmap.names].join('、')}）。打包进产物，外置名单从内核包的页面入口 dist/index.html 里那段 importmap 读`,
+        `（只有 ${importmap.names.size === 0 ? '无' : [...importmap.names].join('、')}）。提供方写进 peer，从其 browser-imports 代码出口取外置名单；其余依赖打包进产物`,
     )
   }
   return problems
@@ -250,7 +255,11 @@ export function artifactProblems(pkgDir: string, manifest: Record<string, unknow
   if (nodeEntries.problem !== undefined) problems.push(nodeEntries.problem)
   const node = walkModules(pkgDir, nodeEntries.entries.map((entry) => path.resolve(pkgDir, entry)), io)
   const clientFile = path.resolve(pkgDir, BROWSER_ENTRY)
-  const browser = walkModules(pkgDir, io.readText(clientFile) === undefined ? [] : [clientFile], io)
+  const providedFiles = Object.values(io.browserImports ?? {}).map(url => fileURLToPath(url)).filter(file => {
+    const rel = path.relative(pkgDir, file)
+    return rel !== '..' && !rel.startsWith(`..${path.sep}`) && !path.isAbsolute(rel) && !rel.startsWith(`node_modules${path.sep}`)
+  })
+  const browser = walkModules(pkgDir, [...new Set([...(io.readText(clientFile) === undefined ? [] : [clientFile]), ...providedFiles])], io)
 
   problems.push(...node.broken, ...browser.broken)
   if (!plugin) return problems

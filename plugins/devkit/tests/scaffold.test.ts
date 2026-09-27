@@ -394,13 +394,13 @@ describe('包内 template/：两部分', () => {
     expect(nodeEntry).toContain("import type { GwbContext } from '@godcreator/gwb-kernel-desktop'")
   })
 
-  it('生成的 build.ts 不手抄外置名单：从内核包页面入口的 importmap 读键', () => {
+  it('生成的 build.ts 从提供方代码出口读外置名单', () => {
     const files = renderTemplate(TEMPLATE_ROOT, planScaffold({ name: 'hello', dir: 'D:\\tmp\\x', peerVersions: PEERS }))
     const buildScript = files.find((f) => f.rel === 'plugins/hello/build.ts')?.text ?? ''
-    expect(buildScript).toContain("import.meta.resolve('@godcreator/gwb-kernel-desktop/package.json')")
-    expect(buildScript).toContain("path.join(path.dirname(manifestPath), 'dist', 'index.html')")
-    expect(buildScript).toContain('external: importmapNamesOfKernel()')
-    // 内核包页面 importmap 里的四个名字，一个都不许以字面量出现在构建脚本里
+    expect(buildScript).toContain("import { browserImports } from '@godcreator/gwb-shell/browser-imports'")
+    expect(buildScript).not.toContain('dist/index.html')
+    expect(buildScript).toContain('external: Object.keys(browserImports())')
+    // 提供方决定名字，模板不维护另一份名单
     for (const name of ['react', 'react/jsx-runtime', 'react-dom', 'react-dom/client']) {
       expect(buildScript).not.toContain(`'${name}'`)
     }
