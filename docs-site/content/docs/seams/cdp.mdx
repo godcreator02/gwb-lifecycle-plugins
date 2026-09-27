@@ -35,7 +35,7 @@ devkit 这边：登记命令时 `entry` 指向这个文件（见[工作台服务
 
 {/* ref file="../plugins/devkit/src/node-dev-deps.ts" lines="48-62" hash="5136757bfa16" blob="7ad0027b33e7" */}
 
-**页面**：`cmd` 从目标 home 解析并动态导入 `@godcreator/gwb-commands/client`，调用 `command(名字, 参数)`；该客户端经 `window.gwb.request` 发到 `commands.run`。旧包缺少客户端或旧页面缺少 request 时，兼容 `window.gwb.command`；请求失败不重试。两个入口都没有才回 `{ ok: false }`。连上之后先核对 home：收集页面自身 `location.href`、`script[src]` 与 `link[href]` 里的 `file:///` 地址（外壳未挂载时仍可从内核页面识别 home），截出 `/homes/<名>/` 那一段，要求只有一个 home、且名字等于第一个参数：
+**页面**：`cmd` 从目标 home 解析并动态导入 `@godcreator/gwb-commands/client`，调用 `command(名字, 参数)`；该客户端经 `window.gwb.request` 发到 `commands.run`。缺少客户端、缺少 request 或请求失败时直接报错，不提供旧入口回退，不重试。连上之后先核对 home：收集页面自身 `location.href`、`script[src]` 与 `link[href]` 里的 `file:///` 地址（外壳未挂载时仍可从内核页面识别 home），截出 `/homes/<名>/` 那一段，要求只有一个 home、且名字等于第一个参数：
 
 {/* ref file="../plugins/devkit/bin/cdp.mjs" lines="411-431" hash="bf00c6a3b13c" blob="7a5b9126770e" */}
 
@@ -53,7 +53,7 @@ devkit 这边：登记命令时 `entry` 指向这个文件（见[工作台服务
 
 devkit 保证：`devkit.dev` 每一步都按 home 名调它，不传端口；把退出码与 JSON 一起交给 `dev.ts` 判断。
 
-工作台页面需要保证的：内核 preload 在页面上提供 `window.gwb.request`，commands 提供不含 Node/Cordis 依赖的 `./client`（旧 home 兼容 `window.gwb.command`）、页面自身或脚本与样式表地址是带 home 绝对路径的 `file:///` 地址、home 目录在一个叫 `homes` 的目录下。
+工作台页面需要保证的：内核 preload 在页面上提供 `window.gwb.request`，commands 提供不含 Node/Cordis 依赖的 `./client`、页面自身或脚本与样式表地址是带 home 绝对路径的 `file:///` 地址、home 目录在一个叫 `homes` 的目录下。
 
 **这些全部靠约定**：devkit 插件只从 `cdp.mjs` import 算 home 根目录的 `homesRootOf`（类型写在手写的 `bin/cdp.d.mts` 里，见[内核与 home](/docs/seams/kernel-home)），devkit 与 `cdp.mjs` 在命令行与输出上没有共享的类型；参数形状写在 `cdp.mjs` 文件头、`devkit.cdp` 的 `usage` 与 `dev.ts` 的各次调用三处，JSON 的键写在 `cdp.mjs` 的 `run` 与 `dev.ts` 的 `receiptOf` / `reloadPage` 两处；对工作台页面的前提只写在 `cdp.mjs` 的注释里，外壳与内核仓都没有写成对外的承诺。
 

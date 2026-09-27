@@ -46,15 +46,10 @@ import path from 'node:path'
 import { fileURLToPath, pathToFileURL } from 'node:url'
 import { createRequire } from 'node:module'
 
-/** 使用目标 home 的客户端；旧 commands 没有该子路径时才走兼容入口。 */
+/** 使用目标 home 的纯浏览器客户端，缺少协议能力直接失败。 */
 export function commandClientUrl(targetHome) {
-  try {
-    const resolve = createRequire(path.join(targetHome, 'package.json')).resolve
-    return pathToFileURL(resolve('@godcreator/gwb-commands/client')).href
-  } catch (error) {
-    if (error.code === 'MODULE_NOT_FOUND' || error.code === 'ERR_PACKAGE_PATH_NOT_EXPORTED') return null
-    throw error
-  }
+  const resolve = createRequire(path.join(targetHome, 'package.json')).resolve
+  return pathToFileURL(resolve('@godcreator/gwb-commands/client')).href
 }
 
 // ---------------------------------------------------------------------------
@@ -544,7 +539,7 @@ async function run(send) {
       return { did: 'key', key: args[0] }
     }
 
-    // 新 home 经 commands 的浏览器客户端；旧 home 保留旧入口，不对执行失败的命令重试。
+    // 经目标 home 的 commands 浏览器客户端执行；传输与协议失败不重试。
     case 'cmd': {
       if (args[0] === undefined) throw new Error('cmd 要一个命令名，后面可以跟一段 JSON 当参数')
       let payload
@@ -557,11 +552,7 @@ async function run(send) {
       }
       const clientUrl = commandClientUrl(homeDir)
       const parameters = `${JSON.stringify(args[0])}${payload === undefined ? '' : `, ${JSON.stringify(payload)}`}`
-      const reply = await evaluate(send, `${JSON.stringify(clientUrl)} !== null && typeof window.gwb?.request === 'function'
-        ? import(${JSON.stringify(clientUrl)}).then(client => client.command(${parameters}))
-        : typeof window.gwb?.command === 'function'
-          ? window.gwb.command(${parameters})
-          : { ok: false, error: '这张页上没有工作台请求通道' }`)
+      const reply = await evaluate(send, `import(${JSON.stringify(clientUrl)}).then(client => client.command(${parameters}))`)
       if (reply?.ok !== true) process.exitCode = 1
       return { did: 'cmd', 命令: args[0], 回执: reply }
     }

@@ -41,7 +41,7 @@ const INSTALLED = path.join(
 )
 
 describe('目标 home 的命令客户端', () => {
-  it('按目标 home 解析纯客户端，旧包缺少子路径时返回 null', () => {
+  it('按目标 home 解析纯客户端，旧包缺少子路径时直接失败', () => {
     const target = fs.mkdtempSync(path.join(os.tmpdir(), 'gwb-cdp-client-'))
     try {
       const pkg = path.join(target, 'node_modules', '@godcreator', 'gwb-commands')
@@ -54,7 +54,7 @@ describe('目标 home 的命令客户端', () => {
       const legacyPkg = path.join(legacy, 'node_modules', '@godcreator', 'gwb-commands')
       fs.mkdirSync(legacyPkg, { recursive: true })
       fs.writeFileSync(path.join(legacyPkg, 'package.json'), JSON.stringify({ exports: { '.': './index.js' } }))
-      expect(commandClientUrl(legacy)).toBeNull()
+      expect(() => commandClientUrl(legacy)).toThrow()
     } finally {
       fs.rmSync(target, { recursive: true, force: true })
     }

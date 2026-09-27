@@ -13,7 +13,7 @@ description: 连接 devkit 与插件管理：devkit 从插件管理的主入口 
 
 ## 接口
 
-**一、`devkit.dev` 经 CDP 调三条命令。** devkit 运行在另一个 home 里，调用经 `bin/cdp.mjs` 的 `cmd` 动作发到目标 home 的 commands 客户端与 `window.gwb.request`（旧 home 兼容 command）（通道见 [CDP 驱动 cdp.mjs](/docs/seams/cdp)）。devkit 先把每个包打成包文件放进目标 home 的 `dev-packs/`，再只读目标 home 的 `package.json`：已在 `dependencies` 里的包合成一条 `plugin-manager.update {"specs":{"<包>":"file:./dev-packs/<包文件>"}}`（内核包也在里面，`cordis` 不放：插件管理照装上的内核包 peer 自己对齐），不在的插件逐个 `plugin-manager.install {"pkg","spec"}`；内核包不在目标 home 里直接拒：
+**一、`devkit.dev` 经 CDP 调三条命令。** devkit 运行在另一个 home 里，调用经 `bin/cdp.mjs` 的 `cmd` 动作发到目标 home 的 commands 客户端与 `window.gwb.request`（通道见 [CDP 驱动 cdp.mjs](/docs/seams/cdp)）。devkit 先把每个包打成包文件放进目标 home 的 `dev-packs/`，再只读目标 home 的 `package.json`：已在 `dependencies` 里的包合成一条 `plugin-manager.update {"specs":{"<包>":"file:./dev-packs/<包文件>"}}`（内核包也在里面，`cordis` 不放：插件管理照装上的内核包 peer 自己对齐），不在的插件逐个 `plugin-manager.install {"pkg","spec"}`；内核包不在目标 home 里直接拒：
 
 {/* ref file="../plugins/devkit/src/dev.ts" lines="215-236" hash="2e46a66826be" blob="48d80099fae0" */}
 

@@ -9,7 +9,7 @@ description: 按「运行时这份代码由谁提供」决定写 peer、dev、de
 
 ## 规则
 
-**peer 只写运行时从 home 里得到的三类包：插件在构建产物里按值 import 的 `cordis`、声明兼容哪些内核的内核包 `@godcreator/gwb-kernel-desktop`、用到的别的插件；其余一律写 dev。** 按值 import 指 import 的是运行时的值，不只是类型。内核包每个插件包都写（见[兼容哪个内核](/docs/rules/kernel-compat)），`cordis` 只在按值 import 时写，别的插件在经 `ctx.inject` 用它的服务、或 import 它的类型时写（见[用到的插件写 peer](/docs/rules/plugin-peers)）。peer 里的包，pnpm 会装进插件的 `node_modules`，类型从那里取，不另写 dev：内核给插件的接口类型（`GwbContext`、`GwbKernelApi`、`GwbResult` 等）从内核包的包根 `import type`，别的插件的类型从那个插件 `import type`。
+**peer 只写运行时从 home 里得到的三类包：插件在构建产物里按值 import 的 `cordis`、声明兼容哪些内核的内核包 `@godcreator/gwb-kernel-desktop`、用到的别的插件；其余一律写 dev。** 按值 import 指 import 的是运行时的值，不只是类型。内核包每个插件包都写（见[兼容哪个内核](/docs/rules/kernel-compat)），`cordis` 只在按值 import 时写，别的插件在经 `ctx.inject` 用它的服务、或 import 它的类型时写（见[用到的插件写 peer](/docs/rules/plugin-peers)）。peer 里的包，pnpm 会装进插件的 `node_modules`，类型从那里取，不另写 dev：内核给插件的接口类型（`GwbContext`、`GwbKernelApi` 等）从内核包的包根 `import type`，别的插件的类型从那个插件 `import type`。
 
 构建产物里剩下的包名 import（直接写包名、不带相对路径的 import，比如 `from 'cordis'`）只能是：
 
@@ -61,7 +61,7 @@ cordis 靠协议键在多份拷贝之间工作，插件自带一份也照样 pro
 
 ## 例子：插件管理的清单
 
-插件管理不按值 import `cordis`（它的服务用 `ctx.provide` 提供一个普通对象），所以 peer 里没有 `cordis`。peer 里是内核包与它用到的两个插件：命令总线必需（命令都登记在它上面），说明书插件经局部注入可选使用，标 `optional`。它运行的 pnpm 是用户装在机器上的外部程序，照上表最后一行不声明，用的时候在两个固定位置检测它在不在（见[插件管理的 pnpm](/docs/plugin-manager/pnpm)），所以没有 `dependencies`；`cordis`、loader、include 在 dev。命令总线的下限是 0.5.1：从这一版起它的类型声明从内核包取 `GwbResult`，插件管理不用另写接口类型包：
+插件管理不按值 import `cordis`（它的服务用 `ctx.provide` 提供一个普通对象），所以 peer 里没有 `cordis`。peer 里是内核包与它用到的两个插件：命令总线必需（命令都登记在它上面），说明书插件经局部注入可选使用，标 `optional`。它运行的 pnpm 是用户装在机器上的外部程序，照上表最后一行不声明，用的时候在两个固定位置检测它在不在（见[插件管理的 pnpm](/docs/plugin-manager/pnpm)），所以没有 `dependencies`；`cordis`、loader、include 在 dev。命令回执 `GwbResult` 由 commands 定义，插件管理从命令插件导入类型：
 
 {/* ref file="../plugins/plugin-manager/package.json" lines="34-51" hash="400ed290848b" blob="0ff58e700599" */}
 
