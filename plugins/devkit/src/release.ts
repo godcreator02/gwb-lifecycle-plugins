@@ -140,7 +140,7 @@ export function isPluginManifest(manifest: unknown): boolean {
 }
 
 /** peer 里要和源上 latest 比同一条线的那些：cordis、内核包、`workspace:` 以外，包目录 node_modules 里的清单是插件的，不分范围 */
-function gwbPluginPeersOf(manifest: TicketManifest, peerManifestOf: (pkg: string) => unknown): Set<string> {
+function pluginPeersOf(manifest: TicketManifest, peerManifestOf: (pkg: string) => unknown): Set<string> {
   const peers = new Set<string>()
   for (const [pkg, range] of Object.entries(manifest.peers)) {
     if (pkg === 'cordis' || pkg === KERNEL_PACKAGE || range.startsWith('workspace:')) continue
@@ -182,15 +182,15 @@ export function kernelPeerProblems(manifest: TicketManifest): string[] {
 }
 
 /**
- * peer 里的 gwb 插件（`gwbPluginPeers`，不分范围；内核包不在里面，它只查写法）的范围要和源上 latest 在同一条线上：
+ * peer 里的 gwb 插件（`pluginPeers`，不分范围；内核包不在里面，它只查写法）的范围要和源上 latest 在同一条线上：
  * 0.x 只看 x，≥1 只看主版本号。不在同一条线就是上游出了破坏版，先适配再升范围；`workspace:` 的不查。
  * `latest` 是各 peer 在源上的 `dist-tags.latest`（问不出的缺席）。不是插件包的不查：库的 peer 不进 home
  */
-export function peerLineProblems(manifest: TicketManifest, latest: Record<string, string | undefined>, gwbPluginPeers: ReadonlySet<string>): string[] {
+export function peerLineProblems(manifest: TicketManifest, latest: Record<string, string | undefined>, pluginPeers: ReadonlySet<string>): string[] {
   if (!manifest.plugin) return []
   const problems: string[] = []
   for (const [pkg, range] of Object.entries(manifest.peers)) {
-    if (!gwbPluginPeers.has(pkg) || pkg === KERNEL_PACKAGE || range.startsWith('workspace:')) continue
+    if (!pluginPeers.has(pkg) || pkg === KERNEL_PACKAGE || range.startsWith('workspace:')) continue
     if (!isCaretRange(range)) {
       problems.push(`peer ${pkg} 写的是 "${range}":peer 只许写 ^x.y.z`)
       continue
@@ -258,7 +258,7 @@ interface PlannedPackage {
   /** 发布目标：`publishTargetOf` 算出的源 */
   registry: string
   /** peer 里要和源上 latest 比同一条线的 gwb 插件 */
-  gwbPluginPeers: Set<string>
+  pluginPeers: Set<string>
   /** 读包目录 node_modules 里某个依赖的清单，读不到或不是 JSON 回 undefined */
   peerManifestOf(pkg: string): unknown
 }
@@ -299,7 +299,7 @@ async function planPackages(input: ReleaseInput, deps: ReleaseDeps): Promise<Ref
       return { ok: false, error: `${manifest.name}@${manifest.version} 已经在源 ${target.registry} 上了——同一个号永不重发,先抬 package.json 里的号再发` }
     }
     const peerManifestOf = peerManifestReader(pkgDir, deps)
-    planned.push({ pkgDir, manifest, registry: target.registry, gwbPluginPeers: gwbPluginPeersOf(manifest, peerManifestOf), peerManifestOf })
+    planned.push({ pkgDir, manifest, registry: target.registry, pluginPeers: pluginPeersOf(manifest, peerManifestOf), peerManifestOf })
     ranges[manifest.name] = `^${manifest.version}`
   }
   return { planned, ranges }
@@ -308,8 +308,8 @@ async function planPackages(input: ReleaseInput, deps: ReleaseDeps): Promise<Ref
 /** 各包 peer 里的 gwb 插件（不分范围）在源上的 latest；问哪个源由 `.npmrc` 按包名范围决定。dev 依赖不问 */
 async function latestOfUpstreams(planned: PlannedPackage[], deps: ReleaseDeps): Promise<Record<string, string | undefined>> {
   const upstreams = new Set<string>()
-  for (const { gwbPluginPeers } of planned) {
-    for (const pkg of gwbPluginPeers) upstreams.add(pkg)
+  for (const { pluginPeers } of planned) {
+    for (const pkg of pluginPeers) upstreams.add(pkg)
   }
   const latest: Record<string, string | undefined> = {}
   for (const pkg of upstreams) latest[pkg] = await deps.latest(pkg)
@@ -317,13 +317,13 @@ async function latestOfUpstreams(planned: PlannedPackage[], deps: ReleaseDeps): 
 }
 
 async function ticketFor(repoDir: string, plannedPackage: PlannedPackage, latest: Record<string, string | undefined>, deps: ReleaseDeps): Promise<Ticket> {
-  const { pkgDir, manifest, gwbPluginPeers, peerManifestOf } = plannedPackage
+  const { pkgDir, manifest, pluginPeers, peerManifestOf } = plannedPackage
   const providers = manifest.plugin ? await deps.browserProviders?.(pkgDir, manifest.doc) : undefined
   const providerIo = providers === undefined || !providers.declared
     ? deps : { ...deps, browserImports: providers.imports }
   const problems = [
     ...(providers?.problems ?? []),
-    ...peerLineProblems(manifest, latest, gwbPluginPeers),
+    ...peerLineProblems(manifest, latest, pluginPeers),
     ...peerProblems(manifest, peerManifestOf),
     ...kernelPeerProblems(manifest),
     ...artifactProblems(pkgDir, manifest.doc, manifest.plugin, providerIo),
