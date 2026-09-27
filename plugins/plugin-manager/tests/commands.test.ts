@@ -2,7 +2,7 @@ import fs from 'node:fs'
 import os from 'node:os'
 import path from 'node:path'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
-import type { GwbResult } from '@godcreator/gwb-kernel-desktop'
+import type { GwbResult } from '@godcreator/gwb-commands'
 import type { EntryTreeLike } from '../src/tree.js'
 
 /**

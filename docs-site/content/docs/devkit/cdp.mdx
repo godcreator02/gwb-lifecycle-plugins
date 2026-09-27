@@ -12,7 +12,7 @@ description: bin/cdp.mjs（登记成 devkit.cdp）在一个工作台页面里操
 | 类 | 动作 | 依赖的是 |
 | --- | --- | --- |
 | 浏览器输入 | `move` / `click` / `rclick` / `drag` / `type` / `key` / `scroll` / `shot` | Chromium 的 Input 与 Page 域 |
-| 不看界面 | `eval` / `cmd` / `reload` / `home` | Runtime 域；`cmd` 还要页面上有 `window.gwb.command`，`home` 还要页面地址里带 home 路径 |
+| 不看界面 | `eval` / `cmd` / `reload` / `home` | Runtime 域；`cmd` 使用目标 home 的 commands 客户端与页面 request 通道（旧 home 兼容 command），`home` 还要页面地址里带 home 路径 |
 
 **点不到的时候会报出原因**，这是它比「在页面里自己构造事件」强的地方：构造出来的事件不做命中测试，目标被浮层挡住照样点得到，而遮挡正是界面最容易出的错；构造出来的事件 `isTrusted` 是 false，按可信输入做判断的地方行为不同。这里发的是浏览器层的事件，命中测试由浏览器自己做，点不到时把挡住它的那条祖先链和目标的 `pointer-events` 一起报出来。
 
@@ -74,7 +74,7 @@ description: bin/cdp.mjs（登记成 devkit.cdp）在一个工作台页面里操
 - 第 1 步按 home 名查端口：读 `<home 根>/<名>/runtime.json` 的 `cdp` 字段，读不到就停
 - 第 2 步连上唯一的页面：问 `http://127.0.0.1:<端口>/json/list`，候选不是正好一个就把候选列进报错；选定后用 WebSocket 连上
 - 第 3 步核对页面属于哪个 home：从页面上带 home 路径的 `file://` 地址读出名字，跟给的名字对不上就停
-- 第 4 步执行动作，以 `cmd` 为例：在页面里执行 `window.gwb.command(命令名, 参数)`
+- 第 4 步执行动作，以 `cmd` 为例：从目标 home 解析 `@godcreator/gwb-commands/client` 的文件地址，在页面动态导入并调用 `command(命令名, 参数)`。只有目标 home 缺少客户端或 request 通道才走旧 `window.gwb.command`；命令执行失败不会换路重试
 - 第 5 步把结果作为一段 JSON 写到标准输出，失败时退出码非零；经 `devkit.cdp` 调用时回执带 stdout、stderr 与退出码
 </Diagram>
 
@@ -94,7 +94,7 @@ description: bin/cdp.mjs（登记成 devkit.cdp）在一个工作台页面里操
 
 ## 依赖的接口
 
-三样：Node 的 `fetch` 与 `WebSocket`（连 Chromium 的调试端口）、目标页面上的 `window.gwb.command`（只有 `cmd` 动作用）、home 里的 `runtime.json`（每次读一遍，只读 `cdp` 字段）。三样都不是本包的代码。
+三样：Node 的 `fetch` 与 `WebSocket`（连 Chromium 的调试端口）、目标 home 的 commands 客户端与 `window.gwb.request`（只有 `cmd` 动作用，旧 home 兼容 command）、home 里的 `runtime.json`（每次读一遍，只读 `cdp` 字段）。三样都不是本包的代码。
 
 **内核要这样启动**，两个开关缺一不可（`devkit.home.new` / `open` 启动的都带着）：`--remote-debugging-port=<端口>` 打开调试入口，`--disable-backgrounding-occluded-windows` 关掉窗口被遮挡时的降频。少了后一个，窗口被别的窗口完全挡住时 Chromium 认为它不可见、停止渲染新帧，截图拿到的是旧画面、`requestAnimationFrame` 一次都不回调。
 

@@ -9,6 +9,7 @@ import {
   WRITE_VERBS,
   assertVerbAllowedOn,
   assertWritable,
+  commandClientUrl,
   evalFileOf,
   homeDirOf,
   homesRootOf,
@@ -38,6 +39,27 @@ const INSTALLED = path.join(
   '@godcreator',
   'gwb-devkit',
 )
+
+describe('目标 home 的命令客户端', () => {
+  it('按目标 home 解析纯客户端，旧包缺少子路径时返回 null', () => {
+    const target = fs.mkdtempSync(path.join(os.tmpdir(), 'gwb-cdp-client-'))
+    try {
+      const pkg = path.join(target, 'node_modules', '@godcreator', 'gwb-commands')
+      fs.mkdirSync(pkg, { recursive: true })
+      fs.writeFileSync(path.join(pkg, 'package.json'), JSON.stringify({ exports: { './client': './client.js' } }))
+      fs.writeFileSync(path.join(pkg, 'client.js'), 'export function command() {}')
+      expect(fileURLToPath(commandClientUrl(target)!)).toBe(path.join(pkg, 'client.js'))
+      // 用另一个包目录，避免 Node 对 exports 的缓存影响这次旧版判断。
+      const legacy = path.join(target, 'legacy')
+      const legacyPkg = path.join(legacy, 'node_modules', '@godcreator', 'gwb-commands')
+      fs.mkdirSync(legacyPkg, { recursive: true })
+      fs.writeFileSync(path.join(legacyPkg, 'package.json'), JSON.stringify({ exports: { '.': './index.js' } }))
+      expect(commandClientUrl(legacy)).toBeNull()
+    } finally {
+      fs.rmSync(target, { recursive: true, force: true })
+    }
+  })
+})
 
 describe('被 import 时不动手', () => {
   it('交出纯函数，不连 CDP、不读 argv 里的 home', () => {

@@ -43,7 +43,19 @@
 
 import fs from 'node:fs'
 import path from 'node:path'
-import { fileURLToPath } from 'node:url'
+import { fileURLToPath, pathToFileURL } from 'node:url'
+import { createRequire } from 'node:module'
+
+/** 使用目标 home 的客户端；旧 commands 没有该子路径时才走兼容入口。 */
+export function commandClientUrl(targetHome) {
+  try {
+    const resolve = createRequire(path.join(targetHome, 'package.json')).resolve
+    return pathToFileURL(resolve('@godcreator/gwb-commands/client')).href
+  } catch (error) {
+    if (error.code === 'MODULE_NOT_FOUND' || error.code === 'ERR_PACKAGE_PATH_NOT_EXPORTED') return null
+    throw error
+  }
+}
 
 // ---------------------------------------------------------------------------
 // 命令行
@@ -532,7 +544,7 @@ async function run(send) {
       return { did: 'key', key: args[0] }
     }
 
-    // 经外壳给页面的 window.gwb.command 执行工作台命令。命令失败回 { ok: false }、不抛异常，所以这里把退出码设成非零
+    // 新 home 经 commands 的浏览器客户端；旧 home 保留旧入口，不对执行失败的命令重试。
     case 'cmd': {
       if (args[0] === undefined) throw new Error('cmd 要一个命令名，后面可以跟一段 JSON 当参数')
       let payload
@@ -543,10 +555,13 @@ async function run(send) {
           throw new Error(`命令参数要是一段 JSON，收到的是：${args[1]}`)
         }
       }
-      const call = `window.gwb.command(${JSON.stringify(args[0])}${payload === undefined ? '' : `, ${JSON.stringify(payload)}`})`
-      const reply = await evaluate(send, `typeof window.gwb?.command === 'function'
-        ? ${call}
-        : { ok: false, error: '这张页上没有 window.gwb.command：它不是工作台的外壳页' }`)
+      const clientUrl = commandClientUrl(homeDir)
+      const parameters = `${JSON.stringify(args[0])}${payload === undefined ? '' : `, ${JSON.stringify(payload)}`}`
+      const reply = await evaluate(send, `${JSON.stringify(clientUrl)} !== null && typeof window.gwb?.request === 'function'
+        ? import(${JSON.stringify(clientUrl)}).then(client => client.command(${parameters}))
+        : typeof window.gwb?.command === 'function'
+          ? window.gwb.command(${parameters})
+          : { ok: false, error: '这张页上没有工作台请求通道' }`)
       if (reply?.ok !== true) process.exitCode = 1
       return { did: 'cmd', 命令: args[0], 回执: reply }
     }

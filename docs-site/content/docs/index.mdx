@@ -66,7 +66,7 @@ god 工作台的本体只提供插件平台，功能全由插件实现。这个�
 | 2 | devkit 调插件管理 | 开发套件 ↔ 插件管理 | 从插件管理主入口 import pnpm 定位、版本范围判定与命令名；经 CDP 调 `install` / `update` / `list`；`home.new` 自己装包、写条目 | [devkit 调插件管理](/docs/seams/plugin-manager-calls) |
 | 3 | peer 里的内核包与插件（约定） | 插件 peer 里的范围 ↔ `devkit.release`、`plugin-manager.list` | 内核范围的比对规则一份，在插件管理；peer 里的插件发版时比源上 latest、在 home 里比装着的版本 | [peer 里的内核包与插件](/docs/seams/kernel-peer) |
 | 4 | 模板与发版前检查（约定） | 建仓模板 ↔ `devkit.release` 的发版前检查 | 生成的清单与产物；两份包名 import 名单 | [模板与发版前检查](/docs/seams/template-release) |
-| 6 | CDP 驱动（约定） | 开发套件 ↔ `cdp.mjs` ↔ 工作台页面 | 命令行参数、stdout 上的 JSON、退出码、`window.gwb.command` | [CDP 驱动](/docs/seams/cdp) |
+| 6 | CDP 驱动（约定） | 开发套件 ↔ `cdp.mjs` ↔ 工作台页面 | 命令行参数、stdout 上的 JSON、退出码、commands 客户端与 `window.gwb.request` | [CDP 驱动](/docs/seams/cdp) |
 | 7 | 内核与 home（约定） | `devkit.home.*`、CDP 驱动 ↔ 内核 exe | `GWB_HOME`、调试端口、`runtime.json`、home 根目录、`gwb.log` 的行格式 | [内核与 home](/docs/seams/kernel-home) |
 | 8 | 条目树 | 插件管理 ↔ cordis loader | 条目树的读、建、改、删 | [条目树](/docs/seams/entry-tree) |
 | 9 | pnpm 与包源 | 插件管理、开发套件 ↔ pnpm、npm 源、npmrc、gitea 插件的设置 | 同一个 pnpm；打包开发版、发正式版；按范围找源、检索插件、读写 `~/.npmrc` | [pnpm 与包源](/docs/seams/pnpm-registry) |

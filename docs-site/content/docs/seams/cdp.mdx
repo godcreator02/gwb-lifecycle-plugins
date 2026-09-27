@@ -1,6 +1,6 @@
 ---
 title: 6 CDP 驱动 cdp.mjs
-description: 连接 devkit（经 gwbNodeCli 登记、dev.ts 启动子进程）、bin/cdp.mjs 与工作台页面；接口是命令行参数的形状、stdout 上一张 JSON 的键、退出码、页面上的 window.gwb.command，以及按页面 file:// 地址反推 home——全部靠约定
+description: 连接 devkit（经 gwbNodeCli 登记、dev.ts 启动子进程）、bin/cdp.mjs 与工作台页面；接口是命令行参数的形状、stdout 上一张 JSON 的键、退出码、目标 home 的 commands 客户端与页面 request 通道，以及按页面 file:// 地址反推 home——全部靠约定
 ---
 
 **本页回答**：`bin/cdp.mjs` 收什么参数、输出什么、退出码什么意思；devkit 从它的输出里读哪几个字段；它对工作台页面假设了什么；这几方各保证什么。脚本内部怎么把选择器换算成点、为什么零依赖，见 [CDP 驱动](/docs/devkit/cdp)。
@@ -35,7 +35,7 @@ devkit 这边：登记命令时 `entry` 指向这个文件（见[工作台服务
 
 {/* ref file="../plugins/devkit/src/node-dev-deps.ts" lines="48-62" hash="5136757bfa16" blob="7ad0027b33e7" */}
 
-**页面**：`cmd` 在页面里调 `window.gwb.command(名字, 参数)`；页面上没有这个函数就回 `{ ok: false }`。连上之后先核对 home：收集页面自身 `location.href`、`script[src]` 与 `link[href]` 里的 `file:///` 地址（外壳未挂载时仍可从内核页面识别 home），截出 `/homes/<名>/` 那一段，要求只有一个 home、且名字等于第一个参数：
+**页面**：`cmd` 从目标 home 解析并动态导入 `@godcreator/gwb-commands/client`，调用 `command(名字, 参数)`；该客户端经 `window.gwb.request` 发到 `commands.run`。旧包缺少客户端或旧页面缺少 request 时，兼容 `window.gwb.command`；请求失败不重试。两个入口都没有才回 `{ ok: false }`。连上之后先核对 home：收集页面自身 `location.href`、`script[src]` 与 `link[href]` 里的 `file:///` 地址（外壳未挂载时仍可从内核页面识别 home），截出 `/homes/<名>/` 那一段，要求只有一个 home、且名字等于第一个参数：
 
 {/* ref file="../plugins/devkit/bin/cdp.mjs" lines="399-419" hash="bf00c6a3b13c" blob="799472b76164" */}
 
@@ -53,7 +53,7 @@ devkit 这边：登记命令时 `entry` 指向这个文件（见[工作台服务
 
 devkit 保证：`devkit.dev` 每一步都按 home 名调它，不传端口；把退出码与 JSON 一起交给 `dev.ts` 判断。
 
-工作台页面需要保证的：内核 preload 在页面上提供 `window.gwb.command`、页面自身或脚本与样式表地址是带 home 绝对路径的 `file:///` 地址、home 目录在一个叫 `homes` 的目录下。
+工作台页面需要保证的：内核 preload 在页面上提供 `window.gwb.request`，commands 提供不含 Node/Cordis 依赖的 `./client`（旧 home 兼容 `window.gwb.command`）、页面自身或脚本与样式表地址是带 home 绝对路径的 `file:///` 地址、home 目录在一个叫 `homes` 的目录下。
 
 **这些全部靠约定**：devkit 插件只从 `cdp.mjs` import 算 home 根目录的 `homesRootOf`（类型写在手写的 `bin/cdp.d.mts` 里，见[内核与 home](/docs/seams/kernel-home)），devkit 与 `cdp.mjs` 在命令行与输出上没有共享的类型；参数形状写在 `cdp.mjs` 文件头、`devkit.cdp` 的 `usage` 与 `dev.ts` 的各次调用三处，JSON 的键写在 `cdp.mjs` 的 `run` 与 `dev.ts` 的 `receiptOf` / `reloadPage` 两处；对工作台页面的前提只写在 `cdp.mjs` 的注释里，外壳与内核仓都没有写成对外的承诺。
 
