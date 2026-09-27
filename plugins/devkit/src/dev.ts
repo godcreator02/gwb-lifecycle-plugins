@@ -237,19 +237,59 @@ export function pluginManagerCallsFor(
 
 // ── 日志 ──────────────────────────────────────────────────────────────────────
 
+/** 从这个内核版本起 `gwb.log` 一行一个 JSON；更早的内核写的是文本行 */
+export const JSONL_LOG_KERNEL = '0.10.0'
+
+/** `gwb.log` 一行的五个键，顺序是内核定的 */
+const LOG_RECORD_KEYS = ['ts', 'level', 'source', 'name', 'msg'] as const
+type LogRecord = Record<(typeof LOG_RECORD_KEYS)[number], string>
+
+/** 报错时带上认不出的那一行的前多少个字符 */
+const BAD_LINE_HEAD_CHARS = 60
+
+export type LogScan = { ok: true; errors: string[]; warns: string[] } | { ok: false; error: string }
+
+/** 一行解析成一条记录；认不出时回的是原因 */
+function parseLogLine(line: string): LogRecord | string {
+  let doc: unknown
+  try {
+    doc = JSON.parse(line)
+  } catch {
+    return '不是 JSON'
+  }
+  if (!isRecord(doc)) return '不是 JSON 对象'
+  const missingKey = LOG_RECORD_KEYS.find((key) => typeof doc[key] !== 'string')
+  if (missingKey !== undefined) return `缺字符串字段 ${missingKey}`
+  return doc as LogRecord
+}
+
+/** 给人看的一行：`<ts> <level> <name> <正文第一行>`，堆栈之类的后续行不进回执 */
+function displayLineOf(record: LogRecord): string {
+  const [firstLine] = record.msg.split(/\r?\n/, 1)
+  return `${record.ts} ${record.level} ${record.name} ${firstLine ?? ''}`
+}
+
 /**
- * 一行是 `<ISO 时间> <级别> <插件名> <正文>`。只把 error 算失败，warn 另报：插件启动时 warn 一句
- * 「某个可选服务不在」是常态，算成失败这条命令就天天红，人很快学会无视它
+ * 读 `gwb.log` 基线之后新增的部分：一行一个 JSON，每行以换行结尾。有一行认不出就整段不判，直接报错。
+ * 只把 error 算失败，warn 另报：插件启动时 warn 一句「某个可选服务不在」是常态，算成失败这条命令就天天红，人很快学会无视它
  */
-export function errorLines(tail: string): { errors: string[]; warns: string[] } {
+export function errorLines(tail: string): LogScan {
+  const lines = tail.split('\n')
+  if (lines.at(-1) === '') lines.pop()
   const errors: string[] = []
   const warns: string[] = []
-  for (const line of tail.split(/\r?\n/)) {
-    const level = line.trim().split(/\s+/)[1]
-    if (level === 'error') errors.push(line.trim())
-    else if (level === 'warn') warns.push(line.trim())
+  for (const line of lines) {
+    const record = parseLogLine(line)
+    if (typeof record === 'string') {
+      return {
+        ok: false,
+        error: `目标 home 的 gwb.log 不是一行一个 JSON——目标 home 的内核要 ${JSONL_LOG_KERNEL} 起。认不出的一行(${record})开头是:${line.slice(0, BAD_LINE_HEAD_CHARS)}`,
+      }
+    }
+    if (record.level === 'error') errors.push(displayLineOf(record))
+    else if (record.level === 'warn') warns.push(displayLineOf(record))
   }
-  return { errors: errors.slice(-LOG_TAIL_LINES), warns: warns.slice(-LOG_TAIL_LINES) }
+  return { ok: true, errors: errors.slice(-LOG_TAIL_LINES), warns: warns.slice(-LOG_TAIL_LINES) }
 }
 
 // ── 注入的依赖 ────────────────────────────────────────────────────────────────
@@ -645,15 +685,18 @@ export async function runDev(input: DevInput, deps: DevDeps): Promise<DevOutcome
   return { ok: true, data: report }
 }
 
+/** 日志认不出时排在最前：它说的是目标 home 本身不对，别的几样修好了也照样判不了日志 */
 function evidenceNote(
   homeDir: string,
+  logFile: string,
+  logScan: LogScan,
   landed: { rows: InstalledRow[]; wrong: InstalledRow[] },
   listed: { ok: boolean; error?: string },
   entryCount: number,
   dead: string[],
-  errors: string[],
-  warns: string[],
 ): string {
+  if (!logScan.ok) return `${logScan.error}\n文件:${logFile}`
+  const { errors, warns } = logScan
   if (landed.wrong.length > 0) return installedNote(path.basename(homeDir), landed.wrong)
   if (!listed.ok) return `取不到证:${LIST_COMMAND} 没回(${listed.error ?? '没说原因'})`
   if (dead.length > 0) return `这几条没加载成功(fiber 没到 ACTIVE):${dead.join('、')}——日志里有原因`
@@ -683,8 +726,9 @@ export async function collect(
       if (!entry.active) dead.push(`${entry.entryId}(${one.pkg})`)
     }
   }
-  const { errors, warns } = errorLines(deps.slice(logFile, baseline))
-  const ok = landed.wrong.length === 0 && listed.ok && dead.length === 0 && errors.length === 0
-  const note = evidenceNote(homeDir, landed, listed, entries.length, dead, errors, warns)
+  const logScan = errorLines(deps.slice(logFile, baseline))
+  const { errors, warns } = logScan.ok ? logScan : { errors: [], warns: [] }
+  const ok = logScan.ok && landed.wrong.length === 0 && listed.ok && dead.length === 0 && errors.length === 0
+  const note = evidenceNote(homeDir, logFile, logScan, landed, listed, entries.length, dead)
   return { ok, installed: landed.rows, entries, dead, errors, warns, note }
 }

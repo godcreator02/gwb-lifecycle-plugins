@@ -35,7 +35,7 @@ description: 连接 devkit、插件管理与 pnpm、npm 源、两份 npmrc：两
 
 `devkit.dev` 不在目标 home 里启动 pnpm：装包是目标 home 的插件管理在它自己的进程里运行的 `pnpm add`（见 [devkit 调插件管理](/docs/seams/plugin-manager-calls)）。
 
-{/* ref file="../plugins/devkit/src/dev.ts" lines="269-272" hash="b36d9dc71ed0" blob="48d80099fae0" */}
+{/* ref file="../plugins/devkit/src/dev.ts" lines="309-312" hash="b36d9dc71ed0" blob="f80462dff96f" */}
 
 {/* ref file="../plugins/devkit/src/node-dev-deps.ts" lines="261-280" hash="0480d92ddfa0" blob="7ad0027b33e7" */}
 
@@ -43,7 +43,7 @@ description: 连接 devkit、插件管理与 pnpm、npm 源、两份 npmrc：两
 
 **在 home 里运行的 pnpm 都关掉自动补装 peer**：启动 pnpm 时环境变量原样传下去，加一项 `pnpm_config_auto_install_peers=false`（插件管理另去掉 `ELECTRON_RUN_AS_NODE`）。插件管理的 pnpm 都在 home 里运行；devkit 只在 `home.new` 的三次 `pnpm add` 带它，在插件仓里的 build 与临时目录里的 pack、publish、view 不带——插件仓里开发要靠自动补装把 peer 里的内核包与插件装进 `node_modules`，带上它 pnpm 会按新配置重装、把这些 peer 拿掉，构建时找不到类型。插件的 peer 写了别的插件、home 里没装那个插件时，pnpm 默认把它装进 `node_modules/.pnpm` 且不提示，不写进 home 的 `package.json`、没有条目，插件管理也不认它。命令行参数 `--config.auto-install-peers=false` 会被 pnpm 忽略，只有环境变量或 home 的 `pnpm-workspace.yaml` 关得掉（实验见本仓 `probes/2609242300_peer-between-plugins/`）：
 
-{/* ref file="../plugins/devkit/src/dev.ts" lines="265-268" hash="3cbe99a74e88" blob="48d80099fae0" */}
+{/* ref file="../plugins/devkit/src/dev.ts" lines="305-308" hash="3cbe99a74e88" blob="f80462dff96f" */}
 
 {/* ref file="../plugins/plugin-manager/src/pnpm.ts" lines="10-23" hash="a8e6203c4d42" blob="b62dd927fe34" */}
 

@@ -1,6 +1,6 @@
 ---
 title: 7 内核与 home runtime.json
-description: 连接 devkit.home.*、devkit.dev 的定位与 cdp.mjs 和内核 exe：启动 home 用 GWB_HOME 与两个 Chromium 开关，找 home 读内核写的 runtime.json（两处各自解析），home 根目录由 cdp.mjs 的 homesRootOf 一处算出，日志按 gwb.log 的行格式切级别；全部靠约定
+description: 连接 devkit.home.*、devkit.dev 的定位与 cdp.mjs 和内核 exe：启动 home 用 GWB_HOME 与两个 Chromium 开关，找 home 读内核写的 runtime.json（两处各自解析），home 根目录由 cdp.mjs 的 homesRootOf 一处算出，日志按 gwb.log 每行 JSON 的 level 取级别；全部靠约定
 ---
 
 **本页回答**：devkit 怎么启动一个 home、怎么找到一个正在运行的 home；它依赖内核的哪几样东西、这些东西在 devkit 里写了几份；内核与 devkit 各保证什么。
@@ -37,9 +37,9 @@ description: 连接 devkit.home.*、devkit.dev 的定位与 cdp.mjs 和内核 ex
 
 {/* has file="../plugins/devkit/src/index.ts" text="import { homesRootOf } from '../bin/cdp.mjs'" */}
 
-**gwb.log**：`devkit.dev` 在装包之前记下日志文件的长度，最后只读新增的部分，按每行空白分隔的第二段判断级别，`error` 算失败、`warn` 另报。行格式 `<ISO 时间> <级别> <名字> <正文>` 由内核定：
+**gwb.log**：`devkit.dev` 在装包之前记下日志文件的长度，最后只读新增的部分。内核 0.10.0 起这个文件一行一个 JSON，五个键 `ts`、`level`、`source`、`name`、`msg`，正文里的换行在 JSON 字符串里转义，所以一条记录就是一行。`level` 是 `error` 的算失败、`warn` 的另报，回执里每条写成 `<ts> <level> <name> <正文第一行>`。有一行不是 JSON 或缺字段，整段不判，`devkit.dev` 回失败并说目标 home 的内核要 0.10.0 起；更早的内核写的文本行不兼容。格式由内核定（内核仓文档站的日志规格）：
 
-{/* ref file="../plugins/devkit/src/dev.ts" lines="240-253" hash="86bf11a3fd47" blob="48d80099fae0" */}
+{/* ref file="../plugins/devkit/src/dev.ts" lines="240-293" hash="8ebae8cbcd97" blob="f80462dff96f" */}
 
 **home 名**：devkit 的命令只收 kebab-case 的 home 名：
 
@@ -49,7 +49,7 @@ description: 连接 devkit.home.*、devkit.dev 的定位与 cdp.mjs 和内核 ex
 
 ## 约定
 
-内核需要保证的：`GWB_HOME` 是名字时 home 在 `%APPDATA%\gwb-kernel\homes\<名>`；`runtime.json` 的字段名与含义（字段表见内核仓文档站的「runtime.json」接缝页）；`gwb.log` 一行的格式；认 `--remote-debugging-port`。
+内核需要保证的：`GWB_HOME` 是名字时 home 在 `%APPDATA%\gwb-kernel\homes\<名>`；`runtime.json` 的字段名与含义（字段表见内核仓文档站的「runtime.json」接缝页）；`gwb.log` 一行一个 JSON、五个键的名字与含义；认 `--remote-debugging-port`。
 
 devkit 保证：
 
@@ -57,7 +57,7 @@ devkit 保证：
 - 定位一个 home 只凭名字，端口从记录里查，连上后再用页面自报的名字核对
 - `default` 不带 `force` 不删，正在运行的 `default` 带 `force` 也不删
 
-**这些都靠约定**：devkit 与内核之间没有代码接口。`runtime.json` 的字段名写在内核、devkit 的 `parseRecord` 与 `cdp.mjs` 的 `portOf` 三处；home 根目录写在内核与 `cdp.mjs` 的 `homesRootOf` 两处；日志行格式写在内核与 `dev.ts` 的 `errorLines` 两处。内核改了其中任何一样，devkit 这边没有类型或测试会报错。
+**这些都靠约定**：devkit 与内核之间没有代码接口。`runtime.json` 的字段名写在内核、devkit 的 `parseRecord` 与 `cdp.mjs` 的 `portOf` 三处；home 根目录写在内核与 `cdp.mjs` 的 `homesRootOf` 两处；日志一行的键名写在内核与 `dev.ts` 的 `LOG_RECORD_KEYS` 两处。内核改了其中任何一样，devkit 这边没有类型或测试会报错。
 
 devkit 所在的 home 用带路径的 `GWB_HOME` 启动时，它自己不在 home 根下，但 home 根照样按 `%APPDATA%` 算，`devkit.home.*` 与 `devkit.dev` 找的仍是 `%APPDATA%\gwb-kernel\homes` 下的 home。
 

@@ -19,9 +19,9 @@ description: 连接 devkit 与插件管理：devkit 从插件管理的主入口 
 
 回执只有外层一层 `ok`。`install` 的 `data` 是 `{ pkg, entryId }`，devkit 把 `entryId` 记进自己的回执。`update` 回 `ok: false` 时 devkit 整体失败、带上回执里的 `error`；这次装了内核包时，回执必须有 `restartRequired: true`（没有就判失败），devkit 重启目标 home、轮询 `shell.env` 直到页面报出的内核版本就是这次打包的；`selfDeferred: true` 时 devkit 从 `updated` 与 `dependents` 里找出 `action` 是 `deferred` 的条目属于哪些包，每 500 毫秒轮询一次 `plugin-manager.list`，60 秒内等到这些包的条目全都 `active: true`：
 
-{/* ref file="../plugins/devkit/src/dev.ts" lines="541-572" hash="56a4fc0e1f7f" blob="48d80099fae0" */}
+{/* ref file="../plugins/devkit/src/dev.ts" lines="581-612" hash="56a4fc0e1f7f" blob="f80462dff96f" */}
 
-{/* ref file="../plugins/devkit/src/dev.ts" lines="474-509" hash="dd637e3b63e6" blob="48d80099fae0" */}
+{/* ref file="../plugins/devkit/src/dev.ts" lines="514-549" hash="dd637e3b63e6" blob="f80462dff96f" */}
 
 插件管理的 `install` 与 `update`，`usage` 里写着参数与回执：
 

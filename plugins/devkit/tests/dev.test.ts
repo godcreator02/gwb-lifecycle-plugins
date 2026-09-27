@@ -50,6 +50,10 @@ const pluginManifest = (name: string, version = '0.3.1'): string => JSON.stringi
 
 /** 目标 home 的清单：装过 PKG，写的是 `^` 范围（plugin-manager.install 写出来的样子） */
 const homeManifest = (dependencies: Record<string, string>): string => `${JSON.stringify({ name: HOME_NAME, dependencies }, null, 2)}\n`
+/** 内核 0.10.0 起 `gwb.log` 的写法：一条记录一行 JSON，以换行结尾 */
+const jsonl = (...records: { ts: string; level: string; source: string; name: string; msg: string }[]): string =>
+  records.map((record) => `${JSON.stringify(record)}\n`).join('')
+
 const HOME_WITH_PKG = homeManifest({ '@godcreator/gwb-commands': '^0.4.1', [PKG]: '^0.3.1', [PM]: '^0.12.0' })
 
 interface FakeOptions {
@@ -310,9 +314,49 @@ describe('交给插件管理的两种调用', () => {
 
 describe('日志', () => {
   it('只有 error 算失败，warn 另报', () => {
-    const out = errorLines('2026-09-11T08:00:00.000Z error gwb-fake 出错了\n2026-09-11T08:00:01.000Z warn gwb-fake 少个可选服务\n2026-09-11T08:00:02.000Z info gwb-fake 正常')
-    expect(out.errors).toHaveLength(1)
-    expect(out.warns).toHaveLength(1)
+    const tail = jsonl(
+      { ts: '2026-09-11T08:00:00.000Z', level: 'error', source: 'plugin', name: 'gwb-fake', msg: '出错了' },
+      { ts: '2026-09-11T08:00:01.000Z', level: 'warn', source: 'plugin', name: 'gwb-fake', msg: '少个可选服务' },
+      { ts: '2026-09-11T08:00:02.000Z', level: 'info', source: 'kernel', name: 'loader', msg: '正常' },
+      { ts: '2026-09-11T08:00:03.000Z', level: 'debug', source: 'renderer', name: 'renderer', msg: '细节' },
+    )
+    expect(errorLines(tail)).toEqual({
+      ok: true,
+      errors: ['2026-09-11T08:00:00.000Z error gwb-fake 出错了'],
+      warns: ['2026-09-11T08:00:01.000Z warn gwb-fake 少个可选服务'],
+    })
+  })
+
+  it('多行正文只显示第一行', () => {
+    const tail = jsonl({ ts: '2026-09-11T08:00:00.000Z', level: 'error', source: 'kernel', name: 'loader', msg: 'TypeError: boom\n    at apply (index.js:3:9)\r\n    at load' })
+    expect(errorLines(tail)).toEqual({ ok: true, errors: ['2026-09-11T08:00:00.000Z error loader TypeError: boom'], warns: [] })
+  })
+
+  it('新增部分是空的：没有 error 也没有 warn', () => {
+    expect(errorLines('')).toEqual({ ok: true, errors: [], warns: [] })
+  })
+
+  it('有一行是内核 0.10.0 之前的文本格式：直接报错，说要内核 0.10.0 起，带上那一行的开头', () => {
+    const textLine = '2026-09-11T08:00:00.000Z error gwb-fake 这一行是旧的文本格式,后面还有很长很长很长很长很长很长很长很长很长的正文'
+    const out = errorLines(`${jsonl({ ts: '2026-09-11T08:00:00.000Z', level: 'info', source: 'kernel', name: 'kernel', msg: 'kernel up' })}${textLine}\n`)
+    expect(out.ok).toBe(false)
+    if (out.ok) return
+    expect(out.error).toContain('目标 home 的 gwb.log 不是一行一个 JSON——目标 home 的内核要 0.10.0 起')
+    expect(out.error).toContain(textLine.slice(0, 60))
+    expect(out.error).not.toContain(textLine)
+  })
+
+  it('是 JSON 但缺字段：直接报错，点名缺的那个键', () => {
+    const out = errorLines(`${JSON.stringify({ ts: '2026-09-11T08:00:00.000Z', level: 'error', source: 'plugin', name: 'gwb-fake' })}\n`)
+    expect(out.ok).toBe(false)
+    if (out.ok) return
+    expect(out.error).toContain('不是一行一个 JSON')
+    expect(out.error).toContain('msg')
+  })
+
+  it('空行也不是 JSON：直接报错', () => {
+    const out = errorLines(`${jsonl({ ts: '2026-09-11T08:00:00.000Z', level: 'info', source: 'kernel', name: 'kernel', msg: 'a' })}\n`)
+    expect(out.ok).toBe(false)
   })
 })
 
@@ -504,9 +548,18 @@ describe('取证', () => {
   })
 
   it('日志新增部分里有 error 也判失败', async () => {
-    const out = await runDev(input(), fake({ log: '2026-09-11T08:00:00.000Z error gwb-fake apply 里那条链出错了' }))
+    const out = await runDev(input(), fake({ log: jsonl({ ts: '2026-09-11T08:00:00.000Z', level: 'error', source: 'plugin', name: 'gwb-fake', msg: 'apply 里那条链出错了' }) }))
     expect(out).toMatchObject({ ok: false })
-    if (!out.ok) expect(out.error).toContain('error')
+    if (!out.ok) expect(out.error).toContain('2026-09-11T08:00:00.000Z error gwb-fake apply 里那条链出错了')
+  })
+
+  it('日志新增部分不是一行一个 JSON：判失败，说目标 home 的内核要 0.10.0 起', async () => {
+    const out = await runDev(input(), fake({ log: '2026-09-11T08:00:00.000Z info gwb-fake 旧内核写的文本行\n' }))
+    expect(out).toMatchObject({ ok: false })
+    if (!out.ok) {
+      expect(out.error).toContain('目标 home 的内核要 0.10.0 起')
+      expect(out.error).toContain(path.join(HOME, 'gwb.log'))
+    }
   })
 
   it('装上的版本号不是这次打包的：说清两个版本号', async () => {
