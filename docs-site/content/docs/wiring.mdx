@@ -54,7 +54,7 @@ peer 的写法照[用到的插件写 peer](/docs/rules/plugin-peers)：跨仓的
 | `gwbShell` | `@godcreator/gwb-shell` | 局部注入 | `^0.15.1`，`optional: true` | `describeSelf` 报显示名 | 插件清单里没有显示名，别的不受影响 |
 | `gwbNodeCli` | `@godcreator/gwb-node-cli` | 局部注入 | `^0.4.7`，`optional: true` | 把 `bin/cdp.mjs` 登记成 `devkit.cdp` | 没有 `devkit.cdp` 命令；`devkit.dev` 不受影响，它自己启动 `bin/cdp.mjs` 子进程 |
 | `gwbSkills` | `@godcreator/gwb-skills` | 局部注入 | `^0.4.5`，`optional: true` | 登记 `skills/` 下两份说明书 | agent 读不到这两份说明书，命令照常 |
-| `gwbKernel` | 内核包 `@godcreator/gwb-kernel-desktop` | 不写进 `inject`，用 `requireKernel` 取 | `^0.9.0` | `version`：`devkit.home.new` 装进新 home 的内核包版本、建仓时模板 peer 里内核包的下限；`dataDir`：本插件自己所在的 home，`devkit.dev` 拒绝以它为目标，建仓从它的 `node_modules` 读命令总线与外壳的版本 | 用到它的命令抛错「ctx.gwbKernel 不在」 |
+| `gwbKernel` | 内核包 `@godcreator/gwb-kernel-desktop` | 不写进 `inject`，用 `requireKernel` 取 | `^0.10.0` | `version`：`devkit.home.new` 装进新 home 的内核包版本、建仓时模板 peer 里内核包的下限；`dataDir`：本插件自己所在的 home，`devkit.dev` 拒绝以它为目标，建仓从它的 `node_modules` 读命令总线与外壳的版本 | 用到它的命令抛错「ctx.gwbKernel 不在」 |
 
 **外壳在 peer 里是可选的，但建仓要读它装着的版本**：`devkit.scaffold` 与 `devkit.scaffold.plugin` 直接读本 home 的 `node_modules/@godcreator/gwb-shell/package.json`（命令总线同理）取版本号写进模板 peer，不经 `gwbShell` 服务；home 里没装外壳时这两条命令报错、什么都不写，两条命令的 `usage` 里写着这个前提。
 
@@ -78,7 +78,7 @@ peer 里另有插件管理 `@godcreator/gwb-plugin-manager`（`workspace:^`，�
 
 {/* has file="../plugins/devkit/src/index.ts" text="外壳在开发套件的 peer 里是可选的，home 里没装外壳（或命令总线）时这条命令报错、什么都不写" */}
 
-{/* has file="../plugins/devkit/package.json" text="&quot;@godcreator/gwb-kernel-desktop&quot;: &quot;^0.9.0&quot;" */}
+{/* has file="../plugins/devkit/package.json" text="&quot;@godcreator/gwb-kernel-desktop&quot;: &quot;^0.10.0&quot;" */}
 
 {/* has file="../plugins/devkit/package.json" text="&quot;@godcreator/gwb-commands&quot;: &quot;^0.5.6&quot;" */}
 
@@ -190,7 +190,7 @@ peer 里另有插件管理 `@godcreator/gwb-plugin-manager`（`workspace:^`，�
 | --- | --- | --- | --- | --- | --- |
 | `gwbCommands` | `@godcreator/gwb-commands` | 局部注入 | `^0.5.6`，**必需**（不标 `optional`） | 登记 10 条命令 | 命令登记不上，插件管理没有任何对外接口；服务 `gwbPluginManager` 照常提供。局部注入是为了缺了命令总线时插件管理照样加载，peer 写必需是因为缺了它一样功能都没有——[用到的插件写 peer](/docs/rules/plugin-peers)允许的写法 |
 | `gwbSkills` | `@godcreator/gwb-skills` | 局部注入 | `^0.4.5`，`optional: true` | 登记自带的说明书 | 没有说明书，插件管理照常加载 |
-| `gwbKernel` | 内核包 `@godcreator/gwb-kernel-desktop` | 不写进 `inject`，用 `requireKernel` 取 | `^0.9.0` | `dataDir`：home 目录，pnpm 的工作目录、`package.json` 所在的目录；`version`：`list` 拿它和各插件 peer 里内核包的范围比 | 构造时报错「ctx.gwbKernel 不在」，插件管理不加载 |
+| `gwbKernel` | 内核包 `@godcreator/gwb-kernel-desktop` | 不写进 `inject`，用 `requireKernel` 取 | `^0.10.0` | `dataDir`：home 目录，pnpm 的工作目录、`package.json` 所在的目录；`version`：`list` 拿它和各插件 peer 里内核包的范围比 | 构造时报错「ctx.gwbKernel 不在」，插件管理不加载 |
 
 插件管理不写 `export const inject`。数据插件、设置插件不在 peer 里，插件管理不用它们。
 
@@ -200,7 +200,7 @@ peer 里另有插件管理 `@godcreator/gwb-plugin-manager`（`workspace:^`，�
 
 {/* has file="../plugins/plugin-manager/src/index.ts" text="const kernel = requireKernel(ctx)" */}
 
-{/* has file="../plugins/plugin-manager/package.json" text="&quot;@godcreator/gwb-kernel-desktop&quot;: &quot;^0.9.0&quot;" */}
+{/* has file="../plugins/plugin-manager/package.json" text="&quot;@godcreator/gwb-kernel-desktop&quot;: &quot;^0.10.0&quot;" */}
 
 {/* has file="../plugins/plugin-manager/package.json" text="&quot;@godcreator/gwb-commands&quot;: &quot;^0.5.6&quot;" */}
 

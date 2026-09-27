@@ -29,11 +29,11 @@ description: 连接 devkit.home.*、devkit.dev 的定位与 cdp.mjs 和内核 ex
 
 `bin/cdp.mjs` 的 `portOf`：只取 `cdp`，要求是 1–65535 的整数，不看 `pid`：
 
-{/* ref file="../plugins/devkit/bin/cdp.mjs" lines="138-153" hash="3f3a7a69fccd" blob="23ee1f594212" */}
+{/* ref file="../plugins/devkit/bin/cdp.mjs" lines="145-160" hash="3f3a7a69fccd" blob="2b407cab4c90" */}
 
 **home 根目录只有一种算法**：`%APPDATA%\gwb-kernel\homes`（Electron 的 `app.getPath('appData')` 在 Windows 上就是 `%APPDATA%`），与内核在 `GWB_HOME` 是名字时拼出的目录相同。算法写在零依赖的 `bin/cdp.mjs` 里，`src/index.ts` 从那里 import（类型写在手写的 `bin/cdp.d.mts`），两处用的是同一个函数。开发套件只支持 Windows：平台不是 Windows、或没有 `APPDATA`，都直接报错：
 
-{/* ref file="../plugins/devkit/bin/cdp.mjs" lines="69-77" hash="65442a548474" blob="23ee1f594212" */}
+{/* ref file="../plugins/devkit/bin/cdp.mjs" lines="76-84" hash="65442a548474" blob="2b407cab4c90" */}
 
 {/* has file="../plugins/devkit/src/index.ts" text="import { homesRootOf } from '../bin/cdp.mjs'" */}
 

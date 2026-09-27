@@ -16,15 +16,15 @@ description: bin/cdp.mjs（登记成 devkit.cdp）在一个工作台页面里操
 
 **点不到的时候会报出原因**，这是它比「在页面里自己构造事件」强的地方：构造出来的事件不做命中测试，目标被浮层挡住照样点得到，而遮挡正是界面最容易出的错；构造出来的事件 `isTrusted` 是 false，按可信输入做判断的地方行为不同。这里发的是浏览器层的事件，命中测试由浏览器自己做，点不到时把挡住它的那条祖先链和目标的 `pointer-events` 一起报出来。
 
-{/* ref file="../plugins/devkit/bin/cdp.mjs" lines="310-323" hash="0b61ebbd36d5" blob="23ee1f594212" */}
+{/* ref file="../plugins/devkit/bin/cdp.mjs" lines="317-330" hash="0b61ebbd36d5" blob="2b407cab4c90" */}
 
 **问一个页面属于哪个 home**，靠的是页面上那些 `file://` 地址里带着的 home 路径（外壳插入的样式表就是）。不用配置、不用猜；出现不止一个 home 就直接说不猜，不挑一个。
 
-{/* ref file="../plugins/devkit/bin/cdp.mjs" lines="399-419" hash="bf00c6a3b13c" blob="799472b76164" */}
+{/* ref file="../plugins/devkit/bin/cdp.mjs" lines="406-426" hash="bf00c6a3b13c" blob="2b407cab4c90" */}
 
 这个问题不只是 `home` 动作用，**每次运行都要问一次**：连上之后先拿它跟你给的名字对，对不上就停。
 
-{/* ref file="../plugins/devkit/bin/cdp.mjs" lines="609-622" hash="97da57170d8b" blob="23ee1f594212" */}
+{/* ref file="../plugins/devkit/bin/cdp.mjs" lines="615-628" hash="97da57170d8b" blob="2b407cab4c90" */}
 
 记录只说「它启动的时候用的是这个端口」，不说「此刻这个端口上还是它」。进程可能已经退出、端口被下一个进程占用，而记录还留在那里指着这个端口。名字是唯一的定位方式之后，这道核对就是「连对了没有」的最后一道检查；少了它，按名字定位只是看起来安全。
 
@@ -32,7 +32,7 @@ description: bin/cdp.mjs（登记成 devkit.cdp）在一个工作台页面里操
 
 **名字核对完，再看这个动作能不能在这个 home 上做：`default` 上只许只读动作。** 十二个动作登记在两张表里：只读的是 `shot` 与 `home`，其余十个都算写——`eval` 能在页面里执行任意代码，悬停与滚动会触发页面里的事件处理，改不改状态取决于界面怎么写，这个脚本判断不了。页面自报的名字是 `default` 时，写动作与 `--size` 开关（它改页面视口，外壳会跟着重新排版）在视口覆盖与分发之前就拒，报错写明写动作要去隔离 home 上做；别的 home 上两类都放行。不在任何一张表里的动作在哪个 home 上都拒，所以加动作的人必须先把它登记进其中一张。
 
-{/* ref file="../plugins/devkit/bin/cdp.mjs" lines="624-648" hash="7b48f3cbb06b" blob="23ee1f594212" */}
+{/* ref file="../plugins/devkit/bin/cdp.mjs" lines="630-654" hash="7b48f3cbb06b" blob="2b407cab4c90" */}
 
 `devkit.dev` 自己也拒 `default`，但那只管经它调用的那条路；直接调 `devkit.cdp`、或直接用 node 运行这个文件，靠的是这一道检查。
 
@@ -40,19 +40,19 @@ description: bin/cdp.mjs（登记成 devkit.cdp）在一个工作台页面里操
 
 **不知道页面里有什么。** 要读取哪些值跟着界面走，界面改一版就要加一段、改一段；而这个脚本管的是怎么把事件发进页面，那件事很少需要改。混在一起，稳定的部分会跟着不稳定的部分一起改。所以要读一组值就写一个文件，用 `eval <文件> [JSON 参数]` 送进页面执行。
 
-{/* ref file="../plugins/devkit/bin/cdp.mjs" lines="379-397" hash="b79ac79b577a" blob="23ee1f594212" */}
+{/* ref file="../plugins/devkit/bin/cdp.mjs" lines="386-404" hash="b79ac79b577a" blob="2b407cab4c90" */}
 
 **文件里一律是一个函数表达式**，`(args) => 一张表`，要 await 就写成 async；不给参数就传空对象。只有这一条规则——「是函数就调用、不是就直接求值」其实是两条规则，而选错分支时不报错，只是回一个看不懂的值。文件放在哪是调用方的事，一次性的放 `out/`（它被 gitignore，本来就随时可以清空）；提交进仓的会随着界面变化而过时，而且不报错。
 
 **不看工作目录。** 它的路径一概不依赖进程在哪里运行：经命令总线调用时，进程的工作目录是它自己所在的包目录（home 的 `node_modules` 里）；直接用 node 运行时，是输入命令的那个 shell 的目录，同一个相对路径在两种情况下指向不同的地方。所以截图缺省放在**被截图的那个 home 自己的目录** `<home>\out\cdp\`，要放别处只收绝对路径；`eval` 的文件只收绝对路径，相对路径当场拒。写磁盘之前还有一道检查：位置不能在本包目录与任何 `node_modules` 里。
 
-{/* ref file="../plugins/devkit/bin/cdp.mjs" lines="84-132" hash="893e81b13c5e" blob="23ee1f594212" */}
+{/* ref file="../plugins/devkit/bin/cdp.mjs" lines="91-139" hash="893e81b13c5e" blob="2b407cab4c90" */}
 
 **不知道本包别的代码存在。** 它不 import 任何东西，也不读 `src/`。按 home 名查端口也一样：它自己拼出 `runtime.json` 的路径去读，不用 `src/home.ts` 里的那套解析。
 
 **不查 pid，也不查端口归谁。** 它只把端口读出来就去连，连不上就照实说连不上：
 
-{/* ref file="../plugins/devkit/bin/cdp.mjs" lines="187-196" hash="4bcd0e0d6bc9" blob="23ee1f594212" */}
+{/* ref file="../plugins/devkit/bin/cdp.mjs" lines="194-203" hash="4bcd0e0d6bc9" blob="2b407cab4c90" */}
 
 光一个 `ECONNREFUSED` 会让人去查网络，而这种情况绝大多数是那个 home 已经退出、记录还留着（进程退出后记录不删，这是有意的）。**确认进程还在的检查在调用方**：`devkit.dev` 动手之前核对 pid 与监听端口的进程，那三道检查见[测试 home](/docs/devkit/home)。这里只负责「连上的这个页面到底是不是它」。
 
@@ -80,7 +80,7 @@ description: bin/cdp.mjs（登记成 devkit.cdp）在一个工作台页面里操
 
 **第一个位置只收 home 名**，端口从 `<home 根>/<名>/runtime.json` 里查出来。给的是端口号，就去找一个叫这个名字的 home，找不到它的记录当场停，不悄悄当成端口：
 
-{/* ref file="../plugins/devkit/bin/cdp.mjs" lines="138-153" hash="3f3a7a69fccd" blob="23ee1f594212" */}
+{/* ref file="../plugins/devkit/bin/cdp.mjs" lines="145-160" hash="3f3a7a69fccd" blob="2b407cab4c90" */}
 
 **端口不是地址。** 它是一个没有含义的数字，输错一位就连到另一个 home，而那个 home 会照样收下你发的事件，事后也看不出哪里不对。名字有拼写、有记录、连上之后还能跟页面报的名字对一次，这三样端口都没有。代价是这个驱动从此**只能操作 gwb 的窗口**：别的 Chromium 页面没有那份记录，也答不出自己属于哪个 home。
 
@@ -88,7 +88,7 @@ description: bin/cdp.mjs（登记成 devkit.cdp）在一个工作台页面里操
 
 **选不出唯一一个页面时，候选页面的列表就在报错里**：一个都没有时报「现有这些」，不止一个时报「用 `--target` 选一个」，两种都带着各页面的标题与地址。所以不必先另外运行一条命令去列页面——那条命令回的内容，正好是出错时本来就会输出的那些。
 
-{/* ref file="../plugins/devkit/bin/cdp.mjs" lines="200-206" hash="09972edd2b5a" blob="23ee1f594212" */}
+{/* ref file="../plugins/devkit/bin/cdp.mjs" lines="207-213" hash="09972edd2b5a" blob="2b407cab4c90" */}
 
 **这是它必须是零依赖单文件、必须是纯 JS 的全部理由。** 第二种调用方式是它存在的一半原因：工作台启动不了的时候，人还得有办法看看那个窗口到底怎么了。让它进类型检查，就得让它变成要先构建的东西，而要先构建的东西在「工作台启动不了」的时候正好用不上。代价是它那十二个动作没有类型检查。
 
@@ -100,7 +100,7 @@ description: bin/cdp.mjs（登记成 devkit.cdp）在一个工作台页面里操
 
 **超时按动作分档，不是一个数。** 它防的是页面卡住，不是「这条命令做的事久」：工作台的一条命令可能在装依赖、在构建，十几秒回不来很正常，按十五秒中断的话，中断的是一条正在做事的命令，而那边不会因此停下，回执从此没人收。输入与求值那几种还是十五秒，它们要么立刻回，要么就是页面真卡住了。
 
-{/* ref file="../plugins/devkit/bin/cdp.mjs" lines="180-181" hash="ebea45b4fc6f" blob="23ee1f594212" */}
+{/* ref file="../plugins/devkit/bin/cdp.mjs" lines="187-188" hash="ebea45b4fc6f" blob="2b407cab4c90" */}
 
 五个开关：`--target` 页面不止一个时按标题或地址选、`--mod` 带修饰键（只认 `alt`、`ctrl`、`meta`、`shift`，写错的直接拒：当它没写，发出去的就是少了修饰键的真操作）、`--pad` 给 `shot` 的裁剪留边、`--size` 把视口当成这么大（对当前连接生效，必须跟动作写在同一次调用里）、`--timeout` 改超时。
 
@@ -108,7 +108,7 @@ description: bin/cdp.mjs（登记成 devkit.cdp）在一个工作台页面里操
 
 **决定文件写到哪、动作能不能做的两部分有单元测试，其余只能实际运行。** 位置怎么算是一组纯函数（home 根目录、home 目录、截图位置、`eval` 的文件、写磁盘前的检查），读写分开是另一个纯函数加两张表。文件被 import 时只导出它们，文件末尾那段只在被 node 直接运行时（`import.meta.main` 为 true）才执行：
 
-{/* ref file="../plugins/devkit/bin/cdp.mjs" lines="652-678" hash="5bcc0514492b" blob="23ee1f594212" */}
+{/* ref file="../plugins/devkit/bin/cdp.mjs" lines="658-684" hash="5bcc0514492b" blob="2b407cab4c90" */}
 
 `tests/cdp.test.ts` 直接 import 它、给路径看结果：截图缺省位置在被截图那个 home 的 `out\cdp\`、不在本包目录与任何 `node_modules` 里，两处相对路径都拒；另有一条检查整个文件里不出现 `process.cwd()`。读写分开那道检查同样是纯函数：`default` 上只读放行、写动作与 `--size` 拒，隔离 home 上都放行，表外的动作都拒；另有两条读源码，查两张表合起来正好是 `run()` 里分发的全部动作、入口在核对名字之后与分发之前调用它。
 
