@@ -1,18 +1,21 @@
 ---
-title: 'docfirst 破坏性版本：docfirst-workflow 0.4.1（fumadocs 适配在它的子入口 ./fumadocs），星轨盘包改名 trajectory-disk'
-description: '来源：god-live-doc（docfirst 的仓 `D:\unitfolders\evew5-gwbapps\god-live-doc`），提交 `a8a92de`，2026-09-27；同日更新：fumadocs 适配并进 docfirst-workflow（提交 `527a7d8`、`a2cda58`），不再有 docfirst-fumadocs 这个包。'
+title: 'docfirst 破坏性版本：docfirst-workflow 0.5.0（fumadocs 适配在它的子入口 ./fumadocs），星轨盘包改名 trajectory-disk'
+description: '来源：god-live-doc（docfirst 的仓 `D:\unitfolders\evew5-gwbapps\god-live-doc`），提交 `a8a92de`，2026-09-27；同日更新：fumadocs 适配并进 docfirst-workflow（提交 `527a7d8`、`a2cda58`），不再有 docfirst-fumadocs 这个包；再更新：docfirst-workflow 升 0.5.0（提交 `82b1df1`），配置文件只认 docfirst.config.mjs。'
 docfirst: none
 ---
 
 docfirst 按接缝拆了包，要发一组破坏性版本。本站的 `devDependencies` 里现在是 `@godcreator/docfirst-workflow` 0.3.1
 与 `@godcreator/docfirst-trajectory` 0.1.1，照旧能用；要用新版时照下面改，不急。
 
-**包怎么装**：站的 `devDependencies` 只写 `@godcreator/docfirst-workflow` 0.4.1，删掉 `@godcreator/docfirst-trajectory`。
+**包怎么装**：站的 `devDependencies` 只写 `@godcreator/docfirst-workflow` 0.5.0，删掉 `@godcreator/docfirst-trajectory`。
 它停在 0.1.1、不再更新；星轨盘改名 `@godcreator/trajectory-disk`，由 `docfirst-workflow` 带上，站不直接依赖它。
 站里接 fumadocs 的部分（集合选项、组件名册、状态点与术语组件、星轨盘组件 `StarDisk` 与样式）都从 `@godcreator/docfirst-workflow`
 的 `./fumadocs`、`./fumadocs/roster`、`./fumadocs/pre`、`./fumadocs/term`、`./fumadocs/trajectory` 与 `./fumadocs/*.css` 取，
 `@godcreator/docfirst-trajectory/server` 没有了。不要装 `@godcreator/docfirst-fumadocs`：它只发过一个 0.1.0，已经并进 `docfirst-workflow`。
 接线照新站模板改：docfirst 仓 `plugins/docfirst/template/`，也就是 `docfirst.create` 建站时写的那几份文件。
+
+**配置与出口（0.5.0）**：配置文件只认 `docfirst.config.mjs`，写成 `.js`、`.ts` 的改名。站代码里从主入口 `@godcreator/docfirst-workflow` 取
+`scanCardDir` 或卡的类型的，改从 `./cards` 取；从 `./fumadocs` 取 `langOf` 的，改从 `./mdx` 取。模板建出来的站不用这几个名字。
 
 **记录与记号**：
 - 不再认 `.ledger.json` 记录簿，没有迁移命令：还用记录簿的站先用 0.3.x 的 `docfirst migrate-ledger` 把记录写进记号，再升
