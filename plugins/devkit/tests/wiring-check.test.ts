@@ -14,10 +14,10 @@ const TYPES_EXPORTS = { '.': { types: './dist/index.d.ts', default: './dist/inde
 const augment = (...members: string[]): string => `declare module 'cordis' {\n  interface Context {\n${members.map((one) => `    ${one}\n`).join('')}  }\n}\n`
 
 /** 包目录 node_modules 里装着的一个包：清单、类型入口、运行时入口（`provides` 是它 super(ctx, '<名>') 提供的服务） */
-function installed(name: string, options: { plugin?: boolean; declares?: string[]; provides?: string[] } = {}): Record<string, string> {
+function installed(name: string, options: { keywords?: string[]; declares?: string[]; provides?: string[] } = {}): Record<string, string> {
   const dir = path.join(PKG, 'node_modules', ...name.split('/'))
   return {
-    [path.join(dir, 'package.json')]: JSON.stringify({ name, keywords: options.plugin === false ? [] : ['gwb-plugin'], exports: TYPES_EXPORTS }),
+    [path.join(dir, 'package.json')]: JSON.stringify({ name, keywords: options.keywords ?? ['gwb-plugin'], exports: TYPES_EXPORTS }),
     [path.join(dir, 'dist', 'index.d.ts')]: augment(...(options.declares ?? []).map((one) => `${one}: unknown`)),
     [path.join(dir, 'dist', 'index.js')]: (options.provides ?? []).map((one) => `class S extends Service { constructor(ctx) { super(ctx, '${one}') } }\n`).join(''),
   }
@@ -210,9 +210,19 @@ describe('wiringProblems：注入与 peer 一致', () => {
     expect(got).toEqual([expect.stringContaining('有 2 个插件的类型入口都给 cordis 的 Context 补了这个名字（@godcreator/gwb-commands、@someone/gwb-fork）')])
   })
 
-  it('提供方不是 gwb 插件（cordis 官方插件）：不查', () => {
-    const files = { ...installed('@cordisjs/plugin-timer', { plugin: false, declares: ['timer'] }), ...source("export const inject = ['timer']\n") }
-    expect(wiringProblems({ pkgDir: PKG, repoDir: REPO, manifest: manifestOf({ devDependencies: { '@cordisjs/plugin-timer': '1.1.3' } }) }, ioOf(files))).toEqual([])
+  it('提供方是第三方 cordis 插件（keywords 含 cordis 与 plugin）：和 gwb 插件一样要写进 peer', () => {
+    const timer = installed('@cordisjs/plugin-timer', { keywords: ['cordis', 'timer', 'service', 'plugin'], declares: ['timer'], provides: ['timer'] })
+    const files = { ...timer, ...source("export const inject = ['timer']\n") }
+    expect(wiringProblems({ pkgDir: PKG, repoDir: REPO, manifest: manifestOf({ devDependencies: { '@cordisjs/plugin-timer': '1.1.3' } }) }, ioOf(files))).toEqual([
+      'timer（src/index.ts:1，必需注入） 由 @cordisjs/plugin-timer 提供，它不在 peerDependencies 里：写进 peer（范围 ^x.y.z），dev 里那一条删掉',
+    ])
+    expect(wiringProblems({ pkgDir: PKG, repoDir: REPO, manifest: manifestOf({ peerDependencies: { '@cordisjs/plugin-timer': '^1.1.3' } }) }, ioOf(files))).toEqual([])
+  })
+
+  it('给 Context 补了名字、但不是插件的包不算提供方：判不出由谁提供，拒', () => {
+    const files = { ...installed('@someone/types-only', { keywords: [], declares: ['timer'] }), ...source("export const inject = ['timer']\n") }
+    const got = wiringProblems({ pkgDir: PKG, repoDir: REPO, manifest: manifestOf({ devDependencies: { '@someone/types-only': '^1.0.0' } }) }, ioOf(files))
+    expect(got).toEqual([expect.stringContaining('timer（src/index.ts:1，必需注入）：peer 与 dev 里没有哪个包的类型入口')])
   })
 
   it('局部注入、提供方是同工作区里 peer 写了本包的插件（写 peer 会成环）：放行；必需注入不放行', () => {

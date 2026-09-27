@@ -41,6 +41,16 @@ export function isRecord(value: unknown): value is Record<string, unknown> {
   return typeof value === 'object' && value !== null && !Array.isArray(value)
 }
 
+/**
+ * 第三方 cordis 插件的清单：keywords 同时含 `cordis` 与 `plugin`（cordis 官方插件都这么写，如 `@cordisjs/plugin-timer`）。
+ * 它和 gwb 插件一样装进 home、在 cordis.yml 里有条目，别的插件运行时从 home 里得到它的服务
+ */
+export function isCordisPluginManifest(manifest: unknown): boolean {
+  if (!isRecord(manifest) || !Array.isArray(manifest['keywords'])) return false
+  const keywords: unknown[] = manifest['keywords']
+  return keywords.includes('cordis') && keywords.includes('plugin')
+}
+
 /** 一个能装、能发的包的清单：读得出、是 JSON 对象、`name` 与 `version` 都是非空字符串；不是回 undefined */
 export function packageManifestOf(text: string | undefined): (Record<string, unknown> & { name: string; version: string }) | undefined {
   if (text === undefined) return undefined

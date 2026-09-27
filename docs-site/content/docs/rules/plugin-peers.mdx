@@ -13,7 +13,7 @@ description: 插件经 ctx.inject 用别的插件的服务、或 import 它的�
 
 可选 peer 的意思是「home 里可以没有它；有的话版本要在范围里」。它和不写 peer 不一样：不写的话，装着的版本出了范围没人报，发版时也不和源上 latest 比，开发时还得另写 dev 才拿得到类型。
 
-peer 的意思是「运行时从 home 里得到这个包」。插件的 peer 因此只有三类：按值 import 的 `cordis`、内核包 `@godcreator/gwb-kernel-desktop`（见[兼容哪个内核](/docs/rules/kernel-compat)）、用到的别的插件。库、接口定义包、构建工具不是 home 里的插件，照[依赖怎么写](/docs/rules/deps)写 dev 或 `dependencies`。
+peer 的意思是「运行时从 home 里得到这个包」。插件的 peer 因此只有三类：按值 import 的 `cordis`、内核包 `@godcreator/gwb-kernel-desktop`（见[兼容哪个内核](/docs/rules/kernel-compat)）、用到的别的插件。别的插件包括第三方 cordis 插件（如提供 `timer` 服务的 `@cordisjs/plugin-timer`）：它和 gwb 插件一样装进 home、在 `cordis.yml` 里有条目。库、接口定义包、构建工具不是 home 里的插件，照[依赖怎么写](/docs/rules/deps)写 dev 或 `dependencies`。
 
 ## 怎么判
 
@@ -27,11 +27,11 @@ peer 的意思是「运行时从 home 里得到这个包」。插件的 peer 因
 
 ## 谁在查
 
-**`devkit.release` 发版前检查**（只查插件包，`keywords` 含 `gwb-plugin`）：peer 里 `cordis` 与内核包以外的每个包，读包目录 `node_modules` 里它的清单，`keywords` 含 `gwb-plugin` 才算插件，不是插件、清单读不到都拒；peer 里的每个插件（不分包名范围；内核包、`workspace:` 除外）范围要是 `^x.y.z`，并且和源上 `dist-tags.latest` 在同一条线（问哪个源由用户级 `~/.npmrc` 的范围行决定）——主版本号为 0 时只比次版本号，≥1 时只比主版本号。不在同一条线说明上游出了破坏性版本，拒绝理由里写着适配、验过之后改成的 `^<latest>`：
+**`devkit.release` 发版前检查**（只查插件包，`keywords` 含 `gwb-plugin`）：peer 里 `cordis` 与内核包以外的每个包，读包目录 `node_modules` 里它的清单，`keywords` 含 `gwb-plugin`（gwb 插件）或同时含 `cordis` 与 `plugin`（第三方 cordis 插件，cordis 官方插件都这么写）才算插件，不是插件、清单读不到都拒；peer 里的每个插件（不分包名范围；内核包、`workspace:` 除外）范围要是 `^x.y.z`，并且和源上 `dist-tags.latest` 在同一条线（问哪个源由用户级 `~/.npmrc` 的范围行决定）——主版本号为 0 时只比次版本号，≥1 时只比主版本号。不在同一条线说明上游出了破坏性版本，拒绝理由里写着适配、验过之后改成的 `^<latest>`：
 
-{/* ref file="../plugins/devkit/src/release.ts" lines="152-161" hash="4c0b32bbd73e" blob="9c241c13d24e" */}
+{/* ref file="../plugins/devkit/src/release.ts" lines="157-166" hash="4c0b32bbd73e" blob="49970d7b348f" */}
 
-{/* ref file="../plugins/devkit/src/release.ts" lines="184-206" hash="84bf0fbd343e" blob="e82c8ee5aee3" */}
+{/* ref file="../plugins/devkit/src/release.ts" lines="189-211" hash="bb8b33a92f5d" blob="49970d7b348f" */}
 
 {/* has file="../plugins/devkit/tests/release.test.ts" text="插件包 peer 里的插件和源上 latest 不在同一条线：构建之后、发之前拒，一个都不发" */}
 
@@ -47,8 +47,8 @@ peer 的意思是「运行时从 home 里得到这个包」。插件的 peer 因
 
 - **必需注入**（`export const inject = [...]`、`static inject = [...]`）的提供方写在 peer 里，不标 `optional`
 - **局部注入**（`<上下文>.inject([...], fn)`）的提供方写在 peer 里。标 `optional` 是常规写法；缺了它本插件一样功能都没有时写必需（插件管理对命令总线就是这样），两种都放行
-- **提供方怎么判**：peer 与 dev 里的插件，读包目录 `node_modules` 里它的类型入口（`exports["."]` 的 `types`），看 `declare module 'cordis' { interface Context { … } }` 补了哪些名字。几个插件都补了同一个名字（外壳为了 pnpm 的目录布局把 `gwbCommands`、`gwbData` 按真类型再声明一遍），只认运行时代码里 `super(<上下文>, '<名>')` 或 `.provide('<名>')` 提供它的那个；还是判不出就拒
-- **不查的**：`gwbKernel`（内核接口，用 `requireKernel` 取）；本包自己提供的服务；提供方不是 gwb 插件的（cordis 官方插件 `@cordisjs/plugin-timer` 提供的 `timer`，「用到的插件写 peer」管不到它）
+- **提供方怎么判**：peer 与 dev 里的插件（gwb 插件或第三方 cordis 插件，判法同上），读包目录 `node_modules` 里它的类型入口（`exports["."]` 的 `types`），看 `declare module 'cordis' { interface Context { … } }` 补了哪些名字。几个插件都补了同一个名字（外壳为了 pnpm 的目录布局把 `gwbCommands`、`gwbData` 按真类型再声明一遍），只认运行时代码里 `super(<上下文>, '<名>')` 或 `.provide('<名>')` 提供它的那个；还是判不出就拒
+- **不查的**：`gwbKernel`（内核接口，用 `requireKernel` 取）；本包自己提供的服务。给 `Context` 补了名字、但不是插件的包（只有类型的包）不算提供方
 - **不写 peer 也放行的只有一种**：局部注入、提供方是同一个工作区里的插件、它自己 peer 或 dev 写了本包——本包再写它就成了包依赖环，pnpm 12 的 `pnpm -r` 遇环直接退出。命令总线对说明书插件就是这样。这条按规则判出来，包清单里不另写例外
 
 {/* has file="../plugins/devkit/src/wiring-check.ts" text="export function wiringProblems(input: WiringCheckInput, io: WiringCheckIo): string[]" */}

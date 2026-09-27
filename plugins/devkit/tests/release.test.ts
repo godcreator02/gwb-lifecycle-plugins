@@ -1,6 +1,6 @@
 import path from 'node:path'
 import { describe, expect, it } from 'vitest'
-import { TEAM_REGISTRY } from '../src/vocab.js'
+import { isCordisPluginManifest, TEAM_REGISTRY } from '../src/vocab.js'
 import { KERNEL_PACKAGE } from '@godcreator/gwb-plugin-manager'
 import {
   dirtyLines,
@@ -94,7 +94,7 @@ describe('peerLineProblems：peer 里的插件和源上 latest 在同一条线',
   })
 })
 
-describe('sameReleaseLine 与 isPluginManifest', () => {
+describe('sameReleaseLine、isPluginManifest 与 isCordisPluginManifest', () => {
   it('0.x 比次版本号，≥1 比主版本号，认不出的算不在同一条线', () => {
     expect(sameReleaseLine('0.5.0', '0.5.9')).toBe(true)
     expect(sameReleaseLine('0.5.0', '0.6.0')).toBe(false)
@@ -108,6 +108,14 @@ describe('sameReleaseLine 与 isPluginManifest', () => {
     expect(isPluginManifest({ keywords: ['cordis', 'timer', 'service', 'plugin'] })).toBe(false)
     expect(isPluginManifest({ keywords: ['gwb'] })).toBe(false)
     expect(isPluginManifest({})).toBe(false)
+  })
+
+  it('第三方 cordis 插件要 keywords 同时含 cordis 与 plugin', () => {
+    expect(isCordisPluginManifest({ keywords: ['cordis', 'timer', 'service', 'plugin'] })).toBe(true)
+    expect(isCordisPluginManifest({ keywords: ['cordis'] })).toBe(false)
+    expect(isCordisPluginManifest({ keywords: ['plugin'] })).toBe(false)
+    expect(isCordisPluginManifest({ keywords: ['gwb', 'gwb-plugin'] })).toBe(false)
+    expect(isCordisPluginManifest({})).toBe(false)
   })
 })
 
@@ -129,9 +137,9 @@ describe('peerProblems：插件包的 peer 只写 cordis、内核包与别的插
     expect(got).toEqual([])
   })
 
-  it('peer 写 cordis 官方插件：拒，它的 keywords 里没有 gwb-plugin', () => {
+  it('peer 写 cordis 官方插件（keywords 含 cordis 与 plugin）：放行，它和 gwb 插件一样从 home 里得到', () => {
     const got = peerProblems(T({ '@cordisjs/plugin-timer': '^1.1.3', ...KERNEL_PEER }, '0.3.0', true), peerManifestOf)
-    expect(got).toEqual([expect.stringContaining('peer 写了 @cordisjs/plugin-timer,它不是插件(keywords 里没有 gwb-plugin)')])
+    expect(got).toEqual([])
   })
 
   it('peer 写了不是插件的包：拒，说库打包进产物写 dev；清单读不到：拒，说先 pnpm install', () => {
@@ -566,12 +574,12 @@ describe('发布目标（GWB-17）', () => {
     expect(deps.calls.some((one) => one.startsWith('publish '))).toBe(false)
   })
 
-  it('查别的包的 latest 不指定源（由 .npmrc 的范围行决定）；peer 里别的范围下的插件也查，不是插件的 peer（cordis 官方插件）不查', async () => {
+  it('查别的包的 latest 不指定源（由 .npmrc 的范围行决定）；peer 里别的范围下的插件、第三方 cordis 插件也查', async () => {
     const nodeModules = (pkg: string, keywords: string[]) => ({
       [path.resolve(REPO, 'a/node_modules', ...pkg.split('/'), 'package.json')]: JSON.stringify({ name: pkg, keywords }),
     })
     const deps = fake({
-      latest: { [SHELL]: '0.13.9', [OTHER_SCOPE_PLUGIN]: '0.5.0' },
+      latest: { [SHELL]: '0.13.9', [OTHER_SCOPE_PLUGIN]: '0.5.0', '@cordisjs/plugin-timer': '1.1.3' },
       files: {
         [path.resolve(REPO, 'a/package.json')]: pluginManifestOf(A, '0.1.0', undefined, {
           peerDependencies: { ...KERNEL_PEER, [SHELL]: '^0.13.7', [OTHER_SCOPE_PLUGIN]: '^0.4.0', '@cordisjs/plugin-timer': '^1.1.3' },
@@ -587,6 +595,6 @@ describe('发布目标（GWB-17）', () => {
     if (!out.ok) expect(out.error).toContain(`peer ${OTHER_SCOPE_PLUGIN} 是 "^0.4.0",源上 latest 0.5.0(不在同一条线`)
     const asked = deps.calls.filter((one) => one.startsWith('latest ')).sort()
     // dev 一律不查 latest：只要装得上，落后于源上 latest 不影响运行
-    expect(asked).toEqual([`latest ${OTHER_SCOPE_PLUGIN}`, `latest ${SHELL}`].sort())
+    expect(asked).toEqual([`latest ${OTHER_SCOPE_PLUGIN}`, `latest ${SHELL}`, 'latest @cordisjs/plugin-timer'].sort())
   })
 })

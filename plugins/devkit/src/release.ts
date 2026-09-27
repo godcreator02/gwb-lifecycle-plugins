@@ -5,7 +5,7 @@ import { artifactProblems } from './artifact-check.js'
 import type { BrowserProviders } from './browser-providers.js'
 import { styleProblems, type StyleCheckIo } from './style-check.js'
 import { wiringProblems, type WiringCheckIo } from './wiring-check.js'
-import { isRecord, packageManifestOf, parseHttpUrl, TEAM_REGISTRY } from './vocab.js'
+import { isCordisPluginManifest, isRecord, packageManifestOf, parseHttpUrl, TEAM_REGISTRY } from './vocab.js'
 
 /** git 工作区的状态。`dirty` 里是 porcelain 条目原文（两列状态加路径） */
 export type GitStatus = { ok: true; dirty: string[] } | { ok: false; error: string }
@@ -139,12 +139,17 @@ export function isPluginManifest(manifest: unknown): boolean {
   return isRecord(manifest) && Array.isArray(manifest['keywords']) && manifest['keywords'].includes(PLUGIN_KEYWORD)
 }
 
+/** peer 里能写的插件：gwb 插件与第三方 cordis 插件，运行时都从 home 里得到 */
+function isHomePluginManifest(manifest: unknown): boolean {
+  return isPluginManifest(manifest) || isCordisPluginManifest(manifest)
+}
+
 /** peer 里要和源上 latest 比同一条线的那些：cordis、内核包、`workspace:` 以外，包目录 node_modules 里的清单是插件的，不分范围 */
 function pluginPeersOf(manifest: TicketManifest, peerManifestOf: (pkg: string) => unknown): Set<string> {
   const peers = new Set<string>()
   for (const [pkg, range] of Object.entries(manifest.peers)) {
     if (pkg === 'cordis' || pkg === KERNEL_PACKAGE || range.startsWith('workspace:')) continue
-    if (isPluginManifest(peerManifestOf(pkg))) peers.add(pkg)
+    if (isHomePluginManifest(peerManifestOf(pkg))) peers.add(pkg)
   }
   return peers
 }
@@ -182,7 +187,7 @@ export function kernelPeerProblems(manifest: TicketManifest): string[] {
 }
 
 /**
- * peer 里的 gwb 插件（`pluginPeers`，不分范围；内核包不在里面，它只查写法）的范围要和源上 latest 在同一条线上：
+ * peer 里的插件（`pluginPeers`：gwb 插件与第三方 cordis 插件，不分范围；内核包不在里面，它只查写法）的范围要和源上 latest 在同一条线上：
  * 0.x 只看 x，≥1 只看主版本号。不在同一条线就是上游出了破坏版，先适配再升范围；`workspace:` 的不查。
  * `latest` 是各 peer 在源上的 `dist-tags.latest`（问不出的缺席）。不是插件包的不查：库的 peer 不进 home
  */
@@ -207,8 +212,8 @@ export function peerLineProblems(manifest: TicketManifest, latest: Record<string
 
 /**
  * 不是插件包的不查：库由用它的插件打包进产物，它的 peer 不进 home。peer 只许三类：`cordis`、内核包（写没写对由
- * `kernelPeerProblems` 查）、别的插件（`peerManifestOf` 读包目录 node_modules 里它的清单，`isPluginManifest` 判）；
- * 别的一律拒。node 侧产物只能 import peer 里的包，由产物检查查
+ * `kernelPeerProblems` 查）、用到的插件（`peerManifestOf` 读包目录 node_modules 里它的清单，`isHomePluginManifest` 判：
+ * gwb 插件或第三方 cordis 插件）；别的一律拒。node 侧产物只能 import peer 里的包，由产物检查查
  */
 export function peerProblems(manifest: TicketManifest, peerManifestOf: (pkg: string) => unknown): string[] {
   if (!manifest.plugin) return []
@@ -217,9 +222,9 @@ export function peerProblems(manifest: TicketManifest, peerManifestOf: (pkg: str
     const peerManifest = peerManifestOf(pkg)
     if (peerManifest === undefined) {
       problems.push(`peer 写了 ${pkg},包目录的 node_modules 里读不到它的清单:先在仓根 pnpm install,不猜它是不是插件`)
-    } else if (!isPluginManifest(peerManifest)) {
+    } else if (!isHomePluginManifest(peerManifest)) {
       problems.push(
-        `peer 写了 ${pkg},它不是插件(keywords 里没有 gwb-plugin):peer 只写运行时从 home 里得到的东西——cordis、内核包 ${KERNEL_PACKAGE}、用到的别的插件。` +
+        `peer 写了 ${pkg},它不是插件(keywords 里没有 gwb-plugin,也没有同时写 cordis 与 plugin):peer 只写运行时从 home 里得到的东西——cordis、内核包 ${KERNEL_PACKAGE}、用到的插件(gwb 插件或第三方 cordis 插件)。` +
           `库、接口定义包、importmap 里的包、构建时才用的包写 devDependencies、打包进产物;` +
           `打包不进产物的自用库(原生可执行文件、运行时按路径读自己文件的包)写 dependencies,并在清单里写明原因`,
       )
@@ -305,7 +310,7 @@ async function planPackages(input: ReleaseInput, deps: ReleaseDeps): Promise<Ref
   return { planned, ranges }
 }
 
-/** 各包 peer 里的 gwb 插件（不分范围）在源上的 latest；问哪个源由 `.npmrc` 按包名范围决定。dev 依赖不问 */
+/** 各包 peer 里的插件（gwb 插件与第三方 cordis 插件，不分范围）在源上的 latest；问哪个源由 `.npmrc` 按包名范围决定。dev 依赖不问 */
 async function latestOfUpstreams(planned: PlannedPackage[], deps: ReleaseDeps): Promise<Record<string, string | undefined>> {
   const upstreams = new Set<string>()
   for (const { pluginPeers } of planned) {

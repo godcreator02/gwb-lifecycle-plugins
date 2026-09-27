@@ -11,7 +11,7 @@ description: devkit.release 从仓根按依赖顺序把包发到各包的发布�
 
 收仓根 `dir` 与要发的包目录 `packages`（必给，非空数组，相对仓根，按依赖顺序），依次做六步：
 
-{/* ref file="../plugins/devkit/src/release.ts" lines="349-378" hash="901b7771b278" blob="9c241c13d24e" */}
+{/* ref file="../plugins/devkit/src/release.ts" lines="354-383" hash="901b7771b278" blob="49970d7b348f" */}
 
 <Diagram name="dk-release" title="devkit.release 发正式版：六步依次做，任何一处没过，一个包都不发">
 - 第 1 步仓根 git 工作区干净（`git status --porcelain=v1`），不干净或问不出连构建都不运行；第 2 步仓根 `pnpm build`
@@ -63,7 +63,7 @@ description: devkit.release 从仓根按依赖顺序把包发到各包的发布�
 
 **插件包**（`keywords` 含 `gwb-plugin`）另查六项：
 
-- peer 里只有 `cordis`、内核包 `@godcreator/gwb-kernel-desktop` 与别的插件。是不是插件读包目录 `node_modules` 里它的清单，`keywords` 含 `gwb-plugin` 才算。不是插件、清单读不到都拒，报错写明按「运行时谁提供」该改写成 dev 还是 `dependencies`
+- peer 里只有 `cordis`、内核包 `@godcreator/gwb-kernel-desktop` 与别的插件。是不是插件读包目录 `node_modules` 里它的清单：`keywords` 含 `gwb-plugin` 的是 gwb 插件，同时含 `cordis` 与 `plugin` 的是第三方 cordis 插件（如 `@cordisjs/plugin-timer`），两种都算。不是插件、清单读不到都拒，报错写明按「运行时谁提供」该改写成 dev 还是 `dependencies`
 - peer 里的每个插件（不分包名范围；内核包、`workspace:` 除外）写法是 `^x.y.z`，并且和源上 latest 在同一条线：主版本号为 0 时只比次版本号，≥1 时只比主版本号。不在同一条线说明上游出了破坏性版本；问不出 latest 也拒
 - node 侧产物的包名 import 只有 node 内置模块、`electron` 与本包 peer 里写了的包；浏览器侧产物只 import 页面 importmap 里的名字
 - peer 里写了内核包，写法是 `^x.y.z`；拒绝理由里写着改成 `^<验证时那个内核的版本号>`。范围包不包含哪个内核不查：对照调用它的那个 home 里的内核，能不能发版就取决于从哪个 home 调。范围由人在隔离 home 里验过之后改（说明书 `gwb-devkit` 的「发版」第 1 步）
@@ -72,19 +72,23 @@ description: devkit.release 从仓根按依赖顺序把包发到各包的发布�
 
 peer 里的插件在不在同一条线：
 
-{/* ref file="../plugins/devkit/src/release.ts" lines="184-206" hash="84bf0fbd343e" blob="e82c8ee5aee3" */}
+{/* ref file="../plugins/devkit/src/release.ts" lines="189-211" hash="bb8b33a92f5d" blob="49970d7b348f" */}
 
-peer 里哪些包算 gwb 插件、要和源上 latest 比，读包目录 `node_modules` 里它的清单判，不看包名范围；同一条线怎么算：
+peer 里哪些包算插件、要和源上 latest 比，读包目录 `node_modules` 里它的清单判，不看包名范围；同一条线怎么算：
 
-{/* ref file="../plugins/devkit/src/release.ts" lines="137-161" hash="bb3320933a60" blob="e82c8ee5aee3" */}
+{/* ref file="../plugins/devkit/src/release.ts" lines="137-166" hash="779bc06b5b0f" blob="49970d7b348f" */}
+
+第三方 cordis 插件的判法：
+
+{/* ref file="../plugins/devkit/src/vocab.ts" lines="44-52" hash="4e6f59446327" blob="8e66500ac6a3" */}
 
 peer 里只许哪几类包：
 
-{/* ref file="../plugins/devkit/src/release.ts" lines="208-229" hash="648048a3b018" blob="9c241c13d24e" */}
+{/* ref file="../plugins/devkit/src/release.ts" lines="213-234" hash="f0ed69422b73" blob="49970d7b348f" */}
 
 peer 里内核包的检查，`^x.y.z` 写法的判定 `isCaretRange` 从插件管理的主入口 import（见 [peer 里的内核包与插件](/docs/seams/kernel-peer)）：
 
-{/* ref file="../plugins/devkit/src/release.ts" lines="163-182" hash="2a769b92b5b7" blob="9c241c13d24e" */}
+{/* ref file="../plugins/devkit/src/release.ts" lines="168-187" hash="2a769b92b5b7" blob="49970d7b348f" */}
 
 **产物检查**在 `src/artifact-check.ts`。哪些文件算哪一侧，照模板生成的插件包的构建约定判：node 侧是 `exports["."]` 的运行时入口（没有 `exports` 时是 `main`）顺着相对 import 走到的文件，也就是内核的 loader 按包名 import 插件时加载的那些；浏览器侧是 `dist/client.js` 顺着相对 import 走到的文件；两边都走不到的文件不查。库（没有 `gwb-plugin` 的包）只查相对 import，不查两份包名名单：库由用它的插件打包进产物，它的 import 不在 home 里按包名解析。库可以只有子路径导出、包根没有入口，所以 node 侧从 `exports` 每个子路径指到的 js 文件走起（带 `*` 的通配子路径、`./styles.css` 这类不是 js 的目标不算；没有 `exports` 时取 `main`），外加 `bin` 里的脚本；一个 js 入口都没有才拒。插件照旧只从 `exports["."]` 走起，没有就拒：内核的 loader 按包名 import 插件。
 

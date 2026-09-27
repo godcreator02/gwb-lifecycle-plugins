@@ -1,7 +1,7 @@
 import path from 'node:path'
 import { KERNEL_PACKAGE } from '@godcreator/gwb-plugin-manager'
 import { exportTarget } from './artifact-check.js'
-import { isRecord } from './vocab.js'
+import { isCordisPluginManifest, isRecord } from './vocab.js'
 
 // 纯逻辑：读文件、列目录都经调用方给的 io，测试里给一张假文件表
 
@@ -386,6 +386,7 @@ interface KnownPackage {
   name: string
   dir: string
   manifest: Record<string, unknown>
+  /** gwb 插件或第三方 cordis 插件：能当服务的提供方写进 peer */
   plugin: boolean
   /** 类型入口给 cordis Context 补的名字 */
   declares: Set<string>
@@ -420,7 +421,7 @@ function knownPackageAt(dir: string, io: Pick<WiringCheckIo, 'readText'>): Known
     name: manifest.name,
     dir,
     manifest,
-    plugin: Array.isArray(manifest.keywords) && manifest.keywords.includes('gwb-plugin'),
+    plugin: (Array.isArray(manifest.keywords) && manifest.keywords.includes('gwb-plugin')) || isCordisPluginManifest(manifest),
     declares: new Set(dts === undefined ? [] : contextServicesOf(dts)),
     dependsOn: new Set([...namesIn(manifest.peerDependencies), ...namesIn(manifest.devDependencies), ...namesIn(manifest.dependencies)]),
   }
@@ -546,8 +547,6 @@ function injectPeerProblems(input: WiringCheckInput, usages: Map<string, Service
     const provider = providers[0]
     if (provider === undefined) {
       if (!usage.required && providedByCyclicSibling(service, input, io)) continue
-      // 提供方不是 gwb 插件（例如 cordis 官方插件 @cordisjs/plugin-timer）：「用到的插件写 peer」管不到它
-      if (candidates.some((one) => !one.plugin && one.declares.has(service))) continue
       problems.push(
         `${describeUsage(service, usage)}：peer 与 dev 里没有哪个包的类型入口（exports["."] 的 types）给 cordis 的 Context 补了 ${service}，判不出由谁提供。` +
           `把提供它的插件写进 peerDependencies（${usage.required ? '必需注入写普通 peer' : '局部注入在 peerDependenciesMeta 里标 optional: true'}），再在仓根 pnpm install`,

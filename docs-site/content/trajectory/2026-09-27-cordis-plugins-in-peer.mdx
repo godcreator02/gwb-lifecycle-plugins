@@ -1,0 +1,33 @@
+---
+title: peer 里放行第三方 cordis 插件：timer 不进内核，用它的插件把 @cordisjs/plugin-timer 写进 peer
+born-at: 2026-09-27T22:40
+type: choice
+parent: [2026-09-08-gwb-devkit]
+label: cordis 插件写 peer
+domain: 生态规范
+---
+
+pivots-from:: [插件写 peer](2026-09-24-plugins-peer-each-other.md)
+
+## 背景
+
+windows-backup、collab、cgm-alert 三个插件 `export const inject` 里写着 `timer`，服务由 cordis 官方插件 `@cordisjs/plugin-timer` 提供。它装在 default home 里，有自己的条目，但三个插件只能把它写进 dev：发版前检查判断「peer 里的包是不是插件」只认 `keywords` 含 `gwb-plugin`，写进 peer 就拒；注入检查碰到 `timer` 也专门放行。结果是插件管理的 `list` 不知道这三个插件要 timer，装进一个没有 timer 的 home 时，它们一直等不到服务、加载不上，也没有任何报告。
+
+人先问 timer 该不该内置进内核。评估下来不内置，改的是 peer 的判法。
+
+## 结论与边界
+
+peer 里能写的插件多一种：`keywords` 同时含 `cordis` 与 `plugin` 的第三方 cordis 插件（cordis 官方插件都这么写）。它和 gwb 插件同等对待：发版前检查放行，也要和源上 latest 比同一条线；注入检查把它当提供方，注入了它的服务就要写进 peer，原来给 timer 的放行删掉。插件管理不用改：插件 peer 里写的每个包，`list` 本来就拿 home 里装着的版本比，缺了就进 `unmetPeers`。
+
+「一个包是不是 gwb 插件」的判法不变，仍是 `keywords` 含 `gwb-plugin`；改的只是「peer 里能写哪些包」。
+
+## 否掉的候选
+
+- **timer 内置进内核**：内核仓 09-23 的实验 `probes/2609231919_duplicate-service-provider`（在内核仓）测过，同一个服务名第二次提供一律抛错，后来的那个条目进 FAILED、不再重试。内核在加载 `cordis.yml` 之前提供 `timer`，已有 home 里 `plugin-timer` 那条就失败，每个 home 都要同时删条目和依赖。它还违背内核仓 09-24 定的准入判据：只有第一个插件运行之前必须完成的事才进内核，timer 不是
+- **三个插件改用 `ctx.effect` 包 `setInterval`，不再依赖 timer**：能消掉这一个依赖，但问题出在判法上，下一个第三方 cordis 插件还会碰到同样的事
+- **判法改成「peer 里写了 `cordis` 的包」**：打包进插件产物的库也可能 peer `cordis`，这样判会把放错位置的库也放行；`keywords` 是包自己声明的身份，和 `gwb-plugin` 同一种判法
+
+## 代价与遗留
+
+- 发版前检查多问一次源：`@cordisjs` 不在 `~/.npmrc` 的范围行里，latest 从默认源问
+- 三个插件要把 `@cordisjs/plugin-timer` 从 dev 挪到 peer 再重发；新 home 里缺 timer 时由 `list` 报出，仍要人手装（pnpm 在 home 里不自动补装 peer）
