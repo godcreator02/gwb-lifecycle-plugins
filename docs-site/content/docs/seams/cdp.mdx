@@ -15,7 +15,7 @@ description: 连接 devkit（经 gwbNodeCli 登记、dev.ts 启动子进程）�
 
 **命令行**：`<home 名> <动作> [参数…]`，开关 `--target` / `--mod` / `--pad` / `--size` / `--timeout` 可以写在任意位置，`--x=值` 与 `--x 值` 两种都认；`--mod` 里写错的键名直接拒。第一个位置一律当 home 名，去那个 home 的 `runtime.json` 查端口，给的是端口号就找不到那个 home 的记录、照实报：
 
-{/* ref file="../plugins/devkit/bin/cdp.mjs" lines="52-60" hash="1ff82ab2ad77" blob="23ee1f594212" */}
+{/* ref file="../plugins/devkit/bin/cdp.mjs" lines="64-72" hash="1ff82ab2ad77" blob="7a5b9126770e" */}
 
 devkit 这边：登记命令时 `entry` 指向这个文件（见[工作台服务](/docs/seams/workbench)），调用方传 `{"args":[…]}`；`devkit.dev` 自己启动子进程，用宿主的 `process.execPath` 加 `ELECTRON_RUN_AS_NODE=1`，工作目录是系统临时目录：
 
@@ -23,9 +23,9 @@ devkit 这边：登记命令时 `entry` 指向这个文件（见[工作台服务
 
 **stdout**：成功时输出一张缩进两格的 JSON，固定有 `page`、`在哪个home`、`did`，其余按动作不同。`devkit.dev` 读其中三种：`home` 动作的 `home`（页面报不出 home 或名字对不上时驱动在连上那一刻就退出码非零，不会走到打印），`cmd` 动作的 `回执`（页面上那条命令的原始回执），`reload` 动作的 `等到了`、`等的是`、`最后看到`（没等到就整体失败）：
 
-{/* ref file="../plugins/devkit/bin/cdp.mjs" lines="653-678" hash="e0ec7989ac71" blob="23ee1f594212" */}
+{/* ref file="../plugins/devkit/bin/cdp.mjs" lines="668-693" hash="e0ec7989ac71" blob="7a5b9126770e" */}
 
-{/* ref file="../plugins/devkit/bin/cdp.mjs" lines="536-552" hash="58eb7c3d9840" blob="23ee1f594212" */}
+{/* ref file="../plugins/devkit/bin/cdp.mjs" lines="548-567" hash="62f66573dfaa" blob="7a5b9126770e" */}
 
 {/* ref file="../plugins/devkit/src/dev.ts" lines="367-379" hash="082c4cfd3d95" blob="48d80099fae0" */}
 
@@ -37,9 +37,9 @@ devkit 这边：登记命令时 `entry` 指向这个文件（见[工作台服务
 
 **页面**：`cmd` 从目标 home 解析并动态导入 `@godcreator/gwb-commands/client`，调用 `command(名字, 参数)`；该客户端经 `window.gwb.request` 发到 `commands.run`。旧包缺少客户端或旧页面缺少 request 时，兼容 `window.gwb.command`；请求失败不重试。两个入口都没有才回 `{ ok: false }`。连上之后先核对 home：收集页面自身 `location.href`、`script[src]` 与 `link[href]` 里的 `file:///` 地址（外壳未挂载时仍可从内核页面识别 home），截出 `/homes/<名>/` 那一段，要求只有一个 home、且名字等于第一个参数：
 
-{/* ref file="../plugins/devkit/bin/cdp.mjs" lines="399-419" hash="bf00c6a3b13c" blob="799472b76164" */}
+{/* ref file="../plugins/devkit/bin/cdp.mjs" lines="411-431" hash="bf00c6a3b13c" blob="7a5b9126770e" */}
 
-{/* ref file="../plugins/devkit/bin/cdp.mjs" lines="613-622" hash="2cfbdcc7666f" blob="23ee1f594212" */}
+{/* ref file="../plugins/devkit/bin/cdp.mjs" lines="628-637" hash="2cfbdcc7666f" blob="7a5b9126770e" */}
 
 调试端口从 home 的 `runtime.json` 里读，见[内核与 home](/docs/seams/kernel-home)。
 
