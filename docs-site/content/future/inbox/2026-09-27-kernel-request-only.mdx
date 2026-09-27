@@ -1,0 +1,13 @@
+---
+title: 跟进 gwb-kernel 0.9：仅保留通用请求通道
+---
+
+来源：gwb-kernel。用户已要求不保留兼容入口；计划发布内核 0.9.0。
+
+移除 `window.gwb.command`、IPC `gwb:command`、内核包导出的 `GwbResult`。页面调用改用 `@godcreator/gwb-commands/client` 的 `command`；命令回执类型从 commands 根或 `./client` 导入。shell 的 `host.call` 不变。内核只提供 `request` / `handleRequest`，命令协议由 commands 处理。
+
+本仓涉及：`plugins/plugin-manager/package.json`, `plugins/devkit/package.json`。
+
+在 0.9 内核隔离 home 验证后把内核 peer 更新到 `^0.9.0`，并发补丁版；依赖 commands 新客户端的下限至少为 `^0.5.5`。devkit cmd 工具不再回退旧页面入口。
+
+证据：`D:/unitfolders/igldu-gwbkernel/gwb-kernel/apps/desktop/src/api.ts` 与基础插件仓 `plugins/commands/src/client.ts`、`page-request.ts`。default 必须配套升级，不能只热更新页面调用方。
