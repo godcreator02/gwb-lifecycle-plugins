@@ -39,7 +39,7 @@ const STEPS: { title: string; detail: string; lit: Part[]; flows: Flow[]; back?:
   },
   {
     title: '第 5 步：插件管理重新加载',
-    detail: 'update 在同一条命令里重新加载这些包与真实目录变了的别的包。插件管理自己的条目推迟到回执之后（回执 selfDeferred），这边每 500 毫秒轮询 plugin-manager.list，最多等 60 秒。装了内核包时回执 restartRequired，改成重启目标 home。',
+    detail: 'update 在同一条命令里重新加载这些包与真实目录变了的别的包。插件管理自己的条目推迟到回执之后（回执 selfDeferred），这边每 500 毫秒轮询 plugin-manager.list，最多等 60 秒。装了内核包时回执 restartRequired，改成停掉目标 home、等旧内核退出后重新记下 gwb.log 的长度当基线、再启动：取证只看新内核写的日志。',
     lit: ['remount'], flows: ['install-remount'],
   },
   { title: '第 6 步：整页刷新', detail: '页面代码与样式表要整页重新加载才会重新取。给了 waitFor 选择器就等它出现再往下走；没等到、或驱动退出码非零，回 ok: false 并写明最后看到了什么。重启了目标 home 时没有这一步。', lit: ['reload'], flows: ['remount-reload'] },

@@ -326,16 +326,19 @@ function registerCdpCli(ctx: GwbContext): void {
 
 // ── 改一版看一版与发正式版 ────────────────────────────────────────────────────
 
-/** 停掉再启动同一个测试 home。调试端口照启动时的规则挑：先沿用上次那个 */
-async function restartTestHome(homeName: string, homeDeps: HomeDeps): Promise<{ ok: true; note: string } | { ok: false; error: string }> {
+/** 停掉一个测试 home，回 ok 时进程已经退出 */
+async function stopTestHome(homeName: string, homeDeps: HomeDeps): Promise<{ ok: true; note: string } | { ok: false; error: string }> {
+  const stopped = await bringDownHome(path.join(homesRootOf(), homeName), homeDeps)
+  return stopped.ok ? { ok: true, note: stopped.note } : { ok: false, error: stopped.note }
+}
+
+/** 启动一个测试 home。调试端口照启动时的规则挑：先沿用上次那个 */
+async function startTestHome(homeName: string, homeDeps: HomeDeps): Promise<{ ok: true; note: string } | { ok: false; error: string }> {
   const root = homesRootOf()
-  const stopped = await bringDownHome(path.join(root, homeName), homeDeps)
-  if (!stopped.ok) return { ok: false, error: stopped.note }
   const port = await cdpPortFor(root, homeName, homeDeps)
   if (!port.ok) return port
   const launched = await launchHome({ name: homeName, homesRoot: root, cdp: port.cdp }, homeDeps)
-  if (!launched.ok) return { ok: false, error: launched.error }
-  return { ok: true, note: `${stopped.note};${launched.note}` }
+  return launched.ok ? { ok: true, note: launched.note } : { ok: false, error: launched.error }
 }
 
 /** 只收 home 名，不收端口：端口从那个 home 的 `runtime.json` 查并确认进程还在，名字再传下去跟页面自报的核对 */
@@ -406,7 +409,11 @@ function registerDevCommand({ ctx, log, commands, homeDeps }: Wiring): void {
         ownHome: requireKernel(ctx).dataDir,
       }
       log.info(`devkit.dev：仓 ${input.repoDir} → ${target.name}（调试口 ${String(target.cdp)}）`)
-      const deps: DevDeps = { ...devDepsWith(pnpm.file), restartHome: (home) => restartTestHome(home, homeDeps) }
+      const deps: DevDeps = {
+        ...devDepsWith(pnpm.file),
+        stopHome: (home) => stopTestHome(home, homeDeps),
+        startHome: (home) => startTestHome(home, homeDeps),
+      }
       const outcome = await runDev(input, deps)
       if (!outcome.ok) {
         log.warn(`devkit.dev 没成：${outcome.error}`)

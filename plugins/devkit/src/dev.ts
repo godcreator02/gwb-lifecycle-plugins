@@ -244,6 +244,9 @@ export const JSONL_LOG_KERNEL = '0.10.0'
 const LOG_RECORD_KEYS = ['ts', 'level', 'source', 'name', 'msg'] as const
 type LogRecord = Record<(typeof LOG_RECORD_KEYS)[number], string>
 
+/** 内核只写这四种级别 */
+const LOG_LEVELS: readonly string[] = ['error', 'warn', 'info', 'debug']
+
 /** 报错时带上认不出的那一行的前多少个字符 */
 const BAD_LINE_HEAD_CHARS = 60
 
@@ -260,6 +263,7 @@ function parseLogLine(line: string): LogRecord | string {
   if (!isRecord(doc)) return '不是 JSON 对象'
   const missingKey = LOG_RECORD_KEYS.find((key) => typeof doc[key] !== 'string')
   if (missingKey !== undefined) return `缺字符串字段 ${missingKey}`
+  if (!LOG_LEVELS.includes(doc.level as string)) return `level 不是 ${LOG_LEVELS.join('/')}`
   return doc as LogRecord
 }
 
@@ -339,8 +343,12 @@ export interface DevDeps {
   now(): number
   /** 等一会儿。轮询时用 */
   sleep(ms: number): Promise<void>
-  /** 停掉目标 home 的进程，再用同一个 home 启动。主进程里的内核换不掉，内核包换了版本只有重启才生效 */
-  restartHome(home: string): Promise<{ ok: true; note: string } | { ok: false; error: string }>
+  /**
+   * 停掉目标 home 的进程，回 ok 时进程已经退出；再用同一个 home 启动。主进程里的内核换不掉，内核包换了版本只有重启才生效。
+   * 分成两步：两步之间取日志基线，取证只看新内核写的
+   */
+  stopHome(home: string): Promise<{ ok: true; note: string } | { ok: false; error: string }>
+  startHome(home: string): Promise<{ ok: true; note: string } | { ok: false; error: string }>
   /** pnpm 的可执行文件：命令开头 `locatePnpm` 找到并核对过版本的那个 */
   pnpm: string
 }
@@ -555,16 +563,30 @@ function runningKernelOf(receipt: { ok: boolean; data: unknown }): string | unde
   return typeof kernel === 'string' ? kernel : undefined
 }
 
-/** 重启目标 home，轮询 `shell.env` 直到页面报出内核版本；报出的不是这次打包的版本号当场判失败 */
-async function restartForKernel(home: string, expected: string, shipped: ShippedPackage[], deps: DevDeps): Promise<Failure | KernelRestart> {
-  const restarted = await deps.restartHome(home)
-  if (!restarted.ok) return { ok: false, error: `内核包 ${expected} 装上了,重启 ${home} 没成:${restarted.error}`, data: { shipped } }
+/** 重启换了内核：回执里的 `kernel`，与取证用的日志基线 */
+interface KernelRestartOutcome {
+  report: KernelRestart
+  /** 旧内核已退出、新内核还没启动时 `gwb.log` 的字节长度 */
+  logBaseline: number
+}
+
+/**
+ * 停掉目标 home、取日志基线、再启动，轮询 `shell.env` 直到页面报出内核版本；报出的不是这次打包的版本号当场判失败。
+ * 基线取在两步之间：换内核时要判断的是新内核启动之后写的日志，旧内核停掉之前写的不算
+ */
+async function restartForKernel(home: string, expected: string, shipped: ShippedPackage[], logFile: string, deps: DevDeps): Promise<Failure | KernelRestartOutcome> {
+  const stopped = await deps.stopHome(home)
+  if (!stopped.ok) return { ok: false, error: `内核包 ${expected} 装上了,停掉 ${home} 没成:${stopped.error}`, data: { shipped } }
+  const logBaseline = deps.size(logFile)
+  const started = await deps.startHome(home)
+  if (!started.ok) return { ok: false, error: `内核包 ${expected} 装上了,${home} 已停掉,再启动没成:${started.error}`, data: { shipped } }
+  const restartNote = `${stopped.note};${started.note}`
   const maxPolls = Math.ceil(RESTART_TIMEOUT_MS / RESTART_POLL_MS)
   let lastObservation = '一次都没问到'
   for (let i = 0; i < maxPolls; i += 1) {
     const receipt = await runCommandOnPage(home, SHELL_ENV_COMMAND, CDP_TIMEOUT_MS, deps)
     const running = runningKernelOf(receipt)
-    if (running === expected) return { version: running, restart: restarted.note }
+    if (running === expected) return { report: { version: running, restart: restartNote }, logBaseline }
     if (running !== undefined) {
       return { ok: false, error: `重启了 ${home},页面上报的内核版本是 ${running},不是这次打包的 ${expected}——启动器加载的不是 home 里装上的那份内核包`, data: { shipped } }
     }
@@ -587,8 +609,9 @@ async function updateInstalledPackages(
   specs: Record<string, string>,
   kernelShipped: ShippedPackage | undefined,
   shipped: ShippedPackage[],
+  logFile: string,
   deps: DevDeps,
-): Promise<Failure | { update: unknown; kernel?: KernelRestart }> {
+): Promise<Failure | { update: unknown; kernel?: KernelRestartOutcome }> {
   const reply = await runCommandOnPage(home, UPDATE_COMMAND, PLUGIN_MANAGER_TIMEOUT_MS, deps, { specs })
   if (!reply.ok) return { ok: false, error: `${UPDATE_COMMAND} 没成:${reply.error ?? '没说原因'}`, data: { shipped, update: reply.data } }
   const restartRequired = isRecord(reply.data) && reply.data.restartRequired === true
@@ -596,7 +619,7 @@ async function updateInstalledPackages(
     if (!restartRequired) {
       return { ok: false, error: `装了内核包 ${kernelShipped.version},${UPDATE_COMMAND} 的回执里却没有 restartRequired: true——目标 home 的插件管理不认 specs 里的内核包`, data: { shipped, update: reply.data } }
     }
-    const kernel = await restartForKernel(home, kernelShipped.version, shipped, deps)
+    const kernel = await restartForKernel(home, kernelShipped.version, shipped, logFile, deps)
     if ('ok' in kernel) return kernel
     return { update: reply.data, kernel }
   }
@@ -649,19 +672,22 @@ export async function runDev(input: DevInput, deps: DevDeps): Promise<DevOutcome
   const shipped = await packDevPackages(planned, routed.calls, target.home, deps)
   if (!Array.isArray(shipped)) return shipped
 
-  // 日志基线取在安装之前：从这一刻起新增的每一行都是这次引起的
+  // 日志基线取在安装之前：从这一刻起新增的每一行都是这次引起的。装了内核包时在重启的两步之间重新取
   const logFile = path.join(target.home, LOG_FILE)
-  const baseline = deps.size(logFile)
+  let baseline = deps.size(logFile)
 
   // 先换已装的、再装新插件：新插件加载时 import 到的别的包（比如这次一起改的插件管理）要已经是这次装的，反过来它会先对着旧版加载失败一次
   const kernelShipped = shipped.find((one) => one.pkg === KERNEL_PACKAGE)
   let update: unknown
   let kernel: KernelRestart | undefined
   if (Object.keys(routed.calls.specs).length > 0) {
-    const updated = await updateInstalledPackages(input.home, routed.calls.specs, kernelShipped, shipped, deps)
+    const updated = await updateInstalledPackages(input.home, routed.calls.specs, kernelShipped, shipped, logFile, deps)
     if ('ok' in updated) return updated
     update = updated.update
-    kernel = updated.kernel
+    if (updated.kernel !== undefined) {
+      kernel = updated.kernel.report
+      baseline = updated.kernel.logBaseline
+    }
   }
   const installFailure = await installNewPlugins(input.home, routed.calls.installs, shipped, deps)
   if (installFailure !== undefined) return installFailure

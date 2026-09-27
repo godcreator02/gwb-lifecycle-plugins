@@ -319,8 +319,8 @@ export async function tailwindOf(pkgDir: string): Promise<TailwindLookup> {
   return { ok: true, compile: (css, base) => compileWithBase(css, { base, onDependency: () => {} }) }
 }
 
-/** 「改一版看一版」在这台机器上的实现。`pnpm` 是命令开头找到的那个；重启 home 要用到测试 home 的启停，由 index.ts 接上 */
-export const devDepsWith = (pnpm: string): Omit<DevDeps, 'restartHome'> => ({
+/** 「改一版看一版」在这台机器上的实现。`pnpm` 是命令开头找到的那个；停止与启动 home 要用到测试 home 的启停，由 index.ts 接上 */
+export const devDepsWith = (pnpm: string): Omit<DevDeps, 'stopHome' | 'startHome'> => ({
   run: (plan: RunPlan, timeoutMs: number) => runCaptured(plan, timeoutMs),
   cdp: runCdp,
   pack: (input) => packStaged({ ...input, pnpm }),

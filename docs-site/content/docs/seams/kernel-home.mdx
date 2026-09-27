@@ -37,9 +37,9 @@ description: 连接 devkit.home.*、devkit.dev 的定位与 cdp.mjs 和内核 ex
 
 {/* has file="../plugins/devkit/src/index.ts" text="import { homesRootOf } from '../bin/cdp.mjs'" */}
 
-**gwb.log**：`devkit.dev` 在装包之前记下日志文件的长度，最后只读新增的部分。内核 0.10.0 起这个文件一行一个 JSON，五个键 `ts`、`level`、`source`、`name`、`msg`，正文里的换行在 JSON 字符串里转义，所以一条记录就是一行。`level` 是 `error` 的算失败、`warn` 的另报，回执里每条写成 `<ts> <level> <name> <正文第一行>`。有一行不是 JSON 或缺字段，整段不判，`devkit.dev` 回失败并说目标 home 的内核要 0.10.0 起；更早的内核写的文本行不兼容。格式由内核定（内核仓文档站的日志规格）：
+**gwb.log**：`devkit.dev` 在装包之前记下日志文件的长度，最后只读新增的部分；装了内核包时改在旧内核退出之后、新内核启动之前记，只读新内核写的。内核 0.10.0 起这个文件一行一个 JSON，五个键 `ts`、`level`、`source`、`name`、`msg`，正文里的换行在 JSON 字符串里转义，所以一条记录就是一行。`level` 是 `error` 的算失败、`warn` 的另报，回执里每条写成 `<ts> <level> <name> <正文第一行>`。有一行不是 JSON、缺字段、或 `level` 不是 `error` / `warn` / `info` / `debug`，整段不判，`devkit.dev` 回失败并说目标 home 的内核要 0.10.0 起；更早的内核写的文本行不兼容。格式由内核定（内核仓文档站的日志规格）：
 
-{/* ref file="../plugins/devkit/src/dev.ts" lines="240-293" hash="8ebae8cbcd97" blob="f80462dff96f" */}
+{/* ref file="../plugins/devkit/src/dev.ts" lines="240-297" hash="946ef9d7120b" blob="ebe1ec7fc4e7" */}
 
 **home 名**：devkit 的命令只收 kebab-case 的 home 名：
 

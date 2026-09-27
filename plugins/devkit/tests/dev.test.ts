@@ -62,8 +62,12 @@ interface FakeOptions {
   /** 取证那次 `plugin-manager.list` 回的表 */
   packages?: unknown
   files?: Record<string, string>
-  /** 日志新增部分 */
+  /** 取基线之前日志里就有的 */
+  logBefore?: string
+  /** 第一次调插件管理装包时写进日志的（装内核包时是旧内核写的） */
   log?: string
+  /** 目标 home 重新启动之后新内核写的 */
+  logAfterRestart?: string
   failRun?: string
   failPack?: boolean
   /** `plugin-manager.install` 的回执。不给就是装成、新建条目 home:fake */
@@ -92,6 +96,13 @@ function fake(options: FakeOptions = {}): Fake {
   const calls: string[] = []
   const commandArgs: { command: string; args: unknown }[] = []
   let silent = 0
+  let logText = options.logBefore ?? ''
+  let installLogWritten = false
+  const writeInstallLog = (): void => {
+    if (installLogWritten) return
+    installLogWritten = true
+    logText += options.log ?? ''
+  }
   const files: Record<string, string> = {
     [path.resolve(REPO, PLUGIN_DIR, 'package.json')]: pluginManifest(PKG),
     [path.resolve(HOME, 'package.json')]: HOME_WITH_PKG,
@@ -120,8 +131,8 @@ function fake(options: FakeOptions = {}): Fake {
       // 假编译器：什么都编不出
       return { ok: true, compile: async () => ({ build: () => '' }) }
     },
-    size: () => 0,
-    slice: () => options.log ?? '',
+    size: () => Buffer.byteLength(logText, 'utf8'),
+    slice: (_file, from) => Buffer.from(logText, 'utf8').subarray(from).toString('utf8'),
     async sleep(ms) {
       calls.push(`sleep ${String(ms)}`)
     },
@@ -155,12 +166,14 @@ function fake(options: FakeOptions = {}): Fake {
       const commandArg: unknown = args[2] === undefined ? undefined : JSON.parse(args[2])
       commandArgs.push({ command, args: commandArg })
       if (command === 'plugin-manager.install') {
+        writeInstallLog()
         const one = commandArg as { pkg: string; spec: string }
         const reply = options.install?.(one) ?? { ok: true, data: { pkg: one.pkg, entryId: 'home:fake' } }
         if (isOk(reply)) landInstalled(one.pkg)
         return receipt(reply)
       }
       if (command === 'plugin-manager.update') {
+        writeInstallLog()
         const { specs } = commandArg as { specs: Record<string, string> }
         silent = options.silentLists ?? 0
         const pkgs = Object.keys(specs)
@@ -184,9 +197,14 @@ function fake(options: FakeOptions = {}): Fake {
       }
       return receipt({ ok: true, data: {} })
     },
-    async restartHome(home) {
-      calls.push(`restart ${home}`)
-      return options.failRestart === undefined ? { ok: true, note: '已停 pid 1;启动了(pid 2)' } : { ok: false, error: options.failRestart }
+    async stopHome(home) {
+      calls.push(`stop ${home}`)
+      return options.failRestart === undefined ? { ok: true, note: '已停 pid 1' } : { ok: false, error: options.failRestart }
+    },
+    async startHome(home) {
+      calls.push(`start ${home}`)
+      logText += options.logAfterRestart ?? ''
+      return { ok: true, note: '启动了(pid 2)' }
     },
   }
 }
@@ -352,6 +370,14 @@ describe('日志', () => {
     if (out.ok) return
     expect(out.error).toContain('不是一行一个 JSON')
     expect(out.error).toContain('msg')
+  })
+
+  it('level 不是 error/warn/info/debug 四种之一：和别的坏行一样直接报错', () => {
+    const out = errorLines(jsonl({ ts: '2026-09-11T08:00:00.000Z', level: 'fatal', source: 'plugin', name: 'gwb-fake', msg: 'x' }))
+    expect(out.ok).toBe(false)
+    if (out.ok) return
+    expect(out.error).toContain('目标 home 的 gwb.log 不是一行一个 JSON')
+    expect(out.error).toContain('level 不是 error/warn/info/debug')
   })
 
   it('空行也不是 JSON：直接报错', () => {
@@ -553,6 +579,11 @@ describe('取证', () => {
     if (!out.ok) expect(out.error).toContain('2026-09-11T08:00:00.000Z error gwb-fake apply 里那条链出错了')
   })
 
+  it('没装内核包：基线在装包之前取，那之前日志里就有的行不读', async () => {
+    const out = await runDev(input(), fake({ logBefore: '2026-09-11T07:00:00.000Z error gwb-fake 基线之前的文本行\n', log: jsonl({ ts: '2026-09-11T08:00:00.000Z', level: 'info', source: 'plugin', name: 'gwb-fake', msg: '正常' }) }))
+    expect(out.ok).toBe(true)
+  })
+
   it('日志新增部分不是一行一个 JSON：判失败，说目标 home 的内核要 0.10.0 起', async () => {
     const out = await runDev(input(), fake({ log: '2026-09-11T08:00:00.000Z info gwb-fake 旧内核写的文本行\n' }))
     expect(out).toMatchObject({ ok: false })
@@ -611,8 +642,36 @@ describe('装内核包', () => {
     expect(deps.commandArgs[0]?.args).toEqual({ specs: { [KERNEL]: devPackSpec(packFileName(KERNEL, kernelDev)) } })
     expect(out.data.kernel).toEqual({ version: kernelDev, restart: '已停 pid 1;启动了(pid 2)' })
     expect(out.data).not.toHaveProperty('reload')
-    expect(deps.calls).toContain(`restart ${HOME_NAME}`)
+    expect(deps.calls.filter((one) => one.startsWith('stop') || one.startsWith('start'))).toEqual([`stop ${HOME_NAME}`, `start ${HOME_NAME}`])
     expect(deps.calls.some((one) => one.startsWith(`cdp ${HOME_NAME} reload`))).toBe(false)
+  })
+
+  it('装了内核包时，重启前旧内核写的文本行不参与判断：基线在停掉之后、启动之前重新取', async () => {
+    const deps = fake({
+      files: kernelFiles(),
+      runningKernel: kernelDev,
+      update: restartReceipt,
+      logBefore: jsonl({ ts: '2026-09-11T07:59:00.000Z', level: 'info', source: 'kernel', name: 'kernel', msg: 'kernel up' }),
+      log: '2026-09-11T08:00:00.000Z error loader 旧内核写的文本行\n',
+      logAfterRestart: jsonl({ ts: '2026-09-11T08:00:05.000Z', level: 'warn', source: 'plugin', name: 'gwb-fake', msg: '少个可选服务' }),
+    })
+    const out = await runDev(input({ packages: [KERNEL_DIR] }), deps)
+    expect(out.ok).toBe(true)
+    if (!out.ok) return
+    expect(out.data.evidence.errors).toEqual([])
+    expect(out.data.evidence.warns).toEqual(['2026-09-11T08:00:05.000Z warn gwb-fake 少个可选服务'])
+  })
+
+  it('装了内核包时，新内核启动之后写的 error 照样判失败', async () => {
+    const deps = fake({
+      files: kernelFiles(),
+      runningKernel: kernelDev,
+      update: restartReceipt,
+      logAfterRestart: jsonl({ ts: '2026-09-11T08:00:05.000Z', level: 'error', source: 'kernel', name: 'loader', msg: '条目 home:fake 挂载失败\n    at apply' }),
+    })
+    const out = await runDev(input({ packages: [KERNEL_DIR] }), deps)
+    expect(out).toMatchObject({ ok: false })
+    if (!out.ok) expect(out.error).toContain('2026-09-11T08:00:05.000Z error loader 条目 home:fake 挂载失败')
   })
 
   it('内核包和插件一起装：一条 update，重启一次', async () => {
@@ -621,7 +680,8 @@ describe('装内核包', () => {
     const out = await runDev(input({ packages: [KERNEL_DIR, 'plugins/fake'] }), deps)
     expect(out.ok).toBe(true)
     expect(deps.commandArgs.filter((one) => one.command === 'plugin-manager.update')).toHaveLength(1)
-    expect(deps.calls.filter((one) => one.startsWith('restart'))).toHaveLength(1)
+    expect(deps.calls.filter((one) => one.startsWith('stop'))).toHaveLength(1)
+    expect(deps.calls.filter((one) => one.startsWith('start'))).toHaveLength(1)
   })
 
   it('内核包不在目标 home 里：直接拒，什么都不打包', async () => {
@@ -637,7 +697,7 @@ describe('装内核包', () => {
     const out = await runDev(input({ packages: [KERNEL_DIR] }), deps)
     expect(out).toMatchObject({ ok: false })
     if (!out.ok) expect(out.error).toContain('restartRequired')
-    expect(deps.calls.some((one) => one.startsWith('restart'))).toBe(false)
+    expect(deps.calls.some((one) => one.startsWith('stop') || one.startsWith('start'))).toBe(false)
   })
 
   it('重启没成：说清是装上之后停在了重启', async () => {
