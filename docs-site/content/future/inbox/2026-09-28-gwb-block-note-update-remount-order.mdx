@@ -12,13 +12,20 @@ docfirst: none
 拿到的还是旧核心插件的服务，挂载失败 `TypeError: extensions.registerCommand is not a function`，条目停在 FAILED；
 随后核心插件重新加载，评论插件没有再被重新加载。`plugin-manager.disable` 再 `enable` 这条条目后正常挂上。
 
-原因：`plugins/plugin-manager/src/update.ts:168` 把点了名的包按包名排序（`bn-comment` 排在 `bn-core` 前），`index.ts` 的 `remountUpgradedEntries` 照这个顺序逐个重新加载。
+原因有两层：
+- `plugins/plugin-manager/src/update.ts:168` 把点了名的包按包名排序（`bn-comment` 排在 `bn-core` 前），`index.ts` 的 `remountUpgradedEntries` 照这个顺序逐个重新加载。评论插件重新加载时旧核心插件的服务还在，注入算满足，于是照常执行 `apply` 并抛错
+- cordis 不会替失败的插件重试：`cordis@4.0.0-rc.10/lib/index.js` 的 `_reload`（966 行起）在 `apply` 抛错时记下 `_error`，`_setEpoch`（953 行）见到 `_error` 直接返回，
+  所以核心插件换了服务、别的依赖方（如单文件库）被自动重建时，这条失败的条目不动；只有 `update(config)`（1028 行清掉 `_error`）或停用再启用才会重来。
+  如果当时依赖是「缺失」而不是「满足但旧」，条目会停在 PENDING、等新服务上来自动加载，不会撞上
+
+2026-09-28 升级 default 时同样撞上（`homes\default\gwb.log`，03:57:00.305 失败，03:57:05 停用再启用后挂上）。
 
 ## 期望
 
-一次升几个包时，按 peer 依赖先提供方、后依赖方的顺序重新加载（依赖方写在 peer 里的包先重新加载）；
-或者在全部新代码装上之后，把依赖方再重新加载一遍。
+至少一条：
+- 一次升几个包时，按 peer 依赖先提供方、后依赖方的顺序重新加载（依赖方写在 peer 里的包先重新加载）
+- 全部新代码装上、重新加载完之后，对仍是 FAILED 的条目再重来一次（停用再启用，或经 `update(config)` 清掉错误）
 
 ## 影响
 
-块笔记核心插件 0.22.0 发出后升级 default 时会撞上：评论插件排在核心插件前面。块笔记这边的应对是升级后对依赖方逐条 disable / enable 一次。
+一次升级里提供方加了新方法、依赖方要用它时都会撞上，只要依赖方的包名排在提供方前面。块笔记这边的应对是升级后对 FAILED 的依赖方停用再启用一次。
