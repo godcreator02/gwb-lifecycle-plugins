@@ -118,12 +118,12 @@ export function nextName(short: string, now: number, exists: (name: string) => b
 // ── 启动计划 ──────────────────────────────────────────────────────────────────
 
 /**
- * 启动宿主自己那个 exe（安装版认 `GWB_HOME`）。映像名是 electron 就是从内核源码启动的开发态，直接拒：devkit 只从安装版起 home。
+ * 启动宿主自己那个 exe（安装版认 `GWB_HOME`）。映像名是 electron 就是从内核源码启动的开发态，直接拒：devkit 只从安装版启动 home。
  * 调试端口放在命令行上：内核不认调试相关的环境变量；同时带 `--disable-backgrounding-occluded-windows`，窗口被挡住时 Chromium 才不会停止出新帧
  */
 export function hostAppSpawnPlan(execPath: string, cdp: number): { command: string; args: string[]; cwd: string } {
   if (bareImage(execPath) === 'electron') {
-    throw new Error(`宿主 ${execPath} 是开发态 electron,不是安装版——devkit 只从安装版起 home;内核源码的验证见内核仓 AGENTS「怎么跑」`)
+    throw new Error(`宿主 ${execPath} 是开发态 electron,不是安装版——devkit 只从安装版启动 home;内核源码的验证见内核仓 AGENTS「怎么跑」`)
   }
   return { command: execPath, args: [`--remote-debugging-port=${String(cdp)}`, '--disable-backgrounding-occluded-windows'], cwd: path.dirname(execPath) }
 }
@@ -362,14 +362,14 @@ async function installKernelCordisAndBasePlugins(
   return refusalIfInstallFailed(baseInstallPlan(home, pnpm, deps.env), '基础插件', '查 scope 路由与源连不连得上', deps)
 }
 
-/** 观察一会儿，只抓刚启动就退出 */
+/** 观察一会儿，只检查是不是刚启动就退出 */
 async function refusalIfExitedEarly(pid: number, home: string, deps: HomeDeps): Promise<{ ok: false; error: string } | undefined> {
   const deadline = deps.now() + ALIVE_TIMEOUT_MS
   while (deps.now() < deadline) {
     if ((await probePid(pid, deps)).state === 'gone') {
       return {
         ok: false,
-        error: `起的进程(pid ${pid})秒退了——多半是装的东西缺了或起的时候就错。看 ${path.join(home, 'gwb.log')}`,
+        error: `启动的进程(pid ${pid})刚启动就退出了——多半是装的包缺了,或启动时就出错。看 ${path.join(home, 'gwb.log')}`,
       }
     }
     await deps.sleep(ALIVE_POLL_MS)
@@ -379,7 +379,7 @@ async function refusalIfExitedEarly(pid: number, home: string, deps: HomeDeps): 
 
 function recordSeenNote(record: HomeRecord | undefined): string {
   if (record === undefined) return `,但 ${RECORD_FILE} 还没出现或读不出——没有它,stop 与「按 home 名定位」都用不了;停掉重开一次`
-  if (record.cdp === undefined) return `,${RECORD_FILE} 里没有 cdp 那格——内核没记下调试端口`
+  if (record.cdp === undefined) return `,${RECORD_FILE} 里没有 cdp 字段——内核没记下调试端口`
   return `,${RECORD_FILE} 记下了 CDP ${String(record.cdp)}`
 }
 
@@ -404,7 +404,7 @@ export async function launchHome(input: LaunchInput, deps: HomeDeps): Promise<La
     if (installFailure !== undefined) return installFailure
   }
   const pid = deps.spawn(plan, guiChildEnv(deps.env, input.name))
-  if (pid === undefined) return { ok: false, error: '起不来:子进程没拿到 pid,看宿主日志' }
+  if (pid === undefined) return { ok: false, error: '启动失败:子进程没拿到 pid,看宿主日志' }
 
   const exitedEarly = await refusalIfExitedEarly(pid, home, deps)
   if (exitedEarly !== undefined) return exitedEarly
@@ -416,7 +416,7 @@ export async function launchHome(input: LaunchInput, deps: HomeDeps): Promise<La
     home,
     pid,
     ...(record === undefined ? {} : { record }),
-    note: `起来了(pid ${pid},CDP ${input.cdp})${recordSeenNote(record)}——日志在 ${path.join(home, 'gwb.log')}`,
+    note: `已启动(pid ${pid},CDP ${input.cdp})${recordSeenNote(record)}——日志在 ${path.join(home, 'gwb.log')}`,
   }
 }
 
@@ -489,7 +489,7 @@ export type TargetOutcome =
   | { ok: true; name: string; home: string; record: HomeRecord; cdp: number }
   | { ok: false; error: string }
 
-/** 三道都要过：记录读得出；pid 还活着且是 home 进程；那个 pid 真的在监听记录里的端口。进程表、端口查不出就抛 */
+/** 三项核对都要通过：记录读得出；pid 还活着且是 home 进程；那个 pid 真的在监听记录里的端口。进程表、端口查不出就抛 */
 export async function resolveTarget(homesRoot: string, name: string, deps: HomeDeps): Promise<TargetOutcome> {
   const home = path.join(homesRoot, name)
   if (!deps.fs.exists(home)) return { ok: false, error: `${home} 不在——没有这个 home(看 devkit.home.list)` }
@@ -501,18 +501,18 @@ export async function resolveTarget(homesRoot: string, name: string, deps: HomeD
     }
   }
   const isHome = recordedPidIsHomeProcess(await probePid(record.pid, deps), deps.execPath)
-  if (!isHome) return { ok: false, error: `${name} 没在跑(记录里的 pid ${record.pid} 已经不是它了)——先 devkit.home.open` }
+  if (!isHome) return { ok: false, error: `${name} 没在运行(记录里的 pid ${record.pid} 已经不是它了)——先 devkit.home.open` }
   if (record.cdp === undefined) {
     return {
       ok: false,
-      error: `${name} 在跑,但记录里没有 cdp 那格——启动它的时候没带 --remote-debugging-port,连不上。停掉它,再用 devkit.home.open 重开一次(调试端口自动选)`,
+      error: `${name} 在运行,但记录里没有 cdp 字段——启动它的时候没带 --remote-debugging-port,连不上。停掉它,再用 devkit.home.open 重开一次(调试端口自动选)`,
     }
   }
   const owner = await deps.portOwner(record.cdp)
   if (owner !== undefined && owner !== record.pid) {
     return {
       ok: false,
-      error: `记录说 ${name} 的调试端口是 ${record.cdp},可那个端口上监听的是 pid ${owner},不是 ${record.pid}——记录过时了,没敢用`,
+      error: `记录说 ${name} 的调试端口是 ${record.cdp},可那个端口上监听的是 pid ${owner},不是 ${record.pid}——记录过时了,没有使用它`,
     }
   }
   return { ok: true, name, home, record, cdp: record.cdp }
@@ -557,7 +557,7 @@ export async function bringDownHome(homeDir: string, deps: HomeDeps): Promise<St
       return {
         ok: false,
         killed: null,
-        note: `CDP ${record.cdp} 端口上监听的是 pid ${owner},记录里写的是 ${record.pid}——对不上,没敢杀(记录留着)`,
+        note: `CDP ${record.cdp} 端口上监听的是 pid ${owner},记录里写的是 ${record.pid}——对不上,没有结束进程(记录保留)`,
       }
     }
   }
@@ -565,7 +565,7 @@ export async function bringDownHome(homeDir: string, deps: HomeDeps): Promise<St
   try {
     killed = deps.kill(record.pid)
   } catch (err) {
-    return { ok: false, killed: null, note: `停 pid ${record.pid} 没成:${String(err)}——进程还在` }
+    return { ok: false, killed: null, note: `停止 pid ${record.pid} 失败:${String(err)}——进程还在` }
   }
   if (killed === 'gone') {
     return { ok: true, killed: null, note: `pid ${record.pid} 已过时(结束时进程已经不在了)` }
@@ -596,14 +596,14 @@ async function stopBeforeRemoving(homeDir: string, daily: boolean, force: boolea
   if (record === undefined) return { ok: true }
   const isHome = recordedPidIsHomeProcess(await probePid(record.pid, deps), deps.execPath)
   if (isHome && !force) {
-    return { ok: false, note: `还在跑(pid ${record.pid})——带 force: true 连停带删` }
+    return { ok: false, note: `还在运行(pid ${record.pid})——带 force: true 先停止再删除` }
   }
   if (isHome && daily) {
-    return { ok: false, note: `${DAILY_HOME} 正跑着(pid ${record.pid})——这是日常用的 home,不替你关它。自己关掉那个窗口再来删` }
+    return { ok: false, note: `${DAILY_HOME} 正在运行(pid ${record.pid})——这是日常用的 home,不替你关它。自己关掉那个窗口再来删` }
   }
   if (!isHome) return { ok: true }
   const stopped = await bringDownHome(homeDir, deps)
-  if (!stopped.ok) return { ok: false, note: `没删:停它没成——${stopped.note}` }
+  if (!stopped.ok) return { ok: false, note: `没删:停止失败——${stopped.note}` }
   return { ok: true, stoppedNote: stopped.note }
 }
 
@@ -636,7 +636,7 @@ export async function removeHome(homeDir: string, name: string, force: boolean, 
     const stopped = stoppedNote === undefined ? '' : `删之前停了它:${stoppedNote}。`
     return {
       ok: false,
-      note: `没删掉:删了 ${String(REMOVE_TRIES)} 次(每次间隔 ${String(REMOVE_RETRY_MS / 1000)} 秒),${homeDir} 还在${rest}。${stopped}${lastAttempt.ok ? '最后一次删的调用没报错,可目录没走' : `最后一次删的调用报:${lastAttempt.error}`}——还有进程握着里面的文件(终端、编辑器开在里面,或者这个 home 的 electron 子进程没退),关掉再删`,
+      note: `没删掉:删了 ${String(REMOVE_TRIES)} 次(每次间隔 ${String(REMOVE_RETRY_MS / 1000)} 秒),${homeDir} 还在${rest}。${stopped}${lastAttempt.ok ? '最后一次删的调用没报错,可目录还在' : `最后一次删的调用报:${lastAttempt.error}`}——还有进程占用着里面的文件(终端、编辑器开在里面,或者这个 home 的 electron 子进程没退),关掉再删`,
     }
   }
   return { ok: true, note: `已删 ${name}(${homeDir})${stoppedNote === undefined ? '' : `——删之前先停了它:${stoppedNote}`}` }

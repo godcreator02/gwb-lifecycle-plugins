@@ -23,11 +23,11 @@ export function makeGuiSpawn(log: (message: string) => void): HomeDeps['spawn'] 
         detached: true,
         stdio: 'ignore',
       })
-      child.on('error', (err) => log(`测试 home 子进程起不来:${String(err)}`))
+      child.on('error', (err) => log(`测试 home 子进程启动失败:${String(err)}`))
       child.unref()
       return child.pid
     } catch (err) {
-      log(`测试 home 子进程起不来:${String(err)}`)
+      log(`测试 home 子进程启动失败:${String(err)}`)
       return undefined
     }
   }
@@ -97,7 +97,7 @@ export function removeTree(target: string): void {
   }
 }
 
-/** removeDir 的错误原样带回：EBUSY/EPERM 是「还有进程握着里面的文件」的线索。重试与删完再核对在 home.ts 的 `removeHome` 里 */
+/** removeDir 的错误原样带回：EBUSY/EPERM 是「还有进程占用着里面的文件」的线索。重试与删完再核对在 home.ts 的 `removeHome` 里 */
 export const homeFs: HomeFs = {
   ...nodeFs,
   ensureDir(dir) {

@@ -15,7 +15,7 @@ description: 连接 devkit.home.*、devkit.dev 的定位与 cdp.mjs 和内核 ex
 
 **启动 home**：启动宿主自己那个 exe，环境里给 `GWB_HOME=<名>`（去掉 `ELECTRON_RUN_AS_NODE` 与 `npm_config_*`），命令行带 `--remote-debugging-port=<端口>` 与 `--disable-backgrounding-occluded-windows`。端口从 9400 起往上找 50 个，先沿用这个 home 上次记录里的端口：
 
-{/* ref file="../plugins/devkit/src/home.ts" lines="124-144" hash="c046a33fa626" blob="9f8e8e37432b" */}
+{/* ref file="../plugins/devkit/src/home.ts" lines="124-144" hash="50c84e6b4e99" blob="c369a4bdd3d2" */}
 
 {/* ref file="../plugins/devkit/src/home.ts" lines="21-25" hash="4a25681feab5" blob="9f8e8e37432b" */}
 
@@ -25,7 +25,7 @@ description: 连接 devkit.home.*、devkit.dev 的定位与 cdp.mjs 和内核 ex
 
 {/* ref file="../plugins/devkit/src/home.ts" lines="62-83" hash="cc4829f27446" blob="9f8e8e37432b" */}
 
-{/* ref file="../plugins/devkit/src/home.ts" lines="492-519" hash="884343b8c9bc" blob="5b4a64cb8036" */}
+{/* ref file="../plugins/devkit/src/home.ts" lines="492-519" hash="625480a0c62e" blob="c369a4bdd3d2" */}
 
 `bin/cdp.mjs` 的 `portOf`：只取 `cdp`，要求是 1–65535 的整数，不看 `pid`：
 

@@ -87,7 +87,7 @@ home 名只收 kebab-case：
 
 **`new` 与 `open` 都不构建内核、不认内核仓，启动的是宿主自己那个安装版应用**（安装版里只有启动器，内核从 home 里的内核包加载）。宿主的映像名是 electron 就是从内核源码启动的开发态，直接拒：
 
-{/* ref file="../plugins/devkit/src/home.ts" lines="120-126" hash="140236bcf887" blob="9f8e8e37432b" */}
+{/* ref file="../plugins/devkit/src/home.ts" lines="120-126" hash="0beef26fb179" blob="c369a4bdd3d2" */}
 
 启动的永远是宿主当前运行着的那个安装版应用；内核版本跟着 home 走：`new` 装的是运行这条命令的内核的版本，之后每个 home 里的内核包各自升级。改了内核源码要验证，走内核仓自己的流程，开发套件不做。`open` 与 `new` 的区别在另一件事上：**机器重启之后回到原来那个 home 只有 `open`**，`new` 永远建新目录，插件得全部重装一遍。
 
@@ -97,19 +97,19 @@ home 名只收 kebab-case：
 
 启动之后观察五秒：
 
-{/* ref file="../plugins/devkit/src/home.ts" lines="365-378" hash="dc575330efa7" blob="5b4a64cb8036" */}
+{/* ref file="../plugins/devkit/src/home.ts" lines="365-378" hash="e2deb4c16bbd" blob="c369a4bdd3d2" */}
 
 「启动成功没有」没有接口可问，进程还活着是此刻唯一拿得到的信号。这五秒只为抓住「刚启动就退出」这一种最常见的失败（产物不在、端口被占），真正成功没有，由那个窗口和人来判断。
 
 **观察完再读一次记录**：
 
-{/* ref file="../plugins/devkit/src/home.ts" lines="411-420" hash="637ecfb6f954" blob="5b4a64cb8036" */}
+{/* ref file="../plugins/devkit/src/home.ts" lines="411-420" hash="fc4fde6508b3" blob="c369a4bdd3d2" */}
 
 记录是内核启动时才写的，而它是之后「按名字找到这个 home」的全部依据，所以回执里要说清它出现没有。**读不到不算启动失败**：窗口已经开了，只是内核写得比这五秒晚，或者写坏了。那时按名字定位与按记录停止都用不了，回执里说明；之后的命令只认名字、每次现读记录，一直读不到就停掉重开一次。
 
 调试端口**放在命令行上，不放在环境变量里**：
 
-{/* ref file="../plugins/devkit/src/home.ts" lines="124-129" hash="ed968dd3aaf4" blob="9f8e8e37432b" */}
+{/* ref file="../plugins/devkit/src/home.ts" lines="124-129" hash="f83f72b96507" blob="c369a4bdd3d2" */}
 
 内核不认任何调试相关的环境变量，`--remote-debugging-port` 是 Chromium 自己的开关，写在命令行上就生效；每次启动都带调试端口（按名字找 home 全靠它），同时带 `--disable-backgrounding-occluded-windows`：窗口被完全挡住时 Chromium 停止渲染新帧，取证时发的输入事件会卡住、截图拿到的是旧画面。`new` 与 `open` 用同一个启动计划，两条都带。
 
@@ -137,11 +137,11 @@ home 名只收 kebab-case：
 
 **按名字定位：`resolveTarget`。** 它不是一条命令，是「我要操作哪个 home」这句话的实现——`devkit.dev` 的 `home` 参数经它变成调试端口。**这是唯一的一条路**：那条命令不收端口，给了当场拒，所以这个函数失败了就是真的连不上，没有别的办法绕过去。
 
-{/* ref file="../plugins/devkit/src/home.ts" lines="488-493" hash="e739ec89dc65" blob="5b4a64cb8036" */}
+{/* ref file="../plugins/devkit/src/home.ts" lines="488-493" hash="d5a0936b085c" blob="c369a4bdd3d2" */}
 
 **三道检查都要过**，少一道就可能把这次改动装进另一个进程：
 
-{/* ref file="../plugins/devkit/src/home.ts" lines="494-519" hash="4b72b93b4650" blob="5b4a64cb8036" */}
+{/* ref file="../plugins/devkit/src/home.ts" lines="494-519" hash="d1267f4c3d36" blob="c369a4bdd3d2" */}
 
 记录读得出；pid 还活着，且认得出是一个 home 进程；那个 pid 确实在监听记录里的端口。端口会被下一个进程占用，pid 会被复用，所以「记录里写着 9401」本身不能当依据。进程表或端口占用查不出（`tasklist`、`netstat` 超时或出错）就报错，不当成「不在」或「没人监听」，不导出任何动作。
 
@@ -153,7 +153,7 @@ home 名只收 kebab-case：
 
 `force` 是同一个意思用在两处，都是**越过检查**：一处是「它还在运行，停了再删」，另一处是「`default` 是日常用的 home，确实要删」。**但两处不叠加**——`default` 正在运行时带了 `force` 也不停它。开发工具不该去关人正在用的窗口，那不是删一个测试 home，是打断人正在做的事；照实说，让人自己关。
 
-{/* ref file="../plugins/devkit/src/home.ts" lines="590-608" hash="b0fecfe6d96d" blob="5b4a64cb8036" */}
+{/* ref file="../plugins/devkit/src/home.ts" lines="590-608" hash="b684c14b6f27" blob="c369a4bdd3d2" */}
 
 进程表查不出时报错、不删：不知道记录里的进程还在不在用这个目录，删了可能删到正在使用的文件。停不掉也不删——删掉一半的目录加上大量 EBUSY 报错，比一句「没删成」难收拾得多。确实停了的话，停的是哪个 pid 写进回执：人得知道自己刚才顺带结束了一个进程。
 
@@ -165,11 +165,11 @@ home 名只收 kebab-case：
 
 {/* ref file="../plugins/devkit/src/home.ts" lines="610-618" hash="d17845f04423" blob="5b4a64cb8036" */}
 
-{/* ref file="../plugins/devkit/src/home.ts" lines="632-641" hash="0f7fbaeef933" blob="5b4a64cb8036" */}
+{/* ref file="../plugins/devkit/src/home.ts" lines="632-641" hash="d6dbb9bab004" blob="c369a4bdd3d2" */}
 
 停止之前**核对两次再结束进程**：映像名认得出是 home 进程，记录里有调试端口的，再核对监听那个端口的进程就是记录里的 pid：
 
-{/* ref file="../plugins/devkit/src/home.ts" lines="543-577" hash="13c056cdebca" blob="5b4a64cb8036" */}
+{/* ref file="../plugins/devkit/src/home.ts" lines="543-577" hash="bd230dedb8ce" blob="c369a4bdd3d2" */}
 
 **手动启动的 home 也能这样停**：记录由内核写，所以不只 devkit 启动的 home 才有「它是谁」的依据。没有记录就照实说没有可停的，不猜、不按名字搜进程。
 

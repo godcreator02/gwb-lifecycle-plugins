@@ -43,7 +43,7 @@ import { DAILY_HOME, installedManifest } from '../src/dev.js'
 /**
  * 启动、停止、删除 home 最不该靠手工点几遍来确认：名字重不重复、装不上时启不启动、查得出的 pid
  * 才结束、default 删不删得掉——都是只在边界情况里出现的判断。文件系统与启动进程都是注入的，
- * 整个流程在这里跑得完，不用真的启动一个 electron 窗口。
+ * 整个流程在这里就能运行完，不用真的启动一个 electron 窗口。
  */
 
 const ROOT = 'D:/fake-homes'
@@ -347,7 +347,7 @@ describe('运行时记录与参数收窄', () => {
 })
 
 describe('启动计划：拉宿主自己那个 exe', () => {
-  it('安装版（exe 不叫 electron）：直起本体，调试端口与遮挡开关放在命令行上', () => {
+  it('安装版（exe 不叫 electron）：直接启动宿主 exe，调试端口与遮挡开关放在命令行上', () => {
     expect(hostAppSpawnPlan(HOST, 9400)).toEqual({
       command: HOST,
       args: ['--remote-debugging-port=9400', '--disable-backgrounding-occluded-windows'],
@@ -355,7 +355,7 @@ describe('启动计划：拉宿主自己那个 exe', () => {
     })
   })
 
-  it('宿主是 electron（从内核源码启动的开发态）：拒——devkit 只从安装版起 home', () => {
+  it('宿主是 electron（从内核源码启动的开发态）：拒——devkit 只从安装版启动 home', () => {
     for (const execPath of ['C:/apps/electron.exe', 'D:/kernel/node_modules/electron/dist/Electron.exe']) {
       expect(() => hostAppSpawnPlan(execPath, 9400), execPath).toThrow(/安装版/)
     }
@@ -383,7 +383,7 @@ describe('启动计划：拉宿主自己那个 exe', () => {
   })
 })
 
-describe('launchHome：拼宿主拉起计划、起它、落记录、看五秒', () => {
+describe('launchHome：拼出宿主的启动命令、启动它、读回记录、观察五秒', () => {
   it('宿主是 electron（开发态）：拒，一个动作都不做', async () => {
     const { deps, state } = fakeDeps({ execPath: 'C:/apps/electron.exe' })
     const outcome = await launchHome({ name: NAME, homesRoot: ROOT, cdp: 9400 }, deps)
@@ -471,7 +471,7 @@ describe('launchHome：拼宿主拉起计划、起它、落记录、看五秒', 
     }
   })
 
-  it('起得来：环境与观察窗全对，记录由内核写、这儿只读回来报给人', async () => {
+  it('启动成功：环境与观察时间都对，记录由内核写、这里只读回来报给人', async () => {
     const fs = fakeFs()
     const { deps, state } = fakeDeps({ fs, processes: { 4242: 'gwb-kernel.exe' } })
     // 记录是**启动之后**才出现的（内核启动时写入），所以让假的 spawn 顺带把它写上——
@@ -496,7 +496,7 @@ describe('launchHome：拼宿主拉起计划、起它、落记录、看五秒', 
     expect(state.slept).toEqual(new Array(ALIVE_TIMEOUT_MS / ALIVE_POLL_MS).fill(ALIVE_POLL_MS))
   })
 
-  it('记录没出现不算起失败，但回执要明说——那时按名字定位用不了', async () => {
+  it('记录没出现不算启动失败，但回执要明说——那时按名字定位用不了', async () => {
     const fs = fakeFs()
     const { deps } = fakeDeps({ fs, processes: { 4242: 'electron.exe' } })
     const outcome = await launchHome({ name: NAME, homesRoot: ROOT, cdp: 9400 }, deps)
@@ -507,20 +507,20 @@ describe('launchHome：拼宿主拉起计划、起它、落记录、看五秒', 
     }
   })
 
-  it('秒退：立刻报并指向 home 的日志', async () => {
+  it('刚启动就退出：立刻报并指向 home 的日志', async () => {
     const fs = fakeFs()
     // 进程表里没有 4242：spawn 回了 pid，但那个进程转眼就退了
     const { deps, state } = fakeDeps({ fs })
     const outcome = await launchHome({ name: NAME, homesRoot: ROOT, cdp: 9400 }, deps)
     expect(outcome.ok).toBe(false)
     if (!outcome.ok) {
-      expect(outcome.error).toContain('秒退')
+      expect(outcome.error).toContain('刚启动就退出')
       expect(outcome.error).toContain(path.join(HOME, 'gwb.log'))
     }
     expect(state.slept).toEqual([])
   })
 
-  it('同一个 home 已有实例在跑:拒,不起第二个', async () => {
+  it('同一个 home 已有实例在运行:拒,不启动第二个', async () => {
     const fs = fakeFs({ [recordFile(HOME)]: write(RECORD) })
     const { deps, state } = fakeDeps({ fs, processes: { 4242: 'electron.exe' } })
     const outcome = await launchHome({ name: NAME, homesRoot: ROOT, cdp: 9400 }, deps)
@@ -529,7 +529,7 @@ describe('launchHome：拼宿主拉起计划、起它、落记录、看五秒', 
     expect(state.spawned).toEqual([])
   })
 
-  it('记录陈旧(上一轮的实例早停了):不拦,照常起', async () => {
+  it('记录陈旧(上一轮的实例早停了):不拦,照常启动', async () => {
     // 表里没有 999:记录里那个 pid 已经不在了
     const fs = fakeFs({ [recordFile(HOME)]: write({ ...RECORD, pid: 999 }) })
     const { deps, state } = fakeDeps({ fs, processes: { 4242: 'electron.exe' } })
@@ -545,8 +545,8 @@ describe('launchHome：拼宿主拉起计划、起它、落记录、看五秒', 
   })
 })
 
-describe('listHomes：谁在跑看记录里的 pid', () => {
-  it('有记录且 pid 认得出的报 running；没记录的就是没在跑，cdp 与 mcp 如实报', async () => {
+describe('listHomes：哪个在运行看记录里的 pid', () => {
+  it('有记录且 pid 认得出的报 running；没记录的就是没在运行，cdp 与 mcp 如实报', async () => {
     const other = path.join(ROOT, 'shell-2609081430')
     const mcp = { port: 2870, url: 'http://127.0.0.1:2870/mcp' }
     const fs = fakeFs(
@@ -576,7 +576,7 @@ describe('listHomes：谁在跑看记录里的 pid', () => {
     expect(state.processTableCalls).toBe(1)
   })
 
-  it('进程表查不出：照实抛，不把有记录的 home 报成没在跑', async () => {
+  it('进程表查不出：照实抛，不把有记录的 home 报成没在运行', async () => {
     const fs = fakeFs({ [recordFile(HOME)]: write(RECORD) }, { [ROOT]: [NAME] })
     const { deps } = fakeDeps({ fs, processes: { 4242: 'electron.exe' }, processTableFails: true })
     await expect(listHomes(ROOT, deps)).rejects.toThrow(/tasklist/)
@@ -590,10 +590,10 @@ describe('listHomes：谁在跑看记录里的 pid', () => {
   })
 })
 
-describe('pickCdpPort：起 home 时自动挑一个空口', () => {
+describe('pickCdpPort：启动 home 时自动挑一个空闲端口', () => {
   const other = path.join(ROOT, 'shell-2609081430')
 
-  it('一个空口都没有：照实回 undefined，让上头拒掉这次启动', async () => {
+  it('一个空闲端口都没有：照实回 undefined，由调用方拒绝这次启动', async () => {
     const fs = fakeFs({}, { [ROOT]: [NAME, 'shell-2609081430'] })
     // portOwner 一律回「有人」，所以每个候选都被占着
     const { deps } = fakeDeps({ fs, portOwner: 777 })
@@ -658,7 +658,7 @@ describe('resolveTarget：「我要操作哪个 home」→ 够得着它的那个
     if (!out.ok) expect(out.error).toContain('9001')
   })
 
-  it('pid 已经不在：说它没在跑，指去 open', async () => {
+  it('pid 已经不在：说它没在运行，指去 open', async () => {
     const { deps } = fakeDeps({ fs: fakeFs(base, dirs) })
     const out = await resolveTarget(ROOT, NAME, deps)
     expect(out.ok).toBe(false)
@@ -675,7 +675,7 @@ describe('resolveTarget：「我要操作哪个 home」→ 够得着它的那个
     await expect(resolveTarget(ROOT, NAME, deps)).rejects.toThrow(/netstat/)
   })
 
-  it('在跑但记录里没有 cdp：够不着，说清是起的时候没带开关', async () => {
+  it('在运行但记录里没有 cdp：连不上，说清是启动时没带调试端口参数', async () => {
     const fs = fakeFs({ [recordFile(HOME)]: write(RECORD) }, dirs)
     const { deps } = fakeDeps({ fs, processes: { 4242: 'electron.exe' } })
     const out = await resolveTarget(ROOT, NAME, deps)
@@ -764,7 +764,7 @@ describe('bringDownHome：核对映像名再杀', () => {
     expect(fs.files.has(recordFile(HOME))).toBe(true)
   })
 
-  it('下手时进程已经不在（ESRCH）：算停成了，killed 报 null', async () => {
+  it('结束进程时它已经不在（ESRCH）：算停止成功，killed 报 null', async () => {
     const fs = fakeFs({ [recordFile(HOME)]: write(RECORD) })
     const { deps } = fakeDeps({ fs, processes: { 4242: 'electron.exe' }, kill: 'gone' })
     expect(await bringDownHome(HOME, deps)).toMatchObject({ ok: true, killed: null })
@@ -796,7 +796,7 @@ describe('bringDownHome：核对映像名再杀', () => {
   })
 })
 
-describe('removeHome：default 守得住，跑着的要 force 才连停带删', () => {
+describe('removeHome：default 不会被误删，在运行的要 force 才先停止再删除', () => {
   it('default 不带 force 拒；force 就放行', async () => {
     const daily = path.join(ROOT, DAILY_HOME)
     const fs = fakeFs({}, { [ROOT]: [DAILY_HOME] })
@@ -816,7 +816,7 @@ describe('removeHome：default 守得住，跑着的要 force 才连停带删', 
     expect(outcome.note).toContain('不在')
   })
 
-  it('还在跑、没带 force：拒删，指去 force', async () => {
+  it('还在运行、没带 force：拒删，指去 force', async () => {
     const fs = fakeFs({ [recordFile(HOME)]: write(RECORD) }, { [ROOT]: [NAME] })
     const { deps } = fakeDeps({ fs, processes: { 4242: 'electron.exe' } })
     const outcome = await removeHome(HOME, NAME, false, deps)
@@ -825,7 +825,7 @@ describe('removeHome：default 守得住，跑着的要 force 才连停带删', 
     expect(fs.removed).toEqual([])
   })
 
-  it('还在跑、带了 force：先停再删，停了哪个 pid 写在回执里', async () => {
+  it('还在运行、带了 force：先停再删，停了哪个 pid 写在回执里', async () => {
     const fs = fakeFs({ [recordFile(HOME)]: write(RECORD) }, { [ROOT]: [NAME] })
     const { deps, state } = fakeDeps({ fs, processes: { 4242: 'electron.exe' } })
     const outcome = await removeHome(HOME, NAME, true, deps)
@@ -835,18 +835,18 @@ describe('removeHome：default 守得住，跑着的要 force 才连停带删', 
     expect(fs.removed).toEqual([path.resolve(HOME)])
   })
 
-  it('停不掉就不删：半个目录加一屏 EBUSY 比「没删成」难收拾得多', async () => {
+  it('停止失败就不删：删了一半的目录加一堆 EBUSY 报错，比「没删成」难收拾得多', async () => {
     // 记录里带着 CDP 端口，而那个端口上监听的是另一个 pid：bringDownHome 的第二道核对拒绝结束进程
     const fs = fakeFs({ [recordFile(HOME)]: write({ ...RECORD, cdp: 9400 }) }, { [ROOT]: [NAME] })
     const { deps, state } = fakeDeps({ fs, processes: { 4242: 'electron.exe' }, portOwner: 9001 })
     const outcome = await removeHome(HOME, NAME, true, deps)
     expect(outcome.ok).toBe(false)
-    expect(outcome.note).toContain('停它没成')
+    expect(outcome.note).toContain('停止失败')
     expect(state.killed).toEqual([])
     expect(fs.removed).toEqual([])
   })
 
-  it('default 正跑着：force 也不删——不替人关他正在用的那扇窗', async () => {
+  it('default 正在运行：force 也不删——不替人关掉他正在用的窗口', async () => {
     const daily = path.join(ROOT, DAILY_HOME)
     const fs = fakeFs({ [recordFile(daily)]: write(RECORD) }, { [ROOT]: [DAILY_HOME] })
     const { deps, state } = fakeDeps({ fs, processes: { 4242: 'electron.exe' } })
@@ -891,7 +891,7 @@ describe('removeHome：default 守得住，跑着的要 force 才连停带删', 
     expect(state.slept).toEqual(Array.from({ length: REMOVE_TRIES - 1 }, () => REMOVE_RETRY_MS))
   })
 
-  it('第一次删回 ok 却只删了一半（子进程还握着句柄），等一会儿再删掉了：回已删', async () => {
+  it('第一次删回 ok 却只删了一半（子进程还占用着句柄），等一会儿再删掉了：回已删', async () => {
     const fs = fakeFs({}, { [ROOT]: [NAME] }, undefined, ['node_modules'], 1)
     const { deps, state } = fakeDeps({ fs })
     const outcome = await removeHome(HOME, NAME, false, deps)
@@ -900,7 +900,7 @@ describe('removeHome：default 守得住，跑着的要 force 才连停带删', 
     expect(state.slept).toEqual([REMOVE_RETRY_MS])
   })
 
-  it('force 连停带删：进程没退净之前不下手删，退了再删', async () => {
+  it('force 先停止再删除：进程完全退出之前不删，退出后再删', async () => {
     const fs = fakeFs({ [recordFile(HOME)]: write(RECORD) }, { [ROOT]: [NAME] })
     const { deps, state } = fakeDeps({ fs, processes: { 4242: 'electron.exe' }, exitAfterPolls: 2 })
     const outcome = await removeHome(HOME, NAME, true, deps)
@@ -914,7 +914,7 @@ describe('removeHome：default 守得住，跑着的要 force 才连停带删', 
     const { deps } = fakeDeps({ fs, processes: { 4242: 'electron.exe' }, exitAfterPolls: Number.POSITIVE_INFINITY })
     const outcome = await removeHome(HOME, NAME, true, deps)
     expect(outcome.ok).toBe(false)
-    expect(outcome.note).toContain('停它没成')
+    expect(outcome.note).toContain('停止失败')
     expect(fs.removed).toEqual([])
   })
 })
