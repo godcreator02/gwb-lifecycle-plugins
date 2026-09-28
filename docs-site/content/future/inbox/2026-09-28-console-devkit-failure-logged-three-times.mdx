@@ -1,0 +1,21 @@
+---
+title: 'devkit 命令失败时，devkit、命令总线、MCP 入口各记一行同样的 warn'
+description: '来源：总控台会话（日志去噪），2026-09-28'
+docfirst: none
+---
+
+## 现场
+
+default home 的 `gwb.log`（`%APPDATA%\gwb-kernel\homes\default\gwb.log`，2026-09-28 本地时间 00:07 起）里，agent 调一次 `devkit.dev` 失败，连着出三行 warn，正文相同、前缀不同：
+
+- `gwb-devkit`：`devkit.dev 没成：这几条没加载成功…`（`plugins/devkit/src/index.ts:419`；`home.new`、`home.open`、`home.rm` 在 231、263、287 行是同样的写法）
+- `gwb-commands`：`命令 devkit.dev 返回失败：…`（命令总线看到失败回执时记的）
+- `gwb-mcp`：`agent 调了 devkit.dev：失败（…）`（MCP 入口记的）
+
+## 期望
+
+一次失败只在一处记一行。devkit 已经把原因放进了失败回执，命令总线与 MCP 入口都会记这个回执，devkit 这一行可以不记，或者只在 debug 里记。谁来记要和基础插件仓一起定，那边的 inbox 里有同题的一条（`2026-09-28-console-one-failure-logged-three-times`）。
+
+## 影响
+
+warn 是日志里最该看的部分，重复三次让人以为出了三次错。
