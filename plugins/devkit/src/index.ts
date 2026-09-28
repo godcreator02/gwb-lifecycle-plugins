@@ -78,8 +78,8 @@ const HOME_USAGE = [
   'home 命令的参数：',
   '  devkit.home.new  { short 必给（kebab-case 短名） }——开 <short>-<yyMMddHHmm> 的新 home。启动之前装好内核包（运行中的内核的精确版本）、cordis（内核包要的精确版本）与基础插件（命令、外壳、数据、设置、说明书、插件管理、基础界面，加上提供 timer 服务的 @cordisjs/plugin-timer），再用宿主安装版启动，调试端口自动选',
   '  devkit.home.open { name 必给（完整 home 名） }——重开一个已有的 home，不 build。机器重启之后回到现场走这条',
-  '  devkit.home.rm   { name，force? }——删一个 home。没在运行的直接删；还在运行的要 force（连停带删，等进程真退再删）；目录真不在了才回已删',
-  '                     default 是日常用的 home：不 force 不删，而且它在运行时 force 也不删——自己关掉它的窗口再来',
+  '  devkit.home.rm   { name，force? }——删一个 home。没在运行的直接删；还在运行的要 force（先停止进程，等它真正退出后再删除）；目录真不在了才回已删',
+  '                     default 是日常用的 home：不 force 不删，而且它在运行时 force 也不删——先自己关掉它的窗口',
   '  devkit.home.list 无参数——列出 home 根目录下全部 home 与哪些在运行',
   '例：{"short":"data"}、{"name":"data-2609081430"}',
   '**这几条都不收调试端口**：端口是启动时自动选的（先沿用这个 home 上次用的，被占了才另选），',
@@ -274,7 +274,7 @@ function registerHomeCommands({ ctx, log, commands, homeDeps }: Wiring): void {
       plugin: '@godcreator/gwb-devkit',
       description: '删一个测试 home',
       usage:
-        '{name，force?}——没在运行的直接删；**还在运行的要 force**，那时连停带删（按它 runtime.json 里的 pid，核对映像名与记录里那个 CDP 端口再杀，按 pid 等进程真退了才删）。**回「已删」只在目录真不在了之后**，没删掉回 ok:false 并列出还剩什么。default 是日常用的 home：不 force 不删，而且它在运行时 force 也不删，自己关掉它的窗口再来',
+        '{name，force?}——没在运行的直接删；**还在运行的要 force**，那时先停止再删除（按它 runtime.json 里的 pid，核对映像名与记录里那个 CDP 端口后结束进程，按 pid 等进程真正退出后才删除）。**回「已删」只在目录真不在了之后**，没删掉回 ok:false 并列出还剩什么。default 是日常用的 home：不 force 不删，而且它在运行时 force 也不删，先自己关掉它的窗口',
     },
     async (args) => {
       if (!isRecord(args)) return { ok: false, error: `参数要是个对象。\n${HOME_USAGE}` }
