@@ -1,0 +1,24 @@
+---
+title: 'plugin-manager.update 一次升几个包时按包名重新加载，依赖方可能先于提供方挂上而失败'
+description: '来源：gwb-block-note（核心插件 0.22 的隔离 home 验证），2026-09-28；总控台会话投递'
+docfirst: none
+---
+
+## 现场
+
+隔离 home `bn-cleanup-2609280923` 里用 `devkit.dev` 一次装核心插件 `@godcreator/gwb-bn-core` 与评论插件 `@godcreator/gwb-bn-comment` 等六个包，
+走的是 `plugin-manager.update {"specs":{…}}`。评论插件的新版要用核心插件新版扩展服务上的新方法 `registerCommand`。
+日志（`%APPDATA%\gwb-kernel\homes\bn-cleanup-2609280923\gwb.log`，2026-09-28T03:34:50）：评论插件先于核心插件重新加载，
+拿到的还是旧核心插件的服务，挂载失败 `TypeError: extensions.registerCommand is not a function`，条目停在 FAILED；
+随后核心插件重新加载，评论插件没有再被重新加载。`plugin-manager.disable` 再 `enable` 这条条目后正常挂上。
+
+原因：`plugins/plugin-manager/src/update.ts:168` 把点了名的包按包名排序（`bn-comment` 排在 `bn-core` 前），`index.ts` 的 `remountUpgradedEntries` 照这个顺序逐个重新加载。
+
+## 期望
+
+一次升几个包时，按 peer 依赖先提供方、后依赖方的顺序重新加载（依赖方写在 peer 里的包先重新加载）；
+或者在全部新代码装上之后，把依赖方再重新加载一遍。
+
+## 影响
+
+块笔记核心插件 0.22.0 发出后升级 default 时会撞上：评论插件排在核心插件前面。块笔记这边的应对是升级后对依赖方逐条 disable / enable 一次。
