@@ -29,12 +29,9 @@ importers:
         specifier: ^19.2.8
         version: 19.3.0(react@19.3.0)
     devDependencies:
-      '@godcreator/docfirst-trajectory':
-        specifier: 0.1.1
-        version: 0.1.1(react@19.3.0)
       '@godcreator/docfirst-workflow':
-        specifier: 0.3.1
-        version: 0.3.1(@fumadocs/base-ui@16.15.1(@types/mdx@2.0.14)(@types/react@19.3.0)(fumadocs-core@16.15.1(@mdx-js/mdx@3.1.1)(@types/estree-jsx@1.0.5)(@types/hast@3.0.5)(@types/mdast@4.0.4)(@types/react@19.3.0)(lucide-react@1.45.0(react@19.3.0))(next@16.3.0(@types/node@26.5.1)(react-dom@19.3.0(react@19.3.0))(react@19.3.0))(react-dom@19.3.0(react@19.3.0))(react@19.3.0)(zod@4.6.5))(next@16.3.0(@types/node@26.5.1)(react-dom@19.3.0(react@19.3.0))(react@19.3.0))(react-dom@19.3.0(react@19.3.0))(react@19.3.0)(tailwindcss@4.3.3))(fumadocs-core@16.15.1(@mdx-js/mdx@3.1.1)(@types/estree-jsx@1.0.5)(@types/hast@3.0.5)(@types/mdast@4.0.4)(@types/react@19.3.0)(lucide-react@1.45.0(react@19.3.0))(next@16.3.0(@types/node@26.5.1)(react-dom@19.3.0(react@19.3.0))(react@19.3.0))(react-dom@19.3.0(react@19.3.0))(react@19.3.0)(zod@4.6.5))(react@19.3.0)
+        specifier: 0.5.2
+        version: 0.5.2(@fumadocs/base-ui@16.15.1(@types/mdx@2.0.14)(@types/react@19.3.0)(fumadocs-core@16.15.1(@mdx-js/mdx@3.1.1)(@types/estree-jsx@1.0.5)(@types/hast@3.0.5)(@types/mdast@4.0.4)(@types/react@19.3.0)(lucide-react@1.45.0(react@19.3.0))(next@16.3.0(@types/node@26.5.1)(react-dom@19.3.0(react@19.3.0))(react@19.3.0))(react-dom@19.3.0(react@19.3.0))(react@19.3.0)(zod@4.6.5))(next@16.3.0(@types/node@26.5.1)(react-dom@19.3.0(react@19.3.0))(react@19.3.0))(react-dom@19.3.0(react@19.3.0))(react@19.3.0)(tailwindcss@4.3.3))(fumadocs-core@16.15.1(@mdx-js/mdx@3.1.1)(@types/estree-jsx@1.0.5)(@types/hast@3.0.5)(@types/mdast@4.0.4)(@types/react@19.3.0)(lucide-react@1.45.0(react@19.3.0))(next@16.3.0(@types/node@26.5.1)(react-dom@19.3.0(react@19.3.0))(react@19.3.0))(react-dom@19.3.0(react@19.3.0))(react@19.3.0)(zod@4.6.5))(react@19.3.0)
       '@tailwindcss/postcss':
         specifier: ^4.3.3
         version: 4.3.3
@@ -416,16 +413,11 @@ packages:
   '@fumari/image-size@0.1.0':
     resolution: {integrity: sha512-x2o9u6P8uKUK15B8XgEoRhR3PgLoLSbQKK6FUCd14JzumEw+e8FXZPelij/dZ4VQVMp4r61VD3DcvSo3aEhLAA==}
 
-  '@godcreator/docfirst-trajectory@0.1.1':
-    resolution: {integrity: sha512-MQFtsZPTphmWGoCpDpMvzwJw+vMizivS8ejZb3TBIlT2b8WGQw08JKPVLEww4hXGWgToO+NtdIqe4tNJTt94mQ==, tarball: https://git.tianshen02.online:28377/api/packages/godcreator/npm/%40godcreator%2Fdocfirst-trajectory/-/0.1.1/docfirst-trajectory-0.1.1.tgz}
-    peerDependencies:
-      react: '>=19'
-    peerDependenciesMeta:
-      react:
-        optional: true
+  '@godcreator/code-pin@0.1.0':
+    resolution: {integrity: sha512-2NUkvdFz1pVGNXWhwvDzxCqa399Yu+9CpvsgKs8u3QopSua4TbHMvOWu2WeFXiPiVLCHiQSd2tLCjfljKaVstw==, tarball: https://git.tianshen02.online:28377/api/packages/godcreator/npm/%40godcreator%2Fcode-pin/-/0.1.0/code-pin-0.1.0.tgz}
 
-  '@godcreator/docfirst-workflow@0.3.1':
-    resolution: {integrity: sha512-meRcOWdULFhEhd4duyvHIC3vu4U4fXosr+YjH65xppdts0qME3p2zqKq5ktfeNRzwbYOKgVmpUioiZUdMxL+QA==, tarball: https://git.tianshen02.online:28377/api/packages/godcreator/npm/%40godcreator%2Fdocfirst-workflow/-/0.3.1/docfirst-workflow-0.3.1.tgz}
+  '@godcreator/docfirst-workflow@0.5.2':
+    resolution: {integrity: sha512-B8x2lG5M6zxJ4POpS6RS6ouWeR0zNGZEgH0KAvXupkzA7BPAd8LqCN/7mZmKyjSx2b4t3zCGkyw08y5alfewyw==, tarball: https://git.tianshen02.online:28377/api/packages/godcreator/npm/%40godcreator%2Fdocfirst-workflow/-/0.5.2/docfirst-workflow-0.5.2.tgz}
     hasBin: true
     peerDependencies:
       fumadocs-core: '>=16'
@@ -492,6 +484,14 @@ packages:
     peerDependencies:
       '@godcreator/gwb-kernel-desktop': ^0.4.1
       cordis: ^4.0.0-rc.10
+
+  '@godcreator/trajectory-disk@0.1.0':
+    resolution: {integrity: sha512-Y0+pvUeRKtd53FbU2KMB2ZawyOFUAR9143n1pREhdMSQmzMXpgfyh7LH1yu05OIMMRCW8joNnnelQdevgJiiAQ==, tarball: https://git.tianshen02.online:28377/api/packages/godcreator/npm/%40godcreator%2Ftrajectory-disk/-/0.1.0/trajectory-disk-0.1.0.tgz}
+    peerDependencies:
+      react: '>=19'
+    peerDependenciesMeta:
+      react:
+        optional: true
 
   '@img/colour@1.1.0':
     resolution: {integrity: sha512-Td76q7j57o/tLVdgS746cYARfSyxk8iEfRxewL9h4OMzYhbW4TAcppl0mT4eyqXddh6L/jwoM75mo7ixa/pCeQ==}
@@ -2897,19 +2897,17 @@ snapshots:
 
   '@fumari/image-size@0.1.0': {}
 
-  '@godcreator/docfirst-trajectory@0.1.1(react@19.3.0)':
-    dependencies:
-      unist-util-visit: 5.1.0
-    optionalDependencies:
-      react: 19.3.0
+  '@godcreator/code-pin@0.1.0': {}
 
-  '@godcreator/docfirst-workflow@0.3.1(@fumadocs/base-ui@16.15.1(@types/mdx@2.0.14)(@types/react@19.3.0)(fumadocs-core@16.15.1(@mdx-js/mdx@3.1.1)(@types/estree-jsx@1.0.5)(@types/hast@3.0.5)(@types/mdast@4.0.4)(@types/react@19.3.0)(lucide-react@1.45.0(react@19.3.0))(next@16.3.0(@types/node@26.5.1)(react-dom@19.3.0(react@19.3.0))(react@19.3.0))(react-dom@19.3.0(react@19.3.0))(react@19.3.0)(zod@4.6.5))(next@16.3.0(@types/node@26.5.1)(react-dom@19.3.0(react@19.3.0))(react@19.3.0))(react-dom@19.3.0(react@19.3.0))(react@19.3.0)(tailwindcss@4.3.3))(fumadocs-core@16.15.1(@mdx-js/mdx@3.1.1)(@types/estree-jsx@1.0.5)(@types/hast@3.0.5)(@types/mdast@4.0.4)(@types/react@19.3.0)(lucide-react@1.45.0(react@19.3.0))(next@16.3.0(@types/node@26.5.1)(react-dom@19.3.0(react@19.3.0))(react@19.3.0))(react-dom@19.3.0(react@19.3.0))(react@19.3.0)(zod@4.6.5))(react@19.3.0)':
+  '@godcreator/docfirst-workflow@0.5.2(@fumadocs/base-ui@16.15.1(@types/mdx@2.0.14)(@types/react@19.3.0)(fumadocs-core@16.15.1(@mdx-js/mdx@3.1.1)(@types/estree-jsx@1.0.5)(@types/hast@3.0.5)(@types/mdast@4.0.4)(@types/react@19.3.0)(lucide-react@1.45.0(react@19.3.0))(next@16.3.0(@types/node@26.5.1)(react-dom@19.3.0(react@19.3.0))(react@19.3.0))(react-dom@19.3.0(react@19.3.0))(react@19.3.0)(zod@4.6.5))(next@16.3.0(@types/node@26.5.1)(react-dom@19.3.0(react@19.3.0))(react@19.3.0))(react-dom@19.3.0(react@19.3.0))(react@19.3.0)(tailwindcss@4.3.3))(fumadocs-core@16.15.1(@mdx-js/mdx@3.1.1)(@types/estree-jsx@1.0.5)(@types/hast@3.0.5)(@types/mdast@4.0.4)(@types/react@19.3.0)(lucide-react@1.45.0(react@19.3.0))(next@16.3.0(@types/node@26.5.1)(react-dom@19.3.0(react@19.3.0))(react@19.3.0))(react-dom@19.3.0(react@19.3.0))(react@19.3.0)(zod@4.6.5))(react@19.3.0)':
     dependencies:
-      '@godcreator/docfirst-trajectory': 0.1.1(react@19.3.0)
+      '@godcreator/code-pin': 0.1.0
+      '@godcreator/trajectory-disk': 0.1.0(react@19.3.0)
       remark-frontmatter: 5.0.0
       remark-mdx: 3.1.1
       remark-parse: 11.0.0
       unified: 11.0.5
+      unist-util-visit: 5.1.0
     optionalDependencies:
       fumadocs-core: 16.15.1(@mdx-js/mdx@3.1.1)(@types/estree-jsx@1.0.5)(@types/hast@3.0.5)(@types/mdast@4.0.4)(@types/react@19.3.0)(lucide-react@1.45.0(react@19.3.0))(next@16.3.0(@types/node@26.5.1)(react-dom@19.3.0(react@19.3.0))(react@19.3.0))(react-dom@19.3.0(react@19.3.0))(react@19.3.0)(zod@4.6.5)
       fumadocs-ui: '@fumadocs/base-ui@16.15.1(@types/mdx@2.0.14)(@types/react@19.3.0)(fumadocs-core@16.15.1(@mdx-js/mdx@3.1.1)(@types/estree-jsx@1.0.5)(@types/hast@3.0.5)(@types/mdast@4.0.4)(@types/react@19.3.0)(lucide-react@1.45.0(react@19.3.0))(next@16.3.0(@types/node@26.5.1)(react-dom@19.3.0(react@19.3.0))(react@19.3.0))(react-dom@19.3.0(react@19.3.0))(react@19.3.0)(zod@4.6.5))(next@16.3.0(@types/node@26.5.1)(react-dom@19.3.0(react@19.3.0))(react@19.3.0))(react-dom@19.3.0(react@19.3.0))(react@19.3.0)(tailwindcss@4.3.3)'
@@ -2961,6 +2959,10 @@ snapshots:
     dependencies:
       '@godcreator/gwb-kernel-desktop': 0.10.0(cordis@4.0.0-rc.10)
       cordis: 4.0.0-rc.10(@cordisjs/plugin-include@1.1.0)(@cordisjs/plugin-loader@1.0.0-rc.7)
+
+  '@godcreator/trajectory-disk@0.1.0(react@19.3.0)':
+    optionalDependencies:
+      react: 19.3.0
 
   '@img/colour@1.1.0':
     optional: true

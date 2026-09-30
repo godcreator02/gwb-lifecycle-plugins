@@ -19,9 +19,9 @@ description: 条目 id 是身份，一经确定不改；新条目的 id 是包�
 
 {/* ref file="../plugins/plugin-manager/src/ids.ts" lines="35-54" hash="427d8e776c57" blob="d58cd4d73f02" */}
 
-{/* has file="../plugins/plugin-manager/tests/ids.test.ts" text="和 gwb-data、gwb-settings 的校验是同一套" */}
+{/* ref file="../plugins/plugin-manager/tests/ids.test.ts" lines="38-42" hash="cf5f5030c74e" blob="ccf360bdec3f" */}
 
-{/* has file="../plugins/plugin-manager/tests/ids.test.ts" text="去掉 scope 与 gwb- 前缀" */}
+{/* ref file="../plugins/plugin-manager/tests/ids.test.ts" lines="62-66" hash="d897f712e84d" blob="ccf360bdec3f" */}
 
 ## 选 id：默认 id，条目树上重名加后缀
 
@@ -39,13 +39,13 @@ description: 条目 id 是身份，一经确定不改；新条目的 id 是包�
 
 选 id 是纯函数，上图的例子都有对应的测试。
 
-{/* has file="../plugins/plugin-manager/tests/ids.test.ts" text="scope 不同、默认 id 相同：后来的包加 -2 后缀共存" */}
+{/* ref file="../plugins/plugin-manager/tests/ids.test.ts" lines="116-118" hash="7ac3c442b61a" blob="ccf360bdec3f" */}
 
-{/* has file="../plugins/plugin-manager/tests/ids.test.ts" text="同一个包的第二条条目也加后缀" */}
+{/* ref file="../plugins/plugin-manager/tests/ids.test.ts" lines="120-122" hash="c7afdc097a8e" blob="ccf360bdec3f" */}
 
-{/* has file="../plugins/plugin-manager/tests/commands.test.ts" text="add-entry：没装的包抛错；装了的包按默认 id 加，条目树上重名加后缀（不同 scope 的同名包也一样）" */}
+{/* ref file="../plugins/plugin-manager/tests/commands.test.ts" lines="294-302" hash="b28c1bdf569c" blob="c92d5fd1b7d7" */}
 
-{/* has file="../plugins/plugin-manager/tests/commands.test.ts" text="add-entry 只收 pkg：给了 id 或 config 直接抛错，不加条目" */}
+{/* ref file="../plugins/plugin-manager/tests/commands.test.ts" lines="304-310" hash="8b7ed7eac0de" blob="c92d5fd1b7d7" */}
 
 ## 不读归属记录
 

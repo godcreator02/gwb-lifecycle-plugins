@@ -41,10 +41,10 @@ description: 连接建仓模板 template/ 与 devkit.release 的发版前检查�
 
 `tests/scaffold.test.ts` 用 `renderTemplate` / `renderPlugin` 在内存里生成插件包，查清单与构建脚本的文本：
 
-{/* has file="../plugins/devkit/tests/scaffold.test.ts" text="生成的插件包 peer 里写了内核包 ^<运行命令的内核版本号>：建仓与加插件都一样，发版前检查认" */}
+{/* ref file="../plugins/devkit/tests/scaffold.test.ts" lines="328-339" hash="f5712633d9a0" blob="f2871f97e5ba" */}
 
-{/* has file="../plugins/devkit/tests/scaffold.test.ts" text="node 侧也用 esbuild 打成一个文件：外置 peer、electron 与 cordis；不输出类型声明" */}
+{/* ref file="../plugins/devkit/tests/scaffold.test.ts" lines="424-438" hash="a1ebca7ce582" blob="f2871f97e5ba" */}
 
-{/* has file="../plugins/devkit/tests/scaffold.test.ts" text="生成的 build.ts 从提供方代码出口读外置名单" */}
+{/* ref file="../plugins/devkit/tests/scaffold.test.ts" lines="398-408" hash="b12fbab05b2c" blob="f2871f97e5ba" */}
 
-{/* has file="../plugins/devkit/tests/scaffold.test.ts" text="模板不带测试文件：产物与样式的检查由 devkit.dev / devkit.release 做，复制进各仓的副本不会跟着更新" */}
+{/* ref file="../plugins/devkit/tests/scaffold.test.ts" lines="417-422" hash="d304568e031c" blob="f2871f97e5ba" */}

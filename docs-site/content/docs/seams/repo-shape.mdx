@@ -27,7 +27,7 @@ description: 连接 devkit.dev、devkit.release、devkit.scaffold.plugin 与被�
 
 **包目录由调用方列出**：`devkit.dev` 与 `devkit.release` 的 `packages` 必给，是非空的字符串数组，每项是相对仓根的包目录；不给或写错直接拒，不猜哪些是包：
 
-{/* has file="../plugins/devkit/tests/commands.test.ts" text="devkit.dev 与 devkit.release：packages 必给，要是非空的字符串数组，不给或写错直接拒" */}
+{/* ref file="../plugins/devkit/tests/commands.test.ts" lines="201-212" hash="c8910824a57a" blob="435270e704c7" */}
 
 **要发的包写了 `publishConfig.registry`**：`devkit.release` 发到这个地址，没写、或写的不是 http(s) 地址就拒（见[pnpm 与包源](/docs/seams/pnpm-registry)）。
 
@@ -85,18 +85,18 @@ devkit 保证：
 
 各条命令用假实现测自己那部分假设，没有一份测试拿一个真实的仓把几条命令串起来运行：
 
-{/* has file="../plugins/devkit/tests/release.test.ts" text="git 树不干净就拒，构建都不跑" */}
+{/* ref file="../plugins/devkit/tests/release.test.ts" lines="514-521" hash="9d6bd9132e58" blob="4c77897ab598" */}
 
-{/* has file="../plugins/devkit/tests/dev.test.ts" text="files 里的否定式与通配不算产物" */}
+{/* ref file="../plugins/devkit/tests/dev.test.ts" lines="288-290" hash="6b99bf051abc" blob="915d2359bd87" */}
 
-{/* has file="../plugins/devkit/tests/artifact-check.test.ts" text="浏览器侧 dist/client.js：名字只取内核包页面入口里的 importmap（从本包 node_modules 现读），别的依赖写了也不算" */}
+{/* ref file="../plugins/devkit/tests/artifact-check.test.ts" lines="273-287" hash="d2997bf951ce" blob="3fad9bb8b28a" */}
 
-{/* has file="../plugins/devkit/tests/artifact-check.test.ts" text="浏览器侧：内核包的页面入口读不到就报，不猜" */}
+{/* ref file="../plugins/devkit/tests/artifact-check.test.ts" lines="289-292" hash="fceffb946b81" blob="3fad9bb8b28a" */}
 
-{/* has file="../plugins/devkit/tests/scaffold.test.ts" text="repo 不在、yaml 不在、yaml 的 packages 里没有 plugins/*，三种都拒" */}
+{/* ref file="../plugins/devkit/tests/scaffold.test.ts" lines="112-123" hash="8b41f52182cb" blob="f2871f97e5ba" */}
 
-{/* has file="../plugins/devkit/tests/scaffold.test.ts" text="加插件认 pnpm-workspace.yaml 里各种写法的 plugins/*（GWB-27）" */}
+{/* ref file="../plugins/devkit/tests/scaffold.test.ts" lines="684-684" hash="219764e4210c" blob="f2871f97e5ba" */}
 
-{/* has file="../plugins/devkit/tests/node-dev-deps.test.ts" text="workspace: 依赖在工作区里找不到：直接抛，点名是哪个包，不写 ^0.0.0" */}
+{/* ref file="../plugins/devkit/tests/node-dev-deps.test.ts" lines="64-68" hash="1e4b4ec770c2" blob="4fa855823241" */}
 
-{/* has file="../plugins/devkit/tests/node-dev-deps.test.ts" text="包在 plugins/<名>/ 时，根是有 pnpm-workspace.yaml 的那层，packages/ 下的号找得到" */}
+{/* ref file="../plugins/devkit/tests/node-dev-deps.test.ts" lines="126-131" hash="8ea06d455078" blob="4fa855823241" */}

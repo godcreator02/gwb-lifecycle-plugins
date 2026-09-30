@@ -5,7 +5,7 @@
 # 有了不是插件的包（插件共用的库之类）时加一行 `- packages/*`，
 # 根 package.json 的 build 过滤器同步加 --filter "./packages/*"。
 #
-# 文档站不收进来：装了 docfirst 六区的文档站自带 pnpm-workspace.yaml、自己一套依赖、自己 install——
+# 文档站不收进来：docfirst 文档站自带 pnpm-workspace.yaml、自己一套依赖、自己 install——
 # 收进来就成了 workspace 里嵌套 workspace，pnpm 不支持这种结构。
 
 packages:

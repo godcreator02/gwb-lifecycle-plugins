@@ -66,7 +66,7 @@ description: 插件管理是唯一写 home 的插件——装卸包、增删启�
 
 {/* ref file="../plugins/plugin-manager/src/index.ts" lines="76-78" hash="c4d22b1bf2be" blob="a5163f00fe7a" */}
 
-{/* has file="../plugins/plugin-manager/tests/main-entry.test.ts" text="只导出插件本身（name、apply）与 devkit 复用的几样" */}
+{/* ref file="../plugins/plugin-manager/tests/main-entry.test.ts" lines="4-9" hash="454b9746b261" blob="08f347958d67" */}
 
 ### 子路径 ./receipts：回执的类型
 
@@ -76,9 +76,9 @@ description: 插件管理是唯一写 home 的插件——装卸包、增删启�
 
 {/* ref file="../plugins/plugin-manager/package.json" lines="11-20" hash="faa470d86bb1" blob="84bbca76e905" */}
 
-{/* has file="../plugins/plugin-manager/tests/receipts.test.ts" text="d.ts 链上没有包名引用（含 node:）" */}
+{/* ref file="../plugins/plugin-manager/tests/receipts.test.ts" lines="87-94" hash="0a7a7b724f66" blob="de220930304a" */}
 
-{/* has file="../plugins/plugin-manager/tests/receipts.test.ts" text="源码 src/receipts.ts 一个模块都不引用，相对路径也不行" */}
+{/* ref file="../plugins/plugin-manager/tests/receipts.test.ts" lines="82-84" hash="757fd372078a" blob="de220930304a" */}
 
 为什么放子路径、不从主入口导出，见轨迹卡[回执类型经子路径导出](/trajectory/2026-09-26-receipts-subpath)。
 

@@ -35,7 +35,7 @@ description: 约定：有文档站的插件仓把插件之间的依赖按提供�
 - **提供**：服务、命令、事件、说明书、窗格、给别的插件按值 import 的主入口导出
 - **注入**：源码里注入的每个服务，连同不写进 `inject`、用 `requireKernel` 取的 `gwbKernel`；peer 怎么写照[用到的插件写 peer](/docs/rules/plugin-peers)：写在 `export const inject` / `static inject` 里的是普通 peer，只在 `ctx.inject([...], fn)` 里用的标 `optional: true`
 - **按名字调用与约定通道**：按命令名调用的别的插件的命令、推送或接收的事件、共享的 id、直接读写的别人的文件（`runtime.json`、`cordis.yml`、别的 home 的清单）、loader 与 cordis 的内部状态、子进程与网络
-- **钉码按内容钉**：表下面用 `has file=… text=…` 钉在服务名、`inject` 写法、peer 条目、命令名、文件名这些字面量上，不用行号钉。表里钉的都是散在各文件里的一行字面量，行号钉在无关的改动之后就对不上，逼着人一遍遍确认；字面量改了，按内容钉的才真的该报
+- **钉码钉字面量所在的那一行**：表下面用行段记号（`lines="n-n"`）钉在服务名、`inject` 写法、peer 条目、命令名、文件名这些字面量所在的那一行。代码挪了位置、那一行没变，`docfirst confirm` 自动写回新行号；那一行改了才报
 
 ## 谁来保证它写对
 

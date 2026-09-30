@@ -85,6 +85,6 @@ devkit 保证：
 
 devkit 的 `dev.test.ts` 与插件管理的 `commands.test.ts` 各用假实现测，没有测试把两者连在一起运行：devkit 的假回执写成什么形状，测试就按什么形状通过。改了这几条命令的回执，要在隔离 home 里从另一个 home 调一次 `devkit.dev` 验证。
 
-{/* has file="../plugins/devkit/tests/dev.test.ts" text="已装的包：构建、打包进 dev-packs、一条 update {specs}、带 waitFor 刷新、取证" */}
+{/* ref file="../plugins/devkit/tests/dev.test.ts" lines="397-412" hash="6f38c69e3af6" blob="915d2359bd87" */}
 
-{/* has file="../plugins/plugin-manager/tests/main-entry.test.ts" text="只导出插件本身（name、apply）与 devkit 复用的几样" */}
+{/* ref file="../plugins/plugin-manager/tests/main-entry.test.ts" lines="4-9" hash="454b9746b261" blob="08f347958d67" */}

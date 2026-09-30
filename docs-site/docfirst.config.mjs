@@ -1,9 +1,9 @@
 /**
- * 这个站的 docfirst 配置：用哪个格式包、生成文件写到哪、组件规则表是什么。命令行和站读的是同一份。
+ * 这个站的 docfirst 配置：生成文件写到哪、组件规则表是什么。命令行和站读的是同一份。
  *
  * 项目根是这个站目录，引用的代码在 `plugins/devkit/`、`plugins/plugin-manager/`——
  * 引用里写 `../plugins/<目录>/…`，按项目根拼路径，页面在哪个子目录都一样。
- * 分区按约定：`content/` 下 `trajectory/` 与 `future/` 两个名字固定，其余目录都是现状区、都进 check；
+ * content 是各区的上一级目录：`trajectory/` 与 `future/` 两个名字固定，其余目录都是现状区、都进 check；
  * 本站的现状区只有 `content/docs`。
  *
  * 生成文件写到各自的插件目录，正本都在 `content/docs/outputs/`。`plugins/devkit/`：AGENTS、CLAUDE、README，
@@ -16,11 +16,14 @@
  * CLAUDE.md 第一行固定是 `@AGENTS.md`，只给 Claude 的指令写在它后面。它跟 AGENTS.md 在同一个目录，
  * 但不在 package.json 的 files 白名单里，不随包发布。
  * 生成正本按原文渲染，里面不能用 JSX 组件。
+ *
+ * components 是组件名册：fumadocsRoster 给 fumadocs 自带文件树 Files / Folder / File 与 Note 的机读规则，
+ * 站里自己加的组件在它后面追加。
  */
-import * as fumadocs from '@godcreator/docfirst-workflow/fumadocs'
+import { fumadocsRoster } from '@godcreator/docfirst-workflow/fumadocs/roster'
 
 export default {
-  formats: [fumadocs],
+  content: 'content',
   outputs: {
     'content/docs/outputs/agents.mdx': ['../plugins/devkit/AGENTS.md'],
     'content/docs/outputs/claude.mdx': ['../plugins/devkit/CLAUDE.md'],
@@ -38,7 +41,7 @@ export default {
     ],
   },
   components: {
-    ...fumadocs.defaultRoster,
+    ...fumadocsRoster,
     // 示意图：图本身 agent 看不见，生成 markdown 时只保留「[图] 标题」和子元素里的文字说明
     Diagram: (node, h) => [h.paragraph(`[图] ${h.attr(node, 'title') ?? h.attr(node, 'name') ?? ''}`), ...h.children()],
     // fumadocs 自带的骨架组件：分步与折叠只是排版，机读版保留里面的正文

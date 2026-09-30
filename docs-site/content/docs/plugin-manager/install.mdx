@@ -19,15 +19,15 @@ description: install 在一条命令里装一个还没装的包（清单写 ^ �
 
 {/* ref file="../plugins/plugin-manager/src/index.ts" lines="304-328" hash="616e4c3bef48" blob="5ecda4b17644" */}
 
-{/* has file="../plugins/plugin-manager/tests/commands.test.ts" text="install：在 home 里 pnpm add 包名@spec（不带 --save-exact，清单照 pnpm 默认写 ^ 范围），再加一条条目" */}
+{/* ref file="../plugins/plugin-manager/tests/commands.test.ts" lines="424-430" hash="cf5f762f1748" blob="c92d5fd1b7d7" */}
 
-{/* has file="../plugins/plugin-manager/tests/commands.test.ts" text="install：pnpm 失败时不加条目，外层 error 带上输出的最后几行，没有 data" */}
+{/* ref file="../plugins/plugin-manager/tests/commands.test.ts" lines="441-446" hash="db7bbdc0fb2b" blob="c92d5fd1b7d7" */}
 
-{/* has file="../plugins/plugin-manager/tests/commands.test.ts" text="install：包名不合规直接抛错，不运行 pnpm" */}
+{/* ref file="../plugins/plugin-manager/tests/commands.test.ts" lines="448-452" hash="6ce78389f10f" blob="c92d5fd1b7d7" */}
 
-{/* has file="../plugins/plugin-manager/tests/ids.test.ts" text="以 - 开头的包名不认" */}
+{/* ref file="../plugins/plugin-manager/tests/ids.test.ts" lines="136-139" hash="1ac64f3641c7" blob="ccf360bdec3f" */}
 
-{/* has file="../plugins/plugin-manager/tests/ids.test.ts" text="拼出 pnpm add 的参数" */}
+{/* ref file="../plugins/plugin-manager/tests/ids.test.ts" lines="160-163" hash="9a668381d517" blob="ccf360bdec3f" */}
 
 装完之后，agent 要再调一次 MCP 入口的 `index`，新插件的命令才出现。
 
@@ -35,7 +35,7 @@ description: install 在一条命令里装一个还没装的包（清单写 ^ �
 
 包已在 home 的 dependencies 里，`install` 直接报错、一次 pnpm 都不运行，报错指向两条路：再加一条条目用 `add-entry`，换版本用 `update {"specs":{…}}`（见[热升级](/docs/plugin-manager/upgrade)）。已装的包再 `pnpm add` 一次，只会悄悄换掉版本号、再多一条条目，两件事都不是调用方要的。
 
-{/* has file="../plugins/plugin-manager/tests/commands.test.ts" text="install：包已在 home 的 dependencies 里，直接抛错、指向 add-entry 与 update 的 specs，不运行 pnpm" */}
+{/* ref file="../plugins/plugin-manager/tests/commands.test.ts" lines="432-439" hash="35d68c9aafd5" blob="c92d5fd1b7d7" */}
 
 ## 建条目只等写入、不等加载
 
@@ -80,12 +80,12 @@ description: install 在一条命令里装一个还没装的包（清单写 ^ �
 
 {/* ref file="../plugins/plugin-manager/src/uninstall.ts" lines="3-8" hash="e00bea41e844" blob="32218fc5c1e7" */}
 
-{/* has file="../plugins/plugin-manager/tests/commands.test.ts" text="uninstall：没装的包抛错；装了的先删它的全部条目，再 pnpm remove" */}
+{/* ref file="../plugins/plugin-manager/tests/commands.test.ts" lines="454-461" hash="8d9d00a02598" blob="c92d5fd1b7d7" */}
 
-{/* has file="../plugins/plugin-manager/tests/commands.test.ts" text="uninstall：pnpm 失败时条目已删、包还在，回执说明" */}
+{/* ref file="../plugins/plugin-manager/tests/commands.test.ts" lines="471-479" hash="ca01fa9ae5e4" blob="c92d5fd1b7d7" */}
 
-{/* has file="../plugins/plugin-manager/tests/uninstall.test.ts" text="同一个包的多条条目全部删" */}
+{/* ref file="../plugins/plugin-manager/tests/uninstall.test.ts" lines="33-43" hash="4e98ae0077a9" blob="8b9f8ab1a645" */}
 
-{/* has file="../plugins/plugin-manager/tests/uninstall.test.ts" text="停用的、没加载成功的条目也一起删" */}
+{/* ref file="../plugins/plugin-manager/tests/uninstall.test.ts" lines="45-55" hash="cbd6e974dc12" blob="8b9f8ab1a645" */}
 
 真的 pnpm 与 loader 下的安装、卸载只能实机验证：在隔离 home 里调 `plugin-manager.install` / `uninstall`。

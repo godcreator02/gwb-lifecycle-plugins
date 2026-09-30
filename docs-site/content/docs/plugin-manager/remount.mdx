@@ -24,11 +24,11 @@ description: update 装完包后逐条重新加载条目：停用 → 等旧的�
 
 {/* ref file="../plugins/plugin-manager/src/fiber.ts" lines="18-34" hash="c206f4b25ddb" blob="071cae84dcc7" */}
 
-{/* has file="../plugins/plugin-manager/tests/remount.test.ts" text="停用再启用，回 remounted 和重新加载后的状态" */}
+{/* ref file="../plugins/plugin-manager/tests/remount.test.ts" lines="75-80" hash="ea5e889fcdf2" blob="57d52b783e87" */}
 
-{/* has file="../plugins/plugin-manager/tests/update.test.ts" text="永远不结束的 await：到了时限就继续" */}
+{/* ref file="../plugins/plugin-manager/tests/update.test.ts" lines="419-423" hash="aef70e1442b2" blob="a4b835c262e9" */}
 
-{/* has file="../plugins/plugin-manager/tests/loader.test.ts" text="停用再启用会重新加载，最后是 ACTIVE" */}
+{/* ref file="../plugins/plugin-manager/tests/loader.test.ts" lines="118-129" hash="741725d8a4a1" blob="0f485f2217e0" */}
 
 ## 回执：action 与 state
 
@@ -38,17 +38,17 @@ description: update 装完包后逐条重新加载条目：停用 → 等旧的�
 
 {/* ref file="../plugins/plugin-manager/src/fiber.ts" lines="3-16" hash="668b7d27ed94" blob="071cae84dcc7" */}
 
-{/* has file="../plugins/plugin-manager/tests/fiber-state.test.ts" text="名字表与 cordis 声明的成员按数字顺序完全相同" */}
+{/* ref file="../plugins/plugin-manager/tests/fiber-state.test.ts" lines="30-32" hash="1c8d0cc9e152" blob="8eabad0267a5" */}
 
-{/* has file="../plugins/plugin-manager/tests/remount.test.ts" text="动条目树时抛了：回 failed，state 里是那句错" */}
+{/* ref file="../plugins/plugin-manager/tests/remount.test.ts" lines="82-87" hash="8bf8e05aa639" blob="57d52b783e87" */}
 
-{/* has file="../plugins/plugin-manager/tests/commands.test.ts" text="动条目树时抛错：这条条目记为 failed，别的照常" */}
+{/* ref file="../plugins/plugin-manager/tests/commands.test.ts" lines="407-420" hash="37e5619f8692" blob="c92d5fd1b7d7" */}
 
 ## 停用与启用在同一条 await 链里
 
 停用和启用之间不能隔着第二条命令。被停用的插件可能正是调用方发命令要经过的那一个：目标是命令插件时，停用一返回命令表就没了，下一条命令调不进去；目标是 MCP 入口（`gwb-mcp`）时，连接就断了。`update` 在插件管理自己的 `await` 链里做完两步，这条链只持有条目树与 logger，不经任何 ctx；被重新加载的条目卸载时连带卸载哪些插件，都不影响它把启用做完。
 
-{/* has file="../plugins/plugin-manager/tests/remount.test.ts" text="目标是命令插件：停用时全部命令都撤掉（包括正在运行的这条），这条 await 链照样做完，条目回到启用" */}
+{/* ref file="../plugins/plugin-manager/tests/remount.test.ts" lines="89-103" hash="c9fbc4e18fae" blob="57d52b783e87" */}
 
 ## 插件管理自己：先回执、后重新加载
 
@@ -60,7 +60,7 @@ peer 里直接或经别的包写了插件管理的包（baseui、devkit）也一
 
 {/* ref file="../plugins/plugin-manager/src/remount.ts" lines="48-72" hash="9602e2cc9d9a" blob="3c8649945110" */}
 
-{/* has file="../plugins/plugin-manager/tests/remount.test.ts" text="当下什么都不动；下一个宏任务才停用再启用" */}
+{/* ref file="../plugins/plugin-manager/tests/remount.test.ts" lines="107-118" hash="fcb420963ae3" blob="57d52b783e87" */}
 
 {/* ref file="../plugins/plugin-manager/tests/remount.test.ts" lines="120-128" hash="edc5f053ce7f" blob="57d52b783e87" */}
 

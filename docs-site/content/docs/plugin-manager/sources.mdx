@@ -29,7 +29,7 @@ npmrc 里的源不都是 gwb 的：pnpm 自带一条 `@jsr:registry`，机器上
 
 {/* ref file="../plugins/plugin-manager/src/sources.ts" lines="18-26" hash="87d28d18ca24" blob="174993efee5e" */}
 
-{/* has file="../plugins/plugin-manager/tests/commands.test.ts" text="search 要设置插件在才登记，市场名单声明在公共区、默认只有 @godcreator；别的命令不受影响" */}
+{/* ref file="../plugins/plugin-manager/tests/commands.test.ts" lines="367-374" hash="04943ed49b86" blob="c92d5fd1b7d7" */}
 
 ## 源地址问 pnpm，和装包用同一份配置
 
@@ -43,9 +43,9 @@ npmrc 里的源不都是 gwb 的：pnpm 自带一条 `@jsr:registry`，机器上
 
 {/* ref file="../plugins/plugin-manager/src/sources.ts" lines="28-41" hash="6a1ad04391db" blob="174993efee5e" */}
 
-{/* has file="../plugins/plugin-manager/tests/package-sources.test.ts" text="名单里的市场在 pnpm 里没配源：这个市场报没配源，不去全局源查" */}
+{/* ref file="../plugins/plugin-manager/tests/package-sources.test.ts" lines="66-71" hash="f61ed6ac1f38" blob="c9c28bc1536a" */}
 
-{/* has file="../plugins/plugin-manager/tests/commands.test.ts" text="在 home 里问 pnpm 要配置与凭据，只查名单里的市场" */}
+{/* ref file="../plugins/plugin-manager/tests/commands.test.ts" lines="382-403" hash="8614b934e9ea" blob="c92d5fd1b7d7" */}
 
 ## 各市场并发查，一个失败只影响它自己
 
@@ -53,9 +53,9 @@ npmrc 里的源不都是 gwb 的：pnpm 自带一条 `@jsr:registry`，机器上
 
 {/* ref file="../plugins/plugin-manager/src/package-sources.ts" lines="15-52" hash="d05bf665ed26" blob="97da39d1616e" */}
 
-{/* has file="../plugins/plugin-manager/tests/package-sources.test.ts" text="只查名单里的市场，顺序照名单；带上这条源的凭据；一个失败只进 note 与它的状态" */}
+{/* ref file="../plugins/plugin-manager/tests/package-sources.test.ts" lines="36-64" hash="929cd0fc2d89" blob="c9c28bc1536a" */}
 
-{/* has file="../plugins/plugin-manager/tests/package-sources.test.ts" text="一个市场都没查成才 ok:false，原因逐个写明" */}
+{/* ref file="../plugins/plugin-manager/tests/package-sources.test.ts" lines="73-78" hash="fb0d9910939c" blob="c9c28bc1536a" */}
 
 每个市场发 `GET <registry>/-/v1/search?text=<scope>&size=250`，有凭据就带 `Authorization: Bearer`，最多等 10 秒。检索接口是 npmjs、Verdaccio、gitea 都实现的标准协议，这里不认识任何具体的源。凭据只在这次请求里用，不进回执与日志。
 
@@ -67,7 +67,7 @@ npmrc 里的源不都是 gwb 的：pnpm 自带一条 `@jsr:registry`，机器上
 
 {/* ref file="../plugins/plugin-manager/src/search.ts" lines="43-46" hash="8b851048cbb2" blob="4acddc515fd4" */}
 
-{/* has file="../plugins/plugin-manager/tests/search.test.ts" text="写了 gwb-plugin 就是插件（不管名字长什么样）" */}
+{/* ref file="../plugins/plugin-manager/tests/search.test.ts" lines="110-113" hash="757e15cc9a75" blob="4cfcda986330" */}
 
 ## 加一个市场：改名单，源配给 pnpm
 

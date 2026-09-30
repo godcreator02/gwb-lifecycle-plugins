@@ -15,23 +15,23 @@ description: 连接 devkit、插件管理与工作台的四个服务：命令总
 
 **devkit 只把 `gwbCommands` 写进 `export const inject`**，其余三个都用 `ctx.inject([...], fn)` 局部注入：
 
-{/* has file="../plugins/devkit/src/index.ts" text="export const inject = ['gwbCommands']" */}
+{/* ref file="../plugins/devkit/src/index.ts" lines="48-48" hash="397a91e60cb0" blob="508f3229377b" */}
 
 devkit 对命令总线用了两个方法：`register(定义, 处理函数)` 登记命令，定义带 `name`、`plugin`（包名）、`description`、`usage`、`effect`，撤销由命令总线登记在调用方的 effect 上，devkit 卸载时自动撤销；`list()` 只在就绪日志里用，列出此刻总线上本包的命令（见下面「约定」末尾）。devkit 不调别的插件的命令。
 
-{/* has file="../plugins/devkit/src/index.ts" text="plugin: '@godcreator/gwb-devkit'," */}
+{/* ref file="../plugins/devkit/src/index.ts" lines="311-311" hash="5c079b9f4a95" blob="508f3229377b" */}
 
 `gwbNodeCli` 只用来登记一条命令行工具 `devkit.cdp`，`entry` 是包里 `bin/cdp.mjs` 的绝对路径，`effect` 写 `write`（它能在页面上点击、输入）；这条登记同样由 `gwbNodeCli` 自己放进调用方的 effect：
 
-{/* has file="../plugins/devkit/src/index.ts" text="scoped.gwbNodeCli.register({" */}
+{/* ref file="../plugins/devkit/src/index.ts" lines="334-334" hash="81c1c67f0159" blob="508f3229377b" */}
 
-{/* has file="../plugins/devkit/src/index.ts" text="entry: CDP_ENTRY," */}
+{/* ref file="../plugins/devkit/src/index.ts" lines="341-341" hash="b79f2b921d84" blob="508f3229377b" */}
 
 `gwbSkills` 登记包内 `skills/` 目录，`gwbShell` 只调一次 `describeSelf` 报一个显示名，devkit 没有窗格：
 
-{/* has file="../plugins/devkit/src/index.ts" text="scoped.effect(() => scoped.gwbSkills.register(new URL('../skills/', import.meta.url)))" */}
+{/* ref file="../plugins/devkit/src/index.ts" lines="642-642" hash="affad272f46e" blob="508f3229377b" */}
 
-{/* has file="../plugins/devkit/src/index.ts" text="scoped.gwbShell.describeSelf({ title: '开发套件', icon: 'wrench' })" */}
+{/* ref file="../plugins/devkit/src/index.ts" lines="324-324" hash="ab3018ffae8e" blob="508f3229377b" */}
 
 devkit 源码里没有注入 `gwbSettings`，它没有设置项。
 
@@ -43,7 +43,7 @@ devkit 源码里没有注入 `gwbSettings`，它没有设置项。
 
 这些服务的类型来自各服务包自带的 `declare module 'cordis'`：两个插件对这些服务包都只做 `import type`（devkit 另从插件管理的主入口按值 import 几个函数，见[插件之间怎么交互](/docs/rules/interaction)），服务包写在 peer 里（必需的命令总线直接写，局部注入可选使用的标 `optional`，见[用到的插件写 peer](/docs/rules/plugin-peers)），运行时不 import：
 
-{/* has file="../plugins/devkit/src/index.ts" text="import type {} from '@godcreator/gwb-commands'" */}
+{/* ref file="../plugins/devkit/src/index.ts" lines="6-6" hash="ef21adc76d0c" blob="508f3229377b" */}
 
 每个服务的 peer 写法、缺了会怎样，逐个列在[插件之间怎么连](/docs/wiring)。
 
@@ -63,7 +63,7 @@ devkit 保证：
 
 devkit 的就绪日志从 `list()` 里筛出 `plugin` 等于包名 `@godcreator/gwb-devkit` 的命令，与登记命令时写的 `plugin` 相同：
 
-{/* has file="../plugins/devkit/src/index.ts" text=".filter((entry) => entry.plugin === '@godcreator/gwb-devkit')" */}
+{/* ref file="../plugins/devkit/src/index.ts" lines="650-650" hash="772b255c8abc" blob="508f3229377b" */}
 
 ## 不负责的事
 
@@ -75,4 +75,4 @@ devkit 的就绪日志从 `list()` 里筛出 `plugin` 等于包名 `@godcreator/
 
 两个插件都没有测试把 `apply` 运行在真实的服务上。devkit 与插件管理各自的 `tests/commands.test.ts` 都在假的上下文上运行 `apply`、按命令名调登记下来的处理函数，并核对每条命令登记时写的 `effect`（devkit 那份另测命令总线不在时 `apply` 抛错）；devkit 的 `tests/ready-log.test.ts` 用假的命令总线运行 `apply`，检查就绪日志列出的命令数等于登记时 `plugin` 写本包包名的命令数：
 
-{/* has file="../plugins/devkit/tests/ready-log.test.ts" text="列出总线上 plugin 是本包包名的全部命令" */}
+{/* ref file="../plugins/devkit/tests/ready-log.test.ts" lines="37-44" hash="a6410d42b377" blob="a57203494e0e" */}

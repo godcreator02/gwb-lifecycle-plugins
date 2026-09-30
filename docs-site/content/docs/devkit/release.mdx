@@ -150,13 +150,13 @@ node 侧放行的包名：
 
 **注入与 peer**在 `src/wiring-check.ts`，只查插件包。先把 `src/` 下每份源码（`.d.ts` 除外）的注释、字符串与模板字面量的内容、正则字面量换成空格，再找 `inject` 标识符：`export const inject = [...]`、`static inject = [...]` 算必需注入，`<上下文>.inject([...], fn)` 算局部注入，数组里只认字符串字面量；像注入又读不出服务名的写法报出文件与行号。服务的提供方从 peer 与 dev 里的插件判：读包目录 `node_modules` 里它的类型入口，看给 cordis `Context` 补了哪些名字，几个都补了就只认运行时代码里提供它的那个。放行的几种（`gwbKernel`、本包自己提供的、提供方不是 gwb 插件的、同工作区里写 peer 会成环的）与认不出的写法见规矩页[用到的插件写 peer](/docs/rules/plugin-peers#源码注入由谁查)；仓里有没有文档站、有没有「插件之间怎么连」那一页不查，那一页是[约定](/docs/rules/wiring)。几个入口函数：
 
-{/* has file="../plugins/devkit/src/wiring-check.ts" text="export function sourceWiringOf(source: string): SourceWiring" */}
+{/* ref file="../plugins/devkit/src/wiring-check.ts" lines="280-280" hash="67e310c5fcd8" blob="caa8780a8d0a" */}
 
-{/* has file="../plugins/devkit/src/wiring-check.ts" text="export function contextServicesOf(dts: string): string[]" */}
+{/* ref file="../plugins/devkit/src/wiring-check.ts" lines="338-338" hash="309c6fd21dce" blob="caa8780a8d0a" */}
 
-{/* has file="../plugins/devkit/src/wiring-check.ts" text="function providersOf(service: string, candidates: readonly KnownPackage[], io: Pick<WiringCheckIo, 'readText' | 'filesUnder'>): KnownPackage[]" */}
+{/* ref file="../plugins/devkit/src/wiring-check.ts" lines="445-445" hash="42f5b34cc821" blob="caa8780a8d0a" */}
 
-{/* has file="../plugins/devkit/src/wiring-check.ts" text="function providedByCyclicSibling(service: string, input: WiringCheckInput, io: WiringCheckIo): boolean" */}
+{/* ref file="../plugins/devkit/src/wiring-check.ts" lines="507-507" hash="53ae546394db" blob="caa8780a8d0a" */}
 
 工作区里有哪些包目录由 `ReleaseDeps.workspacePackageDirs` 给（仓根往下两层里有 `package.json` 的目录），只在判「写 peer 会成环」时用。
 
@@ -184,19 +184,19 @@ node 侧放行的包名：
 
 `tests/release.test.ts` 注入一套假的 `ReleaseDeps`，整条流程在测试里运行完：守卫在最前、构建次之、按给定顺序发、范围是 `^新版本号`；git 工作区不干净或问不出、清单读不到、同号已在源上、产物不全、构建失败时一个都不发；发版前检查没过时构建之后、发之前拒，所有包的问题一次列全；第二个包发失败时回执带上已经发出去的那一个；每个包发到自己的发布目标、没写或写坏了 `publishConfig.registry` 时点名是哪个包。dev 依赖落后、出范围、写法不是 `^` 都照常发，也不去源上问它的 latest。同一条线、peer 只许三类、peer 不成环、内核包写法几条规则各有纯函数测试；peer 不成环那条给一张假文件表加一张目录链接表，测两个包互相写 peer、要走好几步的环、不成环、反方向局部注入、同一次发的包按工作区里的清单。
 
-{/* has file="../plugins/devkit/tests/release.test.ts" text="发版前检查没过：构建之后、发之前拒，一个都不发，所有包的问题一次列全" */}
+{/* ref file="../plugins/devkit/tests/release.test.ts" lines="374-400" hash="961f467267d4" blob="4c77897ab598" */}
 
-{/* has file="../plugins/devkit/tests/release.test.ts" text="dev 依赖不查：落后于源上 latest、出了范围、写法不是 ^ 都照常发" */}
+{/* ref file="../plugins/devkit/tests/release.test.ts" lines="402-415" hash="f28ec3e1ad2a" blob="4c77897ab598" */}
 
 `tests/artifact-check.test.ts` 给一张假文件表测产物检查：两侧入口怎么认、压成一行的各种写法都找到、字符串与注释里的 `import(…)` 不算、页面入口读不到就报。`tests/style-check.test.ts` 给假文件表与假编译器测样式检查：样式入口认不出、类选择器不带前缀、`@scope` 块放行与根不带前缀、fallback 写死、调色板、前缀排在变体后面、带前缀编不出、漏了前缀各报什么；颜色类怎么认、样式入口里带前缀的 `@apply` 这两处用真实 Tailwind 编：devkit 的 dev 里装了 `@tailwindcss/cli` 与 `tailwindcss`，编译器照 `tailwindOf` 的找法从 devkit 包目录找，产物与源码由同一份样式入口编出来；拿真实 Tailwind 的核对在 baseui、外壳、dsh、块笔记核心四个真实包上做过（块笔记核心没过，见它仓里的 feedback）。`tests/wiring-check.test.ts` 给假文件表测注入与 peer：三种注入写法与类型参数、认不出的写法逐处报、不是注入的属性读取与类型成员不管、类型入口里补的名字怎么读、几个声明方时按运行时代码判、只写在 dev、必需注入标了 optional、写 peer 会成环时放行、仓里没有文档站也不报。`tests/node-dev-deps.test.ts` 测组装发布内容的纯函数：发布用清单怎么改写、`workspace:` 找不到就抛、`pnpm view` 的结果怎么判。
 
-{/* has file="../plugins/devkit/tests/artifact-check.test.ts" text="压成一行的各种写法：静态 import、副作用 import、import * as、export from、export *、export * as、动态 import 都找到" */}
+{/* ref file="../plugins/devkit/tests/artifact-check.test.ts" lines="58-66" hash="721f11d2e981" blob="3fad9bb8b28a" */}
 
-{/* has file="../plugins/devkit/tests/style-check.test.ts" text="根选择器没有带前缀的类：报，写明要求与写法；没写根的、选择器列表里有一项不带前缀的也报" */}
+{/* ref file="../plugins/devkit/tests/style-check.test.ts" lines="209-214" hash="8b5f180bbb5e" blob="40247d948834" */}
 
-{/* has file="../plugins/devkit/tests/style-check.test.ts" text="颜色类前缀后面跟的不是色名：线型、表格边框与间距、溢出与换行、对齐、字号、边侧宽度、背景尺寸、渐变位置都不报；用主题令牌的颜色类不报" */}
+{/* ref file="../plugins/devkit/tests/style-check.test.ts" lines="315-328" hash="d2f507361f06" blob="40247d948834" */}
 
-{/* has file="../plugins/devkit/tests/style-check.test.ts" text="样式入口里 @utility 用带前缀的 @apply：去掉前缀那次也编得过；漏了前缀照报，自定义的工具类漏了前缀也报" */}
+{/* ref file="../plugins/devkit/tests/style-check.test.ts" lines="344-352" hash="375150b13931" blob="40247d948834" */}
 
 ## 代码地图
 

@@ -84,11 +84,11 @@ devkit 没有任何特权：装进 home 才有它的命令，和别的插件一�
 
 两边靠显式接口隔开：`HomeDeps`、`DevDeps`、`ReleaseDeps` 由纯逻辑定义，运行时传 `node-*-deps.ts` 的实现，测试时传假实现。依赖方向单向：真机器那一层认识纯逻辑，纯逻辑不认识它。
 
-{/* has file="../plugins/devkit/src/home.ts" text="export interface HomeDeps {" */}
+{/* ref file="../plugins/devkit/src/home.ts" lines="170-170" hash="de931f66d184" blob="c369a4bdd3d2" */}
 
-{/* has file="../plugins/devkit/src/dev.ts" text="export interface DevDeps {" */}
+{/* ref file="../plugins/devkit/src/dev.ts" lines="328-328" hash="1158b934aa50" blob="ebe1ec7fc4e7" */}
 
-{/* has file="../plugins/devkit/src/release.ts" text="export interface ReleaseDeps {" */}
+{/* ref file="../plugins/devkit/src/release.ts" lines="13-13" hash="37be445dc92f" blob="f6121d7801e9" */}
 
 {/* tree dir="../plugins/devkit/src" depth="1" glob="*.ts" hash="845545ed05e8" */}
 
@@ -102,7 +102,7 @@ devkit 没有任何特权：装进 home 才有它的命令，和别的插件一�
 - `devkit.home.new` 把插件管理作为基础插件装进新 home，之后往这个 home 加插件、升内核都经它
 - 插件 peer 里内核包的范围两边都用：插件管理在 `list` 里拿它和运行中的内核比对，`devkit.release` 发版前拒绝没写或写法不对的插件包。规则只有一份，在插件管理；devkit 的 peer 里写着插件管理，从它的主入口 import 判断写法的 `isCaretRange`，连同找 pnpm 的 `locatePnpm`
 
-{/* has file="../plugins/devkit/src/release.ts" text="import { KERNEL_PACKAGE, isCaretRange } from '@godcreator/gwb-plugin-manager'" */}
+{/* ref file="../plugins/devkit/src/release.ts" lines="3-3" hash="e67c7c1e2fa1" blob="f6121d7801e9" */}
 
 放在一个仓里，这些地方一个提交就能改两边。
 

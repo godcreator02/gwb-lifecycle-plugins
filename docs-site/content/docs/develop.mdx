@@ -17,7 +17,7 @@ plugin-manager.install {"pkg":"@godcreator/gwb-devkit"}
 
 **确认它加载了**：`<home>\gwb.log` 里有「开发套件就绪」那一行，说明 `apply` 执行完了。安装命令回的「装完了」不算：包装进 `node_modules` 与插件加载成功是两件事。这个 home 上此刻有哪几条命令，以 `search {"plugin":"@godcreator/gwb-devkit"}` 的结果为准。
 
-{/* has file="../plugins/devkit/src/index.ts" text="开发套件就绪" */}
+{/* ref file="../plugins/devkit/src/index.ts" lines="653-653" hash="81ff0d468089" blob="508f3229377b" */}
 
 插件管理是基础插件：`devkit.home.new` 开的隔离 home 自带它，日常用的 `default` 在装机时装好。
 
@@ -39,7 +39,7 @@ pnpm install
 
 ## 提交前的检查
 
-{/* has file="../package.json" text="pnpm -r --no-bail check" */}
+{/* ref file="../package.json" lines="7-7" hash="dce8c11e4e22" blob="98383c87d541" */}
 
 ```powershell
 pnpm check          # 各包的 check：开发套件是 typecheck + vitest，插件管理另加 oxlint
@@ -54,17 +54,17 @@ pnpm build          # 只构建 plugins/*，两个包都先清空 dist/：开发
 
 {/* ref file="../plugins/devkit/build.ts" lines="15-50" hash="8596bdea3caa" blob="23ebc86527f5" */}
 
-{/* has file="../plugins/devkit/tests/built-artifact.test.ts" text="另起一个 node 进程直接 import 得起来" */}
+{/* ref file="../plugins/devkit/tests/built-artifact.test.ts" lines="100-105" hash="e89ab0bdeaa7" blob="b2dc2353d6cf" */}
 
 `tests/built-artifact.test.ts` 还对产物做一遍发版前检查的产物部分、加载产物调几条不碰 home 的命令，看包内路径解析得到：
 
-{/* has file="../plugins/devkit/tests/built-artifact.test.ts" text="过得了发版前检查" */}
+{/* ref file="../plugins/devkit/tests/built-artifact.test.ts" lines="89-92" hash="2b3c260ae0e2" blob="b2dc2353d6cf" */}
 
 开发套件的测试里有两份启动真的子进程：`tests/process-tree.test.ts` 看超时之后孙进程真的没了（假实现证明不了），`tests/built-artifact.test.ts` 另起一个 node 进程 import 构建产物（没有 `dist/` 时整组跳过），还经产物调 `devkit.scaffold.plugin` 真的启动 pnpm：环境变量把 pnpm 的源指到本机一个没人监听的端口、不重试，加组件那一步当场失败，不联网，测的是插件文件已经写出、回执说清卡在组件这一步。都几秒钟就运行完，跟着 `pnpm check` 一起运行。
 
 **开发套件的类型检查与测试用的是插件管理的 `dist/`**：插件管理的清单把主入口指到 `dist/index.js` 与 `dist/index.d.ts`，开发套件从那里 import。刚拉下来的仓、或者改了插件管理导出的函数，先 `pnpm build` 再 `pnpm check`，不然开发套件那一半报找不到模块，或者用的还是旧函数。
 
-{/* has file="../plugins/plugin-manager/package.json" text="./dist/index.d.ts" */}
+{/* ref file="../plugins/plugin-manager/package.json" lines="13-13" hash="4cd2d7b12fd5" blob="4765c3f95909" */}
 
 文档站的检查不在 `pnpm check` 里（要运行文档站的解析，太慢），见下面[文档站](#文档站)。
 

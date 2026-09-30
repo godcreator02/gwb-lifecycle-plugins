@@ -18,7 +18,7 @@ description: 连接 devkit、插件管理与 pnpm、npm 源、两份 npmrc：两
 
 {/* ref file="../plugins/plugin-manager/src/pnpm-location.ts" lines="22-28" hash="95b0715044ea" blob="b7b0f475391d" */}
 
-{/* has file="../plugins/devkit/src/index.ts" text="import { locatePnpm } from '@godcreator/gwb-plugin-manager'" */}
+{/* ref file="../plugins/devkit/src/index.ts" lines="27-27" hash="0bb814122d14" blob="508f3229377b" */}
 
 **插件管理拿它做什么**：只在 home 里运行 `add`（对齐 `cordis` 那一次带 `--save-exact`）、`remove`、`outdated --json`，不传 `--registry`，源由 pnpm 的配置决定；找插件时另运行只读的 `config list --json` 与 `config get`。
 
@@ -119,6 +119,6 @@ devkit 保证：
 
 devkit 与插件管理的单元测试只覆盖命令行怎么拼、用哪一份 pnpm、源地址是哪个，以及 pnpm 配置输出的解析、检索响应的解析；真的 pnpm、真实 registry 与机器级 `~/.npmrc` 只能实机验证。
 
-{/* has file="../plugins/devkit/tests/home.test.ts" text="三条 pnpm add 的环境都由插件管理的 homePnpmEnv 从宿主环境算出：不自动补装 peer，不带 ELECTRON_RUN_AS_NODE" */}
+{/* ref file="../plugins/devkit/tests/home.test.ts" lines="225-232" hash="244ebd5a51ba" blob="d753b1500725" */}
 
-{/* has file="../plugins/plugin-manager/tests/sources.test.ts" text="这个 scope 没有路由：报没配源，不去全局源 registry 查" */}
+{/* ref file="../plugins/plugin-manager/tests/sources.test.ts" lines="37-41" hash="6648a937b900" blob="1eede6b1775a" */}

@@ -36,17 +36,17 @@ description: home 里有包与条目两层，list 按包名把两层对上、两
 
 {/* ref file="../plugins/plugin-manager/src/home.ts" lines="26-30" hash="d898199f138f" blob="2689fa073ac6" */}
 
-{/* has file="../plugins/plugin-manager/tests/inventory.test.ts" text="装了包但一条条目都没有" */}
+{/* ref file="../plugins/plugin-manager/tests/inventory.test.ts" lines="101-105" hash="73f68811c3d0" blob="a34e5ea80ec3" */}
 
-{/* has file="../plugins/plugin-manager/tests/inventory.test.ts" text="条目指向一个没装的包" */}
+{/* ref file="../plugins/plugin-manager/tests/inventory.test.ts" lines="107-112" hash="d873d8924641" blob="a34e5ea80ec3" */}
 
-{/* has file="../plugins/plugin-manager/tests/inventory.test.ts" text="是否加载成功看的是 fiber 的状态" */}
+{/* ref file="../plugins/plugin-manager/tests/inventory.test.ts" lines="50-60" hash="d3c262cc74bb" blob="a34e5ea80ec3" */}
 
-{/* has file="../plugins/plugin-manager/tests/inventory.test.ts" text="形状对不上的那格跳过" */}
+{/* ref file="../plugins/plugin-manager/tests/inventory.test.ts" lines="72-76" hash="e7fb4f2e1c56" blob="a34e5ea80ec3" */}
 
-{/* has file="../plugins/plugin-manager/tests/home.test.ts" text="清单不在、不是合法 JSON：抛错，报错里有清单路径" */}
+{/* ref file="../plugins/plugin-manager/tests/home.test.ts" lines="25-30" hash="04c3fd9a2f08" blob="75dab5629360" */}
 
-{/* has file="../plugins/plugin-manager/tests/commands.test.ts" text="home 的 dependencies 里的内核包与 cordis 不列出来" */}
+{/* ref file="../plugins/plugin-manager/tests/commands.test.ts" lines="275-280" hash="aa058d14a189" blob="c92d5fd1b7d7" */}
 
 ## 只有插件管理写 home
 
@@ -76,9 +76,9 @@ description: home 里有包与条目两层，list 按包名把两层对上、两
 
 {/* ref file="../plugins/plugin-manager/src/tree.ts" lines="28-33" hash="5c02cdc1542a" blob="07cb08627b89" */}
 
-{/* has file="../plugins/plugin-manager/tests/commands.test.ts" text="remove-entry、enable、disable：完整 entryId 与不带前缀的 id 都认；没有这条就抛错" */}
+{/* ref file="../plugins/plugin-manager/tests/commands.test.ts" lines="312-321" hash="ce5ecffbbb1d" blob="c92d5fd1b7d7" */}
 
-{/* has file="../plugins/plugin-manager/tests/loader.test.ts" text="改的是内存里的条目，也写回 cordis.yml" */}
+{/* ref file="../plugins/plugin-manager/tests/loader.test.ts" lines="96-116" hash="6bef9287437e" blob="0f485f2217e0" */}
 
 <Note>
 **别直接写 cordis.yml**：绕过条目树改文件，内存里的条目不知道，改动要等下次重启才生效，而且中间任何一次写回都会用内存里的旧内容把它覆盖掉。

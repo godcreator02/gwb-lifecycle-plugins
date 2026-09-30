@@ -25,11 +25,11 @@ description: 插件在 peerDependencies 里给内核包 @godcreator/gwb-kernel-d
 
 运行中的内核版本号来自内核服务 `gwbKernel` 的 `version`；它不是合法版本号说明内核坏了，直接报错。
 
-{/* has file="../plugins/plugin-manager/tests/kernel-compat.test.ts" text="主版本号为 0 时次版本号相同、≥1 时主版本号相同，并且不低于下限" */}
+{/* ref file="../plugins/plugin-manager/tests/kernel-compat.test.ts" lines="13-21" hash="59454694711b" blob="bd885f15ec9c" */}
 
-{/* has file="../plugins/plugin-manager/tests/kernel-compat.test.ts" text="预发布段不看：开发版内核按它的 x.y.z 比" */}
+{/* ref file="../plugins/plugin-manager/tests/kernel-compat.test.ts" lines="23-25" hash="905284e6c7a4" blob="bd885f15ec9c" */}
 
-{/* has file="../plugins/plugin-manager/tests/kernel-compat.test.ts" text="范围没写、不是 ^x.y.z：不包含；内核版本号不合法直接抛错" */}
+{/* ref file="../plugins/plugin-manager/tests/kernel-compat.test.ts" lines="27-31" hash="8954afc5c3b7" blob="bd885f15ec9c" */}
 
 ## list 在 unmetPeers 里报内核包
 
@@ -45,17 +45,17 @@ description: 插件在 peerDependencies 里给内核包 @godcreator/gwb-kernel-d
 
 {/* ref file="../plugins/plugin-manager/src/home.ts" lines="36-51" hash="1660ad5366b3" blob="2689fa073ac6" */}
 
-{/* has file="../plugins/plugin-manager/tests/peers.test.ts" text="内核包对照正在运行的内核：范围不包含就列一项，installed 是运行中的内核版本" */}
+{/* ref file="../plugins/plugin-manager/tests/peers.test.ts" lines="94-99" hash="c4b965343972" blob="ff4676d50940" */}
 
-{/* has file="../plugins/plugin-manager/tests/peers.test.ts" text="内核包的范围不是 ^x.y.z 也列；home 的 node_modules 里装着的内核版本不参与判断" */}
+{/* ref file="../plugins/plugin-manager/tests/peers.test.ts" lines="101-107" hash="3fad014f1925" blob="ff4676d50940" */}
 
-{/* has file="../plugins/plugin-manager/tests/peers.test.ts" text="peer 里没写内核包的插件不列内核这一项；cordis 不在这里报" */}
+{/* ref file="../plugins/plugin-manager/tests/peers.test.ts" lines="109-111" hash="cf17c3130532" blob="ff4676d50940" */}
 
-{/* has file="../plugins/plugin-manager/tests/commands.test.ts" text="插件 peer 里内核包的范围不包含正在运行的内核：unmetPeers 列一项，installed 是运行中的内核版本（home 里装着的内核包版本不算）" */}
+{/* ref file="../plugins/plugin-manager/tests/commands.test.ts" lines="263-273" hash="7fe741fecf2d" blob="c92d5fd1b7d7" */}
 
-{/* has file="../plugins/plugin-manager/tests/home.test.ts" text="包不在 node_modules 里时是 undefined" */}
+{/* ref file="../plugins/plugin-manager/tests/home.test.ts" lines="45-47" hash="6beae35eef7b" blob="75dab5629360" */}
 
-{/* has file="../plugins/plugin-manager/tests/home.test.ts" text="清单不是合法 JSON 时抛错，报错里有文件路径" */}
+{/* ref file="../plugins/plugin-manager/tests/home.test.ts" lines="49-52" hash="0d6e20f26ab8" blob="75dab5629360" */}
 
 ## 只报告，不拦加载
 
@@ -69,4 +69,4 @@ description: 插件在 peerDependencies 里给内核包 @godcreator/gwb-kernel-d
 
 {/* ref file="../plugins/plugin-manager/src/kernel-compat.ts" lines="1-1" hash="265c3bdf8461" blob="b88e71e1b482" */}
 
-{/* has file="../plugins/devkit/src/release.ts" text="import { KERNEL_PACKAGE, isCaretRange } from '@godcreator/gwb-plugin-manager'" */}
+{/* ref file="../plugins/devkit/src/release.ts" lines="3-3" hash="e67c7c1e2fa1" blob="f6121d7801e9" */}

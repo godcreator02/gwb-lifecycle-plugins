@@ -34,7 +34,7 @@ peer 的意思是「运行时从 home 里得到这个包」。插件的 peer 因
 
 {/* ref file="../plugins/devkit/src/release.ts" lines="190-212" hash="bb8b33a92f5d" blob="f6121d7801e9" */}
 
-{/* has file="../plugins/devkit/tests/release.test.ts" text="插件包 peer 里的插件和源上 latest 不在同一条线：构建之后、发之前拒，一个都不发" */}
+{/* ref file="../plugins/devkit/tests/release.test.ts" lines="472-486" hash="058cfd0e3c5d" blob="4c77897ab598" */}
 
 同一道检查还扫插件包源码里注入的服务，找出提供方：必需注入的提供方要写在 peer 里、不标 `optional`，局部注入的提供方要写在 peer 里（标不标 `optional` 都放行）。怎么扫、提供方怎么判、哪些放行，见下面「源码注入由谁查」。
 
@@ -52,11 +52,11 @@ peer 的意思是「运行时从 home 里得到这个包」。插件的 peer 因
 - **不查的**：`gwbKernel`（内核接口，用 `requireKernel` 取）；本包自己提供的服务。给 `Context` 补了名字、但不是插件的包（只有类型的包）不算提供方
 - **不写 peer 也放行的只有一种**：局部注入、提供方是同一个工作区里的插件、它自己 peer 或 dev 写了本包——本包再写它就成了包依赖环，pnpm 12 的 `pnpm -r` 遇环直接退出。命令总线对说明书插件就是这样。这条按规则判出来，包清单里不另写例外
 
-{/* has file="../plugins/devkit/src/wiring-check.ts" text="export function wiringProblems(input: WiringCheckInput, io: WiringCheckIo): string[]" */}
+{/* ref file="../plugins/devkit/src/wiring-check.ts" lines="573-573" hash="783257915876" blob="caa8780a8d0a" */}
 
-{/* has file="../plugins/devkit/src/release.ts" text="...(manifest.plugin ? wiringProblems(" */}
+{/* ref file="../plugins/devkit/src/release.ts" lines="430-430" hash="33f5cb2be997" blob="f6121d7801e9" */}
 
-{/* has file="../plugins/devkit/tests/wiring-check.test.ts" text="局部注入、提供方是同工作区里 peer 写了本包的插件（写 peer 会成环）：放行；必需注入不放行" */}
+{/* ref file="../plugins/devkit/tests/wiring-check.test.ts" lines="228-238" hash="1ae624e2356e" blob="d11c34fe6c4c" */}
 
 扫描先去掉注释、字符串与模板字面量的内容、正则字面量，再找 `inject` 这个标识符：
 
@@ -72,9 +72,9 @@ peer 的意思是「运行时从 home 里得到这个包」。插件的 peer 因
 
 扫不准的就拒、让人改写成扫得准的写法，不做模糊匹配。命令名不在这里查：源码里命令名有字面量、常量、模板串、条件登记四种形态，扫出来的数和运行时对不上（见轨迹卡[能力地图挪到运行时](/trajectory/2026-09-18-capability-map-moves-to-runtime)）。
 
-{/* has file="../plugins/devkit/tests/wiring-check.test.ts" text="像注入又读不出服务名的逐处报：变量参数、对象形式、拼出来的数组、叫 inject 的变量、对象字面量里值是数组的 inject 键、不经 . 直接调用" */}
+{/* ref file="../plugins/devkit/tests/wiring-check.test.ts" lines="96-110" hash="f0aa72a8d829" blob="d11c34fe6c4c" */}
 
-{/* has file="../plugins/devkit/tests/wiring-check.test.ts" text="不是注入的不管：属性读取、类型里的 inject 成员与方法声明" */}
+{/* ref file="../plugins/devkit/tests/wiring-check.test.ts" lines="112-121" hash="8db3d7d155e9" blob="d11c34fe6c4c" */}
 
 查不到的：只 `import type` 了别的插件、没注入它的服务，不在注入里，不查它写没写 peer；局部注入写成必需 peer 合不合理，两种都放行；服务名不是字面量的 `super` / `provide` 不算提供。为什么放在发版时查，见轨迹卡[发版前查注入与 wiring 页](/trajectory/2026-09-25-release-checks-wiring)。
 

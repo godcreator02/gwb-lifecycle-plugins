@@ -15,9 +15,9 @@ description: install、uninstall、update 三条命令在最外层经过同一�
 
 {/* ref file="../plugins/plugin-manager/src/index.ts" lines="150-152" hash="241d76472810" blob="5ecda4b17644" */}
 
-{/* has file="../plugins/plugin-manager/tests/busy.test.ts" text="有改动在运行时重入回 BUSY，不执行" */}
+{/* ref file="../plugins/plugin-manager/tests/busy.test.ts" lines="13-31" hash="2e489577c8cb" blob="5e0247574eac" */}
 
-{/* has file="../plugins/plugin-manager/tests/busy.test.ts" text="执行中抛错也释放标志，下一次能执行" */}
+{/* ref file="../plugins/plugin-manager/tests/busy.test.ts" lines="33-38" hash="43e4c3442f90" blob="5e0247574eac" */}
 
 <Diagram name="pm-busy" title="改动命令经过 BUSY 检查，同一时刻最多一个写 home 的 pnpm；只读的 outdated 不经过 BUSY">
 - 命令 A（`install`）通过 BUSY 检查、设上标志，它的 `pnpm add` 开始运行、写 home

@@ -30,9 +30,9 @@ description: 内核包也经 update 的 specs 换，可以连同别的包一次�
 
 {/* ref file="../plugins/plugin-manager/src/index.ts" lines="535-539" hash="dc426da265cc" blob="5ecda4b17644" */}
 
-{/* has file="../plugins/plugin-manager/tests/commands.test.ts" text="uninstall：内核包与 cordis 不许卸载，直接抛错，一次 pnpm 都不运行" */}
+{/* ref file="../plugins/plugin-manager/tests/commands.test.ts" lines="463-469" hash="7fc9d0bd1036" blob="c92d5fd1b7d7" */}
 
-{/* has file="../plugins/plugin-manager/tests/commands.test.ts" text="only 点了内核包或 cordis：直接抛错、指向 specs 写法，一次 pnpm 都不运行" */}
+{/* ref file="../plugins/plugin-manager/tests/commands.test.ts" lines="730-736" hash="ac9700a21366" blob="c92d5fd1b7d7" */}
 
 ## cordis 由插件管理对齐
 
@@ -42,9 +42,9 @@ description: 内核包也经 update 的 specs 换，可以连同别的包一次�
 
 {/* ref file="../plugins/plugin-manager/src/kernel-upgrade.ts" lines="19-47" hash="e73589fdac86" blob="f053bf9413fd" */}
 
-{/* has file="../plugins/plugin-manager/tests/commands.test.ts" text="specs 里写了 cordis（不论带不带内核包）：直接抛错，说明 cordis 由插件管理照内核包对齐，一次 pnpm 都不运行" */}
+{/* ref file="../plugins/plugin-manager/tests/commands.test.ts" lines="813-819" hash="32e0ba48d5d8" blob="c92d5fd1b7d7" */}
 
-{/* has file="../plugins/plugin-manager/tests/kernel-upgrade.test.ts" text="peer 里的 cordis 是范围不是精确版本号：报错并说出实际写的" */}
+{/* ref file="../plugins/plugin-manager/tests/kernel-upgrade.test.ts" lines="37-42" hash="1b7de8eb64d3" blob="5ec84cd929d3" */}
 
 ## 回执多出的 restartRequired
 
@@ -52,9 +52,9 @@ description: 内核包也经 update 的 specs 换，可以连同别的包一次�
 
 回执不列哪些插件的范围不包含新内核：重启之后 `list` 对照的就是新内核，这些插件的 `unmetPeers` 里会有内核包那一项（见[内核兼容性](/docs/plugin-manager/kernel-compat)），同样只报告，照常加载，要不要先升它们由人决定。
 
-{/* has file="../plugins/plugin-manager/tests/commands.test.ts" text="内核包与别的包一次 pnpm add，再照装上的内核包 peer 装 cordis（只有 cordis 带 --save-exact：它要正好等于内核包 peer 里那个版本）；不重新加载任何条目；回执带新旧版本与要不要重启，不带 pluginsOutsideRange" */}
+{/* ref file="../plugins/plugin-manager/tests/commands.test.ts" lines="881-914" hash="c1e17ef56e29" blob="c92d5fd1b7d7" */}
 
-{/* has file="../plugins/plugin-manager/tests/commands.test.ts" text="装上的就是正在运行的内核版本：restartRequired 是 false" */}
+{/* ref file="../plugins/plugin-manager/tests/commands.test.ts" lines="916-923" hash="33156066cf0c" blob="c92d5fd1b7d7" */}
 
 ## 失败时 home 停在哪
 
@@ -68,12 +68,12 @@ description: 内核包也经 update 的 specs 换，可以连同别的包一次�
 
 {/* ref file="../plugins/plugin-manager/src/receipts.ts" lines="179-180" hash="a6fe8597406f" blob="983b6caf5da3" */}
 
-{/* has file="../plugins/plugin-manager/tests/commands.test.ts" text="第一次 pnpm add 失败：不装 cordis，外层 error 带输出的最后几行，没有 data" */}
+{/* ref file="../plugins/plugin-manager/tests/commands.test.ts" lines="978-987" hash="b9fdce4e7eb4" blob="c92d5fd1b7d7" */}
 
-{/* has file="../plugins/plugin-manager/tests/commands.test.ts" text="写法是准确版本号、装上的内核包不是它：ok false，不装 cordis、先别重启" */}
+{/* ref file="../plugins/plugin-manager/tests/commands.test.ts" lines="925-934" hash="b9c0f883b405" blob="c92d5fd1b7d7" */}
 
-{/* has file="../plugins/plugin-manager/tests/commands.test.ts" text="装 cordis 时 pnpm 失败：ok false，data 带已装上的内核版本，error 带 pnpm 输出的最后几行、说明先别重启" */}
+{/* ref file="../plugins/plugin-manager/tests/commands.test.ts" lines="948-962" hash="b1c6b9853058" blob="c92d5fd1b7d7" */}
 
-{/* has file="../plugins/plugin-manager/tests/commands.test.ts" text="pnpm 退出码 0 但装上的 cordis 不是内核要的版本：ok false，data 带内核版本，说明先别重启" */}
+{/* ref file="../plugins/plugin-manager/tests/commands.test.ts" lines="964-976" hash="38b430b73be7" blob="c92d5fd1b7d7" */}
 
 真的换内核只能实机验证：在隔离 home 里调 `plugin-manager.update {"specs":{"@godcreator/gwb-kernel-desktop":"<版本>"}}`，重启那个 home，看 `runtime.json` 报的内核版本与 `list` 里的条目。

@@ -162,19 +162,19 @@ pnpm 退出码是 0，不等于装上了要的那一版：home 的 `package.json
 <Accordions>
 <Accordion title="对照代码：这一页的说法由哪些测试守着">
 
-{/* has file="../plugins/plugin-manager/src/remount.ts" text="不等旧的卸载完就启用" */}
+{/* ref file="../plugins/plugin-manager/src/remount.ts" lines="23-23" hash="7c7414fba8ad" blob="3c8649945110" */}
 
-{/* has file="../plugins/plugin-manager/tests/update.test.ts" text="点了名、目录变了的进 updated；没点名、目录变了的进 dependents，按包名排" */}
+{/* ref file="../plugins/plugin-manager/tests/update.test.ts" lines="232-246" hash="b87bcf280dec" blob="a4b835c262e9" */}
 
-{/* has file="../plugins/plugin-manager/tests/update.test.ts" text="点了名、目录没变的（装的就是原来那一版）：照样列进 updated，但 entries 为空、不重新加载" */}
+{/* ref file="../plugins/plugin-manager/tests/update.test.ts" lines="248-253" hash="5b363935be40" blob="a4b835c262e9" */}
 
-{/* has file="../plugins/plugin-manager/tests/commands.test.ts" text="pnpm add 前后真实目录变了的别的包：它的条目在同一条命令里跟着重新加载（停用的跳过），回执 dependents 列出来；目录没变的不动" */}
+{/* ref file="../plugins/plugin-manager/tests/commands.test.ts" lines="588-621" hash="f1056a37aabf" blob="c92d5fd1b7d7" */}
 
-{/* has file="../plugins/plugin-manager/tests/commands.test.ts" text="升级清单里有插件管理自己：自己那条先回 deferred，回执之后才重新加载，之后不整页重新加载" */}
+{/* ref file="../plugins/plugin-manager/tests/commands.test.ts" lines="558-575" hash="83757ddfc28a" blob="c92d5fd1b7d7" */}
 
-{/* has file="../plugins/plugin-manager/tests/commands.test.ts" text="pnpm add 失败：一条条目都不动，外层 error 带上输出的最后几行，没有 data" */}
+{/* ref file="../plugins/plugin-manager/tests/commands.test.ts" lines="577-586" hash="257ba1eabd0b" blob="c92d5fd1b7d7" */}
 
-{/* has file="../plugins/plugin-manager/tests/update.test.ts" text="写法是准确版本号、装上的不是它：ok false，逐项说出要的与装上的" */}
+{/* ref file="../plugins/plugin-manager/tests/update.test.ts" lines="172-187" hash="c9fc5beed4d0" blob="a4b835c262e9" */}
 
 {/* ref file="../plugins/plugin-manager/src/remount.ts" lines="48-72" hash="9602e2cc9d9a" blob="3c8649945110" */}
 

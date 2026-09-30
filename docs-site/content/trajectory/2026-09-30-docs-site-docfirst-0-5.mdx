@@ -1,0 +1,33 @@
+---
+title: 文档站升 docfirst-workflow 0.5.2：集合仍写在 source.config.ts，加整页星轨盘，「明确不做」挪进包首页
+born-at: 2026-09-30T23:10
+type: choice
+parent: [2026-09-08-gwb-devkit]
+label: 升 docfirst 0.5
+domain: 文档站
+---
+
+## 背景
+
+站原来用 `@godcreator/docfirst-workflow` 0.3.1 加 `@godcreator/docfirst-trajectory` 0.1.1。0.5 是破坏性版本（迁移说明来自 docfirst 仓提交 `a8a92de`、`82b1df1`）：配置只认 `docfirst.config.mjs` 且不再有 `formats`，`has` 记号直接报错，非根卡的 `parent` 只能写根卡身份，星轨盘改由 `docfirst-workflow` 的 `./fumadocs/trajectory` 提供。
+
+本站比新站模板（docfirst 仓 `plugins/docfirst/template/`）早：集合写在 `source.config.ts`，侧栏写在根 layout，轨迹区有一页导读 `index.mdx`、没有星轨盘；未来区的 `overview.mdx` 里写着「明确不做」。
+
+## 结论与边界
+
+- 站的 `devDependencies` 只写 `@godcreator/docfirst-workflow` 0.5.2；`cardSchema`、`remarkTrajectoryLinks` 改从它的 `./fumadocs` 取，组件名册的默认规则改用 `./fumadocs/roster` 的 `fumadocsRoster`
+- 263 处 `has` 记号改成行段：钉测试名的钉整条测试，其余钉那一行字面量；两处在文件里出现不止一次的字面量按页面讲的那一处手工钉
+- 18 张卡的 `parent` 原来写的是别的卡，照 0.5 的规矩改成根卡身份；原来的上下级关系留在 git 历史里，没有改写成关系行（`pivots-from` 的意思是「从哪条路转过来」，跟原来的上下级不是一回事）
+- 集合**仍写在 `source.config.ts`**，不照模板改成 `src/lib/source.ts` 里的 macro：两种写法 0.5.2 都支持，换写法要连带升 fumadocs 版本、加搜索与 llms 路由，与这次升级无关
+- 路由照模板改：侧栏从根 layout 挪到 `src/app/docs/layout.tsx`，未来区与轨迹卡页共用；轨迹卡页挪进 `(trajectory-cards)` 路由组，`/trajectory` 换成整页星轨盘；轨迹区的导读页删掉，侧栏第一条链到盘
+- 未来区的「明确不做」是此刻的边界，照 `docfirst-docs` 挪进现状区：开发套件首页「不做的事」补上还没写的几条，已经写着的不重复；「不替人运行 `pnpm install`」与建仓现在会调 shadcn CLI 装依赖不符，没有挪；`overview.mdx` 删掉
+
+## 否掉的候选
+
+- **整站照新模板重建**：要换 fumadocs 版本、改集合写法、加搜索与 llms 路由，改动面远大于升级本身，而且本站不能在这次改动里 build 验证
+- **把原来的 parent 改写成 `pivots-from::` 关系行**：意思不对，盘上会多出一批不存在的「转向」连线
+
+## 代价与遗留
+
+- 站的 fumadocs 仍是 16.15.1 / 15.3.1，比新模板建出的站旧；要用模板里的搜索与 llms 路由时再一起升
+- 这次只做了类型检查（`fumadocs-mdx` 生成 `.source` 后 `tsc --noEmit`），没有 build

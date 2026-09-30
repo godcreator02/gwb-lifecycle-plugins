@@ -83,6 +83,6 @@ devkit 保证：插件包 peer 里的内核包没写、不是 `^x.y.z`，一个�
 
 比对规则与 `list` 的 `unmetPeers` 由插件管理的单元测试覆盖，发版前检查的拒绝由 devkit 的 `release.test.ts` 覆盖。
 
-{/* has file="../plugins/plugin-manager/tests/peers.test.ts" text="内核包对照正在运行的内核：范围不包含就列一项，installed 是运行中的内核版本" */}
+{/* ref file="../plugins/plugin-manager/tests/peers.test.ts" lines="94-99" hash="c4b965343972" blob="ff4676d50940" */}
 
-{/* has file="../plugins/devkit/tests/release.test.ts" text="插件包 peer 里的内核包不对：构建之后、发之前拒，一个都不发，每个包的问题一次列全" */}
+{/* ref file="../plugins/devkit/tests/release.test.ts" lines="455-470" hash="627829b76890" blob="4c77897ab598" */}

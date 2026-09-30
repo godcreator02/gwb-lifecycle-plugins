@@ -112,7 +112,7 @@ description: bin/cdp.mjs（登记成 devkit.cdp）在一个工作台页面里操
 
 `tests/cdp.test.ts` 直接 import 它、给路径看结果：截图缺省位置在被截图那个 home 的 `out\cdp\`、不在本包目录与任何 `node_modules` 里，两处相对路径都拒；另有一条检查整个文件里不出现 `process.cwd()`。读写分开那道检查同样是纯函数：`default` 上只读放行、写动作与 `--size` 拒，隔离 home 上都放行，表外的动作都拒；另有两条读源码，查两张表合起来正好是 `run()` 里分发的全部动作、入口在核对名字之后与分发之前调用它。
 
-{/* has file="../plugins/devkit/tests/cdp.test.ts" text="两张表不相交，合起来正好是 run() 里分发的全部动作" */}
+{/* ref file="../plugins/devkit/tests/cdp.test.ts" lines="202-207" hash="a431a57948b1" blob="9c8092883826" */}
 
 它做的其余每件事都要一个真的 Chromium 调试端口在另一头：发真实事件、做命中测试、截真实的图。用假实现能测到的只剩拼参数，而那不是它出错的地方。
 

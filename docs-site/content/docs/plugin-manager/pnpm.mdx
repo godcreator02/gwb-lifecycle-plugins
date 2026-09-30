@@ -24,13 +24,13 @@ pnpm 由用户装好，插件管理不自带。每次要运行 pnpm 时按顺序
 - **只认固定位置、不看 PATH**：PATH 上排在前面的是哪一份，每台机器都不一样；两个位置都是原生可执行文件，可以直接启动，不用开 shell，也就没有参数引号转义的问题
 - **核对版本**：pnpm 大版本之间 `node_modules` 的布局与输出格式会变，版本不对就当场报错，不带着错的版本改 home
 
-{/* has file="../plugins/devkit/src/index.ts" text="import { locatePnpm } from '@godcreator/gwb-plugin-manager'" */}
+{/* ref file="../plugins/devkit/src/index.ts" lines="27-27" hash="0bb814122d14" blob="508f3229377b" */}
 
-{/* has file="../plugins/plugin-manager/tests/pnpm-location.test.ts" text="第一个位置的版本不对：报错，不去试第二个" */}
+{/* ref file="../plugins/plugin-manager/tests/pnpm-location.test.ts" lines="48-53" hash="db883055dc8a" blob="19e61df28167" */}
 
-{/* has file="../plugins/plugin-manager/tests/pnpm-location.test.ts" text="两个都不在：报错，列出两个位置与怎么装" */}
+{/* ref file="../plugins/plugin-manager/tests/pnpm-location.test.ts" lines="39-46" hash="0d4a9d033605" blob="19e61df28167" */}
 
-{/* has file="../plugins/plugin-manager/tests/pnpm.test.ts" text="包清单里没有 dependencies：pnpm 由用户装在固定位置" */}
+{/* ref file="../plugins/plugin-manager/tests/pnpm.test.ts" lines="8-11" hash="8cd3d3580aec" blob="c08dde4f1d59" */}
 
 ## 参数、环境与读回什么
 
@@ -42,11 +42,11 @@ pnpm 由用户装好，插件管理不自带。每次要运行 pnpm 时按顺序
 
 {/* ref file="../plugins/plugin-manager/src/pnpm.ts" lines="10-23" hash="a8e6203c4d42" blob="b62dd927fe34" */}
 
-{/* has file="../plugins/plugin-manager/tests/pnpm.test.ts" text="原样传下去，去掉 ELECTRON_RUN_AS_NODE、关掉自动补装 peer" */}
+{/* ref file="../plugins/plugin-manager/tests/pnpm.test.ts" lines="17-19" hash="d6113bdd4233" blob="c08dde4f1d59" */}
 
-{/* has file="../plugins/plugin-manager/tests/pnpm.test.ts" text="直接启动可执行文件，环境用 homePnpmEnv 算出的那份" */}
+{/* ref file="../plugins/plugin-manager/tests/pnpm.test.ts" lines="32-35" hash="c3efac5fd86c" blob="c08dde4f1d59" */}
 
-{/* has file="../plugins/plugin-manager/tests/pnpm.test.ts" text="调用方环境里自动补装 peer 是开着的也照样关掉" */}
+{/* ref file="../plugins/plugin-manager/tests/pnpm.test.ts" lines="21-23" hash="1d17fc4e8de4" blob="c08dde4f1d59" */}
 
 **不设超时**：装一个大包本来就可能要几分钟，定一个时限只会在慢网络上错误地结束正常的安装；网络层的超时 pnpm 自己有。真卡住了，由人去结束进程。
 
@@ -56,11 +56,11 @@ pnpm 由用户装好，插件管理不自带。每次要运行 pnpm 时按顺序
 
 {/* ref file="../plugins/plugin-manager/src/pnpm.ts" lines="104-108" hash="f1f931d6e0a2" blob="b62dd927fe34" */}
 
-{/* has file="../plugins/plugin-manager/tests/pnpm-run.test.ts" text="可执行文件不在：不抛，exitCode 为 null，原因在 tail 里" */}
+{/* ref file="../plugins/plugin-manager/tests/pnpm-run.test.ts" lines="35-40" hash="5926face2f37" blob="dc227e0f72eb" */}
 
-{/* has file="../plugins/plugin-manager/tests/pnpm-run.test.ts" text="退出码非 0：不 ok，tail 是 stdout 与 stderr 合起来的最后几行" */}
+{/* ref file="../plugins/plugin-manager/tests/pnpm-run.test.ts" lines="21-26" hash="511811fe43a9" blob="dc227e0f72eb" */}
 
-{/* has file="../plugins/plugin-manager/tests/pnpm.test.ts" text="只留最后几行——pnpm 把原因放在最后" */}
+{/* ref file="../plugins/plugin-manager/tests/pnpm.test.ts" lines="50-53" hash="243882c78f25" blob="c08dde4f1d59" */}
 
 `pnpm-run.test.ts` 用 node 代替 pnpm 可执行文件测启动进程、收集输出、读退出码；真的 pnpm 装包只能实机验证（`devkit.dev` 装进隔离 home 后调 `plugin-manager.install` / `outdated`）。
 

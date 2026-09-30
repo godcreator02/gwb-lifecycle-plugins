@@ -23,9 +23,9 @@ description: 开发套件是一个普通的 gwb 插件，把「在一个新文�
 
 都登记在命令总线上，`plugin` 写包名 `@godcreator/gwb-devkit`；参数形状写在每条命令的 `usage` 里，agent 经 MCP 入口的 `search {"plugin":"@godcreator/gwb-devkit"}` 看得到。参数给错时回执带完整用法；**认不出的参数键直接拒**，报出是哪几个键：
 
-{/* has file="../plugins/devkit/src/index.ts" text="function unknownKeysRefusal(args: Record<string, unknown>, known: readonly string[], usage: string)" */}
+{/* ref file="../plugins/devkit/src/index.ts" lines="376-376" hash="442ab70b6abd" blob="508f3229377b" */}
 
-{/* has file="../plugins/devkit/src/index.ts" text="不认识参数" */}
+{/* ref file="../plugins/devkit/src/index.ts" lines="379-379" hash="10a55f69ee28" blob="508f3229377b" */}
 
 | 命令 | 做什么 | 接缝 |
 | --- | --- | --- |
@@ -39,29 +39,29 @@ description: 开发套件是一个普通的 gwb 插件，把「在一个新文�
 | `devkit.release` | 检查后把包发成正式版（tag latest） | [3 peer 里的内核包与插件](/docs/seams/kernel-peer)、[9 pnpm 与包源](/docs/seams/pnpm-registry)、[10 被测仓的形状](/docs/seams/repo-shape) |
 | `devkit.cdp` | 在一个 home 的页面里执行一个动作，经 `gwbNodeCli` 登记 | [6 CDP 驱动](/docs/seams/cdp) |
 
-{/* has file="../plugins/devkit/src/index.ts" text="name: 'devkit.scaffold'," */}
+{/* ref file="../plugins/devkit/src/index.ts" lines="519-519" hash="397ee09614ea" blob="508f3229377b" */}
 
-{/* has file="../plugins/devkit/src/index.ts" text="name: 'devkit.scaffold.plugin'," */}
+{/* ref file="../plugins/devkit/src/index.ts" lines="577-577" hash="08ceea6ff858" blob="508f3229377b" */}
 
-{/* has file="../plugins/devkit/src/index.ts" text="name: 'devkit.home.new'," */}
+{/* ref file="../plugins/devkit/src/index.ts" lines="218-218" hash="08ff22df6345" blob="508f3229377b" */}
 
-{/* has file="../plugins/devkit/src/index.ts" text="name: 'devkit.home.open'," */}
+{/* ref file="../plugins/devkit/src/index.ts" lines="257-257" hash="6434a1cfc4b2" blob="508f3229377b" */}
 
-{/* has file="../plugins/devkit/src/index.ts" text="name: 'devkit.home.list'," */}
+{/* ref file="../plugins/devkit/src/index.ts" lines="311-311" hash="5c079b9f4a95" blob="508f3229377b" */}
 
-{/* has file="../plugins/devkit/src/index.ts" text="name: 'devkit.home.rm'," */}
+{/* ref file="../plugins/devkit/src/index.ts" lines="290-290" hash="f36b33ff6cb1" blob="508f3229377b" */}
 
-{/* has file="../plugins/devkit/src/index.ts" text="name: 'devkit.dev'," */}
+{/* ref file="../plugins/devkit/src/index.ts" lines="404-404" hash="ff5e80f89bb2" blob="508f3229377b" */}
 
-{/* has file="../plugins/devkit/src/index.ts" text="name: 'devkit.release'," */}
+{/* ref file="../plugins/devkit/src/index.ts" lines="454-454" hash="7e8a324d8f70" blob="508f3229377b" */}
 
-{/* has file="../plugins/devkit/src/index.ts" text="name: 'devkit.cdp'," */}
+{/* ref file="../plugins/devkit/src/index.ts" lines="335-335" hash="0e0de16916ac" blob="508f3229377b" */}
 
 `devkit.cdp` 是 `bin/cdp.mjs` 登记出来的：经 `gwbNodeCli` 登记的脚本自动成为同名命令，回执带 stdout、stderr 与退出码。工作台没运行时可以直接 `node <包根>/bin/cdp.mjs <home 名> <动作>`。
 
 加载完成时往 `<home>\gwb.log` 写一行「开发套件就绪」，列出此刻命令总线上 `plugin` 是本包的全部命令：有这一行说明 `apply` 执行完了。`devkit.cdp` 在不在取决于 node 命令行插件有没有加载，所以名单每次当场向命令总线查询，不另存一份：
 
-{/* has file="../plugins/devkit/src/index.ts" text=".filter((entry) => entry.plugin === '@godcreator/gwb-devkit')" */}
+{/* ref file="../plugins/devkit/src/index.ts" lines="650-650" hash="772b255c8abc" blob="508f3229377b" */}
 
 ### 说明书
 
@@ -74,7 +74,7 @@ description: 开发套件是一个普通的 gwb 插件，把「在一个新文�
 
 说明书只写步骤、完成判据和工具不会报出来的注意事项；命令的参数、回执、拒绝条件写在命令的 `usage` 里，说明书不重复。
 
-{/* has file="../plugins/devkit/src/index.ts" text="scoped.gwbSkills.register(new URL('../skills/', import.meta.url))" */}
+{/* ref file="../plugins/devkit/src/index.ts" lines="642-642" hash="affad272f46e" blob="508f3229377b" */}
 
 ### 模板
 
@@ -87,7 +87,7 @@ description: 开发套件是一个普通的 gwb 插件，把「在一个新文�
 ## 不做的事
 
 - **不画界面**：没有窗格、没有浏览器侧代码，只向外壳报一个显示名；使用者是 agent，读回执
-- **不建文档站、不写文档页**：建仓与加插件只写插件的文件；生成初始站点归站点插件 `@godcreator/gwb-docs-site`，装分区与核对文档归 docfirst 插件 `@godcreator/gwb-docfirst-workflow`，本包不调它们的命令
+- **不建文档站、不写文档页**：建仓与加插件只写插件的文件；建站（`docfirst.create`）与核对文档归 docfirst 插件 `@godcreator/gwb-docfirst-workflow`，本包不调它的命令
 - **不自己增删 home 里的条目、不写 home 的清单**：安装与条目归插件管理。`devkit.dev` 装没装过的插件时调目标 home 的 `plugin-manager.install`，由插件管理新建条目；唯一的例外是 `devkit.home.new` 在新 home 启动之前直接 `pnpm add` 装包、写好基础插件的 `cordis.yml`（那时插件管理还没装、home 还没启动）
 - **不写 `runtime.json`**：它由内核与 MCP 入口插件写，本包只读
 - **不升级日常用的 `default`**：`devkit.dev` 拒绝以 `default` 为目标，`devkit.release` 只发到源；升级 `default` 用插件管理
@@ -97,3 +97,7 @@ description: 开发套件是一个普通的 gwb 插件，把「在一个新文�
 - **没有设置项**：不注入 `gwbSettings`，一项设置都不定义
 - **不自动清理旧 home**：现有的 home 由 `devkit.home.list` 列出，删哪个由调用方决定
 - **不巡检别的仓**：不扫容器根下各仓的依赖与布局；依赖写法与产物在各仓发版时由 `devkit.release` 查；不是 workspace 布局的仓要先照模板迁
+- **不核对文档站内容**：核对、确认、重新生成生成物归 docfirst，在仓的文档站目录里运行，本包不转发、不替人启动
+- **不替人决定版本号**：`devkit.release` 发的是包清单里写着的版本号，同一个版本号已在源上就拒；升哪一位照说明书 `gwb-release`
+- **不做自动升级、不做回退**：升坏了往前修，再发一版再升
+- **不删团队源上的旧开发版**：devkit 0.20.0 之前发到团队源的 `-dev.*` 版本留着，删除不可逆（[未来区悬着的三件定为不做](/trajectory/2026-09-25-future-leftovers-settled)）
