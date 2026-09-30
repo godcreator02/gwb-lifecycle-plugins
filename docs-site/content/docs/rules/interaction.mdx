@@ -34,7 +34,7 @@ description: 写法建议：插件之间走服务和命令；版本兼容靠 pee
 
 插件管理导出它服务的类型，并给 cordis 的 `Context` 补上这一项，inject 它的插件 `import type` 取：
 
-{/* ref file="../plugins/plugin-manager/src/index.ts" lines="713-717" hash="cec1eec74dc1" blob="a5163f00fe7a" */}
+{/* ref file="../plugins/plugin-manager/src/index.ts" lines="720-724" hash="cec1eec74dc1" blob="5ecda4b17644" */}
 
 它的命令回执类型经子路径 `@godcreator/gwb-plugin-manager/receipts` 导出：插件管理窗格要在浏览器侧 `import type` 它们，而主入口的类型声明引了内核包、`cordis` 与 node 的全局类型，窗格的浏览器侧 tsconfig 只有 DOM 类型。这个子路径在 `exports` 里只有 `types` 条件，源文件一个模块都不引用（见[插件管理](/docs/plugin-manager#子路径-receipts回执的类型)与轨迹卡[回执类型经子路径导出](/trajectory/2026-09-26-receipts-subpath)）：
 

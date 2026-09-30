@@ -217,6 +217,7 @@ function registerHomeCommands({ ctx, log, commands, homeDeps }: Wiring): void {
     {
       name: 'devkit.home.new',
       plugin: '@godcreator/gwb-devkit',
+      effect: 'write',
       description: '开一个测试 home（装内核包、cordis 与基础插件，用宿主安装版启动，调试端口自动选）',
       usage:
         '{short 必给（kebab-case）}——名字是 <short>-<yyMMddHHmm>。启动之前往新 home 里依次 pnpm add 三次（写好 cordis.yml 条目）：先装内核包 @godcreator/gwb-kernel-desktop，版本是运行这条命令的内核的 gwbKernel.version；再装装上的内核包 peerDependencies.cordis 写的那个精确版本的 cordis，带 --save-exact（home 清单里只有它写精确版本号）；最后装基础插件（源上的 latest）：命令、外壳、数据、设置、说明书、插件管理、基础界面，加上提供 timer 服务的 @cordisjs/plugin-timer，cordis.yml 里各一条条目。内核包与 cordis 装完都读 node_modules 里的清单核对版本。安装包只带启动器、从 home 里加载内核，所以内核包必须装上；哪一步没成都不启动。然后用宿主自己那个 exe 再开一个窗口（安装版认 GWB_HOME；不构建内核、不认内核仓），调试端口自动选一个空的。现有的 home 用 devkit.home.list 列出，验完的用 devkit.home.rm 删',
@@ -255,6 +256,7 @@ function registerHomeCommands({ ctx, log, commands, homeDeps }: Wiring): void {
     {
       name: 'devkit.home.open',
       plugin: '@godcreator/gwb-devkit',
+      effect: 'write',
       description: '重开一个已有的测试 home（用宿主安装版启动）',
       usage: '{name 必给}——调试端口自动选。机器重启之后要回到原来那个 home 只有这一条路（home.new 每次都建新目录，插件得全部重装一遍）',
     },
@@ -287,6 +289,7 @@ function registerHomeCommands({ ctx, log, commands, homeDeps }: Wiring): void {
     {
       name: 'devkit.home.rm',
       plugin: '@godcreator/gwb-devkit',
+      effect: 'write',
       description: '删一个测试 home',
       usage:
         '{name，force?}——没在运行的直接删；**还在运行的要 force**，那时先停止再删除（按它 runtime.json 里的 pid，核对映像名与记录里那个 CDP 端口后结束进程，按 pid 等进程真正退出后才删除）。**回「已删」只在目录真不在了之后**，没删掉回 ok:false 并列出还剩什么。default 是日常用的 home：不 force 不删，而且它在运行时 force 也不删，先自己关掉它的窗口',
@@ -305,7 +308,7 @@ function registerHomeCommands({ ctx, log, commands, homeDeps }: Wiring): void {
   )
 
   commands.register(
-    { name: 'devkit.home.list', plugin: '@godcreator/gwb-devkit', description: '列出全部测试 home 与各自的端口', usage: '无参数。每个 home 报名字（带时间戳）、是否在运行、调试端口、MCP 入口的端口与地址（runtime.json 的 mcp 字段）' },
+    { name: 'devkit.home.list', plugin: '@godcreator/gwb-devkit', effect: 'read', description: '列出全部测试 home 与各自的端口', usage: '无参数。每个 home 报名字（带时间戳）、是否在运行、调试端口、MCP 入口的端口与地址（runtime.json 的 mcp 字段）' },
     async (args) => {
       const refusal = noArgsRefusal(args)
       if (refusal !== undefined) return refusal
@@ -331,6 +334,7 @@ function registerCdpCli(ctx: GwbContext): void {
     scoped.gwbNodeCli.register({
       name: 'devkit.cdp',
       plugin: '@godcreator/gwb-devkit',
+      effect: 'write',
       description: '经 CDP 操作一个工作台页面（default 上只许截图与问 home，写动作在隔离 home 上做）',
       usage:
         '{"args":["<home 名>","<动作>","<参数…>"]}。**第一个位置只收 home 名，不收端口**——端口从那个 home 的 runtime.json 里查，连上之后还拿页面自报的名字核对一次。动作 eval <文件绝对路径> [JSON 参数] / shot [图.png 绝对路径] [选择器] / move / click / rclick / drag / type / key / scroll <点> / cmd <命令名> [JSON 参数] / reload [选择器] [秒] / home。点写成 .sel、.sel@=文字、.a@=文字 >> .b，或 x,y。开关 --target / --mod（只认 alt、ctrl、meta、shift，写错直接拒）/ --pad / --size / --timeout。**路径不看工作目录**：截图缺省存到被截的那个 home 自己的 out\\cdp\\，要存到别处给绝对路径；eval 的文件只收绝对路径，相对的直接拒；写入位置在本包目录或任何 node_modules 里也拒。**页面自报 default 时只许只读动作 shot / home**，别的动作与 --size 在动手之前就拒：这儿发的是真操作，写动作在隔离 home 上做。连不上的 home 是启动时没带 --remote-debugging-port，停掉重开一次',
@@ -399,6 +403,7 @@ function registerDevCommand({ ctx, log, commands, homeDeps }: Wiring): void {
     {
       name: 'devkit.dev',
       plugin: '@godcreator/gwb-devkit',
+      effect: 'write',
       description: '改一版看一版（构建→打包进目标 home→经目标 home 的插件管理装并重新加载→刷新→取证；装内核包时改成重启目标 home）',
       usage:
         '{home 必给（目标 home 名，**只认名字不认端口**——端口从它的 runtime.json 里查，并确认它还在运行）, dir 必给（仓根绝对路径）, packages 必给（包目录的非空数组，相对仓根；只收插件与内核包，库直接拒）, waitFor?（刷新后等这个选择器出现）}。一条走完：仓根 pnpm build → 照 files 验产物 → 样式检查（插件包构建后有 dist/style.css 才查，没过回 ok:false、一个都不打包，所有包的问题一次列全；查什么见 devkit.release 的 usage）→ 在临时目录组装发布内容、版本号改成 <patch+1>-dev.<yyyyMMddHHmmss>，pnpm pack 到 <目标 home>\\dev-packs\\（包文件每版一个新路径，已存在就拒；旧的不删：home 清单引用着的包文件删了，这个 home 之后的 pnpm add 全失败；开发版不进源）→ 读目标 home 的 package.json（只读）：已在 dependencies 里的包合成一条 plugin-manager.update {"specs":{"<包>":"file:./dev-packs/<包文件>"}}，之后不在的插件逐个 plugin-manager.install {pkg, spec}（新建一条条目），都经 CDP 在目标页面里调；插件管理装包、重新加载这些包与真实目录变了的别的包，插件管理自己的条目推迟到回执之后（回执 selfDeferred，这边轮询 plugin-manager.list 等它 active）→ 整页刷新（驱动退出码非零或没等到页面回来就回 ok:false，说清等的是什么、最后看到了什么）→ 取证（装上的是这次打包的版本号、条目真的 ACTIVE、日志新增的部分里没有 error），取不到证就回 ok:false。回执 { home, homeName, shipped: [{ pkg, version, dir, packFile, via: update|install, entryId? }], update?（plugin-manager.update 的回执原样）, reload? | kernel?, evidence }。**packages 里有内核包 @godcreator/gwb-kernel-desktop 时**：内核包放进同一条 update，specs 里不放 cordis（插件管理照装上的内核包 peer 自己对齐）；内核包不在目标 home 里直接拒；update 回执 restartRequired，这边不刷新，改成停掉目标 home 再启动（主进程里的内核换不掉），轮询 shell.env 直到 versions.kernel 就是这次打包的版本号，回执多一个字段 kernel { version, restart }，再照常取证。**构建不可跳过**：跳过构建就是装上一版。**目标是 default 或开发套件自己所在的 home 都直接拒；页面自报的名字跟你给的对不上也拒**',
@@ -448,6 +453,7 @@ function registerReleaseCommand({ log, commands }: Wiring): void {
     {
       name: 'devkit.release',
       plugin: '@godcreator/gwb-devkit',
+      effect: 'external',
       description: '发正式版到包的 publishConfig.registry（git 工作区干净→构建→验产物→发版前检查→在临时目录里组装并发布）',
       usage:
         '{dir 必给（仓根绝对路径）, packages 必给（包目录的非空数组，相对仓根，按依赖顺序）}。一条走完：仓根 git 工作区干净（有未提交改动就拒，一个都不发）→ 仓根 pnpm build → 照 files 白名单验产物 → 同号已在发布目标上就拒（发布目标是包自己 package.json 的 publishConfig.registry；没写、或写的不是 http(s) 地址就拒）→ 发版前检查（每个要发的包：产物里相对 import 指向的文件都在；dev 依赖不查。keywords 含 gwb-plugin 的插件包另加：peer 里只许 cordis、内核包 @godcreator/gwb-kernel-desktop 与别的插件（包目录 node_modules 里它的清单 keywords 含 gwb-plugin），peer 里每个 gwb 插件（不分范围）和源上 dist-tags.latest 在同一条线（0.x 只看 x，≥1 只看主版本号；问哪个源由 ~/.npmrc 的范围行决定）；node 侧产物——exports["."] 的运行时入口（没有 exports 时是 main）顺着相对 import 走到的文件——的包名 import 只有 node 内置模块、electron 与 peer 里写了的包；浏览器侧产物——dist/client.js 与自身提供的模块，同样顺着相对 import 走——只 import 自身及直接 peer 的 ./browser-imports 代码出口提供的名字；检查同步映射、本地文件、包内路径、files 白名单与冲突；未声明提供方的旧项目兼容读取旧内核 HTML importmap；peer 里写了内核包、写法是 ^x.y.z，范围包不包含哪个内核不查；' +
@@ -512,6 +518,7 @@ function registerScaffoldCommand({ ctx, log, commands }: Wiring): void {
     {
       name: 'devkit.scaffold',
       plugin: '@godcreator/gwb-devkit',
+      effect: 'write',
       description: '在一个新目录里生成一个 gwb 插件仓（workspace 布局，插件在 plugins/<短名>/）',
       usage:
         `{name（必给，kebab-case 短名）, dir（必给，绝对路径且必须还不存在）, scope?（包名范围，缺省 ${TEAM_SCOPE}）, registry?（写进插件包 publishConfig.registry 的发布目标，缺省团队源）}。插件的模板在本包；要显示名的地方用短名；不建文档站。${SCAFFOLD_PEER_VERSIONS_NOTE}。${SCAFFOLD_COMPONENTS_NOTE}。回执 { repoDir, pluginDir, pkg, registry, name, files, components, nextSteps }，components 是添加的 shadcn 组件。参数不对会把完整说明回给你`,
@@ -569,6 +576,7 @@ function registerScaffoldPluginCommand({ ctx, log, commands }: Wiring): void {
     {
       name: 'devkit.scaffold.plugin',
       plugin: '@godcreator/gwb-devkit',
+      effect: 'write',
       description: '往已有的 workspace 仓的 plugins/ 再加一个插件包（与建仓同一份插件包模板）',
       usage:
         '{name 必给（kebab-case 短名，派生规则同 devkit.scaffold）, repo 必给（workspace 仓根的绝对路径——pnpm-workspace.yaml 里得有 plugins/ 那条，没有就拒）, scope?, registry?（规则与缺省值同 devkit.scaffold）}。插件包写到 <repo>/plugins/<短名>/，必须还不存在；仓根、workspace 配置与文档站都不碰。与建仓用的是同一份插件包模板（template/pkg/）——只有一个插件和有多个插件的仓格式一致靠这个。' +

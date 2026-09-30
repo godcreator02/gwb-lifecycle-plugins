@@ -39,6 +39,8 @@ export function apply(ctx: GwbContext): void {
       // description 一句话说命令做什么（MCP 入口的 index 列它），参数形状写进 usage（search 列它），无参数写「无参数」
       description: '模板自带的命令：返回插件名与当前时间，用来确认插件已加载',
       usage: '无参数',
+      // effect 必写，三选一：read 什么都不改、write 改本机的文件设置数据或界面、external 影响本机以外或打扰人（推送、发到远端、弹窗）；没写登记失败，插件加载失败
+      effect: 'read',
     },
     async () => ({ ok: true, data: { plugin: name, time: new Date().toISOString() } }),
   )

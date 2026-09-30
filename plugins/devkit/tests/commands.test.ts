@@ -61,10 +61,13 @@ function writeJson(file: string, value: unknown): void {
 interface Mounted {
   run(name: string, args?: unknown): Promise<Receipt>
   busCalls: { name: string; args: unknown }[]
+  /** 命令名 → 登记时写的 effect，含经 gwbNodeCli 登记的命令行工具 */
+  effects: Map<string, unknown>
 }
 
 function mountDevkit(opts: { homeDir: string; busCommands?: Record<string, (args: unknown) => Receipt> }): Mounted {
   const handlers = new Map<string, Handler>()
+  const effects = new Map<string, unknown>()
   const busCalls: { name: string; args: unknown }[] = []
   const busCommands = opts.busCommands ?? {}
   const ctx: Record<string, unknown> = {
@@ -73,11 +76,21 @@ function mountDevkit(opts: { homeDir: string; busCommands?: Record<string, (args
       fn()
       return () => {}
     },
-    inject: () => () => {},
+    inject: (names: string[], callback: (scoped: unknown) => void) => {
+      if (names.every((serviceName) => ctx[serviceName] !== undefined)) callback(ctx)
+      return () => {}
+    },
     gwbKernel: { dataDir: opts.homeDir, version: '0.2.7' },
+    gwbNodeCli: {
+      register: (spec: { name: string; effect?: unknown }) => {
+        effects.set(spec.name, spec.effect)
+        return () => {}
+      },
+    },
     gwbCommands: {
-      register: (def: { name: string; plugin: string }, handler: Handler) => {
+      register: (def: { name: string; plugin: string; effect?: unknown }, handler: Handler) => {
         handlers.set(def.name, handler)
+        effects.set(def.name, def.effect)
         return () => {}
       },
       list: () => [...[...handlers.keys()].map((name) => ({ name, plugin: '@godcreator/gwb-devkit' })), ...Object.keys(busCommands).map((name) => ({ name, plugin: '@x/other' }))],
@@ -91,6 +104,7 @@ function mountDevkit(opts: { homeDir: string; busCommands?: Record<string, (args
   apply(ctx as never)
   return {
     busCalls,
+    effects,
     run: async (name, args) => {
       const handler = handlers.get(name)
       if (handler === undefined) throw new Error(`没有登记 ${name}`)
@@ -103,6 +117,21 @@ describe('加载', () => {
   it('命令总线不在就抛：插件加载失败，而不是命令表不声不响地空着', () => {
     const ctx = { logger: () => ({ info() {}, warn() {}, error() {}, debug() {} }), inject: () => () => {} }
     expect(() => apply(ctx as never)).toThrow(/gwbCommands/)
+  })
+
+  it('每条命令都写了 effect：只有 home.list 只读，发到源的 release 是 external，其余改本机的是 write', () => {
+    const devkit = mountDevkit({ homeDir: tempDir('dk-home-') })
+    expect(Object.fromEntries(devkit.effects)).toEqual({
+      'devkit.home.new': 'write',
+      'devkit.home.open': 'write',
+      'devkit.home.rm': 'write',
+      'devkit.home.list': 'read',
+      'devkit.cdp': 'write',
+      'devkit.dev': 'write',
+      'devkit.release': 'external',
+      'devkit.scaffold': 'write',
+      'devkit.scaffold.plugin': 'write',
+    })
   })
 })
 

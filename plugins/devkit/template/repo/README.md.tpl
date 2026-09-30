@@ -10,7 +10,7 @@
 
 ## 插件包的结构（`plugins/{{name}}/`，配置都在包内）
 
-- **node 侧**（`src/index.ts`）：`apply` 里注册一个窗格、登记一条 `{{name}}.ping` 命令，esbuild 打成一个 `dist/index.js`，
+- **node 侧**（`src/index.ts`）：`apply` 里注册一个窗格、登记一条 `{{name}}.ping` 命令（`effect: 'read'`），esbuild 打成一个 `dist/index.js`，
   用到的库打包进去。命令总线、外壳与内核包的接口类型都只 `import type`。peer 里写运行时从 home 里得到的三个包：内核包 `@godcreator/gwb-kernel-desktop`（范围 `^<版本号>`
   声明这个插件兼容哪些内核）、命令总线 `@godcreator/gwb-commands` 与外壳 `@godcreator/gwb-shell`，三个范围的下限都是建仓时
   那个 home 里的版本；以后用到别的插件也写进 peer：写在顶层 `inject` 里的写普通 peer，只在 `ctx.inject([...], cb)` 里用的
@@ -31,6 +31,9 @@ peer 里删外壳，dev 里删 `@tailwindcss/cli`、`tailwindcss`、`tw-animate-
 与组件的依赖（`cn`、`radix-ui`、`class-variance-authority`）。
 
 改成真插件：把窗格与 ping 换成你的东西，description 换成一句话说它做什么。
+登记命令时 `name`、`description`、`usage`、`effect` 四项都必写，`effect` 三选一：`read`（什么都不改，联网只读也算）、
+`write`（改本机的文件、设置、数据或界面）、`external`（影响本机以外或打扰人：推送、发到远端、发消息、弹窗或通知）；
+一条命令按参数可能做几种事的取最重的那种。没写 `effect` 命令总线登记时报错，插件加载失败。
 要提供扩展点服务就继承 cordis 的 `Service`：构建产物里有了按值 import 的 `cordis`，peer 里加上 `cordis`（别的包仍写 dev）。
 用这个服务的插件要 `import type` 它的类型，这时再让构建输出类型声明（做法见说明书「gwb-devkit」第 4 步「提供服务」）；模板插件不提供服务，不输出。
 

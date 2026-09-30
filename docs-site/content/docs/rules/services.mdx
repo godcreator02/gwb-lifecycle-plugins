@@ -51,7 +51,7 @@ export default class GwbExample extends Service {
 
 服务名用 `gwb` 开头的小驼峰，跟插件名对应。**要让别的插件知道这个服务，就在自己的类型声明里给 cordis 的 `Context` 补上这一项**，服务的类型也定义在自己的声明里，在类型上写文档注释说清怎么用。插件管理就是这样写的：
 
-{/* ref file="../plugins/plugin-manager/src/index.ts" lines="713-717" hash="cec1eec74dc1" blob="a5163f00fe7a" */}
+{/* ref file="../plugins/plugin-manager/src/index.ts" lines="720-724" hash="cec1eec74dc1" blob="5ecda4b17644" */}
 
 构建时 tsc 把这段连同类型定义输出进 `.d.ts`，用这个服务的插件读提供方的 `.d.ts` 就看得到类型定义的原文与文档注释。不用另在清单里写一份用法。
 
@@ -77,11 +77,21 @@ export default class GwbExample extends Service {
 
 **往继承了 `Service` 的服务里注册，不用自己包 `ctx.effect`**；往 `ctx.provide` 提供的扩展点服务里注册，要自己包。外壳 `gwbShell` 与命令总线 `gwbCommands` 都继承了 `Service`，模板注册窗格与命令都直接调：
 
-{/* ref file="../plugins/devkit/template/pkg/src/index.ts.tpl" lines="31-44" hash="feca59d5e2c0" blob="a997b3c37cb3" */}
+{/* ref file="../plugins/devkit/template/pkg/src/index.ts.tpl" lines="31-47" hash="2cd76dd0a7eb" blob="b24060b75340" */}
 
 ## 登记命令
 
 命令的字段由命令总线在登记时查：`name`、`description`、`usage` 缺一或只有空白就抛错，插件加载失败。`description` 一句话说命令做什么（MCP 入口的 `index` 列它），参数形状写进 `usage`（`search` 列它，命令总线不带参数 schema，agent 知道参数怎么给只能看它），无参数写「无参数」；`plugin` 不写，命令总线从调用方取包名。
+
+**`effect` 必写**，说明调这条命令会动到什么，agent 按它决定能不能直接调：
+
+| 取值 | 什么时候用 |
+| --- | --- |
+| `read` | 什么都不改，联网只读也算 |
+| `write` | 改本机的文件、设置、数据或界面（开窗格、开窗口也算） |
+| `external` | 影响本机以外或打扰人：推送、发到远端、发消息、调会把数据发给外部服务的接口、弹窗或系统通知 |
+
+一条命令按参数可能做几种事的，取最重的那种（`external` 重于 `write`，`write` 重于 `read`）。写了这三个以外的值，登记时抛错；命令总线 0.6 起没写也抛错，插件加载失败。经 `gwbNodeCli` 登记的命令行工具同样写 `effect`。模板那条 `<短名>.ping` 只回插件名与时间，写的是 `read`。
 
 ## 容易出错的几处
 

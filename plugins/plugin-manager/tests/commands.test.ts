@@ -106,6 +106,8 @@ interface Mounted {
   tree: FakeTree
   logs: string[]
   run(name: string, args?: unknown): Promise<unknown>
+  /** 命令名 → 登记时写的 effect */
+  effects: Map<string, unknown>
   shellReloads: number
   /** 插件管理向设置插件声明过的项 */
   settingDefs: { key: string; shared?: boolean; default?: unknown }[]
@@ -153,10 +155,12 @@ function mount(opts: { entries: Record<string, string>; shellReload?: boolean; s
   const tree = fakeTree({ 'plugin-manager': OWN_PKG, ...opts.entries })
   const logs: string[] = []
   const handlers = new Map<string, Handler>()
+  const effects = new Map<string, unknown>()
   const settingDefs: Mounted['settingDefs'] = []
   const mounted: Mounted = {
     tree,
     logs,
+    effects,
     settingDefs,
     shellReloads: 0,
     run: (name, args) => {
@@ -181,8 +185,9 @@ function mount(opts: { entries: Record<string, string>; shellReload?: boolean; s
       return () => undefined
     },
     gwbCommands: {
-      register: (def: { name: string }, handler: Handler) => {
+      register: (def: { name: string; effect?: unknown }, handler: Handler) => {
         handlers.set(def.name, handler)
+        effects.set(def.name, def.effect)
         return () => undefined
       },
       list: commandNames,
@@ -326,6 +331,22 @@ describe('条目命令', () => {
 })
 
 describe('登记的命令', () => {
+  it('每条命令都写了 effect：只读的是 list、outdated、search，其余改 home 的是 write', () => {
+    const pm = mount({ entries: {} })
+    expect(Object.fromEntries(pm.effects)).toEqual({
+      'plugin-manager.list': 'read',
+      'plugin-manager.install': 'write',
+      'plugin-manager.add-entry': 'write',
+      'plugin-manager.remove-entry': 'write',
+      'plugin-manager.enable': 'write',
+      'plugin-manager.disable': 'write',
+      'plugin-manager.outdated': 'read',
+      'plugin-manager.update': 'write',
+      'plugin-manager.uninstall': 'write',
+      'plugin-manager.search': 'read',
+    })
+  })
+
   it('transfer-owner 不再登记', () => {
     const pm = mount({ entries: {} })
     expect(() => pm.run('plugin-manager.transfer-owner')).toThrow('没有登记 plugin-manager.transfer-owner')

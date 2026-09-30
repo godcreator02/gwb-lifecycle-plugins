@@ -25,9 +25,9 @@ description: 连接 devkit 与插件管理：devkit 从插件管理的主入口 
 
 插件管理的 `install` 与 `update`，`usage` 里写着参数与回执：
 
-{/* ref file="../plugins/plugin-manager/src/index.ts" lines="166-174" hash="076d69b7812e" blob="a5163f00fe7a" */}
+{/* ref file="../plugins/plugin-manager/src/index.ts" lines="167-176" hash="629bbe022200" blob="5ecda4b17644" */}
 
-{/* ref file="../plugins/plugin-manager/src/index.ts" lines="208-213" hash="429896b73e11" blob="a5163f00fe7a" */}
+{/* ref file="../plugins/plugin-manager/src/index.ts" lines="212-218" hash="0391e8dd616c" blob="5ecda4b17644" */}
 
 `specs` 的规则在插件管理的 `planSpecsUpdate`：包必须已在 home 的 `dependencies` 里，写了 `cordis` 直接报错，写法原样交给 pnpm；`file:` 写法装完不核对版本号，由 devkit 自己读 `node_modules` 里的清单核对：
 

@@ -17,11 +17,11 @@ description: 连接 devkit、插件管理与工作台的四个服务：命令总
 
 {/* has file="../plugins/devkit/src/index.ts" text="export const inject = ['gwbCommands']" */}
 
-devkit 对命令总线用了两个方法：`register(定义, 处理函数)` 登记命令，定义带 `name`、`plugin`（包名）、`description`、`usage`，撤销由命令总线登记在调用方的 effect 上，devkit 卸载时自动撤销；`list()` 只在就绪日志里用，列出此刻总线上本包的命令（见下面「约定」末尾）。devkit 不调别的插件的命令。
+devkit 对命令总线用了两个方法：`register(定义, 处理函数)` 登记命令，定义带 `name`、`plugin`（包名）、`description`、`usage`、`effect`，撤销由命令总线登记在调用方的 effect 上，devkit 卸载时自动撤销；`list()` 只在就绪日志里用，列出此刻总线上本包的命令（见下面「约定」末尾）。devkit 不调别的插件的命令。
 
 {/* has file="../plugins/devkit/src/index.ts" text="plugin: '@godcreator/gwb-devkit'," */}
 
-`gwbNodeCli` 只用来登记一条命令行工具 `devkit.cdp`，`entry` 是包里 `bin/cdp.mjs` 的绝对路径；这条登记同样由 `gwbNodeCli` 自己放进调用方的 effect：
+`gwbNodeCli` 只用来登记一条命令行工具 `devkit.cdp`，`entry` 是包里 `bin/cdp.mjs` 的绝对路径，`effect` 写 `write`（它能在页面上点击、输入）；这条登记同样由 `gwbNodeCli` 自己放进调用方的 effect：
 
 {/* has file="../plugins/devkit/src/index.ts" text="scoped.gwbNodeCli.register({" */}
 
@@ -51,12 +51,12 @@ devkit 源码里没有注入 `gwbSettings`，它没有设置项。
 
 devkit 保证：
 - 必需的服务只有 `gwbCommands`；`gwbNodeCli`、`gwbSkills`、`gwbShell` 缺了，只少对应的那条命令行工具、那两份说明书、那个显示名，devkit 照常加载
-- 每条命令的 `plugin` 写包名 `@godcreator/gwb-devkit`，`description` 一句话说做什么，参数形状写在 `usage` 里
+- 每条命令的 `plugin` 写包名 `@godcreator/gwb-devkit`，`description` 一句话说做什么，参数形状写在 `usage` 里，都写 `effect`：只有 `devkit.home.list` 是 `read`，发到源的 `devkit.release` 是 `external`，其余是 `write`
 - 只登记自己包里的说明书，不替别的插件登记
 
 插件管理保证：
 - 两个依赖都可以缺；`gwbCommands` 缺了，它就没有任何对外接口
-- 命令的 `plugin` 写包名 `@godcreator/gwb-plugin-manager`
+- 命令的 `plugin` 写包名 `@godcreator/gwb-plugin-manager`，都写 `effect`：`list`、`outdated`、`search` 是 `read`，其余改 home 的是 `write`
 - 命令的参数或回执有破坏性变化时升 x（`gwbPluginManager` 的值上不放版本数字）
 
 工作台服务保证：`gwbCommands.register` 与 `gwbNodeCli.register` 自己把登记放进调用方的 effect、`list()` 的每一项带 `name` 与 `plugin`、`run` 回 `{ ok, data?, error? }`——这几条写在各服务包的类型声明与说明书里，两个插件只经类型检查对上，**运行时靠约定**。
@@ -73,6 +73,6 @@ devkit 的就绪日志从 `list()` 里筛出 `plugin` 等于包名 `@godcreator/
 
 ## 测试
 
-两个插件都没有测试把 `apply` 运行在真实的服务上。devkit 与插件管理各自的 `tests/commands.test.ts` 都在假的上下文上运行 `apply`、按命令名调登记下来的处理函数（devkit 那份另测命令总线不在时 `apply` 抛错）；devkit 的 `tests/ready-log.test.ts` 用假的命令总线运行 `apply`，检查就绪日志列出的命令数等于登记时 `plugin` 写本包包名的命令数：
+两个插件都没有测试把 `apply` 运行在真实的服务上。devkit 与插件管理各自的 `tests/commands.test.ts` 都在假的上下文上运行 `apply`、按命令名调登记下来的处理函数，并核对每条命令登记时写的 `effect`（devkit 那份另测命令总线不在时 `apply` 抛错）；devkit 的 `tests/ready-log.test.ts` 用假的命令总线运行 `apply`，检查就绪日志列出的命令数等于登记时 `plugin` 写本包包名的命令数：
 
 {/* has file="../plugins/devkit/tests/ready-log.test.ts" text="列出总线上 plugin 是本包包名的全部命令" */}
