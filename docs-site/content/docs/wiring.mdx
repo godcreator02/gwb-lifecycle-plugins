@@ -189,12 +189,15 @@ peer 里另有插件管理 `@godcreator/gwb-plugin-manager`（`workspace:^`，�
 | 服务 | 提供方包 | 必需 / 局部注入 | peer 写法 | 用来做什么 | 缺了会怎样 |
 | --- | --- | --- | --- | --- | --- |
 | `gwbCommands` | `@godcreator/gwb-commands` | 局部注入 | `^0.5.6`，**必需**（不标 `optional`） | 登记 10 条命令 | 命令登记不上，插件管理没有任何对外接口；服务 `gwbPluginManager` 照常提供。局部注入是为了缺了命令总线时插件管理照样加载，peer 写必需是因为缺了它一样功能都没有——[用到的插件写 peer](/docs/rules/plugin-peers)允许的写法 |
+| `gwbSettings` | `@godcreator/gwb-settings` | 局部注入，和 `gwbCommands` 一起 | `^0.3.9`，`optional: true` | 在公共区声明市场名单 `plugin-markets`，`search` 读它 | 不登记 `search`，别的 9 条命令照常 |
 | `gwbSkills` | `@godcreator/gwb-skills` | 局部注入 | `^0.4.5`，`optional: true` | 登记自带的说明书 | 没有说明书，插件管理照常加载 |
 | `gwbKernel` | 内核包 `@godcreator/gwb-kernel-desktop` | 不写进 `inject`，用 `requireKernel` 取 | `^0.10.0` | `dataDir`：home 目录，pnpm 的工作目录、`package.json` 所在的目录；`version`：`list` 拿它和各插件 peer 里内核包的范围比 | 构造时报错「ctx.gwbKernel 不在」，插件管理不加载 |
 
-插件管理不写 `export const inject`。数据插件、设置插件不在 peer 里，插件管理不用它们。
+插件管理不写 `export const inject`。数据插件不在 peer 里，插件管理不用它。
 
 {/* has file="../plugins/plugin-manager/src/index.ts" text="this.ctx.inject(['gwbCommands'], (ctx) => {" */}
+
+{/* has file="../plugins/plugin-manager/src/index.ts" text="this.ctx.inject(['gwbCommands', 'gwbSettings'], (ctx) => {" */}
 
 {/* has file="../plugins/plugin-manager/src/index.ts" text="this.ctx.inject(['gwbSkills'], (ctx) => {" */}
 
@@ -203,6 +206,10 @@ peer 里另有插件管理 `@godcreator/gwb-plugin-manager`（`workspace:^`，�
 {/* has file="../plugins/plugin-manager/package.json" text="&quot;@godcreator/gwb-kernel-desktop&quot;: &quot;^0.10.0&quot;" */}
 
 {/* has file="../plugins/plugin-manager/package.json" text="&quot;@godcreator/gwb-commands&quot;: &quot;^0.5.6&quot;" */}
+
+{/* has file="../plugins/plugin-manager/package.json" text="&quot;@godcreator/gwb-settings&quot;: &quot;^0.3.9&quot;" */}
+
+{/* has file="../plugins/plugin-manager/package.json" text="&quot;@godcreator/gwb-settings&quot;: { &quot;optional&quot;: true }" */}
 
 {/* has file="../plugins/plugin-manager/package.json" text="&quot;@godcreator/gwb-skills&quot;: { &quot;optional&quot;: true }" */}
 
@@ -215,9 +222,9 @@ peer 里另有插件管理 `@godcreator/gwb-plugin-manager`（`workspace:^`，�
 | loader 的条目树 | `@cordisjs/plugin-loader`（内核加载） | `ctx.fiber.entry.parent.tree` 的 `store`、`create`、`update`、`remove` | 读条目、加删条目、启用停用、重新加载，改动由 loader 写回 `cordis.yml`；取不到条目树就在构造时报错。见接缝页[条目树 loader](/docs/seams/entry-tree) |
 | 复制的 cordis 状态数字 | cordis 的 `FiberState`（`const enum`，引用不到） | `PENDING`、`LOADING`、`ACTIVE`、`FAILED`、`DISPOSED`、`UNLOADING` 的数字顺序 | `list` 的 `active` 与重新加载时判断条目到哪一步；`tests/fiber-state.test.ts` 对照 cordis 的定义 |
 | 子进程 | 用户装的 pnpm 12 | `pnpm add` / `remove` / `outdated --json`，环境带 `pnpm_config_auto_install_peers=false` | 装卸与升级 home 里的包；不自动补装缺的 peer |
+| 子进程 | 用户装的 pnpm 12 | `pnpm config list --json`、`pnpm config get //<源>/:_authToken`，在 home 里运行 | `search` 问市场的源地址与凭据，只读 |
 | 读文件 | home 的清单与装着的包 | `<home>/package.json`、`<home>/node_modules/<包>/package.json` 与它指向的真实目录 | 装了哪些包、版本、peer 报告；`update` 前后比真实目录找出跟着重新加载的包 |
-| 读文件 | 机器级与 home 级 npmrc | `~/.npmrc`、`<home>/.npmrc` | `search` 按 scope 找源地址与 token，只读不写 |
-| 网络 | 各条 npm 源 | `GET <源>/-/v1/search` | `search` 检索可装的插件 |
+| 网络 | 市场名单里各市场的 npm 源 | `GET <源>/-/v1/search` | `search` 检索可装的插件 |
 
 {/* has file="../plugins/plugin-manager/src/tree.ts" text="const loaderTree: EntryTree | undefined = ctx.fiber.entry?.parent.tree" */}
 
@@ -229,6 +236,6 @@ peer 里另有插件管理 `@godcreator/gwb-plugin-manager`（`workspace:^`，�
 
 {/* has file="../plugins/plugin-manager/src/home.ts" text="return await fs.promises.realpath(link)" */}
 
-{/* has file="../plugins/plugin-manager/src/home.ts" text="const NPMRC = '.npmrc'" */}
+{/* has file="../plugins/plugin-manager/src/pnpm-config.ts" text="args: ['config', 'list', '--json']" */}
 
 {/* has file="../plugins/plugin-manager/src/registry.ts" text="-/v1/search?text=" */}

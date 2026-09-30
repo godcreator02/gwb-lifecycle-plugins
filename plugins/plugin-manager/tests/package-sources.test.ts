@@ -1,82 +1,91 @@
-import fs from 'node:fs'
-import os from 'node:os'
-import path from 'node:path'
-import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
+import { afterEach, describe, expect, it, vi } from 'vitest'
 import { searchPlugins, type PackageSourcesDeps } from '../src/package-sources.js'
 
 /**
- * `search` 的逻辑：两份 npmrc 放在临时目录里真读，registry 的检索接口用假实现。真实 registry 只能实机验证。
+ * `search` 的逻辑：市场名单与 pnpm 的配置、凭据都用假的给，registry 的检索接口用假实现。
+ * 真的 pnpm 与 registry 只能实机验证
  */
-
-let dir: string
-let deps: PackageSourcesDeps
-
-function writeFile(file: string, text: string): void {
-  fs.writeFileSync(file, text, 'utf8')
-}
-
-beforeEach(() => {
-  dir = fs.mkdtempSync(path.join(os.tmpdir(), 'gwb-sources-test-'))
-  deps = {
-    userNpmrc: path.join(dir, 'user.npmrc'),
-    homeNpmrc: path.join(dir, 'home.npmrc'),
-  }
-})
 
 afterEach(() => {
   vi.unstubAllGlobals()
-  fs.rmSync(dir, { recursive: true, force: true })
 })
 
-describe('search', () => {
-  const body = (names: string[]): string =>
-    JSON.stringify({ objects: names.map((name) => ({ package: { name, version: '1.0.0', keywords: ['gwb-plugin'] } })), total: names.length, time: 0 })
+const body = (names: string[]): string =>
+  JSON.stringify({ objects: names.map((name) => ({ package: { name, version: '1.0.0', keywords: ['gwb-plugin'] } })), total: names.length, time: 0 })
 
-  it('查全部配好的源：@godcreator 在前，一条失败只进 note；带上这条源的 token；每行只有 pkg / version / description', async () => {
-    writeFile(deps.userNpmrc, [
-      '@godcreator:registry=https://god.example/npm/',
-      '@j:registry=https://j.example/npm/',
-      '//j.example/npm/:_authToken=t-j',
-      '@dead:registry=https://dead.example/npm/',
-      '',
-    ].join('\n'))
-    const seen: { url: string; auth?: string }[] = []
-    vi.stubGlobal('fetch', (url: string, init?: { headers?: Record<string, string> }) => {
-      seen.push({ url, ...(init?.headers === undefined ? {} : { auth: init.headers['Authorization'] }) })
+function depsWith(markets: unknown, config: Record<string, unknown>, tokens: Record<string, string> = {}): PackageSourcesDeps {
+  return {
+    markets,
+    readPnpmConfig: () => Promise.resolve({ ok: true, data: config }),
+    readPnpmConfigValue: (key) => Promise.resolve(tokens[key]),
+  }
+}
+
+type Seen = { url: string; auth?: string }
+
+function stubFetch(respond: (url: string) => Promise<Response>): Seen[] {
+  const seen: Seen[] = []
+  vi.stubGlobal('fetch', (url: string, init?: { headers?: Record<string, string> }) => {
+    seen.push({ url, ...(init?.headers === undefined ? {} : { auth: init.headers['Authorization'] }) })
+    return respond(url)
+  })
+  return seen
+}
+
+describe('search', () => {
+  it('只查名单里的市场，顺序照名单；带上这条源的凭据；一个失败只进 note 与它的状态', async () => {
+    const config = {
+      '@godcreator:registry': 'https://god.example/npm/',
+      '@j:registry': 'https://j.example/npm/',
+      '@dead:registry': 'https://dead.example/npm/',
+      '@company:registry': 'https://company.example/npm/',
+      registry: 'https://registry.npmjs.org/',
+    }
+    const seen = stubFetch((url) => {
       if (url.startsWith('https://dead.example/')) return Promise.reject(new Error('连不上'))
-      const name = url.startsWith('https://god.example/') ? '@godcreator/gwb-shell' : '@j/gwb-planner'
-      return Promise.resolve(new Response(body([name])))
+      return Promise.resolve(new Response(body([url.startsWith('https://god.example/') ? '@godcreator/gwb-shell' : '@j/gwb-planner'])))
     })
 
-    const got = await searchPlugins(deps)
-    expect(got.ok).toBe(true)
+    const got = await searchPlugins(depsWith(['@godcreator', '@j', '@dead'], config, { '//j.example/npm/:_authToken': 't-j' }))
     const data = got.ok ? got.data : undefined
     expect(data?.packages).toEqual([
       { pkg: '@godcreator/gwb-shell', version: '1.0.0' },
       { pkg: '@j/gwb-planner', version: '1.0.0' },
     ])
+    expect(data?.markets).toEqual([
+      { scope: '@godcreator', registry: 'https://god.example/npm/', ok: true, count: 1 },
+      { scope: '@j', registry: 'https://j.example/npm/', ok: true, count: 1 },
+      { scope: '@dead', registry: 'https://dead.example/npm/', ok: false, error: expect.stringContaining('连不上') as unknown },
+    ])
     expect(data?.note).toContain('@dead')
     expect(seen.find((one) => one.url.startsWith('https://j.example/'))?.auth).toBe('Bearer t-j')
     expect(seen.find((one) => one.url.startsWith('https://god.example/'))?.auth).toBeUndefined()
+    expect(seen.some((one) => one.url.startsWith('https://company.example/'))).toBe(false)
   })
 
-  it('home 级 npmrc 里的 scope 也查，同名 scope 用 home 级那条的源与 token', async () => {
-    writeFile(deps.userNpmrc, '@j:registry=https://user.example/npm/\n')
-    writeFile(deps.homeNpmrc, '@j:registry=https://home.example/npm/\n//home.example/npm/:_authToken=t-home\n@k:registry=https://k.example/npm/\n')
-    const seen: { url: string; auth?: string }[] = []
-    vi.stubGlobal('fetch', (url: string, init?: { headers?: Record<string, string> }) => {
-      seen.push({ url, ...(init?.headers === undefined ? {} : { auth: init.headers['Authorization'] }) })
-      return Promise.resolve(new Response(body([])))
-    })
-
-    expect(await searchPlugins(deps)).toEqual({ ok: true, data: { packages: [] } })
-    expect(seen.some((one) => one.url.startsWith('https://user.example/'))).toBe(false)
-    expect(seen.find((one) => one.url.startsWith('https://home.example/'))?.auth).toBe('Bearer t-home')
-    expect(seen.some((one) => one.url.startsWith('https://k.example/'))).toBe(true)
+  it('名单里的市场在 pnpm 里没配源：这个市场报没配源，不去全局源查', async () => {
+    const seen = stubFetch(() => Promise.resolve(new Response(body([]))))
+    const got = await searchPlugins(depsWith(['@godcreator', '@j'], { '@godcreator:registry': 'https://god.example/npm/', registry: 'https://registry.npmjs.org/' }))
+    expect(got.ok ? got.data.markets[1] : undefined).toEqual({ scope: '@j', ok: false, error: expect.stringContaining('pnpm 里没配这个市场的源') as unknown })
+    expect(seen.map((one) => one.url)).toEqual([expect.stringMatching(/^https:\/\/god\.example\//) as unknown])
   })
 
-  it('全部源都没查成才 ok:false', async () => {
-    vi.stubGlobal('fetch', () => Promise.resolve(new Response('nope', { status: 500 })))
-    expect(await searchPlugins(deps)).toEqual({ ok: false, error: expect.stringContaining('一条源都没查成') as unknown })
+  it('一个市场都没查成才 ok:false，原因逐个写明', async () => {
+    stubFetch(() => Promise.resolve(new Response('nope', { status: 500 })))
+    const got = await searchPlugins(depsWith(['@godcreator', '@j'], { '@godcreator:registry': 'https://god.example/npm/', registry: 'https://registry.npmjs.org/' }))
+    expect(got).toEqual({ ok: false, error: expect.stringContaining('一个市场都没查成') as unknown })
+    expect(got.ok ? '' : got.error).toContain('@j：pnpm 里没配这个市场的源')
+  })
+
+  it('名单是空的、pnpm 配置没取到：ok:false 说清原因，不查任何源', async () => {
+    const seen = stubFetch(() => Promise.resolve(new Response(body([]))))
+    expect(await searchPlugins(depsWith([], {}))).toEqual({ ok: false, error: expect.stringContaining('市场名单是空的') as unknown })
+    const noConfig: PackageSourcesDeps = { ...depsWith(['@godcreator'], {}), readPnpmConfig: () => Promise.resolve({ ok: false, error: '退出码 1' }) }
+    expect(await searchPlugins(noConfig)).toEqual({ ok: false, error: '问 pnpm 要配置没成：退出码 1' })
+    expect(seen).toEqual([])
+  })
+
+  it('名单不是字符串数组：直接抛错', async () => {
+    await expect(searchPlugins(depsWith('@godcreator', {}))).rejects.toThrow('要是字符串数组')
   })
 })

@@ -117,6 +117,9 @@ importers:
       '@godcreator/gwb-kernel-desktop':
         specifier: ^0.10.0
         version: 0.10.0(cordis@4.0.0-rc.10)
+      '@godcreator/gwb-settings':
+        specifier: ^0.3.9
+        version: 0.3.9(@godcreator/gwb-commands@0.5.6(@godcreator/gwb-kernel-desktop@0.10.0(cordis@4.0.0-rc.10))(cordis@4.0.0-rc.10))(@godcreator/gwb-kernel-desktop@0.10.0(cordis@4.0.0-rc.10))(@godcreator/gwb-skills@0.4.5(@godcreator/gwb-kernel-desktop@0.10.0(cordis@4.0.0-rc.10))(cordis@4.0.0-rc.10))(cordis@4.0.0-rc.10)
       '@godcreator/gwb-skills':
         specifier: ^0.4.5
         version: 0.4.5(@godcreator/gwb-kernel-desktop@0.10.0(cordis@4.0.0-rc.10))(cordis@4.0.0-rc.10)
@@ -458,6 +461,19 @@ packages:
     peerDependencies:
       '@godcreator/gwb-kernel-desktop': ^0.4.1
       cordis: ^4.0.0-rc.10
+
+  '@godcreator/gwb-settings@0.3.9':
+    resolution: {integrity: sha512-H/TZmx35A/DcZk/h/pmqkzemHC9hsHkwMFKjwNGykuypMizQtyNcgqWihy7tQ/zf4Vfh3Z7WuPDH2X/CUZM03w==, tarball: https://git.tianshen02.online:28377/api/packages/godcreator/npm/%40godcreator%2Fgwb-settings/-/0.3.9/gwb-settings-0.3.9.tgz}
+    peerDependencies:
+      '@godcreator/gwb-commands': ^0.5.8
+      '@godcreator/gwb-kernel-desktop': ^0.10.0
+      '@godcreator/gwb-skills': ^0.4.12
+      cordis: ^4.0.0-rc.10
+    peerDependenciesMeta:
+      '@godcreator/gwb-commands':
+        optional: true
+      '@godcreator/gwb-skills':
+        optional: true
 
   '@godcreator/gwb-shell@0.15.1':
     resolution: {integrity: sha512-buFx2XAxBGUlwmB4fXtQ0+HXRI5RILHfQdCHqhZJ/9un4YgmJ3WeP8ODdeliqLF82ABFf4dHGgyZDO94zjKGtQ==, tarball: https://git.tianshen02.online:28377/api/packages/godcreator/npm/%40godcreator%2Fgwb-shell/-/0.15.1/gwb-shell-0.15.1.tgz}
@@ -2923,6 +2939,14 @@ snapshots:
     dependencies:
       '@godcreator/gwb-kernel-desktop': 0.10.0(cordis@4.0.0-rc.10)
       cordis: 4.0.0-rc.10(@cordisjs/plugin-include@1.1.0)(@cordisjs/plugin-loader@1.0.0-rc.7)
+
+  '@godcreator/gwb-settings@0.3.9(@godcreator/gwb-commands@0.5.6(@godcreator/gwb-kernel-desktop@0.10.0(cordis@4.0.0-rc.10))(cordis@4.0.0-rc.10))(@godcreator/gwb-kernel-desktop@0.10.0(cordis@4.0.0-rc.10))(@godcreator/gwb-skills@0.4.5(@godcreator/gwb-kernel-desktop@0.10.0(cordis@4.0.0-rc.10))(cordis@4.0.0-rc.10))(cordis@4.0.0-rc.10)':
+    dependencies:
+      '@godcreator/gwb-kernel-desktop': 0.10.0(cordis@4.0.0-rc.10)
+      cordis: 4.0.0-rc.10(@cordisjs/plugin-include@1.1.0)(@cordisjs/plugin-loader@1.0.0-rc.7)
+    optionalDependencies:
+      '@godcreator/gwb-commands': 0.5.6(@godcreator/gwb-kernel-desktop@0.10.0(cordis@4.0.0-rc.10))(cordis@4.0.0-rc.10)
+      '@godcreator/gwb-skills': 0.4.5(@godcreator/gwb-kernel-desktop@0.10.0(cordis@4.0.0-rc.10))(cordis@4.0.0-rc.10)
 
   '@godcreator/gwb-shell@0.15.1(@godcreator/gwb-commands@0.5.6(@godcreator/gwb-kernel-desktop@0.10.0(cordis@4.0.0-rc.10))(cordis@4.0.0-rc.10))(@godcreator/gwb-data@0.1.8(@godcreator/gwb-kernel-desktop@0.10.0(cordis@4.0.0-rc.10))(cordis@4.0.0-rc.10))(@godcreator/gwb-kernel-desktop@0.10.0(cordis@4.0.0-rc.10))(@godcreator/gwb-skills@0.4.5(@godcreator/gwb-kernel-desktop@0.10.0(cordis@4.0.0-rc.10))(cordis@4.0.0-rc.10))(cordis@4.0.0-rc.10)':
     dependencies:

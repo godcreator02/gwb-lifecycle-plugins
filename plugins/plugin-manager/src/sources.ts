@@ -1,78 +1,47 @@
 /**
- * 零 I/O 纯逻辑，只读 npmrc。认三种行，其余（注释、空行、别的配置）跳过：
- * `@j:registry=https://host/api/packages/J/npm/`、`//host/api/packages/J/npm/:_authToken=shxxx`、`registry=https://registry.npmjs.org/`。
- * token 行按源地址配对、不按 scope（同一个 token 可以配好几条源）
+ * 零 I/O 纯逻辑：市场名单（设置项）对上 pnpm 合并好的配置（home 里运行 `pnpm config list --json`：机器级 `~/.npmrc`、
+ * home 级 `<home>/.npmrc`、pnpm 自己的全局配置与环境变量合在一起，装包按的就是这一份），得出每个市场去哪个源查
  */
 
-/** 一条 scope 路由；token 只给检索用，不进任何回执 */
-export interface SourceEntry {
-  scope: string
-  registry: string
-  token?: string
-}
+/** 市场名单这一项设置的键。放公共区（`*`）是为了地址固定：窗格与 agent 改它不用知道插件管理条目的 id；值仍按 home 存 */
+export const MARKETS_SETTING_KEY = 'plugin-markets'
 
-/** `@scope:registry=<url>` */
-const SCOPE_LINE_RE = /^(@[\w.-]+):registry=(\S+)$/
+/** 新装的机器上名单的默认值：生态自己的 scope */
+export const DEFAULT_MARKETS: readonly string[] = ['@godcreator']
 
-/** `//<host/path>/:_authToken=<token>`。键里没有协议，配对靠 `registryKeyOf` */
-const TOKEN_LINE_RE = /^(\/\/\S+?):_authToken=(\S+)$/
+/** npm 的 scope 写法：`@` 加小写字母、数字、`.` `_` `-` */
+const SCOPE_RE = /^@[a-z0-9][a-z0-9._-]*$/
 
-/** `registry=<url>`，没有单独配置的 scope 都从这里装 */
-const GLOBAL_LINE_RE = /^registry=(\S+)$/
+/** 一个市场去哪查：地址以 `/` 结尾；查不了的带原因 */
+export type MarketSource = { ok: true; scope: string; registry: string } | { ok: false; scope: string; error: string }
 
-/** npm 官方源。两份 npmrc 都没写 `registry=` 时 pnpm 用的就是它 */
-export const DEFAULT_REGISTRY = 'https://registry.npmjs.org/'
-
-/** 生态自己的 scope：`search` 总是第一个查它，npmrc 里没写它时它走全局源 */
-export const BOOTSTRAP_SCOPE = '@godcreator'
-
-/** http(s) 开头、没有空白。源长什么样由 pnpm 判断 */
-function isRegistryUrl(value: unknown): value is string {
-  return typeof value === 'string' && /^https?:\/\/\S+$/.test(value)
-}
-
-/** 源地址 → token 行的键：去掉协议、补上结尾斜杠，与 `TOKEN_LINE_RE` 捕获的键形状相同 */
-export function registryKeyOf(registry: string): string {
-  const withoutProtocol = registry.replace(/^https?:\/\//, '')
-  return `//${withoutProtocol.endsWith('/') ? withoutProtocol : `${withoutProtocol}/`}`
-}
-
-/** 一份 npmrc 文本里的全部 scope 路由，token 按 `registryKeyOf` 配上 */
-export function parseSources(text: string): SourceEntry[] {
-  const scopes: { scope: string; registry: string }[] = []
-  const tokens: { key: string; token: string }[] = []
-  for (const line of text.split('\n')) {
-    const scopeMatch = SCOPE_LINE_RE.exec(line)
-    if (scopeMatch !== null) {
-      scopes.push({ scope: scopeMatch[1]!, registry: scopeMatch[2]! })
-      continue
-    }
-    const tokenMatch = TOKEN_LINE_RE.exec(line)
-    if (tokenMatch !== null) tokens.push({ key: tokenMatch[1]!, token: tokenMatch[2]! })
+/** 设置项的值是外部输入：不是字符串数组、有重复都直接报错，不替它修正 */
+export function marketsOf(value: unknown): string[] {
+  if (!Array.isArray(value) || !value.every((item): item is string => typeof item === 'string')) {
+    throw new Error(`设置项 ${MARKETS_SETTING_KEY} 要是字符串数组（每项一个 scope，如 ["@godcreator"]），现在是 ${JSON.stringify(value)}`)
   }
-  return scopes.map(({ scope, registry }) => ({
-    scope,
-    registry,
-    token: tokens.find((token) => token.key === registryKeyOf(registry))?.token,
-  }))
-}
-
-function globalRegistryOf(text: string): string | undefined {
-  for (const line of text.split('\n')) {
-    const globalMatch = GLOBAL_LINE_RE.exec(line.trim())
-    if (globalMatch !== null && isRegistryUrl(globalMatch[1])) return globalMatch[1]
-  }
-  return undefined
+  const duplicated = value.find((scope, index) => value.indexOf(scope) !== index)
+  if (duplicated !== undefined) throw new Error(`设置项 ${MARKETS_SETTING_KEY} 里 ${duplicated} 写了不止一次`)
+  return value
 }
 
 /**
- * 照 pnpm 的优先级：先 `@scope:registry=`，再 `registry=`，每一种 home 级优先于机器级，都没有就是 npm 官方源；
- * 返回的地址以 `/` 结尾。环境变量或 pnpm 全局配置指定的源这里看不到
+ * 市场的源只认 pnpm 配置里这个 scope 自己的路由 `@scope:registry`：没有路由时 pnpm 会去全局源装，
+ * 那不是这个市场，查出来多半是空的，所以报「没配源」而不是去全局源查
  */
-export function registryFor(scope: string, layers: { home: string; user: string }): string {
-  const scopedRegistry =
-    parseSources(layers.home).find((source) => source.scope === scope)?.registry ??
-    parseSources(layers.user).find((source) => source.scope === scope)?.registry
-  const registry = scopedRegistry ?? globalRegistryOf(layers.home) ?? globalRegistryOf(layers.user) ?? DEFAULT_REGISTRY
-  return registry.endsWith('/') ? registry : `${registry}/`
+export function marketSourceOf(scope: string, pnpmConfig: Readonly<Record<string, unknown>>): MarketSource {
+  if (!SCOPE_RE.test(scope)) return { ok: false, scope, error: '不是 scope 的写法：要 @ 开头，后面是小写字母、数字、. _ -，如 @godcreator' }
+  const key = `${scope}:registry`
+  const registry = pnpmConfig[key]
+  if (registry === undefined) {
+    return { ok: false, scope, error: `pnpm 里没配这个市场的源：往 ~/.npmrc 加一行 ${key}=<源地址>，私有源再加一行凭据，写法见说明书 gwb-plugin-manager 的「加一个市场」` }
+  }
+  if (typeof registry !== 'string') return { ok: false, scope, error: `pnpm 配置里 ${key} 的值不是字符串：${JSON.stringify(registry)}` }
+  return { ok: true, scope, registry: registry.endsWith('/') ? registry : `${registry}/` }
+}
+
+/** 源地址 → pnpm 的凭据键 `//<主机>/<路径>/:_authToken`。凭据按源地址配，不按 scope */
+export function authTokenKeyOf(registry: string): string {
+  const withoutProtocol = registry.replace(/^https?:\/\//, '')
+  return `//${withoutProtocol.endsWith('/') ? withoutProtocol : `${withoutProtocol}/`}:_authToken`
 }

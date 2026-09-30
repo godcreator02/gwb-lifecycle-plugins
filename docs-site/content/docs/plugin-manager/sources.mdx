@@ -1,33 +1,63 @@
 ---
 title: 找插件
-description: plugin-manager.search（无参数）在配好的全部 npm 源上检索插件，地址按 scope 从机器级 ~/.npmrc 与 home 级 <home>/.npmrc 里找、和 pnpm 安装读同一批配置行，是不是插件只看包清单 keywords 里的 gwb-plugin；插件管理只读 npmrc、不写，配第三方包源由说明书教 agent 手写 ~/.npmrc；search 不改 home，不经 BUSY
+description: plugin-manager.search（无参数）只在市场名单里的市场上检索插件：名单是公共区的设置项 plugin-markets，默认只有 @godcreator；每个市场的源地址与凭据问 pnpm（home 里 pnpm config list --json 与 config get），和装包用的是同一份配置；市场在 pnpm 里没配源就报出来，不去全局源查；是不是插件只看包清单 keywords 里的 gwb-plugin；search 不改 home，不经 BUSY
 ---
 
 # 找插件
 
-**本页回答**：`search` 查哪些源、怎么判断一个包是插件；源地址与 token 从哪读；第三方包源谁来配；`search` 为什么不经 BUSY。命令怎么组合着用见说明书 [gwb-plugin-manager](/docs/outputs/skills/gwb-plugin-manager)。
+**本页回答**：`search` 在哪些市场上找、每个市场去哪个源查；怎么判断一个包是插件；市场名单存在哪、谁来改；`search` 为什么不经 BUSY。命令怎么组合着用见说明书 [gwb-plugin-manager](/docs/outputs/skills/gwb-plugin-manager)。
 
-代码在 `src/package-sources.ts`（命令逻辑，把下面几样接起来）、`src/sources.ts` 与 `src/search.ts`（纯逻辑）、`src/registry.ts`（网络）、`src/home.ts`（读 npmrc）。
+代码在 `src/package-sources.ts`（命令逻辑，把下面几样接起来）、`src/sources.ts` 与 `src/search.ts`（纯逻辑）、`src/pnpm-config.ts`（问 pnpm 要配置）、`src/registry.ts`（网络）。
 
-<Diagram name="pm-sources" title="search 读哪两份 npmrc，怎么从 scope 查到插件">
-- 两份 npmrc：机器级 `~/.npmrc` 本机所有 home 共用；home 级 `<home>/.npmrc` 同名行优先。插件管理两份都只读
-- 第三方包源由 agent 照说明书往 `~/.npmrc` 手写 scope 路由与凭据，`@godcreator` 那行不动
-- `search` 每个 scope 找一条源地址（先 `@scope:registry=`，再 `registry=`，都没写就是 npm 官方源），各条源并发发 `GET <源>/-/v1/search?text=<scope>&size=250`
-- 包清单 `keywords` 含 `gwb-plugin` 的才算插件，合并进 `packages`（每行 `pkg`、`version`、`description`）；没查成的源写进 `note`
-- 装包的 `plugin-manager.install` 经 pnpm 读的是同一批配置行，所以搜到的包就从这条源装
+<Diagram name="pm-sources" title="search 在哪些市场上找，每个市场去哪个源查">
+- 市场名单是设置插件公共区里的一项 `plugin-markets`，每项一个 scope，默认 `["@godcreator"]`；人在插件管理窗格「可安装」一栏加删，agent 用 `settings.set` 改
+- 每个市场的源地址问 pnpm：在 home 里运行 `pnpm config list --json`，只认这个 scope 自己的 `@scope:registry`；pnpm 这份配置合了 `~/.npmrc`、`<home>/.npmrc`、pnpm 自己的全局配置与环境变量
+- 私有源的凭据按源地址 `pnpm config get //<源>/:_authToken` 取
+- 各市场并发发 `GET <源>/-/v1/search?text=<scope>&size=250`，包清单 `keywords` 含 `gwb-plugin` 的才算插件，合并进 `packages`；每个市场查得怎样写进 `markets`
+- 装包的 `plugin-manager.install` 经 pnpm 读的是同一份配置，所以搜到的包就从这个源装
 </Diagram>
 
-## 从哪装就在哪搜
+## 市场名单：只在名单里的 scope 上找
 
-`search` 没有参数，查两份 npmrc 里出现过的每个 scope，`@godcreator` 永远排第一（npmrc 里没写它时它走全局源），其余按名字排。各条源并发查，查成的合并进回执的 `packages`，没查成的在 `note` 里写明是哪条、为什么；全部没查成才回 `ok: false`。
+npmrc 里的源不都是 gwb 的：pnpm 自带一条 `@jsr:registry`，机器上还可能有公司的私有源、换全局源的镜像。所以 `search` 不拿 npmrc 里的每条路由去查，只查**市场名单**里的 scope。名单是设置插件公共区（`section` 为 `*`）的一项 `plugin-markets`，字符串数组，默认只有 `@godcreator`。放公共区是为了地址固定：窗格与 agent 改它不用知道插件管理那条条目的 id；值和别的设置一样存在各个 home 自己的 `settings.json` 里，每个 home 一份，而源地址所在的 `~/.npmrc` 是整台机器共用的。插件管理只在设置插件与命令总线都在时声明这一项、登记 `search`。
 
-{/* ref file="../plugins/plugin-manager/src/package-sources.ts" lines="15-53" hash="e681657e609b" blob="24466d9ca6e4" */}
+{/* ref file="../plugins/plugin-manager/src/sources.ts" lines="6-10" hash="8a29f8b7780b" blob="acb6da61c816" */}
 
-每条源的地址按 scope 从两份 npmrc 里找：先找 `@scope:registry=`，再找 `registry=`，每一种都是 home 级优先于机器级，都没写就是 npm 官方源。pnpm 安装时读的是同一批配置行，所以检索的源和安装的源是同一个，搜到的包名交给 `install`，pnpm 去的也是这条源。用环境变量或 pnpm 全局配置指定的源这里看不到；本机的配置都写在 `~/.npmrc` 里。
+{/* ref file="../plugins/plugin-manager/src/index.ts" lines="219-232" hash="6e2afe03bf77" blob="95d5be4fdbdf" */}
 
-{/* ref file="../plugins/plugin-manager/src/sources.ts" lines="68-78" hash="aa553473d382" blob="3ee96fe24727" */}
+名单是外部输入：不是字符串数组、有重复就直接报错，不替它修正；名单是空的回 `ok: false`。
 
-每条源发 `GET <registry>/-/v1/search?text=<scope>&size=250`，这条源在 npmrc 里配了 token 就带 `Authorization: Bearer`（同名 scope 取 home 级那条的 token），最多等 10 秒。检索接口是 npmjs、Verdaccio、gitea 都实现的标准协议，这里不认识任何具体的源。token 只在这次请求里用，不进回执与日志。
+{/* ref file="../plugins/plugin-manager/src/sources.ts" lines="18-26" hash="87d28d18ca24" blob="174993efee5e" */}
+
+{/* has file="../plugins/plugin-manager/tests/commands.test.ts" text="search 要设置插件在才登记，市场名单声明在公共区、默认只有 @godcreator；别的命令不受影响" */}
+
+## 源地址问 pnpm，和装包用同一份配置
+
+每次 `search` 在 home 里运行一次 `pnpm config list --json`，拿到的是 pnpm 装包时用的那份合并配置：机器级 `~/.npmrc`、home 级 `<home>/.npmrc`、pnpm 自己的全局配置（`pnpm config set` 写进的地方）与环境变量都在里面。插件管理不自己读 npmrc，所以源配在哪一层，搜的和装的都是同一个源。这份输出里凭据被遮成 `(protected)`，要带凭据时按源地址另运行一次 `pnpm config get //<主机>/<路径>/:_authToken`，没配时 pnpm 输出 `undefined`。
+
+{/* ref file="../plugins/plugin-manager/src/pnpm-config.ts" lines="1-4" hash="5ae8876a01b3" blob="6da6556bdafc" */}
+
+{/* ref file="../plugins/plugin-manager/src/pnpm-config.ts" lines="32-45" hash="87098c801f09" blob="6da6556bdafc" */}
+
+**一个市场只认它自己的路由 `@scope:registry`**：没有这条时 pnpm 会去全局源装，那不是这个市场，查出来多半是空的；所以这时这个市场报「pnpm 里没配这个市场的源」，并说要往 `~/.npmrc` 加哪一行，不去全局源查。scope 写法不对（不是 `@` 开头的小写名字）也在这个市场上报错。
+
+{/* ref file="../plugins/plugin-manager/src/sources.ts" lines="28-41" hash="6a1ad04391db" blob="174993efee5e" */}
+
+{/* has file="../plugins/plugin-manager/tests/package-sources.test.ts" text="名单里的市场在 pnpm 里没配源：这个市场报没配源，不去全局源查" */}
+
+{/* has file="../plugins/plugin-manager/tests/commands.test.ts" text="在 home 里问 pnpm 要配置与凭据，只查名单里的市场" */}
+
+## 各市场并发查，一个失败只影响它自己
+
+名单里的市场并发查，查成的合并进回执的 `packages`；每个市场查得怎样按名单顺序写进 `markets`（`scope`、`registry`、`ok`、查成时的 `count`、没查成的 `error`），没查成的另在 `note` 里点名；全都没查成才回 `ok: false`，原因逐个写明。
+
+{/* ref file="../plugins/plugin-manager/src/package-sources.ts" lines="15-52" hash="d05bf665ed26" blob="97da39d1616e" */}
+
+{/* has file="../plugins/plugin-manager/tests/package-sources.test.ts" text="只查名单里的市场，顺序照名单；带上这条源的凭据；一个失败只进 note 与它的状态" */}
+
+{/* has file="../plugins/plugin-manager/tests/package-sources.test.ts" text="一个市场都没查成才 ok:false，原因逐个写明" */}
+
+每个市场发 `GET <registry>/-/v1/search?text=<scope>&size=250`，有凭据就带 `Authorization: Bearer`，最多等 10 秒。检索接口是 npmjs、Verdaccio、gitea 都实现的标准协议，这里不认识任何具体的源。凭据只在这次请求里用，不进回执与日志。
 
 {/* ref file="../plugins/plugin-manager/src/registry.ts" lines="4-31" hash="87bafebce13a" blob="56c6ac868cbd" */}
 
@@ -37,32 +67,16 @@ description: plugin-manager.search（无参数）在配好的全部 npm 源上�
 
 {/* ref file="../plugins/plugin-manager/src/search.ts" lines="43-46" hash="8b851048cbb2" blob="4acddc515fd4" */}
 
-{/* has file="../plugins/plugin-manager/tests/sources.test.ts" text="home 级同名 scope 优先于机器级" */}
-
 {/* has file="../plugins/plugin-manager/tests/search.test.ts" text="写了 gwb-plugin 就是插件（不管名字长什么样）" */}
 
-{/* has file="../plugins/plugin-manager/tests/package-sources.test.ts" text="一条失败只进 note" */}
+## 加一个市场：改名单，源配给 pnpm
 
-{/* has file="../plugins/plugin-manager/tests/package-sources.test.ts" text="home 级 npmrc 里的 scope 也查，同名 scope 用 home 级那条的源与 token" */}
-
-{/* has file="../plugins/plugin-manager/tests/package-sources.test.ts" text="全部源都没查成才 ok:false" */}
-
-## 只读 npmrc，第三方包源照说明书手写
-
-插件管理只读两份 npmrc，只认三种行——scope 路由、凭据、全局源，其余行跳过；凭据行按源地址配对，不按 scope。文件不在当空文本，在但读不了就报错并带上路径。
-
-{/* ref file="../plugins/plugin-manager/src/sources.ts" lines="1-5" hash="b73dd96036d9" blob="3ee96fe24727" */}
-
-{/* ref file="../plugins/plugin-manager/src/home.ts" lines="67-82" hash="59b5a04577fe" blob="2689fa073ac6" */}
-
-{/* has file="../plugins/plugin-manager/tests/home.test.ts" text="文件不在读成空文本；在就原样读出" */}
-
-配第三方包源不经命令：说明书 [gwb-plugin-manager](/docs/outputs/skills/gwb-plugin-manager) 的「配第三方包源」写清往 `~/.npmrc` 加哪两行，agent 照着写完调 `search` 核对。`@godcreator` 的路由本来就写在 `~/.npmrc`，本机每个 home 的安装、每个源码仓的安装与发版都读它，写别的 scope 时那一行不动。
+插件管理不写 npmrc，也不收凭据。加一个市场是两件事：往名单里加 scope（窗格「可安装」一栏，或 `settings.set {"section":"*","key":"plugin-markets",…}`），再让 pnpm 知道这个 scope 的源——往 `~/.npmrc` 加 `@<scope>:registry=<源地址>`，私有源再加凭据行。说明书 [gwb-plugin-manager](/docs/outputs/skills/gwb-plugin-manager) 的「加一个市场」写清这两步，做完调 `search` 看这个市场的 `ok`。`@godcreator` 的路由本来就要有：本机每个 home 的安装、每个源码仓的安装与发版都靠它。
 
 ## 不改 home，不经 BUSY
 
-`search` 用不带 BUSY 检查的方式登记，也不运行 pnpm。BUSY 防的是两次改动同时改 home 的 `package.json`；`search` 只读网络与文件，不碰 home。检索可能要等好几条源，排在安装后面只会让「可装」列表等到安装做完才出来。
+`search` 用不带 BUSY 检查的方式登记。BUSY 防的是两次改动同时改 home 的 `package.json`；`search` 只读设置、pnpm 的配置与网络，运行的 `pnpm config` 也不写 home。检索可能要等好几个市场，排在安装后面只会让「可安装」列表等到安装做完才出来。
 
-{/* ref file="../plugins/plugin-manager/src/index.ts" lines="216-228" hash="ae6fa061604a" blob="9c26468ce597" */}
+{/* ref file="../plugins/plugin-manager/src/index.ts" lines="215-252" hash="4042c6c191b0" blob="95d5be4fdbdf" */}
 
-真实 registry 的检索只能实机验证：`devkit.home.new` 开一个隔离 home，在里面调 `search`。
+真实 registry 与 pnpm 的配置只能实机验证：`devkit.home.new` 开一个隔离 home，在里面调 `search`。

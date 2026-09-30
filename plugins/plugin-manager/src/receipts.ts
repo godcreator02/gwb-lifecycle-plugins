@@ -100,11 +100,25 @@ export interface PluginRow {
   description?: string
 }
 
+/** 市场名单里的一个市场这次查得怎样 */
+export interface MarketStatus {
+  scope: string
+  /** pnpm 给这个 scope 配的源；没配、scope 写法不对时没有 */
+  registry?: string
+  ok: boolean
+  /** 查成时这个市场上有几个插件 */
+  count?: number
+  /** 没查成的原因 */
+  error?: string
+}
+
 /** `plugin-manager.search` 成功时的 `data` */
 export interface SearchFound {
-  /** 全部配好的源上的插件。**空数组 = 查成了、一个都没有**，和「没查成」分得开 */
+  /** 全部市场上的插件。**空数组 = 查成了、一个都没有**，和「没查成」分得开 */
   packages: PluginRow[]
-  /** 有源没查成时，点名是哪几条（其余照常） */
+  /** 市场名单里每个市场的状态，顺序照名单 */
+  markets: MarketStatus[]
+  /** 有市场没查成时，点名是哪几个（其余照常） */
   note?: string
 }
 

@@ -1,0 +1,51 @@
+---
+title: 找插件改成只查市场名单，源地址问 pnpm
+born-at: 2026-09-30T12:20
+type: choice
+parent: [2026-09-08-gwb-devkit]
+label: 市场名单
+domain: 插件管理
+---
+
+## 背景
+
+插件管理 0.14 的 `search` 自己读 `~/.npmrc` 与 `<home>/.npmrc` 两份文件，把里面的每条 scope 路由都查一遍；`@godcreator` 没有路由时去全局源查。2026-09-30 用户反馈：别人的电脑第一次装完工作台，插件管理窗格「可安装」一栏是空的，本机却是好的。
+
+原因是两件事叠在一起：
+
+- 那台机器上 `@godcreator` 的源是用 `pnpm config set` 配的。pnpm 12.4.2 把它写进 `%LOCALAPPDATA%\pnpm\config\auth.ini`，不生成 `~/.npmrc`，装包照常，`search` 却读不到这条路由，转去 npm 官方源查 `@godcreator`，查到 0 个，不报错（`probes/2609301215_pnpm-config-set-location/`；npm 官方源检索 `@godcreator` 返回 `total=0` 是本会话手动请求所得，无存档）
+- npmrc 里的路由不都是 gwb 的：pnpm 自带 `@jsr:registry`（检索接口 404），机器上还可能有公司的私有源。`search` 不分是不是 gwb 的源，全都查，只靠 `keywords` 里的 `gwb-plugin` 筛包
+
+人要求「可安装」一栏能看到、能配置去哪些市场找插件。
+
+## 结论与边界
+
+人定按下面四点做，插件管理 0.14.6 → 0.14.7：
+
+- **市场名单是设置插件公共区的一项** `plugin-markets`（字符串数组，每项一个 scope，默认 `["@godcreator"]`）。人原本想要整台机器共用一份；设置插件的公共区只是「别的插件不用声明也读得到」，值仍存在各个 home 的 `settings.json` 里，所以名单是每个 home 一份。仍放公共区，是为了地址固定：窗格与 agent 改它不用知道插件管理条目的 id。插件管理因此重新局部注入 `gwbSettings`（peer 写 `^0.3.9`、`optional`），设置插件不在时不登记 `search`，别的命令照常
+- **名单里只记 scope，源地址问 pnpm**：`search` 在 home 里运行 `pnpm config list --json`，只认这个 scope 自己的 `@scope:registry`；凭据按源地址 `pnpm config get` 取（`config list` 把凭据遮成 `(protected)`）。插件管理不再自己读 npmrc，所以源配在哪一层，搜的和装的都是同一个源。scope 在 pnpm 里没有路由就在这个市场上报「没配源」，不去全局源查
+- **界面**：插件管理窗格「可安装」一栏顶上列出每个市场的 scope、pnpm 给的地址、查没查成，能加删 scope；凭据不在界面里填，照说明书手写 `~/.npmrc`
+- **名单外的 scope 不查**；判断包是不是插件照旧只看 `keywords` 里的 `gwb-plugin`
+
+回执 `data` 加字段 `markets`（每个市场的 `scope`、`registry`、`ok`、`count`、`error`），命令名与参数不变，按补丁版本升 y。
+
+pivots-from:: [插件管理删多余命令](2026-09-25-plugin-manager-drops-unused-commands.md)
+
+## 依据
+
+插件管理只有一种办法和装包用同一个源：不自己照 npmrc 的规则再算一遍，直接问装包的那个 pnpm。0.14 的 `sources.ts` 自己注明「环境变量或 pnpm 全局配置指定的源这里看不到」，这次撞上的正是这一条。
+
+名单替代「npmrc 里有什么就查什么」，是因为 npmrc 描述的是「某个 scope 从哪装」，不描述「这个源上有没有 gwb 插件」；这两件事要分开记。
+
+## 否掉的候选
+
+- **只改成问 pnpm、仍查 pnpm 配置里的全部 scope**：别人电脑上的空列表能修好，但 `@jsr` 这类源照样每次请求一遍、在 `note` 里报一条和 gwb 无关的失败；人要的是能看到、能配置的市场
+- **名单里连地址一起记，由插件管理写 npmrc**：就是 0.14 删掉的 `source.add` / `remove`；地址记两份（名单与 npmrc）会对不上，写 npmrc 还要处理凭据
+
+## 代价与遗留
+
+- 本机原来靠 npmrc 路由自动搜到的 `@j`、`@god-private` 不再自动出现，要加进名单
+- 名单每个 home 一份：新开的 home（含隔离 home）只有 `@godcreator`，要在别的 home 搜第三方市场得在那个 home 里再加一次；设置插件没有整台机器共用的一层
+- 隔离 home 里实测（`devkit.dev` 装 0.14.8-dev）：默认名单查到 `@godcreator` 36 个；名单改成 `@godcreator`、`@j`、`@nope` 后，`@j` 带凭据查到 3 个，`@nope` 报「pnpm 里没配这个市场的源」
+- 每次 `search` 多运行一次 `pnpm config list --json`，外加每个市场一次 `pnpm config get`（各约零点几秒，市场之间并发）
+- 界面插件 baseui 的「可安装」一栏要跟着改，读回执的 `markets`，加删市场用 `settings.set`

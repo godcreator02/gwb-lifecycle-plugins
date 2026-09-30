@@ -21,7 +21,7 @@ description: 升级 home 里的插件：收到参数、查过期、一次 pnpm a
 
 `all`、`only`、`specs` 三选一。不给参数、给了两种、写了认不出的键，当场报错，一次 pnpm 都不运行：漏写参数不能变成「整个 home 一起升级」。
 
-{/* ref file="../plugins/plugin-manager/src/index.ts" lines="609-619" hash="c6a19c259887" blob="9c26468ce597" */}
+{/* ref file="../plugins/plugin-manager/src/index.ts" lines="633-643" hash="c6a19c259887" blob="95d5be4fdbdf" */}
 
 </Step>
 
@@ -31,7 +31,7 @@ description: 升级 home 里的插件：收到参数、查过期、一次 pnpm a
 
 `all` 和 `only` 都去查哪些包过期了；`specs` 走另一条路：不查过期，按给定的写法装，写了内核包的再转去升内核（见文末）。
 
-{/* ref file="../plugins/plugin-manager/src/index.ts" lines="314-317" hash="19c0fff38c39" blob="9c26468ce597" */}
+{/* ref file="../plugins/plugin-manager/src/index.ts" lines="338-341" hash="19c0fff38c39" blob="95d5be4fdbdf" */}
 
 </Step>
 
@@ -41,7 +41,7 @@ description: 升级 home 里的插件：收到参数、查过期、一次 pnpm a
 
 `outdated` 查出外壳和插件管理有新版本。每一项写成精确版本号 `<包名>@<版本号>`，不用 `@latest`：两次查询之间有人又发了一版，也不会装成回执上没写的那个。全都最新就直接回执，什么都不动。
 
-{/* ref file="../plugins/plugin-manager/src/index.ts" lines="328-339" hash="7ea4a90ab6b8" blob="9c26468ce597" */}
+{/* ref file="../plugins/plugin-manager/src/index.ts" lines="352-363" hash="7ea4a90ab6b8" blob="95d5be4fdbdf" */}
 
 </Step>
 
@@ -53,7 +53,7 @@ description: 升级 home 里的插件：收到参数、查过期、一次 pnpm a
 
 到这一步，新版本已经在磁盘上了，运行的仍是旧代码。
 
-{/* ref file="../plugins/plugin-manager/src/index.ts" lines="412-417" hash="93ca9ef0c865" blob="9c26468ce597" */}
+{/* ref file="../plugins/plugin-manager/src/index.ts" lines="436-441" hash="93ca9ef0c865" blob="95d5be4fdbdf" */}
 
 </Step>
 
@@ -79,7 +79,7 @@ description: 升级 home 里的插件：收到参数、查过期、一次 pnpm a
 
 先重新加载点了名的包、按包名排，再重新加载跟着换了目录的包。每一条都是：停用、等旧实例卸载完、启用、等新实例加载完。本来就停用的条目保持停用。轮到插件管理自己的条目时，只记下 `deferred`，这时不动手。
 
-{/* ref file="../plugins/plugin-manager/src/index.ts" lines="451-463" hash="3eb1b5d2183c" blob="9c26468ce597" */}
+{/* ref file="../plugins/plugin-manager/src/index.ts" lines="475-487" hash="3eb1b5d2183c" blob="95d5be4fdbdf" */}
 
 {/* ref file="../plugins/plugin-manager/src/remount.ts" lines="26-34" hash="531e953d2a45" blob="5777a53110fb" */}
 
@@ -91,7 +91,7 @@ description: 升级 home 里的插件：收到参数、查过期、一次 pnpm a
 
 回执带上 `updated`、`dependents` 与 `selfDeferred`。回执发出之后，插件管理才停用、再启用自己。
 
-{/* ref file="../plugins/plugin-manager/src/index.ts" lines="425-427" hash="7bd180981064" blob="9c26468ce597" */}
+{/* ref file="../plugins/plugin-manager/src/index.ts" lines="449-451" hash="7bd180981064" blob="95d5be4fdbdf" */}
 
 <Callout title="页面不会跟着刷新">
 update 不整页重新加载。要让窗格换成新版本的界面代码，调用方拿到成功回执后自己调一次 `shell.reload`。
@@ -168,7 +168,7 @@ pnpm 退出码是 0，不等于装上了要的那一版：home 的 `package.json
 
 {/* ref file="../plugins/plugin-manager/src/remount.ts" lines="48-59" hash="9f442a4ed2cd" blob="5777a53110fb" */}
 
-{/* ref file="../plugins/plugin-manager/src/index.ts" lines="382-387" hash="010feaafd20f" blob="9c26468ce597" */}
+{/* ref file="../plugins/plugin-manager/src/index.ts" lines="406-411" hash="010feaafd20f" blob="95d5be4fdbdf" */}
 
 </Accordion>
 </Accordions>

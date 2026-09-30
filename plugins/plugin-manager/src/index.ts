@@ -1,8 +1,8 @@
-import os from 'node:os'
 import type { GwbContext } from '@godcreator/gwb-kernel-desktop'
 import { isRecord, noteOf, requireKernel } from './vocab.js'
-// 这两条 type import 只为引入对方的 `declare module 'cordis'`；这两个插件写在 peer 里，说明书标 optional，都经嵌套注入使用
+// 这三条 type import 只为引入对方的 `declare module 'cordis'`；这几个插件写在 peer 里，都经嵌套注入使用
 import type {} from '@godcreator/gwb-commands'
+import type {} from '@godcreator/gwb-settings'
 import type {} from '@godcreator/gwb-skills'
 import type {
   Acknowledged,
@@ -19,7 +19,7 @@ import type {
   UpdatedPackage,
   VersionChange,
 } from './receipts.js'
-import { installedPackageRealpath, npmrcFiles, readHomeDependencies, readInstalledPackageManifest } from './home.js'
+import { installedPackageRealpath, readHomeDependencies, readInstalledPackageManifest } from './home.js'
 import { assertPkgName, bareId, installSpec, isPkgName, pickId } from './ids.js'
 import { installedVersionOf, readEntries, reconcile } from './inventory.js'
 import { describeAddFailure, describePnpm, runPnpm, runPnpmCapture, type PnpmResult } from './pnpm.js'
@@ -48,7 +48,9 @@ import { remountNow, remountSelfLater } from './remount.js'
 import { KERNEL_PACKAGE } from './kernel-compat.js'
 import { CORDIS_PACKAGE, installedVersionMismatch, KERNEL_MANAGED_PACKAGES, kernelUpgradeTargetOf, versionChangeOf } from './kernel-upgrade.js'
 import { declaredPluginPeers, peerStatusOf } from './peers.js'
-import { searchPlugins, type PackageSourcesDeps } from './package-sources.js'
+import { searchPlugins } from './package-sources.js'
+import { readPnpmConfig, readPnpmConfigValue } from './pnpm-config.js'
+import { DEFAULT_MARKETS, MARKETS_SETTING_KEY } from './sources.js'
 
 // 开发套件复用的规则：它 import 这几个，不另存一份
 export { locatePnpm } from './pnpm-location.js'
@@ -100,8 +102,6 @@ class PluginManager {
   private readonly homeDir: string
   /** 运行中的内核版本号，`list` 拿它和各包 peer 里内核包的范围比对 */
   private readonly kernelVersion: string
-  /** `search` 读的两份 npmrc：机器级与 home 级，只读 */
-  private readonly npmrc: { user: string; home: string }
   private readonly tree: EntryTreeLike
   /** 事先拿到的 logger：最后重新加载本插件那一步运行时，本插件的 fiber 已经卸载，ctx 上什么都不能访问 */
   private readonly log: { info(message: string): void; warn(message: string): void }
@@ -113,13 +113,13 @@ class PluginManager {
     const kernel = requireKernel(ctx)
     this.homeDir = kernel.dataDir
     this.kernelVersion = kernel.version
-    this.npmrc = npmrcFiles(os.homedir(), this.homeDir)
     this.tree = treeOf(ctx)
     this.log = ctx.logger(NAME)
   }
 
   wire(): void {
     this.wireCommands()
+    this.wireSearch()
     this.wireSkills()
   }
 
@@ -143,7 +143,6 @@ class PluginManager {
         commandBus.register({ name, description, usage, plugin: PKG }, (args) => this.busyGate.run(() => handler(args) as Promise<{ ok: boolean }> | { ok: boolean }))
       }
       this.registerHomeCommands(registerCommand, registerBusyGuardedCommand)
-      this.registerSearchCommand(registerCommand)
     })
   }
 
@@ -213,18 +212,43 @@ class PluginManager {
     )
   }
 
-  /** 找插件：只读两份 npmrc 与源，不改 home，不经 BUSY 检查 */
-  private registerSearchCommand(registerCommand: RegisterCommand): void {
-    const deps: PackageSourcesDeps = { userNpmrc: this.npmrc.user, homeNpmrc: this.npmrc.home }
-    registerCommand(
-      SEARCH_COMMAND,
-      '列出全部配好的源上的插件（npm 标准检索）',
-      '无参数。从哪条源装就在哪条源搜：机器级 ~/.npmrc 与 home 级 <home>/.npmrc 里的每条 scope 路由（同名 scope 用 home 级那条；@godcreator 在前、其余按名字排）并发查，查成的并进 packages，没查成的在 note 里点名，一条失败不影响别的；全都没查成才 ok:false。只列插件：包自己的 keywords 里有 gwb-plugin 的。配第三方包源不经命令：照说明书 gwb-plugin-manager 的「配第三方包源」往 ~/.npmrc 写，写完调这条核对。回执 data { packages: [{ pkg, version?, description? }], note? }',
-      async (args) => {
-        argsObjectOf(args ?? {}, [])
-        return searchPlugins(deps)
-      },
-    )
+  /**
+   * 找插件：市场名单是公共区的设置项，所以 `search` 要命令总线与设置两样都在才登记。
+   * 只读设置、pnpm 的配置与源，不改 home，不经 BUSY 检查
+   */
+  private wireSearch(): void {
+    this.ctx.inject(['gwbCommands', 'gwbSettings'], (ctx) => {
+      const settings = ctx.gwbSettings
+      const commandBus = ctx.gwbCommands
+      // inject 保证了它们在，这句只是把类型收窄
+      if (settings === undefined || commandBus === undefined) return
+      settings.define({
+        key: MARKETS_SETTING_KEY,
+        title: '插件市场',
+        type: 'string-list',
+        shared: true,
+        default: [...DEFAULT_MARKETS],
+        description: `plugin-manager.search 只在这些 scope 上找插件，每行一个（如 @godcreator）。每个市场的源地址按 pnpm 的配置走（~/.npmrc 里的 @<scope>:registry=…），装包也走这个源`,
+      })
+      commandBus.register(
+        {
+          name: SEARCH_COMMAND,
+          description: '列出市场名单里各个市场上的插件（npm 标准检索）',
+          usage: `无参数。市场名单是公共区（section "*"）的设置项 ${MARKETS_SETTING_KEY}，字符串数组，每项一个 scope，默认 ${JSON.stringify(DEFAULT_MARKETS)}；加删市场用 settings.set 改它。每个市场的源地址问 pnpm（在 home 里 pnpm config list --json，含 ~/.npmrc、<home>/.npmrc、pnpm 全局配置），只认这个 scope 自己的 @<scope>:registry，没配就报这个市场没配源、不去全局源查；凭据按源地址 pnpm config get //<源>/:_authToken 取。各市场并发查，查成的并进 packages，没查成的在 note 里点名，一个失败不影响别的；全都没查成才 ok:false。只列插件：包自己的 keywords 里有 gwb-plugin 的。回执 data { packages: [{ pkg, version?, description? }], markets: [{ scope, registry?, ok, count?, error? }]（顺序照名单）, note? }`,
+          plugin: PKG,
+        },
+        async (args) => {
+          argsObjectOf(args ?? {}, [])
+          const pnpmLookup = await locatePnpm()
+          if (!pnpmLookup.ok) return { ok: false, error: pnpmLookup.error }
+          return searchPlugins({
+            markets: settings.get(MARKETS_SETTING_KEY),
+            readPnpmConfig: () => readPnpmConfig(pnpmLookup.file, this.homeDir),
+            readPnpmConfigValue: (key) => readPnpmConfigValue(pnpmLookup.file, this.homeDir, key),
+          })
+        },
+      )
+    })
   }
 
   async list(): Promise<PluginPackageView[]> {

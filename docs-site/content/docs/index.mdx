@@ -56,7 +56,7 @@ god 工作台的本体只提供插件平台，功能全由插件实现。这个�
 
 <Diagram name="seam-map" title="虚线框是包，连线是接缝，编号对应下面的表">
 - 本仓两个包：开发套件（建仓、测试 home、改一版看一版、发正式版、CDP 驱动、建仓模板）、插件管理
-- 仓外：工作台服务（`gwbCommands`、`gwbNodeCli`、`gwbSkills`）；内核与 home（exe、`runtime.json`、`gwb.log`）；cordis loader 的条目树；pnpm 与包源（npm 源、两份 npmrc、gitea 插件的设置）；工作台页面（`window.gwb`）；被测插件仓
+- 仓外：工作台服务（`gwbCommands`、`gwbNodeCli`、`gwbSkills`）；内核与 home（exe、`runtime.json`、`gwb.log`）；cordis loader 的条目树；pnpm 与包源（npm 源、pnpm 的配置与 `~/.npmrc`、设置插件公共区的市场名单）；工作台页面（`window.gwb`）；被测插件仓
 - 实线接缝有代码接口；点线接缝（3、4、6、7、10）只靠约定：命令名、文件格式、字段名或「两处一起改」
 </Diagram>
 
@@ -69,7 +69,7 @@ god 工作台的本体只提供插件平台，功能全由插件实现。这个�
 | 6 | CDP 驱动（约定） | 开发套件 ↔ `cdp.mjs` ↔ 工作台页面 | 命令行参数、stdout 上的 JSON、退出码、commands 客户端与 `window.gwb.request` | [CDP 驱动](/docs/seams/cdp) |
 | 7 | 内核与 home（约定） | `devkit.home.*`、CDP 驱动 ↔ 内核 exe | `GWB_HOME`、调试端口、`runtime.json`、home 根目录、`gwb.log` 的行格式 | [内核与 home](/docs/seams/kernel-home) |
 | 8 | 条目树 | 插件管理 ↔ cordis loader | 条目树的读、建、改、删 | [条目树](/docs/seams/entry-tree) |
-| 9 | pnpm 与包源 | 插件管理、开发套件 ↔ pnpm、npm 源、npmrc、gitea 插件的设置 | 同一个 pnpm；打包开发版、发正式版；按范围找源、检索插件、读写 `~/.npmrc` | [pnpm 与包源](/docs/seams/pnpm-registry) |
+| 9 | pnpm 与包源 | 插件管理、开发套件 ↔ pnpm、npm 源、pnpm 的配置 | 同一个 pnpm；打包开发版、发正式版；问 pnpm 要市场的源地址、检索插件 | [pnpm 与包源](/docs/seams/pnpm-registry) |
 | 10 | 被测仓的形状（约定） | 改一版看一版、发正式版、加插件 ↔ 被测插件仓 | 仓根 build 脚本、`files`、`keywords`、目录布局、git 工作区干净 | [被测仓的形状](/docs/seams/repo-shape) |
 
 一条接缝连接的模块只要接口不变就能各自替换；每条接缝由什么测试保护，写在它自己那一页。内核那边对插件管理的承诺（home 布局、loader 与 include 的版本）写在内核仓文档站的接缝页「home 布局与条目树」。

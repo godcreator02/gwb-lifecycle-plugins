@@ -1,0 +1,7 @@
+pnpm 12.4.2
+globalconfig = C:\Users\godamericatb14\AppData\Local\Temp\pnpm-config-set-probe-42d06ff2\pnpm\config\config.yaml
+~/.npmrc 存在 = False
+写出的文件 = \pnpm\config\auth.ini
+config list --json 里 @probe:registry = https://probe.example/npm/
+config get @probe:registry = https://probe.example/npm/
+config get 没配的凭据键 = undefined（退出码 0）

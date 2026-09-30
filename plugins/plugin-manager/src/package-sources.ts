@@ -1,62 +1,52 @@
-import { readNpmrc } from './home.js'
 import { searchRegistry } from './registry.js'
-import type { Outcome, PluginRow, SearchFound } from './receipts.js'
-import { mergeScoped } from './search.js'
-import { BOOTSTRAP_SCOPE, parseSources, registryFor } from './sources.js'
+import type { MarketStatus, Outcome, PluginRow, SearchFound } from './receipts.js'
+import { mergeScoped, type ScopedSearch } from './search.js'
+import { authTokenKeyOf, marketSourceOf, marketsOf, MARKETS_SETTING_KEY } from './sources.js'
 
-/** `search` 读的两份 npmrc，只读不写 */
+/** `search` 要的三样：市场名单、pnpm 合并好的配置、某条源的凭据 */
 export interface PackageSourcesDeps {
-  /** 机器级 `~/.npmrc` */
-  userNpmrc: string
-  /** home 级 `<home>/.npmrc` */
-  homeNpmrc: string
+  /** 设置项 `plugin-markets` 的值，原样给 */
+  markets: unknown
+  readPnpmConfig(): Promise<Outcome<Record<string, unknown>>>
+  /** 读 pnpm 配置里的一个键（凭据）；没配是 undefined */
+  readPnpmConfigValue(key: string): Promise<string | undefined>
 }
 
-/** 并发查全部配好的源，一条失败只进 `note`，全都没查成才 `ok: false` */
+/** 名单里的市场并发查，一个失败只进 `note` 与它自己的状态，全都没查成才 `ok: false` */
 export async function searchPlugins(deps: PackageSourcesDeps): Promise<Outcome<SearchFound>> {
-  const scopes = await configuredScopes(deps)
-  const receiptsInScopeOrder = await Promise.all(scopes.map((one) => searchOne(deps, one)))
-  const merged = mergeScoped(
-    scopes.map((one, index) => {
-      const receipt = receiptsInScopeOrder[index]!
-      return receipt.ok ? { scope: one, ok: true, packages: receipt.data } : { scope: one, ok: false, error: receipt.error }
-    }),
-  )
-  if (merged.packages.length === 0 && merged.failed.length === scopes.length) {
-    const failureSummary = merged.failed.map((failure) => `${failure.scope}：${failure.error}`).join('；')
-    return { ok: false, error: `一条源都没查成——${failureSummary}` }
+  const markets = marketsOf(deps.markets)
+  if (markets.length === 0) return { ok: false, error: `市场名单是空的：公共区的设置项 ${MARKETS_SETTING_KEY} 至少要有一个 scope，如 ["@godcreator"]` }
+  const pnpmConfig = await deps.readPnpmConfig()
+  if (!pnpmConfig.ok) return { ok: false, error: `问 pnpm 要配置没成：${pnpmConfig.error}` }
+
+  const searched = await Promise.all(markets.map((scope) => searchMarket(deps, pnpmConfig.data, scope)))
+  const merged = mergeScoped(searched.map(({ result }) => result))
+  if (merged.failed.length === markets.length) {
+    return { ok: false, error: `一个市场都没查成——${merged.failed.map((failure) => `${failure.scope}：${failure.error}`).join('；')}` }
   }
   return {
     ok: true,
     data: {
       packages: merged.packages,
+      markets: searched.map(({ status }) => status),
       ...(merged.failed.length === 0
         ? {}
-        : { note: `这几条源没查成（其余照常）：${merged.failed.map((failure) => `${failure.scope}（${failure.error}）`).join('、')}` }),
+        : { note: `这几个市场没查成（其余照常）：${merged.failed.map((failure) => `${failure.scope}（${failure.error}）`).join('、')}` }),
     },
   }
 }
 
-/** 去重、顺序固定：@godcreator 永远第一（npmrc 里一条都没有时它走全局源），其余按名字排 */
-async function configuredScopes(deps: PackageSourcesDeps): Promise<string[]> {
-  const scopesInNpmrc = new Set<string>()
-  for (const text of [await readNpmrc(deps.userNpmrc), await readNpmrc(deps.homeNpmrc)]) {
-    for (const { scope } of parseSources(text)) scopesInNpmrc.add(scope)
+async function searchMarket(
+  deps: PackageSourcesDeps,
+  pnpmConfig: Readonly<Record<string, unknown>>,
+  scope: string,
+): Promise<{ result: ScopedSearch; status: MarketStatus }> {
+  const source = marketSourceOf(scope, pnpmConfig)
+  if (!source.ok) return { result: { scope, ok: false, error: source.error }, status: { scope, ok: false, error: source.error } }
+  const receipt = await searchRegistry(source.registry, scope, await deps.readPnpmConfigValue(authTokenKeyOf(source.registry)))
+  if (!receipt.ok) {
+    return { result: { scope, ok: false, error: receipt.error }, status: { scope, registry: source.registry, ok: false, error: receipt.error } }
   }
-  return [BOOTSTRAP_SCOPE, ...[...scopesInNpmrc].filter((scope) => scope !== BOOTSTRAP_SCOPE).sort()]
-}
-
-/** `scope` 来自 npmrc 的路由行，形状已由解析保证 */
-async function searchOne(deps: PackageSourcesDeps, scope: string): Promise<Outcome<PluginRow[]>> {
-  const registry = registryFor(scope, { home: await readNpmrc(deps.homeNpmrc), user: await readNpmrc(deps.userNpmrc) })
-  return searchRegistry(registry, scope, await tokenForScope(deps, scope))
-}
-
-/** 两层 npmrc 合起来看，home 级同名行优先，和 pnpm 读的顺序一致。只给检索用，值不出这条调用链 */
-async function tokenForScope(deps: PackageSourcesDeps, scope: string): Promise<string | undefined> {
-  for (const file of [deps.homeNpmrc, deps.userNpmrc]) {
-    const source = parseSources(await readNpmrc(file)).find((entry) => entry.scope === scope)
-    if (source !== undefined) return source.token
-  }
-  return undefined
+  const packages: PluginRow[] = receipt.data
+  return { result: { scope, ok: true, packages }, status: { scope, registry: source.registry, ok: true, count: packages.length } }
 }

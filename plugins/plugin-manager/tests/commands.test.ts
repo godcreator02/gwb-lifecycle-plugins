@@ -19,7 +19,7 @@ const fakePnpm = vi.hoisted(() => ({
   calls: [] as PnpmCall[],
   runExitCode: 0,
   captureExitCode: 0 as number | null,
-  captureStdout: '{}',
+  captureStdout: '{}' as string | ((args: readonly string[]) => string),
   afterRun: undefined as ((args: readonly string[]) => void) | undefined,
 }))
 
@@ -38,7 +38,8 @@ vi.mock('../src/pnpm.js', async (importOriginal) => {
     },
     runPnpmCapture: (opts: { pnpm: string; cwd: string; args: readonly string[] }) => {
       fakePnpm.calls.push({ args: opts.args, cwd: opts.cwd })
-      return Promise.resolve({ exitCode: fakePnpm.captureExitCode, stdout: fakePnpm.captureStdout, stderrTail: '' })
+      const stdout = typeof fakePnpm.captureStdout === 'string' ? fakePnpm.captureStdout : fakePnpm.captureStdout(opts.args)
+      return Promise.resolve({ exitCode: fakePnpm.captureExitCode, stdout, stderrTail: '' })
     },
   }
 })
@@ -106,6 +107,8 @@ interface Mounted {
   logs: string[]
   run(name: string, args?: unknown): Promise<unknown>
   shellReloads: number
+  /** 插件管理向设置插件声明过的项 */
+  settingDefs: { key: string; shared?: boolean; default?: unknown }[]
 }
 
 let homeDir = ''
@@ -145,13 +148,16 @@ function upgradesOnAdd(pkg: string, from: string, to: string): void {
   }
 }
 
-function mount(opts: { entries: Record<string, string>; shellReload?: boolean }): Mounted {
+/** `settings: false` 是 home 里没有设置插件；`settingValues` 是设置文件里已经存下的值 */
+function mount(opts: { entries: Record<string, string>; shellReload?: boolean; settings?: false; settingValues?: Record<string, unknown> }): Mounted {
   const tree = fakeTree({ 'plugin-manager': OWN_PKG, ...opts.entries })
   const logs: string[] = []
   const handlers = new Map<string, Handler>()
+  const settingDefs: Mounted['settingDefs'] = []
   const mounted: Mounted = {
     tree,
     logs,
+    settingDefs,
     shellReloads: 0,
     run: (name, args) => {
       const handler = handlers.get(name)
@@ -188,6 +194,16 @@ function mount(opts: { entries: Record<string, string>; shellReload?: boolean })
         return Promise.resolve({ ok: false, error: `没有这条命令：${name}` })
       },
     },
+  }
+  if (opts.settings !== false) {
+    const values = opts.settingValues ?? {}
+    ctx['gwbSettings'] = {
+      define: (def: Mounted['settingDefs'][number]) => {
+        settingDefs.push(def)
+        return () => undefined
+      },
+      get: (key: string) => (key in values ? values[key] : settingDefs.find((def) => def.key === key)?.default),
+    }
   }
   apply(ctx as never)
   return mounted
@@ -325,6 +341,44 @@ describe('登记的命令', () => {
     for (const name of ['plugin-manager.source.add', 'plugin-manager.source.list', 'plugin-manager.source.remove']) {
       expect(() => pm.run(name), name).toThrow(`没有登记 ${name}`)
     }
+  })
+
+  it('search 要设置插件在才登记，市场名单声明在公共区、默认只有 @godcreator；别的命令不受影响', () => {
+    const withoutSettings = mount({ entries: {}, settings: false })
+    expect(() => withoutSettings.run('plugin-manager.search')).toThrow('没有登记 plugin-manager.search')
+    expect(() => withoutSettings.run('plugin-manager.list')).not.toThrow()
+
+    const pm = mount({ entries: {} })
+    expect(pm.settingDefs).toEqual([expect.objectContaining({ key: 'plugin-markets', type: 'string-list', shared: true, default: ['@godcreator'] })])
+  })
+})
+
+describe('plugin-manager.search', () => {
+  afterEach(() => {
+    vi.unstubAllGlobals()
+  })
+
+  it('在 home 里问 pnpm 要配置与凭据，只查名单里的市场', async () => {
+    fakePnpm.captureStdout = (args) =>
+      args[1] === 'list'
+        ? JSON.stringify({ '@godcreator:registry': 'https://god.example/npm/', '@j:registry': 'https://j.example/npm/', registry: 'https://registry.npmjs.org/' })
+        : args[2] === '//j.example/npm/:_authToken' ? 't-j\n' : 'undefined\n'
+    const seen: { url: string; auth?: string }[] = []
+    vi.stubGlobal('fetch', (url: string, init?: { headers?: Record<string, string> }) => {
+      seen.push({ url, ...(init?.headers === undefined ? {} : { auth: init.headers['Authorization'] }) })
+      return Promise.resolve(new Response(JSON.stringify({ objects: [{ package: { name: '@j/gwb-planner', version: '1.0.0', keywords: ['gwb-plugin'] } }] })))
+    })
+    const pm = mount({ entries: {}, settingValues: { 'plugin-markets': ['@j'] } })
+
+    expect(await pm.run('plugin-manager.search')).toEqual({
+      ok: true,
+      data: { packages: [{ pkg: '@j/gwb-planner', version: '1.0.0' }], markets: [{ scope: '@j', registry: 'https://j.example/npm/', ok: true, count: 1 }] },
+    })
+    expect(fakePnpm.calls).toEqual([
+      { args: ['config', 'list', '--json'], cwd: homeDir },
+      { args: ['config', 'get', '//j.example/npm/:_authToken'], cwd: homeDir },
+    ])
+    expect(seen).toEqual([{ url: expect.stringMatching(/^https:\/\/j\.example\/npm\/-\/v1\/search/) as unknown, auth: 'Bearer t-j' }])
   })
 })
 

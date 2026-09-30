@@ -2,7 +2,7 @@ import fs from 'node:fs'
 import os from 'node:os'
 import path from 'node:path'
 import { afterEach, beforeEach, describe, expect, it } from 'vitest'
-import { installedPackageManifestFile, installedPackageRealpath, readHomeDependencies, readInstalledPackageManifest, readNpmrc } from '../src/home.js'
+import { installedPackageManifestFile, installedPackageRealpath, readHomeDependencies, readInstalledPackageManifest } from '../src/home.js'
 
 /** 读 home 的 `package.json`。这条真的读磁盘，所以在临时目录里跑 */
 
@@ -70,20 +70,5 @@ describe('装在 home 里的包的真实目录', () => {
 
   it('包不在 node_modules 里时是 undefined', async () => {
     expect(await installedPackageRealpath(home, '@x/not-installed')).toBeUndefined()
-  })
-})
-
-describe('读 npmrc', () => {
-  it('文件不在读成空文本；在就原样读出', async () => {
-    const file = path.join(home, '.npmrc')
-    expect(await readNpmrc(file)).toBe('')
-    fs.writeFileSync(file, '@j:registry=https://j.example/npm/\n', 'utf8')
-    expect(await readNpmrc(file)).toBe('@j:registry=https://j.example/npm/\n')
-  })
-
-  it('路径在但读不了（是个目录）时抛错，报错里有路径', async () => {
-    const dir = path.join(home, 'not-a-file')
-    fs.mkdirSync(dir)
-    await expect(readNpmrc(dir)).rejects.toThrow(dir)
   })
 })

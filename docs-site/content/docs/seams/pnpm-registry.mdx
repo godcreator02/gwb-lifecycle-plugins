@@ -1,16 +1,16 @@
 ---
 title: 9 pnpm 与包源
-description: 连接 devkit、插件管理与 pnpm、npm 源、两份 npmrc：两个插件用同一个 pnpm——用户装在两个固定位置之一的 pnpm 12，按插件管理里那一份规则找、核对版本，直接启动；在 home 里运行时关掉自动补装 peer；插件管理用它改 home，devkit 用它做 build / pack / publish / view / add；正式版发到包自己的 publishConfig.registry、打 latest，开发版打成包文件放进目标 home；插件管理按 scope 从两份 npmrc 找源、调 registry 的检索接口找插件，只读 npmrc；第三方包源由 agent 照说明书手写 ~/.npmrc
+description: 连接 devkit、插件管理与 pnpm、npm 源、两份 npmrc：两个插件用同一个 pnpm——用户装在两个固定位置之一的 pnpm 12，按插件管理里那一份规则找、核对版本，直接启动；在 home 里运行时关掉自动补装 peer；插件管理用它改 home，devkit 用它做 build / pack / publish / view / add；正式版发到包自己的 publishConfig.registry、打 latest，开发版打成包文件放进目标 home；插件管理找插件时市场名单里每个 scope 的源地址与凭据问 pnpm（config list / config get），和装包用同一份配置；第三方包源由 agent 照说明书手写 ~/.npmrc
 ---
 
-**本页回答**：两个插件用的是哪一个 pnpm、怎么找到它、各拿它做什么；在 home 里运行 pnpm 时为什么关掉自动补装 peer；正式版发到哪个源、哪几处指定源、哪几处靠用户的 `~/.npmrc`；开发版与正式版怎么分开；插件管理找插件时读哪两份 npmrc、怎么决定去哪条源检索；第三方包源谁来配。
+**本页回答**：两个插件用的是哪一个 pnpm、怎么找到它、各拿它做什么；在 home 里运行 pnpm 时为什么关掉自动补装 peer；正式版发到哪个源、哪几处指定源、哪几处靠用户的 `~/.npmrc`；开发版与正式版怎么分开；插件管理找插件时怎么决定去哪个源检索；第三方包源谁来配。
 
 ## 连接的模块
 
-- 插件管理：`plugins/plugin-manager/src/pnpm-location.ts`（找 pnpm）、`src/pnpm.ts`（启动 pnpm）；找插件在 `src/package-sources.ts`、`src/sources.ts`、`src/search.ts`、`src/registry.ts`、`src/home.ts`
+- 插件管理：`plugins/plugin-manager/src/pnpm-location.ts`（找 pnpm）、`src/pnpm.ts`（启动 pnpm）；找插件在 `src/package-sources.ts`、`src/sources.ts`、`src/search.ts`、`src/pnpm-config.ts`、`src/registry.ts`
 - devkit：`plugins/devkit/src/dev.ts`、`src/release.ts`、`src/home.ts`、`src/node-dev-deps.ts`；找 pnpm 用插件管理主入口导出的 `locatePnpm`
 - 用户装的 pnpm 12 可执行文件；团队源（gitea 上 `godcreator` 组织的 npm 源）与第三方包源；npmjs、Verdaccio、gitea 都实现的 npm registry 检索接口
-- 两份 npmrc：机器级 `~/.npmrc`（agent 照说明书 `gwb-plugin-manager` 往里写第三方包源）与 home 级 `<home>/.npmrc`；插件管理两份都只读，pnpm 安装时读的是同一批配置行
+- pnpm 的配置：机器级 `~/.npmrc`（agent 照说明书 `gwb-plugin-manager` 往里写第三方包源）、home 级 `<home>/.npmrc`、pnpm 自己的全局配置与环境变量，pnpm 把它们合成一份；插件管理找插件时向 pnpm 要这份合并结果，不自己读 npmrc
 
 ## 接口
 
@@ -20,7 +20,7 @@ description: 连接 devkit、插件管理与 pnpm、npm 源、两份 npmrc：两
 
 {/* has file="../plugins/devkit/src/index.ts" text="import { locatePnpm } from '@godcreator/gwb-plugin-manager'" */}
 
-**插件管理拿它做什么**：只在 home 里运行 `add`（对齐 `cordis` 那一次带 `--save-exact`）、`remove`、`outdated --json`，不传 `--registry`，源由 npmrc 决定。
+**插件管理拿它做什么**：只在 home 里运行 `add`（对齐 `cordis` 那一次带 `--save-exact`）、`remove`、`outdated --json`，不传 `--registry`，源由 pnpm 的配置决定；找插件时另运行只读的 `config list --json` 与 `config get`。
 
 **devkit 拿它做什么**：`devkit.home.new`、`devkit.dev`、`devkit.release` 三条命令开头各找一次，找不到就回 `ok: false`、什么都不做。用在六处：
 
@@ -63,11 +63,13 @@ description: 连接 devkit、插件管理与 pnpm、npm 源、两份 npmrc：两
 
 {/* ref file="../plugins/devkit/src/dev.ts" lines="46-57" hash="80a01c91531f" blob="48d80099fae0" */}
 
-**插件管理找插件：按 scope 找源、调检索接口**。`plugin-manager.search` 每条源的地址照 pnpm 读两份 npmrc 的优先级找：先找 `@scope:registry=`，再找 `registry=`，每一种都是 home 级优先于机器级，都没有就是 npm 官方源（插件管理的做法见[找插件](/docs/plugin-manager/sources)）：
+**插件管理找插件：源地址问 pnpm、调检索接口**。`plugin-manager.search` 只查市场名单（设置插件公共区的 `plugin-markets`，默认 `@godcreator`）里的 scope。每个市场的源地址在 home 里运行 `pnpm config list --json` 取，只认这个 scope 自己的 `@scope:registry`，没配就报这个市场没配源；凭据按源地址 `pnpm config get //<主机>/<路径>/:_authToken` 取（`config list` 把凭据遮成 `(protected)`）。读哪几层配置、谁优先，全由 pnpm 决定，所以查到的源就是装包用的源（插件管理的做法见[找插件](/docs/plugin-manager/sources)）：
 
-{/* ref file="../plugins/plugin-manager/src/sources.ts" lines="68-78" hash="aa553473d382" blob="3ee96fe24727" */}
+{/* ref file="../plugins/plugin-manager/src/pnpm-config.ts" lines="32-45" hash="87098c801f09" blob="6da6556bdafc" */}
 
-这套规则写在 `sources.ts` 与 pnpm 的 npmrc 语义两处：pnpm 改了读取优先级，这里查到的源会和实际安装用的源不一样。每条源发 `GET <registry>/-/v1/search?text=<scope>&size=250`，这条源有凭据就带 `Authorization: Bearer`，最多等 10 秒；是不是插件只看包清单 `keywords` 里有没有 `gwb-plugin`：
+{/* ref file="../plugins/plugin-manager/src/sources.ts" lines="28-41" hash="6a1ad04391db" blob="174993efee5e" */}
+
+`config list --json` 与 `config get` 的输出形状（JSON 对象、没配时输出 `undefined`）是 pnpm 12.4 实测的，写在 `pnpm-config.ts` 开头；pnpm 改了输出格式，`search` 会报「输出不是 JSON 对象」。每个市场发 `GET <registry>/-/v1/search?text=<scope>&size=250`，有凭据就带 `Authorization: Bearer`，最多等 10 秒；是不是插件只看包清单 `keywords` 里有没有 `gwb-plugin`：
 
 {/* ref file="../plugins/plugin-manager/src/registry.ts" lines="10-31" hash="21b148894187" blob="56c6ac868cbd" */}
 
@@ -75,17 +77,11 @@ description: 连接 devkit、插件管理与 pnpm、npm 源、两份 npmrc：两
 
 这个关键词写在 `search.ts` 与每个插件包的 `package.json` 两处：插件包忘了写，就不会出现在「可装」列表里。
 
-**插件管理只读两份 npmrc**。只认 scope 路由、凭据、全局源三种行，其余行跳过；凭据行按源地址配对，不按 scope：
+`@godcreator` 是生态自己的 scope，新装的机器上名单里只有它：
 
-{/* ref file="../plugins/plugin-manager/src/sources.ts" lines="1-5" hash="b73dd96036d9" blob="3ee96fe24727" */}
+{/* ref file="../plugins/plugin-manager/src/sources.ts" lines="6-10" hash="8a29f8b7780b" blob="acb6da61c816" */}
 
-{/* ref file="../plugins/plugin-manager/src/home.ts" lines="67-82" hash="59b5a04577fe" blob="2689fa073ac6" */}
-
-`@godcreator` 是生态自己的 scope，`search` 总是第一个查它：
-
-{/* ref file="../plugins/plugin-manager/src/sources.ts" lines="26-27" hash="334b433bf7d5" blob="3ee96fe24727" */}
-
-**第三方包源由 agent 手写 `~/.npmrc`**：说明书 `gwb-plugin-manager` 的「配第三方包源」写清加哪两行（`@<scope>:registry=<地址>`，私有源另加 `//<主机>/<路径>/:_authToken=<token>`，token 由人给），`@godcreator` 那行不动，写完调 `plugin-manager.search` 核对。
+**第三方包源由 agent 手写 `~/.npmrc`**：说明书 `gwb-plugin-manager` 的「加一个市场」写清加哪两行（`@<scope>:registry=<地址>`，私有源另加 `//<主机>/<路径>/:_authToken=<token>`，token 由人给）、再把 scope 加进市场名单，`@godcreator` 那行不动，写完调 `plugin-manager.search` 核对。
 
 ## 约定
 
@@ -94,9 +90,9 @@ devkit 与插件管理都保证：在 home 里启动 pnpm 时带 `pnpm_config_au
 插件管理保证：
 
 - 会写 home 的 pnpm 只在经过 BUSY 检查的命令里运行，同一时刻最多一个；只读的 `pnpm outdated` 不经过 BUSY
-- 两份 npmrc 只读不写
+- 不写 npmrc，找插件时运行的 `pnpm config` 只读
 - 回执与日志里不带 token
-- `search` 不带参数，查全部配好的 scope（`@godcreator` 在前、其余按名字排），各条源并发查，一条失败不影响别的，全都失败才 `ok: false`
+- `search` 不带参数，只查市场名单里的 scope（顺序照名单），各市场并发查，一个失败不影响别的，全都失败才 `ok: false`
 
 devkit 保证：
 
@@ -116,13 +112,13 @@ devkit 保证：
 
 - devkit 与插件管理都不安装、不升级 pnpm 本身；要求的 pnpm 版本写在插件管理里，换版本就是发一版插件管理
 - devkit 与插件管理都不写 `~/.npmrc` 与 token；第三方包源由 agent 照说明书 `gwb-plugin-manager` 手写
-- 插件管理不看环境变量或 pnpm 全局配置里指定的源，只看两份 npmrc
+- 插件管理不去市场名单以外的源找插件：npmrc 里 pnpm 自带的 `@jsr`、公司私有源这类路由不查
 - `devkit.release` 不运行包里的 `scripts`：发布内容来自临时目录，那里没有 `scripts`
 
 ## 测试
 
-devkit 与插件管理的单元测试只覆盖命令行怎么拼、用哪一份 pnpm、源地址是哪个，以及 npmrc 的解析、检索响应的解析；真的 pnpm、真实 registry 与机器级 `~/.npmrc` 只能实机验证。
+devkit 与插件管理的单元测试只覆盖命令行怎么拼、用哪一份 pnpm、源地址是哪个，以及 pnpm 配置输出的解析、检索响应的解析；真的 pnpm、真实 registry 与机器级 `~/.npmrc` 只能实机验证。
 
 {/* has file="../plugins/devkit/tests/home.test.ts" text="三条 pnpm add 的环境都由插件管理的 homePnpmEnv 从宿主环境算出：不自动补装 peer，不带 ELECTRON_RUN_AS_NODE" */}
 
-{/* has file="../plugins/plugin-manager/tests/sources.test.ts" text="home 级同名 scope 优先于机器级" */}
+{/* has file="../plugins/plugin-manager/tests/sources.test.ts" text="这个 scope 没有路由：报没配源，不去全局源 registry 查" */}

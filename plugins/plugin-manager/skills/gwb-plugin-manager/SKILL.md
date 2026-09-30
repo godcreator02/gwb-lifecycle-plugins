@@ -1,6 +1,6 @@
 ---
 name: gwb-plugin-manager
-description: 装插件、找插件或配第三方包源、升级插件、升内核、查插件 peer 里的内核包或别的插件满没满足、增删改条目、插件装了却没加载时读。
+description: 装插件、找插件、加删插件市场（第三方包源）、升级插件、升内核、查插件 peer 里的内核包或别的插件满没满足、增删改条目、插件装了却没加载、「可安装」一栏是空的时读。
 ---
 
 # 插件管理
@@ -16,7 +16,7 @@ home 里有两层：
 
 ## 装一个插件
 
-1. `plugin-manager.search` 确认包名（第三方 scope 先按下一节配包源）
+1. `plugin-manager.search` 确认包名（第三方 scope 先按下一节加市场）
 2. `plugin-manager.install {"pkg":"<包名>"}`。包已经装了会直接报错：再加一条条目用 `add-entry`，换版本用 `update {"specs":…}`
 3. `plugin-manager.list` 看这个包的条目 `active`
 4. 调一次 MCP 入口的 `index`，新插件的命令这时出现
@@ -25,19 +25,22 @@ home 里有两层：
 
 `active` 为 false 时原因在 `gwb.log`；日志说数据目录或设置分区属于别的包，见「增删改条目」第 3 步。
 
-## 配第三方包源
+## 加一个市场
 
-插件管理只读 npmrc、不写。第三方 scope 的包源由你往机器级 `~/.npmrc`（本机所有 home 共用）手写：
+`search` 只在**市场名单**里的 scope 上找插件。名单是设置插件公共区的一项：`section` 为 `*`、`key` 为 `plugin-markets`，字符串数组，默认 `["@godcreator"]`。每个市场的源地址 `search` 问 pnpm，只认这个 scope 自己的 `@<scope>:registry`。所以加一个市场要做两件事：
 
-1. 读一遍 `~/.npmrc`，这个 scope 已有 `@<scope>:registry=` 行就改那一行，没有就在末尾加
-2. 加路由行 `@<scope>:registry=<源地址>`，源地址以 `/` 结尾。gitea 上的包源地址是 `<gitea 地址>/api/packages/<用户或组织>/npm/`
-3. 私有源另加凭据行 `//<主机>/<路径>/:_authToken=<token>`：`<主机>/<路径>/` 就是源地址去掉 `https:` 的部分（如 `//git.example.com/api/packages/j/npm/:_authToken=…`）。token 向人要，不要自己编，也不要写进回复与日志
-4. `@godcreator` 那两行不动：本机所有 home 的安装、所有源码仓的安装与发版都靠它
-5. `plugin-manager.search` 核对
+1. 让 pnpm 知道这个 scope 的源。先 `pnpm config get @<scope>:registry`：输出了地址就是配好了，跳到第 2 步。没有就往机器级 `~/.npmrc`（本机所有 home 共用）手写：
+   - 读一遍 `~/.npmrc`，这个 scope 已有 `@<scope>:registry=` 行就改那一行，没有就在末尾加路由行 `@<scope>:registry=<源地址>`，源地址以 `/` 结尾。gitea 上的包源地址是 `<gitea 地址>/api/packages/<用户或组织>/npm/`
+   - 私有源另加凭据行 `//<主机>/<路径>/:_authToken=<token>`：`<主机>/<路径>/` 就是源地址去掉 `https:` 的部分（如 `//git.example.com/api/packages/j/npm/:_authToken=…`）。token 向人要，不要自己编，也不要写进回复与日志
+   - `@godcreator` 那两行不动：本机所有 home 的安装、所有源码仓的安装与发版都靠它
+2. 把 scope 加进名单：`settings.get {"section":"*","key":"plugin-markets"}` 读出现在的名单（`null` 表示没改过，就是默认值），加上这个 scope 后整份写回 `settings.set {"section":"*","key":"plugin-markets","value":[…]}`。人也可以在插件管理窗格「可安装」一栏加
+3. `plugin-manager.search` 核对
 
-**完成判据**：`search` 回执 `data.packages` 里有那条源上的插件，`data.note` 里没有点名这个 scope。
+**完成判据**：`search` 回执 `data.markets` 里这个 scope 那一项 `ok` 为 true，`data.packages` 里有它上面的插件。
 
-home 级 `<home>/.npmrc` 里有同名 scope 时，生效的是 home 级那条。删一条包源就删掉这两行。
+删一个市场：从名单里去掉这个 scope 写回；它在 `~/.npmrc` 里的两行只在不再从这个源装包时才删。
+
+**「可安装」一栏是空的、或某个市场报「pnpm 里没配这个市场的源」**：`pnpm config get @<scope>:registry` 输出 `undefined`，照第 1 步补上路由行。
 
 ## 升级插件
 
@@ -95,4 +98,4 @@ home 级 `<home>/.npmrc` 里有同名 scope 时，生效的是 home 级那条。
 - **别用 `disable` 加 `enable` 重新加载调用要经过的插件**：命令插件、MCP 入口、插件管理自己停用以后，`enable` 调不进去，条目停在停用状态。这几个换版本经 `update`，它在一条命令里做完停用与启用
 - **同一个 home 同一时刻只做一个改动**：`install`、`uninstall`、`update` 运行时再调会回 `BUSY`。`add-entry`、`remove-entry`、`enable`、`disable` 不受这道检查，`update` 运行时别动它要重新加载的条目。插件管理之外在同一个 home 里运行的 pnpm（`devkit.dev`、手工运行）它管不到，和插件管理的改动同时写 home 会丢改动，而且都退出码 0
 - **人在 home 里手工运行 pnpm 要设环境变量 `pnpm_config_auto_install_peers=false`**：命令行参数 `--config.auto-install-peers=false` 会被 pnpm 忽略。插件管理自己启动 pnpm 时已经带着，所以 `install` 不补装缺的 peer，缺的看 `list` 的 `unmetPeers`，要用就另外 `install`
-- **是不是插件只看包清单 `keywords` 里有没有 `gwb-plugin`**，名字不参与。`search` 回的是这条规则筛出的全部结果，不维护的旧包也在里面
+- **是不是插件只看包清单 `keywords` 里有没有 `gwb-plugin`**，名字不参与。`search` 回的是名单里各市场上按这条规则筛出的全部结果，不维护的旧包也在里面

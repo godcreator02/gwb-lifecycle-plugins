@@ -1,6 +1,6 @@
 {
   "name": "@godcreator/gwb-plugin-manager",
-  "version": "0.14.6",
+  "version": "0.14.7",
   "author": {
     "name": "godcreator"
   },
@@ -34,9 +34,11 @@
   "peerDependencies": {
     "@godcreator/gwb-kernel-desktop": "^0.10.0",
     "@godcreator/gwb-commands": "^0.5.6",
+    "@godcreator/gwb-settings": "^0.3.9",
     "@godcreator/gwb-skills": "^0.4.5"
   },
   "peerDependenciesMeta": {
+    "@godcreator/gwb-settings": { "optional": true },
     "@godcreator/gwb-skills": { "optional": true }
   },
   "devDependencies": {
