@@ -282,6 +282,7 @@ describe('包内 template/：两部分', () => {
       'package.json',
       'plugins/hello/.oxlintrc.json',
       'plugins/hello/build.ts',
+      'plugins/hello/components.json',
       'plugins/hello/package.json',
       'plugins/hello/src/client/index.tsx',
       'plugins/hello/src/client/styles.css',
@@ -560,6 +561,45 @@ describe('模板的窗格入口', () => {
     const client = files.find((f) => f.rel === 'plugins/hello/src/client/index.tsx')?.text ?? ''
     expect(client).toContain("import type { PaneArgs, PaneHandle } from '@godcreator/gwb-shell/pane'")
     expect(client).not.toMatch(/^interface PaneArgs/m)
+  })
+})
+
+describe('模板接好 shadcn：组件文件由建仓命令调官方 CLI 添加，模板只带配置', () => {
+  const files = renderTemplate(TEMPLATE_ROOT, planScaffold({ name: 'hello-world', dir: 'D:\\tmp\\x', peerVersions: PEERS }))
+  const text = (rel: string): string => files.find((f) => f.rel === rel)?.text ?? ''
+
+  it('components.json：new-york、zinc，tailwind.prefix 与样式入口 prefix(…) 是同一个前缀，样式入口指向 src/client/styles.css', () => {
+    const config = JSON.parse(text('plugins/hello-world/components.json')) as {
+      style: string
+      rsc: boolean
+      tsx: boolean
+      tailwind: { config: string; css: string; baseColor: string; cssVariables: boolean; prefix: string }
+      aliases: Record<string, string>
+      iconLibrary: string
+    }
+    expect(config).toMatchObject({ style: 'new-york', rsc: false, tsx: true, iconLibrary: 'lucide' })
+    expect(config.tailwind).toEqual({ config: '', css: 'src/client/styles.css', baseColor: 'zinc', cssVariables: true, prefix: 'helloworld' })
+    expect(config.aliases).toEqual({ components: '@/components', ui: '@/components/ui', lib: '@/lib', utils: '@/lib/utils' })
+    expect(text(`plugins/hello-world/${config.tailwind.css}`)).toContain(`prefix(${config.tailwind.prefix})`)
+  })
+
+  it('@/ 别名三处都指向 src/client：包根 tsconfig（CLI 按它放组件）、浏览器侧 tsconfig（类型检查）、build.ts 的 esbuild alias（打包）；不写 baseUrl', () => {
+    const rootPaths = (JSON.parse(text('plugins/hello-world/tsconfig.json')) as { compilerOptions: { paths: Record<string, string[]>; baseUrl?: string } }).compilerOptions
+    expect(rootPaths.paths).toEqual({ '@/*': ['./src/client/*'] })
+    expect(rootPaths.baseUrl).toBeUndefined()
+    const clientPaths = (JSON.parse(text('plugins/hello-world/src/client/tsconfig.json')) as { compilerOptions: { paths: Record<string, string[]>; baseUrl?: string } }).compilerOptions
+    expect(clientPaths.paths).toEqual({ '@/*': ['./*'] })
+    expect(clientPaths.baseUrl).toBeUndefined()
+    expect(text('plugins/hello-world/build.ts')).toContain("alias: { '@': path.join(here, 'src', 'client') }")
+  })
+
+  it('示例窗格用官方 Button，不手写 <button> / <input>；模板里不带组件文件，清单里没有 dependencies（有的都是 CLI 写的，建仓命令整体挪进 dev）', () => {
+    const client = text('plugins/hello-world/src/client/index.tsx')
+    expect(client).toContain("import { Button } from '@/components/ui/button'")
+    expect(client).toContain('<Button')
+    expect(client).not.toMatch(/<(button|input)\b/)
+    expect(files.filter((f) => f.rel.includes('/components/'))).toEqual([])
+    expect(JSON.parse(text('plugins/hello-world/package.json'))).not.toHaveProperty('dependencies')
   })
 })
 

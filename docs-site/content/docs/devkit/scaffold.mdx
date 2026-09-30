@@ -1,34 +1,54 @@
 ---
 title: 建仓与加插件
-description: devkit.scaffold 把新插件的初始文件写进一个新文件夹（workspace 仓），包名范围与发布目标可以自己给；devkit.scaffold.plugin 往已有的 workspace 仓再加一个插件包。两条都只写插件的文件，不建文档站；模板里要显示名的地方用短名
+description: devkit.scaffold 把新插件的初始文件写进一个新文件夹（workspace 仓），包名范围与发布目标可以自己给；devkit.scaffold.plugin 往已有的 workspace 仓再加一个插件包。两条都只写插件的文件，再在插件包目录调 shadcn 官方 CLI 加上窗格用的 button，不建文档站；模板里要显示名的地方用短名
 ---
 
-**本页回答**：`devkit.scaffold` 与 `devkit.scaffold.plugin` 从收到参数到回执之间做了什么、哪几步不能换顺序、模板分几部分、改模板要守什么。写新插件的整条流程在说明书 `gwb-devkit` 的「新写一个插件」，本页不复述。
+**本页回答**：`devkit.scaffold` 与 `devkit.scaffold.plugin` 从收到参数到回执之间做了什么、哪几步不能换顺序、模板分几部分、shadcn 组件怎么加进来、改模板要守什么。写新插件的整条流程在说明书 `gwb-devkit` 的「新写一个插件」，本页不复述。
 
 ## 只有一种仓的布局
 
 workspace 仓：仓根是一个不发布的 private 包（`pnpm build` / `pnpm check` 递归到各成员，自己没有代码），插件放在 `plugins/<短名>/`，不是插件的包放在 `packages/`（插件共用的库之类，按需）。**只有一个插件的仓不是另一种布局**，只是 `plugins/` 下恰好一个目录；加第二个插件永远是 `devkit.scaffold.plugin` 往 `plugins/` 再生成一个，不会出现「当初建小了、现在要迁移」的情况。插件包自带全部配置（tsconfig、oxlint 配置、构建脚本都在包内），放在哪个仓里都一样。
 
-插件包里只有插件自己：node 侧与浏览器侧的入口、样式入口、构建脚本、两份 tsconfig（node 侧、浏览器侧）、oxlint 配置与清单。不输出 `.d.ts`：模板插件不提供服务，没有别的插件要 `import type` 它；要提供服务时照说明书 `gwb-devkit` 第 4 步加上。不带测试文件：构建产物的包名 import 与样式的检查由 `devkit.dev` 与 `devkit.release` 做，复制进各仓的测试副本不会跟着 devkit 更新（取舍见轨迹卡[写插件的规矩只留有工具查的](/trajectory/2026-09-25-rules-only-checked-ones)）。node 侧和浏览器侧都用 esbuild 打成一个文件，外置名单照发版前检查的两份名单，其余依赖打包进去。
+插件包里只有插件自己：node 侧与浏览器侧的入口、样式入口、构建脚本、两份 tsconfig（node 侧、浏览器侧）、oxlint 配置、shadcn 的 `components.json` 与清单，外加建仓时由 shadcn CLI 添加的 `src/client/components/ui/button.tsx`。不输出 `.d.ts`：模板插件不提供服务，没有别的插件要 `import type` 它；要提供服务时照说明书 `gwb-devkit` 第 4 步加上。不带测试文件：构建产物的包名 import 与样式的检查由 `devkit.dev` 与 `devkit.release` 做，复制进各仓的测试副本不会跟着 devkit 更新（取舍见轨迹卡[写插件的规矩只留有工具查的](/trajectory/2026-09-25-rules-only-checked-ones)）。node 侧和浏览器侧都用 esbuild 打成一个文件，外置名单照发版前检查的两份名单，其余依赖打包进去。
 
 模板分两部分：`template/repo/` 生成仓根，`template/pkg/` 生成 `plugins/<短名>/`（插件包，**唯一正本**——建仓与加插件生成的是同一份，两条命令生成的格式一致靠这个保证）。`devkit.scaffold.plugin` 只收 workspace 仓，别的当场拒。
 
 ## 管什么
 
-一个短名派生出一组名字：包名 `<scope>/gwb-<短名>`、插件名 `gwb-<短名>`、命令名 `<短名>.<动作>` 的前半。模板里要显示名的地方（README 标题、仓根与插件包的 `description`、窗格标题、加载日志、窗格里的问候）也用短名，要中文名的自己改生成的文件。包的身份就是 `package.json` 的 `name`，发到哪里就是 `publishConfig.registry`，都用 npm 的标准字段：`scope` 参数定包名范围（缺省 `@godcreator`），`registry` 参数写进插件包的 `publishConfig.registry`（缺省团队源），`devkit.release` 照它发。没有团队源发布权限的开发者给自己的范围与源，就能走完建仓、改一版看一版、发正式版。这部分代码把包内 `template/` 的两部分按这组名字渲染好、写进一个还不存在的目录，再把「接下来做什么」放进回执。
+一个短名派生出一组名字：包名 `<scope>/gwb-<短名>`、插件名 `gwb-<短名>`、命令名 `<短名>.<动作>` 的前半。模板里要显示名的地方（README 标题、仓根与插件包的 `description`、窗格标题、加载日志、窗格里的问候）也用短名，要中文名的自己改生成的文件。包的身份就是 `package.json` 的 `name`，发到哪里就是 `publishConfig.registry`，都用 npm 的标准字段：`scope` 参数定包名范围（缺省 `@godcreator`），`registry` 参数写进插件包的 `publishConfig.registry`（缺省团队源），`devkit.release` 照它发。没有团队源发布权限的开发者给自己的范围与源，就能走完建仓、改一版看一版、发正式版。这部分代码把包内 `template/` 的两部分按这组名字渲染好、写进一个还不存在的目录，在插件包目录加上 shadcn 组件，再把「接下来做什么」放进回执。
 
-两条命令都只写插件的文件，不建文档站、不往已有的文档站里写页，也不调别的插件的命令：要文档站的仓，照站点插件与 docfirst 插件自己的说明书去建。加插件不碰仓根，README 里插件清单的更新由人做（`nextStepsPlugin` 最后一步提醒）。
+两条命令都只写插件的文件（加组件时 pnpm 顺带改仓根的锁文件与 `node_modules`，见下一节），不建文档站、不往已有的文档站里写页，也不调别的插件的命令：要文档站的仓，照站点插件与 docfirst 插件自己的说明书去建。加插件不碰仓根的 `package.json` 与 workspace 配置，README 里插件清单的更新由人做（`nextStepsPlugin` 最后一步提醒）。
 
-<Diagram name="dk-scaffold" title="devkit.scaffold 建仓的四步，都在本包里">
-- 第 1 步 `planScaffold` 算计划：校验短名、`scope` 与 `registry`，派生包名 `<scope>/gwb-<短名>` 与插件名、定下发布目标，peer 里内核包、命令总线、外壳的范围取运行建仓命令的那个 home 里的版本号（x.y.z 三段）；不碰磁盘
+<Diagram name="dk-scaffold" title="devkit.scaffold 建仓的五步，都在本包里">
+- 第 1 步 `planScaffold` 算计划：校验短名、`scope` 与 `registry`，派生包名 `<scope>/gwb-<短名>` 与插件名、定下发布目标，peer 里内核包、命令总线、外壳的范围取运行建仓命令的那个 home 里的版本号（x.y.z 三段）；不碰磁盘。接着找 pnpm，找不到就停，什么都不写
 - 第 2 步在内存里渲染 `template/repo/` 与 `template/pkg/`；认不出的占位符当场抛错
 - 第 3 步 `writeRepo` 写磁盘：目标目录必须还不存在；仓根写四个文件，插件包写到 `plugins/<短名>/`
-- 第 4 步回执：`nextSteps` 只写这次建仓特有的——仓与插件包在哪，流程指向说明书 `gwb-devkit` 的「新写一个插件」
+- 第 4 步 `addTemplateComponents` 在插件包目录运行 shadcn 官方 CLI 加 `button`，再一次 `pnpm add -D` 把组件依赖都放进 devDependencies；没成就回 `ok: false`，已写的文件不回滚
+- 第 5 步回执：`nextSteps` 只写这次建仓特有的——仓与插件包在哪，流程指向说明书 `gwb-devkit` 的「新写一个插件」
 </Diagram>
+
+## 窗格用的 shadcn 组件
+
+外壳的规矩是窗格里可点的控件一律用 shadcn 官方组件，组件文件由官方 CLI 生成、不手抄。所以模板只带接入配置：插件包根的 `components.json`（new-york、zinc，`tailwind.prefix` 填占位符 `{{cssPrefix}}`，与样式入口 `prefix(…)` 是同一个值），和指向 `src/client` 的 `@/` 别名——包根 tsconfig 的 `paths`（CLI 按它决定组件放在哪）、`src/client/tsconfig.json` 的 `paths`（类型检查）、`build.ts` 里浏览器侧 esbuild 的 `alias`（打包）。示例窗格 `import { Button } from '@/components/ui/button'`，组件文件本身在写完磁盘之后才由 CLI 生成。
+
+这一步做两次 pnpm 调用，都在插件包目录：
+
+{/* ref file="../plugins/devkit/src/shadcn-components.ts" lines="94-120" hash="d3ebcad22c59" blob="83d22d8254cb" */}
+
+1. `pnpm dlx shadcn@latest add button --yes`。`--yes` 跳过确认，子进程的 stdin 是 ignore，CLI 真要提问时直接失败，不会一直等到超时。CLI 按仓里的文件选包管理器，仓根有 `pnpm-workspace.yaml` 才用 pnpm，所以这一步必须排在写磁盘之后。它装依赖时整个 workspace 装一遍：新仓里多出 `pnpm-lock.yaml` 与 `node_modules`，已有的仓里仓根锁文件跟着变。
+2. `pnpm add -D <包…>`：CLI 把组件依赖写进 `dependencies`，而组件要打包进 `client.js`，应当在 devDependencies；CLI 也不一定把组件 import 的包都装上。模板的清单没有 `dependencies`，所以那里有的都是 CLI 写的，带原范围全部挪过去；组件文件头部 import 了、三张依赖表里都没有的补上。pnpm 对已在 `dependencies` 里的包执行 `add -D` 就是挪表，`dependencies` 空了整项删掉。
+
+{/* ref file="../plugins/devkit/src/shadcn-components.ts" lines="62-72" hash="67f9ab0e1f63" blob="83d22d8254cb" */}
+
+两次调用之后再读一遍清单核对：`dependencies` 还有东西、组件 import 的包不在 dev 与 peer 里，都算没成。实测 CLI 4.21.0 生成的 `button.tsx` import 了 `class-variance-authority`、`cn`、`radix-ui`，CLI 只把后两个写进 `dependencies`；只在插件包单独放、往上没有 pnpm 文件时，CLI 改用 npm，写出 `package-lock.json`（实验目录 `probes/2609301700_shadcn-cli-in-scaffold/`）。
+
+这一步没成（没联网、CLI 或 pnpm 报错、组件没写到约定位置）时，已经写好的插件文件不回滚：往已有目录里写的东西没有干净的回滚点，而且原因修好之后只差这一步。回执 `ok: false`，写明插件文件在哪、卡在哪、补完要运行的命令。找 pnpm 放在写磁盘之前，找不到时什么都不写。
 
 ## 不知道什么
 
-不知道文档站、代码引用怎么核对，也不知道命令总线存在：`scaffold.ts` 里的函数连 `ctx` 都拿不到。
+不知道文档站、代码引用怎么核对，也不知道命令总线存在：`scaffold.ts` 与 `shadcn-components.ts` 里的函数连 `ctx` 都拿不到。
+
+不知道 shadcn CLI 里面怎么选组件版本、怎么改写类名前缀：`shadcn-components.ts` 只看它跑完之后插件包目录里的结果（组件文件在不在约定位置、清单的三张依赖表）。
 
 也不知道生成出来的仓将来怎么发版：发版的做法在说明书 `gwb-devkit` 与 `gwb-release` 里，生成的 README 与回执都只指向说明书。
 
@@ -44,7 +64,7 @@ workspace 仓：仓根是一个不发布的 private 包（`pnpm build` / `pnpm c
 
 ## 提供的接口
 
-对外两条命令：`devkit.scaffold { name, dir, scope?, registry? }` 与 `devkit.scaffold.plugin { name, repo, scope?, registry? }`。两条的回执都是 `{ repoDir, pluginDir, pkg, registry, name, files, nextSteps }`：`pkg` 是完整包名，`registry` 是写进 `publishConfig.registry` 的发布目标。**参数不对时把整份用法说明放进报错**，而不只回一句「参数错误」：这两条命令的主要调用方是 agent，命令总线不带参数形状，它能不能看出自己错在哪全靠这段话。认不出的参数键直接拒，报出是哪个键（devkit 的每条命令都这样）。
+对外两条命令：`devkit.scaffold { name, dir, scope?, registry? }` 与 `devkit.scaffold.plugin { name, repo, scope?, registry? }`。两条的回执都是 `{ repoDir, pluginDir, pkg, registry, name, files, components, nextSteps }`：`pkg` 是完整包名，`registry` 是写进 `publishConfig.registry` 的发布目标，`components` 是加进来的 shadcn 组件。**参数不对时把整份用法说明放进报错**，而不只回一句「参数错误」：这两条命令的主要调用方是 agent，命令总线不带参数形状，它能不能看出自己错在哪全靠这段话。认不出的参数键直接拒，报出是哪个键（devkit 的每条命令都这样）。
 
 模块导出一串纯函数，`src/index.ts` 按顺序调用：
 
@@ -91,12 +111,17 @@ workspace 仓：仓根是一个不发布的 private 包（`pnpm build` / `pnpm c
 | `node:fs` | 读包内模板、检查仓的布局、把渲染好的文件写下去 | 直接调用，不注入 | 不替换，真写临时目录 |
 | 包内 `template/`（两部分） | 初始文件的正本，`packageRoot` 从本模块所在目录向上找 `package.json` 定位，找到盘根都没有就抛 | 发布出去的包里那份 | 同一份，测试读的就是它 |
 | yaml 库 | 读 `pnpm-workspace.yaml` 的 `packages` | 打包进 `dist/index.js` 的那一份 | 不替换，测试直接 import 它 |
+| pnpm 与 shadcn CLI | 在插件包目录加组件、整理依赖（`addTemplateComponents` 收一个「在插件包目录运行一条 pnpm 命令」的函数） | `src/node-shadcn-deps.ts`：插件管理的 `locatePnpm` 找到的 pnpm，经 `runCaptured` 启动、超时终止整棵进程树 | `tests/fake-shadcn-pnpm.ts`：照实测样子改插件包目录的假 pnpm；命令测试用 `vi.mock` 把找 pnpm 的模块换成交出它的假模块 |
 
 ## 怎么单独测
 
 给一份参数，看抛什么、算出什么；给一个临时目录，看磁盘上写下了什么。整个过程不启动进程、不开窗口，`tests/scaffold.test.ts` 直接测这几件事：
 
-短名的正则会不会放过 `x--` 这种结尾；`planScaffold` 的派生与缺省值，计划里没有显示名；给了 `scope`、`registry` 时包名、`publishConfig.registry`、README 与回执跟着变，内核包与模板用到的两个插件仍在 `@godcreator` 下，不给时是团队范围与团队源，不合规的范围与地址（不带 `@`、大写、非 http(s)、不是规范写法、带账号或查询串）建仓与加插件都拒；`planScaffoldPlugin` 对不存在的 repo、`pnpm-workspace.yaml` 的 `packages` 里没有 `plugins/*` 的拒绝，以及带引号、块列表、流式列表、注释、CRLF 几种写法都收，YAML 写坏了、`packages` 不是字符串列表时报出文件与行列；`dir` / `repo` 用正斜杠写与用反斜杠写得到同一个路径；`nextSteps` / `nextStepsPlugin` 写了什么、`packages` 参数有没有带上、流程指向说明书而不在回执里复述、不提文档站；生成的 `package.json` 在 peer 里写了内核包 `^<运行命令的内核版本号>`、命令总线与外壳 `^<home 里装着的版本号>`，开发版只取 x.y.z 三段，模板里这两项是占位符、不写死数字；`homePeerVersions` 读 home 里装着的版本，没装外壳时拒并写出读的是哪个文件；模板登记命令不写 `plugin`；窗格入口的 `PaneArgs`、`PaneHandle` 从外壳的 `@godcreator/gwb-shell/pane` 取；认不出的占位符真的会抛错，`{{title}}` 也算认不出；`.tpl` 后缀与两部分的去向（`landRel`）对不对；包内 `template/` 里每个文件都声明了属于哪部分、只有两部分；要显示名的地方都是短名；生成的文件里没有文档站；生成的清单 peer 里有内核包、只在 node 侧按值 import 了 `cordis` 时才写 peer `cordis`，命令总线与外壳写在 peer、不写 dev；生成的 node 侧源码从 peer 里的内核包 `import type` 接口类型；构建脚本从 shell 的 browser-imports 代码出口读外置名单、不写 react 包名的字面量，node 侧也用 esbuild 打成一个文件、外置 peer 与 `electron`、`cordis`，不输出 `.d.ts`、`exports["."]` 只指 `dist/index.js`，tsconfig 里没有 `verbatimModuleSyntax`；样式入口从外壳引令牌映射；模板不带测试文件、dev 里没有 `@tailwindcss/node`；清单的 `keywords` 只有 `gwb-plugin`、`files` 只有 `dist`、`exports` 只有 `.`、没有 `author` 与 `engines`、没有 `prepublishOnly`；生成的 `description` 是一句话、不带计数，生成的文件里没有已退役的 `gwb-repo-kit`；生成的 JSON、YAML 都解析得了；在临时 workspace 仓里真的生成一个 `plugins/<短名>/`；`writeRepo` 对已存在的目录真的拒绝；`packageRoot` 找到盘根都没有就抛；回执里给的命令参数都过得了 `JSON.parse`。`tests/commands.test.ts` 在假上下文上调两条命令，测回执只有那几个字段、不调别的插件的命令、不写文档站。
+短名的正则会不会放过 `x--` 这种结尾；`planScaffold` 的派生与缺省值，计划里没有显示名；给了 `scope`、`registry` 时包名、`publishConfig.registry`、README 与回执跟着变，内核包与模板用到的两个插件仍在 `@godcreator` 下，不给时是团队范围与团队源，不合规的范围与地址（不带 `@`、大写、非 http(s)、不是规范写法、带账号或查询串）建仓与加插件都拒；`planScaffoldPlugin` 对不存在的 repo、`pnpm-workspace.yaml` 的 `packages` 里没有 `plugins/*` 的拒绝，以及带引号、块列表、流式列表、注释、CRLF 几种写法都收，YAML 写坏了、`packages` 不是字符串列表时报出文件与行列；`dir` / `repo` 用正斜杠写与用反斜杠写得到同一个路径；`nextSteps` / `nextStepsPlugin` 写了什么、`packages` 参数有没有带上、流程指向说明书而不在回执里复述、不提文档站；生成的 `package.json` 在 peer 里写了内核包 `^<运行命令的内核版本号>`、命令总线与外壳 `^<home 里装着的版本号>`，开发版只取 x.y.z 三段，模板里这两项是占位符、不写死数字；`homePeerVersions` 读 home 里装着的版本，没装外壳时拒并写出读的是哪个文件；模板登记命令不写 `plugin`；窗格入口的 `PaneArgs`、`PaneHandle` 从外壳的 `@godcreator/gwb-shell/pane` 取；认不出的占位符真的会抛错，`{{title}}` 也算认不出；`.tpl` 后缀与两部分的去向（`landRel`）对不对；包内 `template/` 里每个文件都声明了属于哪部分、只有两部分；要显示名的地方都是短名；生成的文件里没有文档站；生成的清单 peer 里有内核包、只在 node 侧按值 import 了 `cordis` 时才写 peer `cordis`，命令总线与外壳写在 peer、不写 dev；生成的 node 侧源码从 peer 里的内核包 `import type` 接口类型；构建脚本从 shell 的 browser-imports 代码出口读外置名单、不写 react 包名的字面量，node 侧也用 esbuild 打成一个文件、外置 peer 与 `electron`、`cordis`，不输出 `.d.ts`、`exports["."]` 只指 `dist/index.js`，tsconfig 里没有 `verbatimModuleSyntax`；样式入口从外壳引令牌映射；模板不带测试文件、dev 里没有 `@tailwindcss/node`；清单的 `keywords` 只有 `gwb-plugin`、`files` 只有 `dist`、`exports` 只有 `.`、没有 `author` 与 `engines`、没有 `prepublishOnly`；生成的 `description` 是一句话、不带计数，生成的文件里没有已退役的 `gwb-repo-kit`；生成的 JSON、YAML 都解析得了；在临时 workspace 仓里真的生成一个 `plugins/<短名>/`；`writeRepo` 对已存在的目录真的拒绝；`packageRoot` 找到盘根都没有就抛；回执里给的命令参数都过得了 `JSON.parse`。`tests/commands.test.ts` 在假上下文上调两条命令，测回执只有那几个字段、不调别的插件的命令、不写文档站、写完文件后在插件包目录加上 `button` 且组件依赖都在 devDependencies、找不到 pnpm 时什么都不写。
+
+模板接好 shadcn 的几项也由 `tests/scaffold.test.ts` 查：`components.json` 的风格、基色、别名，`tailwind.prefix` 与样式入口 `prefix(…)` 相同；三处 `@/` 别名；示例窗格用 `Button`、没有手写的 `<button>` / `<input>`，模板里不带组件文件、清单没有 `dependencies`。`tests/shadcn-components.test.ts` 在模板生成的插件包里配假 pnpm 走完加组件这一步，另测 import 怎么认、依赖表怎么算，以及 CLI 失败、组件不在约定位置、挪表没生效三种失败：
+
+{/* ref file="../plugins/devkit/tests/shadcn-components.test.ts" lines="103-116" hash="a152b243cc2c" blob="a6469691d851" */}
 
 {/* has file="../plugins/devkit/tests/scaffold.test.ts" text="要显示名的地方用短名" */}
 
@@ -104,25 +129,26 @@ workspace 仓：仓根是一个不发布的 private 包（`pnpm build` / `pnpm c
 
 模板文件清单那一条最容易被忽略：`files` 白名单漏掉 `template`，包照样发得出去、也装得上，直到有人调 `devkit.scaffold` 才读不到模板文件。
 
-**新布局在真实的 pnpm 里能不能用，单元测试回答不了**——实验目录 `probes/2609191042_workspace-scaffold/` 用构建产物真的生成了一个仓，运行完 install / build / check：只有一个成员时 `--filter "./plugins/*"` 照样工作、oxlint 在插件包目录里找到包内配置、仓根的 check 递归到成员，三样都通过。
+**新布局在真实的 pnpm 里能不能用，单元测试回答不了**——实验目录 `probes/2609191042_workspace-scaffold/` 用构建产物真的生成了一个仓，运行完 install / build / check：只有一个成员时 `--filter "./plugins/*"` 照样工作、oxlint 在插件包目录里找到包内配置、仓根的 check 递归到成员，三样都通过。真 CLI 的行为同样只有实测能回答，假 pnpm 照 `probes/2609301700_shadcn-cli-in-scaffold/` 的结果写；CLI 换了行为（改了依赖写进哪张表、改了组件文件的位置），假 pnpm 与这份实验一起重做。
 
 ## 模板里两处看着多余、其实少不了
 
 - **`pnpm-workspace.yaml` 里的 `allowBuilds`**：pnpm 11 只从这个文件读这项设置，不读 `package.json` 的 `pnpm` 字段；esbuild 的安装脚本要在这里放行。不放行的现象是连锁的：install 报「Ignored build scripts」，`pnpm run` 核对依赖时自动补装又遇到同样的拒绝，最后的调用栈在 pnpm 内部，看不出是构建脚本没放行
 - **`oxlint-tsgolint`**：`oxlint` 需要类型信息的规则要用它，少了 `pnpm lint` 报 "Failed to find tsgolint executable"。模板里它与 `oxlint` 都写准确版本号
 
-## 改模板时要守的三条
+## 改模板时要守的四条
 
 - **`template/` 下的文件一律带 `.tpl` 后缀**，写到磁盘时去掉：`npm pack` 固定不打包 `.gitignore`，给所有文件统一加后缀，一条规则就管住了全部文件
 - **`.oxlintrc.json` 放在插件包里、不放仓根**：oxlint 按工作目录找配置，插件包自带配置，搬到哪个仓都不用改
 - **模板里不写死 `@godcreator` 包的版本号**：peer 里的内核包、命令总线 `gwb-commands`、外壳 `gwb-shell` 都用占位符，由建仓那个 home 填（见上面「数据结构」）。模板要用到新的 `@godcreator` 插件时同样加占位符、从 home 读，不写数字；写死的数字一过时，新仓第一次发版就被「和源上 latest 不在同一条线」拒掉
+- **模板不带 shadcn 组件文件，插件包清单不写 `dependencies`**：组件由建仓命令调官方 CLI 生成；加组件那一步把 `dependencies` 里的包全部挪进 devDependencies，模板里写了 `dependencies`，那几项也会被一起挪走
 
 ## 代码地图
 
-**在哪**：纯逻辑全在 `src/scaffold.ts`；命令登记在 `src/index.ts` 的 `devkit.scaffold` / `devkit.scaffold.plugin` 两段；初始文件的正本在包根的 `template/repo/` 与 `template/pkg/`。
+**在哪**：算计划、渲染、写磁盘在 `src/scaffold.ts`；加 shadcn 组件在 `src/shadcn-components.ts`，它用的 pnpm 由 `src/node-shadcn-deps.ts` 找；命令登记在 `src/index.ts` 的 `devkit.scaffold` / `devkit.scaffold.plugin` 两段；初始文件的正本在包根的 `template/repo/` 与 `template/pkg/`。
 
 **先读**：`planScaffold`，建仓流程的入口与全部校验；加插件从 `planScaffoldPlugin` 读起。
 
-**读序**：先算计划，`placeholders` 与 `render` 把模板变成内存里的文件表，`landRel` 决定两部分各写到哪，`writeRepo` 写磁盘，`nextSteps` / `nextStepsPlugin` 生成回执末尾的下一步。
+**读序**：先算计划，`placeholders` 与 `render` 把模板变成内存里的文件表，`landRel` 决定两部分各写到哪，`writeRepo` 写磁盘，`addTemplateComponents` 加组件，`nextSteps` / `nextStepsPlugin` 生成回执末尾的下一步。
 
-**可跳过**：`template/` 下那 12 个 `.tpl` 是给别的仓用的内容，不是这部分的逻辑。要看模板长什么样就看那两个目录本身，这一页不抄。
+**可跳过**：`template/` 下的 `.tpl` 是给别的仓用的内容，不是这部分的逻辑。要看模板长什么样就看那两个目录本身，这一页不抄。

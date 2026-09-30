@@ -90,9 +90,9 @@ devkit 没有任何特权：装进 home 才有它的命令，和别的插件一�
 
 {/* has file="../plugins/devkit/src/release.ts" text="export interface ReleaseDeps {" */}
 
-{/* tree dir="../plugins/devkit/src" depth="1" glob="*.ts" hash="c15210b37370" */}
+{/* tree dir="../plugins/devkit/src" depth="1" glob="*.ts" hash="845545ed05e8" */}
 
-建仓是另一种形状：它只做计算与同步读写磁盘，不注入接口，测试直接写临时目录——把「往磁盘上写文件」换成假实现，等于没测。各模块在哪个文件、先读哪个，见[开发套件](/docs/devkit)的代码地图。
+建仓是另一种形状：算计划、渲染模板、写磁盘只做计算与同步读写磁盘，不注入接口，测试直接写临时目录——把「往磁盘上写文件」换成假实现，等于没测。写完之后加 shadcn 组件要启动 pnpm，这一步照上面的分法：`shadcn-components.ts` 收一个「在插件包目录运行一条 pnpm 命令」的函数，运行时由 `node-shadcn-deps.ts` 给真的 pnpm，测试给照实测样子改插件包目录的假 pnpm，读写磁盘照样是真的。各模块在哪个文件、先读哪个，见[开发套件](/docs/devkit)的代码地图。
 
 ## 开发套件与插件管理放在同一个仓
 

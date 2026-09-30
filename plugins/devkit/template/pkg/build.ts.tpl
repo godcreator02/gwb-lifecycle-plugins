@@ -45,6 +45,7 @@ await build({
   entryPoints: ['src/client/index.tsx'],
   outfile: 'dist/client.js',
   external: Object.keys(browserImports()),
+  alias: { '@': path.join(here, 'src', 'client') },
   format: 'esm',
   platform: 'browser',
   target: 'es2022',

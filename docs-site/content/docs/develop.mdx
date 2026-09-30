@@ -60,7 +60,7 @@ pnpm build          # 只构建 plugins/*，两个包都先清空 dist/：开发
 
 {/* has file="../plugins/devkit/tests/built-artifact.test.ts" text="过得了发版前检查" */}
 
-开发套件的测试里有两份启动真的子进程：`tests/process-tree.test.ts` 看超时之后孙进程真的没了（假实现证明不了），`tests/built-artifact.test.ts` 另起一个 node 进程 import 构建产物（没有 `dist/` 时整组跳过）。都几秒钟就运行完，跟着 `pnpm check` 一起运行。
+开发套件的测试里有两份启动真的子进程：`tests/process-tree.test.ts` 看超时之后孙进程真的没了（假实现证明不了），`tests/built-artifact.test.ts` 另起一个 node 进程 import 构建产物（没有 `dist/` 时整组跳过），还经产物调 `devkit.scaffold.plugin` 真的启动 pnpm：环境变量把 pnpm 的源指到本机一个没人监听的端口、不重试，加组件那一步当场失败，不联网，测的是插件文件已经写出、回执说清卡在组件这一步。都几秒钟就运行完，跟着 `pnpm check` 一起运行。
 
 **开发套件的类型检查与测试用的是插件管理的 `dist/`**：插件管理的清单把主入口指到 `dist/index.js` 与 `dist/index.d.ts`，开发套件从那里 import。刚拉下来的仓、或者改了插件管理导出的函数，先 `pnpm build` 再 `pnpm check`，不然开发套件那一半报找不到模块，或者用的还是旧函数。
 
@@ -74,7 +74,7 @@ pnpm build          # 只构建 plugins/*，两个包都先清空 dist/：开发
 
 `devkit.dev` 只拒绝以 `default` 或 devkit 自己所在的 home 为目标，所以从日常用的 home 往隔离 home 装开发版的 devkit 是可以的；日常用的 home 里的 devkit 只能发正式版后用 `plugin-manager.update {"all":true}` 升级。装的是插件管理自己时，它的条目在回执之后才重新加载（回执 `selfDeferred: true`），`devkit.dev` 会轮询 `plugin-manager.list` 等它回来。
 
-改了模板时，模板生成的新仓能不能顺利运行完 install / build / check，单元测试回答不了：用构建产物实际建一个仓运行一遍，做法见 `probes/2609191042_workspace-scaffold/`。
+改了模板时，模板生成的新仓能不能顺利运行完 install / build / check，单元测试回答不了：用构建产物实际建一个仓运行一遍，做法见 `probes/2609191042_workspace-scaffold/`；建仓要联网调 shadcn CLI 加组件，CLI 在插件包目录里实际怎么做见 `probes/2609301700_shadcn-cli-in-scaffold/`。
 
 要验 devkit 开、停 home 的行为（`home.new`、`home.rm`，或者结束它开出的实例会怎样），在两个隔离 home 之间做：脚本直接用安装版启动隔离 home A、装上 devkit，经 `bin/cdp.mjs` 让 A 里的 devkit 开隔离 home B，再对 B 操作、看 A 的反应。不拿日常用的 home 当 A——它退出或卡住，正在用它的会话一起断。做法见 `probes/2609251010_parent-exit-on-child-kill/`。
 
@@ -110,7 +110,7 @@ pnpm build          # 只构建 plugins/*，两个包都先清空 dist/：开发
 ```powershell
 pnpm doc                                # docfirst check：页面引用的代码改了、生成文件与正本不一致，都会报出来
 pnpm doc:confirm                        # 机械写回：草稿换成正式记号、挪了位置的写回行号、重新生成生成文件
-pnpm doc:confirm <页的路径…> --accept    # 引用的代码改了、页上的说法仍成立时签掉黄灯；只点名自己改的页
+pnpm doc:confirm <页的路径…> --accept    # 引用的代码改了、页上的说法仍成立时确认黄灯；只点名自己改的页
 pnpm doc:render                         # 按 content/docs/outputs/ 重新生成 AGENTS.md、CLAUDE.md、README.md 与说明书
 pnpm build                              # 构建文档站；端口见 package.json 的 start 脚本（4322）
 ```

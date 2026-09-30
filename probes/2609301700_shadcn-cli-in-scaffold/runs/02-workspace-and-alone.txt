@@ -1,0 +1,19 @@
+pnpm 12.4.2；CLI shadcn@4.21.0
+== A 组：workspace 仓的 plugins/probe/
+dlx 退出码 0，用时 10 秒；仓根有 pnpm-lock.yaml = True，包里有 package-lock.json = False
+写出的组件文件 = src\client\components\ui\button.tsx
+包根下有没有名字叫 @ 的目录 = False
+button.tsx 的 import：
+  import * as React from "react"
+  import { cva, type VariantProps } from "class-variance-authority"
+  import { cn } from "cn"
+  import { Slot } from "radix-ui"
+CLI 跑完：
+  dependencies = {"cn":"^0.4.0","radix-ui":"^1.6.7"}
+  devDependencies 里的组件依赖 = cn=, radix-ui=, class-variance-authority=
+组件 import 了、两张表里都没有的包 = class-variance-authority
+pnpm add -D cn@^0.4.0 radix-ui@^1.6.7 class-variance-authority 退出码 0；之后：
+  dependencies = null
+  devDependencies 里的组件依赖 = cn=^0.4.0, radix-ui=^1.6.7, class-variance-authority=^0.7.1
+== B 组：同一个包单独放，往上没有 pnpm-workspace.yaml 与 pnpm-lock.yaml
+dlx 退出码 0；包里有 package-lock.json = True，有 pnpm-lock.yaml = False

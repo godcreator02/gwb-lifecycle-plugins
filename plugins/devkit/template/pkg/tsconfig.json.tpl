@@ -9,7 +9,10 @@
     "noUncheckedIndexedAccess": true,
     "isolatedModules": true,
     "skipLibCheck": true,
-    "noEmit": true
+    "noEmit": true,
+    "paths": {
+      "@/*": ["./src/client/*"]
+    }
   },
   "include": ["src/index.ts", "build.ts", "tests/**/*.ts"]
 }

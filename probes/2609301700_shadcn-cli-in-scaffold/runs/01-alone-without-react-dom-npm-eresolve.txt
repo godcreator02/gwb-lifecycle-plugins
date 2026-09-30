@@ -1,0 +1,25 @@
+第一版 run.ps1（只有 B 组的样子：单独一个包，往上没有 pnpm-workspace.yaml；devDependencies 里只有 react 19.2.8、没有 react-dom）的输出，
+CLI 输出最后 20 行原样保留：
+
+pnpm 12.4.2；CLI shadcn@4.21.0
+dlx 退出码 1，用时 7 秒
+CLI 输出的最后 20 行：
+npm error
+npm error Could not resolve dependency:
+npm error peer react@"^19.3.0" from react-dom@19.3.0
+npm error node_modules/react-dom
+npm error   peer react-dom@"^16.8 || ^17.0 || ^18.0 || ^19.0 || ^19.0.0-rc" from radix-ui@1.6.7
+npm error   node_modules/radix-ui
+npm error     radix-ui@"*" from the root project
+npm error
+npm error Fix the upstream dependency conflict, or retry
+npm error this command with --force or --legacy-peer-deps
+npm error to accept an incorrect (and potentially broken) dependency resolution.
+npm error
+npm error
+npm error For a full report see:
+npm error C:\Users\godamericatb14\AppData\Local\npm-cache\_logs\2026-09-30T09_08_33_715Z-eresolve-report.txt
+npm error A complete log of this run can be found in: C:\Users\godamericatb14\AppData\Local\npm-cache\_logs\2026-09-30T09_08_33_715Z-debug-0.log
+
+You can also try a previous version to see if that works:
+pnpm dlx shadcn@4.20.0 add button --yes

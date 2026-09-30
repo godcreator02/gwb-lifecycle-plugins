@@ -3,7 +3,7 @@ import fs from 'node:fs'
 import os from 'node:os'
 import path from 'node:path'
 import { fileURLToPath, pathToFileURL } from 'node:url'
-import { afterEach, describe, expect, it } from 'vitest'
+import { afterEach, describe, expect, it, onTestFinished } from 'vitest'
 import { artifactProblems } from '../src/artifact-check.js'
 
 /**
@@ -112,7 +112,17 @@ describe.skipIf(!built)('构建产物', () => {
     expect(fs.existsSync(path.join(pkgDir, 'skills', 'gwb-devkit', 'SKILL.md'))).toBe(true)
   })
 
-  it('找得到包内 template/：scaffold.plugin 往临时仓里写出插件包', async () => {
+  it('找得到包内 template/：scaffold.plugin 往临时仓里写出插件包；源连不上时加组件那一步经真 pnpm 失败，回执说插件文件已写好', async () => {
+    // 源指向本机一个没人监听的端口、不重试：pnpm dlx 当场连不上，测试不联网；插件文件在这一步之前已经写好
+    const offline: Record<string, string> = { pnpm_config_registry: 'http://127.0.0.1:9/', pnpm_config_fetch_retries: '0' }
+    const saved = Object.fromEntries(Object.keys(offline).map((key) => [key, process.env[key]]))
+    Object.assign(process.env, offline)
+    onTestFinished(() => {
+      for (const [key, value] of Object.entries(saved)) {
+        if (value === undefined) delete process.env[key]
+        else process.env[key] = value
+      }
+    })
     const repoDir = path.join(tempDir('dk-bundle-repo-'), 'repo')
     fs.mkdirSync(repoDir, { recursive: true })
     fs.writeFileSync(path.join(repoDir, 'pnpm-workspace.yaml'), 'packages:\n  - plugins/*\n')
@@ -126,9 +136,12 @@ describe.skipIf(!built)('构建产物', () => {
     }
     const devkit = await mountBundle(homeDir)
     const receipt = await devkit.run('devkit.scaffold.plugin', { repo: repoDir, name: 'world' })
-    expect(receipt.ok, receipt.error).toBe(true)
     expect(fs.existsSync(path.join(repoDir, 'plugins', 'world', 'src', 'index.ts'))).toBe(true)
-  })
+    expect(fs.existsSync(path.join(repoDir, 'plugins', 'world', 'components.json'))).toBe(true)
+    expect(receipt.ok).toBe(false)
+    expect(receipt.error).toContain(`插件文件已写到 ${path.join(repoDir, 'plugins', 'world')}，添加 shadcn 组件这一步没成`)
+    expect(receipt.error).toContain('pnpm dlx shadcn@latest add button --yes 没成')
+  }, 60_000)
 
   it('参数不对照常回 ok false：命令处理函数在产物里是通的', async () => {
     const devkit = await mountBundle(tempDir('dk-bundle-home-'))

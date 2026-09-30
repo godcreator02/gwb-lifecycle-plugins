@@ -22,9 +22,9 @@ description: 连接建仓模板 template/ 与 devkit.release 的发版前检查�
 
 {/* ref file="../plugins/devkit/template/pkg/build.ts.tpl" lines="10-18" hash="6069865c6024" blob="e7a859dd25b4" */}
 
-**浏览器侧产物的包名 import**：模板从 shell 的 browser-imports 代码出口取外置名单，发版检查读取自身与直接 peer 的相同出口，并验证目标文件和冲突：
+**浏览器侧产物的包名 import**：模板从 shell 的 browser-imports 代码出口取外置名单，发版检查读取自身与直接 peer 的相同出口，并验证目标文件和冲突。`@/` 别名在同一处解析到 `src/client`，建仓时加进来的 shadcn 组件和它的依赖（`radix-ui`、`cn`、`class-variance-authority`，都在 devDependencies）不在名单上，打包进 `client.js`：
 
-{/* ref file="../plugins/devkit/template/pkg/build.ts.tpl" hash="6da9ed9fad2e" blob="e7a859dd25b4" */}
+{/* ref file="../plugins/devkit/template/pkg/build.ts.tpl" hash="486f86c66cef" blob="161ffa9bb74c" */}
 
 ## 约定
 

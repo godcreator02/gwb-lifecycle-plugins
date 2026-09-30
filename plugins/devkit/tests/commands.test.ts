@@ -1,13 +1,39 @@
 import fs from 'node:fs'
 import os from 'node:os'
 import path from 'node:path'
-import { afterEach, describe, expect, it } from 'vitest'
+import { afterEach, describe, expect, it, vi } from 'vitest'
 import { apply } from '../src/index.js'
+import type { PnpmLookupForComponents } from '../src/node-shadcn-deps.js'
+import { fakePnpm } from './fake-shadcn-pnpm.js'
 
 /**
  * 命令这一层：在假 ctx 上运行 `apply`，按命令名调登记下来的处理函数。只测不碰真机器的路径——
- * 参数校验、建仓与加插件（写到临时目录）；启动 home、发版、CDP 不在这里测
+ * 参数校验、建仓与加插件（写到临时目录）；启动 home、发版、CDP 不在这里测。
+ * 建仓后添加 shadcn 组件要找 pnpm、联网：找 pnpm 的模块换成假的，交出照实测样子改清单的假 pnpm
  */
+
+const pnpmLookup = vi.hoisted(() => ({ missing: undefined as string | undefined, calls: [] as { dir: string; args: string[] }[] }))
+vi.mock('../src/node-shadcn-deps.js', () => ({
+  pnpmForComponents: (): Promise<PnpmLookupForComponents> =>
+    Promise.resolve(
+      pnpmLookup.missing !== undefined
+        ? { ok: false, error: pnpmLookup.missing }
+        : {
+            ok: true,
+            inDir: (dir: string) => {
+              const fake = fakePnpm(dir)
+              return async (args: string[]) => {
+                pnpmLookup.calls.push({ dir, args })
+                return fake.pnpm(args)
+              }
+            },
+          },
+    ),
+}))
+afterEach(() => {
+  pnpmLookup.missing = undefined
+  pnpmLookup.calls.splice(0)
+})
 
 type Handler = (args?: unknown) => unknown
 interface Receipt {
@@ -181,14 +207,42 @@ describe('devkit.scaffold 与 devkit.scaffold.plugin', () => {
     const receipt = await devkit.run('devkit.scaffold', { name: 'hello', dir })
     expect(receipt.ok).toBe(true)
     const data = receipt.data as Record<string, unknown>
-    expect(Object.keys(data).sort()).toEqual(['files', 'name', 'nextSteps', 'pkg', 'pluginDir', 'registry', 'repoDir'])
-    expect(data).toMatchObject({ repoDir: dir, pluginDir: path.join(dir, 'plugins', 'hello'), pkg: '@godcreator/gwb-hello', name: 'hello' })
+    expect(Object.keys(data).sort()).toEqual(['components', 'files', 'name', 'nextSteps', 'pkg', 'pluginDir', 'registry', 'repoDir'])
+    expect(data).toMatchObject({ repoDir: dir, pluginDir: path.join(dir, 'plugins', 'hello'), pkg: '@godcreator/gwb-hello', name: 'hello', components: ['button'] })
     expect(data['files']).toBeGreaterThan(0)
     expect(fs.existsSync(path.join(dir, 'plugins', 'hello', 'package.json'))).toBe(true)
     expect(fs.existsSync(path.join(dir, 'docs-site'))).toBe(false)
     expect(devkit.busCalls).toEqual([])
     const manifest = JSON.parse(fs.readFileSync(path.join(dir, 'plugins', 'hello', 'package.json'), 'utf8')) as { peerDependencies: Record<string, string> }
     expect(manifest.peerDependencies).toMatchObject({ '@godcreator/gwb-commands': '^0.5.2', '@godcreator/gwb-shell': '^0.14.1' })
+  })
+
+  it('建仓：写完文件后在插件包目录加 shadcn 的 button，组件依赖都在 devDependencies', async () => {
+    const dir = path.join(tempDir('dk-scaffold-'), 'hello')
+    const devkit = mountDevkit({ homeDir: homeWithCommandsAndShell() })
+    expect((await devkit.run('devkit.scaffold', { name: 'hello', dir })).ok).toBe(true)
+    const pluginDir = path.join(dir, 'plugins', 'hello')
+    expect(pnpmLookup.calls.map((call) => call.dir)).toEqual([pluginDir, pluginDir])
+    expect(pnpmLookup.calls[0]?.args).toEqual(['dlx', 'shadcn@latest', 'add', 'button', '--yes'])
+    expect(fs.existsSync(path.join(pluginDir, 'components.json'))).toBe(true)
+    expect(fs.existsSync(path.join(pluginDir, 'src', 'client', 'components', 'ui', 'button.tsx'))).toBe(true)
+    const manifest = JSON.parse(fs.readFileSync(path.join(pluginDir, 'package.json'), 'utf8')) as { dependencies?: unknown; devDependencies: Record<string, string> }
+    expect(manifest.dependencies).toBeUndefined()
+    for (const name of ['cn', 'radix-ui', 'class-variance-authority']) expect(manifest.devDependencies[name], name).toBeDefined()
+  })
+
+  it('找不到 pnpm：建仓与加插件都拒，什么都不写', async () => {
+    pnpmLookup.missing = '找不到 pnpm。只认这两个位置'
+    const devkit = mountDevkit({ homeDir: homeWithCommandsAndShell() })
+    const dir = path.join(tempDir('dk-scaffold-'), 'hello')
+    const scaffold = await devkit.run('devkit.scaffold', { name: 'hello', dir })
+    expect(scaffold.error).toBe('建仓没成，什么都没写：找不到 pnpm。只认这两个位置')
+    expect(fs.existsSync(dir)).toBe(false)
+    const repoDir = path.join(tempDir('dk-repo-'), 'repo')
+    writeWorkspaceRepo(repoDir)
+    const plugin = await devkit.run('devkit.scaffold.plugin', { repo: repoDir, name: 'world' })
+    expect(plugin.error).toBe('加插件没成，什么都没写：找不到 pnpm。只认这两个位置')
+    expect(fs.existsSync(path.join(repoDir, 'plugins'))).toBe(false)
   })
 
   it('home 里没装外壳：拒，不写任何文件，报错写出没装哪个包', async () => {
@@ -217,9 +271,11 @@ describe('devkit.scaffold 与 devkit.scaffold.plugin', () => {
     const receipt = await devkit.run('devkit.scaffold.plugin', { repo: repoDir, name: 'world' })
     expect(receipt.ok).toBe(true)
     const data = receipt.data as Record<string, unknown>
-    expect(Object.keys(data).sort()).toEqual(['files', 'name', 'nextSteps', 'pkg', 'pluginDir', 'registry', 'repoDir'])
-    expect(data).toMatchObject({ repoDir, pluginDir: path.join(repoDir, 'plugins', 'world'), pkg: '@godcreator/gwb-world', name: 'world' })
+    expect(Object.keys(data).sort()).toEqual(['components', 'files', 'name', 'nextSteps', 'pkg', 'pluginDir', 'registry', 'repoDir'])
+    expect(data).toMatchObject({ repoDir, pluginDir: path.join(repoDir, 'plugins', 'world'), pkg: '@godcreator/gwb-world', name: 'world', components: ['button'] })
     expect(fs.existsSync(path.join(repoDir, 'plugins', 'world', 'src', 'index.ts'))).toBe(true)
+    expect(fs.existsSync(path.join(repoDir, 'plugins', 'world', 'src', 'client', 'components', 'ui', 'button.tsx'))).toBe(true)
+    expect(pnpmLookup.calls.every((call) => call.dir === path.join(repoDir, 'plugins', 'world'))).toBe(true)
     expect(fs.existsSync(path.join(repoDir, 'docs-site', 'content', 'docs', 'plugins'))).toBe(false)
     expect((await devkit.run('devkit.scaffold.plugin', { repo: repoDir, name: 'world' })).error).toContain('加插件没成')
   })

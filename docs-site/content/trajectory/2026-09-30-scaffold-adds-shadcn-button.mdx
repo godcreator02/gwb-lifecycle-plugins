@@ -1,0 +1,33 @@
+---
+title: 建仓模板接好 shadcn：模板只带 components.json 与 @/ 别名，button 由建仓命令写完文件后调官方 CLI 添加
+born-at: 2026-09-30T17:40
+type: choice
+parent: [2026-09-08-gwb-devkit]
+label: 建仓加 shadcn
+domain: 建仓模板
+---
+
+## 背景
+
+全生态定下窗格里可点的控件一律用 shadcn 官方默认组件，组件文件由 `pnpm dlx shadcn@latest add` 生成、不手抄。建仓模板的示例窗格还是手写的 `<button>`，模板里也没有 `components.json` 与 `@/` 别名：新插件要照外壳说明书 `gwb-shell` 的「接入 shadcn 组件」一步步自己配。本机另有一条偏好：有官方生成器就用它，本机只在输出上做最小的精确替换，不手写模板副本。
+
+实测（`probes/2609301700_shadcn-cli-in-scaffold/`，shadcn 4.21.0、pnpm 12.4.2）：包根有 `components.json`、tsconfig 有 `@/*` 别名时，`add button --yes` 不提问，组件写到 `src/client/components/ui/button.tsx`；插件包在仓根有 `pnpm-workspace.yaml` 的仓里时 CLI 用 pnpm 装依赖，单独放时改用 npm。CLI 把 `cn`、`radix-ui` 写进 `dependencies`，`button.tsx` 还 import 了 `class-variance-authority`，CLI 没装；一次 `pnpm add -D cn@^0.4.0 radix-ui@^1.6.7 class-variance-authority` 把三个都放进 devDependencies，`dependencies` 整项删掉。
+
+## 结论与边界
+
+- **模板只带接入配置**：`template/pkg/components.json.tpl`（new-york、zinc，`tailwind.prefix` 用占位符 `{{cssPrefix}}`，与样式入口 `prefix(…)` 同一个值）；`@/` 别名写在包根 tsconfig、`src/client/tsconfig.json`、`build.ts` 的 esbuild `alias` 三处；示例窗格改用 `Button`。模板里不放组件文件
+- **组件由建仓命令加**：`devkit.scaffold` 与 `devkit.scaffold.plugin` 写完文件后，在插件包目录 `pnpm dlx shadcn@latest add button --yes`，再一次 `pnpm add -D` 把 CLI 写进 `dependencies` 的包（带原范围）与组件 import 了却没装的包放进 devDependencies，最后读清单核对。这一步必须排在写磁盘之后：CLI 要看到仓根的 `pnpm-workspace.yaml` 才用 pnpm
+- **失败不回滚**：找 pnpm 放在写磁盘之前，找不到时什么都不写；加组件这一步没成时插件文件已写好，回执 `ok: false`，写明补完要运行的命令
+- **代价**：两条命令从只写文件变成要联网，加插件时 pnpm 顺带把整个 workspace 装一遍、改仓根的锁文件；回执多了 `components` 字段。devkit 0.25.4，升 y（回执加字段、改模板）
+- **测试不联网**：`tests/fake-shadcn-pnpm.ts` 照实测结果模拟 CLI 与 `pnpm add -D` 对插件包目录的改动；命令测试用 `vi.mock` 换掉找 pnpm 的模块。CLI 换了行为，假 pnpm 要照新的实测重写
+
+## 否掉的候选
+
+- **模板里放一份手抄的 `button.tsx`**：用户定下组件文件由官方 CLI 生成；手抄的副本不随上游更新，每次上游改了组件都要有人同步模板
+- **模板里预先写好 `cn`、`radix-ui`、`class-variance-authority` 三个 dev 依赖**：那就是把 CLI 输出的一部分手抄进模板；CLI 照样会再写一遍 `dependencies`，还得挪
+- **建仓只写文件，回执里提示人去运行 CLI**：每个新插件都要多做一遍同样的几步，而且挪依赖、补漏装这两步最容易忘
+
+## 代价与遗留
+
+- 外壳说明书 `gwb-shell` 的「接入 shadcn 组件」还写着第 1–2 步要自己配，那份说明书在 UI 平台仓 `gwb-ui-plugins`，已经给它写了反馈
+- 这一版还没在隔离 home 里经真实的命令调用验证过；源码里建仓命令的同一串函数在临时目录真跑过（`probes/2609301700_shadcn-cli-in-scaffold/README.md` 末段）

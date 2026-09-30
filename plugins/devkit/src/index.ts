@@ -40,6 +40,8 @@ import {
   SCOPE_RE,
   writeRepo,
 } from './scaffold.js'
+import { addTemplateComponents, componentsStepFailure, TEMPLATE_COMPONENTS } from './shadcn-components.js'
+import { pnpmForComponents } from './node-shadcn-deps.js'
 import { homesRootOf } from '../bin/cdp.mjs'
 
 export const name = 'gwb-devkit'
@@ -53,6 +55,11 @@ const SCAFFOLD_PEER_VERSIONS_NOTE =
   '模板插件 peer 里的内核包取正在运行的内核版本，命令总线与外壳读运行这条命令的 home 里 node_modules/@godcreator/gwb-commands 与 node_modules/@godcreator/gwb-shell 的 package.json 取版本号。' +
   '外壳在开发套件的 peer 里是可选的，home 里没装外壳（或命令总线）时这条命令报错、什么都不写：先在这个 home 里装上外壳'
 
+/** 建仓与加插件共用：写完文件后添加模板窗格用的 shadcn 组件 */
+const SCAFFOLD_COMPONENTS_NOTE =
+  `写完插件文件后在插件包目录运行 pnpm dlx shadcn@latest add ${TEMPLATE_COMPONENTS.join(' ')} --yes（shadcn 官方 CLI，要联网；它装组件依赖时整个 workspace 装一遍，仓根的 pnpm-lock.yaml 与 node_modules 跟着变），` +
+  '再用一次 pnpm add -D 把 CLI 写进 dependencies 的包、组件 import 了却没装的包放进 devDependencies。找不到 pnpm 时什么都不写；这一步没成时插件文件已写好、不回滚，回执 ok:false 并写明怎么补完'
+
 const SCAFFOLD_USAGE = [
   'devkit.scaffold 的参数：',
   // 规则从 NAME_RE 取，不在这里抄一份
@@ -62,6 +69,7 @@ const SCAFFOLD_USAGE = [
   `  registry 可选，插件包 package.json 的 publishConfig.registry，devkit.release 发到这里。要是 http(s) 地址的规范写法（new URL(x).href 与原文相同，如 "http://localhost:4873/"），不带账号、查询串与 #；缺省是团队源 ${TEAM_REGISTRY}。发布 token 写在用户级 ~/.npmrc`,
   '模板里要显示名的地方（README 标题、description、窗格标题）都用短名，要改自己改生成的文件。不建文档站',
   SCAFFOLD_PEER_VERSIONS_NOTE,
+  SCAFFOLD_COMPONENTS_NOTE,
   '例：{"name":"hello","dir":"D:\\\\tmp\\\\hello"}',
 ].join('\n')
 
@@ -70,7 +78,8 @@ const SCAFFOLD_PLUGIN_USAGE = [
   `  name   必给，短名，kebab-case（${String(NAME_RE)}）。派生规则同 devkit.scaffold`,
   '  repo   必给，workspace 仓根的绝对路径（pnpm-workspace.yaml 所在的目录）。yaml 里得有 plugins/ 那条，没有就拒',
   '  scope、registry  可选，规则与缺省值同 devkit.scaffold。同一个仓里的插件一般用同一套：看仓里已有插件包 package.json 的 name 与 publishConfig.registry',
-  '插件包写到 <repo>/plugins/<短名>/，必须还不存在（存在就拒，不覆盖任何东西）。仓根、workspace 配置与文档站都不碰。README 的插件清单由人更新（回执 nextSteps 里提醒）',
+  '插件包写到 <repo>/plugins/<短名>/，必须还不存在（存在就拒，不覆盖任何东西）。仓根的 package.json、workspace 配置与文档站都不碰。README 的插件清单由人更新（回执 nextSteps 里提醒）',
+  SCAFFOLD_COMPONENTS_NOTE,
   '例：{"repo":"D:\\\\tmp\\\\hello","name":"world"}',
 ].join('\n')
 
@@ -505,9 +514,9 @@ function registerScaffoldCommand({ ctx, log, commands }: Wiring): void {
       plugin: '@godcreator/gwb-devkit',
       description: '在一个新目录里生成一个 gwb 插件仓（workspace 布局，插件在 plugins/<短名>/）',
       usage:
-        `{name（必给，kebab-case 短名）, dir（必给，绝对路径且必须还不存在）, scope?（包名范围，缺省 ${TEAM_SCOPE}）, registry?（写进插件包 publishConfig.registry 的发布目标，缺省团队源）}。插件的模板在本包；要显示名的地方用短名；不建文档站。${SCAFFOLD_PEER_VERSIONS_NOTE}。回执 { repoDir, pluginDir, pkg, registry, name, files, nextSteps }。参数不对会把完整说明回给你`,
+        `{name（必给，kebab-case 短名）, dir（必给，绝对路径且必须还不存在）, scope?（包名范围，缺省 ${TEAM_SCOPE}）, registry?（写进插件包 publishConfig.registry 的发布目标，缺省团队源）}。插件的模板在本包；要显示名的地方用短名；不建文档站。${SCAFFOLD_PEER_VERSIONS_NOTE}。${SCAFFOLD_COMPONENTS_NOTE}。回执 { repoDir, pluginDir, pkg, registry, name, files, components, nextSteps }，components 是添加的 shadcn 组件。参数不对会把完整说明回给你`,
     },
-    (args) => {
+    async (args) => {
       if (!isRecord(args)) return { ok: false, error: `参数要是个对象。\n${SCAFFOLD_USAGE}` }
       const unknownKeys = unknownKeysRefusal(args, ['name', 'dir', 'scope', 'registry'], SCAFFOLD_USAGE)
       if (unknownKeys !== undefined) return unknownKeys
@@ -522,6 +531,9 @@ function registerScaffoldCommand({ ctx, log, commands }: Wiring): void {
       } catch (err) {
         return { ok: false, error: `${err instanceof Error ? err.message : String(err)}\n\n${SCAFFOLD_USAGE}` }
       }
+      const pnpm = await pnpmForComponents()
+      if (!pnpm.ok) return { ok: false, error: `建仓没成，什么都没写：${pnpm.error}` }
+      const pluginDir = path.join(plan.dir, 'plugins', plan.name)
       let files
       try {
         files = renderTemplate(templateRoot(), plan)
@@ -529,16 +541,22 @@ function registerScaffoldCommand({ ctx, log, commands }: Wiring): void {
       } catch (err) {
         return { ok: false, error: `建仓没成：${err instanceof Error ? err.message : String(err)}` }
       }
-      log.info(`devkit.scaffold：${plan.pkg} → ${path.join(plan.dir, 'plugins', plan.name)}（${files.length} 个文件）`)
+      const components = await addTemplateComponents(pluginDir, pnpm.inDir(pluginDir))
+      if (!components.ok) {
+        log.warn(`devkit.scaffold：${plan.pkg} 的组件没加上：${components.error}`)
+        return { ok: false, error: componentsStepFailure(pluginDir, components.error) }
+      }
+      log.info(`devkit.scaffold：${plan.pkg} → ${pluginDir}（${files.length} 个文件，组件 ${components.components.join('、')}）`)
       return {
         ok: true,
         data: {
           repoDir: plan.dir,
-          pluginDir: path.join(plan.dir, 'plugins', plan.name),
+          pluginDir,
           pkg: plan.pkg,
           registry: plan.registry,
           name: plan.name,
           files: files.length,
+          components: components.components,
           nextSteps: nextSteps(plan),
         },
       }
@@ -555,9 +573,11 @@ function registerScaffoldPluginCommand({ ctx, log, commands }: Wiring): void {
       usage:
         '{name 必给（kebab-case 短名，派生规则同 devkit.scaffold）, repo 必给（workspace 仓根的绝对路径——pnpm-workspace.yaml 里得有 plugins/ 那条，没有就拒）, scope?, registry?（规则与缺省值同 devkit.scaffold）}。插件包写到 <repo>/plugins/<短名>/，必须还不存在；仓根、workspace 配置与文档站都不碰。与建仓用的是同一份插件包模板（template/pkg/）——只有一个插件和有多个插件的仓格式一致靠这个。' +
         SCAFFOLD_PEER_VERSIONS_NOTE +
-        '。回执 { repoDir, pluginDir, pkg, registry, name, files, nextSteps }。参数不对会把完整说明回给你',
+        '。' +
+        SCAFFOLD_COMPONENTS_NOTE +
+        '。回执 { repoDir, pluginDir, pkg, registry, name, files, components, nextSteps }，components 是添加的 shadcn 组件。参数不对会把完整说明回给你',
     },
-    (args) => {
+    async (args) => {
       if (!isRecord(args)) return { ok: false, error: `参数要是个对象。\n${SCAFFOLD_PLUGIN_USAGE}` }
       const unknownKeys = unknownKeysRefusal(args, ['name', 'repo', 'scope', 'registry'], SCAFFOLD_PLUGIN_USAGE)
       if (unknownKeys !== undefined) return unknownKeys
@@ -572,6 +592,8 @@ function registerScaffoldPluginCommand({ ctx, log, commands }: Wiring): void {
       } catch (err) {
         return { ok: false, error: `${err instanceof Error ? err.message : String(err)}\n\n${SCAFFOLD_PLUGIN_USAGE}` }
       }
+      const pnpm = await pnpmForComponents()
+      if (!pnpm.ok) return { ok: false, error: `加插件没成，什么都没写：${pnpm.error}` }
       let files
       try {
         files = renderPlugin(templateRoot(), plan)
@@ -579,7 +601,12 @@ function registerScaffoldPluginCommand({ ctx, log, commands }: Wiring): void {
       } catch (err) {
         return { ok: false, error: `加插件没成：${err instanceof Error ? err.message : String(err)}` }
       }
-      log.info(`devkit.scaffold.plugin：${plan.pkg} → ${plan.dir}（${files.length} 个文件）`)
+      const components = await addTemplateComponents(plan.dir, pnpm.inDir(plan.dir))
+      if (!components.ok) {
+        log.warn(`devkit.scaffold.plugin：${plan.pkg} 的组件没加上：${components.error}`)
+        return { ok: false, error: componentsStepFailure(plan.dir, components.error) }
+      }
+      log.info(`devkit.scaffold.plugin：${plan.pkg} → ${plan.dir}（${files.length} 个文件，组件 ${components.components.join('、')}）`)
       return {
         ok: true,
         data: {
@@ -589,6 +616,7 @@ function registerScaffoldPluginCommand({ ctx, log, commands }: Wiring): void {
           registry: plan.registry,
           name: plan.name,
           files: files.length,
+          components: components.components,
           nextSteps: nextStepsPlugin(plan),
         },
       }

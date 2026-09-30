@@ -11,9 +11,10 @@ description: 写新插件、改插件、在隔离 home 里验证改动、发正�
 
 1. 要用的能力先看提供方插件发布的 `.d.ts`：它给 cordis 的 `Context` 补了哪几项（`declare module 'cordis' { interface Context { … } }`），方法签名与文档注释就在那里。已经有了就直接用：peer 里写上提供方，`import type` 它的类型，`ctx.inject` 取用
 2. 带界面的插件，先读外壳的说明书 `skill.read {"name":"gwb-shell"}`
-3. 建仓用 `devkit.scaffold`，往已有的 workspace 仓再加一个插件用 `devkit.scaffold.plugin`。没有团队源（`@godcreator`）发布权限的，两条都加 `scope` 与 `registry`，同一个仓里的插件用同一套；发布 token 写在用户级 `~/.npmrc`
+3. 建仓用 `devkit.scaffold`，往已有的 workspace 仓再加一个插件用 `devkit.scaffold.plugin`。没有团队源（`@godcreator`）发布权限的，两条都加 `scope` 与 `registry`，同一个仓里的插件用同一套；发布 token 写在用户级 `~/.npmrc`。两条命令写完文件后都要联网运行 shadcn 官方 CLI 加上 `button`，顺带把整个仓装一遍依赖
 4. 把模板改成真插件，守「写插件的规矩」：
    - `src/index.ts`：模板的 `<短名>.ping` 与窗格 `main` 换成真正的命令与窗格，命令照模板那条的写法登记
+   - `src/client/`：窗格里可点的控件用 shadcn 官方组件，模板已接好 `components.json`、`@/` 别名与 `Button`；要别的组件照外壳说明书的「接入 shadcn 组件」第 3 步起做
    - `tests/`：不启动进程、不开窗口就能测的逻辑抽成纯函数来测
    - 不要界面的插件：照生成的 README 里那张清单删掉浏览器侧的文件、脚本与依赖
    - `package.json`：`description` 写一句话说这个插件做什么；用到的插件写进 peer；不用外壳就删掉 peer 里那一项；有了 `skills/` 目录就把 `skills` 加进 `files`

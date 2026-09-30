@@ -106,6 +106,7 @@ peer 里另有插件管理 `@godcreator/gwb-plugin-manager`（`workspace:^`，�
 | 环境变量与命令行参数 | 宿主安装版应用 | `GWB_HOME=<home 名>`、`--remote-debugging-port=<端口>` | `devkit.home.new` / `open` 再启动一次宿主，指定 home 与调试端口 |
 | 读被发版的包 | 包目录 `node_modules` 里装好的内核包与外壳 | 自身与 peer 的 `./browser-imports`（代码提供方；旧项目兼容旧 kernel HTML）、外壳的 `theme.reference.css`（主题令牌） | 发版前检查的浏览器侧 import 名单与样式检查的色名 |
 | 子进程 | pnpm、git、`tasklist` / `netstat` / `taskkill` | | 构建、打包、发布、`pnpm view` 查源；查工作区干不干净；查进程与端口、终止进程树 |
+| 子进程 | pnpm 与 shadcn 官方 CLI | 插件包目录里的 `pnpm dlx shadcn@latest add button --yes`、`pnpm add -D <包…>` | 建仓与加插件写完文件后加窗格用的组件、把组件依赖放进 devDependencies；CLI 从 npm 源下载，要联网 |
 
 {/* has file="../plugins/devkit/src/dev.ts" text="import { INSTALL_COMMAND, KERNEL_PACKAGE, LIST_COMMAND, UPDATE_COMMAND } from '@godcreator/gwb-plugin-manager'" */}
 

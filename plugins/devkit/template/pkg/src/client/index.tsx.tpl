@@ -1,12 +1,14 @@
 import type { PaneArgs, PaneHandle } from '@godcreator/gwb-shell/pane'
 import { useState, type ReactElement } from 'react'
 import { createRoot } from 'react-dom/client'
+import { Button } from '@/components/ui/button'
 
 /**
  * 浏览器侧：一个窗格，你好 + 计数按钮。
  *
  * 类名一律带 `{{cssPrefix}}:` 前缀：样式只作用于本插件，靠的是类名唯一，不靠 DOM 祖先关系（弹层
  * portal 到 body 也有样式）。样式入口在 `styles.css`，那几行 import 每一条都不能省，理由写在那边。
+ * 可点的控件用 shadcn 官方组件，在 `components/ui/` 下，由 `pnpm dlx shadcn@latest add <组件>` 添加，不手写。
  * react 由页面的 importmap 提供（提供方是 shell），构建时不打包，见 build.ts。
  * 外壳传入的参数与要返回的句柄，类型从外壳的 `@godcreator/gwb-shell/pane` 取（只有类型，产物里不留 import）。
  */
@@ -20,13 +22,9 @@ function Pane(): ReactElement {
         模板窗格。按钮只改本地状态；命令 {{name}}.ping 在 node 侧，经命令总线调用。
       </p>
       <div className="{{cssPrefix}}:flex {{cssPrefix}}:items-center {{cssPrefix}}:gap-3">
-        <button
-          data-probe="bump"
-          className="{{cssPrefix}}:rounded {{cssPrefix}}:bg-primary {{cssPrefix}}:px-3 {{cssPrefix}}:py-1.5 {{cssPrefix}}:text-sm {{cssPrefix}}:text-primary-foreground"
-          onClick={() => setCount((n) => n + 1)}
-        >
+        <Button data-probe="bump" onClick={() => setCount((n) => n + 1)}>
           +1
-        </button>
+        </Button>
         <span className="{{cssPrefix}}:font-mono {{cssPrefix}}:text-2xl" data-probe="count">
           {count}
         </span>

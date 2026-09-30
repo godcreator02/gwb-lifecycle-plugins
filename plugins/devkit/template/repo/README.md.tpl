@@ -17,27 +17,33 @@
   在 `peerDependenciesMeta` 标 `optional: true`，都不另写 dev；`cordis` 只写 devDependencies（给本地构建与类型检查）；
 - **浏览器侧**（`src/client/`）：窗格里显示「你好」和一个计数按钮。类名一律以 `{{cssPrefix}}:` 开头，样式只作用于本插件
   （cssPrefix 是短名去掉非小写字母，Tailwind 的 prefix 只收 a-z）；react 由页面的 importmap 提供（提供方是 shell），构建时不打包；
+- **shadcn 组件**：按钮是 shadcn 官方的 `Button`，文件在 `src/client/components/ui/button.tsx`，建仓时由官方 CLI 添加。
+  `components.json` 在插件包根（`tailwind.prefix` 就是 `{{cssPrefix}}`），`@/` 别名指向 `src/client`，写在包根 tsconfig、
+  `src/client/tsconfig.json` 与 `build.ts` 三处；组件的依赖打包进 `client.js`，都在 devDependencies；
 - **自述**（`package.json` 的 description）：一句话说这个插件做什么；
 - **测试**：`tests/` 放自己的逻辑测试，模板不带。构建产物的包名 import、类名前缀、颜色只用主题令牌这些检查由 devkit 做：
   `devkit.dev` 构建之后查，`devkit.release` 发之前查；
 - tsconfig / oxlint 配置全在包内——这个包以后搬到别的仓，配置不用改。
 
-不要界面的插件，删掉 `src/client/`、`build.ts` 里浏览器侧那段、`build` 脚本里的 `tailwindcss` 一步与 `typecheck` 里浏览器侧那一步、
-`src/index.ts` 里注册窗格那几行与 `inject` 里的 `gwbShell`，peer 里删外壳，dev 里删 `@tailwindcss/cli`、`tailwindcss`、`tw-animate-css`、
-`react`、`react-dom` 与两个 `@types/react*`。
+不要界面的插件，删掉 `src/client/`、`components.json`、`build.ts` 里浏览器侧那段（连同 `alias`）、包根 tsconfig 的 `paths`、
+`build` 脚本里的 `tailwindcss` 一步与 `typecheck` 里浏览器侧那一步、`src/index.ts` 里注册窗格那几行与 `inject` 里的 `gwbShell`，
+peer 里删外壳，dev 里删 `@tailwindcss/cli`、`tailwindcss`、`tw-animate-css`、`react`、`react-dom`、两个 `@types/react*`
+与组件的依赖（`cn`、`radix-ui`、`class-variance-authority`）。
 
 改成真插件：把窗格与 ping 换成你的东西，description 换成一句话说它做什么。
 要提供扩展点服务就继承 cordis 的 `Service`：构建产物里有了按值 import 的 `cordis`，peer 里加上 `cordis`（别的包仍写 dev）。
 用这个服务的插件要 `import type` 它的类型，这时再让构建输出类型声明（做法见说明书「gwb-devkit」第 4 步「提供服务」）；模板插件不提供服务，不输出。
 
-开发界面前读 `skill.read {"name":"gwb-shell"}`：shadcn 官方组件配置、令牌、样式前缀、
-多桌面浮层与视觉验收都以外壳的说明书为准。模板只带一个最简单的窗格，组件照那份说明书接入。
+开发界面前读 `skill.read {"name":"gwb-shell"}`：shadcn 官方组件、令牌、样式前缀、
+多桌面浮层与视觉验收都以外壳的说明书为准。可点的控件一律用 shadcn 官方组件，不手写 `<button>`、`<input>`：
+要别的组件在插件包目录运行 `pnpm dlx shadcn@latest add <组件…>`，再照那份说明书「接入 shadcn 组件」把 CLI 写进
+`dependencies` 的包挪进 devDependencies、补装组件用到却没装的包。
 
 ## 构建与检查（仓根）
 
 ```powershell
 pnpm install
-pnpm build          # 递归构建 plugins/*：pnpm -r --filter "./plugins/*"（esbuild 打两侧、tailwindcss 出样式）
+pnpm build          # 递归构建 plugins/*：pnpm -r --filter "./plugins/*"（esbuild 打包 node 侧与浏览器侧、tailwindcss 生成样式）
 pnpm check          # 递归检查：typecheck（node 侧 + 浏览器侧）+ oxlint + vitest
 ```
 
