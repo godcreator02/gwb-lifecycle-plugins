@@ -1,6 +1,6 @@
 {
   "name": "@godcreator/gwb-devkit",
-  "version": "0.25.4",
+  "version": "0.25.5",
   "author": {
     "name": "godcreator"
   },
@@ -29,9 +29,9 @@
   },
   "peerDependencies": {
     "@godcreator/gwb-kernel-desktop": "^0.10.0",
-    "@godcreator/gwb-commands": "^0.5.6",
+    "@godcreator/gwb-commands": "^0.6.0",
     "@godcreator/gwb-plugin-manager": "workspace:^",
-    "@godcreator/gwb-node-cli": "^0.4.7",
+    "@godcreator/gwb-node-cli": "^0.5.0",
     "@godcreator/gwb-shell": "^0.15.1",
     "@godcreator/gwb-skills": "^0.4.5"
   },
