@@ -18,7 +18,7 @@
 | `rules/` | 写插件的规矩总表 |
 | `glossary.mdx` | 术语、退役的词与命令 |
 
-文档怎么写、分区、钉码怎么确认读 skill「docfirst-docs」；写插件、在隔离 home 里验证、发版读「gwb-devkit」；升版本号、改依赖版本号读「gwb-release」。
+文档怎么写、分区、钉码钉哪种话读 skill「docs-writing」，文档检查、确认黄灯、生成文件读「docs-site」；写插件、在隔离 home 里验证、发版读「gwb-devkit」；升版本号、改依赖版本号读「gwb-release」。
 
 ## 怎么跑
 

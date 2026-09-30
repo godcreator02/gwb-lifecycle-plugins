@@ -41,7 +41,7 @@ description: 升版本号、改依赖版本号、发破坏性版本时读。
 
 ## 三、发破坏性版本多做的两步
 
-1. **发之前**：在容器根下各仓的 `package.json` 里搜这个包名（仓在哪用 `unit-folder.list` 查），找出 dev 或 peer 里写了它的下游：peer 里写了它的，下次发版会被发版前检查拒；dev 里写了它的，要用新版时再跟。给每个下游仓投一条反馈「要跟 X 0.9」：写一个文件 `<下游仓的站>/content/future/inbox/<日期>-<来源>-<标题>.mdx`，在那个仓里只提交这一个文件（写法见说明书 `docfirst-docs` 的「给别的仓投反馈」）；还没迁到这种结构的旧站，写进 `content/feedback/inbox.mdx`
+1. **发之前**：在容器根下各仓的 `package.json` 里搜这个包名（仓在哪用 `unit-folder.list` 查），找出 dev 或 peer 里写了它的下游：peer 里写了它的，下次发版会被发版前检查拒；dev 里写了它的，要用新版时再跟。给每个下游仓写一条反馈「要跟 X 0.9」：写一个文件 `<下游仓的文档站目录>/content/future/inbox/<日期>-<来源>-<标题>.mdx`，在那个仓里只提交这一个文件（写法见说明书 `docs-site` 的「给别的仓写反馈」）；还没迁到这种结构的旧站，写进 `content/feedback/inbox.mdx`
 2. **发之后**：升 default 之前先让下游跟上，或用 `plugin-manager.update {"only":[…]}` 只升别的。升上去以后，peer 范围不包含新版本的下游由 `plugin-manager.list` 的 `unmetPeers` 报出，它们照常加载、不被拦下。改了名字（命令名、说明书名、术语）的，再查两遍：
    - 拿旧名字搜 MCP 入口的 instructions、各仓 AGENTS 里讲命令的段落、所有随包说明书的描述
    - 文档里点名的每个说明书名与命令名，拿 `skill.list` 与 `index` 再查一遍，指向不存在的就改
