@@ -27,6 +27,7 @@ export interface ReleaseDeps {
   /** 仓根的 git 工作区干不干净。问不出（不是 git 仓、没装 git）也是一种答案：拒 */
   gitStatus(repoDir: string): Promise<GitStatus>
   readText(file: string): string | undefined
+  realpath: PeerGraphIo['realpath']
   browserProviders?(pkgDir: string, manifest: Record<string, unknown>): Promise<BrowserProviders>
   exists(target: string): boolean
   filesUnder: StyleCheckIo['filesUnder']
@@ -233,6 +234,92 @@ export function peerProblems(manifest: TicketManifest, peerManifestOf: (pkg: str
   return problems
 }
 
+/** 同一次发的包：peer 图里按工作区里的清单算，它们 peer 里写的是 `workspace:*`，装上的未必是这一版 */
+export interface ReleaseSibling {
+  pkgDir: string
+  peers: string[]
+  plugin: boolean
+}
+
+/** 找 peer 图上的包要读的文件系统 */
+export interface PeerGraphIo {
+  readText(file: string): string | undefined
+  /** 目录链接指向的真实目录：pnpm 把一个包 peer 里的包放在它真实目录的旁边 */
+  realpath(target: string): string
+}
+
+/** peer 图上的一个包：它 peer 里的包名、是不是 gwb 插件、找它 peer 里的包时从哪个目录往上找 */
+interface PeerGraphNode {
+  peers: string[]
+  plugin: boolean
+  resolveFrom: string
+}
+
+/** 照 node 的解析规则从 `fromDir` 往上找 `node_modules/<包名>`：找到了回它的真实目录与清单，一直找到根都没有是 undefined */
+function installedPeerNode(fromDir: string, pkg: string, io: PeerGraphIo): PeerGraphNode | undefined {
+  for (let dir = path.resolve(fromDir); ; dir = path.dirname(dir)) {
+    const candidate = path.join(dir, 'node_modules', ...pkg.split('/'))
+    const text = io.readText(path.join(candidate, 'package.json'))
+    if (text !== undefined) {
+      const manifest = packageManifestOf(text)
+      return { peers: manifest === undefined ? [] : Object.keys(trimmedStringEntriesOf(manifest.peerDependencies)), plugin: isPluginManifest(manifest), resolveFrom: io.realpath(candidate) }
+    }
+    if (path.dirname(dir) === dir) return undefined
+  }
+}
+
+/**
+ * 插件包顺着 peer 里的 gwb 插件（keywords 含 gwb-plugin；cordis 与内核包不算）的已装清单一路往下走，走回本包就是环。
+ * 同一次发的包（`siblings`）按工作区里的清单算。每个直接 peer 各报一条最短的环；读不到清单的包不往下走（第一层读不到由 `peerProblems` 报）。
+ * 只认 peer：局部注入不写 peer，不算边
+ */
+export function peerCycleProblems(manifest: TicketManifest, pkgDir: string, siblings: ReadonlyMap<string, ReleaseSibling>, io: PeerGraphIo): string[] {
+  if (!manifest.plugin) return []
+  const nodes = new Map<string, PeerGraphNode | undefined>([[manifest.name, { peers: Object.keys(manifest.peers), plugin: true, resolveFrom: pkgDir }]])
+  const nodeOf = (pkg: string, reachedFrom: PeerGraphNode): PeerGraphNode | undefined => {
+    if (!nodes.has(pkg)) {
+      const sibling = siblings.get(pkg)
+      nodes.set(pkg, sibling === undefined ? installedPeerNode(reachedFrom.resolveFrom, pkg, io) : { peers: sibling.peers, plugin: sibling.plugin, resolveFrom: sibling.pkgDir })
+    }
+    return nodes.get(pkg)
+  }
+  const pluginPeersOfNode = (node: PeerGraphNode): string[] =>
+    node.peers
+      .filter((pkg) => pkg !== 'cordis' && pkg !== KERNEL_PACKAGE && nodeOf(pkg, node)?.plugin === true)
+      .sort((a, b) => a.localeCompare(b))
+
+  const problems: string[] = []
+  for (const directPeer of pluginPeersOfNode(nodes.get(manifest.name)!)) {
+    const cycle = shortestPathBack(manifest.name, directPeer, (pkg) => pluginPeersOfNode(nodes.get(pkg)!))
+    if (cycle === undefined) continue
+    problems.push(
+      `peer 成环:${cycle.join(' → ')}(顺着 peer 里的 gwb 插件的已装清单走回了本包;同一次发的包按工作区里的清单)。` +
+        '插件管理升级时按 peer 排重新加载的先后,环上的包排不出先后,只能重启工作台才换上新版本。' +
+        '去掉环上的一条 peer:反方向改用局部注入 <上下文>.inject([...], fn)、不写 peer,提供方是同一个工作区里 peer 写了本包的插件时,发版前检查对这种写法放行',
+    )
+  }
+  return problems
+}
+
+/** 广度优先：从 `start` 的直接 peer `first` 出发走回 `start` 的最短路径，连同首尾的 `start`；走不回来是 undefined */
+function shortestPathBack(start: string, first: string, peersOf: (pkg: string) => string[]): string[] | undefined {
+  const cameFrom = new Map<string, string>([[first, start]])
+  const queue = [first]
+  while (queue.length > 0) {
+    const current = queue.shift()!
+    if (current === start) break
+    for (const next of peersOf(current)) {
+      if (cameFrom.has(next)) continue
+      cameFrom.set(next, current)
+      queue.push(next)
+    }
+  }
+  if (!cameFrom.has(start)) return undefined
+  const route = [start]
+  for (let step = cameFrom.get(start)!; step !== start; step = cameFrom.get(step)!) route.unshift(step)
+  return [start, ...route]
+}
+
 /** 发版前检查没过时那句回执：按包分组，一次列全 */
 export function ticketRefusal(tickets: Ticket[]): string {
   const failedTickets = tickets.filter((ticket) => ticket.problems.length > 0)
@@ -321,7 +408,13 @@ async function latestOfUpstreams(planned: PlannedPackage[], deps: ReleaseDeps): 
   return latest
 }
 
-async function ticketFor(repoDir: string, plannedPackage: PlannedPackage, latest: Record<string, string | undefined>, deps: ReleaseDeps): Promise<Ticket> {
+async function ticketFor(
+  repoDir: string,
+  plannedPackage: PlannedPackage,
+  siblings: ReadonlyMap<string, ReleaseSibling>,
+  latest: Record<string, string | undefined>,
+  deps: ReleaseDeps,
+): Promise<Ticket> {
   const { pkgDir, manifest, pluginPeers, peerManifestOf } = plannedPackage
   const providers = manifest.plugin ? await deps.browserProviders?.(pkgDir, manifest.doc) : undefined
   const providerIo = providers === undefined || !providers.declared
@@ -330,6 +423,7 @@ async function ticketFor(repoDir: string, plannedPackage: PlannedPackage, latest
     ...(providers?.problems ?? []),
     ...peerLineProblems(manifest, latest, pluginPeers),
     ...peerProblems(manifest, peerManifestOf),
+    ...peerCycleProblems(manifest, pkgDir, siblings, deps),
     ...kernelPeerProblems(manifest),
     ...artifactProblems(pkgDir, manifest.doc, manifest.plugin, providerIo),
     ...(await styleProblems(pkgDir, manifest, deps)),
@@ -364,8 +458,9 @@ export async function runRelease(input: ReleaseInput, deps: ReleaseDeps): Promis
   if ('ok' in plan) return plan
 
   const latest = await latestOfUpstreams(plan.planned, deps)
+  const siblings = new Map(plan.planned.map((planned) => [planned.manifest.name, { pkgDir: planned.pkgDir, peers: Object.keys(planned.manifest.peers), plugin: planned.manifest.plugin }]))
   const tickets: Ticket[] = []
-  for (const plannedPackage of plan.planned) tickets.push(await ticketFor(input.repoDir, plannedPackage, latest, deps))
+  for (const plannedPackage of plan.planned) tickets.push(await ticketFor(input.repoDir, plannedPackage, siblings, latest, deps))
   if (tickets.some((ticket) => ticket.problems.length > 0)) return { ok: false, error: ticketRefusal(tickets) }
 
   const shipped = await publishInOrder(plan.planned, plan.ranges, deps)

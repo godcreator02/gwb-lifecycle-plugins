@@ -1,6 +1,19 @@
 import { describe, expect, it } from 'vitest'
 import { fiberStateOf, settleFiber } from '../src/fiber.js'
-import { assertOnlyNotKernelManaged, assertOnlyPackagesInHome, packagesToRemount, planOutdatedUpdate, planSpecsUpdate, versionChangesAfterAdd } from '../src/update.js'
+import {
+  assertOnlyNotKernelManaged,
+  assertOnlyPackagesInHome,
+  deferredAfterSelf,
+  deferredEntryIdsOf,
+  packageRemountingSelf,
+  packagesToRemount,
+  peerCycleNote,
+  peerNamesOf,
+  planOutdatedUpdate,
+  planSpecsUpdate,
+  remountOrderOf,
+  versionChangesAfterAdd,
+} from '../src/update.js'
 
 /**
  * `update` 装之前的计划（pnpm 参数与回执里的版本）与装之后按真实目录定下的重新加载对象。fixture 照 uninstall.test 的样式——store 是
@@ -261,6 +274,124 @@ describe('packagesToRemount：pnpm add 前后真实目录变了的包都重新�
 
   it('哪个包都没点名、目录都没变：两份都是空的', () => {
     expect(packagesToRemount(before, new Map(before), [], dependentsStore, 'home:plugin-manager')).toEqual({ updated: [], dependents: [] })
+  })
+})
+
+describe('peerNamesOf：装上后清单里 peerDependencies 的包名', () => {
+  it('读不到清单、没写 peer、写法不是对象：空表；写了就是全部键', () => {
+    expect(peerNamesOf(undefined)).toEqual([])
+    expect(peerNamesOf({ name: HELLO })).toEqual([])
+    expect(peerNamesOf({ peerDependencies: 'x' })).toEqual([])
+    expect(peerNamesOf({ peerDependencies: { [COMMANDS]: '^0.2.0', cordis: '4.0.0-rc.10' } })).toEqual([COMMANDS, 'cordis'])
+  })
+})
+
+describe('remountOrderOf：一批要重新加载的包按 peer 排先后', () => {
+  const CORE = '@godcreator/gwb-bn-core'
+  const COMMENT = '@godcreator/gwb-bn-comment'
+  const QUERY = '@godcreator/gwb-bn-query'
+  const JOURNAL = '@godcreator/gwb-bn-journal'
+  const PROPS = '@godcreator/gwb-bn-props'
+  const SINGLE = '@godcreator/gwb-bn-single'
+  const PAPERS = '@godcreator/gwb-bn-papers'
+  const KERNEL = '@godcreator/gwb-kernel-desktop'
+  const BUS = '@godcreator/gwb-commands'
+
+  it('块笔记那一批：点了名的四个与跟着重新加载的三个合在一起排，被依赖的先、同一层按包名', () => {
+    const peersOf = new Map([
+      [CORE, [KERNEL, BUS]],
+      [COMMENT, [KERNEL, CORE]],
+      [QUERY, [KERNEL, CORE]],
+      [JOURNAL, [KERNEL, CORE]],
+      [PROPS, [KERNEL, CORE]],
+      [SINGLE, [KERNEL, CORE]],
+      [PAPERS, [KERNEL, CORE, PROPS]],
+    ])
+    const order = remountOrderOf([COMMENT, CORE, JOURNAL, QUERY, PAPERS, PROPS, SINGLE], peersOf)
+    expect(order).toEqual({ ordered: [CORE, COMMENT, JOURNAL, PROPS, QUERY, SINGLE, PAPERS], cycles: [], heldBack: [] })
+  })
+
+  it('互不依赖的包在同一层：按包名，不按给的先后', () => {
+    expect(remountOrderOf(['@x/c', '@x/a', '@x/b'], new Map()).ordered).toEqual(['@x/a', '@x/b', '@x/c'])
+  })
+
+  it('这批之外的 peer 不影响先后；自己写自己不算环', () => {
+    const peersOf = new Map([
+      ['@x/a', ['@x/outside', '@x/b']],
+      ['@x/b', ['@x/outside', '@x/b']],
+    ])
+    expect(remountOrderOf(['@x/a', '@x/b'], peersOf)).toEqual({ ordered: ['@x/b', '@x/a'], cycles: [], heldBack: [] })
+  })
+
+  it('peer 成环：环上的与传递地依赖环的挑出来不排、环按 peer 方向从包名最小的起；其余照排', () => {
+    const peersOf = new Map([
+      ['@x/a', ['@x/b']],
+      ['@x/b', ['@x/a']],
+      ['@x/c', ['@x/a']],
+      ['@x/e', ['@x/c']],
+      ['@x/x', ['@x/y']],
+      ['@x/y', ['@x/z']],
+      ['@x/z', ['@x/x']],
+      ['@x/free', []],
+      ['@x/after-free', ['@x/free']],
+    ])
+    const order = remountOrderOf(['@x/e', '@x/c', '@x/b', '@x/a', '@x/z', '@x/y', '@x/x', '@x/after-free', '@x/free'], peersOf)
+    expect(order.ordered).toEqual(['@x/free', '@x/after-free'])
+    expect(order.heldBack).toEqual(['@x/a', '@x/b', '@x/c', '@x/e', '@x/x', '@x/y', '@x/z'])
+    expect(order.cycles).toEqual([
+      ['@x/a', '@x/b', '@x/a'],
+      ['@x/x', '@x/y', '@x/z', '@x/x'],
+    ])
+  })
+
+  it('peerCycleNote：写出每个环、这次没重新加载的包、重启后才生效、反方向改用局部注入', () => {
+    const note = peerCycleNote([['@x/a', '@x/b', '@x/a']], ['@x/a', '@x/b', '@x/c'])
+    expect(note).toContain('peer 成环：@x/a → @x/b → @x/a')
+    expect(note).toContain('这次没有重新加载 @x/a、@x/b、@x/c')
+    expect(note).toContain('重启工作台后才换成新装的版本')
+    expect(note).toContain('<上下文>.inject([...], fn)')
+  })
+})
+
+describe('deferredAfterSelf：插件管理自己与传递地 peer 了它的包推迟到回执之后', () => {
+  const PM = '@godcreator/gwb-plugin-manager'
+  const BASEUI = '@godcreator/gwb-baseui'
+  const DEVKIT = '@godcreator/gwb-devkit'
+  const SHELL = '@godcreator/gwb-shell'
+  const CORE = '@godcreator/gwb-bn-core'
+  const COMMENT = '@godcreator/gwb-bn-comment'
+  const PANE = '@x/gwb-some-pane'
+  const peersOf = new Map([
+    [PM, [COMMANDS]],
+    [BASEUI, [PM, SHELL]],
+    [DEVKIT, [PM, COMMANDS]],
+    [CORE, [SHELL]],
+    [COMMENT, [CORE]],
+    [PANE, [BASEUI]],
+  ])
+  const batch = [PM, BASEUI, DEVKIT, CORE, COMMENT, PANE]
+
+  it('插件管理、baseui、devkit 与块笔记一起升级：块笔记在命令里重新加载，其余按依赖顺序在回执之后，插件管理最前', () => {
+    const { ordered } = remountOrderOf(batch, peersOf)
+    expect(ordered).toEqual([CORE, PM, BASEUI, COMMENT, DEVKIT, PANE])
+    expect(deferredAfterSelf(ordered, peersOf, PM)).toEqual({ now: [CORE, COMMENT], afterReceipt: [PM, BASEUI, DEVKIT, PANE] })
+  })
+
+  it('这次不重新加载插件管理自己：全部在命令里', () => {
+    const { ordered } = remountOrderOf(batch, peersOf)
+    expect(deferredAfterSelf(ordered, peersOf, undefined)).toEqual({ now: ordered, afterReceipt: [] })
+  })
+
+  it('packageRemountingSelf 与 deferredEntryIdsOf：自己那条（启用着的）所在的包；推迟的条目自己在最前、停用的不算', () => {
+    const planned = [
+      { pkg: BASEUI, entries: [{ id: 'baseui', disabled: false, self: false }, { id: 'baseui-off', disabled: true, self: false }] },
+      { pkg: PM, entries: [{ id: 'pm-second', disabled: false, self: false }, { id: 'plugin-manager', disabled: false, self: true }] },
+      { pkg: DEVKIT, entries: [{ id: 'devkit', disabled: false, self: false }] },
+    ]
+    expect(packageRemountingSelf(planned)).toBe(PM)
+    expect(deferredEntryIdsOf([PM, BASEUI, DEVKIT], planned)).toEqual(['plugin-manager', 'pm-second', 'baseui', 'devkit'])
+    expect(packageRemountingSelf([{ pkg: PM, entries: [{ id: 'plugin-manager', disabled: true, self: true }] }])).toBeUndefined()
+    expect(packageRemountingSelf([{ pkg: PM, entries: [] }])).toBeUndefined()
   })
 })
 

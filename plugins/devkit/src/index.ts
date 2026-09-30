@@ -92,6 +92,11 @@ const STYLE_CHECK_SUMMARY =
   '颜色只用主题令牌（规则的声明里引用的 var(--<前缀>-color-<名>) 只能是外壳 theme.reference.css 与本插件样式入口声明的 --color-<名>，出厂调色板就是这样被认出来的）；样式入口所在目录下 .tsx 字符串里的类名：前缀排在最前、带前缀的编得出规则（dist/style.css 里当 @scope 根或界限用的类除外）、' +
   '不带前缀却编得出规则的报「漏了前缀」。编译用包自己 dev 里 @tailwindcss/cli 旁边的 @tailwindcss/node，找不到就报'
 
+/** 插件包的 peer 成不成环查什么：devkit.release 的两份 usage 共用这一句 */
+const PEER_CYCLE_CHECK_SUMMARY =
+  'peer 不成环——从本包出发，顺着 peer 里的 gwb 插件（keywords 含 gwb-plugin）的已装清单往下走（包 peer 里的包照 node 的解析规则从它的真实目录往上找；同一次发的包按工作区里的清单），走回本包就拒，理由里列出环（A → B → A）：' +
+  '去掉环上的一条 peer，反方向改用局部注入 <上下文>.inject([...], fn)、不写 peer（提供方是同一个工作区里 peer 写了本包的插件时，下面的注入检查放行）；'
+
 /** 插件包的注入与 peer 一致查什么：devkit.release 的两份 usage 共用这一句 */
 const WIRING_CHECK_SUMMARY =
   '注入与 peer 一致——扫 src/ 下源码（.d.ts 除外）里的 export const inject = [...]、static inject = [...]（必需）与 <上下文>.inject([...], fn)（局部注入），数组里只认字符串字面量，像注入又读不出服务名的写法直接拒；' +
@@ -125,6 +130,7 @@ const RELEASE_USAGE = [
   '**发版前检查没过就拒**（构建之后，所有包一次列全）：产物里相对 import 指向的文件都在；dev 依赖不查',
   `**带界面的插件包另加样式检查**（构建后有 dist/style.css 才查）：${STYLE_CHECK_SUMMARY}`,
   '**插件包另加**（keywords 含 gwb-plugin）：peer 里只许 cordis、内核包 @godcreator/gwb-kernel-desktop 与别的插件（包目录 node_modules 里它的清单 keywords 含 gwb-plugin），peer 里每个 gwb 插件（不分范围）和源上 dist-tags.latest 在同一条线（0.x 只看 x，≥1 只看主版本号；问哪个源由 ~/.npmrc 的范围行决定）；node 侧产物（exports["."] 入口顺着相对 import 走到的文件）的包名 import 只有 node 内置模块、electron 与 peer 里写了的包；浏览器侧产物（dist/client.js 与自身提供的模块）只 import 自身及直接 peer 的 ./browser-imports 代码出口提供的名字；检查同步映射、本地文件、包内路径、files 白名单与冲突；未声明提供方的旧项目兼容读取旧内核 HTML importmap；peer 里写了内核包、写法是 ^x.y.z（范围包不包含哪个内核不查，验证之后由人改）；' +
+    PEER_CYCLE_CHECK_SUMMARY +
     WIRING_CHECK_SUMMARY,
   '**这条命令只发到源、不碰任何 home**，从哪个 home 调用都行；升级 default 是下一步的事，用 plugin-manager.update {"all":true}',
   '例：{"dir":"D:\\\\unitfolders\\\\evew5-gwbapps\\\\gwb-block-note","packages":["packages/model","packages/engine","packages/client","plugins/gwb-bn-core","plugins/gwb-bn-comment"]}',
@@ -436,6 +442,7 @@ function registerReleaseCommand({ log, commands }: Wiring): void {
       description: '发正式版到包的 publishConfig.registry（git 工作区干净→构建→验产物→发版前检查→在临时目录里组装并发布）',
       usage:
         '{dir 必给（仓根绝对路径）, packages 必给（包目录的非空数组，相对仓根，按依赖顺序）}。一条走完：仓根 git 工作区干净（有未提交改动就拒，一个都不发）→ 仓根 pnpm build → 照 files 白名单验产物 → 同号已在发布目标上就拒（发布目标是包自己 package.json 的 publishConfig.registry；没写、或写的不是 http(s) 地址就拒）→ 发版前检查（每个要发的包：产物里相对 import 指向的文件都在；dev 依赖不查。keywords 含 gwb-plugin 的插件包另加：peer 里只许 cordis、内核包 @godcreator/gwb-kernel-desktop 与别的插件（包目录 node_modules 里它的清单 keywords 含 gwb-plugin），peer 里每个 gwb 插件（不分范围）和源上 dist-tags.latest 在同一条线（0.x 只看 x，≥1 只看主版本号；问哪个源由 ~/.npmrc 的范围行决定）；node 侧产物——exports["."] 的运行时入口（没有 exports 时是 main）顺着相对 import 走到的文件——的包名 import 只有 node 内置模块、electron 与 peer 里写了的包；浏览器侧产物——dist/client.js 与自身提供的模块，同样顺着相对 import 走——只 import 自身及直接 peer 的 ./browser-imports 代码出口提供的名字；检查同步映射、本地文件、包内路径、files 白名单与冲突；未声明提供方的旧项目兼容读取旧内核 HTML importmap；peer 里写了内核包、写法是 ^x.y.z，范围包不包含哪个内核不查；' +
+        PEER_CYCLE_CHECK_SUMMARY +
         WIRING_CHECK_SUMMARY +
         '；构建后有 dist/style.css 的插件包再做样式检查：' +
         STYLE_CHECK_SUMMARY +

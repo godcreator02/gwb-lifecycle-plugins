@@ -32,14 +32,22 @@ import { fiberStateOf } from './fiber.js'
 import {
   assertOnlyNotKernelManaged,
   assertOnlyPackagesInHome,
+  deferredAfterSelf,
+  deferredEntryIdsOf,
+  packageRemountingSelf,
   packagesToRemount,
+  peerCycleNote,
+  peerNamesOf,
   planOutdatedUpdate,
   planSpecsUpdate,
+  remountOrderOf,
   versionChangesAfterAdd,
   type InstalledDirectories,
   type InstalledVersions,
   type PackageEntries,
+  type PeerNamesByPackage,
   type PlannedEntry,
+  type RemountSchedule,
   type SpecsUpdatePlan,
   type UpdateArgs,
   type VersionChangesAfterAdd,
@@ -200,7 +208,7 @@ class PluginManager {
     registerBusyGuardedCommand(
       UPDATE_COMMAND,
       '升级 home 里已装的包（全部过期的、点名的几个、或按给定写法装，内核包也走这条），不重启、不整页重新加载',
-      `${UPDATE_ARGS_USAGE}。home 的 package.json 里照 pnpm 默认写 ^ 范围（只有 ${CORDIS_PACKAGE} 写精确版本号）；清单里已有的 ^ 范围会挡住往回退版本，specs 退回旧版会在核对时回 ok: false。all 与 only：一次 pnpm add 把过期包升到 outdated 返回的精确版本；specs：一次 pnpm add 每项 <包名>@<写法>，不查 outdated，写法是准确版本号的，装完读 node_modules 里的清单核对，装上的不是那个号就回 ok: false、一条条目都不重新加载（tag 与 file: 不核对）。pnpm add 前后 home 里 node_modules/<包名> 指向的真实目录变了的包，条目在同一条命令里逐条停用→启用、重新加载成新版本（原本停用的跳过；插件管理自己那条在回执发出后才重新加载）：点了名的包归 updated（装的就是原来那一版、目录没变的也列出，entries 为空），没点名的（多半是 peer 写了被装的包的插件）归 dependents。不整页重新加载：界面要换成新代码，由调用方拿到回执后自己调 shell.reload。内核包 ${KERNEL_PACKAGE} 与 ${CORDIS_PACKAGE} 不在过期清单里，only 点了它们直接报错。specs 里有内核包时：内核包与其余包一次 pnpm add，再读装上的内核包 peerDependencies.cordis（必须是精确版本号）pnpm add ${CORDIS_PACKAGE}@<那个版本>，不重新加载任何条目——主进程里的内核换不掉，重启工作台后才生效，重启由人决定；回执另带 restartRequired（装上的内核版本与正在运行的不同时是 true），重启后 peer 范围不包含新内核的插件由 ${LIST_COMMAND} 的 unmetPeers 列出；内核包装上了而 cordis 没对齐时回 ok: false，data 带 { kernel: { from?, to } }，error 说明先别重启。specs 里写 ${CORDIS_PACKAGE} 直接报错。回执 data { updated: [{ pkg, from?, to, entries: [{ id, action, state }] }], dependents: [{ pkg, entries: [{ id, action, state }] }], selfDeferred, restartRequired?, note? }：specs 的 from 是装之前 node_modules 里清单的 version（读不到就没有），to 是装完读到的 version；失败时 error 里带 pnpm 输出的最后几行；${BUSY_USAGE_NOTE}`,
+      `${UPDATE_ARGS_USAGE}。home 的 package.json 里照 pnpm 默认写 ^ 范围（只有 ${CORDIS_PACKAGE} 写精确版本号）；清单里已有的 ^ 范围会挡住往回退版本，specs 退回旧版会在核对时回 ok: false。all 与 only：一次 pnpm add 把过期包升到 outdated 返回的精确版本；specs：一次 pnpm add 每项 <包名>@<写法>，不查 outdated，写法是准确版本号的，装完读 node_modules 里的清单核对，装上的不是那个号就回 ok: false、一条条目都不重新加载（tag 与 file: 不核对）。pnpm add 前后 home 里 node_modules/<包名> 指向的真实目录变了的包，条目在同一条命令里逐条停用→启用、重新加载成新版本（原本停用的跳过）：点了名的包归 updated（装的就是原来那一版、目录没变的也列出，entries 为空），没点名的（多半是 peer 写了被装的包的插件）归 dependents。重新加载的先后按装上后清单里的 peerDependencies 排（只看这批要重新加载的包之间的 peer），被依赖的先、同一层按包名，两组合在一起排，组内也照这个先后列；插件管理自己，以及这批里传递地 peer 了插件管理的包，条目记 action deferred，回执发出后按这个先后依次重新加载（插件管理自己在最前，一条失败只记日志、接着下一条）。这批包里 peer 成环时，环上的包与传递地 peer 了环上包的包这次不重新加载（entries 为空），回执带 restartRequired: true，note 写明环（A → B → A）、这些包重启工作台后才换成新版本；其余包照常按先后重新加载。不整页重新加载：界面要换成新代码，由调用方拿到回执后自己调 shell.reload。内核包 ${KERNEL_PACKAGE} 与 ${CORDIS_PACKAGE} 不在过期清单里，only 点了它们直接报错。specs 里有内核包时：内核包与其余包一次 pnpm add，再读装上的内核包 peerDependencies.cordis（必须是精确版本号）pnpm add ${CORDIS_PACKAGE}@<那个版本>，不重新加载任何条目——主进程里的内核换不掉，重启工作台后才生效，重启由人决定；回执另带 restartRequired（装上的内核版本与正在运行的不同时是 true；不装内核包时只在 peer 成环时出现），重启后 peer 范围不包含新内核的插件由 ${LIST_COMMAND} 的 unmetPeers 列出；内核包装上了而 cordis 没对齐时回 ok: false，data 带 { kernel: { from?, to } }，error 说明先别重启。specs 里写 ${CORDIS_PACKAGE} 直接报错。回执 data { updated: [{ pkg, from?, to, entries: [{ id, action, state }] }], dependents: [{ pkg, entries: [{ id, action, state }] }], selfDeferred, restartRequired?, note? }：specs 的 from 是装之前 node_modules 里清单的 version（读不到就没有），to 是装完读到的 version；失败时 error 里带 pnpm 输出的最后几行；${BUSY_USAGE_NOTE}`,
       (args) => this.update(updateArgsOf(args)),
     )
 
@@ -422,7 +430,8 @@ class PluginManager {
   }
 
   /**
-   * 一次 pnpm add → 真实目录变了的包逐条重新加载（点了名的在前、别的在后）；本插件自己推迟到回执之后。不整页重新加载：
+   * 一次 pnpm add → 真实目录变了的包按 peer 排的先后逐条重新加载；本插件自己与传递地 peer 了它的包推迟到回执之后；
+   * peer 成环的与依赖环的这次不重新加载，回执带 restartRequired。不整页重新加载：
    * shell.reload 在主进程里同步重载页面，经页面调用这条命令的调用方收不到回执，所以整页重新加载交给调用方。
    * `versionChangesAfterInstall` 在 pnpm add 成功之后、重新加载之前调用，给出回执里每个包的 from / to
    */
@@ -440,15 +449,42 @@ class PluginManager {
     const versionChanges = await versionChangesAfterInstall()
     if (!versionChanges.ok) return this.failed(`${versionChanges.error}。一条条目都没动`)
 
-    // 升完不重新加载，运行着的还是旧版本，等于没升；旧版本目录也不会一直留着（pnpm 默认约 7 天后清掉）。所以换了目录的每条条目都在这条命令里重新加载
+    // 升完不重新加载，运行着的还是旧版本，等于没升；旧版本目录也不会一直留着（pnpm 默认约 7 天后清掉）。所以换了目录的条目都由这条命令重新加载，只有 peer 成环的留到重启
     const targets = packagesToRemount(directoriesBefore, await this.readInstalledDirectories(homePackages), requestedPackages, this.tree.store, ownEntryId(this.ctx))
-    const { updated, dependents, ownEntry } = await this.remountUpgradedEntries(targets.updated, versionChanges.changes, targets.dependents)
+    const plannedPackages = [...targets.updated, ...targets.dependents]
+    const peersOf = await this.readInstalledPeerNames(plannedPackages.map((planned) => planned.pkg))
+    const order = remountOrderOf(plannedPackages.map((planned) => planned.pkg), peersOf)
+    const schedule = deferredAfterSelf(order.ordered, peersOf, packageRemountingSelf(plannedPackages))
+    const remounted = await this.remountInOrder(plannedPackages, schedule, order.heldBack)
+
+    const executionOrder = [...schedule.now, ...schedule.afterReceipt, ...order.heldBack]
+    const inExecutionOrder = <T extends { pkg: string }>(group: readonly T[]): T[] =>
+      [...group].sort((a, b) => executionOrder.indexOf(a.pkg) - executionOrder.indexOf(b.pkg))
+    const updated = inExecutionOrder(targets.updated).map<UpdatedPackage>((planned) => ({ pkg: planned.pkg, ...versionChanges.changes.get(planned.pkg)!, entries: remounted.get(planned.pkg)! }))
+    const dependents = inExecutionOrder(targets.dependents).map<DependentPackage>((planned) => ({ pkg: planned.pkg, entries: remounted.get(planned.pkg)! }))
+
     const summary =
       updated.map(describeVersionChange).join('，') +
       (dependents.length === 0 ? '' : `；跟着重新加载 ${dependents.map((d) => d.pkg).join('、')}`)
-    if (ownEntry !== undefined) remountSelfLater(this.tree, ownEntry.id, this.log)
-    this.log.info(`升级完成：${summary}${ownEntry === undefined ? '' : `；插件管理自己（${ownEntry.id}）在回执之后重新加载`}`)
-    return { ok: true, data: { updated, dependents, selfDeferred: ownEntry !== undefined, ...noteOf(notes) } }
+    const deferredIds = deferredEntryIdsOf(schedule.afterReceipt, plannedPackages)
+    const [ownId, ...followingIds] = deferredIds
+    if (ownId !== undefined) remountSelfLater(this.tree, ownId, followingIds, this.log)
+    this.log.info(`升级完成：${summary}${ownId === undefined ? '' : `；回执之后依次重新加载 ${deferredIds.join('、')}（插件管理自己在最前）`}`)
+    if (order.cycles.length > 0) {
+      const cycleNote = peerCycleNote(order.cycles, order.heldBack)
+      this.log.warn(cycleNote)
+      notes.push(cycleNote)
+    }
+    return {
+      ok: true,
+      data: { updated, dependents, selfDeferred: ownId !== undefined, ...(order.cycles.length > 0 ? { restartRequired: true } : {}), ...noteOf(notes) },
+    }
+  }
+
+  /** 包 → 装上后清单里 peerDependencies 的包名。`pnpm add` 之后读：排的是这次装上的那一版的依赖 */
+  private async readInstalledPeerNames(pkgs: readonly string[]): Promise<PeerNamesByPackage> {
+    const manifests = await Promise.all(pkgs.map((pkg) => readInstalledPackageManifest(this.homeDir, pkg)))
+    return new Map(pkgs.map((pkg, index) => [pkg, peerNamesOf(manifests[index])]))
   }
 
   /**
@@ -466,40 +502,26 @@ class PluginManager {
     return new Map(pkgs.map((pkg, index) => [pkg, installedVersionOf(manifests[index])]))
   }
 
-  /** 逐条重新加载：先点了名的包，再跟着重新加载的包；本插件自己那条（启用着的）只记 deferred，交给调用方在回执之后处理 */
-  private async remountUpgradedEntries(
-    packages: readonly PackageEntries[],
-    versionChanges: ReadonlyMap<string, VersionChange>,
-    plannedDependentPackages: readonly PackageEntries[],
-  ): Promise<{ updated: UpdatedPackage[]; dependents: DependentPackage[]; ownEntry: PlannedEntry | undefined }> {
-    let ownEntry: PlannedEntry | undefined
-    const remountEntriesOf = async (plannedEntries: readonly PlannedEntry[]): Promise<RemountedEntry[]> => {
+  /**
+   * 包 → 它每条条目的处理结果：`schedule.now` 的包在这里依次重新加载；`schedule.afterReceipt` 的包启用着的条目只记 deferred
+   * （state 是重新加载前的状态），交给 `remountSelfLater`；`heldBack` 的包不动，结果是空数组。本来就停用的条目跳过
+   */
+  private async remountInOrder(plannedPackages: readonly PackageEntries[], schedule: RemountSchedule, heldBack: readonly string[]): Promise<Map<string, RemountedEntry[]>> {
+    const plannedByPackage = new Map(plannedPackages.map((planned) => [planned.pkg, planned.entries]))
+    const remounted = new Map<string, RemountedEntry[]>()
+    for (const pkg of schedule.now) {
       const entries: RemountedEntry[] = []
-      for (const entry of plannedEntries) {
-        if (entry.self && !entry.disabled) {
-          ownEntry = entry
-          entries.push({ id: entry.id, action: 'deferred', state: fiberStateOf(this.tree.store[entry.id]) })
-          continue
-        }
-        entries.push(await this.remountPlanned(entry))
-      }
-      return entries
+      for (const entry of plannedByPackage.get(pkg)!) entries.push(entry.disabled ? skippedEntry(entry) : await remountNow(this.tree, entry.id, this.log))
+      remounted.set(pkg, entries)
     }
-    const updated: UpdatedPackage[] = []
-    for (const plannedPackage of packages) {
-      updated.push({ pkg: plannedPackage.pkg, ...versionChanges.get(plannedPackage.pkg)!, entries: await remountEntriesOf(plannedPackage.entries) })
+    for (const pkg of schedule.afterReceipt) {
+      remounted.set(
+        pkg,
+        plannedByPackage.get(pkg)!.map<RemountedEntry>((entry) => (entry.disabled ? skippedEntry(entry) : { id: entry.id, action: 'deferred', state: fiberStateOf(this.tree.store[entry.id]) })),
+      )
     }
-    const dependents: DependentPackage[] = []
-    for (const plannedDependent of plannedDependentPackages) {
-      dependents.push({ pkg: plannedDependent.pkg, entries: await remountEntriesOf(plannedDependent.entries) })
-    }
-    return { updated, dependents, ownEntry }
-  }
-
-  /** 本来就停用的跳过（保持停用），修改条目树时抛出的错误转成 failed */
-  private async remountPlanned(entry: PlannedEntry): Promise<RemountedEntry> {
-    if (entry.disabled) return { id: entry.id, action: 'skipped', state: 'disabled' }
-    return remountNow(this.tree, entry.id, this.log)
+    for (const pkg of heldBack) remounted.set(pkg, [])
+    return remounted
   }
 
   /** 包没装（调用方写错了）、是内核包或 cordis 直接抛；删条目与 pnpm 两步的失败转成回执 */
@@ -653,6 +675,11 @@ function updateArgsOf(args: unknown): UpdateArgs {
     throw new Error('specs 要是个非空对象，键是包名、值是非空字符串写法，比如 { "specs": { "@godcreator/gwb-hello": "0.3.1" } }')
   }
   return { specs: specs as Record<string, string> }
+}
+
+/** 本来就停用的条目：保持停用，不重新加载 */
+function skippedEntry(entry: PlannedEntry): RemountedEntry {
+  return { id: entry.id, action: 'skipped', state: 'disabled' }
 }
 
 function describeVersionChange(updated: UpdatedPackage): string {

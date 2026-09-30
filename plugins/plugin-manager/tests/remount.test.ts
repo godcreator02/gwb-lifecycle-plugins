@@ -103,17 +103,39 @@ describe('remountNow：在调用方的 await 链里重新加载一条', () => {
   })
 })
 
-describe('remountSelfLater：插件管理自己', () => {
+describe('remountSelfLater：插件管理自己与依赖它的包', () => {
   it('当下什么都不动；下一个宏任务才停用再启用', async () => {
     const tree = fakeTree([OWN, 'hello'])
     const timers = manualSchedule()
     const log = quietLog()
-    remountSelfLater(tree, OWN, log, timers.schedule, 10)
+    remountSelfLater(tree, OWN, [], log, timers.schedule, 10)
     expect(tree.calls).toEqual([])
     expect(timers.pending()).toBe(1)
 
     timers.flush()
     await expect.poll(() => tree.calls).toEqual([`${OWN} off`, `${OWN} on`])
     await expect.poll(() => log.lines.some((line) => line.includes('重新加载了：ACTIVE'))).toBe(true)
+  })
+
+  it('自己在最前，之后按给的先后一条接一条：每条等前一条启用完才停用', async () => {
+    const tree = fakeTree([OWN, 'baseui', 'devkit'])
+    const timers = manualSchedule()
+    const log = quietLog()
+    remountSelfLater(tree, OWN, ['baseui', 'devkit'], log, timers.schedule, 10)
+    timers.flush()
+    await expect.poll(() => tree.calls).toEqual([`${OWN} off`, `${OWN} on`, 'baseui off', 'baseui on', 'devkit off', 'devkit on'])
+    await expect.poll(() => log.lines).toEqual([`插件管理自己（${OWN}）重新加载了：ACTIVE`, '条目 baseui 重新加载了：ACTIVE', '条目 devkit 重新加载了：ACTIVE'])
+  })
+
+  it('中间一条失败：记一行 warn，后面的照常重新加载', async () => {
+    const tree = fakeTree([OWN, 'devkit'])
+    const timers = manualSchedule()
+    const log = quietLog()
+    remountSelfLater(tree, OWN, ['ghost', 'devkit'], log, timers.schedule, 10)
+    timers.flush()
+    await expect.poll(() => tree.calls).toEqual([`${OWN} off`, `${OWN} on`, 'devkit off', 'devkit on'])
+    await expect.poll(() => log.lines).toHaveLength(3)
+    expect(log.lines[1]).toMatch(/^warn 条目 ghost 重新加载失败：.*cannot resolve entry ghost/)
+    expect(log.lines[2]).toBe('条目 devkit 重新加载了：ACTIVE')
   })
 })

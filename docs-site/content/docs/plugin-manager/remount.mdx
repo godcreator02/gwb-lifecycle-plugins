@@ -1,11 +1,11 @@
 ---
 title: 重新加载条目
-description: update 装完包后逐条重新加载条目：停用 → 等旧的卸载完 → 启用 → 等新的加载完，在同一条 await 链里做完；这段代码只持有条目树与 logger，被重新加载的条目连带卸掉谁都不影响它做完；插件管理自己那条先回执、后动手；手动重新加载一条用 disable 再 enable
+description: update 装完包后逐条重新加载条目：停用 → 等旧的卸载完 → 启用 → 等新的加载完，在同一条 await 链里做完；这段代码只持有条目树与 logger，被重新加载的条目连带卸载哪些插件都不影响它做完；插件管理自己与 peer 了它的包先回执、后依次重新加载；手动重新加载一条用 disable 再 enable
 ---
 
 # 重新加载条目
 
-**本页回答**：`update` 装完包后怎么重新加载一条条目、为什么要等旧的卸载完；回执里每条条目的 `action` 与 `state` 各是什么；为什么停用与启用要在同一条 `await` 链里做完；插件管理自己那条怎么办；人或 agent 要手动重新加载一条条目时怎么做。`update` 什么时候重新加载哪些条目见[热升级](/docs/plugin-manager/upgrade)。
+**本页回答**：`update` 装完包后怎么重新加载一条条目、为什么要等旧的卸载完；回执里每条条目的 `action` 与 `state` 各是什么；为什么停用与启用要在同一条 `await` 链里做完；插件管理自己与 peer 了它的包怎么办；人或 agent 要手动重新加载一条条目时怎么做。`update` 什么时候重新加载哪些条目见[热升级](/docs/plugin-manager/upgrade)。
 
 ## 停用 → 等旧的卸载完 → 启用
 
@@ -32,9 +32,9 @@ description: update 装完包后逐条重新加载条目：停用 → 等旧的�
 
 ## 回执：action 与 state
 
-`update` 回执里每条条目是 `{ id, action, state }`。`action` 是 `remounted`（在这条命令里做完）、`skipped`（本来就停用，保持停用）、`deferred`（插件管理自己那条，见下）或 `failed`（操作条目树时抛错，`state` 里是那句错误；别的条目照常处理，外层 `ok` 仍是 `true`）。`state` 是 cordis 的 fiber 状态名，`ACTIVE` 才算加载成功；cordis 的状态是 `const enum`，运行时拿不到，插件管理照抄一份名字表，由测试核对。
+`update` 回执里每条条目是 `{ id, action, state }`。`action` 是 `remounted`（在这条命令里做完）、`skipped`（本来就停用，保持停用）、`deferred`（插件管理自己与 peer 了它的包的条目，见下）或 `failed`（操作条目树时抛错，`state` 里是那句错误；别的条目照常处理，外层 `ok` 仍是 `true`）。`state` 是 cordis 的 fiber 状态名，`ACTIVE` 才算加载成功；cordis 的状态是 `const enum`，运行时拿不到，插件管理照抄一份名字表，由测试核对。
 
-{/* ref file="../plugins/plugin-manager/src/receipts.ts" lines="131-142" hash="08a55bb38c37" blob="0c62bcedc263" */}
+{/* ref file="../plugins/plugin-manager/src/receipts.ts" lines="131-142" hash="992c9bced63a" blob="983b6caf5da3" */}
 
 {/* ref file="../plugins/plugin-manager/src/fiber.ts" lines="3-16" hash="668b7d27ed94" blob="071cae84dcc7" */}
 
@@ -46,19 +46,25 @@ description: update 装完包后逐条重新加载条目：停用 → 等旧的�
 
 ## 停用与启用在同一条 await 链里
 
-停用和启用之间不能隔着第二条命令。被停用的插件可能正是调用方发命令要经过的那一个：目标是命令插件时，停用一返回命令表就没了，下一条命令调不进去；目标是 MCP 入口（`gwb-mcp`）时，连接就断了。`update` 在插件管理自己的 `await` 链里做完两步，这条链只持有条目树与 logger，不经任何 ctx；被重新加载的条目卸载时连带卸掉谁，都不影响它把启用做完。
+停用和启用之间不能隔着第二条命令。被停用的插件可能正是调用方发命令要经过的那一个：目标是命令插件时，停用一返回命令表就没了，下一条命令调不进去；目标是 MCP 入口（`gwb-mcp`）时，连接就断了。`update` 在插件管理自己的 `await` 链里做完两步，这条链只持有条目树与 logger，不经任何 ctx；被重新加载的条目卸载时连带卸载哪些插件，都不影响它把启用做完。
 
 {/* has file="../plugins/plugin-manager/tests/remount.test.ts" text="目标是命令插件：停用时全部命令都撤掉（包括正在运行的这条），这条 await 链照样做完，条目回到启用" */}
 
 ## 插件管理自己：先回执、后重新加载
 
-`update` 要重新加载的条目里有插件管理自己那条时，那条的 `action` 是 `deferred`，`state` 是动手前的状态，回执 `selfDeferred` 是 `true`；回执发出后，下一个宏任务才重新加载。不会有第二份回执，调用方之后用 `plugin-manager.list` 核对 `active`。在命令处理函数里停用自己，这条 `await` 链随插件管理的实例一起卸载，回执永远到不了调用方，所以先回执、再动手。
+`update` 要重新加载的条目里有插件管理自己那条时，那条的 `action` 是 `deferred`，`state` 是重新加载前的状态，回执 `selfDeferred` 是 `true`；回执发出后，下一个宏任务才重新加载。不会有第二份回执，调用方之后用 `plugin-manager.list` 核对 `active`。在命令处理函数里停用自己，这条 `await` 链随插件管理的实例一起卸载，回执永远到不了调用方，所以先发回执、再重新加载。
 
-排到下一个宏任务的那段代码只持有条目树、id 与事先拿到的 logger——那时插件管理原来的实例已经卸载，ctx 上的东西都不能用。`devkit.dev` 收到 `selfDeferred: true` 就轮询 `plugin-manager.list`，等插件管理的条目回到 `active`（见接缝页 [devkit 调插件管理](/docs/seams/plugin-manager-calls)）。
+peer 里直接或经别的包写了插件管理的包（baseui、devkit）也一起推迟，条目同样记 `deferred`：在命令里重新加载的话，它们拿到的是旧插件管理（先后怎么排见[热升级](/docs/plugin-manager/upgrade#重新加载的先后被依赖的先)）。下一个宏任务里先重新加载插件管理自己，再照排好的先后一条接一条重新加载这些条目，每条等前一条启用完；一条失败只记一行 warn，接着处理下一条，每条是各自独立的重新加载。
 
-{/* ref file="../plugins/plugin-manager/src/remount.ts" lines="48-59" hash="9f442a4ed2cd" blob="5777a53110fb" */}
+排到下一个宏任务的那段代码只持有条目树、条目 id 与事先拿到的 logger——那时插件管理原来的实例已经卸载，ctx 上的东西都不能用。`devkit.dev` 收到 `selfDeferred: true` 就轮询 `plugin-manager.list`，等带 `deferred` 条目的每个包的条目都回到 `active`（见接缝页 [devkit 调插件管理](/docs/seams/plugin-manager-calls)）。
+
+{/* ref file="../plugins/plugin-manager/src/remount.ts" lines="48-72" hash="9602e2cc9d9a" blob="3c8649945110" */}
 
 {/* has file="../plugins/plugin-manager/tests/remount.test.ts" text="当下什么都不动；下一个宏任务才停用再启用" */}
+
+{/* ref file="../plugins/plugin-manager/tests/remount.test.ts" lines="120-128" hash="edc5f053ce7f" blob="57d52b783e87" */}
+
+{/* ref file="../plugins/plugin-manager/tests/remount.test.ts" lines="130-140" hash="990ac84130d1" blob="57d52b783e87" */}
 
 ## 手动重新加载一条条目
 

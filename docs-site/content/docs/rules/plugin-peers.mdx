@@ -21,6 +21,7 @@ peer 的意思是「运行时从 home 里得到这个包」。插件的 peer 因
 - **该写，可选**：只在 `ctx.inject([...], fn)` 里用它的服务，缺了只少那一部分功能——标 `optional: true`，没装不算没满足
 - **别标反**：`export const inject` 里的服务标成可选，home 里缺它时插件不加载，`unmetPeers` 也不报；`devkit.release` 发版前拒这种写法（见下面「谁在查」）
 - **写 peer 会成环的不写**：局部注入、提供方是同一个工作区里的插件、它自己 peer 或 dev 写了本包时，本包再写它就成了包依赖环，pnpm 12 的 `pnpm -r` 遇环直接退出。命令总线对说明书插件就是这样
+- **peer 不成环**：顺着 peer 里的 gwb 插件一路走回本包，`devkit.release` 拒；插件管理升级时按 peer 排重新加载的先后，环上的包排不出先后，只能重启工作台才换上新版本。两个插件互相要用时，一个方向写 peer，反方向按上一条改用局部注入、不写 peer；不在同一个工作区的，局部注入也要写可选 peer、照样成环，反方向只能改成按命令名调它的命令
 - **不用写**：只按命令名调它的命令（经命令总线查找，命令不在就回执说明），不用它的服务也不 import 它的类型
 - **下限写开发、验证时用的那一版**：用到了那个插件某个版本新加的东西（比如外壳新加的主题令牌），下限就写到那一版
 - **范围只写 `^x.y.z`**：精确号、`>=`、`~` 都不认，发版前检查拒，`plugin-manager.list` 算没满足
@@ -29,9 +30,9 @@ peer 的意思是「运行时从 home 里得到这个包」。插件的 peer 因
 
 **`devkit.release` 发版前检查**（只查插件包，`keywords` 含 `gwb-plugin`）：peer 里 `cordis` 与内核包以外的每个包，读包目录 `node_modules` 里它的清单，`keywords` 含 `gwb-plugin`（gwb 插件）或同时含 `cordis` 与 `plugin`（第三方 cordis 插件，cordis 官方插件都这么写）才算插件，不是插件、清单读不到都拒；peer 里的每个插件（不分包名范围；内核包、`workspace:` 除外）范围要是 `^x.y.z`，并且和源上 `dist-tags.latest` 在同一条线（问哪个源由用户级 `~/.npmrc` 的范围行决定）——主版本号为 0 时只比次版本号，≥1 时只比主版本号。不在同一条线说明上游出了破坏性版本，拒绝理由里写着适配、验过之后改成的 `^<latest>`：
 
-{/* ref file="../plugins/devkit/src/release.ts" lines="157-166" hash="4c0b32bbd73e" blob="49970d7b348f" */}
+{/* ref file="../plugins/devkit/src/release.ts" lines="158-167" hash="4c0b32bbd73e" blob="f6121d7801e9" */}
 
-{/* ref file="../plugins/devkit/src/release.ts" lines="189-211" hash="bb8b33a92f5d" blob="49970d7b348f" */}
+{/* ref file="../plugins/devkit/src/release.ts" lines="190-212" hash="bb8b33a92f5d" blob="f6121d7801e9" */}
 
 {/* has file="../plugins/devkit/tests/release.test.ts" text="插件包 peer 里的插件和源上 latest 不在同一条线：构建之后、发之前拒，一个都不发" */}
 

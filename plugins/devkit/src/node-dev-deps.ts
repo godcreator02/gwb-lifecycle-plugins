@@ -378,6 +378,7 @@ export const releaseDepsWith = (pnpm: string): ReleaseDeps => ({
   },
   gitStatus: gitStatusOf,
   readText: nodeFs.readText,
+  realpath: fs.realpathSync,
   exists: nodeFs.exists,
   filesUnder,
   tailwindOf,

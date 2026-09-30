@@ -46,12 +46,13 @@ home 里有两层：
 ## 升级插件
 
 1. `plugin-manager.outdated` 看谁有新版本
-2. `plugin-manager.update`，参数三选一、恰好给一个：`{"all":true}` 全升；`{"only":["<包名>"]}` 只升几个；`{"specs":{"<包名>":"<版本号、tag 或 file:<绝对路径>>"}}` 按给定写法装已装的包。`specs` 写一个更旧的版本号会失败：不做回退，升坏了就发新版往前修
-3. 读回执：条目的 `action` 是 `remounted`、`state` 是 `ACTIVE` 才算加载成功。`dependents` 是没点名、但跟着重新加载的包，多半是 peer 里写了被升级包的插件。升到 gwb-mcp 自己时进行中的 MCP 请求会断，重连一次再核对
-4. 插件管理不整页重新加载：拿到成功回执后自己调一次 `shell.reload`，界面才换成新代码
-5. `plugin-manager.list` 核对版本与 `active`，再调一次 `index`
+2. `plugin-manager.update`，参数三选一、恰好给一个：`{"all":true}` 全升；`{"only":["<包名>"]}` 只升几个；`{"specs":{"<包名>":"<版本号、tag 或 file:<绝对路径>>"}}` 按给定写法装已装的包。`specs` 写一个更旧的版本号会失败：不做回退，升坏了就发一个修好的新版
+3. 读回执：条目的 `action` 是 `remounted`、`state` 是 `ACTIVE` 才算加载成功。`dependents` 是没点名、但跟着重新加载的包，多半是 peer 里写了被升级包的插件。`action` 是 `deferred` 的是插件管理自己和 peer 里直接或经别的包写了插件管理的包（baseui、devkit 这类），回执发出之后才依次重新加载，要等它们回到 `active` 再往下走。升到 gwb-mcp 自己时进行中的 MCP 请求会断，重连一次再核对
+4. 回执带 `restartRequired: true`、`note` 说 peer 成环时：环上的包与依赖它们的包这次没换成新版本，把 `note` 转告人，重启由人决定；环要到那几个包的仓里拆掉
+5. 插件管理不整页重新加载：拿到成功回执后自己调一次 `shell.reload`，界面才换成新代码。插件管理窗格在插件管理回来后就整页刷新，这时 baseui 可能还在重新加载，插件管理窗格短暂不见，再刷新一次即可
+6. `plugin-manager.list` 核对版本与 `active`，再调一次 `index`
 
-**完成判据**：`outdated` 里不再有这次升的包；`list` 里它们的版本是新版、条目 `active` 为 true，`dependents` 里的包条目 `active` 也为 true；升级后调过 `shell.reload`。
+**完成判据**：`outdated` 里不再有这次升的包；`list` 里它们的版本是新版、条目 `active` 为 true，`dependents` 里的包条目 `active` 也为 true；升级后调过 `shell.reload`；有 `restartRequired` 时已告诉人。
 
 上游发了破坏性版本时怎么升，见说明书 `gwb-release` 的「发破坏性版本多做的两步」。
 

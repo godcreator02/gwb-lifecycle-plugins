@@ -29,7 +29,7 @@ devkit 自己的清单（peer 里另外几项是它用到的插件，见[用到�
 
 **`devkit.release` 发版前检查**：对每个要发的插件包，peer 里没写内核包、写法不是 `^x.y.z`，两种都拒，一个包都不发；拒绝理由里写着改成 `^<验证时那个内核的版本号>`。范围包不包含哪个内核它不查：发版前检查能拿来比的只有调 `devkit.release` 的那个 home 里的内核，比了的话能不能发版就取决于从哪个 home 调：
 
-{/* ref file="../plugins/devkit/src/release.ts" lines="168-187" hash="2a769b92b5b7" blob="49970d7b348f" */}
+{/* ref file="../plugins/devkit/src/release.ts" lines="169-188" hash="2a769b92b5b7" blob="f6121d7801e9" */}
 
 **`plugin-manager.list` 按包报**：拿插件 peer 里内核包的范围和 home 里装的内核比，不包含的按包报出来。它只报告，不阻止加载（回执怎么读见插件管理那组页面里的[同名一页](/docs/plugin-manager/kernel-compat)）。
 

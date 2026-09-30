@@ -1,11 +1,11 @@
 ---
 title: 热升级
-description: outdated 查过期包；update 的参数三选一（all 升全部过期包、only 升点名的过期包、specs 按给定写法装已装的包），一次 pnpm add（清单写 ^ 范围），specs 装完核对准确版本号；同一条命令里，装之前与装之后真实目录变了的包逐条停用再启用；插件管理自己那条在回执发出后才重新加载；不重启、不整页重新加载
+description: outdated 查过期包；update 的参数三选一（all 升全部过期包、only 升点名的过期包、specs 按给定写法装已装的包），一次 pnpm add（清单写 ^ 范围），specs 装完核对准确版本号；装之前与装之后真实目录变了的包按装上后的 peer 排先后（被依赖的先）逐条停用再启用；插件管理自己与 peer 了它的包在回执发出后依次重新加载；peer 成环的包不重新加载、回执提示重启；不重启、不整页重新加载
 ---
 
 # 热升级
 
-**本页回答**：怎么查出哪些包有新版本；`update` 的三种参数各做什么、`specs` 装完怎么核对；为什么升级与重新加载必须在同一条命令里；装之前定什么、装之后怎么定下要重新加载的包（真实目录变了的都重新加载，没点名的包为什么也会变）；一次热升级从头到尾依次发生什么、整页重新加载由谁做。`specs` 里有内核包时走另一套，见[升内核](/docs/plugin-manager/kernel-upgrade)；重新加载一条条目的时序见[重新加载条目](/docs/plugin-manager/remount)。
+**本页回答**：怎么查出哪些包有新版本；`update` 的三种参数各做什么、`specs` 装完怎么核对；为什么升级与重新加载必须在同一条命令里；装之前定什么、装之后怎么定下要重新加载的包（真实目录变了的都重新加载，没点名的包为什么也会变）；这些包按什么先后重新加载、peer 成环时怎么办；一次热升级从头到尾依次发生什么、整页重新加载由谁做。`specs` 里有内核包时走另一套，见[升内核](/docs/plugin-manager/kernel-upgrade)；重新加载一条条目的时序见[重新加载条目](/docs/plugin-manager/remount)。
 
 热升级管 home 里除内核包与 `cordis` 之外的全部包，插件管理自己和命令插件也在其中：它们各是一条条目，和别的插件一样升级。
 
@@ -15,7 +15,7 @@ description: outdated 查过期包；update 的参数三选一（all 升全部�
 
 退出码 1 表示「有过期包」，是结果不是失败；找不到 pnpm、别的退出码、输出解析不了，都回 `ok: false`。它不写文件，不经过 BUSY 检查（见[同一时刻只允许一个改动](/docs/plugin-manager/busy)）。
 
-{/* ref file="../plugins/plugin-manager/src/index.ts" lines="315-335" hash="903bf2f5c458" blob="95d5be4fdbdf" */}
+{/* ref file="../plugins/plugin-manager/src/index.ts" lines="323-343" hash="903bf2f5c458" blob="a5163f00fe7a" */}
 
 {/* has file="../plugins/plugin-manager/tests/outdated.test.ts" text="空串是「全都最新」，不是失败" */}
 
@@ -35,9 +35,9 @@ description: outdated 查过期包；update 的参数三选一（all 升全部�
 
 全部升级要显式给 `{"all":true}`：一条改 home 的命令，不给参数时不能执行影响最大的那个动作，漏写参数就整个 home 一起升级、当场生效（见轨迹卡 [update 显式 all 加 specs](/trajectory/2026-09-25-update-takes-all-param)）。
 
-{/* ref file="../plugins/plugin-manager/src/index.ts" lines="627-656" hash="db89ddf2ea0b" blob="95d5be4fdbdf" */}
+{/* ref file="../plugins/plugin-manager/src/index.ts" lines="649-678" hash="db89ddf2ea0b" blob="a5163f00fe7a" */}
 
-{/* ref file="../plugins/plugin-manager/src/index.ts" lines="337-341" hash="06cd339685b2" blob="95d5be4fdbdf" */}
+{/* ref file="../plugins/plugin-manager/src/index.ts" lines="345-349" hash="06cd339685b2" blob="a5163f00fe7a" */}
 
 {/* has file="../plugins/plugin-manager/tests/commands.test.ts" text="参数：不给、空对象、三种给了两种、认不出的键、all 不是 true、specs 是空对象，都直接抛错带用法，一次 pnpm 都不运行" */}
 
@@ -50,9 +50,9 @@ description: outdated 查过期包；update 的参数三选一（all 升全部�
 - 装完读不到某个包的版本号，也回 `ok: false`
 - 回执 `updated` 每项的 `from` 是装之前读到的版本（读不到就没有这个字段），`to` 是装完读到的版本，不是写法原文
 
-`all` 与 `only` 装的是 `outdated` 查到的最新版，范围里没有比它更新的，不再核对。往回退版本不支持：`specs` 点名更旧的版本会在核对时回 `ok: false`，升坏了发新版往前修。
+`all` 与 `only` 装的是 `outdated` 查到的最新版，范围里没有比它更新的，不再核对。往回退版本不支持：`specs` 点名更旧的版本会在核对时回 `ok: false`，升坏了就发一个修好的新版。
 
-{/* ref file="../plugins/plugin-manager/src/update.ts" lines="127-148" hash="58c4b18df655" blob="5c8109cad2ab" */}
+{/* ref file="../plugins/plugin-manager/src/update.ts" lines="128-149" hash="58c4b18df655" blob="0faf236053dc" */}
 
 {/* has file="../plugins/plugin-manager/tests/update.test.ts" text="写法是准确版本号、装上的不是它：ok false，逐项说出要的与装上的" */}
 
@@ -66,7 +66,7 @@ description: outdated 查过期包；update 的参数三选一（all 升全部�
 
 ## 升级与重新加载在同一条命令里
 
-`update` 一条命令做完：一次 `pnpm add` 把包装到定好的版本 → 真实目录变了的包逐条重新加载。三种参数装完都走这同一套（`specs` 里有内核包时除外）；没有「只升包、不重新加载」的命令。`pnpm add` 失败时一条条目都不动。
+`update` 一条命令做完：一次 `pnpm add` 把包装到定好的版本 → 真实目录变了的包按 peer 排的先后逐条重新加载。三种参数装完都走这同一套（`specs` 里有内核包时除外）；没有「只升包、不重新加载」的命令。`pnpm add` 失败时一条条目都不动。
 
 升完不重新加载，运行着的还是旧版本的代码，等于没升。旧版本目录也不会一直留着：home 里没有 `pnpm-workspace.yaml`（default 就没有）时用 pnpm 的默认值，旧目录保留约 7 天（pnpm 文档写 `modulesCacheMaxAge` 默认 10080 分钟）后清掉。升级与重新加载分成两条命令，中间运行的一直是旧版，隔得久了目录被清掉，旧版再读自己的文件就读不到：
 
@@ -77,7 +77,7 @@ description: outdated 查过期包；update 的参数三选一（all 升全部�
 
 命令本该一条只做一件事，多步流程写进说明书由调用方一步步调；`update` 是允许的例外，拆开只多出上图那段运行旧版的空档。
 
-{/* ref file="../plugins/plugin-manager/src/index.ts" lines="424-452" hash="10f7c47278b9" blob="95d5be4fdbdf" */}
+{/* ref file="../plugins/plugin-manager/src/index.ts" lines="432-482" hash="d59642a5a85e" blob="a5163f00fe7a" */}
 
 {/* has file="../plugins/plugin-manager/tests/commands.test.ts" text="pnpm add 失败：一条条目都不动，外层 error 带上输出的最后几行，没有 data" */}
 
@@ -85,15 +85,15 @@ description: outdated 查过期包；update 的参数三选一（all 升全部�
 
 `pnpm add` 之前只定装哪些包、装成什么写法，回执里每个包的 `from` / `to` 也在这时定下（`specs` 的要装完读清单）。由纯函数算出，单独测：`all` 与 `only` 按 `outdated` 的结果算，`specs` 按给定的写法算。哪些条目要重新加载要装完才知道，见下一节。
 
-{/* ref file="../plugins/plugin-manager/src/update.ts" lines="35-51" hash="a3936156f741" blob="5c8109cad2ab" */}
+{/* ref file="../plugins/plugin-manager/src/update.ts" lines="36-52" hash="a3936156f741" blob="0faf236053dc" */}
 
 - **精确版本**：`all` 与 `only` 用 `outdated` 查到的版本号，不用 `@latest` 标签——两次查询之间又发了一版，也不会装成回执上没写的那个；`specs` 的写法原样交给 pnpm，只拦空白与以 `-` 开头的写法
 - **`only`**：名字不在 home 的 dependencies 里（多半拼错）直接报错、说出是哪个；在 home 里但已是最新的写进 `note`
 - **内核包与 `cordis`**：`outdated` 本来就不含它们；`only` 点了它们直接报错，指向 `specs` 写法；`specs` 的键不在 home 的 dependencies 里、或写了 `cordis`，直接报错。报错都在一次 pnpm 都没运行之前
 
-{/* ref file="../plugins/plugin-manager/src/update.ts" lines="71-87" hash="202d85e14e15" blob="5c8109cad2ab" */}
+{/* ref file="../plugins/plugin-manager/src/update.ts" lines="72-88" hash="202d85e14e15" blob="0faf236053dc" */}
 
-{/* ref file="../plugins/plugin-manager/src/update.ts" lines="109-125" hash="9de063c8619c" blob="5c8109cad2ab" */}
+{/* ref file="../plugins/plugin-manager/src/update.ts" lines="110-126" hash="9de063c8619c" blob="0faf236053dc" */}
 
 {/* has file="../plugins/plugin-manager/tests/update.test.ts" text="pnpm add 的每一项用 outdated 查到的版本号" */}
 
@@ -113,11 +113,11 @@ description: outdated 查过期包；update 的参数三选一（all 升全部�
 
 `pnpm add` 之前与之后各读一次 home 的 dependencies 里每个包的真实目录（`node_modules/<包名>` 这个目录链接指向的、pnpm 虚拟存储里的目录）。**目录变了的包都在同一条命令里重新加载，没变的不动**；一次读得到、一次读不到也算变了。点了名的包（升级的、`specs` 装的）也只按这一条判断：虚拟存储的目录名带着版本号，升级一定换目录；装的就是原来那一版时目录不变，它的条目也就不动。
 
-回执里点了名的包归 `updated`（目录没变的也列出，`entries` 为空），没点名、目录变了的归 `dependents`，两份都按包名排、每个带各条条目的结果；点了名的先重新加载，别的在后。
+回执里点了名的包归 `updated`（目录没变的也列出，`entries` 为空），没点名、目录变了的归 `dependents`，每个带各条条目的结果。两组合在一起排重新加载的先后（下一节），组内也照这个先后列。
 
 - **每条条目各自重新加载**：被别的插件 inject 的插件重新加载时，cordis 会把依赖它的插件停用再启动，但那是重新运行内存里的旧代码，磁盘上的新版本没有加载，所以不能指望这种连带
-- **顺序**：包内的条目按条目树里的先后；本来就停用的条目保持停用，记为 `skipped`
-- **插件管理自己那条标 `self`**：照包名、照树里的先后排，不挪位置；执行到它时只记 `deferred`，回执发出之后才重新加载，排在哪都一样
+- **包内的条目**按条目树里的先后；本来就停用的条目保持停用，记为 `skipped`
+- **插件管理自己那条标 `self`**：它所在的包排进回执之后那一段，见下一节
 
 没点名的包为什么也会换目录：pnpm 的虚拟存储目录名还带着 peer 的版本：A 的 peer 写了 B，B 一升级，A 就被装进新目录（`A@1.0.0_B@1.0.0` 变成 `A@1.0.0_B@1.1.0`），而 pnpm 的输出里只写 B 变了。只重新加载 B 的话，正在运行的 A 还是从旧目录加载的、拿到的还是旧的 B；旧目录被清掉之后 A 再加载自己的文件就会失败（实验见本仓 `probes/2609242300_peer-between-plugins/`）。哪些包换了目录，直接比装之前与装之后的真实目录，不按 peer 关系去推 pnpm 的目录命名规则（见轨迹卡[跟着重新加载的包改成直接比真实目录](/trajectory/2026-09-25-dependents-by-realpath)）。
 
@@ -125,9 +125,9 @@ description: outdated 查过期包；update 的参数三选一（all 升全部�
 
 {/* ref file="../plugins/plugin-manager/src/home.ts" lines="53-65" hash="055fa3625448" blob="2689fa073ac6" */}
 
-{/* ref file="../plugins/plugin-manager/src/index.ts" lines="454-461" hash="6380f5da3960" blob="95d5be4fdbdf" */}
+{/* ref file="../plugins/plugin-manager/src/index.ts" lines="490-497" hash="6380f5da3960" blob="a5163f00fe7a" */}
 
-{/* ref file="../plugins/plugin-manager/src/update.ts" lines="150-174" hash="2429e84c89a0" blob="5c8109cad2ab" */}
+{/* ref file="../plugins/plugin-manager/src/update.ts" lines="296-320" hash="2429e84c89a0" blob="0faf236053dc" */}
 
 {/* has file="../plugins/plugin-manager/tests/update.test.ts" text="点了名、目录变了的进 updated；没点名、目录变了的进 dependents，按包名排" */}
 
@@ -145,20 +145,56 @@ description: outdated 查过期包；update 的参数三选一（all 升全部�
 
 单元测试里的真实目录是在假 home 里用目录链接模拟的；pnpm 实际换目录的情形在上面那条探针里看过。整条命令要在隔离 home 里实测：升一个被别的插件 peer 的插件，看回执 `dependents` 里有它、条目回到 `ACTIVE`。
 
+## 重新加载的先后：被依赖的先
+
+一个插件重新加载时，它 inject 的服务如果还是旧提供方给的，注入照样算满足，`apply` 照常执行；要用提供方新版才有的方法，就当场抛错、停在 `FAILED`。cordis 不会替失败的插件重来：提供方随后换了服务，这条失败的条目也不动，只有停用再启用才会重来。所以提供方必须先重新加载。
+
+先后按 `pnpm add` 之后读到的每个包清单里的 `peerDependencies` 排，**只看这批要重新加载的包之间的 peer**：`updated` 与 `dependents` 合成一批，被依赖的先；前面的都排完之后同时可以重新加载的算一层，同一层按包名，结果只由包名与 peer 决定。依赖关系只认 peer：发版前检查要求「注入了谁就在 peer 写谁」；反方向用局部注入的不写 peer，也不需要排在提供方之后。
+
+块笔记一次升级的那一批是个例子：点了名的 `bn-core`、`bn-comment`、`bn-query`、`bn-journal`，跟着换了目录的 `bn-props`、`bn-single`、`bn-papers`；评论、查询、日记、属性、单文件库的 peer 写了核心，论文库写了核心与属性。排出来是三层：核心；评论、日记、属性、查询、单文件库；论文库。按包名排的话评论排在核心前面，评论重新加载时拿到旧核心，调新方法抛错。
+
+{/* ref file="../plugins/plugin-manager/src/update.ts" lines="161-199" hash="0b4e1980a792" blob="0faf236053dc" */}
+
+{/* ref file="../plugins/plugin-manager/tests/update.test.ts" lines="300-312" hash="eb13570010f7" blob="a4b835c262e9" */}
+
+{/* ref file="../plugins/plugin-manager/tests/update.test.ts" lines="314-324" hash="0e86fbaad4bc" blob="a4b835c262e9" */}
+
+**插件管理自己与 peer 了它的包在回执之后**：在命令里停用插件管理自己，回执就发不出去（见[重新加载条目](/docs/plugin-manager/remount#插件管理自己先回执后重新加载)），所以它一定在回执之后才重新加载。peer 里（直接或经别的包）写了插件管理的包（baseui、devkit）如果照常在命令里重新加载，拿到的是旧插件管理，于是它们一起推迟：排好的先后里，插件管理自己与传递地 peer 了它的包各条启用着的条目记 `deferred`，回执发出后照排好的先后一条接一条重新加载，插件管理自己在最前。代价是界面上：插件管理窗格等插件管理自己回来就整页刷新，这时 baseui 可能还在重新加载，插件管理窗格短暂不见，再刷新一次即可。
+
+{/* ref file="../plugins/plugin-manager/src/update.ts" lines="256-286" hash="1bf6415a2e5a" blob="0faf236053dc" */}
+
+{/* ref file="../plugins/plugin-manager/tests/update.test.ts" lines="374-378" hash="fb1fb063158a" blob="a4b835c262e9" */}
+
+**peer 成环**：这批包里 peer 成了环，环上的包谁先都不对。环上的包与传递地 peer 了环上包的包这次都不重新加载，回执里它们的 `entries` 是空数组（和装了内核包时「不重新加载」同一种含义），回执带 `restartRequired: true`，`note` 写出环（从环上包名最小的那个起，`A → B → A`）、这些包重启工作台后才换成新版本、要去改包，日志记一行 warn；其余不受牵连的包照常按先后重新加载。不按包名硬排、不重来：环是包写错了，照实报出来；`devkit.release` 的发版前检查也拒 peer 成环的包（见[发正式版](/docs/devkit/release)）。
+
+{/* ref file="../plugins/plugin-manager/src/update.ts" lines="201-237" hash="59e5d2fa0d59" blob="0faf236053dc" */}
+
+{/* ref file="../plugins/plugin-manager/src/update.ts" lines="288-294" hash="ad33430c5b7d" blob="0faf236053dc" */}
+
+{/* ref file="../plugins/plugin-manager/tests/update.test.ts" lines="326-345" hash="e429fb319dd3" blob="a4b835c262e9" */}
+
+执行在 `index.ts` 里：读装上的清单、排先后、命令里依次重新加载 `now` 那一段、`afterReceipt` 那一段记 `deferred`、环上的记空数组：
+
+{/* ref file="../plugins/plugin-manager/src/index.ts" lines="505-525" hash="e7192d841616" blob="a5163f00fe7a" */}
+
+{/* ref file="../plugins/plugin-manager/tests/commands.test.ts" lines="649-663" hash="f689b35a7cf3" blob="2a666df7e556" */}
+
+{/* ref file="../plugins/plugin-manager/tests/commands.test.ts" lines="665-678" hash="6f960a2f64b6" blob="2a666df7e556" */}
+
 ## 一次热升级依次发生什么
 
 <Diagram name="pm-upgrade" title="一次热升级的时间线：每一行是一个参与方，竖虚线是回执发出的时刻">
 - 调用方调用 `update`；插件管理查过期包（给 `specs` 时不查），定计划，记下装之前每个包的真实目录
 - 插件管理一次 `pnpm add` 精确版本；磁盘上 A@1.1 装上，peer 写了 A 的 B 也换进新目录；再读一次真实目录，B 变了，跟着重新加载
-- 条目 A 停用再启用，重新解析拿到 A@1.1，回到 `ACTIVE`；接着条目 B 同样停用再启用
-- 回执发出，调用方收到 `selfDeferred: true`
-- 下一个宏任务里重新加载插件管理自己，拿到新版本
+- 按 peer 排先后：B 的 peer 写了 A，A 先；条目 A 停用再启用，重新解析拿到 A@1.1，回到 `ACTIVE`；接着条目 B 同样停用再启用
+- 回执发出，调用方收到 `selfDeferred: true`；插件管理自己与 peer 了它的包的条目记 `deferred`
+- 下一个宏任务里先重新加载插件管理自己，再依次重新加载 peer 了它的包
 - 调用方拿到回执后自己调外壳的 `shell.reload` 整页重新加载，窗格拿到新版本的页面代码
 </Diagram>
 
-**插件管理自己在回执之后**：升级的包或跟着重新加载的包里有插件管理自己时，它那条条目在回执发出之后才重新加载，回执 `selfDeferred` 是 `true`，那条条目的 `action` 是 `deferred`。在命令里停用自己，回执就发不出去了，理由与做法见[重新加载条目](/docs/plugin-manager/remount#插件管理自己先回执后重新加载)。
+**插件管理自己在回执之后**：升级的包或跟着重新加载的包里有插件管理自己时，它那条条目与 peer 了它的包的条目在回执发出之后才重新加载，回执 `selfDeferred` 是 `true`，这些条目的 `action` 是 `deferred`。在命令里停用自己，回执就发不出去了，理由与做法见[重新加载条目](/docs/plugin-manager/remount#插件管理自己先回执后重新加载)；为什么这样排见轨迹卡[按 peer 排重新加载的先后](/trajectory/2026-09-30-remount-in-peer-order)。
 
-{/* ref file="../plugins/plugin-manager/src/index.ts" lines="469-497" hash="b949a9c2aa7e" blob="95d5be4fdbdf" */}
+{/* ref file="../plugins/plugin-manager/src/index.ts" lines="469-472" hash="4232b35c2add" blob="a5163f00fe7a" */}
 
 {/* has file="../plugins/plugin-manager/tests/commands.test.ts" text="升级清单里有插件管理自己：自己那条先回 deferred，回执之后才重新加载，之后不整页重新加载" */}
 

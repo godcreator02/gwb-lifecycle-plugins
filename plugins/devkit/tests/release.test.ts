@@ -6,6 +6,7 @@ import {
   dirtyLines,
   kernelPeerProblems,
   isPluginManifest,
+  peerCycleProblems,
   peerLineProblems,
   peerProblems,
   publishTargetOf,
@@ -158,6 +159,70 @@ describe('peerProblems：插件包的 peer 只写 cordis、内核包与别的插
   })
 })
 
+describe('peerCycleProblems：顺着 peer 里的 gwb 插件的已装清单走回本包就拒', () => {
+  const C = '@godcreator/gwb-fake-c'
+  const PKG_DIR = path.resolve(REPO, 'a')
+  const STORE = path.resolve('D:/store')
+  const plugin = (name: string, peers: Record<string, string> = {}, extra: Record<string, unknown> = {}): string =>
+    JSON.stringify({ name, version: '0.1.0', keywords: ['gwb', 'gwb-plugin'], peerDependencies: peers, ...extra })
+  const installedAt = (dir: string, pkg: string): string => path.join(dir, 'node_modules', ...pkg.split('/'), 'package.json')
+
+  /** 假文件表加一张目录链接表：pnpm 把包链到虚拟存储里的真实目录，包 peer 里的包放在真实目录旁边 */
+  function graphIo(files: Record<string, string>, links: Record<string, string> = {}) {
+    const table = new Map(Object.entries(files).map(([file, text]) => [path.resolve(file), text]))
+    return {
+      readText: (file: string) => table.get(path.resolve(file)),
+      realpath: (target: string) => links[path.resolve(target)] ?? path.resolve(target),
+    }
+  }
+  const A_PEERS_B = T({ [B]: '^0.1.0', cordis: '^4.0.0-rc.10', ...KERNEL_PEER }, '0.1.0', true)
+
+  it('两个包互相写 peer：拒，列出环 A → B → A，说反方向改用局部注入', () => {
+    const io = graphIo({ [installedAt(PKG_DIR, B)]: plugin(B, { [A]: '^0.1.0' }) })
+    const got = peerCycleProblems(A_PEERS_B, PKG_DIR, new Map(), io)
+    expect(got).toEqual([expect.stringContaining(`peer 成环:${A} → ${B} → ${A}`)])
+    expect(got[0]).toContain('<上下文>.inject([...], fn)、不写 peer')
+  })
+
+  it('环要走好几步：在包的真实目录旁边找它 peer 里的包，A → B → C → A', () => {
+    const bReal = path.join(STORE, 'b@0.1.0', 'node_modules', ...B.split('/'))
+    const io = graphIo(
+      {
+        [installedAt(PKG_DIR, B)]: plugin(B, { [C]: '^0.1.0' }),
+        [installedAt(path.join(STORE, 'b@0.1.0'), C)]: plugin(C, { [A]: '^0.1.0' }),
+      },
+      { [path.join(PKG_DIR, 'node_modules', ...B.split('/'))]: bReal },
+    )
+    expect(peerCycleProblems(A_PEERS_B, PKG_DIR, new Map(), io)).toEqual([expect.stringContaining(`peer 成环:${A} → ${B} → ${C} → ${A}`)])
+  })
+
+  it('不成环：放行；peer 里不是 gwb 插件的包、读不到清单的包不往下走', () => {
+    const io = graphIo({
+      [installedAt(PKG_DIR, B)]: plugin(B, { [C]: '^0.1.0' }),
+      [installedAt(PKG_DIR, C)]: JSON.stringify({ name: C, version: '0.1.0', peerDependencies: { [A]: '^0.1.0' } }),
+    })
+    expect(peerCycleProblems(A_PEERS_B, PKG_DIR, new Map(), io)).toEqual([])
+    expect(peerCycleProblems(A_PEERS_B, PKG_DIR, new Map(), graphIo({}))).toEqual([])
+  })
+
+  it('反方向用局部注入（B 的 dev 写了 A，peer 没写）：不算环', () => {
+    const io = graphIo({ [installedAt(PKG_DIR, B)]: plugin(B, {}, { devDependencies: { [A]: 'workspace:*' } }) })
+    expect(peerCycleProblems(A_PEERS_B, PKG_DIR, new Map(), io)).toEqual([])
+  })
+
+  it('同一次发的包按工作区里的清单算：装着的旧版没写 peer，工作区里这一版写了，照样拒', () => {
+    const io = graphIo({ [installedAt(PKG_DIR, B)]: plugin(B) })
+    const siblings = new Map([[B, { pkgDir: path.resolve(REPO, 'b'), peers: [A], plugin: true }]])
+    const got = peerCycleProblems(T({ [B]: 'workspace:*', ...KERNEL_PEER }, '0.1.0', true), PKG_DIR, siblings, io)
+    expect(got).toEqual([expect.stringContaining(`peer 成环:${A} → ${B} → ${A}`)])
+  })
+
+  it('不是插件包：不查', () => {
+    const io = graphIo({ [installedAt(PKG_DIR, B)]: plugin(B, { [A]: '^0.1.0' }) })
+    expect(peerCycleProblems(T({ [B]: '^0.1.0' }), PKG_DIR, new Map(), io)).toEqual([])
+  })
+})
+
 describe('ticketRefusal', () => {
   it('拒的回执按包分组、带总数', () => {
     const text = ticketRefusal([
@@ -237,6 +302,7 @@ function fake(options: FakeOptions = {}): ReleaseDeps & { calls: string[]; range
     exists: (target) => path.resolve(target) in files || target.endsWith('dist'),
     filesUnder: (dir) => Object.keys(files).filter((file) => file.startsWith(path.resolve(dir) + path.sep)),
     workspacePackageDirs: () => [],
+    realpath: (target) => path.resolve(target),
     async tailwindOf(pkgDir) {
       calls.push(`tailwind @${pkgDir}`)
       // 假编译器：带前缀的 flex 编得出规则，别的都编不出

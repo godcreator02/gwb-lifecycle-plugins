@@ -623,6 +623,60 @@ describe('plugin-manager.update', () => {
     expect(pm.shellReloads).toBe(0)
   })
 
+  /** 这几个包都过期、都升一个小版本：装之前链到 `<包>@1.0.0`，`pnpm add` 之后链到 `<包>@1.1.0`，清单写上新版本号与给定的 peer */
+  function upgradesAllOnAdd(peersByPackage: Record<string, string[]>): void {
+    const dirName = (pkg: string, version: string): string => `${pkg.replace('/', '+')}@${version}`
+    const pkgs = Object.keys(peersByPackage)
+    fakePnpm.captureExitCode = 1
+    fakePnpm.captureStdout = JSON.stringify(Object.fromEntries(pkgs.map((pkg) => [pkg, { current: '1.0.0', latest: '1.1.0' }])))
+    writeHomeDependencies(Object.fromEntries(pkgs.map((pkg) => [pkg, '^1.0.0'])))
+    for (const pkg of pkgs) {
+      linkInstalled(pkg, dirName(pkg, '1.0.0'))
+      writeInstalledManifest(pkg, { version: '1.0.0' })
+    }
+    fakePnpm.afterRun = (args) => {
+      if (args[0] !== 'add') return
+      for (const pkg of pkgs) {
+        linkInstalled(pkg, dirName(pkg, '1.1.0'))
+        writeInstalledManifest(pkg, { version: '1.1.0', peerDependencies: Object.fromEntries(peersByPackage[pkg]!.map((peer) => [peer, '^1.0.0'])) })
+      }
+    }
+  }
+
+  const remountLogOrder = (logs: readonly string[]): string[] =>
+    logs.flatMap((line) => /^(?:条目 (\S+) |插件管理自己（(\S+)）)重新加载了/.exec(line)?.slice(1).filter((id) => id !== undefined) ?? [])
+
+  it('按装上后的 peer 排重新加载的先后：被依赖的先（包名排在后面也先）；peer 成环的不重新加载，回执带 restartRequired 与环', async () => {
+    upgradesAllOnAdd({ '@x/gwb-bn-comment': ['@x/gwb-bn-core'], '@x/gwb-bn-core': [], '@x/gwb-cyc-a': ['@x/gwb-cyc-b'], '@x/gwb-cyc-b': ['@x/gwb-cyc-a'] })
+    const pm = mount({ entries: { comment: '@x/gwb-bn-comment', core: '@x/gwb-bn-core', a: '@x/gwb-cyc-a', b: '@x/gwb-cyc-b' } })
+    const receipt = (await pm.run('plugin-manager.update', { all: true })) as { ok: true; data: { updated: { pkg: string; entries: unknown[] }[]; restartRequired?: boolean; note?: string } }
+    expect(receipt.data.updated.map((one) => [one.pkg, one.entries.length])).toEqual([
+      ['@x/gwb-bn-core', 1],
+      ['@x/gwb-bn-comment', 1],
+      ['@x/gwb-cyc-a', 0],
+      ['@x/gwb-cyc-b', 0],
+    ])
+    expect(receipt.data.restartRequired).toBe(true)
+    expect(receipt.data.note).toContain('peer 成环：@x/gwb-cyc-a → @x/gwb-cyc-b → @x/gwb-cyc-a')
+    expect(remountLogOrder(pm.logs)).toEqual(['core', 'comment'])
+    expect(pm.logs.some((line) => line.startsWith('warn peer 成环'))).toBe(true)
+  })
+
+  it('插件管理自己与 peer 了它的包一起升级：别的在命令里做完，它们记 deferred，回执之后插件管理先、peer 了它的包后，依次重新加载', async () => {
+    upgradesAllOnAdd({ [OWN_PKG]: [], '@x/gwb-baseui': [OWN_PKG], '@x/gwb-foo': [], '@x/gwb-on-baseui': ['@x/gwb-baseui'] })
+    const pm = mount({ entries: { baseui: '@x/gwb-baseui', foo: '@x/gwb-foo', pane: '@x/gwb-on-baseui' } })
+    const receipt = (await pm.run('plugin-manager.update', { all: true })) as { ok: true; data: { updated: { pkg: string; entries: { action: string }[] }[]; selfDeferred: boolean } }
+    expect(receipt.data.updated.map((one) => [one.pkg, one.entries.map((entry) => entry.action)])).toEqual([
+      ['@x/gwb-foo', ['remounted']],
+      [OWN_PKG, ['deferred']],
+      ['@x/gwb-baseui', ['deferred']],
+      ['@x/gwb-on-baseui', ['deferred']],
+    ])
+    expect(receipt.data.selfDeferred).toBe(true)
+    expect(remountLogOrder(pm.logs)).toEqual(['foo'])
+    await expect.poll(() => remountLogOrder(pm.logs)).toEqual(['foo', 'plugin-manager', 'baseui', 'pane'])
+  })
+
   it('pnpm 报内核包与 cordis 过期：不升它们，回执里也不提', async () => {
     fakePnpm.captureExitCode = 1
     fakePnpm.captureStdout = JSON.stringify({

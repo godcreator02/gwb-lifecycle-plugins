@@ -45,16 +45,29 @@ export async function remountNow(tree: EntryTreeLike, id: string, log: RemountLo
   }
 }
 
-/** 本插件自己那条：排到下一个宏任务里重新加载。闭包只持有条目树、id 与 logger */
-export function remountSelfLater(tree: EntryTreeLike, id: string, log: RemountLog, schedule: Schedule = nextMacrotask, settleMs: number = SETTLE_MS): void {
+/**
+ * 本插件自己那条排到下一个宏任务里重新加载，接着按 `followingIds` 的先后逐条重新加载依赖本插件的包的条目，每条等前一条做完。
+ * 闭包只持有条目树、id 与 logger：本插件重新加载之后旧实例的 ctx 不能用。一条失败只记 warn，接着处理下一条
+ */
+export function remountSelfLater(
+  tree: EntryTreeLike,
+  ownId: string,
+  followingIds: readonly string[],
+  log: RemountLog,
+  schedule: Schedule = nextMacrotask,
+  settleMs: number = SETTLE_MS,
+): void {
+  const describe = (id: string): string => (id === ownId ? `插件管理自己（${id}）` : `条目 ${id} `)
   schedule(() => {
-    void remountEntry(tree, id, settleMs)
-      .then((state) => {
-        log.info(`插件管理自己（${id}）重新加载了：${state}`)
-      })
-      .catch((err: unknown) => {
-        log.warn(`插件管理自己（${id}）重新加载失败：${String(err)}`)
-      })
+    void (async () => {
+      for (const id of [ownId, ...followingIds]) {
+        try {
+          log.info(`${describe(id)}重新加载了：${await remountEntry(tree, id, settleMs)}`)
+        } catch (err: unknown) {
+          log.warn(`${describe(id)}重新加载失败：${String(err)}`)
+        }
+      }
+    })()
   })
 }
 

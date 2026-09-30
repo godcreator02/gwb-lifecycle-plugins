@@ -532,6 +532,47 @@ describe('一次流程', () => {
     expect(deps.calls.some((one) => one.includes(' reload'))).toBe(false)
   })
 
+  describe('插件管理与依赖它的包一起推迟到回执之后：等带 deferred 条目的每个包都回来', () => {
+    const BASEUI = '@godcreator/gwb-baseui'
+    const DEVKIT = '@godcreator/gwb-devkit'
+    const deferred = (id: string) => [{ id, action: 'deferred', state: 'ACTIVE' }]
+    const update = (specs: Record<string, string>) => ({
+      ok: true,
+      data: {
+        updated: [{ pkg: PKG, to: specs[PKG], entries: [{ id: 'fake', action: 'remounted', state: 'ACTIVE' }] }],
+        dependents: [
+          { pkg: PM, entries: deferred('plugin-manager') },
+          { pkg: BASEUI, entries: deferred('baseui') },
+          { pkg: DEVKIT, entries: deferred('devkit') },
+        ],
+        selfDeferred: true,
+      },
+    })
+    const table = (baseuiActive: boolean) => [
+      ...ONE_ENTRY,
+      { pkg: PM, entries: [{ entryId: 'home:plugin-manager', active: true }] },
+      { pkg: BASEUI, entries: [{ entryId: 'home:baseui', active: baseuiActive }] },
+      { pkg: DEVKIT, entries: [{ entryId: 'home:devkit', active: true }] },
+    ]
+
+    it('全都 active 了才刷新', async () => {
+      const deps = fake({ update, packages: table(true), silentLists: 2 })
+      expect(await runDev(input(), deps)).toMatchObject({ ok: true })
+      expect(deps.calls.some((one) => one.startsWith(`cdp ${HOME_NAME} reload`))).toBe(true)
+    })
+
+    it('插件管理回来了、baseui 一直没回来：到点 ok:false，点名还没 active 的那条，不刷新', async () => {
+      const deps = fake({ update, packages: table(false) })
+      const out = await runDev(input(), deps)
+      expect(out).toMatchObject({ ok: false })
+      if (!out.ok) {
+        expect(out.error).toContain(`${PM}、${BASEUI}、${DEVKIT} 的条目在回执之后才重新加载`)
+        expect(out.error).toContain('还没 active 的:home:baseui')
+      }
+      expect(deps.calls.some((one) => one.includes(' reload'))).toBe(false)
+    })
+  })
+
   it('没给 waitFor：刷新只带 reload 一个动作', async () => {
     const deps = fake()
     await runDev(input(), deps)

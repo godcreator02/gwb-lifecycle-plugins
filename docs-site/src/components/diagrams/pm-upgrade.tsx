@@ -2,13 +2,13 @@
 
 /**
  * 一次热升级（update 的 all 或 only）的时间线：横轴是时间，每条横道是一个参与方（B 的 peer 写了被升级的 A，跟着重新加载）。每一步在它那条横道上点亮一个方框；
- * 已经发生的保持显示，还没发生的调淡。竖虚线是回执发出的时刻：插件管理自己那条在它之后才重新加载。
+ * 已经发生的保持显示，还没发生的调淡。竖虚线是回执发出的时刻：插件管理自己与 peer 了它的包在它之后才重新加载。
  */
 
 import { Box, BORDER, FG, MUTED, Note, StepCaption } from './parts'
 import { StepControls, useSteps } from './steps'
 
-const LANES = ['调用方', 'plugin-manager', '磁盘 node_modules', '条目 A、B（B 的 peer 写了 A）', '插件管理自己的条目', '外壳']
+const LANES = ['调用方', 'plugin-manager', '磁盘 node_modules', '条目 A、B（B 的 peer 写了 A）', '插件管理与依赖它的包', '外壳']
 
 interface Event {
   lane: number
@@ -18,7 +18,7 @@ interface Event {
 const STEPS: { title: string; detail: string; events: Event[] }[] = [
   {
     title: '调用 update，定计划',
-    detail: '先查过期包（给 specs 时不查，按给定写法算），再由纯函数算出计划：升哪些包、每个包的每条条目都要重新加载、插件管理自己那条标出来留到回执之后；再记下装之前每个包的真实目录。',
+    detail: '先查过期包（给 specs 时不查，按给定写法算），再由纯函数算出装哪些包、装成哪个版本；再记下装之前每个包的真实目录。',
     events: [
       { lane: 0, lines: ['update', '{ all: true }'] },
       { lane: 1, lines: ['查过期包', '定计划'] },
@@ -26,26 +26,26 @@ const STEPS: { title: string; detail: string; events: Event[] }[] = [
   },
   {
     title: '一次 pnpm add 精确版本',
-    detail: '一次装完全部过期包，用查到的版本号而不是 @latest。pnpm 装上 A@1.1；B 的目录名带着 A 的版本，也换进新目录。装完再读一次真实目录，B 的变了，跟着重新加载。这一步失败就一条条目都不动。',
+    detail: '一次装完全部过期包，用查到的版本号而不是 @latest。pnpm 装上 A@1.1；B 的目录名带着 A 的版本，也换进新目录。装完再读一次真实目录，B 的变了，跟着重新加载；再读装上的清单里的 peer 排先后：B 的 peer 写了 A，A 先，插件管理自己与 peer 了它的包排到回执之后。这一步失败就一条条目都不动。',
     events: [
       { lane: 1, lines: ['一次', 'pnpm add'] },
       { lane: 2, lines: ['A@1.1 装上', 'B 换新目录'] },
     ],
   },
   {
-    title: '条目 A、B 停用再启用',
-    detail: '在同一条命令里做：先 A，再跟着重新加载的 B，每条都是停用 → 等旧的卸载完 → 启用 → 等新的加载完。启用时按真实路径重新解析，拿到的就是新目录里的代码。',
+    title: '按 peer 排的先后：条目 A、再 B 停用再启用',
+    detail: '在同一条命令里做：被依赖的 A 先，再是 peer 写了 A 的 B，每条都是停用 → 等旧的卸载完 → 启用 → 等新的加载完。启用时按真实路径重新解析，拿到的就是新目录里的代码；B 重新加载时 A 已经是新版本。',
     events: [{ lane: 3, lines: ['A、B', '停用→启用'] }],
   },
   {
     title: '回执发出',
-    detail: '回执里写着 selfDeferred: true。在这之前停用插件管理自己，回执就发不出去了。',
+    detail: '回执里写着 selfDeferred: true，插件管理自己与 peer 了它的包的条目记 deferred。在这之前停用插件管理自己，回执就发不出去了。',
     events: [{ lane: 0, lines: ['收到回执', 'selfDeferred'] }],
   },
   {
-    title: '下一个宏任务：重新加载插件管理自己',
-    detail: '这段代码只持有条目树、id 与 logger——插件管理原来的实例已经卸载，ctx 上什么都不能用。',
-    events: [{ lane: 4, lines: ['停用→启用', '新版本'] }],
+    title: '下一个宏任务：插件管理自己，再是 peer 了它的包',
+    detail: '先重新加载插件管理自己，再照排好的先后一条接一条重新加载 peer 了它的包（baseui、devkit 这类），一条失败只记日志、接着下一条。这段代码只持有条目树、条目 id 与 logger：插件管理原来的实例已经卸载，ctx 上什么都不能用。',
+    events: [{ lane: 4, lines: ['自己→依赖', '它的包'] }],
   },
   {
     title: '调用方整页重新加载',
@@ -61,7 +61,7 @@ const LANE_Y = (lane: number) => 34 + lane * 48
 const COL_X = (step: number) => 176 + step * 96
 
 export function PmUpgrade() {
-  const all = [{ title: '全貌', detail: '一条命令里按时间先后做完：定计划 → 一次 pnpm add → 逐条停用再启用（升级的包，再是 peer 写了它的包） → 回执 → 重新加载插件管理自己；调用方拿到回执后自己整页重新加载。', events: [] as Event[] }, ...STEPS]
+  const all = [{ title: '全貌', detail: '一条命令里按时间先后做完：定计划 → 一次 pnpm add → 按 peer 排的先后逐条停用再启用（被依赖的先） → 回执 → 重新加载插件管理自己与 peer 了它的包；调用方拿到回执后自己整页重新加载。', events: [] as Event[] }, ...STEPS]
   const state = useSteps(all.length, 3000)
   const current = all[state.step]!
   const replyX = COL_X(3) - 4

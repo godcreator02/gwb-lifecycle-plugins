@@ -3,11 +3,11 @@
 /**
  * 谁会被重新加载：读者给四个包各挑「不点名 / 升级 / 按原版本重装」，当场看到每个包升级前后的真实目录名、
  * 归进回执的哪一组、重新加载的先后，以及这组选择对应的那条命令。判断只用页面正文写的规则：
- * 目录变了的都重新加载；目录名里带着 peer 的版本；点了名的在前、按包名；插件管理自己排到回执之后。
+ * 目录变了的都重新加载；目录名里带着 peer 的版本；先后按这批包之间的 peer 排，被依赖的先、同一层按包名；插件管理自己与 peer 了它的包排到回执之后。
  */
 import { useState, type CSSProperties } from 'react'
 
-type PackageId = 'clock' | 'notes' | 'pm' | 'shell'
+type PackageId = 'baseui' | 'clock' | 'notes' | 'pm' | 'shell'
 type Action = 'keep' | 'upgrade' | 'reinstall'
 
 interface DemoPackage {
@@ -22,8 +22,9 @@ interface DemoPackage {
   isPluginManager?: boolean
 }
 
-/** 按包名排：回执里的包与重新加载的先后都按包名 */
+/** 按包名排：同一层里的先后按包名 */
 const PACKAGES: DemoPackage[] = [
+  { id: 'baseui', label: '基础界面', initial: '界', color: '#f59e0b', name: 'gwb-baseui', installed: '0.9.0', peers: ['pm'] },
   { id: 'clock', label: '时钟', initial: '时', color: '#0ea5e9', name: 'gwb-clock', installed: '0.2.0', latest: '0.2.1', peers: [] },
   { id: 'notes', label: '笔记', initial: '笔', color: '#e84393', name: 'gwb-notes', installed: '0.3.0', peers: ['shell'] },
   { id: 'pm', label: '插件管理', initial: '管', color: '#7c3aed', name: 'gwb-plugin-manager', installed: '0.14.1', latest: '0.14.2', peers: [], isPluginManager: true },
@@ -46,11 +47,23 @@ function segmentsOf(pkg: DemoPackage, after: Versions): { text: string; changed:
   ]
 }
 
+/** 只看这批包之间的 peer：被依赖的先，前面的都排完后同时可以重新加载的算一层，同一层按包名 */
+function inPeerOrder(batch: readonly DemoPackage[]): DemoPackage[] {
+  const ordered: DemoPackage[] = []
+  let rest = [...batch]
+  while (rest.length > 0) {
+    const layer = rest.filter((pkg) => pkg.peers.every((peer) => !rest.some((other) => other.id === peer)))
+    ordered.push(...layer.sort((a, b) => a.name.localeCompare(b.name)))
+    rest = rest.filter((pkg) => !layer.includes(pkg))
+  }
+  return ordered
+}
+
 type Verdict = 'reload' | 'same' | 'dependent' | 'none'
 const VERDICT_TEXT: Record<Verdict, string> = {
   reload: 'updated · 目录变了，重新加载',
   same: 'updated · 目录没变，不动',
-  dependent: 'dependents · 没点名，跟着搬家，重新加载',
+  dependent: 'dependents · 没点名，目录跟着变了，重新加载',
   none: '没点名，目录没变',
 }
 
@@ -81,16 +94,20 @@ function Command({ actions, after }: { actions: Record<PackageId, Action>; after
 }
 
 export function ReloadPicker() {
-  const [actions, setActions] = useState<Record<PackageId, Action>>({ clock: 'keep', notes: 'keep', pm: 'keep', shell: 'upgrade' })
+  const [actions, setActions] = useState<Record<PackageId, Action>>({ baseui: 'keep', clock: 'keep', notes: 'keep', pm: 'keep', shell: 'upgrade' })
   const after = versionsAfter(actions)
   const verdictOf = (pkg: DemoPackage): Verdict => {
     const changed = segmentsOf(pkg, after).some((segment) => segment.changed)
     if (actions[pkg.id] !== 'keep') return changed ? 'reload' : 'same'
     return changed ? 'dependent' : 'none'
   }
-  const queue = [...PACKAGES.filter((pkg) => verdictOf(pkg) === 'reload'), ...PACKAGES.filter((pkg) => verdictOf(pkg) === 'dependent')]
-  const inCommand = queue.filter((pkg) => !pkg.isPluginManager)
-  const afterReceipt = queue.find((pkg) => pkg.isPluginManager)
+  const queue = inPeerOrder(PACKAGES.filter((pkg) => verdictOf(pkg) === 'reload' || verdictOf(pkg) === 'dependent'))
+  const waitsForPluginManager = new Set<PackageId>()
+  for (const pkg of queue) {
+    if (pkg.isPluginManager || pkg.peers.some((peer) => waitsForPluginManager.has(peer))) waitsForPluginManager.add(pkg.id)
+  }
+  const inCommand = queue.filter((pkg) => !waitsForPluginManager.has(pkg.id))
+  const afterReceipt = queue.filter((pkg) => waitsForPluginManager.has(pkg.id))
   const anyNamed = PACKAGES.some((pkg) => actions[pkg.id] !== 'keep')
   const trainKey = queue.map((pkg) => pkg.id).join()
 
@@ -154,10 +171,10 @@ export function ReloadPicker() {
       </div>
 
       <div className="rp-train">
-        <div className="rp-train-title">重新加载的先后：点了名的在前、按包名，再是跟着搬家的</div>
+        <div className="rp-train-title">重新加载的先后：两组合在一起按 peer 排，被依赖的先、同一层按包名；插件管理与 peer 了它的包在回执之后</div>
         <div className="rp-cars">
           {!anyNamed ? (
-            <span style={{ color: '#8f8ab5', fontSize: 14 }}>还没点名，车库是空的。</span>
+            <span style={{ color: '#8f8ab5', fontSize: 14 }}>还没点名，没有要重新加载的包。</span>
           ) : queue.length === 0 ? (
             <span style={{ color: '#8f8ab5', fontSize: 14 }}>点了名的包目录都没变：一条条目都不重新加载。</span>
           ) : (
@@ -171,20 +188,24 @@ export function ReloadPicker() {
                   </span>
                 </span>
               ))}
-              {afterReceipt !== undefined && (
+              {afterReceipt.length > 0 && (
                 <>
                   <span key={`receipt-${trainKey}`} className="rp-sticker" data-kind="same" style={{ margin: '0 6px' }}>
                     ✉ 回执发出
                   </span>
-                  <span
-                    key={`${afterReceipt.id}-${trainKey}`}
-                    className="rp-car"
-                    data-later=""
-                    style={{ '--pkg': afterReceipt.color, animationDelay: `${inCommand.length * 0.08 + 0.15}s` } as CSSProperties}
-                  >
-                    {afterReceipt.label}
-                    <small>回执之后换自己</small>
-                  </span>
+                  {afterReceipt.map((pkg, index) => (
+                    <span key={`${pkg.id}-${trainKey}`} style={{ display: 'contents' }}>
+                      {index > 0 && <span className="rp-link" aria-hidden />}
+                      <span
+                        className="rp-car"
+                        data-later=""
+                        style={{ '--pkg': pkg.color, animationDelay: `${(inCommand.length + index) * 0.08 + 0.15}s` } as CSSProperties}
+                      >
+                        {pkg.label}
+                        <small>回执之后第 {index + 1} 个</small>
+                      </span>
+                    </span>
+                  ))}
                 </>
               )}
             </>

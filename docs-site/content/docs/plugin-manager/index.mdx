@@ -41,30 +41,30 @@ description: 插件管理是唯一写 home 的插件——装卸包、增删启�
 | `outdated` / `update` | 查新版本 / 升级已装的包，内核包也经 `update` 的 `specs`（`update` 经 BUSY 检查） | [热升级](/docs/plugin-manager/upgrade)、[升内核](/docs/plugin-manager/kernel-upgrade) |
 | `search` | 在市场名单里的市场上找插件；设置插件不在时不登记 | [找插件](/docs/plugin-manager/sources) |
 
-{/* ref file="../plugins/plugin-manager/src/index.ts" lines="68-77" hash="3939c83eb73d" blob="95d5be4fdbdf" */}
+{/* ref file="../plugins/plugin-manager/src/index.ts" lines="76-85" hash="3939c83eb73d" blob="a5163f00fe7a" */}
 
 - **回执只有一层 `ok`**：成功时 `data` 是结果本身，里面没有第二层 `ok`；执行中的失败（找不到 pnpm、pnpm 失败、条目写不进去）回 `{ ok: false, error }`，pnpm 输出的最后几行拼在 `error` 末尾。失败时还带结构化字段的只有一处：`update` 装上了内核包而 `cordis` 没对齐时带 `data: { kernel }`。为什么只留一层见轨迹卡[升内核并进 specs](/trajectory/2026-09-25-kernel-via-specs-caller-reloads)
 - **调用方写错直接报错**：参数不是对象、有认不出的键、缺字段、包名不合规、条目不存在，处理函数直接抛错，不猜、不忽略；命令总线把抛出的错误转成 `{ ok: false, error }`
 
 {/* ref file="../plugins/plugin-manager/src/receipts.ts" lines="7-8" hash="31162f955dce" blob="3d191e167e13" */}
 
-{/* ref file="../plugins/plugin-manager/src/index.ts" lines="662-671" hash="7909ccdde7e9" blob="95d5be4fdbdf" */}
+{/* ref file="../plugins/plugin-manager/src/index.ts" lines="689-698" hash="7909ccdde7e9" blob="a5163f00fe7a" */}
 
 ### 服务 gwbPluginManager
 
 值是空对象，只表示「插件管理装着」；别的插件 inject 它，只为跟着插件管理一起加载、卸载（插件管理窗格就这样用它）。有没有破坏性变化看插件管理的版本号，服务上不放版本数字。同一件事如果既能调命令、又能调服务方法，两种调用方式会慢慢变得不一致，而 BUSY 检查只加在命令上，服务方法会绕过去，所以要加能力就加一条命令，不往服务上加方法。只表示存在的服务用 `ctx.provide` 提供普通对象，不继承 cordis 的 `Service` 类，插件管理因此在运行时不 import `cordis`。
 
-{/* ref file="../plugins/plugin-manager/src/index.ts" lines="79-85" hash="d3e1c817c32a" blob="95d5be4fdbdf" */}
+{/* ref file="../plugins/plugin-manager/src/index.ts" lines="87-93" hash="d3e1c817c32a" blob="a5163f00fe7a" */}
 
-{/* ref file="../plugins/plugin-manager/src/index.ts" lines="90-97" hash="ef66467d49e2" blob="95d5be4fdbdf" */}
+{/* ref file="../plugins/plugin-manager/src/index.ts" lines="98-105" hash="ef66467d49e2" blob="a5163f00fe7a" */}
 
 ### 主入口给 devkit 的导出
 
 包主入口除了插件本身（`name`、`apply`），只导出 devkit 复用的几样——找 pnpm 的 `locatePnpm`、在 home 里启动 pnpm 用的环境 `homePnpmEnv`（见 [pnpm](/docs/plugin-manager/pnpm#参数环境与读回什么)）、内核包名 `KERNEL_PACKAGE`、peer 范围写法的判定 `isCaretRange`、取输出最后几行的 `tailLines`，以及 `devkit.dev` 调的三条命令名 `LIST_COMMAND`、`INSTALL_COMMAND`、`UPDATE_COMMAND`。devkit 在 peer 里写了插件管理，直接 import 这几样，规则只有这一份；devkit 构建时把 peer 里的包留在外面，运行时用的是 home 里装着的那一版插件管理。回执类型不从主入口导出，在下面的子路径 `./receipts`。devkit 怎么用这几样见接缝页 [devkit 调插件管理](/docs/seams/plugin-manager-calls)。
 
-{/* ref file="../plugins/plugin-manager/src/index.ts" lines="55-58" hash="32891efcf8af" blob="95d5be4fdbdf" */}
+{/* ref file="../plugins/plugin-manager/src/index.ts" lines="63-66" hash="32891efcf8af" blob="a5163f00fe7a" */}
 
-{/* ref file="../plugins/plugin-manager/src/index.ts" lines="68-70" hash="c4d22b1bf2be" blob="95d5be4fdbdf" */}
+{/* ref file="../plugins/plugin-manager/src/index.ts" lines="76-78" hash="c4d22b1bf2be" blob="a5163f00fe7a" */}
 
 {/* has file="../plugins/plugin-manager/tests/main-entry.test.ts" text="只导出插件本身（name、apply）与 devkit 复用的几样" */}
 
@@ -86,7 +86,7 @@ description: 插件管理是唯一写 home 的插件——装卸包、增删启�
 
 给 agent 讲这些命令怎么调用，放在包根的 `skills/`，装了说明书插件就交给它登记，agent 经 `skill.read` 读。正本是站里的 [gwb-plugin-manager](/docs/outputs/skills/gwb-plugin-manager)，包里的 `SKILL.md` 是生成物。
 
-{/* ref file="../plugins/plugin-manager/src/index.ts" lines="126-131" hash="397f310fcf69" blob="9c26468ce597" */}
+{/* ref file="../plugins/plugin-manager/src/index.ts" lines="134-139" hash="397f310fcf69" blob="a5163f00fe7a" */}
 
 ### 什么算破坏性变更
 

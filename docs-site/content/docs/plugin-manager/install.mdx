@@ -17,7 +17,7 @@ description: install 在一条命令里装一个还没装的包（清单写 ^ �
 3. **选 id，加一条条目**：经条目树 `create` 写进 `cordis.yml`，回执带 `entryId`。写不进 `cordis.yml` 时回 `ok: false`，包留在 home 里、不回滚——删包比留着危险，删除时也未必只删掉这一个
 </Diagram>
 
-{/* ref file="../plugins/plugin-manager/src/index.ts" lines="289-313" hash="616e4c3bef48" blob="95d5be4fdbdf" */}
+{/* ref file="../plugins/plugin-manager/src/index.ts" lines="297-321" hash="616e4c3bef48" blob="a5163f00fe7a" */}
 
 {/* has file="../plugins/plugin-manager/tests/commands.test.ts" text="install：在 home 里 pnpm add 包名@spec（不带 --save-exact，清单照 pnpm 默认写 ^ 范围），再加一条条目" */}
 
@@ -43,7 +43,7 @@ description: install 在一条命令里装一个还没装的包（清单写 ^ �
 
 写回 `cordis.yml` 在 `create` 的第一个 `await` 之前就同步安排好了，所以不 `await` 也不影响写入；加载失败只记一条 warn。id 一定显式传给 loader：不给的话 loader 每次启动生成一个新的随机 id。
 
-{/* ref file="../plugins/plugin-manager/src/index.ts" lines="572-582" hash="141f39283bad" blob="95d5be4fdbdf" */}
+{/* ref file="../plugins/plugin-manager/src/index.ts" lines="594-604" hash="141f39283bad" blob="a5163f00fe7a" */}
 
 这一条没有单元测试：要验证，就在隔离 home 里装一个依赖还没装齐的插件，看命令是否照常返回回执、`list` 里是否显示未加载。
 
@@ -76,7 +76,7 @@ description: install 在一条命令里装一个还没装的包（清单写 ^ �
 - 反过来先卸包：条目会指向一个不在 home 里的包
 </Diagram>
 
-{/* ref file="../plugins/plugin-manager/src/index.ts" lines="505-530" hash="89c5168b5a20" blob="95d5be4fdbdf" */}
+{/* ref file="../plugins/plugin-manager/src/index.ts" lines="527-552" hash="89c5168b5a20" blob="a5163f00fe7a" */}
 
 {/* ref file="../plugins/plugin-manager/src/uninstall.ts" lines="3-8" hash="e00bea41e844" blob="32218fc5c1e7" */}
 

@@ -134,10 +134,10 @@ export interface RemountedEntry {
   id: string
   /**
    * `remounted`：停用再启用，重新 import 了新版本；`skipped`：本来就停用，保持停用；
-   * `deferred`：本插件自己那条，回执发出之后才重新加载；`failed`：操作条目树时抛错，`state` 里是那句错误
+   * `deferred`：本插件自己，以及依赖本插件的包的条目：回执发出之后才重新加载；`failed`：操作条目树时抛错，`state` 里是那句错误
    */
   action: 'remounted' | 'skipped' | 'deferred' | 'failed'
-  /** 重新加载之后 fiber 到哪一步（ACTIVE / PENDING / FAILED…）。skipped 是 disabled，deferred 是动手前的状态 */
+  /** 重新加载之后 fiber 到哪一步（ACTIVE / PENDING / FAILED…）。skipped 是 disabled，deferred 是重新加载前的状态 */
   state: string
 }
 
@@ -148,28 +148,31 @@ export interface UpdatedPackage {
   from?: string
   /** 装上的版本号（`specs` 也是装完读到的版本号，不是写法原文） */
   to: string
-  /** 它的每条条目各自的处理结果；装了内核包、不重新加载时是空数组 */
+  /** 它的每条条目各自的处理结果；这次不重新加载（装了内核包、它在 peer 环上或依赖环上的包）时是空数组 */
   entries: RemountedEntry[]
 }
 
 /** `update` 中没升级、但 pnpm add 前后真实目录变了，跟着重新加载的一个包 */
 export interface DependentPackage {
   pkg: string
-  /** 它的每条条目各自的处理结果 */
+  /** 它的每条条目各自的处理结果；它在 peer 环上或依赖环上的包、这次不重新加载时是空数组 */
   entries: RemountedEntry[]
 }
 
 /** `plugin-manager.update` 成功时的 `data` */
 export interface Updated {
-  /** 装了的包；specs 里有内核包时末尾还有插件管理自己对齐的 cordis */
+  /** 装了的包，按重新加载的先后列；specs 里有内核包时末尾还有插件管理自己对齐的 cordis */
   updated: UpdatedPackage[]
-  /** 跟着重新加载的包，在 `updated` 之后处理 */
+  /** 跟着重新加载的包，按重新加载的先后列。和 `updated` 合在一起按 peer 排先后：被依赖的先 */
   dependents: DependentPackage[]
-  /** 本插件自己在升级或跟着重新加载的包里：它的条目在回执发出后才重新加载 */
+  /** 本插件自己在升级或跟着重新加载的包里：它与依赖它的包的条目在回执发出后才重新加载 */
   selfDeferred: boolean
-  /** 只在 specs 里有内核包时出现：装上的内核版本与正在运行的不同，重启工作台后才生效 */
+  /**
+   * 有包要重启工作台后才换成新装的版本：specs 里有内核包、装上的内核版本与正在运行的不同；
+   * 或这批包里 peer 成环，环上的与依赖环的包这次没重新加载（note 里写明环）
+   */
   restartRequired?: boolean
-  /** 需要提醒的情况：全都最新、only 里列出但已是最新的包、要不要重启 */
+  /** 需要提醒的情况：全都最新、only 里列出但已是最新的包、要不要重启、peer 成环 */
   note?: string
 }
 
