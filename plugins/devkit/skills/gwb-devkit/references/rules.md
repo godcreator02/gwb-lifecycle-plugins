@@ -9,7 +9,7 @@
 - **版本号升哪一位**：照说明书 `gwb-release`（`skill.read {"name":"gwb-release"}`），全生态一套
 - **一件事该进内核还是做成插件**：判据在内核仓文档站的「关键设计」页——只有第一个插件运行之前必须完成的事才进内核，其余一律做成插件
 
-写一个新插件，先读[依赖怎么写](/docs/rules/deps)与[用到的插件写 peer](/docs/rules/plugin-peers)，再读[卸载清理](/docs/rules/dispose)；仓里有文档站的，照约定写好[插件之间怎么连](/docs/rules/wiring)那一页（没有工具查，不进总表）；带界面的读[页面代码与 importmap](/docs/rules/importmap)；发版之前读[兼容哪个内核](/docs/rules/kernel-compat)。写法建议在[cordis 服务怎么提供和使用](/docs/rules/services)与[插件之间怎么交互](/docs/rules/interaction)。
+写一个新插件，先读[依赖怎么写](/docs/rules/deps)与[用到的插件写 peer](/docs/rules/plugin-peers)，再读[卸载清理](/docs/rules/dispose)；仓里有文档站的，照约定把[插件之间的依赖](/docs/rules/wiring)记下来、插件首页写明记在哪（没有工具查，不进总表）；带界面的读[页面代码与 importmap](/docs/rules/importmap)；发版之前读[兼容哪个内核](/docs/rules/kernel-compat)。写法建议在[cordis 服务怎么提供和使用](/docs/rules/services)与[插件之间怎么交互](/docs/rules/interaction)。
 
 ## 有哪些检查
 

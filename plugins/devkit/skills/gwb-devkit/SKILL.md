@@ -19,7 +19,7 @@ description: 写新插件、改插件、在隔离 home 里验证改动、发正�
    - 不要界面的插件：照生成的 README 里那张清单删掉浏览器侧的文件、脚本与依赖
    - `package.json`：`description` 写一句话说这个插件做什么；用到的插件写进 peer；不用外壳就删掉 peer 里那一项；有了 `skills/` 目录就把 `skills` 加进 `files`
    - 提供服务：在源码里给 `Context` 补上这一项（`declare module 'cordis' { interface Context { gwbExample: GwbExample } }`），`GwbExample` 定义在本包里、写文档注释说清怎么用。模板不输出 `.d.ts`，要加三处：包里加 `tsconfig.build.json`（`"extends": "./tsconfig.json"`，`compilerOptions` 写 `"noEmit": false, "declaration": true, "emitDeclarationOnly": true, "outDir": "dist", "rootDir": "src"`，`"include": ["src/index.ts"]`）；`build` 脚本在 `node build.ts` 之后加 `tsc -p tsconfig.build.json`；`exports["."]` 改成 `{ "types": "./dist/index.d.ts", "default": "./dist/index.js" }`
-   - 仓里有文档站的，在现状区写这个插件的页，功能、接口、依赖、不做的事四节；依赖写进 `docs/wiring.mdx`（格式见 `/docs/rules/wiring`，没有工具查），插件页的依赖一节只链过去
+   - 仓里有文档站的，在现状区写这个插件的首页，功能、接口、依赖、不做的事四节；插件之间的依赖按提供、注入、按名字调用与约定通道三张表记下来（格式见 `/docs/rules/wiring`，没有工具查），记在哪一页不固定，首页的依赖一节写明记在哪、链过去
 5. 仓根 `pnpm build`，再 `pnpm check`
 
 **完成判据**：仓根 `pnpm check` 全绿。接着做「改一版看一版」。
@@ -27,7 +27,7 @@ description: 写新插件、改插件、在隔离 home 里验证改动、发正�
 ## 改已有插件
 
 1. 仓得是 workspace 布局：仓根是 `private: true` 的 `package.json`，`pnpm-workspace.yaml` 的 `packages` 里有 `plugins/*`，插件包在 `plugins/<短名>/`。不是的先照 `devkit.scaffold` 生成的仓迁过来，`devkit.dev`、`devkit.release`、`devkit.scaffold.plugin` 只认这种仓
-2. 改代码，守「写插件的规矩」。加减了服务，同步改给 `Context` 补的那几项；加减了命令、服务、说明书、注入，仓里有文档站的在同一个提交里改那个插件的页与 `docs/wiring.mdx`
+2. 改代码，守「写插件的规矩」。加减了服务，同步改给 `Context` 补的那几项；加减了命令、服务、说明书、注入，仓里有文档站的在同一个提交里改那个插件的页与记依赖的那一页（插件首页的依赖一节链着它）
 3. 仓根 `pnpm build`、`pnpm check`
 
 **完成判据**：`pnpm check` 全绿。接着做「改一版看一版」。
