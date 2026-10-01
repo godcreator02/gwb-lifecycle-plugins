@@ -1,0 +1,17 @@
+---
+title: docfirst-workflow 0.5.3：Markdown 图片不用登记进名册，升级时站里不用改代码
+description: 来源：gwb-docfirst（2026-10-01，提交 692620c、86a3e94）
+---
+
+**碰到什么**：docfirst-workflow 0.5.2 及更早的站里写 `![说明](/p2/x.png)`，`pnpm build` 报 `第 1 行：名册外组件 <img>`。
+fumadocs 预设里的 `remarkImage` 先把 Markdown 图片换成 `<img>`，docfirst 的名册检查把它当成了作者写的组件；`pnpm doc` 读的是原文，不报。
+
+**0.5.3 起**：docfirst-workflow 自己认出这种 `<img>`，机读版里写成 `![说明](/p2/x.png)`（跟页面放在一起的图片写 `./x.png`），
+页面上照旧由 fumadocs 默认的图片组件显示。站里的 `registry.ts`、`mdx.tsx`、`docfirst.config.mjs` 都不用改，也不要把 `img` 加进名册。
+在 mdx 里手写的 `<img>` 仍然算组件，要登记。
+
+**要做的**：要用 Markdown 图片时，把站 `package.json` 里的 `@godcreator/docfirst-workflow` 升到 `0.5.3`，`pnpm install`，删掉 `.next` 再 `pnpm build`。
+不用图片的站不急，下次升级依赖时一起升。0.5.0、0.5.1 升到 0.5.3 之间别的改动只有说明文字与命令行输出的措辞。
+
+**证据**：gwb-docfirst 的轨迹卡 `docs-site/content/trajectory/2026-10-01-markdown-images-outside-roster.mdx`；
+说明书 `docs-site` 的「登记一个组件」与「安装或构建失败」两节。
