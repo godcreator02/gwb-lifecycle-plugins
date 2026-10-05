@@ -57,13 +57,15 @@ import { KERNEL_PACKAGE } from './kernel-compat.js'
 import { CORDIS_PACKAGE, installedVersionMismatch, KERNEL_MANAGED_PACKAGES, kernelUpgradeTargetOf, versionChangeOf } from './kernel-upgrade.js'
 import { declaredPluginPeers, peerStatusOf } from './peers.js'
 import { searchPlugins } from './package-sources.js'
-import { readPnpmConfig, readPnpmConfigValue } from './pnpm-config.js'
+import { readPnpmConfig } from './pnpm-config.js'
+import { REGISTRY_AUTH_KEY, registryTokens, withHomeRegistryAuth } from './registry-auth.js'
 import { DEFAULT_MARKETS, MARKETS_SETTING_KEY } from './sources.js'
 
 // 开发套件复用的规则：它 import 这几个，不另存一份
 export { locatePnpm } from './pnpm-location.js'
 export { isCaretRange, KERNEL_PACKAGE } from './kernel-compat.js'
 export { homePnpmEnv, tailLines } from './pnpm.js'
+export { withHomeRegistryAuth } from './registry-auth.js'
 
 const NAME = 'gwb-plugin-manager'
 
@@ -236,6 +238,7 @@ class PluginManager {
       const commandBus = ctx.gwbCommands
       // inject 保证了它们在，这句只是把类型收窄
       if (settings === undefined || commandBus === undefined) return
+      settings.define({ key: REGISTRY_AUTH_KEY, type: 'secret', shared: true, title: 'npm 源凭据', description: '本 home 的源鉴权 JSON：键为 //主机/路径/:_authToken，值为 token；由接入 skill 本地导入，不回显原文。安装、检索、发布共用。' })
       settings.define({
         key: MARKETS_SETTING_KEY,
         title: '插件市场',
@@ -248,7 +251,7 @@ class PluginManager {
         {
           name: SEARCH_COMMAND,
           description: '列出市场名单里各个市场上的插件（npm 标准检索）',
-          usage: `无参数。市场名单是公共区（section "*"）的设置项 ${MARKETS_SETTING_KEY}，字符串数组，每项一个 scope，默认 ${JSON.stringify(DEFAULT_MARKETS)}；加删市场用 settings.set 改它。每个市场的源地址问 pnpm（在 home 里 pnpm config list --json，含 ~/.npmrc、<home>/.npmrc、pnpm 全局配置），只认这个 scope 自己的 @<scope>:registry，没配就报这个市场没配源、不去全局源查；凭据按源地址 pnpm config get //<源>/:_authToken 取。各市场并发查，查成的并进 packages，没查成的在 note 里点名，一个失败不影响别的；全都没查成才 ok:false。只列插件：包自己的 keywords 里有 gwb-plugin 的。回执 data { packages: [{ pkg, version?, description? }], markets: [{ scope, registry?, ok, count?, error? }]（顺序照名单）, note? }`,
+          usage: `无参数。市场名单是公共区（section "*"）的设置项 ${MARKETS_SETTING_KEY}，字符串数组，每项一个 scope，默认 ${JSON.stringify(DEFAULT_MARKETS)}；加删市场用 settings.set 改它。每个市场的源地址问 pnpm（在 home 里 pnpm config list --json，含 ~/.npmrc、<home>/.npmrc、pnpm 全局配置），只认这个 scope 自己的 @<scope>:registry，没配就报这个市场没配源、不去全局源查；凭据只从当前 home 的共享 secret npm-auth 读取，不回退机器凭据。各市场并发查，查成的并进 packages，没查成的在 note 里点名，一个失败不影响别的；全都没查成才 ok:false。只列插件：包自己的 keywords 里有 gwb-plugin 的。回执 data { packages: [{ pkg, version?, description? }], markets: [{ scope, registry?, ok, count?, error? }]（顺序照名单）, note? }`,
           plugin: PKG,
           effect: 'read',
         },
@@ -259,7 +262,7 @@ class PluginManager {
           return searchPlugins({
             markets: settings.get(MARKETS_SETTING_KEY),
             readPnpmConfig: () => readPnpmConfig(pnpmLookup.file, this.homeDir),
-            readPnpmConfigValue: (key) => readPnpmConfigValue(pnpmLookup.file, this.homeDir, key),
+            readPnpmConfigValue: (key) => Promise.resolve(registryTokens(settings.get(REGISTRY_AUTH_KEY))[key]),
           })
         },
       )
@@ -335,7 +338,7 @@ class PluginManager {
     const pnpmLookup = await locatePnpm()
     if (!pnpmLookup.ok) return { ok: false, error: pnpmLookup.error }
 
-    const pnpmRun = await runPnpmCapture({ pnpm: pnpmLookup.file, cwd: this.homeDir, args: ['outdated', '--json'] })
+    const pnpmRun = await withHomeRegistryAuth(pnpmLookup.file, this.homeDir, ({ env }) => runPnpmCapture({ pnpm: pnpmLookup.file, cwd: this.homeDir, args: ['outdated', '--json'], env }))
     const withStderr = (message: string): string =>
       pnpmRun.stderrTail === '' ? message : `${message}\n${pnpmRun.stderrTail}`
     if (pnpmRun.exitCode === null) return { ok: false, error: withStderr(`pnpm 启动失败（退出码 ${String(pnpmRun.exitCode)}）`) }
@@ -639,7 +642,7 @@ class PluginManager {
    */
   private applyToHome(pnpm: string, change: { add: readonly string[] } | { remove: readonly string[] }): Promise<PnpmResult> {
     const args = 'add' in change ? ['add', ...change.add] : ['remove', ...change.remove]
-    return runPnpm({ pnpm, cwd: this.homeDir, args })
+    return withHomeRegistryAuth(pnpm, this.homeDir, ({ env }) => runPnpm({ pnpm, cwd: this.homeDir, args, env }))
   }
 }
 

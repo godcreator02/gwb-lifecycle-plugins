@@ -17,6 +17,7 @@ interface PnpmCall {
 
 const fakePnpm = vi.hoisted(() => ({
   calls: [] as PnpmCall[],
+  configCalls: [] as PnpmCall[],
   runExitCode: 0,
   captureExitCode: 0 as number | null,
   captureStdout: '{}' as string | ((args: readonly string[]) => string),
@@ -37,6 +38,10 @@ vi.mock('../src/pnpm.js', async (importOriginal) => {
       return Promise.resolve(fakePnpm.runExitCode === 0 ? { ok: true, exitCode: 0 } : { ok: false, exitCode: fakePnpm.runExitCode, tail: 'pnpm 说的原因' })
     },
     runPnpmCapture: (opts: { pnpm: string; cwd: string; args: readonly string[] }) => {
+      if (opts.args[0] === 'config') {
+        fakePnpm.configCalls.push({ args: opts.args, cwd: opts.cwd })
+        return Promise.resolve({ exitCode: 0, stdout: typeof fakePnpm.captureStdout === 'function' ? fakePnpm.captureStdout(opts.args) : '{}', stderrTail: '' })
+      }
       fakePnpm.calls.push({ args: opts.args, cwd: opts.cwd })
       const stdout = typeof fakePnpm.captureStdout === 'string' ? fakePnpm.captureStdout : fakePnpm.captureStdout(opts.args)
       return Promise.resolve({ exitCode: fakePnpm.captureExitCode, stdout, stderrTail: '' })
@@ -215,6 +220,7 @@ function mount(opts: { entries: Record<string, string>; shellReload?: boolean; s
 }
 
 beforeEach(() => {
+  fakePnpm.configCalls = []
   homeDir = fs.mkdtempSync(path.join(os.tmpdir(), 'pm-commands-'))
   writeHomeDependencies({})
   fakePnpm.calls = []
@@ -364,13 +370,13 @@ describe('登记的命令', () => {
     }
   })
 
-  it('search 要设置插件在才登记，市场名单声明在公共区、默认只有 @godcreator；别的命令不受影响', () => {
+  it('search 要设置插件在才登记，市场名单声明在公共区、默认只有 @godcreator；别的命令不受影响', async () => {
     const withoutSettings = mount({ entries: {}, settings: false })
     expect(() => withoutSettings.run('plugin-manager.search')).toThrow('没有登记 plugin-manager.search')
-    expect(() => withoutSettings.run('plugin-manager.list')).not.toThrow()
+    await expect(withoutSettings.run('plugin-manager.list')).resolves.toBeDefined()
 
     const pm = mount({ entries: {} })
-    expect(pm.settingDefs).toEqual([expect.objectContaining({ key: 'plugin-markets', type: 'string-list', shared: true, default: ['@godcreator'] })])
+    expect(pm.settingDefs).toEqual([expect.objectContaining({ key: 'npm-auth', type: 'secret', shared: true }), expect.objectContaining({ key: 'plugin-markets', type: 'string-list', shared: true, default: ['@godcreator'] })])
   })
 })
 
@@ -389,15 +395,14 @@ describe('plugin-manager.search', () => {
       seen.push({ url, ...(init?.headers === undefined ? {} : { auth: init.headers['Authorization'] }) })
       return Promise.resolve(new Response(JSON.stringify({ objects: [{ package: { name: '@j/gwb-planner', version: '1.0.0', keywords: ['gwb-plugin'] } }] })))
     })
-    const pm = mount({ entries: {}, settingValues: { 'plugin-markets': ['@j'] } })
+    const pm = mount({ entries: {}, settingValues: { 'plugin-markets': ['@j'], 'npm-auth': JSON.stringify({ '//j.example/npm/:_authToken': 't-j' }) } })
 
     expect(await pm.run('plugin-manager.search')).toEqual({
       ok: true,
       data: { packages: [{ pkg: '@j/gwb-planner', version: '1.0.0' }], markets: [{ scope: '@j', registry: 'https://j.example/npm/', ok: true, count: 1 }] },
     })
-    expect(fakePnpm.calls).toEqual([
+    expect(fakePnpm.configCalls).toEqual([
       { args: ['config', 'list', '--json'], cwd: homeDir },
-      { args: ['config', 'get', '//j.example/npm/:_authToken'], cwd: homeDir },
     ])
     expect(seen).toEqual([{ url: expect.stringMatching(/^https:\/\/j\.example\/npm\/-\/v1\/search/) as unknown, auth: 'Bearer t-j' }])
   })

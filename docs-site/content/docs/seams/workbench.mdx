@@ -37,9 +37,9 @@ devkit 源码里没有注入 `gwbSettings`，它没有设置项。
 
 **插件管理的两个依赖都局部注入**：`gwbCommands`、`gwbSkills`。它自己提供服务 `gwbPluginManager`，值是空对象 `{}`：
 
-{/* ref file="../plugins/plugin-manager/src/index.ts" lines="87-93" hash="d3e1c817c32a" blob="a5163f00fe7a" */}
+{/* ref file="../plugins/plugin-manager/src/index.ts" lines="89-95" hash="d3e1c817c32a" blob="9d217349a8b0" */}
 
-{/* ref file="../plugins/plugin-manager/src/index.ts" lines="100-105" hash="e4cfa73e8502" blob="a5163f00fe7a" */}
+{/* ref file="../plugins/plugin-manager/src/index.ts" lines="102-107" hash="e4cfa73e8502" blob="9d217349a8b0" */}
 
 这些服务的类型来自各服务包自带的 `declare module 'cordis'`：两个插件对这些服务包都只做 `import type`（devkit 另从插件管理的主入口按值 import 几个函数，见[插件之间怎么交互](/docs/rules/interaction)），服务包写在 peer 里（必需的命令总线直接写，局部注入可选使用的标 `optional`，见[用到的插件写 peer](/docs/rules/plugin-peers)），运行时不 import：
 

@@ -125,7 +125,7 @@ function scopeOrTeamScope(scope: string | undefined): string {
 
 /**
  * 只收规范写法（与 `new URL(registry).href` 逐字相同）：原样写进 package.json 的 JSON 字符串里，
- * 规范写法里没有要转义的字符。账号写在 URL 里会随包清单发出去，发布 token 写在用户级 `~/.npmrc`
+ * 规范写法里没有要转义的字符。账号写在 URL 里会随包清单发出去，发布 token 配在发起 home 的 npm-auth 凭据
  */
 function registryOrTeamRegistry(registry: string | undefined): string {
   if (registry === undefined) return TEAM_REGISTRY
@@ -134,7 +134,7 @@ function registryOrTeamRegistry(registry: string | undefined): string {
     throw new Error(`registry 要是 http(s) 地址（如 "http://localhost:4873/"），实得 ${JSON.stringify(registry)}`)
   }
   if (url.username !== '' || url.password !== '' || url.search !== '' || url.hash !== '') {
-    throw new Error(`registry 不许带账号、查询串或 #（发布 token 写在用户级 ~/.npmrc），实得 ${JSON.stringify(registry)}`)
+    throw new Error('registry 不许带账号、查询串或 #（发布 token 配在发起 home 的 npm-auth 凭据）')
   }
   if (url.href !== registry) {
     throw new Error(`registry 要写成规范写法 ${JSON.stringify(url.href)}，实得 ${JSON.stringify(registry)}`)

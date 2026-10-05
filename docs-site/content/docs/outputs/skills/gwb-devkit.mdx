@@ -12,7 +12,7 @@ description: 写新插件、改插件、在隔离 home 里验证改动、发正�
 
 1. 要用的能力先看提供方插件发布的 `.d.ts`：它给 cordis 的 `Context` 补了哪几项（`declare module 'cordis' { interface Context { … } }`），方法签名与文档注释就在那里。已经有了就直接用：peer 里写上提供方，`import type` 它的类型，`ctx.inject` 取用
 2. 带界面的插件，先读外壳的说明书 `skill.read {"name":"gwb-shell"}`
-3. 建仓用 `devkit.scaffold`，往已有的 workspace 仓再加一个插件用 `devkit.scaffold.plugin`。没有团队源（`@godcreator`）发布权限的，两条都加 `scope` 与 `registry`，同一个仓里的插件用同一套；发布 token 写在用户级 `~/.npmrc`。两条命令写完文件后都要联网运行 shadcn 官方 CLI 加上 `button`，顺带把整个仓装一遍依赖
+3. 建仓用 `devkit.scaffold`，往已有的 workspace 仓再加一个插件用 `devkit.scaffold.plugin`。没有团队源（`@godcreator`）发布权限的，两条都加 `scope` 与 `registry`，同一个仓里的插件用同一套；GWB 发布凭据保存在发起 home 的共享 secret `npm-auth`，配置步骤读 `gwb-plugin-manager`。两条命令写完文件后都要联网运行 shadcn 官方 CLI 加上 `button`，顺带把整个仓装一遍依赖
 4. 把模板改成真插件，守「写插件的规矩」：
    - `src/index.ts`：模板的 `<短名>.ping` 与窗格 `main` 换成真正的命令与窗格，命令照模板那条的写法登记。每条命令都写 `effect`，三选一：`read`（什么都不改，联网只读也算）、`write`（改本机的文件、设置、数据或界面）、`external`（影响本机以外或打扰人：推送、发到远端、发消息、弹窗或通知），按参数可能做几种事的取最重的那种。命令总线 0.6 起没写 `effect` 就登记失败，插件加载失败
    - `src/client/`：窗格里可点的控件用 shadcn 官方组件，模板已接好 `components.json`、`@/` 别名与 `Button`；要别的组件照外壳说明书的「接入 shadcn 组件」第 3 步起做
@@ -62,7 +62,7 @@ description: 写新插件、改插件、在隔离 home 里验证改动、发正�
 
 - **发到 gitea 的包**在 `package.json` 写上 `"repository": { "type": "git", "url": "https://git.tianshen02.online:28377/<owner>/<仓名>.git" }`：gitea 靠它把包关联到仓，仓与包不在同一个 owner 下也能关联。没有工具查
 - **机器上的两处配置**，不在任何仓里，换机器或重装会丢：
-  - 用户级 `~/.npmrc`：`@godcreator` 的 scope 行与各个源的发布 token。仓里不配 `.npmrc`
+  - 源路由：沿用 pnpm 的 scope 路由；GWB 安装和发布凭据由发起 home 的 `npm-auth` 保管，接入流程见 `gwb-plugin-manager`。普通终端 pnpm 仍用自己的配置
   - 用户级 pnpm 配置（`pnpm config get globalconfig` 报位置）：`minimumReleaseAgeExclude` 放行 `'@godcreator/*'`，丢了的症状是新机器上装不上刚发的包。仓与 home 的 `pnpm-workspace.yaml` 不写这一项，也不写 `strictPeerDependencies`：写了就逐项覆盖用户级的同名项
 
 ## 写插件的规矩

@@ -11,7 +11,7 @@ description: 插件在 peerDependencies 里给内核包 @godcreator/gwb-kernel-d
 
 插件包在 `package.json` 的 `peerDependencies` 里写 `"@godcreator/gwb-kernel-desktop": "^x.y.z"`，x.y.z 是它验过的那个内核的版本号。插件依赖内核提供的 cordis、loader 与 home 布局，这些随内核版本变化；内核是 home 里的一个 npm 包，用 npm 标准的 peer 写法声明兼容范围，pnpm 与插件管理读的是同一个字段。插件管理自己也这样写：
 
-{/* ref file="../plugins/plugin-manager/package.json" lines="34-37" hash="1fc9b56f3445" blob="3755073bd7c9" */}
+{/* ref file="../plugins/plugin-manager/package.json" lines="34-37" hash="d50a9bbc1850" blob="53d958e08d83" */}
 
 怎么写、什么时候改是写插件的规矩，见[兼容哪个内核](/docs/rules/kernel-compat)。
 
@@ -51,7 +51,7 @@ description: 插件在 peerDependencies 里给内核包 @godcreator/gwb-kernel-d
 
 {/* ref file="../plugins/plugin-manager/tests/peers.test.ts" lines="109-111" hash="cf17c3130532" blob="ff4676d50940" */}
 
-{/* ref file="../plugins/plugin-manager/tests/commands.test.ts" lines="263-273" hash="7fe741fecf2d" blob="c92d5fd1b7d7" */}
+{/* ref file="../plugins/plugin-manager/tests/commands.test.ts" lines="269-279" hash="7fe741fecf2d" blob="e61174279d2a" */}
 
 {/* ref file="../plugins/plugin-manager/tests/home.test.ts" lines="45-47" hash="6beae35eef7b" blob="75dab5629360" */}
 

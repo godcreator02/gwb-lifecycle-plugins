@@ -182,7 +182,7 @@ home 名只收 kebab-case：
 | `fs` | 读运行时记录与装上的内核包、`cordis` 的清单，列 home 目录、写 `cordis.yml`、删整个目录 | `node:fs`，删除是自己逐个遍历目录（见下） | 一张内存文件表加一张目录表，删除可以模拟「返回成功但目录还在」 |
 | `spawn` | 启动 detached 且**看得见**的 electron；`stdio` 全部 `ignore`、`unref`，和开它的 home 之间没有管道也没有 IPC，结束它不牵连开它的 home（[实测](/trajectory/2026-09-25-runner-tree-kill)） | `child_process.spawn`，不带 `windowsHide` | 记一笔，回假 pid |
 | `appSpawnPlan` | 拼再启动一次宿主应用的命令行：安装版启动那个 exe，宿主是开发态 electron 就拒 | 从宿主进程的 `execPath` 拼（`hostAppSpawnPlan`） | 回一份写死的计划（或抛错），不碰真宿主 |
-| `run` | 在前台运行装内核包、`cordis`、基础插件的三条 `pnpm add` 到结束，回输出的最后几行；三条的环境都由插件管理导出的 `homePnpmEnv` 从宿主环境算出（带 `pnpm_config_auto_install_peers=false`、去掉 `ELECTRON_RUN_AS_NODE`），基础插件 peer 里写的插件不会被 pnpm 自动补装；pnpm 是 `home.new` 开头在两个固定位置找到的那个可执行文件，经 `install.pnpm` 传进来 | `runCaptured` 合并输出；超时终止整棵进程树、确认都退出了才回，回执的 `timedOut` 说整棵树终止了没有（`node-process-tree.ts`） | 按预设回成功或失败 |
+| `run` | 在前台运行装内核包、`cordis`、基础插件的三条 `pnpm add` 到结束，回输出的最后几行；三条的环境都由插件管理导出的 `homePnpmEnv` 从宿主环境算出（带 `pnpm_config_auto_install_peers=false`、去掉 `ELECTRON_RUN_AS_NODE`），基础插件 peer 里写的插件不会被 pnpm 自动补装；认证经 `withHomeRegistryAuth` 使用发起 home 的凭据，不复制到新 home；pnpm 是 `home.new` 开头在两个固定位置找到的那个可执行文件，经 `install.pnpm` 传进来 | `runCaptured` 合并输出；超时终止整棵进程树、确认都退出了才回，回执的 `timedOut` 说整棵树终止了没有（`node-process-tree.ts`） | 按预设回成功或失败 |
 | `processTable` / `portOwner` / `kill` | 判断进程在不在（看一个 pid 也列整张表：`tasklist` 带不带过滤都一样慢）、端口上是谁在监听、停进程；前两个查不出就抛 | `node-probe-deps.ts`：`tasklist`、`netstat`、`process.kill` | 一张假进程表与端口占用者，可以让它们抛；记下进程表被列了几次 |
 | `execPath` / `env` | 认宿主映像名；拼窗口子进程的环境（`guiChildEnv`）与在 home 里启动 pnpm 的环境（`homePnpmEnv`） | 宿主进程自己的值 | 给固定值 |
 

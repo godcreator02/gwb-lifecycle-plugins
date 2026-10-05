@@ -16,7 +16,7 @@ god 工作台的开发套件，本身就是**一个普通的插件**：装进 ho
 plugin-manager.install {"pkg":"@godcreator/gwb-devkit"}
 ```
 
-没有设置项，装完不用配置。确认它加载了，看 `<home>\gwb.log` 里有没有「开发套件就绪」那一行——安装命令回的「装完了」不算。
+devkit 不另定义设置项；私有源安装与发布使用发起 home 的共享凭据 `npm-auth`，接入步骤读 `gwb-plugin-manager`。确认它加载了，看 `<home>\gwb.log` 里有没有「开发套件就绪」那一行——安装命令回的「装完了」不算。
 
 ## 这个仓里还有什么
 

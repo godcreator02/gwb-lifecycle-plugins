@@ -36,9 +36,9 @@ pnpm 由用户装好，插件管理不自带。每次要运行 pnpm 时按顺序
 
 **命令行参数与工作目录**：写 home 只有 `add <spec…>`（对齐 `cordis` 那一次是 `add --save-exact cordis@<版本>`）与 `remove <包名>` 两种，都经 `applyToHome` 运行；只读的是 `outdated --json`。工作目录一律是 home。参数以数组传给进程，不经 shell。
 
-{/* ref file="../plugins/plugin-manager/src/index.ts" lines="640-643" hash="84c877d9f358" blob="5ecda4b17644" */}
+{/* ref file="../plugins/plugin-manager/src/index.ts" lines="643-646" hash="07eb9aeeffb2" blob="9d217349a8b0" */}
 
-**环境**：由 `homePnpmEnv` 算，主入口导出它，devkit 在 home 里启动 pnpm 也用它（见[主入口给 devkit 的导出](/docs/plugin-manager#主入口给-devkit-的导出)）。原样传下去，用户的 `~/.npmrc`、pnpm 配置（`@godcreator` 的包源、包龄豁免）照常读到；改两处。去掉 `ELECTRON_RUN_AS_NODE`：它只对 electron 有意义，留着会传给 pnpm 启动的依赖构建脚本。设 `pnpm_config_auto_install_peers=false`：插件的 peer 写了别的插件、home 里没装那个插件时，pnpm 默认把它自动装进 `node_modules/.pnpm`，不写进 home 的 `package.json`、没有条目，插件管理也不认它；命令行参数 `--config.auto-install-peers=false` 会被 pnpm 忽略，只有环境变量或 home 的 `pnpm-workspace.yaml` 关得掉（见 [peer 满没满足](/docs/plugin-manager/peers#缺的-peer-不会被自动装上)）。
+**环境**：由 `homePnpmEnv` 算，主入口导出它，devkit 在 home 里启动 pnpm 也用它（见[主入口给 devkit 的导出](/docs/plugin-manager#主入口给-devkit-的导出)）。非敏感配置沿用 pnpm 的路由与包龄规则；启动前另经 `withHomeRegistryAuth` 清除继承的认证环境，只使用当前 home 的共享 secret `npm-auth`，见[包源凭据](/docs/plugin-manager/sources#子进程使用当前-home-的凭据)。`homePnpmEnv` 自己只改两处。去掉 `ELECTRON_RUN_AS_NODE`：它只对 electron 有意义，留着会传给 pnpm 启动的依赖构建脚本。设 `pnpm_config_auto_install_peers=false`：插件的 peer 写了别的插件、home 里没装那个插件时，pnpm 默认把它自动装进 `node_modules/.pnpm`，不写进 home 的 `package.json`、没有条目，插件管理也不认它；命令行参数 `--config.auto-install-peers=false` 会被 pnpm 忽略，只有环境变量或 home 的 `pnpm-workspace.yaml` 关得掉（见 [peer 满没满足](/docs/plugin-manager/peers#缺的-peer-不会被自动装上)）。
 
 {/* ref file="../plugins/plugin-manager/src/pnpm.ts" lines="10-23" hash="a8e6203c4d42" blob="b62dd927fe34" */}
 
@@ -50,7 +50,7 @@ pnpm 由用户装好，插件管理不自带。每次要运行 pnpm 时按顺序
 
 **不设超时**：装一个大包本来就可能要几分钟，定一个时限只会在慢网络上错误地结束正常的安装；网络层的超时 pnpm 自己有。真卡住了，由人去结束进程。
 
-**读回什么**：`add` / `remove` 只看退出码，0 是成功；成功时不保留输出，失败时回执 `error` 末尾带 stdout 与 stderr 合起来的最后 12 行，pnpm 把原因写在最后。进程没启动成功也不抛，退出码记为 `null`，原因在那几行里。`outdated` 要读 stdout 上的 JSON，另用 `runPnpmCapture` 完整保留 stdout，退出码 1 表示「有过期的包」，是结果不是失败；pnpm 升大版本时输出格式可能变，解析不了就回失败，原因里说明这一点。两种运行方式对输出的取舍相反，所以是两个函数。
+**读回什么**：`add` / `remove` 只看退出码，0 是成功；成功时不保留输出，失败时回执 `error` 末尾带 stdout 与 stderr 合起来的最后 12 行（已知 home 凭据先脱敏），pnpm 把原因写在最后。进程没启动成功也不抛，退出码记为 `null`，原因在那几行里。`outdated` 要读 stdout 上的 JSON，另用 `runPnpmCapture` 完整保留 stdout，退出码 1 表示「有过期的包」，是结果不是失败；pnpm 升大版本时输出格式可能变，解析不了就回失败，原因里说明这一点。两种运行方式对输出的取舍相反，所以是两个函数。
 
 {/* ref file="../plugins/plugin-manager/src/pnpm.ts" lines="30-54" hash="5b9833852739" blob="b62dd927fe34" */}
 
@@ -70,4 +70,4 @@ pnpm 由用户装好，插件管理不自带。每次要运行 pnpm 时按顺序
 
 这是「插件卸载时结束自己启动的子进程」那条规矩允许的例外，理由写在 `runPnpm` 的注释里：
 
-{/* ref file="../plugins/plugin-manager/src/pnpm.ts" lines="69-73" hash="0efdcbfa157b" blob="b62dd927fe34" */}
+{/* ref file="../plugins/plugin-manager/src/pnpm.ts" lines="69-73" hash="5cc351a2c724" blob="a0e2fe7cd3b0" */}

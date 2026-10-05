@@ -19,10 +19,10 @@ description: 这个仓里反复出现的词各指什么、在哪一页定义；�
 | 基础插件 | `devkit.home.new` 在新 home 启动前装好的插件：命令、外壳、数据、设置、说明书、插件管理、基础界面，加上提供 `timer` 服务的第三方 cordis 插件 `@cordisjs/plugin-timer` | [测试 home](/docs/devkit/home) |
 | 内核包 | `@godcreator/gwb-kernel-desktop`：内核作为 npm 包装在每个 home 的根上，和 `cordis` 并列（安装包只带启动器，启动器从 home 里加载内核）。插件在 peer 里写它的范围 `^x.y.z`，声明兼容哪些内核；它的包根导出内核给插件的接口类型（`GwbContext` 等），插件只 `import type` | [兼容哪个内核](/docs/rules/kernel-compat) |
 | importmap | 页面上「包名 → 文件地址」的表，浏览器侧代码里的包名 import 靠它解析。由 kernel 根据插件登记准备；React 由 shell 提供，其他插件也可登记 | [页面代码与 importmap](/docs/rules/importmap) |
-| 团队源 | gitea 个人源 `https://git.tianshen02.online:28377/api/packages/godcreator/npm/`，常驻，`@godcreator` 范围下的包从这里发、从这里装；scope 路由与发布 token 写在用户级 `~/.npmrc`。没有它发布权限的开发者用自己的包名范围与源 | [pnpm 与包源](/docs/seams/pnpm-registry) |
+| 团队源 | gitea 个人源 `https://git.tianshen02.online:28377/api/packages/godcreator/npm/`，常驻，`@godcreator` 范围下的包从这里发、从这里装；scope 路由仍可写在用户级 `~/.npmrc`，GWB 发布 token 来自发起 home 的 `npm-auth` 凭据。没有它发布权限的开发者用自己的包名范围与源 | [pnpm 与包源](/docs/seams/pnpm-registry) |
 | 包名范围 | 包名 `@<范围>/<名>` 里的 `@<范围>`。团队的是 `@godcreator`；`devkit.scaffold` 的 `scope` 参数定生成的插件在哪个范围下 | [建仓与加插件](/docs/devkit/scaffold) |
 | 发布目标 | 一个包的正式版发到哪个源：它 `package.json` 的 `publishConfig.registry`，没写 `devkit.release` 就拒发。`devkit.scaffold` 的 `registry` 参数写这个字段 | [pnpm 与包源](/docs/seams/pnpm-registry) |
-| 包源 | pnpm 配置里的一条 scope 路由加上它的凭据：某个 scope 的包从哪个 npm 源装。第三方的包源由 agent 照说明书 `gwb-plugin-manager` 手写进机器级 `~/.npmrc`，插件管理不写、只问 pnpm 要；`@godcreator` 那条是团队源 | [找插件](/docs/plugin-manager/sources) |
+| 包源 | 某个 scope 的包从哪个 npm 源装，由 pnpm 的 scope 路由决定；认证由当前 home 的 `npm-auth` 提供。路由配置和凭据原值迁移由 agent 照说明书 `gwb-plugin-manager` 编排，产品不改持久化 npmrc；`@godcreator` 那条是团队源 | [找插件](/docs/plugin-manager/sources) |
 | 市场 | `plugin-manager.search` 去找插件的一个 scope。市场名单是设置插件公共区的 `plugin-markets`，默认只有 `@godcreator`；名单外的包源不查。一个市场的源地址就是它在 pnpm 配置里的包源 | [找插件](/docs/plugin-manager/sources) |
 | 开发版 | 版本号形如 `<patch+1>-dev.<yyyyMMddHHmmss>` 的一次性版本，只为把此刻的改动装进一个隔离 home；打成包文件、经那个 home 的插件管理装，不发到团队源 | [改一版看一版](/docs/devkit/dev) |
 | 包文件 | `pnpm pack` 打出的 `.tgz`。开发版的包文件放在目标 home 的 `dev-packs` 目录，home 清单用 `file:./dev-packs/<包文件>` 引用它；每版一个新路径，旧的不删 | [改一版看一版](/docs/devkit/dev) |

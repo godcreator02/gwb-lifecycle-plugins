@@ -30,16 +30,15 @@ home 里有两层：
 
 `search` 只在**市场名单**里的 scope 上找插件。名单是设置插件公共区的一项：`section` 为 `*`、`key` 为 `plugin-markets`，字符串数组，默认 `["@godcreator"]`。每个市场的源地址 `search` 问 pnpm，只认这个 scope 自己的 `@<scope>:registry`。所以加一个市场要做两件事：
 
-1. 让 pnpm 知道这个 scope 的源。先 `pnpm config get @<scope>:registry`：输出了地址就是配好了，跳到第 2 步。没有就往机器级 `~/.npmrc`（本机所有 home 共用）手写：
-   - 读一遍 `~/.npmrc`，这个 scope 已有 `@<scope>:registry=` 行就改那一行，没有就在末尾加路由行 `@<scope>:registry=<源地址>`，源地址以 `/` 结尾。gitea 上的包源地址是 `<gitea 地址>/api/packages/<用户或组织>/npm/`
-   - 私有源另加凭据行 `//<主机>/<路径>/:_authToken=<token>`：`<主机>/<路径>/` 就是源地址去掉 `https:` 的部分（如 `//git.example.com/api/packages/j/npm/:_authToken=…`）。token 向人要，不要自己编，也不要写进回复与日志
-   - `@godcreator` 那两行不动：本机所有 home 的安装、所有源码仓的安装与发版都靠它
-2. 把 scope 加进名单：`settings.get {"section":"*","key":"plugin-markets"}` 读出现在的名单（`null` 表示没改过，就是默认值），加上这个 scope 后整份写回 `settings.set {"section":"*","key":"plugin-markets","value":[…]}`。人也可以在插件管理窗格「可安装」一栏加
-3. `plugin-manager.search` 核对
+1. 确认目标 home，在该目录查询 `pnpm config get @<scope>:registry`。只修改所需源路由，保留其他配置；格式与生效层级按本机 pnpm 的帮助确认。gitea 包源地址为 `<gitea 地址>/api/packages/<用户或组织>/npm/`，以 `/` 结尾。
+2. 私有源凭据由本 home 的 `credentials` 管理：共享槽 `section:"*", key:"npm-auth"` 保存 JSON 对象，键是 `//<主机>/<路径>/:_authToken`，值是服务端签发的 token。先查 `credentials.status`；已有整份可用配置用 `credentials.copy/import`。增改一个源时在本地进程中合并现有对象、写临时导入文件再导入，保留其他源；回执只报目标和验证状态，清理临时文件。已授权迁移的 `~/.npmrc` 可以作为一次性导入来源，在本地取值，不将文件内容或 token 输出到对话。
+   安装、检索和 devkit 发布只用发起 home 的这份凭据；未配置时匿名请求，不借机器或其他 home 的凭据。GWB 子进程使用临时 auth-file 与环境变量注入，系统 pnpm 的配置不被改写。工程或所属工作区 `.npmrc` 含认证项时会拒绝运行：在本地将这些认证原值合并导入指定 home，核对入库成功后移除工程中的旧认证项，保留路由及无关设置；这是接入操作，插件不会替你改工程文件。对普通终端的影响要在本次接入结果中说明。
+3. 把 scope 加进名单：`settings.get {"section":"*","key":"plugin-markets"}` 读出现在的名单（`null` 表示没改过，就是默认值），加上这个 scope 后整份写回 `settings.set {"section":"*","key":"plugin-markets","value":[…]}`。人也可以在插件管理窗格「可安装」一栏加
+4. `plugin-manager.search` 核对
 
 **完成判据**：`search` 回执 `data.markets` 里这个 scope 那一项 `ok` 为 true，`data.packages` 里有它上面的插件。
 
-删一个市场：从名单里去掉这个 scope 写回；它在 `~/.npmrc` 里的两行只在不再从这个源装包时才删。
+删一个市场：从名单里去掉这个 scope 写回；源路由与 `npm-auth` 中对应项只在不再需要该源时删除，其他源保留。
 
 **「可安装」一栏是空的、或某个市场报「pnpm 里没配这个市场的源」**：`pnpm config get @<scope>:registry` 输出 `undefined`，照第 1 步补上路由行。
 

@@ -1,6 +1,6 @@
 ---
 title: 找插件
-description: plugin-manager.search（无参数）只在市场名单里的市场上检索插件：名单是公共区的设置项 plugin-markets，默认只有 @godcreator；每个市场的源地址与凭据问 pnpm（home 里 pnpm config list --json 与 config get），和装包用的是同一份配置；市场在 pnpm 里没配源就报出来，不去全局源查；是不是插件只看包清单 keywords 里的 gwb-plugin；search 不改 home，不经 BUSY
+description: plugin-manager.search（无参数）只在市场名单里的市场上检索插件：名单是公共区的设置项 plugin-markets，默认只有 @godcreator；每个市场的源地址问 pnpm，凭据只读当前 home 的共享 secret npm-auth，和装包用的是同一份配置；市场在 pnpm 里没配源就报出来，不去全局源查；是不是插件只看包清单 keywords 里的 gwb-plugin；search 不改 home，不经 BUSY
 ---
 
 # 找插件
@@ -12,7 +12,7 @@ description: plugin-manager.search（无参数）只在市场名单里的市场�
 <Diagram name="pm-sources" title="search 在哪些市场上找，每个市场去哪个源查">
 - 市场名单是设置插件公共区里的一项 `plugin-markets`，每项一个 scope，默认 `["@godcreator"]`；人在插件管理窗格「可安装」一栏加删，agent 用 `settings.set` 改
 - 每个市场的源地址问 pnpm：在 home 里运行 `pnpm config list --json`，只认这个 scope 自己的 `@scope:registry`；pnpm 这份配置合了 `~/.npmrc`、`<home>/.npmrc`、pnpm 自己的全局配置与环境变量
-- 私有源的凭据按源地址 `pnpm config get //<源>/:_authToken` 取
+- 私有源的凭据按源地址从当前 home 的共享 secret `npm-auth` 取
 - 各市场并发发 `GET <源>/-/v1/search?text=<scope>&size=250`，包清单 `keywords` 含 `gwb-plugin` 的才算插件，合并进 `packages`；每个市场查得怎样写进 `markets`
 - 装包的 `plugin-manager.install` 经 pnpm 读的是同一份配置，所以搜到的包就从这个源装
 </Diagram>
@@ -23,17 +23,17 @@ npmrc 里的源不都是 gwb 的：pnpm 自带一条 `@jsr:registry`，机器上
 
 {/* ref file="../plugins/plugin-manager/src/sources.ts" lines="6-10" hash="8a29f8b7780b" blob="acb6da61c816" */}
 
-{/* ref file="../plugins/plugin-manager/src/index.ts" lines="233-246" hash="6e2afe03bf77" blob="5ecda4b17644" */}
+{/* ref file="../plugins/plugin-manager/src/index.ts" lines="235-249" hash="6e5acb5ebaed" blob="9d217349a8b0" */}
 
 名单是外部输入：不是字符串数组、有重复就直接报错，不替它修正；名单是空的回 `ok: false`。
 
 {/* ref file="../plugins/plugin-manager/src/sources.ts" lines="18-26" hash="87d28d18ca24" blob="174993efee5e" */}
 
-{/* ref file="../plugins/plugin-manager/tests/commands.test.ts" lines="367-374" hash="04943ed49b86" blob="c92d5fd1b7d7" */}
+{/* ref file="../plugins/plugin-manager/tests/commands.test.ts" lines="373-380" hash="415ae4d55916" blob="5e59d7370747" */}
 
 ## 源地址问 pnpm，和装包用同一份配置
 
-每次 `search` 在 home 里运行一次 `pnpm config list --json`，拿到的是 pnpm 装包时用的那份合并配置：机器级 `~/.npmrc`、home 级 `<home>/.npmrc`、pnpm 自己的全局配置（`pnpm config set` 写进的地方）与环境变量都在里面。插件管理不自己读 npmrc，所以源配在哪一层，搜的和装的都是同一个源。这份输出里凭据被遮成 `(protected)`，要带凭据时按源地址另运行一次 `pnpm config get //<主机>/<路径>/:_authToken`，没配时 pnpm 输出 `undefined`。
+每次 `search` 在 home 里运行一次 `pnpm config list --json`，拿到的是 pnpm 装包时用的那份合并配置：机器级 `~/.npmrc`、home 级 `<home>/.npmrc`、pnpm 自己的全局配置（`pnpm config set` 写进的地方）与环境变量都在里面。插件管理不自己读 npmrc，所以源配在哪一层，搜的和装的都是同一个源。这份输出里的机器凭据不使用。私有源只读当前 home 的共享 secret `npm-auth`，其中 JSON 对象以 `//主机/路径/:_authToken` 为键。缺值时匿名请求，删除后不会从机器配置复活。
 
 {/* ref file="../plugins/plugin-manager/src/pnpm-config.ts" lines="1-4" hash="5ae8876a01b3" blob="6da6556bdafc" */}
 
@@ -41,11 +41,11 @@ npmrc 里的源不都是 gwb 的：pnpm 自带一条 `@jsr:registry`，机器上
 
 **一个市场只认它自己的路由 `@scope:registry`**：没有这条时 pnpm 会去全局源装，那不是这个市场，查出来多半是空的；所以这时这个市场报「pnpm 里没配这个市场的源」，并说要往 `~/.npmrc` 加哪一行，不去全局源查。scope 写法不对（不是 `@` 开头的小写名字）也在这个市场上报错。
 
-{/* ref file="../plugins/plugin-manager/src/sources.ts" lines="28-41" hash="6a1ad04391db" blob="174993efee5e" */}
+{/* ref file="../plugins/plugin-manager/src/sources.ts" lines="28-41" hash="6f0f0d30e439" blob="43cbb82ec848" */}
 
 {/* ref file="../plugins/plugin-manager/tests/package-sources.test.ts" lines="66-71" hash="f61ed6ac1f38" blob="c9c28bc1536a" */}
 
-{/* ref file="../plugins/plugin-manager/tests/commands.test.ts" lines="382-403" hash="8614b934e9ea" blob="c92d5fd1b7d7" */}
+{/* ref file="../plugins/plugin-manager/tests/commands.test.ts" lines="388-408" hash="7786d41f0523" blob="5e59d7370747" */}
 
 ## 各市场并发查，一个失败只影响它自己
 
@@ -71,12 +71,20 @@ npmrc 里的源不都是 gwb 的：pnpm 自带一条 `@jsr:registry`，机器上
 
 ## 加一个市场：改名单，源配给 pnpm
 
-插件管理不写 npmrc，也不收凭据。加一个市场是两件事：往名单里加 scope（窗格「可安装」一栏，或 `settings.set {"section":"*","key":"plugin-markets",…}`），再让 pnpm 知道这个 scope 的源——往 `~/.npmrc` 加 `@<scope>:registry=<源地址>`，私有源再加凭据行。说明书 [gwb-plugin-manager](/docs/outputs/skills/gwb-plugin-manager) 的「加一个市场」写清这两步，做完调 `search` 看这个市场的 `ok`。`@godcreator` 的路由本来就要有：本机每个 home 的安装、每个源码仓的安装与发版都靠它。
+源路由与凭据接入由说明书编排。加一个市场需要：往名单里加 scope（窗格「可安装」一栏，或 `settings.set {"section":"*","key":"plugin-markets",…}`），再让 pnpm 知道这个 scope 的源——往 `~/.npmrc` 加 `@<scope>:registry=<源地址>`，私有源通过 `credentials.import/copy` 填入本 home 的 `npm-auth`，回执不含原文。说明书 [gwb-plugin-manager](/docs/outputs/skills/gwb-plugin-manager) 的「加一个市场」写清这两步，做完调 `search` 看这个市场的 `ok`。`@godcreator` 的路由本来就要有：本机每个 home 的安装、每个源码仓的安装与发版都靠它。
 
 ## 不改 home，不经 BUSY
 
 `search` 用不带 BUSY 检查的方式登记。BUSY 防的是两次改动同时改 home 的 `package.json`；`search` 只读设置、pnpm 的配置与网络，运行的 `pnpm config` 也不写 home。检索可能要等好几个市场，排在安装后面只会让「可安装」列表等到安装做完才出来。
 
-{/* ref file="../plugins/plugin-manager/src/index.ts" lines="229-267" hash="eb38b0c9a65c" blob="5ecda4b17644" */}
+{/* ref file="../plugins/plugin-manager/src/index.ts" lines="231-270" hash="41a617aebdb6" blob="9d217349a8b0" */}
 
 真实 registry 与 pnpm 的配置只能实机验证：`devkit.home.new` 开一个隔离 home，在里面调 `search`。
+
+## 子进程使用当前 home 的凭据
+
+安装、升级、查更新和 devkit 发布使用 `withHomeRegistryAuth`。它只读指定 home 的 `credentials.json`，将非敏感源路由与凭据环境变量引用写进临时 auth-file，通过 pnpm 12 的 `NPM_CONFIG_USERCONFIG` 覆盖机器鉴权。旧认证环境变量先清除；完成或失败后清理临时文件，错误与回执里的已知认证值替换为占位符。配置文件不含凭据原文，系统 npmrc 不改。实际工作目录或所属工作区的 `.npmrc` 若含认证项，执行前拒绝，避免其优先级盖过 home 凭据；由接入 skill 先迁入指定 home 并移除工程旧认证行，源路由保留。
+
+创建新 home 的引导安装使用发起 home 的凭据，凭据不会复制到新 home；新 home 后续操作需独立配置。普通终端 pnpm 沿用终端自己的配置。
+
+{/* ref file="../plugins/plugin-manager/src/registry-auth.ts" hash="064689413b35" blob="81b40ee5e7ca" */}

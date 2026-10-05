@@ -13,7 +13,7 @@ description: 怎么装开发套件、怎么确认它加载了；改 devkit、插
 plugin-manager.install {"pkg":"@godcreator/gwb-devkit"}
 ```
 
-装完下一次调 MCP 入口的 `index` 就有 `devkit.*` 命令，不用重连。没有设置项，装完什么都不用配。
+装完下一次调 MCP 入口的 `index` 就有 `devkit.*` 命令，不用重连。devkit 不另定义设置项；访问私有源前，发起 home 须按 `gwb-plugin-manager` 说明书配置共享凭据 `npm-auth`。
 
 **确认它加载了**：`<home>\gwb.log` 里有「开发套件就绪」那一行，说明 `apply` 执行完了。安装命令回的「装完了」不算：包装进 `node_modules` 与插件加载成功是两件事。这个 home 上此刻有哪几条命令，以 `search {"plugin":"@godcreator/gwb-devkit"}` 的结果为准。
 

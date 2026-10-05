@@ -1,13 +1,13 @@
 ---
 title: 9 pnpm 与包源
-description: 连接 devkit、插件管理与 pnpm、npm 源、两份 npmrc：两个插件用同一个 pnpm——用户装在两个固定位置之一的 pnpm 12，按插件管理里那一份规则找、核对版本，直接启动；在 home 里运行时关掉自动补装 peer；插件管理用它改 home，devkit 用它做 build / pack / publish / view / add；正式版发到包自己的 publishConfig.registry、打 latest，开发版打成包文件放进目标 home；插件管理找插件时市场名单里每个 scope 的源地址与凭据问 pnpm（config list / config get），和装包用同一份配置；第三方包源由 agent 照说明书手写 ~/.npmrc
+description: devkit 与插件管理共享 pnpm 定位和鉴权边界。路由沿用 pnpm 配置，凭据由每个 home 的 npm-auth 保管；本地临时认证配置把身份注入子进程，工程已有认证项时先拒绝并由 skill 迁移。发布目标由包清单指定，新 home 引导安装使用发起 home 的身份
 ---
 
 **本页回答**：两个插件用的是哪一个 pnpm、怎么找到它、各拿它做什么；在 home 里运行 pnpm 时为什么关掉自动补装 peer；正式版发到哪个源、哪几处指定源、哪几处靠用户的 `~/.npmrc`；开发版与正式版怎么分开；插件管理找插件时怎么决定去哪个源检索；第三方包源谁来配。
 
 ## 连接的模块
 
-- 插件管理：`plugins/plugin-manager/src/pnpm-location.ts`（找 pnpm）、`src/pnpm.ts`（启动 pnpm）；找插件在 `src/package-sources.ts`、`src/sources.ts`、`src/search.ts`、`src/pnpm-config.ts`、`src/registry.ts`
+- 插件管理：`plugins/plugin-manager/src/pnpm-location.ts`（找 pnpm）、`src/pnpm.ts`（启动 pnpm）、`src/registry-auth.ts`（每 home 的 registry 鉴权）；找插件在 `src/package-sources.ts`、`src/sources.ts`、`src/search.ts`、`src/pnpm-config.ts`、`src/registry.ts`
 - devkit：`plugins/devkit/src/dev.ts`、`src/release.ts`、`src/home.ts`、`src/node-dev-deps.ts`；找 pnpm 用插件管理主入口导出的 `locatePnpm`
 - 用户装的 pnpm 12 可执行文件；团队源（gitea 上 `godcreator` 组织的 npm 源）与第三方包源；npmjs、Verdaccio、gitea 都实现的 npm registry 检索接口
 - pnpm 的配置：机器级 `~/.npmrc`（agent 照说明书 `gwb-plugin-manager` 往里写第三方包源）、home 级 `<home>/.npmrc`、pnpm 自己的全局配置与环境变量，pnpm 把它们合成一份；插件管理找插件时向 pnpm 要这份合并结果，不自己读 npmrc
@@ -20,7 +20,7 @@ description: 连接 devkit、插件管理与 pnpm、npm 源、两份 npmrc：两
 
 {/* ref file="../plugins/devkit/src/index.ts" lines="27-27" hash="0bb814122d14" blob="508f3229377b" */}
 
-**插件管理拿它做什么**：只在 home 里运行 `add`（对齐 `cordis` 那一次带 `--save-exact`）、`remove`、`outdated --json`，不传 `--registry`，源由 pnpm 的配置决定；找插件时另运行只读的 `config list --json` 与 `config get`。
+**插件管理拿它做什么**：只在 home 里运行 `add`（对齐 `cordis` 那一次带 `--save-exact`）、`remove`、`outdated --json`，不传 `--registry`，源由 pnpm 的配置决定；找插件时另运行只读的 `config list --json` 取路由，凭据只取当前 home 的 `npm-auth`。
 
 **devkit 拿它做什么**：`devkit.home.new`、`devkit.dev`、`devkit.release` 三条命令开头各找一次，找不到就回 `ok: false`、什么都不做。用在六处：
 
@@ -37,11 +37,11 @@ description: 连接 devkit、插件管理与 pnpm、npm 源、两份 npmrc：两
 
 {/* ref file="../plugins/devkit/src/dev.ts" lines="313-316" hash="b36d9dc71ed0" blob="ebe1ec7fc4e7" */}
 
-{/* ref file="../plugins/devkit/src/node-dev-deps.ts" lines="261-280" hash="0480d92ddfa0" blob="7ad0027b33e7" */}
+{/* ref file="../plugins/devkit/src/node-dev-deps.ts" lines="261-280" hash="e6ffdc0c4e6d" blob="0af53fe4f48e" */}
 
-{/* ref file="../plugins/devkit/src/node-dev-deps.ts" lines="362-378" hash="eacf762af803" blob="7ad0027b33e7" */}
+{/* ref file="../plugins/devkit/src/node-dev-deps.ts" lines="362-378" hash="1b6cacd22d8e" blob="0af53fe4f48e" */}
 
-**在 home 里运行的 pnpm 都关掉自动补装 peer**：启动 pnpm 时环境变量原样传下去，加一项 `pnpm_config_auto_install_peers=false`（插件管理另去掉 `ELECTRON_RUN_AS_NODE`）。插件管理的 pnpm 都在 home 里运行；devkit 只在 `home.new` 的三次 `pnpm add` 带它，在插件仓里的 build 与临时目录里的 pack、publish、view 不带——插件仓里开发要靠自动补装把 peer 里的内核包与插件装进 `node_modules`，带上它 pnpm 会按新配置重装、把这些 peer 拿掉，构建时找不到类型。插件的 peer 写了别的插件、home 里没装那个插件时，pnpm 默认把它装进 `node_modules/.pnpm` 且不提示，不写进 home 的 `package.json`、没有条目，插件管理也不认它。命令行参数 `--config.auto-install-peers=false` 会被 pnpm 忽略，只有环境变量或 home 的 `pnpm-workspace.yaml` 关得掉（实验见本仓 `probes/2609242300_peer-between-plugins/`）：
+**在 home 里运行的 pnpm 都关掉自动补装 peer**：启动 pnpm 时非认证环境变量沿用，加一项 `pnpm_config_auto_install_peers=false`（插件管理另去掉 `ELECTRON_RUN_AS_NODE`）。插件管理的 pnpm 都在 home 里运行；devkit 只在 `home.new` 的三次 `pnpm add` 带它，在插件仓里的 build 与临时目录里的 pack、publish、view 不带——插件仓里开发要靠自动补装把 peer 里的内核包与插件装进 `node_modules`，带上它 pnpm 会按新配置重装、把这些 peer 拿掉，构建时找不到类型。插件的 peer 写了别的插件、home 里没装那个插件时，pnpm 默认把它装进 `node_modules/.pnpm` 且不提示，不写进 home 的 `package.json`、没有条目，插件管理也不认它。命令行参数 `--config.auto-install-peers=false` 会被 pnpm 忽略，只有环境变量或 home 的 `pnpm-workspace.yaml` 关得掉（实验见本仓 `probes/2609242300_peer-between-plugins/`）：
 
 {/* ref file="../plugins/devkit/src/dev.ts" lines="309-312" hash="3cbe99a74e88" blob="ebe1ec7fc4e7" */}
 
@@ -63,13 +63,13 @@ description: 连接 devkit、插件管理与 pnpm、npm 源、两份 npmrc：两
 
 {/* ref file="../plugins/devkit/src/dev.ts" lines="46-57" hash="80a01c91531f" blob="48d80099fae0" */}
 
-**插件管理找插件：源地址问 pnpm、调检索接口**。`plugin-manager.search` 只查市场名单（设置插件公共区的 `plugin-markets`，默认 `@godcreator`）里的 scope。每个市场的源地址在 home 里运行 `pnpm config list --json` 取，只认这个 scope 自己的 `@scope:registry`，没配就报这个市场没配源；凭据按源地址 `pnpm config get //<主机>/<路径>/:_authToken` 取（`config list` 把凭据遮成 `(protected)`）。读哪几层配置、谁优先，全由 pnpm 决定，所以查到的源就是装包用的源（插件管理的做法见[找插件](/docs/plugin-manager/sources)）：
+**插件管理找插件：源地址问 pnpm、调检索接口**。`plugin-manager.search` 只查市场名单（设置插件公共区的 `plugin-markets`，默认 `@godcreator`）里的 scope。每个市场的源地址在 home 里运行 `pnpm config list --json` 取，只认这个 scope 自己的 `@scope:registry`，没配就报这个市场没配源；凭据按源地址从当前 home 的共享 secret `npm-auth` 中取，键仍是 `//<主机>/<路径>/:_authToken`。pnpm 合并配置只用于源路由，其中的机器认证值不使用（插件管理的做法见[找插件](/docs/plugin-manager/sources)）：
 
 {/* ref file="../plugins/plugin-manager/src/pnpm-config.ts" lines="32-45" hash="87098c801f09" blob="6da6556bdafc" */}
 
-{/* ref file="../plugins/plugin-manager/src/sources.ts" lines="28-41" hash="6a1ad04391db" blob="174993efee5e" */}
+{/* ref file="../plugins/plugin-manager/src/sources.ts" lines="28-41" hash="6f0f0d30e439" blob="43cbb82ec848" */}
 
-`config list --json` 与 `config get` 的输出形状（JSON 对象、没配时输出 `undefined`）是 pnpm 12.4 实测的，写在 `pnpm-config.ts` 开头；pnpm 改了输出格式，`search` 会报「输出不是 JSON 对象」。每个市场发 `GET <registry>/-/v1/search?text=<scope>&size=250`，有凭据就带 `Authorization: Bearer`，最多等 10 秒；是不是插件只看包清单 `keywords` 里有没有 `gwb-plugin`：
+`config list --json` 的输出形状（JSON 对象）是 pnpm 12.4 实测的，写在 `pnpm-config.ts` 开头；pnpm 改了输出格式，`search` 会报「输出不是 JSON 对象」。每个市场发 `GET <registry>/-/v1/search?text=<scope>&size=250`，有凭据就带 `Authorization: Bearer`，最多等 10 秒；是不是插件只看包清单 `keywords` 里有没有 `gwb-plugin`：
 
 {/* ref file="../plugins/plugin-manager/src/registry.ts" lines="10-31" hash="21b148894187" blob="56c6ac868cbd" */}
 
@@ -81,7 +81,9 @@ description: 连接 devkit、插件管理与 pnpm、npm 源、两份 npmrc：两
 
 {/* ref file="../plugins/plugin-manager/src/sources.ts" lines="6-10" hash="8a29f8b7780b" blob="acb6da61c816" */}
 
-**第三方包源由 agent 手写 `~/.npmrc`**：说明书 `gwb-plugin-manager` 的「加一个市场」写清加哪两行（`@<scope>:registry=<地址>`，私有源另加 `//<主机>/<路径>/:_authToken=<token>`，token 由人给）、再把 scope 加进市场名单，`@godcreator` 那行不动，写完调 `plugin-manager.search` 核对。
+**第三方包源接入由 skill 编排**：说明书 `gwb-plugin-manager` 的「加一个市场」分开处理 pnpm scope 路由和本 home 的 `npm-auth`。已授权的旧凭据在本地直接导入，不回显；写完调 `plugin-manager.search` 核对。
+
+`withHomeRegistryAuth` 是插件管理主入口给 devkit 的公开导出：绑定发起 home 的凭据，为指定操作注入认证并清理临时文件、脱敏结果。实际工程或工作区 `.npmrc` 存在认证项时先拒绝，由 skill 完成迁移并保留非敏感路由，产品不自动修改工程配置。`devkit.home.new` 的安装使用发起 home 身份，新 home 后续操作需自己配置。
 
 ## 约定
 
@@ -90,7 +92,7 @@ devkit 与插件管理都保证：在 home 里启动 pnpm 时带 `pnpm_config_au
 插件管理保证：
 
 - 会写 home 的 pnpm 只在经过 BUSY 检查的命令里运行，同一时刻最多一个；只读的 `pnpm outdated` 不经过 BUSY
-- 不写 npmrc，找插件时运行的 `pnpm config` 只读
+- 不改持久化 npmrc；找插件时的 `pnpm config` 只读，认证临时文件在操作结束后清理
 - 回执与日志里不带 token
 - `search` 不带参数，只查市场名单里的 scope（顺序照名单），各市场并发查，一个失败不影响别的，全都失败才 `ok: false`
 
@@ -111,7 +113,7 @@ devkit 保证：
 ## 不负责的事
 
 - devkit 与插件管理都不安装、不升级 pnpm 本身；要求的 pnpm 版本写在插件管理里，换版本就是发一版插件管理
-- devkit 与插件管理都不写 `~/.npmrc` 与 token；第三方包源由 agent 照说明书 `gwb-plugin-manager` 手写
+- devkit 与插件管理不修改 `~/.npmrc` 或工程认证文件；第三方包源路由与原值迁移由 agent 照说明书 `gwb-plugin-manager` 完成
 - 插件管理不去市场名单以外的源找插件：npmrc 里 pnpm 自带的 `@jsr`、公司私有源这类路由不查
 - `devkit.release` 不运行包里的 `scripts`：发布内容来自临时目录，那里没有 `scripts`
 

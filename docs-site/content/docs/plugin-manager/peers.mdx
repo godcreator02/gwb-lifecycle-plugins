@@ -33,7 +33,7 @@ description: 插件在 peerDependencies 里写内核包与它用到的别的插�
 
 **装着的版本从哪读**：home 的 `node_modules/<包名>/package.json` 在就算装了，版本取它的 `version`。`list` 本来就读 home 的 dependencies 与条目里每个包的清单；插件 peer 里点名了别的包时再补读一次，内核包不读。不合包名规则的键（比如 `../escape`）不拿去拼路径，按没装报。
 
-{/* ref file="../plugins/plugin-manager/src/index.ts" lines="284-302" hash="ef1a8444b959" blob="5ecda4b17644" */}
+{/* ref file="../plugins/plugin-manager/src/index.ts" lines="287-305" hash="ef1a8444b959" blob="9d217349a8b0" */}
 
 {/* ref file="../plugins/plugin-manager/tests/peers.test.ts" lines="77-85" hash="dc319f84b539" blob="ff4676d50940" */}
 
@@ -45,7 +45,7 @@ description: 插件在 peerDependencies 里写内核包与它用到的别的插�
 
 {/* ref file="../plugins/plugin-manager/tests/peers.test.ts" lines="117-120" hash="55f20cb8c730" blob="ff4676d50940" */}
 
-{/* ref file="../plugins/plugin-manager/tests/commands.test.ts" lines="282-290" hash="6d247879b844" blob="c92d5fd1b7d7" */}
+{/* ref file="../plugins/plugin-manager/tests/commands.test.ts" lines="288-296" hash="6d247879b844" blob="e61174279d2a" */}
 
 ## 只报告，不拦加载
 

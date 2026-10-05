@@ -34,7 +34,7 @@ export function marketSourceOf(scope: string, pnpmConfig: Readonly<Record<string
   const key = `${scope}:registry`
   const registry = pnpmConfig[key]
   if (registry === undefined) {
-    return { ok: false, scope, error: `pnpm 里没配这个市场的源：往 ~/.npmrc 加一行 ${key}=<源地址>，私有源再加一行凭据，写法见说明书 gwb-plugin-manager 的「加一个市场」` }
+    return { ok: false, scope, error: `pnpm 里没配这个市场的源：配置 ${key}=<源地址>；私有源凭据导入本 home 的 npm-auth，步骤见说明书 gwb-plugin-manager 的「加一个市场」` }
   }
   if (typeof registry !== 'string') return { ok: false, scope, error: `pnpm 配置里 ${key} 的值不是字符串：${JSON.stringify(registry)}` }
   return { ok: true, scope, registry: registry.endsWith('/') ? registry : `${registry}/` }

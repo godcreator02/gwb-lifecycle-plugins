@@ -21,7 +21,7 @@ description: 升级 home 里的插件：收到参数、查过期、一次 pnpm a
 
 `all`、`only`、`specs` 三选一。不给参数、给了两种、写了认不出的键，当场报错，一次 pnpm 都不运行：漏写参数不能变成「整个 home 一起升级」。
 
-{/* ref file="../plugins/plugin-manager/src/index.ts" lines="662-672" hash="c6a19c259887" blob="5ecda4b17644" */}
+{/* ref file="../plugins/plugin-manager/src/index.ts" lines="665-675" hash="c6a19c259887" blob="9d217349a8b0" */}
 
 </Step>
 
@@ -31,7 +31,7 @@ description: 升级 home 里的插件：收到参数、查过期、一次 pnpm a
 
 `all` 和 `only` 都去查哪些包过期了；`specs` 走另一条路：不查过期，按给定的写法装，写了内核包的再转去升内核（见文末）。
 
-{/* ref file="../plugins/plugin-manager/src/index.ts" lines="353-356" hash="19c0fff38c39" blob="5ecda4b17644" */}
+{/* ref file="../plugins/plugin-manager/src/index.ts" lines="356-359" hash="19c0fff38c39" blob="9d217349a8b0" */}
 
 </Step>
 
@@ -41,7 +41,7 @@ description: 升级 home 里的插件：收到参数、查过期、一次 pnpm a
 
 `outdated` 查出外壳和插件管理有新版本。每一项写成精确版本号 `<包名>@<版本号>`，不用 `@latest`：两次查询之间有人又发了一版，也不会装成回执上没写的那个。全都最新就直接回执，什么都不动。
 
-{/* ref file="../plugins/plugin-manager/src/index.ts" lines="367-378" hash="7ea4a90ab6b8" blob="5ecda4b17644" */}
+{/* ref file="../plugins/plugin-manager/src/index.ts" lines="370-381" hash="7ea4a90ab6b8" blob="9d217349a8b0" */}
 
 </Step>
 
@@ -53,7 +53,7 @@ description: 升级 home 里的插件：收到参数、查过期、一次 pnpm a
 
 到这一步，新版本已经在磁盘上了，运行的仍是旧代码。
 
-{/* ref file="../plugins/plugin-manager/src/index.ts" lines="452-457" hash="93ca9ef0c865" blob="5ecda4b17644" */}
+{/* ref file="../plugins/plugin-manager/src/index.ts" lines="455-460" hash="93ca9ef0c865" blob="9d217349a8b0" */}
 
 </Step>
 
@@ -81,9 +81,9 @@ description: 升级 home 里的插件：收到参数、查过期、一次 pnpm a
 
 其余的在这条命令里依次重新加载，每一条都是：停用、等旧实例卸载完、启用、等新实例加载完。本来就停用的条目保持停用。排到回执之后的，条目只记下 `deferred`，这时不重新加载。
 
-{/* ref file="../plugins/plugin-manager/src/index.ts" lines="460-465" hash="f457ea307789" blob="5ecda4b17644" */}
+{/* ref file="../plugins/plugin-manager/src/index.ts" lines="463-468" hash="f457ea307789" blob="9d217349a8b0" */}
 
-{/* ref file="../plugins/plugin-manager/src/index.ts" lines="512-532" hash="e7192d841616" blob="5ecda4b17644" */}
+{/* ref file="../plugins/plugin-manager/src/index.ts" lines="515-535" hash="e7192d841616" blob="9d217349a8b0" */}
 
 {/* ref file="../plugins/plugin-manager/src/remount.ts" lines="26-34" hash="531e953d2a45" blob="5777a53110fb" */}
 
@@ -95,7 +95,7 @@ description: 升级 home 里的插件：收到参数、查过期、一次 pnpm a
 
 回执带上 `updated`、`dependents` 与 `selfDeferred`，peer 成环时另带 `restartRequired` 与写着环的 `note`。回执发出之后，插件管理才停用、再启用自己，接着依次重新加载 peer 了它的包。
 
-{/* ref file="../plugins/plugin-manager/src/index.ts" lines="476-488" hash="983cfa454737" blob="5ecda4b17644" */}
+{/* ref file="../plugins/plugin-manager/src/index.ts" lines="479-491" hash="983cfa454737" blob="9d217349a8b0" */}
 
 <Callout title="页面不会跟着刷新">
 update 不整页重新加载。要让窗格换成新版本的界面代码，调用方拿到成功回执后自己调一次 `shell.reload`。
@@ -168,21 +168,21 @@ pnpm 退出码是 0，不等于装上了要的那一版：home 的 `package.json
 
 {/* ref file="../plugins/plugin-manager/tests/update.test.ts" lines="248-253" hash="5b363935be40" blob="a4b835c262e9" */}
 
-{/* ref file="../plugins/plugin-manager/tests/commands.test.ts" lines="588-621" hash="f1056a37aabf" blob="c92d5fd1b7d7" */}
+{/* ref file="../plugins/plugin-manager/tests/commands.test.ts" lines="593-626" hash="f1056a37aabf" blob="e61174279d2a" */}
 
-{/* ref file="../plugins/plugin-manager/tests/commands.test.ts" lines="558-575" hash="83757ddfc28a" blob="c92d5fd1b7d7" */}
+{/* ref file="../plugins/plugin-manager/tests/commands.test.ts" lines="563-580" hash="83757ddfc28a" blob="e61174279d2a" */}
 
-{/* ref file="../plugins/plugin-manager/tests/commands.test.ts" lines="577-586" hash="257ba1eabd0b" blob="c92d5fd1b7d7" */}
+{/* ref file="../plugins/plugin-manager/tests/commands.test.ts" lines="582-591" hash="257ba1eabd0b" blob="e61174279d2a" */}
 
 {/* ref file="../plugins/plugin-manager/tests/update.test.ts" lines="172-187" hash="c9fc5beed4d0" blob="a4b835c262e9" */}
 
 {/* ref file="../plugins/plugin-manager/src/remount.ts" lines="48-72" hash="9602e2cc9d9a" blob="3c8649945110" */}
 
-{/* ref file="../plugins/plugin-manager/tests/commands.test.ts" lines="670-684" hash="f689b35a7cf3" blob="c92d5fd1b7d7" */}
+{/* ref file="../plugins/plugin-manager/tests/commands.test.ts" lines="675-689" hash="f689b35a7cf3" blob="e61174279d2a" */}
 
-{/* ref file="../plugins/plugin-manager/tests/commands.test.ts" lines="686-699" hash="6f960a2f64b6" blob="c92d5fd1b7d7" */}
+{/* ref file="../plugins/plugin-manager/tests/commands.test.ts" lines="691-704" hash="6f960a2f64b6" blob="e61174279d2a" */}
 
-{/* ref file="../plugins/plugin-manager/src/index.ts" lines="421-426" hash="010feaafd20f" blob="5ecda4b17644" */}
+{/* ref file="../plugins/plugin-manager/src/index.ts" lines="424-429" hash="010feaafd20f" blob="9d217349a8b0" */}
 
 </Accordion>
 </Accordions>

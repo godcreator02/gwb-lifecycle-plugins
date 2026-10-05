@@ -33,7 +33,7 @@ description: plugins/devkit/AGENTS.md 由这一页生成——每次会话都得
 
 ## 本仓还有插件管理
 
-- devkit 从插件管理的主入口 import `locatePnpm`、`homePnpmEnv`、`KERNEL_PACKAGE`、peer 范围的判定、`tailLines` 与 `devkit.dev` 调的三条命令名，规则只有插件管理那一份，不另存副本；删改这几个导出，devkit 跟着改
+- devkit 从插件管理的主入口 import `locatePnpm`、`homePnpmEnv`、`withHomeRegistryAuth`、`KERNEL_PACKAGE`、peer 范围的判定、`tailLines` 与 `devkit.dev` 调的三条命令名，规则只有插件管理那一份，不另存副本；删改这几个导出，devkit 跟着改
 - 插件管理各条命令回执的类型只写在 `src/receipts.ts`，经子路径 `./receipts` 给界面的浏览器侧 `import type`：这个文件只有类型、一个模块都不引用（`tests/receipts.test.ts` 查），加命令、改回执时在这里定义，实现文件从这里取
 - **改插件管理的命令名、参数或回执形状，或删改上面那几个导出与 `./receipts` 里的类型名，是破坏性变更**：照「gwb-release」升 x，发之前先通知下游
 - **在 home 里启动 pnpm 一律带环境变量 `pnpm_config_auto_install_peers=false`**（环境用插件管理导出的 `homePnpmEnv` 算），在插件仓里不带；命令行参数 `--config.auto-install-peers=false` 会被 pnpm 忽略，不能拿它代替

@@ -94,10 +94,11 @@ peer 里另有插件管理 `@godcreator/gwb-plugin-manager`（`workspace:^`，�
 
 | 通道 | 对方 | 名字 | 用来做什么 |
 | --- | --- | --- | --- |
-| 按值 import 主入口（[插件之间怎么交互](/docs/rules/interaction)明文允许的例外） | `@godcreator/gwb-plugin-manager` | `locatePnpm`、`homePnpmEnv`、`KERNEL_PACKAGE`、`isCaretRange`、`tailLines`、`LIST_COMMAND`、`INSTALL_COMMAND`、`UPDATE_COMMAND` | 找 pnpm、在 home 里启动 pnpm 的环境、内核包名与 peer 范围的判定、取输出最后几行、`devkit.dev` 调的三条命令名；规则只有插件管理那一份。缺了模块 import 不到，插件加载失败。见接缝页 [devkit 调插件管理](/docs/seams/plugin-manager-calls) |
+| 按值 import 主入口（[插件之间怎么交互](/docs/rules/interaction)明文允许的例外） | `@godcreator/gwb-plugin-manager` | `locatePnpm`、`homePnpmEnv`、`withHomeRegistryAuth`、`KERNEL_PACKAGE`、`isCaretRange`、`tailLines`、`LIST_COMMAND`、`INSTALL_COMMAND`、`UPDATE_COMMAND` | 找 pnpm、在 home 里启动 pnpm 的环境、当前 home 的 registry 鉴权作用域、内核包名与 peer 范围的判定、取输出最后几行、`devkit.dev` 调的三条命令名；规则只有插件管理那一份。缺了模块 import 不到，插件加载失败。见接缝页 [devkit 调插件管理](/docs/seams/plugin-manager-calls) |
 | 经 CDP 在目标 home 的页面里调命令 | 目标 home 的插件管理 | `plugin-manager.update`（带 `specs`）、`plugin-manager.install`、`plugin-manager.list` | `devkit.dev` 装包、新建条目、重新加载、等插件管理自己的条目回来、取证；没成回 `ok: false`，带插件管理回执里的原因 |
 | 经 CDP 在目标 home 的页面里调命令 | 目标 home 的外壳 | `shell.env` | 装了内核包、重启目标 home 之后轮询 `versions.kernel`，直到是这次打包的版本号 |
 | 读文件 | 各 home 的 `runtime.json`（内核与 MCP 入口插件写） | `<home>/runtime.json` | 按名字查 pid 与调试端口；只读不写 |
+| 读凭据文件 | 发起 home 的 settings 存储 | `<本 home>/credentials.json` 的 `sections["*"]["npm-auth"].value` | 经插件管理导出的 `withHomeRegistryAuth` 为构建、发布、查询和新 home 引导安装提供凭据；新 home 不继承这份凭据 |
 | 读文件 | 目标 home 的日志 | `<home>/gwb.log` | `devkit.dev` 取证：新增部分里没有 error |
 | 读文件 | 目标 home 的清单 | `<home>/package.json` | `devkit.dev` 分出已装（走 `update`）与没装（走 `install`）的包；只读 |
 | 写文件 | 目标 home 的 `dev-packs/` | `<home>/dev-packs/<包文件>` | 开发版的包文件；每版一个新路径，旧的不删 |
@@ -116,7 +117,9 @@ peer 里另有插件管理 `@godcreator/gwb-plugin-manager`（`workspace:^`，�
 
 {/* ref file="../plugins/devkit/src/release.ts" lines="3-3" hash="e67c7c1e2fa1" blob="f6121d7801e9" */}
 
-{/* ref file="../plugins/devkit/src/node-dev-deps.ts" lines="6-6" hash="04c4fe95ebe5" blob="2616af6297ba" */}
+{/* ref file="../plugins/plugin-manager/src/index.ts" lines="68-68" hash="af5aa2a2f194" blob="9d217349a8b0" */}
+
+{/* ref file="../plugins/devkit/src/node-dev-deps.ts" lines="6-6" hash="d2835835bd60" blob="0af53fe4f48e" */}
 
 {/* ref file="../plugins/devkit/src/dev.ts" lines="615-615" hash="f9ae135efbd7" blob="ebe1ec7fc4e7" */}
 
@@ -148,42 +151,42 @@ peer 里另有插件管理 `@godcreator/gwb-plugin-manager`（`workspace:^`，�
 | --- | --- | --- |
 | 服务 | `gwbPluginManager` | `ctx.provide` 提供的空对象，只表示「插件管理装着」：别的插件注入它，只为跟着插件管理一起加载、卸载。不继承 cordis 的 `Service`，所以运行时不 import `cordis` |
 | 命令 | `plugin-manager.list`、`install`、`add-entry`、`remove-entry`、`enable`、`disable`、`outdated`、`update`、`uninstall`、`search` | 见[插件管理](/docs/plugin-manager) |
-| 主入口导出 | `locatePnpm`、`isCaretRange`、`KERNEL_PACKAGE`、`homePnpmEnv`、`tailLines`、`LIST_COMMAND`、`INSTALL_COMMAND`、`UPDATE_COMMAND` | 给 devkit 按值 import，规则只有这一份 |
+| 主入口导出 | `locatePnpm`、`isCaretRange`、`KERNEL_PACKAGE`、`homePnpmEnv`、`withHomeRegistryAuth`、`tailLines`、`LIST_COMMAND`、`INSTALL_COMMAND`、`UPDATE_COMMAND` | 给 devkit 按值 import，规则只有这一份 |
 | 子路径 `./receipts` 导出（只有类型） | 各条命令回执的类型，如 `PluginPackageView`、`Updated`、`SearchFound`、`Outcome` | 给插件管理窗格的浏览器侧 `import type`，见[插件管理](/docs/plugin-manager#子路径-receipts回执的类型) |
 | 说明书 | `gwb-plugin-manager` | 包根 `skills/` 下，经 `gwbSkills` 登记 |
 | 事件 | 无 | |
 
-{/* ref file="../plugins/plugin-manager/src/index.ts" lines="102-102" hash="dc1f3817e5ff" blob="5ecda4b17644" */}
+{/* ref file="../plugins/plugin-manager/src/index.ts" lines="104-104" hash="dc1f3817e5ff" blob="9d217349a8b0" */}
 
-{/* ref file="../plugins/plugin-manager/src/index.ts" lines="91-91" hash="4f67fc346527" blob="5ecda4b17644" */}
+{/* ref file="../plugins/plugin-manager/src/index.ts" lines="93-93" hash="4f67fc346527" blob="9d217349a8b0" */}
 
-{/* ref file="../plugins/plugin-manager/src/index.ts" lines="722-722" hash="d59f8f7ef8d1" blob="5ecda4b17644" */}
+{/* ref file="../plugins/plugin-manager/src/index.ts" lines="725-725" hash="d59f8f7ef8d1" blob="9d217349a8b0" */}
 
-{/* ref file="../plugins/plugin-manager/src/index.ts" lines="76-76" hash="66f3429944b6" blob="5ecda4b17644" */}
+{/* ref file="../plugins/plugin-manager/src/index.ts" lines="78-78" hash="66f3429944b6" blob="9d217349a8b0" */}
 
-{/* ref file="../plugins/plugin-manager/src/index.ts" lines="77-77" hash="4f283c5c647d" blob="5ecda4b17644" */}
+{/* ref file="../plugins/plugin-manager/src/index.ts" lines="79-79" hash="4f283c5c647d" blob="9d217349a8b0" */}
 
-{/* ref file="../plugins/plugin-manager/src/index.ts" lines="78-78" hash="851add3a2406" blob="5ecda4b17644" */}
+{/* ref file="../plugins/plugin-manager/src/index.ts" lines="80-80" hash="851add3a2406" blob="9d217349a8b0" */}
 
-{/* ref file="../plugins/plugin-manager/src/index.ts" lines="79-79" hash="36c2c7d8d454" blob="5ecda4b17644" */}
+{/* ref file="../plugins/plugin-manager/src/index.ts" lines="81-81" hash="36c2c7d8d454" blob="9d217349a8b0" */}
 
-{/* ref file="../plugins/plugin-manager/src/index.ts" lines="80-80" hash="b62ae1b8e578" blob="5ecda4b17644" */}
+{/* ref file="../plugins/plugin-manager/src/index.ts" lines="82-82" hash="b62ae1b8e578" blob="9d217349a8b0" */}
 
-{/* ref file="../plugins/plugin-manager/src/index.ts" lines="81-81" hash="0be0c7dfaf50" blob="5ecda4b17644" */}
+{/* ref file="../plugins/plugin-manager/src/index.ts" lines="83-83" hash="0be0c7dfaf50" blob="9d217349a8b0" */}
 
-{/* ref file="../plugins/plugin-manager/src/index.ts" lines="82-82" hash="76aecf64f9b3" blob="5ecda4b17644" */}
+{/* ref file="../plugins/plugin-manager/src/index.ts" lines="84-84" hash="76aecf64f9b3" blob="9d217349a8b0" */}
 
-{/* ref file="../plugins/plugin-manager/src/index.ts" lines="83-83" hash="03262125fe07" blob="5ecda4b17644" */}
+{/* ref file="../plugins/plugin-manager/src/index.ts" lines="85-85" hash="03262125fe07" blob="9d217349a8b0" */}
 
-{/* ref file="../plugins/plugin-manager/src/index.ts" lines="84-84" hash="096d38f9ab7b" blob="5ecda4b17644" */}
+{/* ref file="../plugins/plugin-manager/src/index.ts" lines="86-86" hash="096d38f9ab7b" blob="9d217349a8b0" */}
 
-{/* ref file="../plugins/plugin-manager/src/index.ts" lines="85-85" hash="4b6e24707911" blob="5ecda4b17644" */}
+{/* ref file="../plugins/plugin-manager/src/index.ts" lines="87-87" hash="4b6e24707911" blob="9d217349a8b0" */}
 
-{/* ref file="../plugins/plugin-manager/src/index.ts" lines="64-64" hash="770228dff90f" blob="5ecda4b17644" */}
+{/* ref file="../plugins/plugin-manager/src/index.ts" lines="65-65" hash="770228dff90f" blob="9d217349a8b0" */}
 
-{/* ref file="../plugins/plugin-manager/src/index.ts" lines="65-65" hash="14b902f41a64" blob="5ecda4b17644" */}
+{/* ref file="../plugins/plugin-manager/src/index.ts" lines="66-66" hash="14b902f41a64" blob="9d217349a8b0" */}
 
-{/* ref file="../plugins/plugin-manager/src/index.ts" lines="66-66" hash="3a6694d38ebd" blob="5ecda4b17644" */}
+{/* ref file="../plugins/plugin-manager/src/index.ts" lines="67-67" hash="3a6694d38ebd" blob="9d217349a8b0" */}
 
 ### 注入
 
@@ -196,19 +199,19 @@ peer 里另有插件管理 `@godcreator/gwb-plugin-manager`（`workspace:^`，�
 
 插件管理不写 `export const inject`。数据插件不在 peer 里，插件管理不用它。
 
-{/* ref file="../plugins/plugin-manager/src/index.ts" lines="143-143" hash="5d327fdc90a7" blob="5ecda4b17644" */}
+{/* ref file="../plugins/plugin-manager/src/index.ts" lines="145-145" hash="5d327fdc90a7" blob="9d217349a8b0" */}
 
-{/* ref file="../plugins/plugin-manager/src/index.ts" lines="234-234" hash="14e5e30ba801" blob="5ecda4b17644" */}
+{/* ref file="../plugins/plugin-manager/src/index.ts" lines="236-236" hash="14e5e30ba801" blob="9d217349a8b0" */}
 
-{/* ref file="../plugins/plugin-manager/src/index.ts" lines="136-136" hash="e8ca3994ff27" blob="5ecda4b17644" */}
+{/* ref file="../plugins/plugin-manager/src/index.ts" lines="138-138" hash="e8ca3994ff27" blob="9d217349a8b0" */}
 
-{/* ref file="../plugins/plugin-manager/src/index.ts" lines="121-121" hash="3212d8197a0b" blob="5ecda4b17644" */}
+{/* ref file="../plugins/plugin-manager/src/index.ts" lines="123-123" hash="3212d8197a0b" blob="9d217349a8b0" */}
 
 {/* ref file="../plugins/plugin-manager/package.json" lines="35-35" hash="5c8ad9cb296d" blob="4765c3f95909" */}
 
 {/* ref file="../plugins/plugin-manager/package.json" lines="36-36" hash="2c178017df80" blob="3755073bd7c9" */}
 
-{/* ref file="../plugins/plugin-manager/package.json" lines="37-37" hash="1fb7a7f7f261" blob="4765c3f95909" */}
+{/* ref file="../plugins/plugin-manager/package.json" lines="36-37" hash="9a63d5f491ca" blob="53d958e08d83" */}
 
 {/* ref file="../plugins/plugin-manager/package.json" lines="41-41" hash="2a4307013628" blob="4765c3f95909" */}
 
@@ -223,7 +226,7 @@ peer 里另有插件管理 `@godcreator/gwb-plugin-manager`（`workspace:^`，�
 | loader 的条目树 | `@cordisjs/plugin-loader`（内核加载） | `ctx.fiber.entry.parent.tree` 的 `store`、`create`、`update`、`remove` | 读条目、加删条目、启用停用、重新加载，改动由 loader 写回 `cordis.yml`；取不到条目树就在构造时报错。见接缝页[条目树 loader](/docs/seams/entry-tree) |
 | 复制的 cordis 状态数字 | cordis 的 `FiberState`（`const enum`，引用不到） | `PENDING`、`LOADING`、`ACTIVE`、`FAILED`、`DISPOSED`、`UNLOADING` 的数字顺序 | `list` 的 `active` 与重新加载时判断条目到哪一步；`tests/fiber-state.test.ts` 对照 cordis 的定义 |
 | 子进程 | 用户装的 pnpm 12 | `pnpm add` / `remove` / `outdated --json`，环境带 `pnpm_config_auto_install_peers=false` | 装卸与升级 home 里的包；不自动补装缺的 peer |
-| 子进程 | 用户装的 pnpm 12 | `pnpm config list --json`、`pnpm config get //<源>/:_authToken`，在 home 里运行 | `search` 问市场的源地址与凭据，只读 |
+| 子进程 | 用户装的 pnpm 12 | `pnpm config list --json`，在 home 里运行 | `search` 问市场的非敏感源路由，只读；凭据来自本 home 的共享 secret `npm-auth` |
 | 读文件 | home 的清单与装着的包 | `<home>/package.json`、`<home>/node_modules/<包>/package.json` 与它指向的真实目录 | 装了哪些包、版本、peer 报告；`update` 前后比真实目录找出跟着重新加载的包 |
 | 网络 | 市场名单里各市场的 npm 源 | `GET <源>/-/v1/search` | `search` 检索可装的插件 |
 

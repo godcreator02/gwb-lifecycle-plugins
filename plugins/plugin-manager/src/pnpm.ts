@@ -61,8 +61,8 @@ export function tailLines(text: string, max = TAIL_LINES): string {
   return lines.slice(-max).join('\n')
 }
 
-function spawnPnpm(file: string, cwd: string, args: readonly string[]): ChildProcessByStdio<null, Readable, Readable> {
-  const plan = spawnPlan(file, args, process.env)
+function spawnPnpm(file: string, cwd: string, args: readonly string[], env: NodeJS.ProcessEnv = process.env): ChildProcessByStdio<null, Readable, Readable> {
+  const plan = spawnPlan(file, args, env)
   return spawn(plan.command, plan.args, { cwd, env: plan.env, windowsHide: true, stdio: ['ignore', 'pipe', 'pipe'] })
 }
 
@@ -70,7 +70,7 @@ function spawnPnpm(file: string, cwd: string, args: readonly string[]): ChildPro
  * 不抛：启动失败也整理成回执。不设超时：装大包本来可能要几分钟，网络层的超时 pnpm 自己有。
  * 本插件卸载时不结束正在运行的 pnpm（「插件卸载时清理自己启动的子进程」的例外）：中途结束会留下装了一半的 home
  */
-export function runPnpm(opts: { pnpm: string; cwd: string; args: readonly string[] }): Promise<PnpmResult> {
+export function runPnpm(opts: { pnpm: string; cwd: string; args: readonly string[]; env?: NodeJS.ProcessEnv }): Promise<PnpmResult> {
   return new Promise((resolve) => {
     const tailChunks: Buffer[] = []
     let tailBytes = 0
@@ -80,7 +80,7 @@ export function runPnpm(opts: { pnpm: string; cwd: string; args: readonly string
       // 按整块丢弃，所以只有最后那次 concat 才可能切在多字节字符中间
       while (tailBytes > MAX_TAIL_BYTES && tailChunks.length > 1) tailBytes -= tailChunks.shift()!.length
     }
-    const proc = spawnPnpm(opts.pnpm, opts.cwd, opts.args)
+    const proc = spawnPnpm(opts.pnpm, opts.cwd, opts.args, opts.env)
 
     let settled = false
     const settle = (exitCode: number | null): void => {
@@ -108,14 +108,14 @@ export function describeAddFailure(what: string, run: PnpmResult): { error: stri
 }
 
 /** stdout 全文带回、不判 ok：给 `pnpm outdated --json` 用，它的退出码 1 是结果不是失败 */
-export function runPnpmCapture(opts: { pnpm: string; cwd: string; args: readonly string[] }): Promise<PnpmCaptureResult> {
+export function runPnpmCapture(opts: { pnpm: string; cwd: string; args: readonly string[]; env?: NodeJS.ProcessEnv }): Promise<PnpmCaptureResult> {
   return new Promise((resolve) => {
     const stdoutChunks: Buffer[] = []
     const stderrChunks: Buffer[] = []
     let stdoutBytes = 0
     let stderrBytes = 0
 
-    const proc = spawnPnpm(opts.pnpm, opts.cwd, opts.args)
+    const proc = spawnPnpm(opts.pnpm, opts.cwd, opts.args, opts.env)
 
     let settled = false
     const settle = (exitCode: number | null): void => {

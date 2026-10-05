@@ -17,13 +17,13 @@ description: install 在一条命令里装一个还没装的包（清单写 ^ �
 3. **选 id，加一条条目**：经条目树 `create` 写进 `cordis.yml`，回执带 `entryId`。写不进 `cordis.yml` 时回 `ok: false`，包留在 home 里、不回滚——删包比留着危险，删除时也未必只删掉这一个
 </Diagram>
 
-{/* ref file="../plugins/plugin-manager/src/index.ts" lines="304-328" hash="616e4c3bef48" blob="5ecda4b17644" */}
+{/* ref file="../plugins/plugin-manager/src/index.ts" lines="307-331" hash="616e4c3bef48" blob="9d217349a8b0" */}
 
-{/* ref file="../plugins/plugin-manager/tests/commands.test.ts" lines="424-430" hash="cf5f762f1748" blob="c92d5fd1b7d7" */}
+{/* ref file="../plugins/plugin-manager/tests/commands.test.ts" lines="429-435" hash="cf5f762f1748" blob="e61174279d2a" */}
 
-{/* ref file="../plugins/plugin-manager/tests/commands.test.ts" lines="441-446" hash="db7bbdc0fb2b" blob="c92d5fd1b7d7" */}
+{/* ref file="../plugins/plugin-manager/tests/commands.test.ts" lines="446-451" hash="db7bbdc0fb2b" blob="e61174279d2a" */}
 
-{/* ref file="../plugins/plugin-manager/tests/commands.test.ts" lines="448-452" hash="6ce78389f10f" blob="c92d5fd1b7d7" */}
+{/* ref file="../plugins/plugin-manager/tests/commands.test.ts" lines="453-457" hash="6ce78389f10f" blob="e61174279d2a" */}
 
 {/* ref file="../plugins/plugin-manager/tests/ids.test.ts" lines="136-139" hash="1ac64f3641c7" blob="ccf360bdec3f" */}
 
@@ -35,7 +35,7 @@ description: install 在一条命令里装一个还没装的包（清单写 ^ �
 
 包已在 home 的 dependencies 里，`install` 直接报错、一次 pnpm 都不运行，报错指向两条路：再加一条条目用 `add-entry`，换版本用 `update {"specs":{…}}`（见[热升级](/docs/plugin-manager/upgrade)）。已装的包再 `pnpm add` 一次，只会悄悄换掉版本号、再多一条条目，两件事都不是调用方要的。
 
-{/* ref file="../plugins/plugin-manager/tests/commands.test.ts" lines="432-439" hash="35d68c9aafd5" blob="c92d5fd1b7d7" */}
+{/* ref file="../plugins/plugin-manager/tests/commands.test.ts" lines="437-444" hash="35d68c9aafd5" blob="e61174279d2a" */}
 
 ## 建条目只等写入、不等加载
 
@@ -43,7 +43,7 @@ description: install 在一条命令里装一个还没装的包（清单写 ^ �
 
 写回 `cordis.yml` 在 `create` 的第一个 `await` 之前就同步安排好了，所以不 `await` 也不影响写入；加载失败只记一条 warn。id 一定显式传给 loader：不给的话 loader 每次启动生成一个新的随机 id。
 
-{/* ref file="../plugins/plugin-manager/src/index.ts" lines="601-611" hash="141f39283bad" blob="5ecda4b17644" */}
+{/* ref file="../plugins/plugin-manager/src/index.ts" lines="604-614" hash="141f39283bad" blob="9d217349a8b0" */}
 
 这一条没有单元测试：要验证，就在隔离 home 里装一个依赖还没装齐的插件，看命令是否照常返回回执、`list` 里是否显示未加载。
 
@@ -76,13 +76,13 @@ description: install 在一条命令里装一个还没装的包（清单写 ^ �
 - 反过来先卸包：条目会指向一个不在 home 里的包
 </Diagram>
 
-{/* ref file="../plugins/plugin-manager/src/index.ts" lines="534-559" hash="89c5168b5a20" blob="5ecda4b17644" */}
+{/* ref file="../plugins/plugin-manager/src/index.ts" lines="537-562" hash="89c5168b5a20" blob="9d217349a8b0" */}
 
 {/* ref file="../plugins/plugin-manager/src/uninstall.ts" lines="3-8" hash="e00bea41e844" blob="32218fc5c1e7" */}
 
-{/* ref file="../plugins/plugin-manager/tests/commands.test.ts" lines="454-461" hash="8d9d00a02598" blob="c92d5fd1b7d7" */}
+{/* ref file="../plugins/plugin-manager/tests/commands.test.ts" lines="459-466" hash="8d9d00a02598" blob="e61174279d2a" */}
 
-{/* ref file="../plugins/plugin-manager/tests/commands.test.ts" lines="471-479" hash="ca01fa9ae5e4" blob="c92d5fd1b7d7" */}
+{/* ref file="../plugins/plugin-manager/tests/commands.test.ts" lines="476-484" hash="ca01fa9ae5e4" blob="e61174279d2a" */}
 
 {/* ref file="../plugins/plugin-manager/tests/uninstall.test.ts" lines="33-43" hash="4e98ae0077a9" blob="8b9f8ab1a645" */}
 

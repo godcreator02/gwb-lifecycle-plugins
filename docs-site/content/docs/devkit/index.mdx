@@ -82,7 +82,7 @@ description: 开发套件是一个普通的 gwb 插件，把「在一个新文�
 
 ## 依赖
 
-注入了哪些服务、必需还是局部注入、peer 怎么写、缺了会怎样，按值 import 了插件管理主入口的哪几样，经 CDP 调了目标 home 的哪些命令，直接读写了哪些文件、启动了哪些子进程，都在[插件之间怎么连](/docs/wiring#godcreatorgwb-devkit)。发布目标与团队源写在用户级 `~/.npmrc` 的哪几行，见 [pnpm 与包源](/docs/seams/pnpm-registry)。运行时自己用的库（yaml、es-module-lexer）写 dev、由构建打包进 `dist/index.js`，构建怎么做见[开发](/docs/develop#提交前的检查)。
+注入了哪些服务、必需还是局部注入、peer 怎么写、缺了会怎样，按值 import 了插件管理主入口的哪几样，经 CDP 调了目标 home 的哪些命令，直接读写了哪些文件、启动了哪些子进程，都在[插件之间怎么连](/docs/wiring#godcreatorgwb-devkit)。发布目标、pnpm 源路由与发起 home 的凭据怎样配合，见 [pnpm 与包源](/docs/seams/pnpm-registry)。运行时自己用的库（yaml、es-module-lexer）写 dev、由构建打包进 `dist/index.js`，构建怎么做见[开发](/docs/develop#提交前的检查)。
 
 ## 不做的事
 
@@ -94,7 +94,7 @@ description: 开发套件是一个普通的 gwb 插件，把「在一个新文�
 - **不收端口**：定位一个 home 只按名字，端口从记录里查
 - **不构建内核、不认内核仓**：`devkit.home.new` 从源上装内核包，版本是运行中的内核的版本，启动用的是宿主自己那个安装版应用；改内核源码的验证走内核仓自己的流程
 - **不替别的插件登记说明书**：说明书名全局唯一，重名的那份不登记；别的插件的说明书由它自己登记
-- **没有设置项**：不注入 `gwbSettings`，一项设置都不定义
+- **不另定义设置项**：不注入 `gwbSettings`；registry 凭据经插件管理提供的内部函数读取发起 home 的共享 `npm-auth`
 - **不自动清理旧 home**：现有的 home 由 `devkit.home.list` 列出，删哪个由调用方决定
 - **不巡检别的仓**：不扫容器根下各仓的依赖与布局；依赖写法与产物在各仓发版时由 `devkit.release` 查；不是 workspace 布局的仓要先照模板迁
 - **不核对文档站内容**：核对、确认、重新生成生成物归 docfirst，在仓的文档站目录里运行，本包不转发、不替人启动

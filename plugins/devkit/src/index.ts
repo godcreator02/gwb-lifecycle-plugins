@@ -23,9 +23,9 @@ import {
 import { kill, portOwner, processTable } from './node-probe-deps.js'
 import { type DevDeps, type DevInput, runDev } from './dev.js'
 import { runRelease } from './release.js'
-import { CDP_ENTRY, devDepsWith, releaseDepsWith } from './node-dev-deps.js'
+import { CDP_ENTRY, devDepsWith, releaseDepsWith, runWithHomeAuth } from './node-dev-deps.js'
 import { locatePnpm } from '@godcreator/gwb-plugin-manager'
-import { homeFs, makeAppSpawnPlan, makeGuiSpawn, runCaptured } from './node-home-deps.js'
+import { homeFs, makeAppSpawnPlan, makeGuiSpawn } from './node-home-deps.js'
 import {
   homePeerVersions,
   NAME_RE,
@@ -66,7 +66,7 @@ const SCAFFOLD_USAGE = [
   `  name   必给，短名，kebab-case（${String(NAME_RE)}）。它派生出包名 <scope>/gwb-<短名>、插件名 gwb-<短名>、命令名 <短名>.<动作> 的前半`,
   '  dir    必给，目标目录的绝对路径，必须还不存在（存在就拒，不覆盖任何东西）。生成的仓只有一种布局：workspace——仓根是不发布的 private 包，插件包在 plugins/<短名>/',
   `  scope  可选，包名范围（${String(SCOPE_RE)}），缺省 ${TEAM_SCOPE}。没有团队源发布权限的开发者给自己的范围`,
-  `  registry 可选，插件包 package.json 的 publishConfig.registry，devkit.release 发到这里。要是 http(s) 地址的规范写法（new URL(x).href 与原文相同，如 "http://localhost:4873/"），不带账号、查询串与 #；缺省是团队源 ${TEAM_REGISTRY}。发布 token 写在用户级 ~/.npmrc`,
+  `  registry 可选，插件包 package.json 的 publishConfig.registry，devkit.release 发到这里。要是 http(s) 地址的规范写法（new URL(x).href 与原文相同，如 "http://localhost:4873/"），不带账号、查询串与 #；缺省是团队源 ${TEAM_REGISTRY}。发布凭据存在发起 home 的共享 secret npm-auth，接入步骤读 gwb-plugin-manager`,
   '模板里要显示名的地方（README 标题、description、窗格标题）都用短名，要改自己改生成的文件。不建文档站',
   SCAFFOLD_PEER_VERSIONS_NOTE,
   SCAFFOLD_COMPONENTS_NOTE,
@@ -168,7 +168,7 @@ export function apply(ctx: GwbContext): void {
       fs: homeFs,
       spawn: makeGuiSpawn((message) => log.warn(message)),
       appSpawnPlan: makeAppSpawnPlan(),
-      run: runCaptured,
+      run: (plan, timeoutMs) => runWithHomeAuth(requireKernel(ctx).dataDir, plan, timeoutMs),
       processTable,
       portOwner,
       kill,
@@ -430,7 +430,7 @@ function registerDevCommand({ ctx, log, commands, homeDeps }: Wiring): void {
       }
       log.info(`devkit.dev：仓 ${input.repoDir} → ${target.name}（调试口 ${String(target.cdp)}）`)
       const deps: DevDeps = {
-        ...devDepsWith(pnpm.file),
+        ...devDepsWith(pnpm.file, requireKernel(ctx).dataDir),
         stopHome: (home) => stopTestHome(home, homeDeps),
         startHome: (home) => startTestHome(home, homeDeps),
       }
@@ -448,7 +448,7 @@ function registerDevCommand({ ctx, log, commands, homeDeps }: Wiring): void {
 }
 
 /** 只发到源、不碰任何 home，从哪个 home 调都行；升级 default 不接在后面：先在隔离 home 验过，再由插件管理自己升级 */
-function registerReleaseCommand({ log, commands }: Wiring): void {
+function registerReleaseCommand({ ctx, log, commands }: Wiring): void {
   commands.register(
     {
       name: 'devkit.release',
@@ -476,7 +476,7 @@ function registerReleaseCommand({ log, commands }: Wiring): void {
       const pnpm = await locatePnpm()
       if (!pnpm.ok) return { ok: false, error: pnpm.error }
       log.info(`devkit.release：仓 ${path.resolve(dir)}（${packages.join('、')}）`)
-      const outcome = await runRelease({ repoDir: path.resolve(dir), packages }, releaseDepsWith(pnpm.file))
+      const outcome = await runRelease({ repoDir: path.resolve(dir), packages }, releaseDepsWith(pnpm.file, requireKernel(ctx).dataDir))
       if (!outcome.ok) {
         log.warn(`devkit.release 没成：${outcome.error}`)
         return outcome.data === undefined
@@ -538,7 +538,7 @@ function registerScaffoldCommand({ ctx, log, commands }: Wiring): void {
       } catch (err) {
         return { ok: false, error: `${err instanceof Error ? err.message : String(err)}\n\n${SCAFFOLD_USAGE}` }
       }
-      const pnpm = await pnpmForComponents()
+      const pnpm = await pnpmForComponents(requireKernel(ctx).dataDir)
       if (!pnpm.ok) return { ok: false, error: `建仓没成，什么都没写：${pnpm.error}` }
       const pluginDir = path.join(plan.dir, 'plugins', plan.name)
       let files
@@ -600,7 +600,7 @@ function registerScaffoldPluginCommand({ ctx, log, commands }: Wiring): void {
       } catch (err) {
         return { ok: false, error: `${err instanceof Error ? err.message : String(err)}\n\n${SCAFFOLD_PLUGIN_USAGE}` }
       }
-      const pnpm = await pnpmForComponents()
+      const pnpm = await pnpmForComponents(requireKernel(ctx).dataDir)
       if (!pnpm.ok) return { ok: false, error: `加插件没成，什么都没写：${pnpm.error}` }
       let files
       try {

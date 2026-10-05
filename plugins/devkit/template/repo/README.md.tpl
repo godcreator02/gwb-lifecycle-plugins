@@ -6,7 +6,7 @@
 插件放在 `plugins/{{name}}/`。加第二个插件用 `devkit.scaffold.plugin {"repo":"<仓根>","name":"<短名>"}`，它在
 `plugins/` 下再建一个插件包；不是插件的包（插件共用的库之类）放在 `packages/`，需要时再加。
 包发到插件包 `package.json` 里 `publishConfig.registry` 写的源（建仓时的 `registry` 参数，不给是团队源），装进 home。
-发布 token、各个包名范围从哪个源装（`@<范围>:registry=`）写在用户级 `~/.npmrc`，本仓不写 `.npmrc`。
+GWB 发包与装依赖所用的 token 配在发起 home 的共享凭据 `npm-auth`；按 onboard 说明书迁移和配置。各个包名范围从哪个源装（`@<范围>:registry=`）仍可写在用户级 `~/.npmrc`，本仓不写认证信息。
 
 ## 插件包的结构（`plugins/{{name}}/`，配置都在包内）
 

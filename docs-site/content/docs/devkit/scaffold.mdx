@@ -70,9 +70,9 @@ workspace 仓：仓根是一个不发布的 private 包（`pnpm build` / `pnpm c
 
 {/* ref file="../plugins/devkit/src/scaffold.ts" lines="145-159" hash="cb658a9d0b77" blob="99db9041bdf1" */}
 
-校验、派生、转成绝对路径、填缺省值都在这一处做完，没有读写磁盘。抛出的每一句都写明该怎么改。`dir` 经 `path.resolve` 转成绝对路径，`D:/a/b` 与 `D:\a\b` 得到同一个结果。`scope` 要是 `@` 开头的 npm 包名范围；`registry` 要是 http(s) 地址的规范写法（与 `new URL(registry).href` 逐字相同，所以写进 JSON 不用转义），不带账号、查询串与 `#`（发布 token 写在用户级 `~/.npmrc`）。不合规就拒，报错里写出规范写法，不替调用方改：
+校验、派生、转成绝对路径、填缺省值都在这一处做完，没有读写磁盘。抛出的每一句都写明该怎么改。`dir` 经 `path.resolve` 转成绝对路径，`D:/a/b` 与 `D:\a\b` 得到同一个结果。`scope` 要是 `@` 开头的 npm 包名范围；`registry` 要是 http(s) 地址的规范写法（与 `new URL(registry).href` 逐字相同，所以写进 JSON 不用转义），不带账号、查询串与 `#`（发布凭据写在发起 home 的共享 secret `npm-auth`，路由由 pnpm 配置提供）。不合规就拒，报错里写出规范写法，不替调用方改：
 
-{/* ref file="../plugins/devkit/src/scaffold.ts" lines="118-143" hash="8cc25d86a77c" blob="99db9041bdf1" */}
+{/* ref file="../plugins/devkit/src/scaffold.ts" lines="118-143" hash="3d5c2a2f7ea3" blob="91f8d6fe874d" */}
 
 加插件的计划**要读磁盘**（建仓的不读）：`repo` 必须已经是 workspace 仓才收，也就是 `pnpm-workspace.yaml` 的 `packages` 里有 `plugins/*` 这一条。
 

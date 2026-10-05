@@ -17,7 +17,7 @@ description: 写法建议：插件之间走服务和命令；版本兼容靠 pee
 
 **按值 import 别的插件的主入口也可以**，前提是把它写进 peer：devkit 从插件管理的主入口 import 找 pnpm、在 home 里启动 pnpm 的环境、peer 里内核包写法的判定这几个纯函数，规则只存一份。代价是 import 会加载对方整个主入口模块，没装对方就加载不了；对方升级后真实目录变了，插件管理会把这边一起重新加载（见[用到的插件写 peer](/docs/rules/plugin-peers)）：
 
-{/* ref file="../plugins/plugin-manager/src/index.ts" lines="63-66" hash="32891efcf8af" blob="a5163f00fe7a" */}
+{/* ref file="../plugins/plugin-manager/src/index.ts" lines="64-67" hash="32891efcf8af" blob="9d217349a8b0" */}
 
 {/* ref file="../plugins/devkit/src/release.ts" lines="3-3" hash="e67c7c1e2fa1" blob="cf95a093af6c" */}
 
@@ -34,7 +34,7 @@ description: 写法建议：插件之间走服务和命令；版本兼容靠 pee
 
 插件管理导出它服务的类型，并给 cordis 的 `Context` 补上这一项，inject 它的插件 `import type` 取：
 
-{/* ref file="../plugins/plugin-manager/src/index.ts" lines="720-724" hash="cec1eec74dc1" blob="5ecda4b17644" */}
+{/* ref file="../plugins/plugin-manager/src/index.ts" lines="723-727" hash="cec1eec74dc1" blob="9d217349a8b0" */}
 
 它的命令回执类型经子路径 `@godcreator/gwb-plugin-manager/receipts` 导出：插件管理窗格要在浏览器侧 `import type` 它们，而主入口的类型声明引了内核包、`cordis` 与 node 的全局类型，窗格的浏览器侧 tsconfig 只有 DOM 类型。这个子路径在 `exports` 里只有 `types` 条件，源文件一个模块都不引用（见[插件管理](/docs/plugin-manager#子路径-receipts回执的类型)与轨迹卡[回执类型经子路径导出](/trajectory/2026-09-26-receipts-subpath)）：
 

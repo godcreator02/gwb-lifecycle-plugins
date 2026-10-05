@@ -3,7 +3,7 @@ import { createRequire } from 'node:module'
 import os from 'node:os'
 import path from 'node:path'
 import { fileURLToPath } from 'node:url'
-import { tailLines } from '@godcreator/gwb-plugin-manager'
+import { tailLines, withHomeRegistryAuth } from '@godcreator/gwb-plugin-manager'
 import { PACK_TIMEOUT_MS, PUBLISH_TIMEOUT_MS, pnpmPlan, type DevDeps, type RunPlan, type RunResult } from './dev.js'
 import { dirtyLines, type ReleaseDeps } from './release.js'
 import type { TailwindCompiler, TailwindLookup } from './style-check.js'
@@ -259,10 +259,10 @@ async function withStagedDistribution(
 }
 
 /** 组装好的发布内容发到 `registry`（写在发布内容清单的 `publishConfig.registry` 里），标 latest */
-async function publishStaged(input: { pkgDir: string; version: string; registry: string; ranges: Record<string, string>; pnpm: string }): Promise<RunResult> {
+async function publishStaged(input: { pkgDir: string; version: string; registry: string; ranges: Record<string, string>; pnpm: string; homeDir?: string }): Promise<RunResult> {
   const staging = { pkgDir: input.pkgDir, version: input.version, deps: input.ranges, publishRegistry: input.registry }
   const sent = await withStagedDistribution(staging, (stage) =>
-    runCaptured(pnpmPlan(['publish', '--no-git-checks', '--tag', 'latest'], stage, input.pnpm), PUBLISH_TIMEOUT_MS),
+    runWithHomeAuth(input.homeDir, pnpmPlan(['publish', '--no-git-checks', '--tag', 'latest'], stage, input.pnpm), PUBLISH_TIMEOUT_MS),
   )
   if (sent.timedOut !== 'kill-failed') return sent
   return { ...sent, tail: `${sent.tail}\n这一版可能照样发出去了——过一会儿用 pnpm view 查源上有没有这个号` }
@@ -320,8 +320,8 @@ export async function tailwindOf(pkgDir: string): Promise<TailwindLookup> {
 }
 
 /** 「改一版看一版」在这台机器上的实现。`pnpm` 是命令开头找到的那个；停止与启动 home 要用到测试 home 的启停，由 index.ts 接上 */
-export const devDepsWith = (pnpm: string): Omit<DevDeps, 'stopHome' | 'startHome'> => ({
-  run: (plan: RunPlan, timeoutMs: number) => runCaptured(plan, timeoutMs),
+export const devDepsWith = (pnpm: string, homeDir?: string): Omit<DevDeps, 'stopHome' | 'startHome'> => ({
+  run: (plan: RunPlan, timeoutMs: number) => runWithHomeAuth(homeDir, plan, timeoutMs),
   cdp: runCdp,
   pack: (input) => packStaged({ ...input, pnpm }),
   readText: nodeFs.readText,
@@ -360,18 +360,18 @@ async function gitStatusOf(repoDir: string): Promise<{ ok: true; dirty: string[]
 }
 
 /** 发正式版在这台机器上的实现。`pnpm` 是命令开头找到的那个；组装发布内容与开发版的打包共用 withStagedDistribution */
-export const releaseDepsWith = (pnpm: string): ReleaseDeps => ({
+export const releaseDepsWith = (pnpm: string, homeDir?: string): ReleaseDeps => ({
   browserProviders: (pkgDir, manifest) => collectBrowserImports(pkgDir, manifest, {
     readText: nodeFs.readText,
     realpath: fs.realpathSync,
     importModule: (url) => import(`${url}?release=${Date.now()}`),
   }),
-  run: (plan: RunPlan, timeoutMs: number) => runCaptured(plan, timeoutMs),
-  publish: (input) => publishStaged({ ...input, pnpm }),
+  run: (plan: RunPlan, timeoutMs: number) => runWithHomeAuth(homeDir, plan, timeoutMs),
+  publish: (input) => publishStaged({ ...input, pnpm, ...(homeDir === undefined ? {} : { homeDir }) }),
   published: async (spec, registry) =>
-    publishedFromView(await runCaptured(pnpmPlan(['view', spec, 'version', ...registryPinArgs(spec, registry)], os.tmpdir(), pnpm), 60_000), spec, registry),
+    publishedFromView(await runWithHomeAuth(homeDir, pnpmPlan(['view', spec, 'version', ...registryPinArgs(spec, registry)], os.tmpdir(), pnpm), 60_000), spec, registry),
   latest: async (pkg) => {
-    const seen = await runCaptured(pnpmPlan(['view', pkg, 'dist-tags.latest'], os.tmpdir(), pnpm), 60_000)
+    const seen = await runWithHomeAuth(homeDir, pnpmPlan(['view', pkg, 'dist-tags.latest'], os.tmpdir(), pnpm), 60_000)
     if (!seen.ok) return undefined
     const lines = seen.tail.split(/\r?\n/).map((line) => line.trim())
     return lines.reverse().find((line) => VERSION.test(line))
@@ -385,3 +385,9 @@ export const releaseDepsWith = (pnpm: string): ReleaseDeps => ({
   workspacePackageDirs: (repoDir) => workspacePackageDirs(repoDir),
   pnpm,
 })
+
+/** The initiating home owns authentication, including bootstrap installs into a newly created home. */
+export function runWithHomeAuth(homeDir: string | undefined, plan: RunPlan, timeoutMs: number): Promise<RunResult> {
+  if (homeDir === undefined || !/^pnpm(?:\.exe)?$/i.test(path.basename(plan.command))) return runCaptured(plan, timeoutMs)
+  return withHomeRegistryAuth(plan.command, homeDir, ({ env }) => runCaptured({ ...plan, env }, timeoutMs), plan.env ?? process.env, plan.cwd)
+}
