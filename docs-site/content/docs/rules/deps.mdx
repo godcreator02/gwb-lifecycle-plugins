@@ -61,13 +61,13 @@ cordis 靠协议键在多份拷贝之间工作，插件自带一份也照样 pro
 
 ## 例子：插件管理的清单
 
-插件管理不按值 import `cordis`（它的服务用 `ctx.provide` 提供一个普通对象），所以 peer 里没有 `cordis`。peer 里是内核包与它用到的三个插件：命令总线必需（命令都登记在它上面），设置插件（市场名单）与说明书插件经局部注入可选使用，标 `optional`。它运行的 pnpm 是用户装在机器上的外部程序，照上表最后一行不声明，用的时候在两个固定位置检测它在不在（见[插件管理的 pnpm](/docs/plugin-manager/pnpm)），所以没有 `dependencies`；`cordis`、loader、include 在 dev。命令回执 `GwbResult` 由 commands 定义，插件管理从命令插件导入类型：
+插件管理的服务 `gwbPluginManager` 继承 cordis 的 `Service`，按值 import `cordis`，所以 peer 里有 `cordis`。其余 peer 是内核包与它用到的三个插件：命令总线必需（命令都登记在它上面），设置插件（市场名单）与说明书插件经局部注入可选使用，标 `optional`。它运行的 pnpm 是用户装在机器上的外部程序，照上表最后一行不声明，用的时候在两个固定位置检测它在不在（见[插件管理的 pnpm](/docs/plugin-manager/pnpm)），所以没有 `dependencies`；仓里开发要装的 `cordis`、loader、include 在 dev。命令回执 `GwbResult` 由 commands 定义，插件管理从命令插件导入类型：
 
-{/* ref file="../plugins/plugin-manager/package.json" lines="34-53" hash="d990332f3c33" blob="53d958e08d83" */}
+{/* ref file="../plugins/plugin-manager/package.json" lines="34-54" hash="bbde227d28f1" blob="b385c8358b78" */}
 
-它对内核包和别的插件都只 import 类型，构建产物里这几句整句消失：
+它对 `cordis` 按值 import `Service`，对内核包和别的插件都只 import 类型，构建产物里后面这几句整句消失：
 
-{/* ref file="../plugins/plugin-manager/src/index.ts" lines="1-6" hash="ea2761915719" blob="5ecda4b17644" */}
+{/* ref file="../plugins/plugin-manager/src/index.ts" lines="1-7" hash="54427159aba6" blob="c078198dd768" */}
 
 ## 例子：模板生成的清单
 

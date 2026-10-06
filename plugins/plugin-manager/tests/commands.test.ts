@@ -184,7 +184,7 @@ function mount(opts: { entries: Record<string, string>; shellReload?: boolean; s
       fn()
       return () => undefined
     },
-    provide: () => () => undefined,
+    reflect: { provide: () => () => undefined },
     inject: (names: string[], callback: (scoped: unknown) => void) => {
       if (names.every((serviceName) => ctx[serviceName] !== undefined)) callback(ctx)
       return () => undefined

@@ -23,7 +23,7 @@ npmrc 里的源不都是 gwb 的：pnpm 自带一条 `@jsr:registry`，机器上
 
 {/* ref file="../plugins/plugin-manager/src/sources.ts" lines="6-10" hash="8a29f8b7780b" blob="acb6da61c816" */}
 
-{/* ref file="../plugins/plugin-manager/src/index.ts" lines="235-249" hash="6e5acb5ebaed" blob="9d217349a8b0" */}
+{/* ref file="../plugins/plugin-manager/src/index.ts" lines="226-240" hash="6524d10dce6b" blob="c078198dd768" */}
 
 名单是外部输入：不是字符串数组、有重复就直接报错，不替它修正；名单是空的回 `ok: false`。
 
@@ -75,9 +75,9 @@ npmrc 里的源不都是 gwb 的：pnpm 自带一条 `@jsr:registry`，机器上
 
 ## 不改 home，不经 BUSY
 
-`search` 用不带 BUSY 检查的方式登记。BUSY 防的是两次改动同时改 home 的 `package.json`；`search` 只读设置、pnpm 的配置与网络，运行的 `pnpm config` 也不写 home。检索可能要等好几个市场，排在安装后面只会让「可安装」列表等到安装做完才出来。
+`search` 只有命令、不在服务上，处理函数里不经 BUSY 检查。BUSY 防的是两次改动同时改 home 的 `package.json`；`search` 只读设置、pnpm 的配置与网络，运行的 `pnpm config` 也不写 home。检索可能要等好几个市场，排在安装后面只会让「可安装」列表等到安装做完才出来。
 
-{/* ref file="../plugins/plugin-manager/src/index.ts" lines="231-270" hash="41a617aebdb6" blob="9d217349a8b0" */}
+{/* ref file="../plugins/plugin-manager/src/index.ts" lines="222-261" hash="999eff423c31" blob="c078198dd768" */}
 
 真实 registry 与 pnpm 的配置只能实机验证：`devkit.home.new` 开一个隔离 home，在里面调 `search`。
 

@@ -17,7 +17,7 @@ description: install 在一条命令里装一个还没装的包（清单写 ^ �
 3. **选 id，加一条条目**：经条目树 `create` 写进 `cordis.yml`，回执带 `entryId`。写不进 `cordis.yml` 时回 `ok: false`，包留在 home 里、不回滚——删包比留着危险，删除时也未必只删掉这一个
 </Diagram>
 
-{/* ref file="../plugins/plugin-manager/src/index.ts" lines="307-331" hash="616e4c3bef48" blob="9d217349a8b0" */}
+{/* ref file="../plugins/plugin-manager/src/index.ts" lines="298-326" hash="379060bc3ac2" blob="c078198dd768" */}
 
 {/* ref file="../plugins/plugin-manager/tests/commands.test.ts" lines="429-435" hash="cf5f762f1748" blob="e61174279d2a" */}
 
@@ -43,7 +43,7 @@ description: install 在一条命令里装一个还没装的包（清单写 ^ �
 
 写回 `cordis.yml` 在 `create` 的第一个 `await` 之前就同步安排好了，所以不 `await` 也不影响写入；加载失败只记一条 warn。id 一定显式传给 loader：不给的话 loader 每次启动生成一个新的随机 id。
 
-{/* ref file="../plugins/plugin-manager/src/index.ts" lines="604-614" hash="141f39283bad" blob="9d217349a8b0" */}
+{/* ref file="../plugins/plugin-manager/src/index.ts" lines="602-612" hash="141f39283bad" blob="c078198dd768" */}
 
 这一条没有单元测试：要验证，就在隔离 home 里装一个依赖还没装齐的插件，看命令是否照常返回回执、`list` 里是否显示未加载。
 
@@ -59,7 +59,7 @@ description: install 在一条命令里装一个还没装的包（清单写 ^ �
 - 只取类型的 import（内核包导出的接口类型、别的插件的类型）编译后就消失了
 </Diagram>
 
-所以 home 里除了内核包与 `cordis` 只该有插件：插件 peer 里的插件是另一个要由人装、要加条目的插件，被 pnpm 自动补装进来的那份没有条目，也不在 home 的 `package.json` 里。插件管理自己也没有运行时依赖：pnpm 是用户装在机器上的，不在 home 里。
+所以 home 里除了内核包与 `cordis` 只该有插件：插件 peer 里的插件是另一个要由人装、要加条目的插件，被 pnpm 自动补装进来的那份没有条目，也不在 home 的 `package.json` 里。插件管理自己也没有 `dependencies`：运行时 import 的 `cordis` 是 home 根上那一份（写在 peer 里），pnpm 是用户装在机器上的，不在 home 里。
 
 没按这个规矩写的插件——peer 写了插件以外的包、构建产物里留着没打包的库——装上以后运行时找不到依赖，加载失败，在 `list` 里显示为未加载。装了一个没有 `apply` 的包（比如一个库），条目照样加上、加载失败（日志 `invalid plugin, expect function or object with apply`），不要它就 `uninstall`。
 
@@ -76,7 +76,7 @@ description: install 在一条命令里装一个还没装的包（清单写 ^ �
 - 反过来先卸包：条目会指向一个不在 home 里的包
 </Diagram>
 
-{/* ref file="../plugins/plugin-manager/src/index.ts" lines="537-562" hash="89c5168b5a20" blob="9d217349a8b0" */}
+{/* ref file="../plugins/plugin-manager/src/index.ts" lines="531-560" hash="60a0e4a97a78" blob="c078198dd768" */}
 
 {/* ref file="../plugins/plugin-manager/src/uninstall.ts" lines="3-8" hash="e00bea41e844" blob="32218fc5c1e7" */}
 

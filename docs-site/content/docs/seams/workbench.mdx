@@ -35,11 +35,11 @@ devkit 对命令总线用了两个方法：`register(定义, 处理函数)` 登�
 
 devkit 源码里没有注入 `gwbSettings`，它没有设置项。
 
-**插件管理的两个依赖都局部注入**：`gwbCommands`、`gwbSkills`。它自己提供服务 `gwbPluginManager`，值是空对象 `{}`：
+**插件管理的两个依赖都局部注入**：`gwbCommands`、`gwbSkills`。它自己提供服务 `gwbPluginManager`，是继承 cordis `Service` 的类，命令调的就是它的方法（见[插件管理](/docs/plugin-manager#服务-gwbpluginmanager)）：
 
-{/* ref file="../plugins/plugin-manager/src/index.ts" lines="89-95" hash="d3e1c817c32a" blob="9d217349a8b0" */}
+{/* ref file="../plugins/plugin-manager/src/index.ts" lines="95-98" hash="076802f1e52a" blob="c078198dd768" */}
 
-{/* ref file="../plugins/plugin-manager/src/index.ts" lines="102-107" hash="e4cfa73e8502" blob="9d217349a8b0" */}
+{/* ref file="../plugins/plugin-manager/src/index.ts" lines="117-118" hash="f28b370ed918" blob="c078198dd768" */}
 
 这些服务的类型来自各服务包自带的 `declare module 'cordis'`：两个插件对这些服务包都只做 `import type`（devkit 另从插件管理的主入口按值 import 几个函数，见[插件之间怎么交互](/docs/rules/interaction)），服务包写在 peer 里（必需的命令总线直接写，局部注入可选使用的标 `optional`，见[用到的插件写 peer](/docs/rules/plugin-peers)），运行时不 import：
 
@@ -55,9 +55,9 @@ devkit 保证：
 - 只登记自己包里的说明书，不替别的插件登记
 
 插件管理保证：
-- 两个依赖都可以缺；`gwbCommands` 缺了，它就没有任何对外接口
+- 两个依赖都可以缺；`gwbCommands` 缺了，它就没有给页面与 agent 的接口，服务 `gwbPluginManager` 照常提供
 - 命令的 `plugin` 写包名 `@godcreator/gwb-plugin-manager`，都写 `effect`：`list`、`outdated`、`search` 是 `read`，其余改 home 的是 `write`
-- 命令的参数或回执有破坏性变化时升 x（`gwbPluginManager` 的值上不放版本数字）
+- 命令或服务方法的参数、回执有破坏性变化时升 x（服务上不放版本数字）
 
 工作台服务保证：`gwbCommands.register` 与 `gwbNodeCli.register` 自己把登记放进调用方的 effect、`list()` 的每一项带 `name` 与 `plugin`、`run` 回 `{ ok, data?, error? }`——这几条写在各服务包的类型声明与说明书里，两个插件只经类型检查对上，**运行时靠约定**。
 

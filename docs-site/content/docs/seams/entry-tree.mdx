@@ -37,16 +37,16 @@ description: 连接插件管理与 cordis 的 loader、include：插件管理从
 - 调用条目树之后不读回 `cordis.yml` 核对，以内存里的条目树为准
 - `devDependencies` 里 loader、include、cordis 的版本与它 peer 里内核包下限那个内核用的一致
 
-{/* ref file="../plugins/plugin-manager/package.json" lines="34-37" hash="d50a9bbc1850" blob="53d958e08d83" */}
+{/* ref file="../plugins/plugin-manager/package.json" lines="34-38" hash="40523df6f732" blob="b385c8358b78" */}
 
-{/* ref file="../plugins/plugin-manager/package.json" lines="44-48" hash="e532aa97a49f" blob="a63149ffebd7" */}
+{/* ref file="../plugins/plugin-manager/package.json" lines="45-49" hash="e532aa97a49f" blob="b385c8358b78" */}
 
 loader、include、cordis 需要保证的：`entry.parent.tree` 这条取法、三个方法的行为、`store` 里每一项的字段名、`FiberState` 的成员顺序、`fiber.await()` 在做完手头的事时返回。这些都是它们的内部结构，不是公开接口，**靠约定**：内核仓承诺这几个包的版本一变就升内核版本号的 x；插件管理在 peer 里用内核包的范围记下对应的内核版本（见 [peer 里的内核包与插件](/docs/seams/kernel-peer)）。内核换了其中任何一个，插件管理把 `devDependencies` 里的版本改成内核的、运行一遍测试，再改 peer 里的范围。
 
 ## 不负责的事
 
 - 插件管理不决定 home 的布局、条目树的结构、包名怎么解析，这些归内核
-- loader 的条目树不知道插件管理的 BUSY 检查；那道检查只挡插件管理自己的三条改动命令（见[同一时刻只允许一个改动](/docs/plugin-manager/busy)）
+- loader 的条目树不知道插件管理的 BUSY 检查；那道检查只挡插件管理自己的三个改动（服务方法与同名命令过同一道，见[同一时刻只允许一个改动](/docs/plugin-manager/busy)）
 - devkit 不碰运行中的条目树：`devkit.dev` 经 CDP 调目标 home 的 `plugin-manager.update` / `install`（见 [devkit 调插件管理](/docs/seams/plugin-manager-calls)）；`devkit.home.new` 在内核启动之前直接写新 home 的 `cordis.yml`，那时还没有条目树
 
 ## 测试

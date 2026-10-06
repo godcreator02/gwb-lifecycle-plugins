@@ -28,7 +28,7 @@ description: home 里有包与条目两层，list 按包名把两层对上、两
 - 每条条目带 `active`：看的是 fiber 的状态是不是 `ACTIVE`，不是 fiber 在不在——依赖没满足的插件也有 fiber，只是永远到不了 `ACTIVE`
 </Diagram>
 
-{/* ref file="../plugins/plugin-manager/src/index.ts" lines="272-279" hash="ce3e30e77f7f" blob="9d217349a8b0" */}
+{/* ref file="../plugins/plugin-manager/src/index.ts" lines="263-270" hash="ce3e30e77f7f" blob="c078198dd768" */}
 
 {/* ref file="../plugins/plugin-manager/src/inventory.ts" lines="55-72" hash="f27de0f8c3e4" blob="e2f7ff6491f4" */}
 
@@ -60,7 +60,7 @@ description: home 里有包与条目两层，list 按包名把两层对上、两
 
 安装、卸载、升级（包括换内核包）都经 `applyToHome` 运行 pnpm：`add` 照 pnpm 默认在 home 的清单里写 `^` 范围，只有对齐 `cordis` 那一次自己带 `--save-exact`；`remove` 只删点名的那一个。调用它的四条命令都经过 BUSY 检查，所以插件管理在同一个 home 里同一时刻最多一个写 home 的 pnpm。只读的 `pnpm outdated --json` 不经过这里，也不经过 BUSY。两条路径都使用当前 home 的 registry 凭据，工程认证配置冲突时先拒绝执行；接入见[找插件](/docs/plugin-manager/sources)。
 
-{/* ref file="../plugins/plugin-manager/src/index.ts" lines="639-646" hash="1520c78f48ec" blob="9d217349a8b0" */}
+{/* ref file="../plugins/plugin-manager/src/index.ts" lines="637-644" hash="1520c78f48ec" blob="c078198dd768" */}
 
 为什么写 `^` 范围：0.x.y 的 y 变了不破坏兼容，`^0.x.y` 正好是「这一条 x 线上的任何 y」；装什么由 home 的锁文件定，只有 `update` 会换版本。代价是清单里写成 `^` 的项挡住往回退版本：按点名的更旧版本装，pnpm 12 沿用 `^`、留着范围里更新的那个（本仓 `probes/2609241510_pnpm-add-exact-prefix/`），`specs` 装完的版本号核对会照实回 `ok: false`——不做回退，升坏了发新版往前修。`cordis` 例外：它是预发布版，写成范围时别的 rc 也算满足，而它要正好等于内核包 peer 里那个版本，所以写精确版本号（取舍见轨迹卡[home 清单写 ^ 范围，只有 cordis 写精确版本号](/trajectory/2026-09-25-home-manifest-caret)）。
 
@@ -68,7 +68,7 @@ description: home 里有包与条目两层，list 按包名把两层对上、两
 
 条目的增删改只用条目树的 `create` / `update` / `remove`——它们把写回 `cordis.yml` 与当场加载、卸载一起做。启用传 `{ disabled: null }`（loader 把 `null` 当作删掉这个字段），停用传 `{ disabled: true }`；`remove-entry` 只删条目，包留在 home 里。entryId 写完整的（`home:hello`）或只写 id（`hello`）都认，条目树只认末段。
 
-{/* ref file="../plugins/plugin-manager/src/index.ts" lines="576-602" hash="0349761cd761" blob="9d217349a8b0" */}
+{/* ref file="../plugins/plugin-manager/src/index.ts" lines="574-600" hash="0349761cd761" blob="c078198dd768" */}
 
 条目树在构造时从插件管理自己那条条目的上一层取（`ctx.fiber.entry.parent.tree`），不用知道承载 `cordis.yml` 的那条条目叫什么。按 loader 自己的类型 `EntryTree` 取、再赋给收窄后的 `EntryTreeLike`：loader 改了这几个方法的签名，类型检查就在这里失败。loader 这一侧的约定见接缝页[条目树 loader](/docs/seams/entry-tree)。
 

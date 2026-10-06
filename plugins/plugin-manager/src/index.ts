@@ -1,3 +1,4 @@
+import { Service } from 'cordis'
 import type { GwbContext } from '@godcreator/gwb-kernel-desktop'
 import { isRecord, noteOf, requireKernel } from './vocab.js'
 // 这三条 type import 只为引入对方的 `declare module 'cordis'`；这几个插件写在 peer 里，都经嵌套注入使用
@@ -86,28 +87,23 @@ const OUTDATED_COMMAND = 'plugin-manager.outdated'
 const UNINSTALL_COMMAND = 'plugin-manager.uninstall'
 const SEARCH_COMMAND = 'plugin-manager.search'
 
-/**
- * 服务 `gwbPluginManager` 的值：只表示插件管理装了（别的插件 inject 它，跟着它一起加载、卸载），上面没有字段。
- * 命令有没有破坏性变化看插件管理的版本号
- */
-export type PluginManagerPresence = Record<string, never>
-
-const PRESENCE: PluginManagerPresence = {}
-
 type CommandHandler = (args?: unknown) => unknown
 type RegisterCommand = (name: string, description: string, usage: string, effect: GwbCommandEffect, handler: CommandHandler) => void
 
 export const name = NAME
 
 export function apply(ctx: GwbContext): void {
-  const manager = new PluginManager(ctx)
-  ctx.effect(() => ctx.provide('gwbPluginManager', PRESENCE))
-  manager.wire()
+  new PluginManager(ctx)
   ctx.logger(NAME).info(`插件管理已就绪，自己那条条目是 ${ownEntryId(ctx)}，查看列表调用 ${LIST_COMMAND}`)
 }
 
-class PluginManager {
-  private readonly ctx: GwbContext
+/**
+ * 服务 `gwbPluginManager`：home 里的包与 cordis.yml 条目的读写。同名的 `plugin-manager.*` 命令校验参数后调这些方法。
+ * 调用方写错（包名不合规、包没装、条目不在）直接抛；pnpm 失败、正在运行别的改动（BUSY）这类正常结果回 `{ ok: false, error }`
+ */
+class PluginManager extends Service {
+  /** 插件管理自己的上下文。方法里的 `this.ctx` 是调用方的，取自己的条目、注入别的服务都用这一个 */
+  private readonly pluginContext: GwbContext
   /** pnpm 的工作目录，也是 home 的 package.json 所在的目录 */
   private readonly homeDir: string
   /** 运行中的内核版本号，`list` 拿它和各包 peer 里内核包的范围比对 */
@@ -119,15 +115,13 @@ class PluginManager {
   private readonly busyGate = new BusyGate()
 
   constructor(ctx: GwbContext) {
-    this.ctx = ctx
+    super(ctx, 'gwbPluginManager')
+    this.pluginContext = ctx
     const kernel = requireKernel(ctx)
     this.homeDir = kernel.dataDir
     this.kernelVersion = kernel.version
     this.tree = treeOf(ctx)
     this.log = ctx.logger(NAME)
-  }
-
-  wire(): void {
     this.wireCommands()
     this.wireSearch()
     this.wireSkills()
@@ -135,29 +129,26 @@ class PluginManager {
 
   /** skills/ 目录要列进 package.json 的 files */
   private wireSkills(): void {
-    this.ctx.inject(['gwbSkills'], (ctx) => {
+    this.pluginContext.inject(['gwbSkills'], (ctx) => {
       ctx.effect(() => ctx.gwbSkills.register(new URL('../skills/', import.meta.url)))
     })
   }
 
-  /** 命令插件是可选的，但没有它插件管理就没有任何对外接口 */
+  /** 命令插件是可选的，但没有它插件管理就没有给页面与 agent 的接口 */
   private wireCommands(): void {
-    this.ctx.inject(['gwbCommands'], (ctx) => {
+    this.pluginContext.inject(['gwbCommands'], (ctx) => {
       const commandBus = ctx.gwbCommands
       // inject 保证了它在，这句只是把类型收窄
       if (commandBus === undefined) return
       const registerCommand: RegisterCommand = (name, description, usage, effect, handler) => {
         commandBus.register({ name, description, usage, plugin: PKG, effect }, handler)
       }
-      const registerBusyGuardedCommand: RegisterCommand = (name, description, usage, effect, handler) => {
-        commandBus.register({ name, description, usage, plugin: PKG, effect }, (args) => this.busyGate.run(() => handler(args) as Promise<{ ok: boolean }> | { ok: boolean }))
-      }
-      this.registerHomeCommands(registerCommand, registerBusyGuardedCommand)
+      this.registerHomeCommands(registerCommand)
     })
   }
 
-  /** 改 home 里的包与条目的命令；安装、卸载、升级、重新加载经过 BUSY 检查 */
-  private registerHomeCommands(registerCommand: RegisterCommand, registerBusyGuardedCommand: RegisterCommand): void {
+  /** 改 home 里的包与条目的命令；安装、卸载、升级的 BUSY 检查在方法里 */
+  private registerHomeCommands(registerCommand: RegisterCommand): void {
     registerCommand(
       LIST_COMMAND,
       'home 里装了哪些包（内核包与 cordis 除外）、各有哪些条目、peer 里写的包（含内核包）有没有没满足的',
@@ -166,7 +157,7 @@ class PluginManager {
       () => this.list(),
     )
 
-    registerBusyGuardedCommand(
+    registerCommand(
       INSTALL_COMMAND,
       '往 home 装一个还没装的包并加一条条目',
       `一次 pnpm add 把包装进 home（home 的 package.json 里照 pnpm 默认写 ^ 范围），再加一条条目（默认启用）。包已在 home 的 dependencies 里直接报错：再加一条条目用 ${ADD_ENTRY_COMMAND}，换版本用 ${UPDATE_COMMAND} {"specs":{…}}。不装它的 peer，也不判断是不是库：装了没有 apply 的包，条目加载失败，在 ${LIST_COMMAND} 里看得到。回执 data { pkg, entryId }；失败时 error 里带 pnpm 输出的最后几行。参数 { pkg, spec? }（spec 是版本或 tag）；${BUSY_USAGE_NOTE}`,
@@ -211,7 +202,7 @@ class PluginManager {
       () => this.outdated(),
     )
 
-    registerBusyGuardedCommand(
+    registerCommand(
       UPDATE_COMMAND,
       '升级 home 里已装的包（全部过期的、点名的几个、或按给定写法装，内核包也走这条），不重启、不整页重新加载',
       `${UPDATE_ARGS_USAGE}。home 的 package.json 里照 pnpm 默认写 ^ 范围（只有 ${CORDIS_PACKAGE} 写精确版本号）；清单里已有的 ^ 范围会挡住往回退版本，specs 退回旧版会在核对时回 ok: false。all 与 only：一次 pnpm add 把过期包升到 outdated 返回的精确版本；specs：一次 pnpm add 每项 <包名>@<写法>，不查 outdated，写法是准确版本号的，装完读 node_modules 里的清单核对，装上的不是那个号就回 ok: false、一条条目都不重新加载（tag 与 file: 不核对）。pnpm add 前后 home 里 node_modules/<包名> 指向的真实目录变了的包，条目在同一条命令里逐条停用→启用、重新加载成新版本（原本停用的跳过）：点了名的包归 updated（装的就是原来那一版、目录没变的也列出，entries 为空），没点名的（多半是 peer 写了被装的包的插件）归 dependents。重新加载的先后按装上后清单里的 peerDependencies 排（只看这批要重新加载的包之间的 peer），被依赖的先、同一层按包名，两组合在一起排，组内也照这个先后列；插件管理自己，以及这批里传递地 peer 了插件管理的包，条目记 action deferred，回执发出后按这个先后依次重新加载（插件管理自己在最前，一条失败只记日志、接着下一条）。这批包里 peer 成环时，环上的包与传递地 peer 了环上包的包这次不重新加载（entries 为空），回执带 restartRequired: true，note 写明环（A → B → A）、这些包重启工作台后才换成新版本；其余包照常按先后重新加载。不整页重新加载：界面要换成新代码，由调用方拿到回执后自己调 shell.reload。内核包 ${KERNEL_PACKAGE} 与 ${CORDIS_PACKAGE} 不在过期清单里，only 点了它们直接报错。specs 里有内核包时：内核包与其余包一次 pnpm add，再读装上的内核包 peerDependencies.cordis（必须是精确版本号）pnpm add ${CORDIS_PACKAGE}@<那个版本>，不重新加载任何条目——主进程里的内核换不掉，重启工作台后才生效，重启由人决定；回执另带 restartRequired（装上的内核版本与正在运行的不同时是 true；不装内核包时只在 peer 成环时出现），重启后 peer 范围不包含新内核的插件由 ${LIST_COMMAND} 的 unmetPeers 列出；内核包装上了而 cordis 没对齐时回 ok: false，data 带 { kernel: { from?, to } }，error 说明先别重启。specs 里写 ${CORDIS_PACKAGE} 直接报错。回执 data { updated: [{ pkg, from?, to, entries: [{ id, action, state }] }], dependents: [{ pkg, entries: [{ id, action, state }] }], selfDeferred, restartRequired?, note? }：specs 的 from 是装之前 node_modules 里清单的 version（读不到就没有），to 是装完读到的 version；失败时 error 里带 pnpm 输出的最后几行；${BUSY_USAGE_NOTE}`,
@@ -219,7 +210,7 @@ class PluginManager {
       (args) => this.update(updateArgsOf(args)),
     )
 
-    registerBusyGuardedCommand(
+    registerCommand(
       UNINSTALL_COMMAND,
       '卸载一个包：删除它的全部条目，再卸载包',
       `设置与数据留在磁盘上（只删一条条目调用 ${REMOVE_ENTRY_COMMAND}）。内核包与 ${CORDIS_PACKAGE} 不许卸载，直接报错。回执 data { pkg }；pnpm 失败时 error 说明条目已删几条、包还在，并带 pnpm 输出的最后几行。参数 { pkg }；${BUSY_USAGE_NOTE}`,
@@ -233,7 +224,7 @@ class PluginManager {
    * 只读设置、pnpm 的配置与源，不改 home，不经 BUSY 检查
    */
   private wireSearch(): void {
-    this.ctx.inject(['gwbCommands', 'gwbSettings'], (ctx) => {
+    this.pluginContext.inject(['gwbCommands', 'gwbSettings'], (ctx) => {
       const settings = ctx.gwbSettings
       const commandBus = ctx.gwbCommands
       // inject 保证了它们在，这句只是把类型收窄
@@ -304,8 +295,12 @@ class PluginManager {
     return installedVersions
   }
 
-  /** 调用方写错（包名、版本范围不合规、包已经装了）直接抛；pnpm 失败、条目加不进去转成回执 */
-  async install(pkg: string, spec?: string): Promise<Outcome<Installed>> {
+  /** 调用方写错（包名、版本范围不合规、包已经装了）直接抛；pnpm 失败、条目加不进去、BUSY 转成回执 */
+  install(pkg: string, spec?: string): Promise<Outcome<Installed>> {
+    return this.busyGate.run(() => this.installWhileHoldingBusyGate(pkg, spec))
+  }
+
+  private async installWhileHoldingBusyGate(pkg: string, spec: string | undefined): Promise<Outcome<Installed>> {
     const packageSpec = installSpec(pkg, spec)
     const installedSpec = (await readHomeDependencies(this.homeDir))[pkg]
     if (installedSpec !== undefined) {
@@ -352,10 +347,9 @@ class PluginManager {
     return { ok: true, data: { updates: withoutKernelManaged(updates) } }
   }
 
-  /** 参数写错直接抛；下面每一种失败都是正常结果，转成回执 */
-  async update(args: UpdateArgs): Promise<Outcome<Updated> | KernelInstalledButCordisNot> {
-    if ('specs' in args) return this.updateToSpecs(args.specs)
-    return this.updateOutdated('only' in args ? args.only : undefined)
+  /** 参数写错直接抛；下面每一种失败与 BUSY 都是正常结果，转成回执 */
+  update(args: UpdateArgs): Promise<Outcome<Updated> | KernelInstalledButCordisNot> {
+    return this.busyGate.run(() => ('specs' in args ? this.updateToSpecs(args.specs) : this.updateOutdated('only' in args ? args.only : undefined)))
   }
 
   /** `only` 里包名不合规、不在 home 的 dependencies 里、是内核包或 cordis 直接抛；不给 `only` 就升全部过期包 */
@@ -460,7 +454,7 @@ class PluginManager {
     if (!versionChanges.ok) return this.failed(`${versionChanges.error}。一条条目都没动`)
 
     // 升完不重新加载，运行着的还是旧版本，等于没升；旧版本目录也不会一直留着（pnpm 默认约 7 天后清掉）。所以换了目录的条目都由这条命令重新加载，只有 peer 成环的留到重启
-    const targets = packagesToRemount(directoriesBefore, await this.readInstalledDirectories(homePackages), requestedPackages, this.tree.store, ownEntryId(this.ctx))
+    const targets = packagesToRemount(directoriesBefore, await this.readInstalledDirectories(homePackages), requestedPackages, this.tree.store, ownEntryId(this.pluginContext))
     const plannedPackages = [...targets.updated, ...targets.dependents]
     const peersOf = await this.readInstalledPeerNames(plannedPackages.map((planned) => planned.pkg))
     const order = remountOrderOf(plannedPackages.map((planned) => planned.pkg), peersOf)
@@ -534,8 +528,12 @@ class PluginManager {
     return remounted
   }
 
-  /** 包没装（调用方写错了）、是内核包或 cordis 直接抛；删条目与 pnpm 两步的失败转成回执 */
-  async uninstall(pkg: string): Promise<Outcome<Uninstalled>> {
+  /** 包没装（调用方写错了）、是内核包或 cordis 直接抛；删条目与 pnpm 两步的失败、BUSY 转成回执 */
+  uninstall(pkg: string): Promise<Outcome<Uninstalled>> {
+    return this.busyGate.run(() => this.uninstallWhileHoldingBusyGate(pkg))
+  }
+
+  private async uninstallWhileHoldingBusyGate(pkg: string): Promise<Outcome<Uninstalled>> {
     assertPkgName(pkg)
     if (KERNEL_MANAGED_PACKAGES.has(pkg)) {
       throw new Error(`${pkg} 是 home 运行必需的包，不许卸载：卸掉之后 home 启动不了。内核包用 ${UPDATE_COMMAND} {"specs":{"${KERNEL_PACKAGE}":"<版本号>"}} 换，${CORDIS_PACKAGE} 随它对齐`)
@@ -615,7 +613,7 @@ class PluginManager {
 
   /** `tree.create` 没有被 await，拿不到它返回的完整 id，按本插件条目的前缀自己拼 */
   private fullEntryIdOf(bareEntryId: string): string {
-    const ownFullId = ownEntryId(this.ctx)
+    const ownFullId = ownEntryId(this.pluginContext)
     const lastSeparator = ownFullId.lastIndexOf(':')
     return lastSeparator === -1 ? bareEntryId : `${ownFullId.slice(0, lastSeparator + 1)}${bareEntryId}`
   }
@@ -722,6 +720,6 @@ function optionalString(argsObject: Record<string, unknown>, key: string): strin
 
 declare module 'cordis' {
   interface Context {
-    gwbPluginManager: PluginManagerPresence
+    gwbPluginManager: PluginManager
   }
 }

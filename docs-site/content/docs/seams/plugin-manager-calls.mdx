@@ -25,9 +25,9 @@ description: 连接 devkit 与插件管理：devkit 从插件管理的主入口 
 
 插件管理的 `install` 与 `update`，`usage` 里写着参数与回执：
 
-{/* ref file="../plugins/plugin-manager/src/index.ts" lines="169-178" hash="629bbe022200" blob="9d217349a8b0" */}
+{/* ref file="../plugins/plugin-manager/src/index.ts" lines="160-169" hash="38b41cde38da" blob="c078198dd768" */}
 
-{/* ref file="../plugins/plugin-manager/src/index.ts" lines="214-220" hash="0391e8dd616c" blob="9d217349a8b0" */}
+{/* ref file="../plugins/plugin-manager/src/index.ts" lines="205-211" hash="18ac8cc133a0" blob="c078198dd768" */}
 
 `specs` 的规则在插件管理的 `planSpecsUpdate`：包必须已在 home 的 `dependencies` 里，写了 `cordis` 直接报错，写法原样交给 pnpm；`file:` 写法装完不核对版本号，由 devkit 自己读 `node_modules` 里的清单核对：
 
@@ -49,9 +49,9 @@ description: 连接 devkit 与插件管理：devkit 从插件管理的主入口 
 
 **三、devkit 从插件管理的主入口 import 几个函数与三条命令的名字。** 找 pnpm 的 `locatePnpm`、在 home 里启动 pnpm 用的环境 `homePnpmEnv`、按指定 home 执行 registry 鉴权的 `withHomeRegistryAuth`、内核包名 `KERNEL_PACKAGE`、peer 范围写法的判定 `isCaretRange`、取输出最后几行的 `tailLines`，规则只有插件管理里这一份；`devkit.dev` 调的命令名 `LIST_COMMAND`、`INSTALL_COMMAND`、`UPDATE_COMMAND` 也从这里取（见[主入口给 devkit 的导出](/docs/plugin-manager#主入口给-devkit-的导出)）。devkit 的 peer 里写着插件管理（仓里写 `workspace:^`，`devkit.release` 发版时写成 `^<插件管理的版本号>`），devkit 构建时把 peer 里的包留在外面，home 里 pnpm 把它解析到装着的那一份：
 
-{/* ref file="../plugins/plugin-manager/src/index.ts" lines="64-67" hash="32891efcf8af" blob="9d217349a8b0" */}
+{/* ref file="../plugins/plugin-manager/src/index.ts" lines="65-68" hash="32891efcf8af" blob="c078198dd768" */}
 
-{/* ref file="../plugins/plugin-manager/src/index.ts" lines="78-80" hash="c4d22b1bf2be" blob="9d217349a8b0" */}
+{/* ref file="../plugins/plugin-manager/src/index.ts" lines="79-81" hash="c4d22b1bf2be" blob="c078198dd768" */}
 
 {/* ref file="../plugins/devkit/package.json" lines="32-39" hash="dff0e09dae47" blob="171f4f24f437" */}
 
@@ -87,6 +87,6 @@ devkit 的 `dev.test.ts` 与插件管理的 `commands.test.ts` 各用假实现�
 
 {/* ref file="../plugins/devkit/tests/dev.test.ts" lines="397-412" hash="6f38c69e3af6" blob="915d2359bd87" */}
 
-{/* ref file="../plugins/plugin-manager/src/index.ts" lines="68-68" hash="af5aa2a2f194" blob="9d217349a8b0" */}
+{/* ref file="../plugins/plugin-manager/src/index.ts" lines="69-69" hash="af5aa2a2f194" blob="c078198dd768" */}
 
 {/* ref file="../plugins/plugin-manager/tests/main-entry.test.ts" lines="4-9" hash="24fd128e98d4" blob="56c578832fbe" */}

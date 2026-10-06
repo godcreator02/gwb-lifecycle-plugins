@@ -16,7 +16,7 @@ description: 内核包也经 update 的 specs 换，可以连同别的包一次�
 3. `pnpm add --save-exact cordis@<那个版本>`，装完读回核对 `cordis` 装上的就是它
 4. **不重新加载任何条目**：`updated` 每项的 `entries` 是空数组，末尾多一项插件管理自己对齐的 `cordis`；`dependents` 是空数组
 
-{/* ref file="../plugins/plugin-manager/src/index.ts" lines="384-430" hash="2ea77ac58d4e" blob="9d217349a8b0" */}
+{/* ref file="../plugins/plugin-manager/src/index.ts" lines="378-424" hash="2ea77ac58d4e" blob="c078198dd768" */}
 
 `outdated` 不报内核有没有新版本；写 `latest` 就装源上的最新版，回执里内核包的 `from` 与 `to` 相同就是已是最新。
 
@@ -28,7 +28,7 @@ description: 内核包也经 update 的 specs 换，可以连同别的包一次�
 
 {/* ref file="../plugins/plugin-manager/src/kernel-upgrade.ts" lines="10-11" hash="36526a391df4" blob="f053bf9413fd" */}
 
-{/* ref file="../plugins/plugin-manager/src/index.ts" lines="538-542" hash="dc426da265cc" blob="9d217349a8b0" */}
+{/* ref file="../plugins/plugin-manager/src/index.ts" lines="531-540" hash="c64da9ba17d9" blob="c078198dd768" */}
 
 {/* ref file="../plugins/plugin-manager/tests/commands.test.ts" lines="468-474" hash="7fc9d0bd1036" blob="e61174279d2a" */}
 

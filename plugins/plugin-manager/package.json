@@ -32,6 +32,7 @@
     "check": "pnpm run typecheck && pnpm run lint && pnpm run test"
   },
   "peerDependencies": {
+    "cordis": "^4.0.0-rc.10",
     "@godcreator/gwb-kernel-desktop": "^0.10.0",
     "@godcreator/gwb-commands": "^0.6.0",
     "@godcreator/gwb-settings": "^0.4.0",

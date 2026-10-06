@@ -15,7 +15,7 @@ description: outdated 查过期包；update 的参数三选一（all 升全部�
 
 退出码 1 表示「有过期包」，是结果不是失败；找不到 pnpm、别的退出码、输出解析不了，都回 `ok: false`。它不写文件，不经过 BUSY 检查（见[同一时刻只允许一个改动](/docs/plugin-manager/busy)）。
 
-{/* ref file="../plugins/plugin-manager/src/index.ts" lines="333-353" hash="aa94590d5217" blob="9d217349a8b0" */}
+{/* ref file="../plugins/plugin-manager/src/index.ts" lines="328-348" hash="aa94590d5217" blob="c078198dd768" */}
 
 {/* ref file="../plugins/plugin-manager/tests/outdated.test.ts" lines="14-17" hash="63025a0bbf74" blob="893e0fa046bf" */}
 
@@ -35,9 +35,9 @@ description: outdated 查过期包；update 的参数三选一（all 升全部�
 
 全部升级要显式给 `{"all":true}`：一条改 home 的命令，不给参数时不能执行影响最大的那个动作，漏写参数就整个 home 一起升级、当场生效（见轨迹卡 [update 显式 all 加 specs](/trajectory/2026-09-25-update-takes-all-param)）。
 
-{/* ref file="../plugins/plugin-manager/src/index.ts" lines="659-688" hash="db89ddf2ea0b" blob="9d217349a8b0" */}
+{/* ref file="../plugins/plugin-manager/src/index.ts" lines="657-686" hash="db89ddf2ea0b" blob="c078198dd768" */}
 
-{/* ref file="../plugins/plugin-manager/src/index.ts" lines="355-359" hash="06cd339685b2" blob="9d217349a8b0" */}
+{/* ref file="../plugins/plugin-manager/src/index.ts" lines="350-353" hash="ffb94837652b" blob="c078198dd768" */}
 
 {/* ref file="../plugins/plugin-manager/tests/commands.test.ts" lines="743-754" hash="72cc875e2cd5" blob="e61174279d2a" */}
 
@@ -77,7 +77,7 @@ description: outdated 查过期包；update 的参数三选一（all 升全部�
 
 命令本该一条只做一件事，多步流程写进说明书由调用方一步步调；`update` 是允许的例外，拆开只多出上图那段运行旧版的空档。
 
-{/* ref file="../plugins/plugin-manager/src/index.ts" lines="442-492" hash="d59642a5a85e" blob="9d217349a8b0" */}
+{/* ref file="../plugins/plugin-manager/src/index.ts" lines="436-486" hash="7d88f4e9a2a7" blob="c078198dd768" */}
 
 {/* ref file="../plugins/plugin-manager/tests/commands.test.ts" lines="582-591" hash="257ba1eabd0b" blob="e61174279d2a" */}
 
@@ -125,7 +125,7 @@ description: outdated 查过期包；update 的参数三选一（all 升全部�
 
 {/* ref file="../plugins/plugin-manager/src/home.ts" lines="53-65" hash="055fa3625448" blob="2689fa073ac6" */}
 
-{/* ref file="../plugins/plugin-manager/src/index.ts" lines="500-507" hash="6380f5da3960" blob="9d217349a8b0" */}
+{/* ref file="../plugins/plugin-manager/src/index.ts" lines="494-501" hash="6380f5da3960" blob="c078198dd768" */}
 
 {/* ref file="../plugins/plugin-manager/src/update.ts" lines="296-320" hash="2429e84c89a0" blob="0faf236053dc" */}
 
@@ -175,7 +175,7 @@ description: outdated 查过期包；update 的参数三选一（all 升全部�
 
 执行在 `index.ts` 里：读装上的清单、排先后、命令里依次重新加载 `now` 那一段、`afterReceipt` 那一段记 `deferred`、环上的记空数组：
 
-{/* ref file="../plugins/plugin-manager/src/index.ts" lines="515-535" hash="e7192d841616" blob="9d217349a8b0" */}
+{/* ref file="../plugins/plugin-manager/src/index.ts" lines="509-529" hash="e7192d841616" blob="c078198dd768" */}
 
 {/* ref file="../plugins/plugin-manager/tests/commands.test.ts" lines="675-689" hash="f689b35a7cf3" blob="e61174279d2a" */}
 
@@ -194,7 +194,7 @@ description: outdated 查过期包；update 的参数三选一（all 升全部�
 
 **插件管理自己在回执之后**：升级的包或跟着重新加载的包里有插件管理自己时，它那条条目与 peer 了它的包的条目在回执发出之后才重新加载，回执 `selfDeferred` 是 `true`，这些条目的 `action` 是 `deferred`。在命令里停用自己，回执就发不出去了，理由与做法见[重新加载条目](/docs/plugin-manager/remount#插件管理自己先回执后重新加载)；为什么这样排见轨迹卡[按 peer 排重新加载的先后](/trajectory/2026-09-30-remount-in-peer-order)。
 
-{/* ref file="../plugins/plugin-manager/src/index.ts" lines="479-482" hash="4232b35c2add" blob="9d217349a8b0" */}
+{/* ref file="../plugins/plugin-manager/src/index.ts" lines="473-476" hash="4232b35c2add" blob="c078198dd768" */}
 
 {/* ref file="../plugins/plugin-manager/tests/commands.test.ts" lines="563-580" hash="83757ddfc28a" blob="e61174279d2a" */}
 

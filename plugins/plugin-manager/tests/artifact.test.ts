@@ -4,11 +4,11 @@ import { fileURLToPath } from 'node:url'
 import { describe, expect, it } from 'vitest'
 
 /**
- * 构建产物的检查：相对 import 带扩展名；包名 import 一个都没有。
+ * 构建产物的检查：相对 import 带扩展名；包名 import 只有 `cordis`。
  *
- * 「一个都没有」有两层意思：cordis、内核包的接口类型只取类型，编译后就该消失；commands / data / settings /
- * skills 四个插件在这里是**可选**的，源码里只有 `import type {}`。哪天有人把它写成运行时 import，
- * 这条会立即失败——不然的话，home 里没装那四个插件时插件管理加载失败，日志里只有一句
+ * `cordis` 是服务继承的 `Service`，写在 peer 里，home 根上一定有。内核包的接口类型只取类型，编译后就该消失；
+ * commands / settings / skills 三个插件在这里是**可选**的，源码里只有 `import type`。哪天有人把它们写成运行时 import，
+ * 这条会立即失败——不然的话，home 里没装那几个插件时插件管理加载失败，日志里只有一句
  * ERR_MODULE_NOT_FOUND，看不出是依赖写错了。
  *
  * 缺产物时整组跳过——这组检查不依赖构建。
@@ -48,13 +48,13 @@ describe.skipIf(!built)('产物', () => {
     expect(bad).toEqual([])
   })
 
-  it('除了 node 内置模块，一个包名 import 都没有', () => {
+  it('除了 node 内置模块，包名 import 只有 peer 里的 cordis', () => {
     const bare = new Set<string>()
     for (const file of all) {
       for (const spec of specsIn(read(file), BARE)) {
         if (!spec.startsWith('node:')) bare.add(spec)
       }
     }
-    expect([...bare]).toEqual([])
+    expect([...bare]).toEqual(['cordis'])
   })
 })

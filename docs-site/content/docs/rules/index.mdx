@@ -56,6 +56,4 @@ description: 写 gwb 插件要守的规矩：总表只收有工具查、或违�
 
 插件管理（`plugins/plugin-manager/`）与开发套件的清单都按上面的规矩写：peer 里是内核包与用到的插件，此刻没有没照做的。
 
-分页里的写法建议有一处没照做：插件管理用 `ctx.provide` 提供的服务 `gwbPluginManager` 是一个空对象，只用来表示「插件管理装着」（见[插件之间怎么连](/docs/wiring)）。它要换成继承 `Service`、带插件管理读写方法的服务，命令改成调这些方法。
-
 总表只收有工具查的几条，取舍见轨迹卡[写插件的规矩只留有工具查的](/trajectory/2026-09-25-rules-only-checked-ones)。

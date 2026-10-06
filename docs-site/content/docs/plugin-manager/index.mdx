@@ -1,6 +1,6 @@
 ---
 title: gwb-plugin-manager · 插件管理
-description: 插件管理是唯一写 home 的插件——装卸包、增删启停条目、查新版本与热升级（换了版本的条目在同一条命令里重新加载，内核包也经 update 的 specs 换）、报告 peer 里的内核包与别的插件满没满足、在配好的 npm 源上找插件；本页讲功能、对外的 10 条命令与服务、依赖什么、哪些事不归它管，细节在同目录的机制页
+description: 插件管理是唯一写 home 的插件——装卸包、增删启停条目、查新版本与热升级（换了版本的条目在同一条命令里重新加载，内核包也经 update 的 specs 换）、报告 peer 里的内核包与别的插件满没满足、在配好的 npm 源上找插件；本页讲功能、给页面与 agent 的 10 条命令与给别的插件的服务、依赖什么、哪些事不归它管，细节在同目录的机制页
 ---
 
 # 插件管理
@@ -30,7 +30,7 @@ description: 插件管理是唯一写 home 的插件——装卸包、增删启�
 
 ### 10 条命令
 
-插件管理对外只有命令，都登记在命令总线上，`plugin` 写包名；页面、agent、别的插件调的是同一批命令。每条命令的参数与回执写在它登记时的 `usage` 里，agent 经 MCP 入口的 `search` 读到的就是它；怎么组合着用见说明书 [gwb-plugin-manager](/docs/outputs/skills/gwb-plugin-manager)。
+命令给页面与 agent 用，都登记在命令总线上，`plugin` 写包名；除了 `search`，每条命令的处理函数校验参数后调服务 `gwbPluginManager` 上的同名方法（见下一节），别的插件 inject 服务、不调命令。每条命令的参数与回执写在它登记时的 `usage` 里，agent 经 MCP 入口的 `search` 读到的就是它；怎么组合着用见说明书 [gwb-plugin-manager](/docs/outputs/skills/gwb-plugin-manager)。
 
 | 命令（前缀 `plugin-manager.`） | 做什么 | 细节 |
 | --- | --- | --- |
@@ -41,32 +41,36 @@ description: 插件管理是唯一写 home 的插件——装卸包、增删启�
 | `outdated` / `update` | 查新版本 / 升级已装的包，内核包也经 `update` 的 `specs`（`update` 经 BUSY 检查） | [热升级](/docs/plugin-manager/upgrade)、[升内核](/docs/plugin-manager/kernel-upgrade) |
 | `search` | 在市场名单里的市场上找插件；设置插件不在时不登记 | [找插件](/docs/plugin-manager/sources) |
 
-{/* ref file="../plugins/plugin-manager/src/index.ts" lines="78-87" hash="3939c83eb73d" blob="9d217349a8b0" */}
+{/* ref file="../plugins/plugin-manager/src/index.ts" lines="79-88" hash="3939c83eb73d" blob="c078198dd768" */}
 
 - **回执只有一层 `ok`**：成功时 `data` 是结果本身，里面没有第二层 `ok`；执行中的失败（找不到 pnpm、pnpm 失败、条目写不进去）回 `{ ok: false, error }`，pnpm 输出的最后几行拼在 `error` 末尾。失败时还带结构化字段的只有一处：`update` 装上了内核包而 `cordis` 没对齐时带 `data: { kernel }`。为什么只留一层见轨迹卡[升内核并进 specs](/trajectory/2026-09-25-kernel-via-specs-caller-reloads)
 - **调用方写错直接报错**：参数不是对象、有认不出的键、缺字段、包名不合规、条目不存在，处理函数直接抛错，不猜、不忽略；命令总线把抛出的错误转成 `{ ok: false, error }`
 
 {/* ref file="../plugins/plugin-manager/src/receipts.ts" lines="7-8" hash="31162f955dce" blob="3d191e167e13" */}
 
-{/* ref file="../plugins/plugin-manager/src/index.ts" lines="699-708" hash="7909ccdde7e9" blob="9d217349a8b0" */}
+{/* ref file="../plugins/plugin-manager/src/index.ts" lines="697-706" hash="7909ccdde7e9" blob="c078198dd768" */}
 
 ### 服务 gwbPluginManager
 
-值是空对象，只表示「插件管理装着」；别的插件 inject 它，只为跟着插件管理一起加载、卸载（插件管理窗格就这样用它）。有没有破坏性变化看插件管理的版本号，服务上不放版本数字。同一件事如果既能调命令、又能调服务方法，两种调用方式会慢慢变得不一致，而 BUSY 检查只加在命令上，服务方法会绕过去，所以要加能力就加一条命令，不往服务上加方法。只表示存在的服务用 `ctx.provide` 提供普通对象，不继承 cordis 的 `Service` 类，插件管理因此在运行时不 import `cordis`。
+服务是继承 cordis `Service` 的类，方法 `list`、`install`、`uninstall`、`addEntry`、`removeEntry`、`enable`、`disable`、`outdated`、`update` 与同名命令一一对应：参数是命令参数校验过后的值，返回值就是命令的回执，类型在下面的子路径 `./receipts`；调用方写错时方法直接抛。`search` 只有页面与 agent 用，只做命令，不在服务上。BUSY 检查在 `install`、`update`、`uninstall` 三个方法里，命令调的就是这三个方法，所以 inject 服务的插件和命令过同一道检查（见[同一时刻只允许一个改动](/docs/plugin-manager/busy)）。插件管理窗格（`gwb-baseui`）inject 它来决定注册不注册窗格，窗格里的操作照旧调命令。
 
-{/* ref file="../plugins/plugin-manager/src/index.ts" lines="89-95" hash="d3e1c817c32a" blob="9d217349a8b0" */}
+类不从主入口导出：给 cordis 的 `Context` 补的那一项带着它的类型，inject 它的插件 `import type` 插件管理的包就取得到。方法里的 `this.ctx` 是调用方的上下文，插件管理找自己的条目、注入别的服务用构造时存下的自己的上下文。
 
-{/* ref file="../plugins/plugin-manager/src/index.ts" lines="100-107" hash="ef66467d49e2" blob="9d217349a8b0" */}
+{/* ref file="../plugins/plugin-manager/src/index.ts" lines="95-106" hash="8a333cafe0ca" blob="c078198dd768" */}
+
+{/* ref file="../plugins/plugin-manager/src/index.ts" lines="117-118" hash="f28b370ed918" blob="c078198dd768" */}
+
+{/* ref file="../plugins/plugin-manager/src/index.ts" lines="721-725" hash="7bd45c98ca62" blob="c078198dd768" */}
 
 ### 主入口给 devkit 的导出
 
 包主入口除了插件本身（`name`、`apply`），只导出 devkit 复用的几样——找 pnpm 的 `locatePnpm`、在 home 里启动 pnpm 用的环境 `homePnpmEnv`、绑定指定 home 凭据执行子进程并清理/脱敏的 `withHomeRegistryAuth`（见 [pnpm](/docs/plugin-manager/pnpm#参数环境与读回什么)）、内核包名 `KERNEL_PACKAGE`、peer 范围写法的判定 `isCaretRange`、取输出最后几行的 `tailLines`，以及 `devkit.dev` 调的三条命令名 `LIST_COMMAND`、`INSTALL_COMMAND`、`UPDATE_COMMAND`。devkit 在 peer 里写了插件管理，直接 import 这几样，规则只有这一份；devkit 构建时把 peer 里的包留在外面，运行时用的是 home 里装着的那一版插件管理。回执类型不从主入口导出，在下面的子路径 `./receipts`。devkit 怎么用这几样见接缝页 [devkit 调插件管理](/docs/seams/plugin-manager-calls)。
 
-{/* ref file="../plugins/plugin-manager/src/index.ts" lines="64-67" hash="32891efcf8af" blob="9d217349a8b0" */}
+{/* ref file="../plugins/plugin-manager/src/index.ts" lines="65-68" hash="32891efcf8af" blob="c078198dd768" */}
 
-{/* ref file="../plugins/plugin-manager/src/index.ts" lines="78-80" hash="c4d22b1bf2be" blob="9d217349a8b0" */}
+{/* ref file="../plugins/plugin-manager/src/index.ts" lines="79-81" hash="c4d22b1bf2be" blob="c078198dd768" */}
 
-{/* ref file="../plugins/plugin-manager/src/index.ts" lines="68-68" hash="af5aa2a2f194" blob="9d217349a8b0" */}
+{/* ref file="../plugins/plugin-manager/src/index.ts" lines="69-69" hash="af5aa2a2f194" blob="c078198dd768" */}
 
 {/* ref file="../plugins/plugin-manager/tests/main-entry.test.ts" lines="4-9" hash="24fd128e98d4" blob="56c578832fbe" */}
 
@@ -88,21 +92,21 @@ description: 插件管理是唯一写 home 的插件——装卸包、增删启�
 
 给 agent 讲这些命令怎么调用，放在包根的 `skills/`，装了说明书插件就交给它登记，agent 经 `skill.read` 读。正本是站里的 [gwb-plugin-manager](/docs/outputs/skills/gwb-plugin-manager)，包里的 `SKILL.md` 是生成物。
 
-{/* ref file="../plugins/plugin-manager/src/index.ts" lines="136-141" hash="397f310fcf69" blob="9d217349a8b0" */}
+{/* ref file="../plugins/plugin-manager/src/index.ts" lines="130-135" hash="5cacf75fcf6d" blob="c078198dd768" */}
 
 ### 什么算破坏性变更
 
-命令名、参数、回执形状，服务的值，主入口导出的名字、签名或 devkit 依赖的行为，子路径 `./receipts` 导出的类型名，这几样改了、删了都是破坏性变更，升 0.x 的 x、发之前通知下游；加命令、加可选参数、回执加字段、修 bug 升 y。怎么升、怎么通知照说明书 [gwb-release](/docs/outputs/skills/gwb-release)，发版用 `devkit.release`，`packages` 给 `plugins/plugin-manager`。
+命令名、参数、回执形状，服务方法的名字、参数与返回值，主入口导出的名字、签名或 devkit 依赖的行为，子路径 `./receipts` 导出的类型名，这几样改了、删了都是破坏性变更，升 0.x 的 x、发之前通知下游；加命令、加可选参数、回执加字段、修 bug 升 y。怎么升、怎么通知照说明书 [gwb-release](/docs/outputs/skills/gwb-release)，发版用 `devkit.release`，`packages` 给 `plugins/plugin-manager`。
 
 ## 依赖
 
-注入了哪些服务、必需还是局部注入、peer 怎么写、缺了会怎样，直接读写了 loader 的条目树与 home 里的哪些文件、抄了 cordis 的哪份状态数字、启动了哪些子进程、问了哪些源，都在[插件之间怎么连](/docs/wiring#godcreatorgwb-plugin-manager)。每一处读不到、读不懂时怎么报错，写在各机制页（[home 的包与条目](/docs/plugin-manager/home)、[peer 满没满足](/docs/plugin-manager/peers)、[热升级](/docs/plugin-manager/upgrade)、[pnpm](/docs/plugin-manager/pnpm)、[找插件](/docs/plugin-manager/sources)）。cordis、loader、include 写在 `devDependencies`；内核与三个插件的类型都从 peer 里的包 `import type`，构建产物里没有它们的 import。
+注入了哪些服务、必需还是局部注入、peer 怎么写、缺了会怎样，直接读写了 loader 的条目树与 home 里的哪些文件、抄了 cordis 的哪份状态数字、启动了哪些子进程、问了哪些源，都在[插件之间怎么连](/docs/wiring#godcreatorgwb-plugin-manager)。每一处读不到、读不懂时怎么报错，写在各机制页（[home 的包与条目](/docs/plugin-manager/home)、[peer 满没满足](/docs/plugin-manager/peers)、[热升级](/docs/plugin-manager/upgrade)、[pnpm](/docs/plugin-manager/pnpm)、[找插件](/docs/plugin-manager/sources)）。服务继承 cordis 的 `Service`，按值 import `cordis`，peer 里写它；loader、include 写在 `devDependencies`；内核与三个插件的类型都从 peer 里的包 `import type`，构建产物里没有它们的 import。
 
 内核对插件管理的承诺——home 的文件布局、loader 与 include 的版本、按真实路径解析包名——写在内核仓文档站的接缝页「home 布局与条目树」；插件管理用到 loader 的哪几样见接缝页[条目树 loader](/docs/seams/entry-tree)。
 
 ## 不做的事
 
-- **不分调用方**：插件管理窗格、经 MCP 入口的 agent、经 CDP 调命令的 `devkit.dev` 调的是同一条命令；它不知道 devkit 的 `dev-packs/` 目录，只照 `file:` 写法交给 pnpm
+- **不分调用方**：插件管理窗格、经 MCP 入口的 agent、经 CDP 调命令的 `devkit.dev` 调的是同一条命令，inject 服务的插件调的是命令背后的同一个方法；它不知道 devkit 的 `dev-packs/` 目录，只照 `file:` 写法交给 pnpm
 - **不画界面**：插件管理窗格在界面平台仓的 `gwb-baseui`，它经命令调用插件管理
 - **不管条目加载成没成功**：条目由 loader 加载，成没成功看 `list` 的 `active`，原因在 `gwb.log`；插件之间的依赖齐不齐也不管，缺服务的插件由 cordis 停在等待
 - **不拦范围不包含当前内核、peer 没满足的插件，也不替它装或升级 peer 里的插件**：`unmetPeers` 只报告；发版前拒绝 peer 没写对的包是 `devkit.release` 的事

@@ -1,19 +1,23 @@
 ---
 title: 同一时刻只允许一个改动
-description: install、uninstall、update 三条命令在最外层经过同一道 BUSY 检查，已有一个在运行时重入的直接回 BUSY、不排队；所以插件管理在一个 home 里同一时刻最多一个写 home 的 pnpm；管不到的三处写明
+description: 服务上的 install、uninstall、update 三个方法在最外层经过同一道 BUSY 检查，同名命令调的就是它们，已有一个在运行时重入的直接回 BUSY、不排队；所以插件管理在一个 home 里同一时刻最多一个写 home 的 pnpm；管不到的三处写明
 ---
 
 # 同一时刻只允许一个改动
 
-**本页回答**：哪几条命令经过 BUSY 检查、重入时回什么；为什么要这道检查、为什么不排队；它管不到哪几处。
+**本页回答**：哪几个改动经过 BUSY 检查、重入时回什么；为什么要这道检查、为什么不排队；它管不到哪几处。
 
-## 三条改动命令经过 BUSY
+## 三个改动经过 BUSY
 
-`install`、`uninstall`、`update` 登记时包在同一道检查里。已经有一个在运行时，重入的直接回 `{ ok: false, error: "BUSY…" }`，不执行、不排队；运行中抛错也会释放标志。一个内核进程只服务一个 home，进程内的一个标志就够。插件管理对外只有命令，没有绕开这道检查的调用方式。
+服务 `gwbPluginManager` 的 `install`、`uninstall`、`update` 三个方法在最外层包着同一道检查，同名的三条命令校验参数后调的就是它们。已经有一个在运行时，重入的直接回 `{ ok: false, error: "BUSY…" }`，不执行、不排队；运行中抛错也会释放标志。一个内核进程只服务一个 home，进程内的一个标志就够。页面与 agent 调命令、别的插件调服务方法，走的是同一道检查，没有绕开它的调用方式。
 
 {/* ref file="../plugins/plugin-manager/src/busy.ts" lines="1-17" hash="d2a4fab732f6" blob="54c75b4db2f8" */}
 
-{/* ref file="../plugins/plugin-manager/src/index.ts" lines="152-154" hash="241d76472810" blob="9d217349a8b0" */}
+{/* ref file="../plugins/plugin-manager/src/index.ts" lines="299-300" hash="9d3f8b09f4ea" blob="c078198dd768" */}
+
+{/* ref file="../plugins/plugin-manager/src/index.ts" lines="351-352" hash="475937b83f51" blob="c078198dd768" */}
+
+{/* ref file="../plugins/plugin-manager/src/index.ts" lines="532-533" hash="b0900c81da93" blob="c078198dd768" */}
 
 {/* ref file="../plugins/plugin-manager/tests/busy.test.ts" lines="13-31" hash="2e489577c8cb" blob="5e0247574eac" */}
 
