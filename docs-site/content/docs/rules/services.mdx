@@ -111,6 +111,7 @@ ctx.gwbCommands.register(
 - **`gwbKernel` 用 `requireKernel(ctx)` 取，不写进 `inject`**：内核接口在根上下文上、永不撤销。`requireKernel` 与 `isRecord` 两个无状态小函数由各插件自带一份，内核包的包根只导出类型（插件管理那一份见本节末尾）
 - **不写 `instanceof Service`**：插件和宿主用的 cordis 可能是两份拷贝，跨拷贝判断为 false
 - **类的私有字段用 TS 的 `private`，不用 `#`**：cordis 派生上下文用 `Object.create(this)`，`#` 私有字段在派生出来的对象上一读就抛错
+- **服务方法里不经 `this` 读存下的别的服务**：别的插件调进来时，方法里读到的 `this.<字段>` 若是一个服务（比如在 `ctx.inject` 回调里存下的 `scoped.gwbSettings`），cordis 会把它重新绑到调用方，`gwbSettings.get` 就读成调用方自己的分区。存一个闭包（`() => scoped.gwbSettings.get(key)`），调用时从本插件的上下文取；本插件自己的命令处理函数不经代理，读得对，所以只有别的插件调进来时才错（gwb-unit-folder 0.7.21 的 `unitsRoot()` 就是这样，轨迹卡[服务方法里存下的服务会换成调用方的](/trajectory/2026-10-07-stored-service-retraced-to-caller)）
 - **每次重新加载都该清掉的状态放在 `apply` 里**：重新加载只重新运行 `apply`，模块顶层的状态在同一版本重新加载时不会重置
 - **配置一律 `gwbSettings.define`**，条目上只写 `id`：写在 `cordis.yml` 条目上的配置界面看不见，agent 也不知道有它
 

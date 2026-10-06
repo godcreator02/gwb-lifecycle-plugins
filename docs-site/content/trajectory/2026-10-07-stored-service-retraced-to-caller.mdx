@@ -1,0 +1,28 @@
+---
+title: 服务方法里经 this 读到的别的服务，会被 cordis 换成调用方的
+born-at: 2026-10-07T01:20
+type: evidence
+parent: [2026-09-08-gwb-devkit]
+label: 存下的服务换调用方
+domain: 生态规范
+---
+
+## 背景
+
+按「服务是本体」迁移时，gwb-unit-folder 给服务 `gwbUnitFolder` 加了 `unitsRoot()`，docfirst 插件改成局部注入它读容器根。单元文件夹在 `ctx.inject(['gwbSettings'], …)` 的回调里把 `scoped.gwbSettings` 存进字段 `this.settings`，`unitsRoot()` 里读 `this.settings.get('units-root')`。它自己的命令（`unit-folder.list` 等）一直读得对。
+
+## 经过
+
+在隔离 home 里装上 gwb-unit-folder 0.7.21 的开发版与改过的 docfirst 插件，`settings.set` 给分区 `unit-folder` 填 `units-root`。`settings.get` 与 `unit-folder.list` 都读到了 `D:\unitfolders`，`docfirst.create-plain` 不给 port 时回执却写「没配容器根」：docfirst 拿到了服务（不是「没装单元文件夹插件」那句），`unitsRoot()` 回了 undefined。
+
+把字段换成闭包 `this.readUnitsRootSetting = () => scoped.gwbSettings.get('units-root')`，重装后同一条 `docfirst.create-plain` 在整个容器根里查了端口，回执里不再有那句。修复在 gwb-unit-folder 提交 `47a47ce`，发成 0.7.22；带错的是 0.7.21（提交 `a619528`）。
+
+## 依据
+
+cordis 4.0.0-rc.10 的 `createTraceable` 给服务套的代理，`get` 拦截里读到的属性值如果自己带 tracker（也就是另一个服务），就以当前调用方为视角再套一层（`lib/index.js` 里 `innerTracker` 那一段）。消费方经 `ctx.gwbUnitFolder` 调 `unitsRoot()` 时，方法里的 `this` 是这个代理，`this.settings` 于是变成以 docfirst 为调用方的 `gwbSettings`，`get` 只读调用方自己的分区，读到的是 docfirst 分区里不存在的 `units-root`。本插件自己的命令处理函数拿的是原实例、不经代理，所以一直对。闭包不是服务，代理原样返回它，调用时 `scoped` 还是单元文件夹自己的上下文。
+
+## 结论与边界
+
+**服务方法里不能经 `this` 读存下的别的服务对象，要存成闭包。** 现象是本插件的命令都对、只有别的插件经服务调进来时读到别人的数据或空值。验过的只有 `gwbSettings.get`；别的按调用方工作的服务（`gwbData` 的文档、`gwbShell` 的登记、`gwbCommands.run` 带的包名）按同一段代码推断也会被换成调用方的，没有逐个验。读 `this.ctx` 认调用方（`packageNameOfCaller`、`toolbarOwner`）正是靠这一点，不受影响。写进了规矩页 `rules/services` 的「容易出错的几处」与总表的「容易出错的写法」。
+
+pivots-from:: [服务是本体，命令是薄封装](2026-10-07-services-first.md)
