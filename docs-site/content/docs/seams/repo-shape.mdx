@@ -45,11 +45,11 @@ description: 连接 devkit.dev、devkit.release、devkit.scaffold.plugin 与被�
 
 **产物分 node 侧与浏览器侧，按模板的构建约定认**：`devkit.release` 的构建产物检查把 `exports["."]` 的运行时入口（没有 `exports` 时是 `main`）当作 node 侧入口，把包目录下的 `dist/client.js` 当作浏览器侧入口，各自顺着相对 import 走；入口找不到、相对 import 指向的文件不在，都拒。产物不在这几个位置的仓，那部分文件不被查到：
 
-{/* ref file="../plugins/devkit/src/artifact-check.ts" lines="236-270" hash="2fe54abfbd7b" blob="6e9954621b9b" */}
+{/* ref file="../plugins/devkit/src/artifact-check.ts" lines="243-277" hash="2fe54abfbd7b" blob="a4accc3f8598" */}
 
 **peer 里的包装在包目录的 `node_modules` 里**：发版前检查读 `<包目录>/node_modules/<包>/package.json` 判断 peer 里的包是不是插件，读不到就拒并提示先 `pnpm install`；浏览器侧名单读取自身与直接 peer 的 browser-imports 出口，未声明出口的旧项目兼容旧 kernel HTML：
 
-{/* ref file="../plugins/devkit/src/artifact-check.ts" lines="272-289" hash="7e7b5d0544aa" blob="6e9954621b9b" */}
+{/* ref file="../plugins/devkit/src/artifact-check.ts" lines="279-296" hash="7e7b5d0544aa" blob="a4accc3f8598" */}
 
 **成员放在哪**：组装发布内容时找 `workspace:` 依赖的版本，从仓根往下扫两层，不认目录名；找不到那个包、或扫到读不懂的 `package.json`，直接报错：
 
@@ -89,9 +89,9 @@ devkit 保证：
 
 {/* ref file="../plugins/devkit/tests/dev.test.ts" lines="288-290" hash="6b99bf051abc" blob="915d2359bd87" */}
 
-{/* ref file="../plugins/devkit/tests/artifact-check.test.ts" lines="273-287" hash="d2997bf951ce" blob="3fad9bb8b28a" */}
+{/* ref file="../plugins/devkit/tests/artifact-check.test.ts" lines="289-303" hash="d2997bf951ce" blob="4b445d33c921" */}
 
-{/* ref file="../plugins/devkit/tests/artifact-check.test.ts" lines="289-292" hash="fceffb946b81" blob="3fad9bb8b28a" */}
+{/* ref file="../plugins/devkit/tests/artifact-check.test.ts" lines="305-308" hash="fceffb946b81" blob="4b445d33c921" */}
 
 {/* ref file="../plugins/devkit/tests/scaffold.test.ts" lines="112-123" hash="8b41f52182cb" blob="f2871f97e5ba" */}
 

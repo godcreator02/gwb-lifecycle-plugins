@@ -1,6 +1,6 @@
 {
   "name": "@godcreator/gwb-devkit",
-  "version": "0.26.0",
+  "version": "0.26.1",
   "author": {
     "name": "godcreator"
   },
@@ -20,7 +20,9 @@
     "src",
     "template"
   ],
-  "publishConfig": { "registry": "https://git.tianshen02.online:28377/api/packages/godcreator/npm/" },
+  "publishConfig": {
+    "registry": "https://git.tianshen02.online:28377/api/packages/godcreator/npm/"
+  },
   "scripts": {
     "build": "node build.ts && tsc -p tsconfig.json --emitDeclarationOnly",
     "typecheck": "tsc --noEmit -p tsconfig.json",
@@ -36,9 +38,15 @@
     "@godcreator/gwb-skills": "^0.4.5"
   },
   "peerDependenciesMeta": {
-    "@godcreator/gwb-node-cli": { "optional": true },
-    "@godcreator/gwb-shell": { "optional": true },
-    "@godcreator/gwb-skills": { "optional": true }
+    "@godcreator/gwb-node-cli": {
+      "optional": true
+    },
+    "@godcreator/gwb-shell": {
+      "optional": true
+    },
+    "@godcreator/gwb-skills": {
+      "optional": true
+    }
   },
   "devDependencies": {
     "@tailwindcss/cli": "^4.3.3",

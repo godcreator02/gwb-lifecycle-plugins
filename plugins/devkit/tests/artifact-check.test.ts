@@ -222,6 +222,22 @@ describe('artifactProblems', () => {
     expect(got).toEqual(["dist/index.js 里 import 的 './store' 指向的文件不在"])
   })
 
+  it('非 js 资源只查在不在，不按 JS 语法解析；带 ?raw 等查询串先剥掉', () => {
+    const files = io({
+      'dist/index.js': "import markup from './paths.svg?raw';\nimport cover from './cover.jpeg';\nimport './style.css';\n",
+      'dist/paths.svg': '<svg>not javascript</svg>',
+      'dist/cover.jpeg': '\u00ff\u00d8 binary bytes',
+      'dist/style.css': 'body { color: red }',
+    })
+    expect(artifactProblems(PKG, plugin(), true, files)).toEqual([])
+    expect(artifactProblems(PKG, { name: '@godcreator/lib', exports: EXPORTS }, false, files)).toEqual([])
+  })
+
+  it('带查询串的资源 import 指向的文件不在：照旧拒', () => {
+    const got = artifactProblems(PKG, plugin(), true, io({ 'dist/index.js': "import markup from './missing.svg?raw';\n" }))
+    expect(got).toEqual(["dist/index.js 里 import 的 './missing.svg?raw' 指向的文件不在"])
+  })
+
   it('空 import（import {} from）：插件按包名 import 查名单，peer 里写了就放行；库不查', () => {
     const files = io({ 'dist/index.js': "import {} from '@godcreator/gwb-shell';\n" })
     expect(artifactProblems(PKG, plugin(), true, files)).toEqual([expect.stringContaining("node 侧产物 dist/index.js import 了 '@godcreator/gwb-shell'")])

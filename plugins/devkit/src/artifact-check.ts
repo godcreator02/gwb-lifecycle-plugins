@@ -113,6 +113,12 @@ export function exportTarget(manifest: Record<string, unknown>, subpath: string)
 /** 运行时的 js 文件；`./styles.css` 这类 exports 目标不是模块 */
 const RUNTIME_MODULE = /\.[cm]?js$/
 
+/** Vite 生态的资源写法带查询串（`./paths.svg?raw`），文件系统上没有这个尾巴，查存在性前剥掉 */
+function withoutQuery(spec: string): string {
+  const query = spec.indexOf('?')
+  return query === -1 ? spec : spec.slice(0, query)
+}
+
 /**
  * 库的运行时入口（相对包目录）：`exports` 每个子路径指到的 js 文件（带 `*` 的通配子路径不算），没有 `exports` 时取 `main`；
  * 外加 `bin` 里的脚本。库可以只有子路径导出、包根没有入口
@@ -181,12 +187,13 @@ function walkModules(pkgDir: string, entries: string[], io: ArtifactIo): WalkedM
     }
     modules.set(file, imports)
     for (const spec of imports.relative) {
-      const target = spec.startsWith('/') ? spec : path.resolve(path.dirname(file), spec)
+      const target = withoutQuery(spec).startsWith('/') ? withoutQuery(spec) : path.resolve(path.dirname(file), withoutQuery(spec))
       if (io.readText(target) === undefined) {
         broken.push(`${relativeToPackage(pkgDir, file)} 里 import 的 '${spec}' 指向的文件不在`)
         continue
       }
-      filesToRead.push(target)
+      // 非 js 的资源（css、图片、字体）只查在不在，不按 JS 语法解析——库的资源 import 交给用它的打包器处理
+      if (RUNTIME_MODULE.test(target)) filesToRead.push(target)
     }
   }
   return { modules, broken }
