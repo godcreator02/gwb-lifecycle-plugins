@@ -48,7 +48,7 @@ peer 的意思是「运行时从 home 里得到这个包」。插件的 peer 因
 
 - **必需注入**（`export const inject = [...]`、`static inject = [...]`）的提供方写在 peer 里，不标 `optional`
 - **局部注入**（`<上下文>.inject([...], fn)`）的提供方写在 peer 里。标 `optional` 是常规写法；缺了它本插件一样功能都没有时写必需（插件管理对命令总线就是这样），两种都放行
-- **提供方怎么判**：peer 与 dev 里的插件（gwb 插件或第三方 cordis 插件，判法同上），读包目录 `node_modules` 里它的类型入口（`exports["."]` 的 `types`），看 `declare module 'cordis' { interface Context { … } }` 补了哪些名字。几个插件都补了同一个名字（外壳为了 pnpm 的目录布局把 `gwbCommands`、`gwbData` 按真类型再声明一遍），只认运行时代码里 `super(<上下文>, '<名>')` 或 `.provide('<名>')` 提供它的那个；还是判不出就拒
+- **提供方怎么判**：peer 与 dev 里的插件（gwb 插件或第三方 cordis 插件，判法同上），读包目录 `node_modules` 里它的类型入口（`exports["."]` 的 `types`），看 `declare module 'cordis' { interface Context { … } }` 补了哪些名字。只读这一个文件，不顺着 `export type … from` 往下找，所以提供方要把这段声明写在包入口的源文件里。几个插件都补了同一个名字（外壳为了 pnpm 的目录布局把 `gwbCommands`、`gwbData` 按真类型再声明一遍），只认运行时代码里 `super(<上下文>, '<名>')` 或 `.provide('<名>')` 提供它的那个；还是判不出就拒
 - **不查的**：`gwbKernel`（内核接口，用 `requireKernel` 取）；本包自己提供的服务。给 `Context` 补了名字、但不是插件的包（只有类型的包）不算提供方
 - **不写 peer 也放行的只有一种**：局部注入、提供方是同一个工作区里的插件、它自己 peer 或 dev 写了本包——本包再写它就成了包依赖环，pnpm 12 的 `pnpm -r` 遇环直接退出。命令总线对说明书插件就是这样。这条按规则判出来，包清单里不另写例外
 
