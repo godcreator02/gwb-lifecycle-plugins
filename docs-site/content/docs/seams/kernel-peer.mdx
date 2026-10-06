@@ -26,7 +26,7 @@ description: 连接插件包 package.json 的 peer（内核包的范围、用到
 
 **peer 里的内核包**：`"@godcreator/gwb-kernel-desktop": "^x.y.z"`，下限是验证时那个内核的版本号。devkit 自己的清单也这样写：
 
-{/* ref file="../plugins/devkit/package.json" lines="30-32" hash="fc3a2ad37897" blob="07b20ae9eba3" */}
+{/* ref file="../plugins/devkit/package.json" lines="32-34" hash="fc3a2ad37897" blob="171f4f24f437" */}
 
 **内核范围的比对规则**：范围要写成 `^x.y.z`；主版本号为 0 时次版本号相同，≥1 时主版本号相同，并且不低于下限；只比 x.y.z 三段，同一条线上的开发版内核算在范围内；没写、写的不是 `^x.y.z` 都算不包含；内核版本号不合法直接抛错。规则写在插件管理的 `src/kernel-compat.ts`，其中判写法的 `isCaretRange` 经主入口导出：
 

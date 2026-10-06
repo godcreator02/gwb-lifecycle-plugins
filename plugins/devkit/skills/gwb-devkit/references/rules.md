@@ -9,7 +9,7 @@
 - **版本号升哪一位**：照说明书 `gwb-release`（`skill.read {"name":"gwb-release"}`），全生态一套
 - **一件事该进内核还是做成插件**：判据在内核仓文档站的「关键设计」页——只有第一个插件运行之前必须完成的事才进内核，其余一律做成插件
 
-写一个新插件，先读[依赖怎么写](/docs/rules/deps)与[用到的插件写 peer](/docs/rules/plugin-peers)，再读[卸载清理](/docs/rules/dispose)；仓里有文档站的，照约定把[插件之间的依赖](/docs/rules/wiring)记下来、插件首页写明记在哪（没有工具查，不进总表）；带界面的读[页面代码与 importmap](/docs/rules/importmap)；发版之前读[兼容哪个内核](/docs/rules/kernel-compat)。写法建议在[cordis 服务怎么提供和使用](/docs/rules/services)与[插件之间怎么交互](/docs/rules/interaction)。
+写一个新插件，先读[依赖怎么写](/docs/rules/deps)与[用到的插件写 peer](/docs/rules/plugin-peers)，再读[卸载清理](/docs/rules/dispose)；仓里有文档站的，照约定把[插件之间的依赖](/docs/rules/wiring)记下来、插件首页写明记在哪（没有工具查，不进总表）；带界面的读[页面代码与 importmap](/docs/rules/importmap)；发版之前读[兼容哪个内核](/docs/rules/kernel-compat)。写法建议在[cordis 服务怎么提供和使用](/docs/rules/services)与[插件之间怎么交互](/docs/rules/interaction)，其中最常用的一条：插件之间的能力做成继承 cordis `Service` 的服务，别的插件 inject 它；命令只给页面和 agent，处理函数校验参数后调同一个服务方法。
 
 ## 有哪些检查
 
@@ -27,7 +27,7 @@
 | --- | --- | --- | --- |
 | peer 只写运行时从 home 里得到的三类包：按值 import 的 `cordis`、内核包 `@godcreator/gwb-kernel-desktop`、用到的别的插件（包括 `@cordisjs/plugin-timer` 这类第三方 cordis 插件）；其余写 dev | [依赖](/docs/rules/deps) | `devkit.release` 拒 peer 里别的包（是不是插件读包目录 `node_modules` 里它的清单，`keywords` 含 `gwb-plugin`、或同时含 `cordis` 与 `plugin` 才算，读不到也拒） | — |
 | 构建产物里的包名 import：node 侧只能是 node 内置模块、`electron` 与 peer 里写了的包；浏览器侧只能是页面 importmap 里的名字（提供方插件通过代码登记）。其余依赖打包进产物 | [依赖](/docs/rules/deps)、[importmap](/docs/rules/importmap) | `devkit.release` 两侧都查，名单从自身与直接 peer 的 browser-imports 代码出口读；旧项目兼容旧 kernel HTML；模板的 `build.ts` 照这两份名单外置 | — |
-| peer 不成环：两个插件互相要用时，一个方向写 peer，反方向用局部注入或按命令名调命令、不写 peer | [用到的插件写 peer](/docs/rules/plugin-peers) | `devkit.release` 拒顺着 peer 里的 gwb 插件的已装清单走得回本包的；`plugin-manager.update` 对环上的包不重新加载、回执带 `restartRequired` | — |
+| peer 不成环：两个插件互相要用时，一个方向写 peer，反方向用局部注入、不写 peer；不在同一个工作区的，改成由被写 peer 的一方提供扩展点、另一方往里注册 | [用到的插件写 peer](/docs/rules/plugin-peers) | `devkit.release` 拒顺着 peer 里的 gwb 插件的已装清单走得回本包的；`plugin-manager.update` 对环上的包不重新加载、回执带 `restartRequired` | — |
 | 插件包在 peer 里写内核包，范围 `^x.y.z`，x.y.z 是验证时那个内核的版本 | [兼容哪个内核](/docs/rules/kernel-compat) | `devkit.release` 拒没写、写法不是 `^x.y.z`；`plugin-manager.list` 按包报范围不包含 home 里内核的插件 | 范围包不包含验证时那个内核 |
 | 经 `ctx.inject` 用到、或 import 了类型的别的插件写进 peer，范围 `^x.y.z`；写在 `export const inject` 里的是普通 peer，只在 `ctx.inject([...], fn)` 里用的标 `optional: true`；不另写 dev | [用到的插件写 peer](/docs/rules/plugin-peers) | `devkit.release` 拒 peer 里的插件写法不是 `^x.y.z`、和源上 latest 不在同一条线，拒源码注入的服务提供方不在 peer 里、必需注入的提供方标了 `optional`、注入写法认不出；`plugin-manager.list` 按包报 `unmetPeers` | 只用了类型、却没写进 peer；局部注入写成必需 peer |
 | 带界面的插件：类名一律带本插件的前缀，前缀排在所有变体前面（`<前缀>:disabled:opacity-50`）；katex 这类在运行时生成类名、没法加前缀的第三方 css，整份放进根是本插件前缀类的 `@scope` 块（`@scope (.<前缀>\:<名>) { … }`，根选择器列表每一项都要带前缀类，界限 `to (…)` 不要求），块里的类名不查前缀，元素上照常写 `<前缀>:<名>`；颜色类只用主题令牌；`var()` 的 fallback 不写死值，这两条在 `@scope` 块里照样查 | [importmap](/docs/rules/importmap)、说明书 `gwb-shell` | `devkit.dev` 构建之后、`devkit.release` 发之前的样式检查 | 模板字面量插值里的类名；`@scope` 的界限写错、根写成 `:not(…)` 这类否定形式；任意值（`<前缀>:bg-[#123]`）与样式入口里手写规则写死的颜色：颜色只按规则引用的色名变量认 |
@@ -50,5 +50,7 @@
 ## 这个仓自己还没照做的
 
 插件管理（`plugins/plugin-manager/`）与开发套件的清单都按上面的规矩写：peer 里是内核包与用到的插件，此刻没有没照做的。
+
+分页里的写法建议有一处没照做：插件管理用 `ctx.provide` 提供的服务 `gwbPluginManager` 是一个空对象，只用来表示「插件管理装着」（见[插件之间怎么连](/docs/wiring)）。它要换成继承 `Service`、带插件管理读写方法的服务，命令改成调这些方法。
 
 总表只收有工具查的几条，取舍见轨迹卡[写插件的规矩只留有工具查的](/trajectory/2026-09-25-rules-only-checked-ones)。

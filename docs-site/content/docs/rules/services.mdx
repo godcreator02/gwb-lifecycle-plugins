@@ -1,26 +1,28 @@
 ---
 title: cordis 服务怎么提供和使用
-description: 扩展点用服务、数据读写与动作用命令；扩展点服务继承 cordis 的 Service，存在标记服务用 ctx.provide；使用服务的三种 inject
+description: 插件之间的能力做成继承 cordis Service 的服务，命令是给页面与 agent 的薄封装、只调服务方法；只有进程外调用方的能力只做命令；使用服务的三种 inject
 ---
 
 # cordis 服务怎么提供和使用
 
-**本页回答**：一项能力该做成服务还是命令；提供服务用哪种写法；使用服务时 `inject` 的三种写法各在什么时候用；命令怎么登记；取内核接口、写类时容易出错的地方。除了「容易出错的几处」，这一页都是写法建议，没有工具检查。
+**本页回答**：一项能力该做成服务还是命令；提供服务怎么写、命令怎么包住服务方法；使用服务时 `inject` 的三种写法各在什么时候用；命令怎么登记；取内核接口、写类时容易出错的地方。除了「容易出错的几处」，这一页都是写法建议，没有工具检查。
 
 ## 服务还是命令
 
-**扩展点用服务，数据读写和动作用命令；同一能力只提供一种调用方式。**
+**插件之间的能力走服务；命令只给进程外的调用方，是服务方法的薄封装。**
 
-- **服务**用于命令表达不了的东西：注册（让别的插件往这里注册窗格、命令、工具）、回调、需要跟着提供方一起重新加载的生命周期。服务上不放读写数据和执行动作的方法
-- **命令**是可序列化的读写和动作。页面、agent、插件都用同一套命令，这是插件对外提供能力的唯一方式；插件内部想要类型安全，就通过提供方发布的类型化客户端来调（放在接口定义包里，见[插件之间怎么交互](/docs/rules/interaction)）
-- **存在标记服务**：依赖方需要跟着提供方一起重新加载、但又只用命令时，inject 提供方的一个存在标记服务。它是一个空的普通对象；命令有没有破坏性变化看提供方的版本号，依赖方在 peer 里写它的范围
+- **服务**：别的插件在进程内要用的能力，读写数据、执行动作、扩展点（让别的插件往这里注册窗格、命令、工具）、回调，都做成继承 cordis `Service` 的服务。方法带类型，类型由提供方导出（见[插件之间怎么交互](/docs/rules/interaction#类型放在提供方那边)）；依赖方 inject 它，必需的写进 `inject`，可有可无的用 `ctx.inject([...], …)`
+- **命令**：给进程外的调用方用，也就是页面（包括本插件自己的窗格）和经 MCP 来的 agent。处理函数校验参数，然后调同一个服务方法，不另写实现
+- **插件之间不按名字调命令**：要用别的插件的能力，就 inject 它的服务。只想跟着提供方一起加载、卸载（比如装了它才注册某个窗格）的，inject 的也是它真正的服务，不另提供一个空对象当标记
+- **只有进程外调用方的能力只做命令**：没有别的插件在进程内调用，就不加服务方法；出现第一个进程内调用方时再加
+- **调用方要区分的失败写进方法的返回类型**：比如「被别的会话占用」这种调用方要另做处理的情况，返回类型里有它，调用方不靠匹配错误文本认出来
 - 一条命令只做一件事，多步流程写进说明书。唯一的例外是判定依赖同一份「这次执行之前」状态的事务
 
-同一能力既有服务方法又有命令，两种调用方式会悄悄变得不一致；一条命令带一个 `action` 参数做四件事，调用方就看不出它到底能做什么。
+同一能力有服务方法与命令两种调用方式，靠「命令只调服务方法」保持一致：命令里只有参数校验和回执的包装，没有第二份逻辑。方法的用法写在类型的文档注释里，命令的用法写在 `usage` 里。一条命令带一个 `action` 参数做四件事，调用方就看不出它到底能做什么。
 
-## 提供服务：两种写法
+## 提供服务
 
-**扩展点服务一律继承 cordis 的 `Service` 类。** 服务方法里的 `this.ctx` 是**调用方**插件的上下文，所以服务可以把注销函数登记到调用方的上下文里：调用方卸载时，它注册进来的东西自动撤销，调用方不用自己包 `ctx.effect`；服务也能从调用方身上认出是哪个插件在注册。
+**服务一律继承 cordis 的 `Service` 类。** 服务方法里的 `this.ctx` 是**调用方**插件的上下文，所以服务可以把注销函数登记到调用方的上下文里：调用方卸载时，它注册进来的东西自动撤销，调用方不用自己包 `ctx.effect`；服务也能从调用方身上认出是哪个插件在调用，按调用方的包名放行或记录。
 
 ```ts
 import { Service } from 'cordis'
@@ -30,6 +32,11 @@ export default class GwbExample extends Service {
   constructor(ctx: Context) {
     super(ctx, 'gwbExample')          // 注册成名为 gwbExample 的服务
   }
+  /** 读写与动作：带类型的方法，命令和别的插件调的都是它 */
+  async rename(id: string, title: string): Promise<RenameResult> {
+    // …
+  }
+  /** 扩展点：别的插件往这里注册 */
   register(item: Item): () => void {
     table.add(item)
     const unregister = () => table.delete(item)
@@ -41,13 +48,19 @@ export default class GwbExample extends Service {
 }
 ```
 
-代价是构建产物里有 `import { Service } from 'cordis'`，要写 peer `cordis`（见[依赖怎么写](/docs/rules/deps)）。用 `ctx.provide` 提供普通对象的扩展点服务拿不到调用方的上下文，只能把注销函数还给调用方；调用方忘了包 `ctx.effect`，卸载之后注册的东西还留在表里。
+同一个插件给页面和 agent 登记的命令只校验参数，再调这个方法：
 
-**不需要认出调用方的服务（存在标记服务）用 `ctx.provide`。** 它只是一个普通对象，不用 import `cordis`，也就不写 peer `cordis`。插件管理就是这样：对外只有命令，服务 `gwbPluginManager` 只表示「插件管理装了」：
+```ts
+ctx.gwbCommands.register(
+  { name: 'example.rename', description: '…', usage: '{ id: string, title: string }；回执 RenameResult', effect: 'write' },
+  async (args) => {
+    const { id, title } = renameArgsFrom(args)   // 参数不对就抛错，命令总线转成失败回执
+    return { ok: true, data: await ctx.gwbExample.rename(id, title) }
+  },
+)
+```
 
-{/* ref file="../plugins/plugin-manager/src/index.ts" lines="89-95" hash="d3e1c817c32a" blob="9d217349a8b0" */}
-
-{/* ref file="../plugins/plugin-manager/src/index.ts" lines="102-107" hash="e4cfa73e8502" blob="9d217349a8b0" */}
+代价是构建产物里有 `import { Service } from 'cordis'`，要写 peer `cordis`（见[依赖怎么写](/docs/rules/deps)）。不用 `ctx.provide` 提供普通对象：它拿不到调用方的上下文，只能把注销函数还给调用方，调用方忘了包 `ctx.effect`，卸载之后注册的东西还留在表里；也认不出是谁在调用。
 
 服务名用 `gwb` 开头的小驼峰，跟插件名对应。**要让别的插件知道这个服务，就在自己的类型声明里给 cordis 的 `Context` 补上这一项**，服务的类型也定义在自己的声明里，在类型上写文档注释说清怎么用。插件管理就是这样写的：
 
@@ -75,7 +88,7 @@ export default class GwbExample extends Service {
 
 {/* ref file="../plugins/plugin-manager/src/index.ts" lines="136-141" hash="397f310fcf69" blob="9d217349a8b0" */}
 
-**往继承了 `Service` 的服务里注册，不用自己包 `ctx.effect`**；往 `ctx.provide` 提供的扩展点服务里注册，要自己包。外壳 `gwbShell` 与命令总线 `gwbCommands` 都继承了 `Service`，模板注册窗格与命令都直接调：
+**往继承了 `Service` 的服务里注册，不用自己包 `ctx.effect`**；往别人用 `ctx.provide` 提供的普通对象里注册，要自己包。外壳 `gwbShell` 与命令总线 `gwbCommands` 都继承了 `Service`，模板注册窗格与命令都直接调：
 
 {/* ref file="../plugins/devkit/template/pkg/src/index.ts.tpl" lines="31-47" hash="2cd76dd0a7eb" blob="b24060b75340" */}
 
@@ -110,4 +123,4 @@ export default class GwbExample extends Service {
 
 ## 为什么
 
-命令表是页面、agent、插件共用的同一份事实来源；再提供一套服务方法，就有了两份并行的来源。服务留给命令表达不了的扩展点和生命周期。扩展点统一继承 `Service`，是因为只有这种写法能让服务拿到调用方的上下文：注册的清理跟着调用方走，不靠每个调用方记得包 `ctx.effect`——没包的插件卸载后，命令名会一直留在命令表里。
+插件之间按名字调命令，参数与回执都没有类型：调用方要自己校验回执的形状、靠错误文本认出是哪种失败，提供方没装要到调用时才报错。做成服务，类型检查在调用方那里报出提供方的改动，inject 在加载时就说明提供方在不在。命令照旧留给页面和 agent，它们在进程外、拿不到服务。代价是同一能力有方法与命令两种写法要一起说明，依赖方跟着提供方重新加载。服务统一继承 `Service`，是因为只有这种写法能让服务拿到调用方的上下文：注册的清理跟着调用方走，不靠每个调用方记得包 `ctx.effect`；服务也能按调用方认出是谁在调用。取舍见轨迹卡[服务是本体，命令是薄封装](/trajectory/2026-10-07-services-first)。

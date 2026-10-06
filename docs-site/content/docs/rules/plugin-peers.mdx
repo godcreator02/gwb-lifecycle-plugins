@@ -21,8 +21,8 @@ peer 的意思是「运行时从 home 里得到这个包」。插件的 peer 因
 - **该写，可选**：只在 `ctx.inject([...], fn)` 里用它的服务，缺了只少那一部分功能——标 `optional: true`，没装不算没满足
 - **别标反**：`export const inject` 里的服务标成可选，home 里缺它时插件不加载，`unmetPeers` 也不报；`devkit.release` 发版前拒这种写法（见下面「谁在查」）
 - **写 peer 会成环的不写**：局部注入、提供方是同一个工作区里的插件、它自己 peer 或 dev 写了本包时，本包再写它就成了包依赖环，pnpm 12 的 `pnpm -r` 遇环直接退出。命令总线对说明书插件就是这样
-- **peer 不成环**：顺着 peer 里的 gwb 插件一路走回本包，`devkit.release` 拒；插件管理升级时按 peer 排重新加载的先后，环上的包排不出先后，只能重启工作台才换上新版本。两个插件互相要用时，一个方向写 peer，反方向按上一条改用局部注入、不写 peer；不在同一个工作区的，局部注入也要写可选 peer、照样成环，反方向只能改成按命令名调它的命令
-- **不用写**：只按命令名调它的命令（经命令总线查找，命令不在就回执说明），不用它的服务也不 import 它的类型
+- **peer 不成环**：顺着 peer 里的 gwb 插件一路走回本包，`devkit.release` 拒；插件管理升级时按 peer 排重新加载的先后，环上的包排不出先后，只能重启工作台才换上新版本。两个插件互相要用时，一个方向写 peer，反方向按上一条改用局部注入、不写 peer；不在同一个工作区的，局部注入也要写可选 peer、照样成环，反方向改成由被写 peer 的一方提供扩展点、另一方往里注册：A 的 peer 写了 B、B 又要用 A 的能力，就让 B 提供扩展点，A 把这项能力注册进去
+- **插件之间不按命令名互相调用**（见[cordis 服务怎么提供和使用](/docs/rules/services#服务还是命令)），所以没有「只调它的命令、不写 peer」这种用法；源码里按命令名调别的插件命令的，改成注入它的服务时补上 peer
 - **下限写开发、验证时用的那一版**：用到了那个插件某个版本新加的东西（比如外壳新加的主题令牌），下限就写到那一版
 - **范围只写 `^x.y.z`**：精确号、`>=`、`~` 都不认，发版前检查拒，`plugin-manager.list` 算没满足
 
@@ -90,7 +90,7 @@ pnpm 默认把 home 里没装的 peer 自动装进 `node_modules/.pnpm`：它不
 
 devkit 用命令总线登记命令（写在 `export const inject` 里，必需），从插件管理的主入口 import 几个函数（必需，见[插件之间怎么交互](/docs/rules/interaction)），外壳、说明书、node 命令行三个插件经局部注入可选使用：
 
-{/* ref file="../plugins/devkit/package.json" lines="30-42" hash="824efba8f555" blob="07b20ae9eba3" */}
+{/* ref file="../plugins/devkit/package.json" lines="32-50" hash="0b67afbdf666" blob="171f4f24f437" */}
 
 装进一个外壳还是 0.14.3 的 home，`plugin-manager.list` 里 devkit 这个包带着：
 

@@ -10,7 +10,7 @@ description: 写新插件、改插件、在隔离 home 里验证改动、发正�
 
 ## 新写一个插件
 
-1. 要用的能力先看提供方插件发布的 `.d.ts`：它给 cordis 的 `Context` 补了哪几项（`declare module 'cordis' { interface Context { … } }`），方法签名与文档注释就在那里。已经有了就直接用：peer 里写上提供方，`import type` 它的类型，`ctx.inject` 取用
+1. 要用的能力先看提供方插件发布的 `.d.ts`：它给 cordis 的 `Context` 补了哪几项（`declare module 'cordis' { interface Context { … } }`），方法签名与文档注释就在那里。已经有了就直接用：peer 里写上提供方，`import type` 它的类型，`ctx.inject` 取用。不按名字调别的插件的命令；提供方只有命令、没有服务方法的，先给它加上服务方法
 2. 带界面的插件，先读外壳的说明书 `skill.read {"name":"gwb-shell"}`
 3. 建仓用 `devkit.scaffold`，往已有的 workspace 仓再加一个插件用 `devkit.scaffold.plugin`。没有团队源（`@godcreator`）发布权限的，两条都加 `scope` 与 `registry`，同一个仓里的插件用同一套；GWB 发布凭据保存在发起 home 的共享 secret `npm-auth`，配置步骤读 `gwb-plugin-manager`。两条命令写完文件后都要联网运行 shadcn 官方 CLI 加上 `button`，顺带把整个仓装一遍依赖
 4. 把模板改成真插件，守「写插件的规矩」：
@@ -19,7 +19,7 @@ description: 写新插件、改插件、在隔离 home 里验证改动、发正�
    - `tests/`：不启动进程、不开窗口就能测的逻辑抽成纯函数来测
    - 不要界面的插件：照生成的 README 里那张清单删掉浏览器侧的文件、脚本与依赖
    - `package.json`：`description` 写一句话说这个插件做什么；用到的插件写进 peer；不用外壳就删掉 peer 里那一项；有了 `skills/` 目录就把 `skills` 加进 `files`
-   - 提供服务：在源码里给 `Context` 补上这一项（`declare module 'cordis' { interface Context { gwbExample: GwbExample } }`），`GwbExample` 定义在本包里、写文档注释说清怎么用。模板不输出 `.d.ts`，要加三处：包里加 `tsconfig.build.json`（`"extends": "./tsconfig.json"`，`compilerOptions` 写 `"noEmit": false, "declaration": true, "emitDeclarationOnly": true, "outDir": "dist", "rootDir": "src"`，`"include": ["src/index.ts"]`）；`build` 脚本在 `node build.ts` 之后加 `tsc -p tsconfig.build.json`；`exports["."]` 改成 `{ "types": "./dist/index.d.ts", "default": "./dist/index.js" }`
+   - 提供服务：别的插件在进程内要用的能力做成继承 cordis `Service` 的类的方法，给页面和 agent 的命令校验参数后调同一个方法（写法见 `/docs/rules/services`）；只有页面和 agent 用的能力只做命令。在源码里给 `Context` 补上这一项（`declare module 'cordis' { interface Context { gwbExample: GwbExample } }`），`GwbExample` 定义在本包里、写文档注释说清怎么用。模板不输出 `.d.ts`，要加三处：包里加 `tsconfig.build.json`（`"extends": "./tsconfig.json"`，`compilerOptions` 写 `"noEmit": false, "declaration": true, "emitDeclarationOnly": true, "outDir": "dist", "rootDir": "src"`，`"include": ["src/index.ts"]`）；`build` 脚本在 `node build.ts` 之后加 `tsc -p tsconfig.build.json`；`exports["."]` 改成 `{ "types": "./dist/index.d.ts", "default": "./dist/index.js" }`
    - 仓里有文档站的，在现状区写这个插件的首页，功能、接口、依赖、不做的事四节；插件之间的依赖按提供、注入、按名字调用与约定通道三张表记下来（格式见 `/docs/rules/wiring`，没有工具查），记在哪一页不固定，首页的依赖一节写明记在哪、链过去
 5. 仓根 `pnpm build`，再 `pnpm check`
 
