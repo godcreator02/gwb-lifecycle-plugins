@@ -26,7 +26,7 @@ description: 按「运行时这份代码由谁提供」决定写 peer、dev、de
 | 内核（运行时不 import；声明兼容哪些内核，接口类型只 `import type`） | peer `@godcreator/gwb-kernel-desktop`，范围 `^<验证时的内核版本号>` |
 | 运行环境自带（node 内置模块、`electron`） | 不声明 |
 | 页面通过 importmap 提供（React 的四个包名，由 shell 提供） | dev；浏览器侧代码构建时外置 |
-| 另一个插件（经 `ctx.inject` 用它的服务、import 它的类型） | peer，范围 `^x.y.z`；只在 `ctx.inject([...], fn)` 里用的在 `peerDependenciesMeta` 标 `optional: true`（见[用到的插件写 peer](/docs/rules/plugin-peers)）。只按命令名调它的命令的不写 |
+| 另一个插件（经 `ctx.inject` 用它的服务、import 它的类型） | peer，范围 `^x.y.z`；只在 `ctx.inject([...], fn)` 里用的在 `peerDependenciesMeta` 标 `optional: true`（见[用到的插件写 peer](/docs/rules/plugin-peers)）。插件之间不按命令名互相调用，要用它的能力就注入它的服务（见[cordis 服务怎么提供和使用](/docs/rules/services#服务还是命令)） |
 | 本插件运行时自己用的库、接口定义包 | dev；打包进构建产物，产物里不留它的包名 import |
 | 构建时才用到的输入（样式映射文件、tailwind 之类） | dev |
 | 打包不进构建产物的自用库（原生可执行文件、运行时按路径读自己文件的包） | `dependencies`，原因写进文档站 |
