@@ -3,7 +3,7 @@
  *   docs        现状：进 check；生成正本（AGENTS、README、SKILL.md 的 mdx）在它的 outputs/ 下
  *   trajectory  轨迹：卡只增不改；卡的 frontmatter 由 cardSchema 认（label 派生 title），
  *               正文里 `supersedes::` / `pivots-from::` 关系由 remarkTrajectoryLinks 标出；不进 check
- *   future      未来：路线图、在途的 spec（future/spec/）、别的仓投来的反馈（future/inbox/）
+ *   future      未来：路线图、在途的 spec（future/spec/）；别的仓投来的反馈是 gitea 上的 issue
  * 只有现状区开 processed markdown：站上各页的机读版从这儿出。
  */
 import { applyMdxPreset, defineConfig, defineDocs } from 'fumadocs-mdx/config'
