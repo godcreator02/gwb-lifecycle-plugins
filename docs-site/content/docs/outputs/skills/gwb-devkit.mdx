@@ -37,7 +37,7 @@ description: 写新插件、改插件、在隔离 home 里验证改动、发正�
 
 1. `devkit.home.new {"short":"<插件短名或这次验什么>"}` 开一个隔离 home。**一个隔离 home 同一时间只给一个会话用**，不拿别的会话开的 home 来验。机器重启后用 `devkit.home.open` 回到它，验完用 `devkit.home.rm` 删掉
 2. `devkit.dev {"home":"<home 名>","dir":"<仓根>","packages":["plugins/<短名>"]}`：构建、打包、经那个 home 的插件管理装上、刷新、取证，一条命令做完。改了内核也用它：`dir` 给内核仓根、`packages` 给 `["apps/desktop"]`，它会重启那个 home
-3. 在那个 home 里调新写的命令看回执：`devkit.cdp {"args":["<home 名>","cmd","<命令名>","<JSON 参数>"]}`；界面上的效果按「在页面里取证」做
+3. 在那个 home 里调新写的命令看回执：`devkit.cdp {"args":["<home 名>","cmd","<命令名>","<JSON 参数>"]}`；界面上的效果按「在页面里取证」做。`cmd` 的回执与 MCP 入口同一个上限（40000 字符，按 MCP 入口交回的文本算），超了不交回、退出码非零：经 MCP 调也会被同样挡下，给这条命令加分页或筛选参数，别换个办法把回执取出来
 
 **完成判据**：`devkit.dev` 回执 `ok: true`；`devkit.cdp … cmd plugin-manager.list` 里这个包的条目 `active` 为 true、版本是这次的开发版号；新命令的回执与预期一致。
 

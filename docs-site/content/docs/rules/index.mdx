@@ -37,6 +37,7 @@ description: 写 gwb 插件要守的规矩：总表只收有工具查、或违�
 | 经 `ctx.inject` 用到、或 import 了类型的别的插件写进 peer，范围 `^x.y.z`；写在 `export const inject` 里的是普通 peer，只在 `ctx.inject([...], fn)` 里用的标 `optional: true`；不另写 dev | [用到的插件写 peer](/docs/rules/plugin-peers) | `devkit.release` 拒 peer 里的插件写法不是 `^x.y.z`、和源上 latest 不在同一条线，拒源码注入的服务提供方不在 peer 里、必需注入的提供方标了 `optional`、注入写法认不出；`plugin-manager.list` 按包报 `unmetPeers` | 只用了类型、却没写进 peer；局部注入写成必需 peer |
 | 带界面的插件：类名一律带本插件的前缀，前缀排在所有变体前面（`<前缀>:disabled:opacity-50`）；katex 这类在运行时生成类名、没法加前缀的第三方 css，整份放进根是本插件前缀类的 `@scope` 块（`@scope (.<前缀>\:<名>) { … }`，根选择器列表每一项都要带前缀类，界限 `to (…)` 不要求），块里的类名不查前缀，元素上照常写 `<前缀>:<名>`；颜色类只用主题令牌；`var()` 的 fallback 不写死值，这两条在 `@scope` 块里照样查 | [importmap](/docs/rules/importmap)、说明书 `gwb-shell` | `devkit.dev` 构建之后、`devkit.release` 发之前的样式检查 | 模板字面量插值里的类名；`@scope` 的界限写错、根写成 `:not(…)` 这类否定形式；任意值（`<前缀>:bg-[#123]`）与样式入口里手写规则写死的颜色：颜色只按规则引用的色名变量认 |
 | 登记的命令都写 `effect`：`read` 什么都不改、`write` 改本机、`external` 影响本机以外或打扰人；按参数可能做几种事的取最重的那种 | [登记命令](/docs/rules/services#登记命令) | 命令总线登记时：值不是这三个就抛错，0.6 起没写也抛错，插件加载失败 | 标得对不对 |
+| 跨进程的命令回执必须有上界：读数据的列表一律分页（带总数与续读位置），报告类命令只列有问题的条目 | [登记命令](/docs/rules/services#登记命令) | 没有静态检查；MCP 入口的 `run` 与 `devkit.cdp … cmd` 在运行时挡住超过 40000 字符的回执（按 MCP 入口交回的文本算），前者回 isError、后者退出码非零 | 测试数据下没超、真实数据量下才超的回执 |
 | 自己启动或创建的一切，卸载时清理掉，并返回 promise | [卸载清理](/docs/rules/dispose) | 没有工具检查 | 全部 |
 | 0.x 里只在破坏契约时升 x，其余升 y；同一个号不重发 | 说明书 `gwb-release` | `devkit.release` 拒源上已有的号 | 升哪一位 |
 

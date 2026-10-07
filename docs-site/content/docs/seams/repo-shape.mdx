@@ -23,7 +23,7 @@ description: 连接 devkit.dev、devkit.release、devkit.scaffold.plugin 与被�
 
 **仓根能 `pnpm build`**：`devkit.dev` 与 `devkit.release` 都在调用方给的 `dir` 上运行 `pnpm build`，不在包目录里构建；失败就停：
 
-{/* ref file="../plugins/devkit/src/dev.ts" lines="658-660" hash="839dce56a7bd" blob="ebe1ec7fc4e7" */}
+{/* ref file="../plugins/devkit/src/dev.ts" lines="662-664" hash="839dce56a7bd" blob="9c7dc37e4061" */}
 
 **包目录由调用方列出**：`devkit.dev` 与 `devkit.release` 的 `packages` 必给，是非空的字符串数组，每项是相对仓根的包目录；不给或写错直接拒，不猜哪些是包：
 
@@ -41,7 +41,7 @@ description: 连接 devkit.dev、devkit.release、devkit.scaffold.plugin 与被�
 
 {/* ref file="../plugins/devkit/src/release.ts" lines="117-117" hash="317b9b806e49" blob="f6121d7801e9" */}
 
-{/* ref file="../plugins/devkit/src/dev.ts" lines="463-466" hash="15dd703f95a5" blob="ebe1ec7fc4e7" */}
+{/* ref file="../plugins/devkit/src/dev.ts" lines="467-470" hash="15dd703f95a5" blob="9c7dc37e4061" */}
 
 **产物分 node 侧与浏览器侧，按模板的构建约定认**：`devkit.release` 的构建产物检查把 `exports["."]` 的运行时入口（没有 `exports` 时是 `main`）当作 node 侧入口，把包目录下的 `dist/client.js` 当作浏览器侧入口，各自顺着相对 import 走；入口找不到、相对 import 指向的文件不在，都拒。产物不在这几个位置的仓，那部分文件不被查到：
 
@@ -87,7 +87,7 @@ devkit 保证：
 
 {/* ref file="../plugins/devkit/tests/release.test.ts" lines="514-521" hash="9d6bd9132e58" blob="4c77897ab598" */}
 
-{/* ref file="../plugins/devkit/tests/dev.test.ts" lines="288-290" hash="6b99bf051abc" blob="915d2359bd87" */}
+{/* ref file="../plugins/devkit/tests/dev.test.ts" lines="292-294" hash="6b99bf051abc" blob="75e00557d5e9" */}
 
 {/* ref file="../plugins/devkit/tests/artifact-check.test.ts" lines="289-303" hash="d2997bf951ce" blob="4b445d33c921" */}
 

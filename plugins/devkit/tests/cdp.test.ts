@@ -4,12 +4,15 @@ import path from 'node:path'
 import { fileURLToPath } from 'node:url'
 import { describe, expect, it } from 'vitest'
 import {
+  MCP_RESULT_CHAR_LIMIT,
   PACKAGE_ROOT,
   READ_ONLY_VERBS,
   WRITE_VERBS,
   assertVerbAllowedOn,
   assertWritable,
+  cmdReportOf,
   commandClientUrl,
+  mcpReplyLength,
   evalFileOf,
   homeDirOf,
   homesRootOf,
@@ -20,9 +23,10 @@ import {
 } from '../bin/cdp.mjs'
 
 /**
- * `bin/cdp.mjs` 被 import 时交出的纯函数，管两件事。写磁盘的位置：一概不看工作目录，截图缺省存到被截那个
+ * `bin/cdp.mjs` 被 import 时导出的纯函数，管三件事。写磁盘的位置：一概不看工作目录，截图缺省存到被截那个
  * home 自己的 `out\cdp\`，给输出与 eval 的文件都只收绝对路径，位置不许在本包目录与任何 node_modules 里。
  * default 上读写分开：只读动作放行，写动作与 --size 在分发之前拒，表外的动作在哪个 home 上都拒。
+ * cmd 的回执上限：与 MCP 入口同一个数、同一种计法，超了不打印回执、退出码非零。
  */
 
 const SCRIPT = fileURLToPath(new URL('../bin/cdp.mjs', import.meta.url))
@@ -92,7 +96,7 @@ describe('home 根与 home 目录', () => {
 
   it('devkit 插件的 home 根就是这个函数：src/index.ts 从 cdp.mjs import，不另写一份', () => {
     const indexSource = fs.readFileSync(new URL('../src/index.ts', import.meta.url), 'utf8')
-    expect(indexSource).toContain("import { homesRootOf } from '../bin/cdp.mjs'")
+    expect(indexSource).toMatch(/import \{[^}]*\bhomesRootOf\b[^}]*\} from '\.\.\/bin\/cdp\.mjs'/)
     expect(indexSource).not.toMatch(/dataDir, '\.\.', '\.\.'/)
   })
 })
@@ -231,6 +235,73 @@ describe('写磁盘前的检查', () => {
 
   it('跟包根同前缀的兄弟目录不算在包里', () => {
     expect(assertWritable(`${PKG}-evidence${path.sep}a.png`, PKG)).toBe(`${PKG}-evidence${path.sep}a.png`)
+  })
+})
+
+describe('cmd 的回执上限：与 MCP 入口同一个数、同一种计法', () => {
+  const pretty = (value: unknown): string => JSON.stringify(value, null, 2)
+
+  it('上限是 MCP 入口的 40000 字符', () => {
+    expect(MCP_RESULT_CHAR_LIMIT).toBe(40_000)
+  })
+
+  it('标准回执：成功量 {ok:true,data} 缩进两格的 JSON，data 缺省按 null；失败量「执行失败：」加 error', () => {
+    expect(mcpReplyLength({ ok: true, data: { a: '中文' } })).toBe(pretty({ ok: true, data: { a: '中文' } }).length)
+    expect(mcpReplyLength({ ok: true })).toBe(pretty({ ok: true, data: null }).length)
+    expect(mcpReplyLength({ ok: false, error: '没有这条命令：nope' })).toBe('执行失败：没有这条命令：nope'.length)
+    expect(mcpReplyLength({ ok: false })).toBe('执行失败：未知错误'.length)
+  })
+
+  it('处理函数自己的对象（多出 ok/data/error 以外的键）整张量', () => {
+    const own = { ok: true, at: '2026-10-07 12:00:00', view: { level: 'max' } }
+    expect(mcpReplyLength(own)).toBe(pretty(own).length)
+  })
+
+  it('命令行运行的回执只量 MCP 入口交回的那几个字段', () => {
+    const cli = {
+      ok: true,
+      exitCode: 0,
+      signal: null,
+      timedOut: false,
+      timeoutMs: 1000,
+      durationMs: 12,
+      stdout: { text: 'x'.repeat(50), truncated: false },
+      stderr: { text: '', truncated: false },
+    }
+    const { ok, exitCode, timedOut, durationMs, stdout, stderr } = cli
+    expect(mcpReplyLength(cli)).toBe(pretty({ ok, exitCode, timedOut, durationMs, stdout, stderr }).length)
+  })
+
+  it('函数源码自成一体：送进页面执行时不引用这个文件里别的名字', () => {
+    const inPage = new Function(`return (${mcpReplyLength.toString()})`)() as (reply: unknown) => number
+    const reply = { ok: true, data: ['a', 'b'] }
+    expect(inPage(reply)).toBe(mcpReplyLength(reply))
+  })
+
+  it('不超过上限（含正好等于）：照常打印回执，退出码看回执的 ok', () => {
+    const reply = { ok: true, data: 'x' }
+    expect(cmdReportOf('demo.small', { length: MCP_RESULT_CHAR_LIMIT, reply })).toEqual({
+      failed: false,
+      report: { did: 'cmd', 命令: 'demo.small', 回执: reply },
+    })
+    expect(cmdReportOf('demo.fail', { length: 20, reply: { ok: false, error: '坏了' } }).failed).toBe(true)
+  })
+
+  it('超过上限：不打印回执，写明字符数、上限与怎么办，退出码非零', () => {
+    const length = MCP_RESULT_CHAR_LIMIT + 1
+    const { failed, report } = cmdReportOf('demo.huge', { length })
+    expect(failed).toBe(true)
+    expect(report).not.toHaveProperty('回执')
+    expect(report).toMatchObject({ did: 'cmd', 命令: 'demo.huge', 回执字符数: length, 上限: MCP_RESULT_CHAR_LIMIT })
+    expect(report.没有交回).toMatch(new RegExp(`demo\\.huge 已经执行完.*${length} 字符.*超过单次返回的上限 ${MCP_RESULT_CHAR_LIMIT}.*usage`))
+  })
+
+  it('cmd 在页面里量长度、超了不传回回执，再交给 cmdReportOf', () => {
+    const source = fs.readFileSync(SCRIPT, 'utf8')
+    const branch = source.slice(source.indexOf("case 'cmd':"), source.indexOf("case 'reload':"))
+    expect(branch).toContain('(${mcpReplyLength})(reply)')
+    expect(branch).toContain('length > ${MCP_RESULT_CHAR_LIMIT} ? { length } : { length, reply }')
+    expect(branch).toContain('cmdReportOf(args[0], measured)')
   })
 })
 

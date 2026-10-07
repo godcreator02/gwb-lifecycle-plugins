@@ -29,13 +29,13 @@ description: 连接 devkit.home.*、devkit.dev 的定位与 cdp.mjs 和内核 ex
 
 `bin/cdp.mjs` 的 `portOf`：只取 `cdp`，要求是 1–65535 的整数，不看 `pid`：
 
-{/* ref file="../plugins/devkit/bin/cdp.mjs" lines="145-160" hash="3f3a7a69fccd" blob="2b407cab4c90" */}
+{/* ref file="../plugins/devkit/bin/cdp.mjs" lines="192-207" hash="3f3a7a69fccd" blob="2bdb4d437fbb" */}
 
 **home 根目录只有一种算法**：`%APPDATA%\gwb-kernel\homes`（Electron 的 `app.getPath('appData')` 在 Windows 上就是 `%APPDATA%`），与内核在 `GWB_HOME` 是名字时拼出的目录相同。算法写在零依赖的 `bin/cdp.mjs` 里，`src/index.ts` 从那里 import（类型写在手写的 `bin/cdp.d.mts`），两处用的是同一个函数。开发套件只支持 Windows：平台不是 Windows、或没有 `APPDATA`，都直接报错：
 
-{/* ref file="../plugins/devkit/bin/cdp.mjs" lines="76-84" hash="65442a548474" blob="2b407cab4c90" */}
+{/* ref file="../plugins/devkit/bin/cdp.mjs" lines="77-85" hash="65442a548474" blob="2bdb4d437fbb" */}
 
-{/* ref file="../plugins/devkit/src/index.ts" lines="45-45" hash="a36396938b48" blob="508f3229377b" */}
+{/* ref file="../plugins/devkit/src/index.ts" lines="45-45" hash="5c92f75ec855" blob="65d282767526" */}
 
 **gwb.log**：`devkit.dev` 在装包之前记下日志文件的长度，最后只读新增的部分；装了内核包时改在旧内核退出之后、新内核启动之前记，只读新内核写的。内核 0.10.0 起这个文件一行一个 JSON，五个键 `ts`、`level`、`source`、`name`、`msg`，正文里的换行在 JSON 字符串里转义，所以一条记录就是一行。`level` 是 `error` 的算失败、`warn` 的另报，回执里每条写成 `<ts> <level> <name> <正文第一行>`。有一行不是 JSON、缺字段、或 `level` 不是 `error` / `warn` / `info` / `debug`，整段不判，`devkit.dev` 回失败并说目标 home 的内核要 0.10.0 起；更早的内核写的文本行不兼容。格式由内核定（内核仓文档站的日志规格）：
 
@@ -71,10 +71,10 @@ devkit 所在的 home 用带路径的 `GWB_HOME` 启动时，它自己不在 hom
 
 `tests/home.test.ts` 用假的文件系统与进程探测运行完整的启动、定位、停止、删除；`tests/cdp.test.ts` 测 home 根目录的算法；内核写的这几样格式没有跨仓的测试：
 
-{/* ref file="../plugins/devkit/tests/cdp.test.ts" lines="83-87" hash="158b2fef2d02" blob="9c8092883826" */}
+{/* ref file="../plugins/devkit/tests/cdp.test.ts" lines="87-91" hash="158b2fef2d02" blob="e934ac011f37" */}
 
 {/* ref file="../plugins/devkit/tests/home.test.ts" lines="318-330" hash="1148cf64a7b0" blob="d753b1500725" */}
 
 {/* ref file="../plugins/devkit/tests/home.test.ts" lines="654-659" hash="141b439811df" blob="d753b1500725" */}
 
-{/* ref file="../plugins/devkit/tests/dev.test.ts" lines="334-346" hash="b4ff9228ba71" blob="915d2359bd87" */}
+{/* ref file="../plugins/devkit/tests/dev.test.ts" lines="338-350" hash="b4ff9228ba71" blob="75e00557d5e9" */}

@@ -1,5 +1,6 @@
 import path from 'node:path'
 import { describe, expect, it } from 'vitest'
+import { MCP_RESULT_CHAR_LIMIT, cmdReportOf } from '../bin/cdp.mjs'
 import {
   DAILY_HOME,
   DEFERRED_POLL_MS,
@@ -83,6 +84,8 @@ interface FakeOptions {
   failRestart?: string
   /** 整页刷新怎么失败：timeout＝驱动等到超时、回执「等到了」是 false；crash＝驱动退出码非零、没打印 JSON */
   failReload?: 'timeout' | 'crash'
+  /** 这条命令的回执超过 MCP 入口的上限：驱动不打印回执，只打印说明、退出码非零 */
+  oversizedReply?: string
 }
 
 interface Fake extends DevDeps {
@@ -165,6 +168,7 @@ function fake(options: FakeOptions = {}): Fake {
       const command = args[1] ?? ''
       const commandArg: unknown = args[2] === undefined ? undefined : JSON.parse(args[2])
       commandArgs.push({ command, args: commandArg })
+      if (command === options.oversizedReply) return { ok: false, data: cmdReportOf(command, { length: MCP_RESULT_CHAR_LIMIT + 1 }).report, tail: '' }
       if (command === 'plugin-manager.install') {
         writeInstallLog()
         const one = commandArg as { pkg: string; spec: string }
@@ -501,6 +505,14 @@ describe('一次流程', () => {
     const out = await runDev(input(), deps)
     expect(out).toMatchObject({ ok: false })
     if (!out.ok) expect(out.error).toContain('pnpm add 失败。一条条目都没动')
+    expect(deps.calls.some((one) => one.includes(' reload'))).toBe(false)
+  })
+
+  it('update 的回执超过 MCP 入口的上限：整体失败，error 是驱动写的超限说明，不刷新', async () => {
+    const deps = fake({ oversizedReply: 'plugin-manager.update' })
+    const out = await runDev(input(), deps)
+    expect(out).toMatchObject({ ok: false })
+    if (!out.ok) expect(out.error).toContain(`超过单次返回的上限 ${MCP_RESULT_CHAR_LIMIT}`)
     expect(deps.calls.some((one) => one.includes(' reload'))).toBe(false)
   })
 

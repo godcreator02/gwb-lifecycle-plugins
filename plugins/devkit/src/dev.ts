@@ -185,7 +185,7 @@ export function installedNote(homeName: string, wrong: readonly InstalledRow[]):
   return `新代码没进 ${homeName}——${lines.join(';')}。重新加载拿到的会是装上的那一版,别当它验过了`
 }
 
-/** 目标 home 清单的 `dependencies`。读不到、不是 JSON、没有这一格都当场报错：这不像一个装过插件的 home */
+/** 目标 home 清单的 `dependencies`。读不到、不是 JSON、没有这个字段都当场报错：这不像一个装过插件的 home */
 export function homeDependenciesOf(text: string | undefined, manifestFile: string): { ok: true; dependencies: Record<string, unknown> } | { ok: false; error: string } {
   if (text === undefined) return { ok: false, error: `读不到 ${manifestFile}——这不像一个装过插件的 home` }
   let doc: unknown
@@ -415,8 +415,12 @@ export type DevOutcome = { ok: true; data: DevReport } | { ok: false; error: str
 /** `devkit.cdp <名> cmd <命令> <参数>` 把工作台那条命令的回执原样放在这个字段里 */
 const RECEIPT = '回执'
 
+/** 回执超过 MCP 入口的上限时，cdp 不打印回执，把说明放在这个字段里 */
+const OVERSIZED_NOTE = '没有交回'
+
 /** 从 cdp 打印的 JSON 里取出工作台命令的回执 */
 function receiptOf(data: unknown): { ok: boolean; data: unknown; error?: string } {
+  if (isRecord(data) && typeof data[OVERSIZED_NOTE] === 'string') return { ok: false, data: undefined, error: data[OVERSIZED_NOTE] }
   const raw = isRecord(data) ? data[RECEIPT] : undefined
   if (!isRecord(raw)) return { ok: false, data: raw, error: '这张页没回一张认得出的回执——它可能不是工作台的外壳页' }
   return {

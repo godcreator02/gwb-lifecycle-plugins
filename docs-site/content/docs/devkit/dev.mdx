@@ -11,7 +11,7 @@ description: devkit.dev 一条命令把工作区的改动换进另一个 home �
 
 六步，一步都不能省：问目标页面它是哪个 home、在仓根构建（带界面的插件接着过样式检查）、把每个包打成包文件放进目标 home、经目标 home 的插件管理装（插件管理在同一条命令里重新加载条目）、整页刷新、取证。任何一步失败当场停，回执里写着停在哪一步。
 
-{/* ref file="../plugins/devkit/src/dev.ts" lines="650-712" hash="45c560efb874" blob="ebe1ec7fc4e7" */}
+{/* ref file="../plugins/devkit/src/dev.ts" lines="654-716" hash="45c560efb874" blob="9c7dc37e4061" */}
 
 <Diagram name="dk-dev-loop" title="改一版看一版：改代码、调 devkit.dev 走完六步、读回执，再改下一版">
 - 左列在控制台 home 里做：`devkit.dev` 收 `home`、`dir`、`packages`，仓根 `pnpm build`，带界面的插件过样式检查（没过就停，一个都不装），每个包 `pnpm pack` 成包文件（版本号 `<patch+1>-dev.<yyyyMMddHHmmss>`），放进目标 home 的 `dev-packs` 目录
@@ -22,7 +22,7 @@ description: devkit.dev 一条命令把工作区的改动换进另一个 home �
 
 **只收插件与内核包，包目录由调用方列出。** `packages` 必给，是非空的字符串数组，每项是相对仓根的包目录，不给或写错直接拒。每个包目录的清单要读得出、`files` 里的产物都在；`keywords` 里没有 `gwb-plugin`、也不是内核包的，直接拒：库打包进用它的插件，不单独装进 home。
 
-{/* ref file="../plugins/devkit/src/dev.ts" lines="447-476" hash="baddc72a4c8d" blob="ebe1ec7fc4e7" */}
+{/* ref file="../plugins/devkit/src/dev.ts" lines="451-480" hash="baddc72a4c8d" blob="9c7dc37e4061" */}
 
 **构建之后、打包之前过样式检查。** 构建后有 `dist/style.css` 的插件包，查类名前缀、颜色只用主题令牌、`var()` 的 fallback，和 `devkit.release` 发之前查的是同一套（见[发正式版](/docs/devkit/release)）。没过就回 `ok: false`，写明停在打包之前、一个都没装，所有包的问题一次列全。检查只在 devkit 里一份，模板不带测试：复制进各仓的测试副本不会跟着 devkit 更新。
 
@@ -46,11 +46,11 @@ description: devkit.dev 一条命令把工作区的改动换进另一个 home �
 
 `update` 用一次 `pnpm add` 装齐，重新加载这些包的条目，也重新加载装前装后真实目录变了的别的包（peer 里写了被换的包的插件，它们的目录跟着换）；插件管理自己的条目推迟到回执发出之后才重新加载，回执带 `selfDeferred: true`，这边就轮询 `plugin-manager.list`，等插件管理的条目重新答复、在运行，超时没等到就回 `ok: false` 并说清卡在哪。`update` 回执 `ok: false` 时整体失败，错误原样带回来。插件管理不整页重新加载，页面由这边刷新。
 
-{/* ref file="../plugins/devkit/src/dev.ts" lines="603-635" hash="90e6b523c025" blob="ebe1ec7fc4e7" */}
+{/* ref file="../plugins/devkit/src/dev.ts" lines="607-639" hash="90e6b523c025" blob="9c7dc37e4061" */}
 
 **整页刷新没成就停。** 页面代码要整页重新加载才会按 `file://` 重新取；给了 `waitFor` 就等那个选择器出现，不给只等 `readyState`。驱动退出码非零、或回执里「等到了」不是 `true`，整体回 `ok: false`，错误里写明等的是什么、最后看到了什么——接着取证的话，量到的会是刷新途中或上一版的页面。
 
-{/* ref file="../plugins/devkit/src/dev.ts" lines="637-648" hash="b52d59966835" blob="ebe1ec7fc4e7" */}
+{/* ref file="../plugins/devkit/src/dev.ts" lines="641-652" hash="b52d59966835" blob="9c7dc37e4061" */}
 
 **版本号必须变，这是这条流程起作用的前提。** Node 的 ESM 模块图按 URL 缓存，同一个 URL 永远是同一个模块实例；原地覆盖产物不改路径，cordis 把插件停用再启用，`import()` 拿回的还是旧的。包文件的路径变了，pnpm 虚拟存储里的目录就变了，重新加载时才真的重新执行模块。前提是这次的版本号真的装上了，所以取证里核对装上的版本号那一样不能省。
 
@@ -58,11 +58,11 @@ description: devkit.dev 一条命令把工作区的改动换进另一个 home �
 
 **装了内核包时，整页刷新换成重启目标 home。** 内核包 `@godcreator/gwb-kernel-desktop` 装在 home 里，由启动器在进程启动时加载，主进程里运行着的内核换不掉。内核包和别的包放进同一条 `update`，`specs` 里不放 `cordis`：插件管理装完内核包，自己读它 peer 里 `cordis` 的精确版本号再装那一版，不重新加载任何条目，回执带 `restartRequired: true`。这边停掉目标 home 的进程、用同一个 home 再启动，然后轮询 `shell.env`，直到回执里的 `versions.kernel` 就是这次打包的版本号；报出的是别的版本号当场判失败——那说明启动器加载的不是 home 里装上的那份。装了内核包而回执里没有 `restartRequired` 也判失败。取证照常做，只是日志基线在旧内核退出之后、新内核启动之前重新取一次：换内核时要判断的是新内核启动之后写的日志，旧内核停掉之前写的（可能还是 0.10.0 之前的文本行）不参与判断。
 
-{/* ref file="../plugins/devkit/src/dev.ts" lines="566-601" hash="010cc1fa1bab" blob="ebe1ec7fc4e7" */}
+{/* ref file="../plugins/devkit/src/dev.ts" lines="570-605" hash="010cc1fa1bab" blob="9c7dc37e4061" */}
 
 **最后一步是取证，不是刷新。** 少了它，人看到「装了、刷新了」就会说验过了。三样合起来才能排除那几种「看起来成功了」：装上的就是这次打包的版本号（插件管理对 `file:` 写法不核对版本号，运行着的也可能是上一次的版本）；条目真的是 `ACTIVE`（看的是加载状态，不是条目存在）；日志新增的部分里没有 error（`apply` 里一个 async 调用不报错地 reject，现象正好是「加载了但什么都没发生」，那一条只在日志里）。
 
-{/* ref file="../plugins/devkit/src/dev.ts" lines="733-760" hash="69c827c95472" blob="ebe1ec7fc4e7" */}
+{/* ref file="../plugins/devkit/src/dev.ts" lines="737-764" hash="69c827c95472" blob="9c7dc37e4061" */}
 
 **目标用名字指定，端口是查出来的。** 给 `home` 名，端口从那个 home 的 `runtime.json` 里查（内核启动时写的），同时确认进程还在：pid 还活着，且那个 pid 确实在监听记录里的端口。**两边都要核对**：记录回答「你要的是哪个」，页面回答「你连上的实际是哪个」，对不上当场拒——端口会被下一个进程占用，只信记录就会不声不响地把改动装进另一个 home。页面那一边由 `bin/cdp.mjs` 每次连上时核对（页面报不出 home、报的名字对不上都退出码非零），`guardHome` 只再拒两种：`default` 与开发套件自己所在的 home。
 
@@ -98,7 +98,7 @@ description: devkit.dev 一条命令把工作区的改动换进另一个 home �
 
 **取证只有 `collect` 这一个函数，而且只在这条流程里调用。** 判断要有基线：哪些 error 是这次自己引起的，只有拿装包之前的日志长度才分得出来。单独看一眼现状的东西不该做成一条命令——它没有基线，看到的 error 可能是几天前的，而人会把它的绿色当成验收通过，那正是这条流程要防的事。
 
-{/* ref file="../plugins/devkit/src/dev.ts" lines="733-741" hash="23b68fb50634" blob="ebe1ec7fc4e7" */}
+{/* ref file="../plugins/devkit/src/dev.ts" lines="737-745" hash="23b68fb50634" blob="9c7dc37e4061" */}
 
 要看一眼某个 home 的条目表，`devkit.cdp {"args":["<名>","cmd","plugin-manager.list"]}` 就行，那是看，不是验证。
 

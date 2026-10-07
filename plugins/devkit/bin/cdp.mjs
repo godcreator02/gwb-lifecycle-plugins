@@ -18,7 +18,8 @@
 //   type   <文本>                     往当前焦点插入文字
 //   key    <键名>                     发一个按键：Enter / Escape / Tab / Backspace / Delete / Arrow* / Home / End
 //   scroll <点> [像素]                滚轮，正数往下，缺省 300
-//   cmd    <命令名> [JSON 参数]        在页面里执行一条工作台命令，回执原样打印；命令失败退出码非零
+//   cmd    <命令名> [JSON 参数]        在页面里执行一条工作台命令，回执原样打印；命令失败退出码非零。
+//                                    回执与 MCP 入口同一个上限（见 MCP_RESULT_CHAR_LIMIT）：超了不打印回执，报字符数与上限，退出码非零
 //   reload [选择器] [超时秒]           刷新这个页面；给了选择器就等它出现再回（缺省等 20 秒）
 //   home                             这个页面的插件是从哪个 home 装的（回绝对路径，devkit.dev 用它检查目标）
 //
@@ -96,14 +97,14 @@ export function isFullPath(p) {
 
 /** 完整的绝对路径、不在本包目录里、不在任何 `node_modules` 里；过不了就抛，回规整过的路径 */
 export function assertWritable(file, pkgRoot = PACKAGE_ROOT) {
-  if (!isFullPath(file)) throw new Error(`落点 ${file} 不是完整的绝对路径——这支脚本不看工作目录，相对路径没有「相对于谁」`)
+  if (!isFullPath(file)) throw new Error(`写入位置 ${file} 不是完整的绝对路径——这个脚本不看工作目录，相对路径没有「相对于谁」`)
   const normalized = path.normalize(file)
   const relativeToPackage = path.relative(pkgRoot, normalized)
   if (relativeToPackage === '' || (relativeToPackage !== '..' && !relativeToPackage.startsWith(`..${path.sep}`) && !path.isAbsolute(relativeToPackage))) {
-    throw new Error(`落点 ${normalized} 在 devkit 包目录 ${pkgRoot} 里——那是装好的包，写进去弄脏它、升级之后也找不回来`)
+    throw new Error(`写入位置 ${normalized} 在 devkit 包目录 ${pkgRoot} 里——那是装好的包，写进去会改坏它、升级之后也找不回来`)
   }
   if (normalized.split(/[\\/]/).some((seg) => seg.toLowerCase() === 'node_modules')) {
-    throw new Error(`落点 ${normalized} 在 node_modules 里——那是装好的依赖树，不是放产物的地方`)
+    throw new Error(`写入位置 ${normalized} 在 node_modules 里——那是装好的依赖树，不是放产物的地方`)
   }
   return normalized
 }
@@ -131,11 +132,57 @@ export function evalFileOf(given) {
   if (given === undefined) throw new Error('eval 要一个文件的绝对路径，文件里写 `(args) => 一张表`')
   if (!isFullPath(given)) {
     throw new Error(
-      `eval 的文件只收绝对路径，给的是 ${given}。这支脚本不看工作目录：走总线时那是 devkit 包自己的目录，` +
-        '直接 node 跑时是 shell 的，同一个相对路径两条路指两样东西。PowerShell 里 (Resolve-Path <文件>).Path 拿绝对路径',
+      `eval 的文件只收绝对路径，给的是 ${given}。这个脚本不看工作目录：经命令总线调用时工作目录是 devkit 包自己的目录，` +
+        '直接用 node 运行时是 shell 的目录，同一个相对路径在两种调用方式下指向不同的文件。PowerShell 里 (Resolve-Path <文件>).Path 拿绝对路径',
     )
   }
   return path.normalize(given)
+}
+
+// ---------------------------------------------------------------------------
+// cmd 的回执上限：与 MCP 入口同一个数、同一种计法（这一段是纯函数，单测直接 import）
+// ---------------------------------------------------------------------------
+
+/**
+ * 单次返回的上限（字符）。必须与 MCP 入口一致：gwb-base-plugins 仓 `plugins/mcp/src/tools.ts` 的 `RESULT_CHAR_LIMIT`。
+ * 这个脚本零依赖、两个仓不互相依赖，引用不到那个导出，那边改了这里跟着改
+ */
+export const MCP_RESULT_CHAR_LIMIT = 40_000
+
+/**
+ * 一张回执经 MCP 入口的 `run` 交回时的文本有多少字符（JS 字符串的 `length`）：照 MCP 入口 `tools.ts` 的
+ * `isCliRunResult` / `cliRunResult` / `toolResult` 把回执排成文本再量。函数源码会原样送进页面执行（见 `cmd`），
+ * 只能用页面也有的东西，不能引用这个文件里别的名字
+ */
+export function mcpReplyLength(reply) {
+  const textOf = (value) => JSON.stringify(value, null, 2)
+  const isObject = typeof reply === 'object' && reply !== null
+  if (isObject && 'stdout' in reply && 'exitCode' in reply) {
+    const { ok, exitCode, timedOut, durationMs, stdout, stderr } = reply
+    return textOf({ ok, exitCode, timedOut, durationMs, stdout, stderr }).length
+  }
+  if (isObject && Object.keys(reply).some((key) => key !== 'ok' && key !== 'data' && key !== 'error')) return textOf(reply).length
+  if (reply.ok) return textOf({ ok: true, data: reply.data ?? null }).length
+  return `执行失败：${reply.error ?? '未知错误'}`.length
+}
+
+/** 回执超过上限时的说明，含义与 MCP 入口 `run` 的那段一致 */
+export function oversizedReplyNote(command, length) {
+  return (
+    `命令 ${command} 已经执行完，但回执经 MCP 入口交回时有 ${length} 字符，超过单次返回的上限 ${MCP_RESULT_CHAR_LIMIT}，没有交回（经 MCP 调也会这样被挡下）。` +
+    `看它的 usage（search {"prefix":"${command}"}）有没有筛选或条数参数，带上再调；没有这类参数的，给这条命令所在插件的仓提反馈，请它补上`
+  )
+}
+
+/** 页面里量好的 `{ length, reply? }` → `cmd` 打印的结果与退出码是否非零。超过上限时 `reply` 本来就没从页面传回来 */
+export function cmdReportOf(command, measured) {
+  if (measured.length > MCP_RESULT_CHAR_LIMIT) {
+    return {
+      failed: true,
+      report: { did: 'cmd', 命令: command, 回执字符数: measured.length, 上限: MCP_RESULT_CHAR_LIMIT, 没有交回: oversizedReplyNote(command, measured.length) },
+    }
+  }
+  return { failed: measured.reply?.ok !== true, report: { did: 'cmd', 命令: command, 回执: measured.reply } }
 }
 
 // ---------------------------------------------------------------------------
@@ -179,7 +226,7 @@ export function modifiersOf(spec) {
   return sum
 }
 
-/** 直接运行时才算（见文件末尾）：被 import 时 argv 不是给这支脚本的 */
+/** 直接运行时才算（见文件末尾）：被 import 时 argv 不是给这个脚本的 */
 let modifiers = 0
 
 const pad = Number(opts.pad ?? 0)
@@ -370,7 +417,7 @@ const KEYS = {
 
 async function press(send, name) {
   const k = KEYS[name]
-  if (k === undefined) throw new Error(`不认得这枚键：${name}。认得的：${Object.keys(KEYS).join(' / ')}`)
+  if (k === undefined) throw new Error(`不认得这个键：${name}。认得的：${Object.keys(KEYS).join(' / ')}`)
   const common = { key: k.key, code: k.code, windowsVirtualKeyCode: k.vk, nativeVirtualKeyCode: k.vk, modifiers }
   // 有 text 的发 keyDown（浏览器据此插入文字），没有的发 rawKeyDown（纯控制键）
   await send('Input.dispatchKeyEvent', k.text === undefined
@@ -419,7 +466,7 @@ function homeOf(urls) {
     const dir = fileURLToPath(cut[1])
     hits.set(dir, (hits.get(dir) ?? 0) + 1)
   }
-  if (hits.size === 0) return { home: null, why: '页面上没有一条带 /homes/ 的 file:// 地址：它可能不是工作台的外壳页，或者这个 home 的件是别的装法' }
+  if (hits.size === 0) return { home: null, why: '页面上没有一条带 /homes/ 的 file:// 地址：它可能不是工作台的外壳页，或者这个 home 的插件是别的装法' }
   if (hits.size > 1) return { home: null, why: '页面上出现了不止一个 home，不猜', 候选: [...hits.keys()] }
   const home = [...hits.keys()][0]
   return { home, 名字: path.basename(home), 凭据数: hits.get(home) }
@@ -540,6 +587,7 @@ async function run(send) {
     }
 
     // 经目标 home 的 commands 浏览器客户端执行；传输与协议失败不重试。
+    // 回执在页面里量长度，超过上限就不传回来：几十 MB 的回执经 CDP 传回会卡住
     case 'cmd': {
       if (args[0] === undefined) throw new Error('cmd 要一个命令名，后面可以跟一段 JSON 当参数')
       let payload
@@ -552,9 +600,16 @@ async function run(send) {
       }
       const clientUrl = commandClientUrl(homeDir)
       const parameters = `${JSON.stringify(args[0])}${payload === undefined ? '' : `, ${JSON.stringify(payload)}`}`
-      const reply = await evaluate(send, `import(${JSON.stringify(clientUrl)}).then(client => client.command(${parameters}))`)
-      if (reply?.ok !== true) process.exitCode = 1
-      return { did: 'cmd', 命令: args[0], 回执: reply }
+      const measured = await evaluate(
+        send,
+        `import(${JSON.stringify(clientUrl)}).then(client => client.command(${parameters})).then((reply) => {
+          const length = (${mcpReplyLength})(reply);
+          return length > ${MCP_RESULT_CHAR_LIMIT} ? { length } : { length, reply };
+        })`,
+      )
+      const { failed, report } = cmdReportOf(args[0], measured)
+      if (failed) process.exitCode = 1
+      return report
     }
 
     /*
