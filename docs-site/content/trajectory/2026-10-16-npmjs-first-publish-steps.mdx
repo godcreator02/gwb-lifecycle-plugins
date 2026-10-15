@@ -1,0 +1,21 @@
+---
+title: 第一次发 npmjs 时首发与登记的写法
+born-at: 2026-10-16T18:30
+type: experiment
+parent: [2026-09-08-gwb-devkit]
+label: 首发占位版与登记的写法
+domain: 发版
+---
+
+## 背景
+
+说明书 `gwb-devkit` 与发正式版那页原来写：一个包第一次上 npmjs，由人在本机 `npm publish <目录> --auth-type=web`，再 `npx npm@latest trust github <包名> --repo <owner>/<仓名> --file publish.yml --yes` 登记。
+2026-10-16 在 god-docsite 仓第一次把 12 个包发到 npmjs，照这个写法走不通，一路改到能用。经过也记在那个仓的轨迹卡 2026-10-16-first-npmjs-release。
+
+## 结论与边界
+
+- 占位版：同一账号前一天还能发 `0.0.0-stage`，这天 npmjs 回 `403 You cannot publish using the version: 0.0.0-stage`；改成 `0.0.1-stage` 收了。预发布版不带 `--tag` npm 当场拒，用 `--tag stage`
+- 本机 `~/.npmrc` 里 `@godcreator` 的范围行指向 Gitea，它比命令行的 `--registry` 优先：只带 `--registry` 的 `npm publish` 发到了 Gitea，`npm view` 也去问 Gitea。另带 `--@godcreator:registry=https://registry.npmjs.org/` 才到 npmjs
+- `npm publish --auth-type=web` 在没有终端的后台进程里直接报 `EOTP`、批准链接被打码；在终端里运行才给出链接并等着
+- 登记：`npx npm@latest` 已是 npm 12，不带权限参数直接报「至少要一个权限参数」；npm 11.11 把 `--repo` 的值当成位置参数，写成 `--repository=…`、`--file=…` 后请求发得出去，npmjs 回 400。用 npm 12 加 `--allow-publish` 登记成功，回执里权限是 publish 与 stage publish（npm 12.2 提示不支持 Node 24.14.1，照样能用）
+- 安全密钥的批准页有「5 分钟内不再验证 npm publish、npm trust」，勾上后 12 个占位版一次批准发完，12 次登记也一次批准

@@ -54,7 +54,14 @@ description: devkit.release 从仓根按依赖顺序把包发到各包的发布�
 
 {/* ref file="../plugins/devkit/src/node-github.ts" lines="14-51" hash="26b498d64052" blob="062e9221bf77" */}
 
-npmjs 上每个包要先存在、再登记 trusted publisher，所以一个包第一次发到 npmjs 还是由人在本机发（`npm publish --auth-type=web`，浏览器里批准）；之后用 `npm trust github <包名> --repo <owner>/<仓名> --file publish.yml --yes` 登记，登记后两天内要有一次成功的发布，不然登记作废。
+npmjs 上每个包要先存在、再登记 trusted publisher，所以一个包第一次发到 npmjs 还是由人在本机发一个占位版、再登记，两步都在浏览器里批准，登记后两天内要有一次成功的发布，不然登记作废。实际做过才知道的几处（完整命令在说明书 `gwb-devkit` 的「发版」）：
+
+- npmjs 不收 `0.0.0-stage`（回 403），占位版用 `0.0.1-stage`，预发布版要带 `--tag`
+- `~/.npmrc` 里包的范围指向别的源时，范围行比 `--registry` 优先，要另带 `--@<范围>:registry=https://registry.npmjs.org/`
+- `npm publish --auth-type=web` 要在有终端的地方运行，后台进程里直接报 `EOTP`
+- 登记用 npm 12 的 `npm trust github`，带 `--allow-publish`：npm 11 发的登记请求 npmjs 回 400
+
+经过见轨迹卡[第一次发 npmjs 时首发与登记的写法](/trajectory/2026-10-16-npmjs-first-publish-steps)。
 
 ## 不知道什么
 
