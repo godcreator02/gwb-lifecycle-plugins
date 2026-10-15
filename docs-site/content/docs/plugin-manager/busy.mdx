@@ -13,11 +13,11 @@ description: 服务上的 install、uninstall、update 三个方法在最外层�
 
 {/* ref file="../plugins/plugin-manager/src/busy.ts" lines="1-17" hash="d2a4fab732f6" blob="54c75b4db2f8" */}
 
-{/* ref file="../plugins/plugin-manager/src/index.ts" lines="299-300" hash="9d3f8b09f4ea" blob="c078198dd768" */}
+{/* ref file="../plugins/plugin-manager/src/index.ts" lines="355-356" hash="9d3f8b09f4ea" blob="70f2c0a8345a" */}
 
-{/* ref file="../plugins/plugin-manager/src/index.ts" lines="351-352" hash="475937b83f51" blob="c078198dd768" */}
+{/* ref file="../plugins/plugin-manager/src/index.ts" lines="407-408" hash="475937b83f51" blob="70f2c0a8345a" */}
 
-{/* ref file="../plugins/plugin-manager/src/index.ts" lines="532-533" hash="b0900c81da93" blob="c078198dd768" */}
+{/* ref file="../plugins/plugin-manager/src/index.ts" lines="588-589" hash="b0900c81da93" blob="70f2c0a8345a" */}
 
 {/* ref file="../plugins/plugin-manager/tests/busy.test.ts" lines="13-31" hash="2e489577c8cb" blob="5e0247574eac" */}
 
@@ -40,6 +40,6 @@ description: 服务上的 install、uninstall、update 三个方法在最外层�
 
 ## 管不到的三处
 
-- **条目命令不经过 BUSY**：`add-entry`、`remove-entry`、`enable`、`disable` 不经过检查，`update` 正在重新加载某条条目时，别人可以同时停用或删掉它
+- **条目命令与改归属不经过 BUSY**：`add-entry`、`remove-entry`、`enable`、`disable`、`transfer-owner` 不经过检查，`update` 正在重新加载某条条目时，别人可以同时停用或删掉它
 - **插件管理重新加载自己的那段空档**：`update` 重新加载插件管理自己时，先发回执、释放标志，下一个宏任务才动手（见[重新加载条目](/docs/plugin-manager/remount#插件管理自己先回执后重新加载)）；这中间进来的改动命令能通过检查，可能运行到一半插件管理就被停用；重新加载出来的新实例标志是新的
 - **插件管理进程外的 pnpm**：`devkit.home.new`（新 home 启动之前）、人在终端里手工运行的 pnpm，和插件管理的改动同时写同一个 home 时照样会丢改动。一个隔离 home 同一时间只给一个会话用，这条靠约定，不加锁（[隔离 home 靠约定](/trajectory/2026-09-25-isolated-home-by-convention)）

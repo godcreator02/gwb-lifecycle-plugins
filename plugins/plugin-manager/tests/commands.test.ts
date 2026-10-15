@@ -116,6 +116,14 @@ interface Mounted {
   shellReloads: number
   /** 插件管理向设置插件声明过的项 */
   settingDefs: { key: string; shared?: boolean; default?: unknown }[]
+  /** 设置插件与数据插件此刻记着的归属：id → 包名，transferOwner 改的就是这两张表 */
+  owners: { settings: Record<string, string>; data: Record<string, string> }
+}
+
+/** 测试开始时设置插件与数据插件记着的归属 */
+interface OwnersAtStart {
+  settings?: Record<string, string>
+  data?: Record<string, string>
 }
 
 let homeDir = ''
@@ -155,18 +163,27 @@ function upgradesOnAdd(pkg: string, from: string, to: string): void {
   }
 }
 
-/** `settings: false` 是 home 里没有设置插件；`settingValues` 是设置文件里已经存下的值 */
-function mount(opts: { entries: Record<string, string>; shellReload?: boolean; settings?: false; settingValues?: Record<string, unknown> }): Mounted {
+/** `settings: false` / `data: false` 是 home 里没有设置插件 / 数据插件；`settingValues` 是设置文件里已经存下的值 */
+function mount(opts: {
+  entries: Record<string, string>
+  shellReload?: boolean
+  settings?: false
+  data?: false
+  settingValues?: Record<string, unknown>
+  owners?: OwnersAtStart
+}): Mounted {
   const tree = fakeTree({ 'plugin-manager': OWN_PKG, ...opts.entries })
   const logs: string[] = []
   const handlers = new Map<string, Handler>()
   const effects = new Map<string, unknown>()
   const settingDefs: Mounted['settingDefs'] = []
+  const owners: Mounted['owners'] = { settings: { ...opts.owners?.settings }, data: { ...opts.owners?.data } }
   const mounted: Mounted = {
     tree,
     logs,
     effects,
     settingDefs,
+    owners,
     shellReloads: 0,
     run: (name, args) => {
       const handler = handlers.get(name)
@@ -213,6 +230,20 @@ function mount(opts: { entries: Record<string, string>; shellReload?: boolean; s
         return () => undefined
       },
       get: (key: string) => (key in values ? values[key] : settingDefs.find((def) => def.key === key)?.default),
+      owners: () => ({ ...owners.settings }),
+      transferOwner: (id: string, pkg: string) => {
+        owners.settings[id] = pkg
+        return Promise.resolve()
+      },
+    }
+  }
+  if (opts.data !== false) {
+    ctx['gwbData'] = {
+      owners: () => Promise.resolve({ ...owners.data }),
+      transferOwner: (id: string, pkg: string) => {
+        owners.data[id] = pkg
+        return Promise.resolve()
+      },
     }
   }
   apply(ctx as never)
@@ -337,7 +368,7 @@ describe('条目命令', () => {
 })
 
 describe('登记的命令', () => {
-  it('每条命令都写了 effect：只读的是 list、outdated、search，其余改 home 的是 write', () => {
+  it('每条命令都写了 effect：只读的是 list、outdated、search，其余改 home 或归属记录的是 write', () => {
     const pm = mount({ entries: {} })
     expect(Object.fromEntries(pm.effects)).toEqual({
       'plugin-manager.list': 'read',
@@ -350,12 +381,13 @@ describe('登记的命令', () => {
       'plugin-manager.update': 'write',
       'plugin-manager.uninstall': 'write',
       'plugin-manager.search': 'read',
+      'plugin-manager.transfer-owner': 'write',
     })
   })
 
-  it('transfer-owner 不再登记', () => {
-    const pm = mount({ entries: {} })
-    expect(() => pm.run('plugin-manager.transfer-owner')).toThrow('没有登记 plugin-manager.transfer-owner')
+  it('transfer-owner 要设置插件与数据插件都在才登记', () => {
+    expect(() => mount({ entries: {}, data: false }).run('plugin-manager.transfer-owner')).toThrow('没有登记 plugin-manager.transfer-owner')
+    expect(() => mount({ entries: {}, settings: false }).run('plugin-manager.transfer-owner')).toThrow('没有登记 plugin-manager.transfer-owner')
   })
 
   it('remount 不再登记：手动重新加载一条条目用 disable 再 enable', () => {
@@ -377,6 +409,50 @@ describe('登记的命令', () => {
 
     const pm = mount({ entries: {} })
     expect(pm.settingDefs).toEqual([expect.objectContaining({ key: 'npm-auth', type: 'secret', shared: true }), expect.objectContaining({ key: 'plugin-markets', type: 'string-list', shared: true, default: ['@godcreator'] })])
+  })
+})
+
+describe('plugin-manager.transfer-owner', () => {
+  it('包改名：旧包卸掉以后，设置分区与数据目录都改归新包名；完整 entryId 与不带前缀的 id 都认，回执带改之前的归属', async () => {
+    const pm = mount({ entries: {}, owners: { settings: { alert: '@old/gwb-alert', 'alert-2': '@old/gwb-alert' }, data: { alert: '@old/gwb-alert' } } })
+    expect(await pm.run('plugin-manager.transfer-owner', { entryId: 'home:alert', pkg: '@new/gwb-alert' })).toEqual({
+      ok: true,
+      data: { id: 'alert', pkg: '@new/gwb-alert', settingsFrom: '@old/gwb-alert', dataFrom: '@old/gwb-alert' },
+    })
+    expect(await pm.run('plugin-manager.transfer-owner', { entryId: 'alert-2', pkg: '@new/gwb-alert' })).toEqual({
+      ok: true,
+      data: { id: 'alert-2', pkg: '@new/gwb-alert', settingsFrom: '@old/gwb-alert' },
+    })
+    expect(pm.owners).toEqual({ settings: { alert: '@new/gwb-alert', 'alert-2': '@new/gwb-alert' }, data: { alert: '@new/gwb-alert' } })
+  })
+
+  it('只改记着归属的那一样：没有数据目录的 id 不替它建归属', async () => {
+    const pm = mount({ entries: {}, owners: { data: { bot: '@old/gwb-bot' } } })
+    expect(await pm.run('plugin-manager.transfer-owner', { entryId: 'bot', pkg: '@new/gwb-bot' })).toEqual({ ok: true, data: { id: 'bot', pkg: '@new/gwb-bot', dataFrom: '@old/gwb-bot' } })
+    expect(pm.owners).toEqual({ settings: {}, data: { bot: '@new/gwb-bot' } })
+  })
+
+  it('设置与数据都没记这个 id：直接抛错，什么都不改', async () => {
+    const pm = mount({ entries: {}, owners: { settings: { other: '@x/gwb-other' } } })
+    await expect(pm.run('plugin-manager.transfer-owner', { entryId: 'typo', pkg: '@new/gwb-bot' })).rejects.toThrow('id typo 既没有设置分区、也没有数据目录记着归属')
+    expect(pm.owners).toEqual({ settings: { other: '@x/gwb-other' }, data: {} })
+  })
+
+  it('条目正在加载另一个包：直接抛错、归属不动；条目加载的就是新包名时照常改', async () => {
+    const pm = mount({ entries: { alert: '@old/gwb-alert' }, owners: { settings: { alert: '@old/gwb-alert' } } })
+    await expect(pm.run('plugin-manager.transfer-owner', { entryId: 'alert', pkg: '@new/gwb-alert' })).rejects.toThrow('条目 alert 正在加载 @old/gwb-alert')
+    expect(pm.owners.settings).toEqual({ alert: '@old/gwb-alert' })
+
+    const installedFirst = mount({ entries: { alert: '@new/gwb-alert' }, owners: { settings: { alert: '@old/gwb-alert' } } })
+    expect(await installedFirst.run('plugin-manager.transfer-owner', { entryId: 'alert', pkg: '@new/gwb-alert' })).toEqual({ ok: true, data: { id: 'alert', pkg: '@new/gwb-alert', settingsFrom: '@old/gwb-alert' } })
+  })
+
+  it('参数写错直接抛：包名不合规、缺字段、认不出的键', async () => {
+    const pm = mount({ entries: {}, owners: { settings: { alert: '@old/gwb-alert' } } })
+    await expect(pm.run('plugin-manager.transfer-owner', { entryId: 'alert', pkg: 'Bad Name' })).rejects.toThrow('包名 "Bad Name" 不合规')
+    await expect(pm.run('plugin-manager.transfer-owner', { entryId: 'alert' })).rejects.toThrow('pkg 要是个非空字符串')
+    await expect(pm.run('plugin-manager.transfer-owner', { id: 'alert', pkg: '@new/gwb-alert' })).rejects.toThrow('认不出参数 id')
+    expect(pm.owners.settings).toEqual({ alert: '@old/gwb-alert' })
   })
 })
 

@@ -50,7 +50,7 @@ peer 的写法照[用到的插件写 peer](/docs/rules/plugin-peers)：跨仓的
 
 | 服务 | 提供方包 | 必需 / 局部注入 | peer 写法 | 用来做什么 | 缺了会怎样 |
 | --- | --- | --- | --- | --- | --- |
-| `gwbCommands` | `@godcreator/gwb-commands` | 必需（`export const inject`） | `^0.6.0` | 登记除 `devkit.cdp` 外的 8 条命令；就绪日志用 `list()` 列出此刻总线上本包的命令 | 插件不加载：cordis 等到这个服务出现才调用 `apply`；`apply` 里取不到它就抛错 |
+| `gwbCommands` | `@godcreator/gwb-commands` | 必需（`export const inject`） | `^0.6.0` | 登记除 `devkit.cdp` 外的全部命令；就绪日志用 `list()` 列出此刻总线上本包的命令 | 插件不加载：cordis 等到这个服务出现才调用 `apply`；`apply` 里取不到它就抛错 |
 | `gwbShell` | `@godcreator/gwb-shell` | 局部注入 | `^0.15.1`，`optional: true` | `describeSelf` 报显示名 | 插件清单里没有显示名，别的不受影响 |
 | `gwbNodeCli` | `@godcreator/gwb-node-cli` | 局部注入 | `^0.5.0`，`optional: true` | 把 `bin/cdp.mjs` 登记成 `devkit.cdp` | 没有 `devkit.cdp` 命令；`devkit.dev` 不受影响，它自己启动 `bin/cdp.mjs` 子进程 |
 | `gwbSkills` | `@godcreator/gwb-skills` | 局部注入 | `^0.4.5`，`optional: true` | 登记 `skills/` 下两份说明书 | agent 读不到这两份说明书，命令照常 |
@@ -117,7 +117,7 @@ peer 里另有插件管理 `@godcreator/gwb-plugin-manager`（`workspace:^`，�
 
 {/* ref file="../plugins/devkit/src/release.ts" lines="3-3" hash="e67c7c1e2fa1" blob="f6121d7801e9" */}
 
-{/* ref file="../plugins/plugin-manager/src/index.ts" lines="69-69" hash="af5aa2a2f194" blob="c078198dd768" */}
+{/* ref file="../plugins/plugin-manager/src/index.ts" lines="71-71" hash="af5aa2a2f194" blob="70f2c0a8345a" */}
 
 {/* ref file="../plugins/devkit/src/node-dev-deps.ts" lines="6-6" hash="d2835835bd60" blob="0af53fe4f48e" */}
 
@@ -150,72 +150,73 @@ peer 里另有插件管理 `@godcreator/gwb-plugin-manager`（`workspace:^`，�
 | 类别 | 名字 | 说明 |
 | --- | --- | --- |
 | 服务 | `gwbPluginManager` | 继承 cordis `Service` 的类：`list`、`install`、`uninstall`、`addEntry`、`removeEntry`、`enable`、`disable`、`outdated`、`update`，与同名命令一一对应，见[插件管理](/docs/plugin-manager#服务-gwbpluginmanager)。基础界面注入它决定注册不注册插件管理窗格 |
-| 命令 | `plugin-manager.list`、`install`、`add-entry`、`remove-entry`、`enable`、`disable`、`outdated`、`update`、`uninstall`、`search` | 见[插件管理](/docs/plugin-manager) |
+| 命令 | `plugin-manager.list`、`install`、`add-entry`、`remove-entry`、`enable`、`disable`、`outdated`、`update`、`uninstall`、`search`、`transfer-owner` | 见[插件管理](/docs/plugin-manager) |
 | 主入口导出 | `locatePnpm`、`isCaretRange`、`KERNEL_PACKAGE`、`homePnpmEnv`、`withHomeRegistryAuth`、`tailLines`、`LIST_COMMAND`、`INSTALL_COMMAND`、`UPDATE_COMMAND` | 给 devkit 按值 import，规则只有这一份 |
 | 子路径 `./receipts` 导出（只有类型） | 各条命令回执的类型，如 `PluginPackageView`、`Updated`、`SearchFound`、`Outcome` | 给插件管理窗格的浏览器侧 `import type`，见[插件管理](/docs/plugin-manager#子路径-receipts回执的类型) |
 | 说明书 | `gwb-plugin-manager` | 包根 `skills/` 下，经 `gwbSkills` 登记 |
 | 事件 | 无 | |
 
-{/* ref file="../plugins/plugin-manager/src/index.ts" lines="118-118" hash="56039960a72d" blob="c078198dd768" */}
+{/* ref file="../plugins/plugin-manager/src/index.ts" lines="127-127" hash="56039960a72d" blob="70f2c0a8345a" */}
 
-{/* ref file="../plugins/plugin-manager/src/index.ts" lines="104-104" hash="ac93d03c827e" blob="c078198dd768" */}
+{/* ref file="../plugins/plugin-manager/src/index.ts" lines="113-113" hash="ac93d03c827e" blob="70f2c0a8345a" */}
 
-{/* ref file="../plugins/plugin-manager/src/index.ts" lines="723-723" hash="5d2f3c43e36e" blob="c078198dd768" */}
+{/* ref file="../plugins/plugin-manager/src/index.ts" lines="779-779" hash="5d2f3c43e36e" blob="70f2c0a8345a" */}
 
-{/* ref file="../plugins/plugin-manager/src/index.ts" lines="79-79" hash="66f3429944b6" blob="c078198dd768" */}
+{/* ref file="../plugins/plugin-manager/src/index.ts" lines="81-81" hash="66f3429944b6" blob="70f2c0a8345a" */}
 
-{/* ref file="../plugins/plugin-manager/src/index.ts" lines="80-80" hash="4f283c5c647d" blob="c078198dd768" */}
+{/* ref file="../plugins/plugin-manager/src/index.ts" lines="82-82" hash="4f283c5c647d" blob="70f2c0a8345a" */}
 
-{/* ref file="../plugins/plugin-manager/src/index.ts" lines="81-81" hash="851add3a2406" blob="c078198dd768" */}
+{/* ref file="../plugins/plugin-manager/src/index.ts" lines="83-83" hash="851add3a2406" blob="70f2c0a8345a" */}
 
-{/* ref file="../plugins/plugin-manager/src/index.ts" lines="82-82" hash="36c2c7d8d454" blob="c078198dd768" */}
+{/* ref file="../plugins/plugin-manager/src/index.ts" lines="84-84" hash="36c2c7d8d454" blob="70f2c0a8345a" */}
 
-{/* ref file="../plugins/plugin-manager/src/index.ts" lines="83-83" hash="b62ae1b8e578" blob="c078198dd768" */}
+{/* ref file="../plugins/plugin-manager/src/index.ts" lines="85-85" hash="b62ae1b8e578" blob="70f2c0a8345a" */}
 
-{/* ref file="../plugins/plugin-manager/src/index.ts" lines="84-84" hash="0be0c7dfaf50" blob="c078198dd768" */}
+{/* ref file="../plugins/plugin-manager/src/index.ts" lines="86-86" hash="0be0c7dfaf50" blob="70f2c0a8345a" */}
 
-{/* ref file="../plugins/plugin-manager/src/index.ts" lines="85-85" hash="76aecf64f9b3" blob="c078198dd768" */}
+{/* ref file="../plugins/plugin-manager/src/index.ts" lines="87-87" hash="76aecf64f9b3" blob="70f2c0a8345a" */}
 
-{/* ref file="../plugins/plugin-manager/src/index.ts" lines="86-86" hash="03262125fe07" blob="c078198dd768" */}
+{/* ref file="../plugins/plugin-manager/src/index.ts" lines="88-88" hash="03262125fe07" blob="70f2c0a8345a" */}
 
-{/* ref file="../plugins/plugin-manager/src/index.ts" lines="87-87" hash="096d38f9ab7b" blob="c078198dd768" */}
+{/* ref file="../plugins/plugin-manager/src/index.ts" lines="89-89" hash="096d38f9ab7b" blob="70f2c0a8345a" */}
 
-{/* ref file="../plugins/plugin-manager/src/index.ts" lines="88-88" hash="4b6e24707911" blob="c078198dd768" */}
+{/* ref file="../plugins/plugin-manager/src/index.ts" lines="90-90" hash="4b6e24707911" blob="70f2c0a8345a" */}
 
-{/* ref file="../plugins/plugin-manager/src/index.ts" lines="66-66" hash="770228dff90f" blob="c078198dd768" */}
+{/* ref file="../plugins/plugin-manager/src/index.ts" lines="68-68" hash="770228dff90f" blob="70f2c0a8345a" */}
 
-{/* ref file="../plugins/plugin-manager/src/index.ts" lines="67-67" hash="14b902f41a64" blob="c078198dd768" */}
+{/* ref file="../plugins/plugin-manager/src/index.ts" lines="69-69" hash="14b902f41a64" blob="70f2c0a8345a" */}
 
-{/* ref file="../plugins/plugin-manager/src/index.ts" lines="68-68" hash="3a6694d38ebd" blob="c078198dd768" */}
+{/* ref file="../plugins/plugin-manager/src/index.ts" lines="70-70" hash="3a6694d38ebd" blob="70f2c0a8345a" */}
 
 ### 注入
 
 | 服务 | 提供方包 | 必需 / 局部注入 | peer 写法 | 用来做什么 | 缺了会怎样 |
 | --- | --- | --- | --- | --- | --- |
-| `gwbCommands` | `@godcreator/gwb-commands` | 局部注入 | `^0.6.0`，**必需**（不标 `optional`） | 登记 10 条命令 | 命令登记不上，页面与 agent 用不了插件管理；服务 `gwbPluginManager` 照常提供。局部注入是为了缺了命令总线时插件管理照样加载，peer 写必需是因为缺了它一样功能都没有——[用到的插件写 peer](/docs/rules/plugin-peers)允许的写法 |
-| `gwbSettings` | `@godcreator/gwb-settings` | 局部注入，和 `gwbCommands` 一起 | `^0.3.9`，`optional: true` | 在公共区声明市场名单 `plugin-markets`，`search` 读它 | 不登记 `search`，别的 9 条命令照常 |
+| `gwbCommands` | `@godcreator/gwb-commands` | 局部注入 | `^0.6.0`，**必需**（不标 `optional`） | 登记命令 | 命令登记不上，页面与 agent 用不了插件管理；服务 `gwbPluginManager` 照常提供。局部注入是为了缺了命令总线时插件管理照样加载，peer 写必需是因为缺了它一样功能都没有——[用到的插件写 peer](/docs/rules/plugin-peers)允许的写法 |
+| `gwbSettings` | `@godcreator/gwb-settings` | 局部注入，和 `gwbCommands` 一起；`transfer-owner` 那一处再加上 `gwbData` | `^0.4.0`，`optional: true` | 在公共区声明市场名单 `plugin-markets`，`search` 读它；`transfer-owner` 读设置分区的归属（`owners`）、改归属（`transferOwner`） | 不登记 `search` 与 `transfer-owner`，别的命令照常 |
+| `gwbData` | `@godcreator/gwb-data` | 局部注入，和 `gwbCommands`、`gwbSettings` 一起 | `^0.1.13`，`optional: true` | `transfer-owner` 读数据目录的归属（`owners`）、改归属（`transferOwner`） | 不登记 `transfer-owner`，别的命令照常 |
 | `gwbSkills` | `@godcreator/gwb-skills` | 局部注入 | `^0.4.5`，`optional: true` | 登记自带的说明书 | 没有说明书，插件管理照常加载 |
 | `gwbKernel` | 内核包 `@godcreator/gwb-kernel-desktop` | 不写进 `inject`，用 `requireKernel` 取 | `^0.10.0` | `dataDir`：home 目录，pnpm 的工作目录、`package.json` 所在的目录；`version`：`list` 拿它和各插件 peer 里内核包的范围比 | 构造时报错「ctx.gwbKernel 不在」，插件管理不加载 |
 
-插件管理不写 `export const inject`。数据插件不在 peer 里，插件管理不用它。
+插件管理不写 `export const inject`。归属记录只经设置插件与数据插件的服务方法读改，插件管理不自己拼路径去碰 `settings.json` 与数据目录。
 
-{/* ref file="../plugins/plugin-manager/src/index.ts" lines="139-139" hash="e58668b8f185" blob="c078198dd768" */}
+{/* ref file="../plugins/plugin-manager/src/index.ts" lines="149-149" hash="e58668b8f185" blob="70f2c0a8345a" */}
 
-{/* ref file="../plugins/plugin-manager/src/index.ts" lines="227-227" hash="3decf05d8b4b" blob="c078198dd768" */}
+{/* ref file="../plugins/plugin-manager/src/index.ts" lines="237-237" hash="3decf05d8b4b" blob="70f2c0a8345a" */}
 
-{/* ref file="../plugins/plugin-manager/src/index.ts" lines="132-132" hash="08b20c38a1a0" blob="c078198dd768" */}
+{/* ref file="../plugins/plugin-manager/src/index.ts" lines="142-142" hash="08b20c38a1a0" blob="70f2c0a8345a" */}
 
-{/* ref file="../plugins/plugin-manager/src/index.ts" lines="120-120" hash="3212d8197a0b" blob="c078198dd768" */}
+{/* ref file="../plugins/plugin-manager/src/index.ts" lines="129-129" hash="3212d8197a0b" blob="70f2c0a8345a" */}
 
 {/* ref file="../plugins/plugin-manager/package.json" lines="41-41" hash="5c8ad9cb296d" blob="c5d49dc5e1d6" */}
 
 {/* ref file="../plugins/plugin-manager/package.json" lines="42-42" hash="2c178017df80" blob="c5d49dc5e1d6" */}
 
-{/* ref file="../plugins/plugin-manager/package.json" lines="42-43" hash="9a63d5f491ca" blob="c5d49dc5e1d6" */}
+{/* ref file="../plugins/plugin-manager/package.json" lines="42-44" hash="0651d0c2925e" blob="7dba7775f4bd" */}
 
-{/* ref file="../plugins/plugin-manager/package.json" lines="47-47" hash="2a4307013628" blob="ae9dca1b85c0" */}
+{/* ref file="../plugins/plugin-manager/package.json" lines="49-49" hash="2a4307013628" blob="7dba7775f4bd" */}
 
-{/* ref file="../plugins/plugin-manager/package.json" lines="48-48" hash="3a8da27b1f5c" blob="ae9dca1b85c0" */}
+{/* ref file="../plugins/plugin-manager/package.json" lines="50-50" hash="3a8da27b1f5c" blob="7dba7775f4bd" */}
 
 ### 按名字调用与约定通道
 

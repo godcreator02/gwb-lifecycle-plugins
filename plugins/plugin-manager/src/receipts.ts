@@ -74,6 +74,18 @@ export interface Uninstalled {
   pkg: string
 }
 
+/** `plugin-manager.transfer-owner` 成功时的 `data` */
+export interface OwnerTransferred {
+  /** 不带前缀的条目 id */
+  id: string
+  /** 改给的新包名 */
+  pkg: string
+  /** 设置分区改之前归谁；这个 id 没有设置分区时没有这个字段 */
+  settingsFrom?: string
+  /** 数据目录改之前归谁；这个 id 没有记着归属的数据目录时没有这个字段 */
+  dataFrom?: string
+}
+
 /** `plugin-manager.remove-entry`、`enable`、`disable` 的整个回执：成功不带 `data`；失败是处理函数抛错，由命令总线转成 `error` */
 export type Acknowledged = { ok: true } | { ok: false; error: string }
 

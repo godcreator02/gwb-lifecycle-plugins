@@ -23,13 +23,13 @@ npmrc 里的源不都是 gwb 的：pnpm 自带一条 `@jsr:registry`，机器上
 
 {/* ref file="../plugins/plugin-manager/src/sources.ts" lines="6-10" hash="8a29f8b7780b" blob="acb6da61c816" */}
 
-{/* ref file="../plugins/plugin-manager/src/index.ts" lines="226-240" hash="6524d10dce6b" blob="c078198dd768" */}
+{/* ref file="../plugins/plugin-manager/src/index.ts" lines="236-250" hash="6524d10dce6b" blob="70f2c0a8345a" */}
 
 名单是外部输入：不是字符串数组、有重复就直接报错，不替它修正；名单是空的回 `ok: false`。
 
 {/* ref file="../plugins/plugin-manager/src/sources.ts" lines="18-26" hash="87d28d18ca24" blob="174993efee5e" */}
 
-{/* ref file="../plugins/plugin-manager/tests/commands.test.ts" lines="373-380" hash="415ae4d55916" blob="5e59d7370747" */}
+{/* ref file="../plugins/plugin-manager/tests/commands.test.ts" lines="405-412" hash="415ae4d55916" blob="05ee79f653f6" */}
 
 ## 源地址问 pnpm，和装包用同一份配置
 
@@ -45,7 +45,7 @@ npmrc 里的源不都是 gwb 的：pnpm 自带一条 `@jsr:registry`，机器上
 
 {/* ref file="../plugins/plugin-manager/tests/package-sources.test.ts" lines="66-71" hash="f61ed6ac1f38" blob="c9c28bc1536a" */}
 
-{/* ref file="../plugins/plugin-manager/tests/commands.test.ts" lines="388-408" hash="7786d41f0523" blob="5e59d7370747" */}
+{/* ref file="../plugins/plugin-manager/tests/commands.test.ts" lines="464-484" hash="7786d41f0523" blob="05ee79f653f6" */}
 
 ## 各市场并发查，一个失败只影响它自己
 
@@ -77,7 +77,7 @@ npmrc 里的源不都是 gwb 的：pnpm 自带一条 `@jsr:registry`，机器上
 
 `search` 只有命令、不在服务上，处理函数里不经 BUSY 检查。BUSY 防的是两次改动同时改 home 的 `package.json`；`search` 只读设置、pnpm 的配置与网络，运行的 `pnpm config` 也不写 home。检索可能要等好几个市场，排在安装后面只会让「可安装」列表等到安装做完才出来。
 
-{/* ref file="../plugins/plugin-manager/src/index.ts" lines="222-261" hash="999eff423c31" blob="c078198dd768" */}
+{/* ref file="../plugins/plugin-manager/src/index.ts" lines="232-271" hash="999eff423c31" blob="70f2c0a8345a" */}
 
 真实 registry 与 pnpm 的配置只能实机验证：`devkit.home.new` 开一个隔离 home，在里面调 `search`。
 

@@ -1,8 +1,9 @@
 import { Service } from 'cordis'
 import type { GwbContext } from '@godcreator/gwb-kernel-desktop'
 import { isRecord, noteOf, requireKernel } from './vocab.js'
-// 这三条 type import 只为引入对方的 `declare module 'cordis'`；这几个插件写在 peer 里，都经嵌套注入使用
+// 这四条 type import 只为引入对方的 `declare module 'cordis'`；这几个插件写在 peer 里，都经嵌套注入使用
 import type { GwbCommandEffect } from '@godcreator/gwb-commands'
+import type {} from '@godcreator/gwb-data'
 import type {} from '@godcreator/gwb-settings'
 import type {} from '@godcreator/gwb-skills'
 import type {
@@ -13,6 +14,7 @@ import type {
   KernelInstalledButCordisNot,
   OutdatedFound,
   Outcome,
+  OwnerTransferred,
   PluginPackageView,
   RemountedEntry,
   Uninstalled,
@@ -86,6 +88,13 @@ const DISABLE_COMMAND = 'plugin-manager.disable'
 const OUTDATED_COMMAND = 'plugin-manager.outdated'
 const UNINSTALL_COMMAND = 'plugin-manager.uninstall'
 const SEARCH_COMMAND = 'plugin-manager.search'
+const TRANSFER_OWNER_COMMAND = 'plugin-manager.transfer-owner'
+
+/** 设置插件与数据插件各记一份的归属：id → 包名。`ctx.gwbSettings` 与 `ctx.gwbData` 都满足它 */
+interface OwnerRecords {
+  owners(): Record<string, string> | Promise<Record<string, string>>
+  transferOwner(id: string, pkg: string): Promise<void>
+}
 
 type CommandHandler = (args?: unknown) => unknown
 type RegisterCommand = (name: string, description: string, usage: string, effect: GwbCommandEffect, handler: CommandHandler) => void
@@ -124,6 +133,7 @@ class PluginManager extends Service {
     this.log = ctx.logger(NAME)
     this.wireCommands()
     this.wireSearch()
+    this.wireTransferOwner()
     this.wireSkills()
   }
 
@@ -258,6 +268,52 @@ class PluginManager extends Service {
         },
       )
     })
+  }
+
+  /**
+   * 包改了名、接着用旧包名留下的设置与数据：归属记录归设置插件与数据插件管，这里只调它们的 `transferOwner`，
+   * 所以三个服务都在才登记。不写 home、不经 BUSY 检查
+   */
+  private wireTransferOwner(): void {
+    this.pluginContext.inject(['gwbCommands', 'gwbSettings', 'gwbData'], (ctx) => {
+      const settings = ctx.gwbSettings
+      const data = ctx.gwbData
+      const commandBus = ctx.gwbCommands
+      // inject 保证了它们在，这句只是把类型收窄
+      if (settings === undefined || data === undefined || commandBus === undefined) return
+      commandBus.register(
+        {
+          name: TRANSFER_OWNER_COMMAND,
+          description: '包改了名、要接着用旧包名留下的设置、凭据与数据时，把一个条目 id 的设置分区与数据目录改归新包名',
+          usage: `参数 { entryId, pkg }：entryId 写完整的（home:foo）或只写 id（foo），pkg 是新包名。设置分区（凭据也在这个分区里）与数据目录按条目 id 分、各记着归哪个包，包名对不上的插件加载时被拒；这条命令把这个 id 记着归属的那几样改成 pkg，没记归属的不动，两样都没记就报错。条目树上这个 id 的条目正在加载另一个包时直接报错：改了归属它就读写不了。换包名的顺序：${UNINSTALL_COMMAND} 旧包 → 对它的每个条目 id 调一次本命令 → ${INSTALL_COMMAND} 新包（默认 id 与旧包相同就拿到这个 id），原来有几条条目的再 ${ADD_ENTRY_COMMAND}，id 照旧加 -2、-3。设置插件与数据插件都装着才登记；不经 BUSY 检查。回执 data { id, pkg, settingsFrom?, dataFrom? }：id 不带前缀，两个 from 是改之前的归属，这个 id 没有那一样就没有那个字段`,
+          plugin: PKG,
+          effect: 'write',
+        },
+        async (args): Promise<Outcome<OwnerTransferred>> => {
+          const argsObject = argsObjectOf(args, ['entryId', 'pkg'])
+          return { ok: true, data: await this.transferOwner(requiredString(argsObject, 'entryId'), requiredString(argsObject, 'pkg'), settings, data) }
+        },
+      )
+    })
+  }
+
+  /** 包名不合规、条目正在加载别的包、这个 id 设置与数据都没记归属，直接抛 */
+  private async transferOwner(entryId: string, pkg: string, settings: OwnerRecords, data: OwnerRecords): Promise<OwnerTransferred> {
+    const id = bareId(entryId)
+    assertPkgName(pkg)
+    const liveEntry = readEntries(this.tree.store).find((entry) => entry.id === id && !entry.group)
+    if (liveEntry !== undefined && liveEntry.pkg !== pkg) {
+      throw new Error(`条目 ${id} 正在加载 ${liveEntry.pkg}，改了归属它就读写不了设置与数据。先 ${UNINSTALL_COMMAND} {"pkg":"${liveEntry.pkg}"}（只删这一条用 ${REMOVE_ENTRY_COMMAND}），再改归属`)
+    }
+    const settingsFrom = (await settings.owners())[id]
+    const dataFrom = (await data.owners())[id]
+    if (settingsFrom === undefined && dataFrom === undefined) {
+      throw new Error(`id ${id} 既没有设置分区、也没有数据目录记着归属，没有可改的。核对 id：设置分区是 <home>/settings.json 顶层 $owners 里的键，数据目录是 <home>/data/ 下的目录名`)
+    }
+    if (settingsFrom !== undefined) await settings.transferOwner(id, pkg)
+    if (dataFrom !== undefined) await data.transferOwner(id, pkg)
+    this.log.info(`条目 id ${id} 的归属改给 ${pkg}：设置 ${settingsFrom ?? '（没有）'}，数据 ${dataFrom ?? '（没有）'}`)
+    return { id, pkg, ...(settingsFrom === undefined ? {} : { settingsFrom }), ...(dataFrom === undefined ? {} : { dataFrom }) }
   }
 
   async list(): Promise<PluginPackageView[]> {

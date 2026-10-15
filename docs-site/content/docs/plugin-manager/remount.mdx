@@ -34,7 +34,7 @@ description: update 装完包后逐条重新加载条目：停用 → 等旧的�
 
 `update` 回执里每条条目是 `{ id, action, state }`。`action` 是 `remounted`（在这条命令里做完）、`skipped`（本来就停用，保持停用）、`deferred`（插件管理自己与 peer 了它的包的条目，见下）或 `failed`（操作条目树时抛错，`state` 里是那句错误；别的条目照常处理，外层 `ok` 仍是 `true`）。`state` 是 cordis 的 fiber 状态名，`ACTIVE` 才算加载成功；cordis 的状态是 `const enum`，运行时拿不到，插件管理照抄一份名字表，由测试核对。
 
-{/* ref file="../plugins/plugin-manager/src/receipts.ts" lines="131-142" hash="992c9bced63a" blob="983b6caf5da3" */}
+{/* ref file="../plugins/plugin-manager/src/receipts.ts" lines="143-154" hash="992c9bced63a" blob="f95e4bcea153" */}
 
 {/* ref file="../plugins/plugin-manager/src/fiber.ts" lines="3-16" hash="668b7d27ed94" blob="071cae84dcc7" */}
 
@@ -42,7 +42,7 @@ description: update 装完包后逐条重新加载条目：停用 → 等旧的�
 
 {/* ref file="../plugins/plugin-manager/tests/remount.test.ts" lines="82-87" hash="8bf8e05aa639" blob="57d52b783e87" */}
 
-{/* ref file="../plugins/plugin-manager/tests/commands.test.ts" lines="412-425" hash="37e5619f8692" blob="e61174279d2a" */}
+{/* ref file="../plugins/plugin-manager/tests/commands.test.ts" lines="488-501" hash="37e5619f8692" blob="05ee79f653f6" */}
 
 ## 停用与启用在同一条 await 链里
 

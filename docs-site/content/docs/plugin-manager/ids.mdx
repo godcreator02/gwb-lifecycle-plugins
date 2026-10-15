@@ -1,11 +1,11 @@
 ---
 title: 条目 id
-description: 条目 id 是身份，一经确定不改；新条目的 id 是包名去掉 scope 与 gwb- 前缀的默认 id，条目树上重名就加 -2、-3 后缀，不同源上的同名插件靠它共存；不读数据插件与设置插件的归属记录，同名包读到别人留下的数据时由那两个插件报错
+description: 条目 id 是身份，一经确定不改；新条目的 id 是包名去掉 scope 与 gwb- 前缀的默认 id，条目树上重名就加 -2、-3 后缀，不同源上的同名插件靠它共存；选 id 不读数据插件与设置插件的归属记录，同名包读到别人留下的数据时由那两个插件报错；包改名时用 transfer-owner 把归属改给新包名
 ---
 
 # 条目 id
 
-**本页回答**：条目 id 是什么、为什么不能改；新条目的 id 怎么选；不同 scope 的同名插件怎么共存；卸载后另一个同名包拿到同一个 id 时会怎样。
+**本页回答**：条目 id 是什么、为什么不能改；新条目的 id 怎么选；不同 scope 的同名插件怎么共存；卸载后另一个同名包拿到同一个 id 时会怎样；同一个插件改了包名，怎么接着用原来的设置与数据。
 
 ## id 是身份，一经确定不改
 
@@ -29,7 +29,7 @@ description: 条目 id 是身份，一经确定不改；新条目的 id 是包�
 
 {/* ref file="../plugins/plugin-manager/src/ids.ts" lines="56-62" hash="3b65ff97b5ce" blob="d58cd4d73f02" */}
 
-{/* ref file="../plugins/plugin-manager/src/index.ts" lines="602-604" hash="5b8926006051" blob="c078198dd768" */}
+{/* ref file="../plugins/plugin-manager/src/index.ts" lines="658-660" hash="5b8926006051" blob="70f2c0a8345a" */}
 
 <Diagram name="pm-pick-id" title="选 id 的三个例子：点上面的按钮切换，每个例子一步步做下去">
 - 同一个包装两条：`py-cli` 已被占着，第二条拿到 `py-cli-2`
@@ -43,12 +43,28 @@ description: 条目 id 是身份，一经确定不改；新条目的 id 是包�
 
 {/* ref file="../plugins/plugin-manager/tests/ids.test.ts" lines="120-122" hash="c7afdc097a8e" blob="ccf360bdec3f" */}
 
-{/* ref file="../plugins/plugin-manager/tests/commands.test.ts" lines="300-308" hash="b28c1bdf569c" blob="e61174279d2a" */}
+{/* ref file="../plugins/plugin-manager/tests/commands.test.ts" lines="331-339" hash="b28c1bdf569c" blob="05ee79f653f6" */}
 
-{/* ref file="../plugins/plugin-manager/tests/commands.test.ts" lines="310-316" hash="8b7ed7eac0de" blob="e61174279d2a" */}
+{/* ref file="../plugins/plugin-manager/tests/commands.test.ts" lines="341-347" hash="8b7ed7eac0de" blob="05ee79f653f6" */}
 
-## 不读归属记录
+## 选 id 不读归属记录
 
-数据插件、设置插件各记着每个 id 属于哪个包，删了条目也还在。插件管理选 id 时不读这两份记录，也不改它们：卸载一个包之后，另一个默认 id 相同的包可能拿到同一个 id，加载时读到前一个包留下的数据目录或设置分区，这时由数据插件与设置插件自己的归属检查报错，条目加载失败，`list` 里 `active` 为 false、原因在 `gwb.log`。怎么处理照那两个插件的报错来，插件管理不管。
+数据插件、设置插件各记着每个 id 属于哪个包，删了条目也还在。插件管理选 id 时不读这两份记录：卸载一个包之后，另一个默认 id 相同的包可能拿到同一个 id，加载时读到前一个包留下的数据目录或设置分区，这时由数据插件与设置插件自己的归属检查报错，条目加载失败，`list` 里 `active` 为 false、原因在 `gwb.log`。是不相干的两个包撞了 id 时，照那两个插件的报错处理。
 
-数据目录、设置分区归数据插件、设置插件管，插件管理不自己拼路径去碰它们，也不依赖这两个插件。
+## 包改名：改归属
+
+同一个插件改了包名（比如私有包从 `@godcreator/…` 改成 `@godcreator02/…`），新包的默认 id 和旧包相同，设置、凭据与数据都还在那个 id 下面，只是归属记着旧包名，新包一加载就被拒。`transfer-owner {"entryId","pkg"}` 把这个 id 的归属改给新包名，之后新包接着用原来那一份：
+
+1. `uninstall` 旧包：它的条目全删掉，设置与数据留在磁盘上
+2. 对旧包的每个条目 id 调一次 `transfer-owner`，`pkg` 写新包名
+3. `install` 新包，拿到同一个默认 id；旧包原来有几条条目的，再 `add-entry`，id 照旧按 `-2`、`-3` 排下去
+
+{/* ref file="../plugins/plugin-manager/src/index.ts" lines="301-317" hash="2d94331af77c" blob="70f2c0a8345a" */}
+
+只改记着归属的那几样：这个 id 没有数据目录，就不替它建一个；设置与数据都没记这个 id，多半是 id 写错了，直接报错。条目树上这个 id 的条目正在加载另一个包时也直接报错——先改了归属，正在运行的旧包就读写不了。条目加载的已经是新包名（先装了新包、它正被拒着）时照常改，改完把那条条目 `disable` 再 `enable` 重新加载一次。
+
+{/* ref file="../plugins/plugin-manager/tests/commands.test.ts" lines="416-427" hash="afb70c1c6694" blob="05ee79f653f6" */}
+
+{/* ref file="../plugins/plugin-manager/tests/commands.test.ts" lines="441-448" hash="c7ea4a44bcf9" blob="05ee79f653f6" */}
+
+归属记录归数据插件、设置插件管：插件管理只调它们的 `owners()` 与 `transferOwner()`，不自己拼路径去碰 `settings.json` 与数据目录，所以这两个插件有一个没装，`transfer-owner` 就不登记。

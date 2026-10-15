@@ -15,13 +15,13 @@ description: outdated 查过期包；update 的参数三选一（all 升全部�
 
 退出码 1 表示「有过期包」，是结果不是失败；找不到 pnpm、别的退出码、输出解析不了，都回 `ok: false`。它不写文件，不经过 BUSY 检查（见[同一时刻只允许一个改动](/docs/plugin-manager/busy)）。
 
-{/* ref file="../plugins/plugin-manager/src/index.ts" lines="328-348" hash="aa94590d5217" blob="c078198dd768" */}
+{/* ref file="../plugins/plugin-manager/src/index.ts" lines="384-404" hash="aa94590d5217" blob="70f2c0a8345a" */}
 
 {/* ref file="../plugins/plugin-manager/tests/outdated.test.ts" lines="14-17" hash="63025a0bbf74" blob="893e0fa046bf" */}
 
 {/* ref file="../plugins/plugin-manager/tests/outdated.test.ts" lines="41-53" hash="16faac72ed3f" blob="893e0fa046bf" */}
 
-{/* ref file="../plugins/plugin-manager/tests/commands.test.ts" lines="496-505" hash="584f3ab2eda1" blob="e61174279d2a" */}
+{/* ref file="../plugins/plugin-manager/tests/commands.test.ts" lines="572-581" hash="584f3ab2eda1" blob="05ee79f653f6" */}
 
 ## 三种参数
 
@@ -35,11 +35,11 @@ description: outdated 查过期包；update 的参数三选一（all 升全部�
 
 全部升级要显式给 `{"all":true}`：一条改 home 的命令，不给参数时不能执行影响最大的那个动作，漏写参数就整个 home 一起升级、当场生效（见轨迹卡 [update 显式 all 加 specs](/trajectory/2026-09-25-update-takes-all-param)）。
 
-{/* ref file="../plugins/plugin-manager/src/index.ts" lines="657-686" hash="db89ddf2ea0b" blob="c078198dd768" */}
+{/* ref file="../plugins/plugin-manager/src/index.ts" lines="713-742" hash="db89ddf2ea0b" blob="70f2c0a8345a" */}
 
-{/* ref file="../plugins/plugin-manager/src/index.ts" lines="350-353" hash="ffb94837652b" blob="c078198dd768" */}
+{/* ref file="../plugins/plugin-manager/src/index.ts" lines="406-409" hash="ffb94837652b" blob="70f2c0a8345a" */}
 
-{/* ref file="../plugins/plugin-manager/tests/commands.test.ts" lines="743-754" hash="72cc875e2cd5" blob="e61174279d2a" */}
+{/* ref file="../plugins/plugin-manager/tests/commands.test.ts" lines="819-830" hash="72cc875e2cd5" blob="05ee79f653f6" */}
 
 ## specs 装完核对版本号
 
@@ -60,9 +60,9 @@ description: outdated 查过期包；update 的参数三选一（all 升全部�
 
 {/* ref file="../plugins/plugin-manager/tests/update.test.ts" lines="167-170" hash="026a9d218554" blob="a4b835c262e9" */}
 
-{/* ref file="../plugins/plugin-manager/tests/commands.test.ts" lines="851-863" hash="b780943b3565" blob="e61174279d2a" */}
+{/* ref file="../plugins/plugin-manager/tests/commands.test.ts" lines="927-939" hash="b780943b3565" blob="05ee79f653f6" */}
 
-{/* ref file="../plugins/plugin-manager/tests/commands.test.ts" lines="803-809" hash="1f5cc2f5e75d" blob="e61174279d2a" */}
+{/* ref file="../plugins/plugin-manager/tests/commands.test.ts" lines="879-885" hash="1f5cc2f5e75d" blob="05ee79f653f6" */}
 
 ## 升级与重新加载在同一条命令里
 
@@ -77,9 +77,9 @@ description: outdated 查过期包；update 的参数三选一（all 升全部�
 
 命令本该一条只做一件事，多步流程写进说明书由调用方一步步调；`update` 是允许的例外，拆开只多出上图那段运行旧版的空档。
 
-{/* ref file="../plugins/plugin-manager/src/index.ts" lines="436-486" hash="7d88f4e9a2a7" blob="c078198dd768" */}
+{/* ref file="../plugins/plugin-manager/src/index.ts" lines="492-542" hash="7d88f4e9a2a7" blob="70f2c0a8345a" */}
 
-{/* ref file="../plugins/plugin-manager/tests/commands.test.ts" lines="582-591" hash="257ba1eabd0b" blob="e61174279d2a" */}
+{/* ref file="../plugins/plugin-manager/tests/commands.test.ts" lines="658-667" hash="257ba1eabd0b" blob="05ee79f653f6" */}
 
 ## 装之前：装什么
 
@@ -107,7 +107,7 @@ description: outdated 查过期包；update 的参数三选一（all 升全部�
 
 {/* ref file="../plugins/plugin-manager/tests/update.test.ts" lines="128-131" hash="d71fede2c71a" blob="a4b835c262e9" */}
 
-{/* ref file="../plugins/plugin-manager/tests/commands.test.ts" lines="706-725" hash="398889837abe" blob="e61174279d2a" */}
+{/* ref file="../plugins/plugin-manager/tests/commands.test.ts" lines="782-801" hash="398889837abe" blob="05ee79f653f6" */}
 
 ## 装之后：真实目录变了的包都重新加载
 
@@ -125,7 +125,7 @@ description: outdated 查过期包；update 的参数三选一（all 升全部�
 
 {/* ref file="../plugins/plugin-manager/src/home.ts" lines="53-65" hash="055fa3625448" blob="2689fa073ac6" */}
 
-{/* ref file="../plugins/plugin-manager/src/index.ts" lines="494-501" hash="6380f5da3960" blob="c078198dd768" */}
+{/* ref file="../plugins/plugin-manager/src/index.ts" lines="550-557" hash="6380f5da3960" blob="70f2c0a8345a" */}
 
 {/* ref file="../plugins/plugin-manager/src/update.ts" lines="296-320" hash="2429e84c89a0" blob="0faf236053dc" */}
 
@@ -135,13 +135,13 @@ description: outdated 查过期包；update 的参数三选一（all 升全部�
 
 {/* ref file="../plugins/plugin-manager/tests/update.test.ts" lines="265-273" hash="b30921d8081a" blob="a4b835c262e9" */}
 
-{/* ref file="../plugins/plugin-manager/tests/commands.test.ts" lines="838-849" hash="df89cdf3f42a" blob="e61174279d2a" */}
+{/* ref file="../plugins/plugin-manager/tests/commands.test.ts" lines="914-925" hash="df89cdf3f42a" blob="05ee79f653f6" */}
 
 {/* ref file="../plugins/plugin-manager/tests/update.test.ts" lines="255-263" hash="e0b4783eefba" blob="a4b835c262e9" */}
 
 {/* ref file="../plugins/plugin-manager/tests/home.test.ts" lines="66-69" hash="81cdc3caf336" blob="75dab5629360" */}
 
-{/* ref file="../plugins/plugin-manager/tests/commands.test.ts" lines="593-626" hash="f1056a37aabf" blob="e61174279d2a" */}
+{/* ref file="../plugins/plugin-manager/tests/commands.test.ts" lines="669-702" hash="f1056a37aabf" blob="05ee79f653f6" */}
 
 单元测试里的真实目录是在假 home 里用目录链接模拟的；pnpm 实际换目录的情形在上面那条探针里看过。整条命令要在隔离 home 里实测：升一个被别的插件 peer 的插件，看回执 `dependents` 里有它、条目回到 `ACTIVE`。
 
@@ -175,11 +175,11 @@ description: outdated 查过期包；update 的参数三选一（all 升全部�
 
 执行在 `index.ts` 里：读装上的清单、排先后、命令里依次重新加载 `now` 那一段、`afterReceipt` 那一段记 `deferred`、环上的记空数组：
 
-{/* ref file="../plugins/plugin-manager/src/index.ts" lines="509-529" hash="e7192d841616" blob="c078198dd768" */}
+{/* ref file="../plugins/plugin-manager/src/index.ts" lines="565-585" hash="e7192d841616" blob="70f2c0a8345a" */}
 
-{/* ref file="../plugins/plugin-manager/tests/commands.test.ts" lines="675-689" hash="f689b35a7cf3" blob="e61174279d2a" */}
+{/* ref file="../plugins/plugin-manager/tests/commands.test.ts" lines="751-765" hash="f689b35a7cf3" blob="05ee79f653f6" */}
 
-{/* ref file="../plugins/plugin-manager/tests/commands.test.ts" lines="691-704" hash="6f960a2f64b6" blob="e61174279d2a" */}
+{/* ref file="../plugins/plugin-manager/tests/commands.test.ts" lines="767-780" hash="6f960a2f64b6" blob="05ee79f653f6" */}
 
 ## 一次热升级依次发生什么
 
@@ -194,15 +194,15 @@ description: outdated 查过期包；update 的参数三选一（all 升全部�
 
 **插件管理自己在回执之后**：升级的包或跟着重新加载的包里有插件管理自己时，它那条条目与 peer 了它的包的条目在回执发出之后才重新加载，回执 `selfDeferred` 是 `true`，这些条目的 `action` 是 `deferred`。在命令里停用自己，回执就发不出去了，理由与做法见[重新加载条目](/docs/plugin-manager/remount#插件管理自己先回执后重新加载)；为什么这样排见轨迹卡[按 peer 排重新加载的先后](/trajectory/2026-09-30-remount-in-peer-order)。
 
-{/* ref file="../plugins/plugin-manager/src/index.ts" lines="473-476" hash="4232b35c2add" blob="c078198dd768" */}
+{/* ref file="../plugins/plugin-manager/src/index.ts" lines="529-532" hash="4232b35c2add" blob="70f2c0a8345a" */}
 
-{/* ref file="../plugins/plugin-manager/tests/commands.test.ts" lines="563-580" hash="83757ddfc28a" blob="e61174279d2a" */}
+{/* ref file="../plugins/plugin-manager/tests/commands.test.ts" lines="639-656" hash="83757ddfc28a" blob="05ee79f653f6" */}
 
-{/* ref file="../plugins/plugin-manager/tests/commands.test.ts" lines="628-650" hash="c6af6f222fc3" blob="e61174279d2a" */}
+{/* ref file="../plugins/plugin-manager/tests/commands.test.ts" lines="704-726" hash="c6af6f222fc3" blob="05ee79f653f6" */}
 
 **整页重新加载由调用方做**：插件管理不调外壳的 `shell.reload`。`shell.reload` 在主进程里同步重载页面，经页面调用这条命令的调用方（插件管理窗格、经 CDP 在目标页面里调命令的 devkit）回执还没送回页面，页面就开始重载了，会收不到回执；插件管理替调用方决定什么时候刷新，还会和调用方自己的刷新抢先后。所以要换界面代码的，由调用方拿到成功回执后自己调 `shell.reload`：插件管理窗格点「全部更新」后自己调，`devkit.dev` 本来就自己刷新目标页面，agent 经 MCP 升级完调一次（见轨迹卡[升内核并进 specs](/trajectory/2026-09-25-kernel-via-specs-caller-reloads)）。
 
-{/* ref file="../plugins/plugin-manager/tests/commands.test.ts" lines="526-554" hash="3a367d57342e" blob="e61174279d2a" */}
+{/* ref file="../plugins/plugin-manager/tests/commands.test.ts" lines="602-630" hash="3a367d57342e" blob="05ee79f653f6" */}
 
 **升到 MCP 入口自己**：`gwb-mcp` 重新加载时，进行中的 MCP 请求会中断，agent 要重连一次，再用 `plugin-manager.list` 核对版本与 `active`。
 

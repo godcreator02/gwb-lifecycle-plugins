@@ -16,7 +16,7 @@ description: 内核包也经 update 的 specs 换，可以连同别的包一次�
 3. `pnpm add --save-exact cordis@<那个版本>`，装完读回核对 `cordis` 装上的就是它
 4. **不重新加载任何条目**：`updated` 每项的 `entries` 是空数组，末尾多一项插件管理自己对齐的 `cordis`；`dependents` 是空数组
 
-{/* ref file="../plugins/plugin-manager/src/index.ts" lines="378-424" hash="2ea77ac58d4e" blob="c078198dd768" */}
+{/* ref file="../plugins/plugin-manager/src/index.ts" lines="434-480" hash="2ea77ac58d4e" blob="70f2c0a8345a" */}
 
 `outdated` 不报内核有没有新版本；写 `latest` 就装源上的最新版，回执里内核包的 `from` 与 `to` 相同就是已是最新。
 
@@ -28,11 +28,11 @@ description: 内核包也经 update 的 specs 换，可以连同别的包一次�
 
 {/* ref file="../plugins/plugin-manager/src/kernel-upgrade.ts" lines="10-11" hash="36526a391df4" blob="f053bf9413fd" */}
 
-{/* ref file="../plugins/plugin-manager/src/index.ts" lines="531-540" hash="c64da9ba17d9" blob="c078198dd768" */}
+{/* ref file="../plugins/plugin-manager/src/index.ts" lines="587-596" hash="c64da9ba17d9" blob="70f2c0a8345a" */}
 
-{/* ref file="../plugins/plugin-manager/tests/commands.test.ts" lines="468-474" hash="7fc9d0bd1036" blob="e61174279d2a" */}
+{/* ref file="../plugins/plugin-manager/tests/commands.test.ts" lines="544-550" hash="7fc9d0bd1036" blob="05ee79f653f6" */}
 
-{/* ref file="../plugins/plugin-manager/tests/commands.test.ts" lines="735-741" hash="ac9700a21366" blob="e61174279d2a" */}
+{/* ref file="../plugins/plugin-manager/tests/commands.test.ts" lines="811-817" hash="ac9700a21366" blob="05ee79f653f6" */}
 
 ## cordis 由插件管理对齐
 
@@ -42,7 +42,7 @@ description: 内核包也经 update 的 specs 换，可以连同别的包一次�
 
 {/* ref file="../plugins/plugin-manager/src/kernel-upgrade.ts" lines="19-47" hash="e73589fdac86" blob="f053bf9413fd" */}
 
-{/* ref file="../plugins/plugin-manager/tests/commands.test.ts" lines="818-824" hash="32e0ba48d5d8" blob="e61174279d2a" */}
+{/* ref file="../plugins/plugin-manager/tests/commands.test.ts" lines="894-900" hash="32e0ba48d5d8" blob="05ee79f653f6" */}
 
 {/* ref file="../plugins/plugin-manager/tests/kernel-upgrade.test.ts" lines="37-42" hash="1b7de8eb64d3" blob="5ec84cd929d3" */}
 
@@ -52,9 +52,9 @@ description: 内核包也经 update 的 specs 换，可以连同别的包一次�
 
 回执不列哪些插件的范围不包含新内核：重启之后 `list` 对照的就是新内核，这些插件的 `unmetPeers` 里会有内核包那一项（见[内核兼容性](/docs/plugin-manager/kernel-compat)），同样只报告，照常加载，要不要先升它们由人决定。
 
-{/* ref file="../plugins/plugin-manager/tests/commands.test.ts" lines="886-919" hash="c1e17ef56e29" blob="e61174279d2a" */}
+{/* ref file="../plugins/plugin-manager/tests/commands.test.ts" lines="962-995" hash="c1e17ef56e29" blob="05ee79f653f6" */}
 
-{/* ref file="../plugins/plugin-manager/tests/commands.test.ts" lines="921-928" hash="33156066cf0c" blob="e61174279d2a" */}
+{/* ref file="../plugins/plugin-manager/tests/commands.test.ts" lines="997-1004" hash="33156066cf0c" blob="05ee79f653f6" */}
 
 ## 失败时 home 停在哪
 
@@ -66,14 +66,14 @@ description: 内核包也经 update 的 specs 换，可以连同别的包一次�
 
 后两种时重启，新内核会运行在没对齐的 `cordis` 上；照 `error` 修好再调一次。
 
-{/* ref file="../plugins/plugin-manager/src/receipts.ts" lines="179-180" hash="a6fe8597406f" blob="983b6caf5da3" */}
+{/* ref file="../plugins/plugin-manager/src/receipts.ts" lines="191-192" hash="a6fe8597406f" blob="f95e4bcea153" */}
 
-{/* ref file="../plugins/plugin-manager/tests/commands.test.ts" lines="983-992" hash="b9fdce4e7eb4" blob="e61174279d2a" */}
+{/* ref file="../plugins/plugin-manager/tests/commands.test.ts" lines="1059-1068" hash="b9fdce4e7eb4" blob="05ee79f653f6" */}
 
-{/* ref file="../plugins/plugin-manager/tests/commands.test.ts" lines="930-939" hash="b9c0f883b405" blob="e61174279d2a" */}
+{/* ref file="../plugins/plugin-manager/tests/commands.test.ts" lines="1006-1015" hash="b9c0f883b405" blob="05ee79f653f6" */}
 
-{/* ref file="../plugins/plugin-manager/tests/commands.test.ts" lines="953-967" hash="b1c6b9853058" blob="e61174279d2a" */}
+{/* ref file="../plugins/plugin-manager/tests/commands.test.ts" lines="1029-1043" hash="b1c6b9853058" blob="05ee79f653f6" */}
 
-{/* ref file="../plugins/plugin-manager/tests/commands.test.ts" lines="969-981" hash="38b430b73be7" blob="e61174279d2a" */}
+{/* ref file="../plugins/plugin-manager/tests/commands.test.ts" lines="1045-1057" hash="38b430b73be7" blob="05ee79f653f6" */}
 
 真的换内核只能实机验证：在隔离 home 里调 `plugin-manager.update {"specs":{"@godcreator/gwb-kernel-desktop":"<版本>"}}`，重启那个 home，看 `runtime.json` 报的内核版本与 `list` 里的条目。

@@ -1,0 +1,36 @@
+---
+title: 插件管理 0.15.3：加回 transfer-owner，给包改名的插件接着用原来的设置与数据
+born-at: 2026-10-15T18:10
+type: choice
+parent: [2026-09-08-gwb-devkit]
+label: 加回改归属
+domain: 插件管理
+---
+
+## 背景
+
+代码迁到 GitHub 后，私有包从 `@godcreator/…`、`@god-private/…` 改名 `@godcreator02/…` 发到 GitHub Packages（npm 的范围必须等于 GitHub 账号）。改名后默认条目 id 不变，设置、凭据与数据都还在那个 id 下面，但设置插件的 `$owners` 与数据目录的 `.owner.json` 记着旧包名，新包一加载就被拒。
+
+default 里的血糖告警（`cgm-alert`、`cgm-alert-2` 两条条目）与 QQ 机器人都有设置分区、凭据与数据目录。0.14.0 删掉 `transfer-owner` 以后，改归属只剩手改文件，而且要先关掉工作台——它开着时会用内存里的内容覆盖手改的 `settings.json`，血糖告警跟着停。
+
+## 结论与边界
+
+人定加回一条命令，插件管理 0.15.2 → 0.15.3（加命令，升 y）。
+
+- `plugin-manager.transfer-owner {entryId, pkg}` 只调设置插件与数据插件已有的 `owners()`、`transferOwner()`，插件管理不自己碰 `settings.json` 与数据目录；两个插件有一个不在就不登记，和 `search` 只在设置插件在时登记一样
+- 只改记着归属的那几样：没有数据目录的 id 不替它建一个；两样都没记就报错（多半是 id 写错了）
+- 这个 id 的条目正在加载另一个包时报错：先改了归属，正在运行的旧包就读写不了。顺序是卸旧包 → 改归属 → 装新包
+- 选 id 照旧不读归属记录，0.14.0 定的 id 规则不变
+
+0.14.0 那张卡留下的「数据插件与设置插件的 `owners()`、`transferOwner()` 等本来要升 x 时一起删」不再成立：这次又有了调用方。
+
+pivots-from:: [插件管理删多余命令](2026-09-25-plugin-manager-drops-unused-commands.md)
+
+## 否掉的候选
+
+- **关掉工作台手改 `$owners` 与 `.owner.json`**：能做，但每次都要停掉所有插件，而且两个文件的格式、位置都归别的插件，插件管理的说明书不该教 agent 直接改它们
+- **新包换个条目 id、从空设置开始**：血糖告警的规则、推送通道与凭据要重新配一遍，历史数据也接不上
+
+## 代价与遗留
+
+插件管理的 peer 多了可选的 `@godcreator/gwb-data`。基础插件仓里两个服务方法上「插件管理 0.14 起不再调用，留待删」的注释要改掉。
