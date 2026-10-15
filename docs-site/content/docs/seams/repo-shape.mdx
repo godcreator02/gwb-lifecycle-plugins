@@ -13,7 +13,7 @@ description: 连接 devkit.dev、devkit.release、devkit.scaffold.plugin 与被�
 <Diagram name="seam-repo-shape" title="被处理的仓要满足的约定，按目录树排；右边是依赖这条约定的命令">
 - `<仓根>/.git`：`devkit.release` 要求工作区干净，不是 git 仓也拒
 - `<仓根>/package.json`：`devkit.dev` 与 `devkit.release` 在仓根运行 `pnpm build`
-- `<仓根>/pnpm-workspace.yaml`：组装发布内容时从包目录往上找到的第一个有它的目录是仓根；`devkit.scaffold.plugin` 要求它的 `packages` 里有 `plugins/*`
+- `<仓根>/pnpm-workspace.yaml`：组装发布内容时从包目录往上找到的第一个有它的目录是仓根，`catalog:` 依赖的范围从它的 catalog 里取；`devkit.scaffold.plugin` 要求它的 `packages` 里有 `plugins/*`
 - `plugins/<短名>/`：`devkit.scaffold.plugin` 把插件包写到这里，目录必须还不存在
 - `<包>/package.json`：`files` 是产物清单，`keywords` 含 `gwb-plugin` 表示插件，node 侧入口是 `exports["."]`，`publishConfig.registry` 是 `devkit.release` 的发布目标
 - `<包>/dist/client.js` 是浏览器侧产物入口，`<包>/node_modules/` 里装着 peer 里的包、提供方的 ./browser-imports 代码出口给出页面模块名字，这两条只有 `devkit.release` 用
@@ -35,7 +35,7 @@ description: 连接 devkit.dev、devkit.release、devkit.scaffold.plugin 与被�
 
 {/* ref file="../plugins/devkit/src/dev.ts" lines="97-100" hash="c53a8f4c178d" blob="48d80099fae0" */}
 
-{/* ref file="../plugins/devkit/src/node-dev-deps.ts" lines="219-225" hash="8c0a0fbe45af" blob="7eef44a73b1e" */}
+{/* ref file="../plugins/devkit/src/node-dev-deps.ts" lines="303-309" hash="8c0a0fbe45af" blob="a5afaa67bbb8" */}
 
 **`keywords` 含 `gwb-plugin` 表示插件**：`devkit.release` 只对它查 peer（含 peer 里内核包的范围）与构建产物里包名 import 的两份名单；`devkit.dev` 只收插件与内核包，别的包（库）直接拒：
 
@@ -53,11 +53,15 @@ description: 连接 devkit.dev、devkit.release、devkit.scaffold.plugin 与被�
 
 **成员放在哪**：组装发布内容时找 `workspace:` 依赖的版本，从仓根往下扫两层，不认目录名；找不到那个包、或扫到读不懂的 `package.json`，直接报错：
 
-{/* ref file="../plugins/devkit/src/node-dev-deps.ts" lines="78-104" hash="1b46466d6d27" blob="7eef44a73b1e" */}
+{/* ref file="../plugins/devkit/src/node-dev-deps.ts" lines="79-105" hash="1b46466d6d27" blob="a5afaa67bbb8" */}
 
 这里的「仓根」是从包目录往上找到的第一个有 `pnpm-workspace.yaml` 的目录；一路找到盘根都没有就报错，这个包不发：
 
-{/* ref file="../plugins/devkit/src/node-dev-deps.ts" lines="122-131" hash="53ef6c8aefb8" blob="7eef44a73b1e" */}
+{/* ref file="../plugins/devkit/src/node-dev-deps.ts" lines="123-132" hash="53ef6c8aefb8" blob="a5afaa67bbb8" */}
+
+**`catalog:` 的范围写在仓根的 `pnpm-workspace.yaml` 里**：组装发布内容时照 pnpm 的写法读顶层 `catalog` 与 `catalogs.<名>`，`catalog:` 依赖换成那里写的范围（怎么查见[发正式版](/docs/devkit/release#依赖的接口)）；YAML 读不懂、这两个键不是「名字: 范围」的表、顶层 `catalog` 与 `catalogs.default` 都写了，直接报错并写明文件：
+
+{/* ref file="../plugins/devkit/src/node-dev-deps.ts" lines="143-166" hash="63d832fdc45b" blob="a5afaa67bbb8" */}
 
 **`pnpm-workspace.yaml` 的 `packages` 里有 `plugins/*`**：`devkit.scaffold.plugin` 只往这样的仓里加插件，别的一概拒。`packages` 按 YAML 读，带不带引号、块列表还是流式列表都认；读不懂的写法报出是第几行，不当成「没有这一条」：
 
@@ -97,6 +101,8 @@ devkit 保证：
 
 {/* ref file="../plugins/devkit/tests/scaffold.test.ts" lines="686-686" hash="219764e4210c" blob="2f70e79c9da0" */}
 
-{/* ref file="../plugins/devkit/tests/node-dev-deps.test.ts" lines="64-68" hash="1e4b4ec770c2" blob="4fa855823241" */}
+{/* ref file="../plugins/devkit/tests/node-dev-deps.test.ts" lines="91-95" hash="b403d5e5e52d" blob="55eccdb85873" */}
 
-{/* ref file="../plugins/devkit/tests/node-dev-deps.test.ts" lines="126-131" hash="8ea06d455078" blob="4fa855823241" */}
+{/* ref file="../plugins/devkit/tests/node-dev-deps.test.ts" lines="209-214" hash="8ea06d455078" blob="55eccdb85873" */}
+
+{/* ref file="../plugins/devkit/tests/node-dev-deps.test.ts" lines="216-223" hash="0e9e7135fb2a" blob="55eccdb85873" */}

@@ -104,7 +104,8 @@ peer 里另有插件管理 `@godcreator/gwb-plugin-manager`（`workspace:^`，�
 | 写文件 | 目标 home 的 `dev-packs/` | `<home>/dev-packs/<包文件>` | 开发版的包文件；每版一个新路径，旧的不删 |
 | 写文件与安装 | 新 home | `<home>/cordis.yml`、`pnpm add`（内核包、`cordis`、基础插件，其中有 `@cordisjs/plugin-timer`） | `devkit.home.new` 在新 home 启动之前写好基础插件的条目、装包（那时插件管理还没运行） |
 | 读文件 | 本 home 装着的命令总线与外壳 | `<本 home>/node_modules/@godcreator/gwb-commands/package.json`、`.../gwb-shell/package.json` | 建仓与加插件时模板 peer 的版本号；没装就报错 |
-| 环境变量与命令行参数 | 宿主安装版应用 | `GWB_HOME=<home 名>`、`--remote-debugging-port=<端口>` | `devkit.home.new` / `open` 再启动一次宿主，指定 home 与调试端口 |
+| 环境变量与命令行参数 | 工作台的安装版应用 | `GWB_HOME=<home 名>`、`--remote-debugging-port=<端口>` | `devkit.home.new` / `open` 再启动一次工作台，指定 home 与调试端口 |
+| 读文件 | 被发版的仓 | `<仓根>/pnpm-workspace.yaml` 的 `catalog`、`catalogs` | 组装发布内容时把 `catalog:` 依赖换成那里写的范围；读不懂、找不到那一项就报错 |
 | 读被发版的包 | 包目录 `node_modules` 里装好的内核包与外壳 | 自身与 peer 的 `./browser-imports`（代码提供方；旧项目兼容旧 kernel HTML）、外壳的 `theme.reference.css`（主题令牌） | 发版前检查的浏览器侧 import 名单与样式检查的色名 |
 | 子进程 | pnpm、git、`tasklist` / `netstat` / `taskkill` | | 构建、打包、发布、`pnpm view` 查源；查工作区干不干净；查进程与端口、终止进程树 |
 | 子进程 | pnpm 与 shadcn 官方 CLI | 插件包目录里的 `pnpm dlx shadcn@latest add button --yes`、`pnpm add -D <包…>` | 建仓与加插件写完文件后加窗格用的组件、把组件依赖放进 devDependencies；CLI 从 npm 源下载，要联网 |
@@ -119,7 +120,7 @@ peer 里另有插件管理 `@godcreator/gwb-plugin-manager`（`workspace:^`，�
 
 {/* ref file="../plugins/plugin-manager/src/index.ts" lines="71-71" hash="af5aa2a2f194" blob="70f2c0a8345a" */}
 
-{/* ref file="../plugins/devkit/src/node-dev-deps.ts" lines="6-6" hash="d2835835bd60" blob="0af53fe4f48e" */}
+{/* ref file="../plugins/devkit/src/node-dev-deps.ts" lines="7-7" hash="d2835835bd60" blob="a5afaa67bbb8" */}
 
 {/* ref file="../plugins/devkit/src/dev.ts" lines="619-619" hash="f9ae135efbd7" blob="9c7dc37e4061" */}
 
@@ -142,6 +143,8 @@ peer 里另有插件管理 `@godcreator/gwb-plugin-manager`（`workspace:^`，�
 {/* ref file="../plugins/devkit/src/artifact-check.ts" lines="284-284" hash="630fe53df194" blob="a4accc3f8598" */}
 
 {/* ref file="../plugins/devkit/src/style-check.ts" lines="12-12" hash="5368f54b8769" blob="2a0f73373218" */}
+
+{/* ref file="../plugins/devkit/src/node-dev-deps.ts" lines="170-170" hash="a81dd67a53ed" blob="a5afaa67bbb8" */}
 
 ## @godcreator/gwb-plugin-manager
 

@@ -26,9 +26,9 @@ description: devkit.dev 一条命令把工作区的改动换进另一个 home �
 
 **构建之后、打包之前过样式检查。** 构建后有 `dist/style.css` 的插件包，查类名前缀、颜色只用主题令牌、`var()` 的 fallback，和 `devkit.release` 发之前查的是同一套（见[发正式版](/docs/devkit/release)）。没过就回 `ok: false`，写明停在打包之前、一个都没装，所有包的问题一次列全。检查只在 devkit 里一份，模板不带测试：复制进各仓的测试副本不会跟着 devkit 更新。
 
-**开发版不进团队源，打成包文件放进目标 home。** 打包沿用发正式版的那套组装：在临时目录里放 `files` 里的东西、README 与改写过的清单（版本号换成这次的、`workspace:` 换成工作区里的版本号），再在临时目录里 `pnpm pack --pack-destination <目标 home>\dev-packs`。`pnpm pack` 会按清单的 `files` 再挑一遍文件，漏写进 `files` 的文件不在包文件里，装上之后照样暴露。仓里的文件一个都不改。
+**开发版不进团队源，打成包文件放进目标 home。** 打包沿用发正式版的那套组装：在临时目录里放 `files` 里的东西、README 与改写过的清单（版本号换成这次的、`workspace:` 换成工作区里的版本号、`catalog:` 换成仓根 `pnpm-workspace.yaml` 的 catalog 里写的范围），再在临时目录里 `pnpm pack --pack-destination <目标 home>\dev-packs`。`pnpm pack` 会按清单的 `files` 再挑一遍文件，漏写进 `files` 的文件不在包文件里，装上之后同样缺它。仓里的文件一个都不改。
 
-**包文件的路径每一版都不同，已经存在就拒。** pnpm 虚拟存储里的目录名由包文件的路径决定，不看内容：新包文件覆盖写到同一个路径，`pnpm add` 回「锁文件已是最新」，退出码 0，装着的仍是旧代码，版本号相同所以核对版本号也看不出来。版本号带到秒的时间戳，包文件名用 `pnpm pack` 的默认写法（`<scope>-<名字>-<版本号>.tgz`），每一版自然是新路径；同一秒里调两次会撞上，那时当场拒。
+**包文件的路径每一版都不同，已经存在就拒。** pnpm 虚拟存储里的目录名由包文件的路径决定，不看内容：新包文件覆盖写到同一个路径，`pnpm add` 回「锁文件已是最新」，退出码 0，装着的仍是旧代码，版本号相同所以核对版本号也看不出来。版本号带到秒的时间戳，包文件名用 `pnpm pack` 的默认写法（`<scope>-<名字>-<版本号>.tgz`），每一版自然是新路径；同一秒里调两次会得到同一个路径，那时当场拒。
 
 {/* ref file="../plugins/devkit/src/dev.ts" lines="46-57" hash="80a01c91531f" blob="48d80099fae0" */}
 
@@ -44,11 +44,11 @@ description: devkit.dev 一条命令把工作区的改动换进另一个 home �
 
 {/* ref file="../plugins/devkit/src/dev.ts" lines="215-236" hash="2e46a66826be" blob="48d80099fae0" */}
 
-`update` 用一次 `pnpm add` 装齐，重新加载这些包的条目，也重新加载装前装后真实目录变了的别的包（peer 里写了被换的包的插件，它们的目录跟着换）；插件管理自己的条目推迟到回执发出之后才重新加载，回执带 `selfDeferred: true`，这边就轮询 `plugin-manager.list`，等插件管理的条目重新答复、在运行，超时没等到就回 `ok: false` 并说清卡在哪。`update` 回执 `ok: false` 时整体失败，错误原样带回来。插件管理不整页重新加载，页面由这边刷新。
+`update` 用一次 `pnpm add` 装齐，重新加载这些包的条目，也重新加载装前装后真实目录变了的别的包（peer 里写了被换的包的插件，它们的目录跟着换）；插件管理自己的条目推迟到回执发出之后才重新加载，回执带 `selfDeferred: true`，这边就轮询 `plugin-manager.list`，等插件管理的条目重新答复、在运行，超时没等到就回 `ok: false` 并写明停在哪一步。`update` 回执 `ok: false` 时整体失败，错误原样带回来。插件管理不整页重新加载，页面由这边刷新。
 
 {/* ref file="../plugins/devkit/src/dev.ts" lines="607-639" hash="90e6b523c025" blob="9c7dc37e4061" */}
 
-**整页刷新没成就停。** 页面代码要整页重新加载才会按 `file://` 重新取；给了 `waitFor` 就等那个选择器出现，不给只等 `readyState`。驱动退出码非零、或回执里「等到了」不是 `true`，整体回 `ok: false`，错误里写明等的是什么、最后看到了什么——接着取证的话，量到的会是刷新途中或上一版的页面。
+**整页刷新没成就停。** 页面代码要整页重新加载才会按 `file://` 重新取；给了 `waitFor` 就等那个选择器出现，不给只等 `readyState`。驱动退出码非零、或回执里「等到了」不是 `true`，整体回 `ok: false`，错误里写明等的是什么、最后看到了什么——接着取证的话，取到的会是刷新途中或上一版的页面。
 
 {/* ref file="../plugins/devkit/src/dev.ts" lines="641-652" hash="b52d59966835" blob="9c7dc37e4061" */}
 

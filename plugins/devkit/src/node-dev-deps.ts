@@ -3,6 +3,7 @@ import { createRequire } from 'node:module'
 import os from 'node:os'
 import path from 'node:path'
 import { fileURLToPath } from 'node:url'
+import { parseDocument } from 'yaml'
 import { tailLines, withHomeRegistryAuth } from '@godcreator/gwb-plugin-manager'
 import { PACK_TIMEOUT_MS, PUBLISH_TIMEOUT_MS, pnpmPlan, type DevDeps, type RunPlan, type RunResult } from './dev.js'
 import { dirtyLines, type ReleaseDeps } from './release.js'
@@ -15,7 +16,7 @@ import { collectBrowserImports } from './browser-providers.js'
 import { githubGateway, githubTokenFromGit } from './node-github.js'
 
 // DevDeps 与 ReleaseDeps 在这台机器上的实现：读写磁盘、启动进程、经 bin/cdp.mjs 连 CDP。
-// 真机器操作的部分没有单元测试，判断都在 dev.ts 与 release.ts 里；distManifest 与找工作区的两个函数有测试
+// 真机器操作的部分没有单元测试，判断都在 dev.ts 与 release.ts 里；distManifest、读 catalog 与找工作区的两个函数有测试
 
 /** CDP 驱动脚本。从源码运行时本模块在 `src/`、从构建产物运行时在 `dist/`，都是包根下一层 */
 export const CDP_ENTRY = fileURLToPath(new URL('../bin/cdp.mjs', import.meta.url))
@@ -130,42 +131,125 @@ export function workspaceRootOf(pkgDir: string): string {
   }
 }
 
+/** 工作区 `pnpm-workspace.yaml` 里的 catalog：catalog 名 → 包名 → 范围。默认 catalog 记在 `default` 下 */
+export interface WorkspaceCatalogs {
+  /** 读的是哪个文件，报错里写它 */
+  file: string
+  rangesByCatalog: Map<string, Map<string, string>>
+}
+
+const DEFAULT_CATALOG = 'default'
+
 /**
- * 版本号换成这次的；删掉 `scripts` 与 `devDependencies`；`workspace:` 换成 `^<工作区里的版本号>`（临时目录不在工作区里，
- * pnpm 不会替换），工作区里找不到那个包就抛；同一次发的包（`siblings`）在 dependencies 里一律换成给的写法（正式版给 `^新版本号`，开发版的打包给空表）
+ * 按 pnpm 的写法读 catalog：默认 catalog 是顶层 `catalog`（或 `catalogs.default`，两处都写 pnpm 自己拒），具名的是 `catalogs.<名>`。
+ * 没有这两个键回空表；YAML 写坏了、或这两个键的形状不是「名字: 范围」的表，直接抛，写明文件
+ */
+export function workspaceCatalogsFromYaml(text: string, file: string): WorkspaceCatalogs {
+  const doc = parseDocument(text)
+  const [syntaxError] = doc.errors
+  if (syntaxError !== undefined) throw new Error(`${file} 不是合法的 YAML:${syntaxError.message}`)
+  const root: unknown = doc.toJS()
+  const rangesByCatalog = new Map<string, Map<string, string>>()
+  if (root === null || root === undefined) return { file, rangesByCatalog }
+  if (!isPlainTable(root)) throw new Error(`${file} 的顶层要是「键: 值」`)
+  if (root.catalogs !== undefined) {
+    if (!isPlainTable(root.catalogs)) throw new Error(`${file} 的 catalogs 要是「catalog 名: 包表」`)
+    for (const [catalogName, ranges] of Object.entries(root.catalogs)) {
+      rangesByCatalog.set(catalogName, catalogRangesOf(ranges, `catalogs.${catalogName}`, file))
+    }
+  }
+  if (root.catalog !== undefined) {
+    if (rangesByCatalog.has(DEFAULT_CATALOG)) throw new Error(`${file} 里顶层 catalog 与 catalogs.default 都写了,默认 catalog 只能写一处`)
+    rangesByCatalog.set(DEFAULT_CATALOG, catalogRangesOf(root.catalog, 'catalog', file))
+  }
+  return { file, rangesByCatalog }
+}
+
+/** 仓根 `pnpm-workspace.yaml` 里的 catalog；仓根由 `workspaceRootOf` 找，文件一定在 */
+export function workspaceCatalogs(repoDir: string): WorkspaceCatalogs {
+  const file = path.join(repoDir, 'pnpm-workspace.yaml')
+  return workspaceCatalogsFromYaml(fs.readFileSync(file, 'utf8'), file)
+}
+
+function catalogRangesOf(value: unknown, key: string, file: string): Map<string, string> {
+  if (!isPlainTable(value)) throw new Error(`${file} 的 ${key} 要是「包名: 范围」`)
+  const ranges = new Map<string, string>()
+  for (const [name, range] of Object.entries(value)) {
+    if (typeof range !== 'string') throw new Error(`${file} 的 ${key} 里 ${name} 的范围要是一条字符串`)
+    ranges.set(name, range)
+  }
+  return ranges
+}
+
+function isPlainTable(value: unknown): value is Record<string, unknown> {
+  return typeof value === 'object' && value !== null && !Array.isArray(value)
+}
+
+/**
+ * 版本号换成这次的；删掉 `scripts` 与 `devDependencies`；临时目录不在工作区里，pnpm 不会替换 `workspace:` 与 `catalog:`，在这里改写：
+ * `workspace:` 换成 `^<工作区里的版本号>`，`catalog:` 换成工作区 catalog 里写的范围，找不到都抛；
+ * 同一次发的包（`siblings`）在 dependencies 里一律换成给的写法（正式版给 `^新版本号`，开发版的打包给空表）
  */
 export function distManifest(
   manifest: DistManifest,
   version: string,
   siblings: Record<string, string>,
   workspace: Map<string, string>,
+  catalogs: WorkspaceCatalogs,
 ): DistManifest {
   const distributed: DistManifest = { ...manifest, version }
   delete distributed.scripts
   delete distributed.devDependencies
-  const rewrittenRanges = (table: Record<string, string> | undefined, useSiblingRanges: boolean): Record<string, string> | undefined => {
-    if (table === undefined) return undefined
-    const rewritten: Record<string, string> = {}
-    for (const [name, range] of Object.entries(table)) {
-      const sibling = siblings[name]
-      if (useSiblingRanges && sibling !== undefined) rewritten[name] = sibling
-      else if (range.startsWith('workspace:')) rewritten[name] = `^${workspaceVersionOf(name, workspace)}`
-      else rewritten[name] = range
-    }
-    return rewritten
+  if (distributed.dependencies !== undefined) {
+    distributed.dependencies = publishableRanges('dependencies', distributed.dependencies, { dependent: manifest.name, siblings, workspace, catalogs })
   }
-  const dependencies = rewrittenRanges(distributed.dependencies, true)
-  if (dependencies !== undefined) distributed.dependencies = dependencies
-  // peer 不写同一次发的准确版本号：写了就是逼消费方也换版本，peer 的意思本来是「你自己带一个」
-  const peers = rewrittenRanges(distributed.peerDependencies, false)
-  if (peers !== undefined) distributed.peerDependencies = peers
+  if (distributed.peerDependencies !== undefined) {
+    // peer 不写同一次发的准确版本号：写了就是逼消费方也换版本，peer 的意思本来是「你自己带一个」
+    distributed.peerDependencies = publishableRanges('peerDependencies', distributed.peerDependencies, { dependent: manifest.name, siblings: {}, workspace, catalogs })
+  }
   return distributed
+}
+
+type DependencyField = 'dependencies' | 'peerDependencies'
+
+/** 改写一张依赖表要查的几处：同一次发的写法优先，其次工作区里的版本号与 catalog */
+interface RangeSources {
+  dependent: string
+  siblings: Record<string, string>
+  workspace: Map<string, string>
+  catalogs: WorkspaceCatalogs
+}
+
+function publishableRanges(field: DependencyField, table: Record<string, string>, sources: RangeSources): Record<string, string> {
+  const rewritten: Record<string, string> = {}
+  for (const [name, range] of Object.entries(table)) rewritten[name] = publishableRange(field, name, range, sources)
+  return rewritten
+}
+
+function publishableRange(field: DependencyField, name: string, range: string, sources: RangeSources): string {
+  const sibling = sources.siblings[name]
+  if (sibling !== undefined) return sibling
+  if (range.startsWith('workspace:')) return `^${workspaceVersionOf(name, sources.workspace)}`
+  if (range.startsWith('catalog:')) return catalogRangeOf(field, name, range, sources)
+  return range
 }
 
 function workspaceVersionOf(name: string, workspace: Map<string, string>): string {
   const version = workspace.get(name)
   if (version === undefined) throw new Error(`依赖 ${name} 写的是 workspace:,可工作区里找不到这个包(只扫仓根往下两层)`)
   return version
+}
+
+/** `catalog:` 与 `catalog:default` 取默认 catalog，`catalog:<名>` 取 `catalogs.<名>` */
+function catalogRangeOf(field: DependencyField, name: string, range: string, { dependent, catalogs }: RangeSources): string {
+  const catalogName = range.slice('catalog:'.length) || DEFAULT_CATALOG
+  const where = `${dependent} 的 ${field} 里 ${name} 写的是 ${range}`
+  const ranges = catalogs.rangesByCatalog.get(catalogName)
+  const catalogKey = catalogName === DEFAULT_CATALOG ? '顶层 catalog(或 catalogs.default)' : `catalogs.${catalogName}`
+  if (ranges === undefined) throw new Error(`${where},可 ${catalogs.file} 里没有 ${catalogKey}`)
+  const resolved = ranges.get(name)
+  if (resolved === undefined) throw new Error(`${where},可 ${catalogs.file} 的 ${catalogKey} 里没有 ${name}`)
+  return resolved
 }
 
 /** `files` 里组装发布内容时认不了的写法：否定式（`!` 开头）与通配。这里只按字面复制，悄悄漏掉文件的表现是「发出去了、装上了、新写的东西没生效」 */
@@ -238,7 +322,7 @@ async function withStagedDistribution(
     }
     const readme = [path.join(input.pkgDir, 'README.md'), path.join(repoDir, 'README.md')].find((one) => fs.existsSync(one))
     if (readme !== undefined) fs.copyFileSync(readme, path.join(stage, 'README.md'))
-    const distributed = distManifest(manifest, input.version, input.deps, workspaceVersions(repoDir))
+    const distributed = distManifest(manifest, input.version, input.deps, workspaceVersions(repoDir), workspaceCatalogs(repoDir))
     const staged = input.publishRegistry === undefined ? distributed : withPublishRegistry(distributed, input.publishRegistry)
     fs.writeFileSync(path.join(stage, 'package.json'), JSON.stringify(staged, null, 2) + '\n')
     const done = await action(stage)
