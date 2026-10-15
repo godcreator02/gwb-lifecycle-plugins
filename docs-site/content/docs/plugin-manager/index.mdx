@@ -80,7 +80,7 @@ description: 插件管理是唯一写 home 的插件——装卸包、增删启�
 
 这个子路径在 `exports` 里只有 `types` 条件，没有运行时入口，按值 import 在调用方构建时就报错；`src/receipts.ts` 一个模块都不引用，构建出的 `dist/receipts.d.ts` 里没有包名：窗格的浏览器侧 tsconfig 只有 DOM 类型，这里引进一个包，窗格就得为它多列依赖（主入口的类型声明引了内核包、`cordis` 与 node 的全局类型，所以回执类型不放在主入口）。实现文件从 `src/receipts.ts` 取这些类型，不另写一份：
 
-{/* ref file="../plugins/plugin-manager/package.json" lines="11-20" hash="faa470d86bb1" blob="84bbca76e905" */}
+{/* ref file="../plugins/plugin-manager/package.json" lines="12-21" hash="faa470d86bb1" blob="c5d49dc5e1d6" */}
 
 {/* ref file="../plugins/plugin-manager/tests/receipts.test.ts" lines="87-94" hash="0a7a7b724f66" blob="de220930304a" */}
 

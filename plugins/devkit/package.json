@@ -1,10 +1,11 @@
 {
   "name": "@godcreator/gwb-devkit",
-  "version": "0.26.7",
+  "version": "0.26.8",
   "author": {
     "name": "godcreator"
   },
   "description": "开发套件：建仓与往 workspace 仓加插件、开关隔离 home、把改动装进隔离 home 验证、发正式版，随包带写插件与发版两份说明书",
+  "license": "MIT",
   "type": "module",
   "exports": {
     ".": {
@@ -18,10 +19,12 @@
     "dist",
     "skills",
     "src",
-    "template"
+    "template",
+    "LICENSE"
   ],
   "publishConfig": {
-    "registry": "https://git.tianshen02.online:28377/api/packages/godcreator/npm/"
+    "registry": "https://registry.npmjs.org/",
+    "access": "public"
   },
   "scripts": {
     "build": "node build.ts && tsc -p tsconfig.json --emitDeclarationOnly",
@@ -61,7 +64,7 @@
   },
   "repository": {
     "type": "git",
-    "url": "https://git.tianshen02.online:28377/godcreator/gwb-lifecycle-plugins.git"
+    "url": "https://github.com/godcreator02/gwb-lifecycle-plugins.git"
   },
   "keywords": [
     "gwb-plugin"

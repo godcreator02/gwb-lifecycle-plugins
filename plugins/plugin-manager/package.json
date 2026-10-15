@@ -1,10 +1,11 @@
 {
   "name": "@godcreator/gwb-plugin-manager",
-  "version": "0.15.1",
+  "version": "0.15.2",
   "author": {
     "name": "godcreator"
   },
   "description": "插件管理：安装、卸载、升级 home 里的插件与内核，增删启停 cordis.yml 条目，在配好的 npm 源上搜索插件",
+  "license": "MIT",
   "type": "module",
   "main": "dist/index.js",
   "types": "dist/index.d.ts",
@@ -21,9 +22,13 @@
   "files": [
     "dist",
     "skills",
-    "src"
+    "src",
+    "LICENSE"
   ],
-  "publishConfig": { "registry": "https://git.tianshen02.online:28377/api/packages/godcreator/npm/" },
+  "publishConfig": {
+    "registry": "https://registry.npmjs.org/",
+    "access": "public"
+  },
   "scripts": {
     "build": "node -e \"require('fs').rmSync('dist',{recursive:true,force:true})\" && tsc -p tsconfig.build.json",
     "typecheck": "tsc --noEmit -p tsconfig.json",
@@ -54,7 +59,7 @@
   },
   "repository": {
     "type": "git",
-    "url": "https://git.tianshen02.online:28377/godcreator/gwb-lifecycle-plugins.git"
+    "url": "https://github.com/godcreator02/gwb-lifecycle-plugins.git"
   },
   "keywords": [
     "gwb-plugin"

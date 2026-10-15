@@ -64,7 +64,7 @@ pnpm build          # 只构建 plugins/*，两个包都先清空 dist/：开发
 
 **开发套件的类型检查与测试用的是插件管理的 `dist/`**：插件管理的清单把主入口指到 `dist/index.js` 与 `dist/index.d.ts`，开发套件从那里 import。刚拉下来的仓、或者改了插件管理导出的函数，先 `pnpm build` 再 `pnpm check`，不然开发套件那一半报找不到模块，或者用的还是旧函数。
 
-{/* ref file="../plugins/plugin-manager/package.json" lines="13-13" hash="4cd2d7b12fd5" blob="4765c3f95909" */}
+{/* ref file="../plugins/plugin-manager/package.json" lines="14-14" hash="4cd2d7b12fd5" blob="c5d49dc5e1d6" */}
 
 文档站的检查不在 `pnpm check` 里（要运行文档站的解析，太慢），见下面[文档站](#文档站)。
 
