@@ -15,7 +15,7 @@ jobs:
   publish:
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/setup-node@v4
+      - uses: actions/setup-node@v5
         with:
           node-version: 24
       - name: 用支持 trusted publishing 的 npm
@@ -28,7 +28,7 @@ jobs:
         env:
           NPM_CONFIG_PROVENANCE: 'false'
         run: |
-          for pack in $(ls packs/*.tgz | sort); do
+          for pack in $(ls ./packs/*.tgz | sort); do
             spec=$(tar -xOzf "$pack" package/package.json | node -e 'const m = JSON.parse(require("fs").readFileSync(0, "utf8")); process.stdout.write(m.name + "@" + m.version)')
             if npm view "$spec" version --registry https://registry.npmjs.org/ > /dev/null 2>&1; then
               echo "$spec 已经在 npmjs 上，跳过"
