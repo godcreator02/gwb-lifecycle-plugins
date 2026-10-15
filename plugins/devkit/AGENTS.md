@@ -1,7 +1,7 @@
 # gwb-devkit
 
 开发套件，**一个普通的 gwb 插件**，源码在 `plugins/devkit/`。仓 `gwb-lifecycle-plugins` 是 pnpm workspace（仓名不同于包名，包名与说明书名仍是 `gwb-devkit`）：`plugins/devkit/` 是开发套件，
-`plugins/plugin-manager/` 是插件管理 `@godcreator/gwb-plugin-manager`（单独发版），`docs-site/` 是文档站。两个包都发到团队源，发版要给 `packages` 参数。
+`plugins/plugin-manager/` 是插件管理 `@godcreator/gwb-plugin-manager`（单独发版），`docs-site/` 是文档站。两个包都发到 npmjs（本机的 `@godcreator` 还从团队源装的这段时间，发版加 `alsoPublishTo` 同时发到团队源），发版要给 `packages` 参数。仓在 GitHub 上（`godcreator02/gwb-lifecycle-plugins`），别的仓写来的反馈是那里的 issue。
 **开发套件没有界面**：使用者是 agent，读的是回执。这份只写不知道就会做错事的硬约束，为什么这么做在文档站。
 
 ## 先读

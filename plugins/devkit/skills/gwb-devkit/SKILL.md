@@ -59,7 +59,7 @@ description: 写新插件、改插件、在隔离 home 里验证改动、发正�
 
 **完成判据**：`devkit.release` 回执 `ok: true`，`shipped` 里是这次的包、版本与发布目标；default 的 `plugin-manager.list` 里这个包的版本是刚发的正式版、条目 `active` 为 true；再调一次 `index`，看得到这个包的命令与说明书。
 
-- **发到 gitea 的包**在 `package.json` 写上 `"repository": { "type": "git", "url": "https://git.tianshen02.online:28377/<owner>/<仓名>.git" }`：gitea 靠它把包关联到仓，仓与包不在同一个 owner 下也能关联。没有工具查
+- **包的 `repository`** 写源码所在的仓：`"repository": { "type": "git", "url": "https://github.com/<owner>/<仓名>.git" }`，npmjs 的包页面靠它链到源码。发到 npmjs 的带范围的包，`publishConfig` 里还要有 `"access": "public"`，不然按私有包发、免费账号会被拒。都没有工具查
 - **机器上的两处配置**，不在任何仓里，换机器或重装会丢：
   - 源路由：沿用 pnpm 的 scope 路由；GWB 安装和发布凭据由发起 home 的 `npm-auth` 保管，接入流程见 `gwb-plugin-manager`。普通终端 pnpm 仍用自己的配置
   - 用户级 pnpm 配置（`pnpm config get globalconfig` 报位置）：`minimumReleaseAgeExclude` 放行 `'@godcreator/*'`，丢了的症状是新机器上装不上刚发的包。仓与 home 的 `pnpm-workspace.yaml` 不写这一项，也不写 `strictPeerDependencies`：写了就逐项覆盖用户级的同名项
