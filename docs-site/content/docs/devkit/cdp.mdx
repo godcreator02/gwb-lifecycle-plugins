@@ -79,7 +79,7 @@ description: bin/cdp.mjs（登记成 devkit.cdp）在一个工作台页面里操
 - 工作台运行时经命令总线调用，`devkit.cdp {"args":["<home 名>","<动作>",…]}`，经 `gwbNodeCli` 登记，回执自带 stdout 与退出码
 - 工作台没运行时直接 `node <包根>/bin/cdp.mjs <home 名> <动作>`
 
-{/* ref file="../plugins/devkit/src/index.ts" lines="329-347" hash="8c46b3eacead" blob="3d6770ffb4e7" */}
+{/* ref file="../plugins/devkit/src/index.ts" lines="330-348" hash="8c46b3eacead" blob="e5d824e737b2" */}
 
 <Diagram name="dk-cdp" title="一次 CDP 驱动的运行：两个入口，同一个脚本，五步">
 - 两个入口：工作台运行时调 `devkit.cdp`（由 `gwbNodeCli` 登记，启动 node 子进程），工作台没运行时直接 `node bin/cdp.mjs`

@@ -277,6 +277,7 @@ describe('包内 template/：两部分', () => {
   it('真渲染一套：占位符一个不剩，仓根 + 插件包的树形都对', () => {
     const files = renderTemplate(TEMPLATE_ROOT, planScaffold({ name: 'hello', dir: 'D:\\tmp\\x', peerVersions: PEERS }))
     expect(files.map((f) => f.rel).sort()).toEqual([
+      '.github/workflows/publish.yml',
       '.gitignore',
       'README.md',
       'package.json',
@@ -312,7 +313,8 @@ describe('包内 template/：两部分', () => {
     expect(pkg.scripts.check).toBeDefined()
     const entry = files.find((f) => f.rel === 'plugins/hello/src/index.ts')?.text ?? ''
     expect(entry).toContain("export const name = 'gwb-hello'")
-    for (const file of files) expect(file.text).not.toContain('{{')
+    // 只认占位符的样子 {{名字}}：工作流里 GitHub 的表达式 ${{ github.token }} 不是占位符
+    for (const file of files) expect(file.text).not.toMatch(/\{\{\w+\}\}/)
   })
 
   it('renderPlugin 只渲染件包那半：rel 相对件包根，仓半的文件一个都不在', () => {
@@ -322,7 +324,7 @@ describe('包内 template/：两部分', () => {
     // 仓半不在：根壳、README、workspace 是建仓的事，加件不碰
     expect(files.some((f) => f.rel === 'pnpm-workspace.yaml' || f.rel === 'README.md')).toBe(false)
     expect(files.some((f) => f.rel.startsWith('plugins/'))).toBe(false)
-    for (const file of files) expect(file.text).not.toContain('{{')
+    for (const file of files) expect(file.text).not.toMatch(/\{\{\w+\}\}/)
   })
 
   it('生成的插件包 peer 里写了内核包 ^<运行命令的内核版本号>：建仓与加插件都一样，发版前检查认', () => {

@@ -12,6 +12,7 @@ import { nodeFs } from './node-probe-deps.js'
 import { VERSION } from './vocab.js'
 import { runWithTreeTimeout, timeoutNote } from './node-process-tree.js'
 import { collectBrowserImports } from './browser-providers.js'
+import { githubGateway, githubTokenFromGit } from './node-github.js'
 
 // DevDeps 与 ReleaseDeps 在这台机器上的实现：读写磁盘、启动进程、经 bin/cdp.mjs 连 CDP。
 // 真机器操作的部分没有单元测试，判断都在 dev.ts 与 release.ts 里；distManifest 与找工作区的两个函数有测试
@@ -268,6 +269,18 @@ async function publishStaged(input: { pkgDir: string; version: string; registry:
   return { ...sent, tail: `${sent.tail}\n这一版可能照样发出去了——过一会儿用 pnpm view 查源上有没有这个号` }
 }
 
+/** 正式版的发布内容（同 `publishStaged`）打成包文件放进 `destination`，交给 Actions 去发；回新出现的那个包文件 */
+async function packReleaseStaged(input: { pkgDir: string; version: string; registry: string; ranges: Record<string, string>; destination: string; pnpm: string }): Promise<{ ok: true; file: string } | { ok: false; tail: string }> {
+  fs.mkdirSync(input.destination, { recursive: true })
+  const before = new Set(fs.readdirSync(input.destination))
+  const staging = { pkgDir: input.pkgDir, version: input.version, deps: input.ranges, publishRegistry: input.registry }
+  const packed = await withStagedDistribution(staging, (stage) => runCaptured(pnpmPlan(['pack', '--pack-destination', input.destination], stage, input.pnpm), PACK_TIMEOUT_MS))
+  if (!packed.ok) return { ok: false, tail: packed.tail }
+  const added = fs.readdirSync(input.destination).filter((one) => !before.has(one) && one.endsWith('.tgz'))
+  if (added.length !== 1) return { ok: false, tail: `pnpm pack 之后 ${input.destination} 里新出现 ${String(added.length)} 个包文件(${added.join('、')}),认不出是哪个` }
+  return { ok: true, file: path.join(input.destination, added[0]!) }
+}
+
 /**
  * 组装好的发布内容打成包文件，放进 `destination`（目标 home 的 dev-packs）。pnpm pack 再按清单的 `files` 挑一遍文件，
  * 漏写的文件同样进不了包文件
@@ -359,6 +372,13 @@ async function gitStatusOf(repoDir: string): Promise<{ ok: true; dirty: string[]
   return { ok: true, dirty: dirtyLines(out.tail) }
 }
 
+async function headCommitOf(repoDir: string): Promise<{ ok: true; sha: string } | { ok: false; error: string }> {
+  const out = await runCaptured({ command: 'git', args: ['rev-parse', 'HEAD'], cwd: repoDir }, GIT_TIMEOUT_MS)
+  const sha = /\b[0-9a-f]{40}\b/.exec(out.tail)?.[0]
+  if (!out.ok || sha === undefined) return { ok: false, error: out.tail === '' ? 'git rev-parse HEAD 没成(git 不在?)' : out.tail }
+  return { ok: true, sha }
+}
+
 /** 发正式版在这台机器上的实现。`pnpm` 是命令开头找到的那个；组装发布内容与开发版的打包共用 withStagedDistribution */
 export const releaseDepsWith = (pnpm: string, homeDir?: string): ReleaseDeps => ({
   browserProviders: (pkgDir, manifest) => collectBrowserImports(pkgDir, manifest, {
@@ -368,6 +388,12 @@ export const releaseDepsWith = (pnpm: string, homeDir?: string): ReleaseDeps => 
   }),
   run: (plan: RunPlan, timeoutMs: number) => runWithHomeAuth(homeDir, plan, timeoutMs),
   publish: (input) => publishStaged({ ...input, pnpm, ...(homeDir === undefined ? {} : { homeDir }) }),
+  packRelease: (input) => packReleaseStaged({ ...input, pnpm }),
+  headCommit: headCommitOf,
+  github: githubGateway(githubTokenFromGit),
+  tempDir: () => fs.mkdtempSync(path.join(os.tmpdir(), 'gwb-devkit-release-')),
+  removeDir: (dir) => removeTree(dir),
+  now: () => Date.now(),
   published: async (spec, registry) =>
     publishedFromView(await runWithHomeAuth(homeDir, pnpmPlan(['view', spec, 'version', ...registryPinArgs(spec, registry)], os.tmpdir(), pnpm), 60_000), spec, registry),
   latest: async (pkg) => {

@@ -19,19 +19,19 @@ description: 连接 devkit、插件管理与工作台的四个服务：命令总
 
 devkit 对命令总线用了两个方法：`register(定义, 处理函数)` 登记命令，定义带 `name`、`plugin`（包名）、`description`、`usage`、`effect`，撤销由命令总线登记在调用方的 effect 上，devkit 卸载时自动撤销；`list()` 只在就绪日志里用，列出此刻总线上本包的命令（见下面「约定」末尾）。devkit 不调别的插件的命令。
 
-{/* ref file="../plugins/devkit/src/index.ts" lines="312-312" hash="5c079b9f4a95" blob="3d6770ffb4e7" */}
+{/* ref file="../plugins/devkit/src/index.ts" lines="313-313" hash="5c079b9f4a95" blob="e5d824e737b2" */}
 
 `gwbNodeCli` 只用来登记一条命令行工具 `devkit.cdp`，`entry` 是包里 `bin/cdp.mjs` 的绝对路径，`effect` 写 `write`（它能在页面上点击、输入）；这条登记同样由 `gwbNodeCli` 自己放进调用方的 effect：
 
-{/* ref file="../plugins/devkit/src/index.ts" lines="335-335" hash="81c1c67f0159" blob="3d6770ffb4e7" */}
+{/* ref file="../plugins/devkit/src/index.ts" lines="336-336" hash="81c1c67f0159" blob="e5d824e737b2" */}
 
-{/* ref file="../plugins/devkit/src/index.ts" lines="344-344" hash="b79f2b921d84" blob="3d6770ffb4e7" */}
+{/* ref file="../plugins/devkit/src/index.ts" lines="345-345" hash="b79f2b921d84" blob="e5d824e737b2" */}
 
 `gwbSkills` 登记包内 `skills/` 目录，`gwbShell` 只调一次 `describeSelf` 报一个显示名，devkit 没有窗格：
 
-{/* ref file="../plugins/devkit/src/index.ts" lines="647-647" hash="affad272f46e" blob="3d6770ffb4e7" */}
+{/* ref file="../plugins/devkit/src/index.ts" lines="648-648" hash="affad272f46e" blob="e5d824e737b2" */}
 
-{/* ref file="../plugins/devkit/src/index.ts" lines="325-325" hash="ab3018ffae8e" blob="3d6770ffb4e7" */}
+{/* ref file="../plugins/devkit/src/index.ts" lines="326-326" hash="ab3018ffae8e" blob="e5d824e737b2" */}
 
 devkit 源码里没有注入 `gwbSettings`，它没有设置项。
 
@@ -63,7 +63,7 @@ devkit 保证：
 
 devkit 的就绪日志从 `list()` 里筛出 `plugin` 等于包名 `@godcreator/gwb-devkit` 的命令，与登记命令时写的 `plugin` 相同：
 
-{/* ref file="../plugins/devkit/src/index.ts" lines="655-655" hash="772b255c8abc" blob="3d6770ffb4e7" */}
+{/* ref file="../plugins/devkit/src/index.ts" lines="656-656" hash="772b255c8abc" blob="e5d824e737b2" */}
 
 ## 不负责的事
 

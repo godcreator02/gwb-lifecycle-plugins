@@ -137,6 +137,7 @@ const RELEASE_USAGE = [
   '**仓根 git 工作区不干净就拒**：正式版只从提交过的状态发',
   '  alsoPublishTo  可选，http(s) 地址的字符串数组：每个包发到自己的 publishConfig.registry 之后，再发到这些源。换源的过渡期用',
   `**发到包自己的 publishConfig.registry**：没写这个字段、或写的不是 http(s) 地址就拒（团队源是 ${TEAM_REGISTRY}）。「同号已在源上」问的是这个源与 alsoPublishTo 里的每一个，有一个已有就拒`,
+  '**npmjs 不在本机发，交给 GitHub Actions**：发布目标里有 https://registry.npmjs.org/ 的包，本机先发完别的源，再把组装好的包按顺序打成包文件，在 HEAD 上建一个 GitHub release（tag release-<UTC 时间>）挂上去，由仓里的 .github/workflows/publish.yml 经 trusted publishing 按序号发到 npmjs，等它跑完（最多 3 分钟）再回执。发任何一个包之前先查：仓根有这个工作流文件、这些包的 repository 都指向同一个 GitHub 仓、HEAD 已经推到那个仓上，不满足就拒。GitHub 凭据用 git 凭据管理器里 github.com 那份（推送用的同一份）',
   '**发版前检查没过就拒**（构建之后，所有包一次列全）：产物里相对 import 指向的文件都在；dev 依赖不查',
   `**带界面的插件包另加样式检查**（构建后有 dist/style.css 才查）：${STYLE_CHECK_SUMMARY}`,
   '**插件包另加**（keywords 含 gwb-plugin）：peer 里只许 cordis、内核包 @godcreator/gwb-kernel-desktop 与别的插件（包目录 node_modules 里它的清单 keywords 含 gwb-plugin），peer 里每个 gwb 插件（不分范围）和源上 dist-tags.latest 在同一条线（0.x 只看 x，≥1 只看主版本号；问哪个源由 ~/.npmrc 的范围行决定）；node 侧产物（exports["."] 入口顺着相对 import 走到的文件）的包名 import 只有 node 内置模块、electron 与 peer 里写了的包；浏览器侧产物（dist/client.js 与自身提供的模块）只 import 自身及直接 peer 的 ./browser-imports 代码出口提供的名字；检查同步映射、本地文件、包内路径、files 白名单与冲突；未声明提供方的旧项目兼容读取旧内核 HTML importmap；peer 里写了内核包、写法是 ^x.y.z（范围包不包含哪个内核不查，验证之后由人改）；' +
@@ -464,7 +465,7 @@ function registerReleaseCommand({ ctx, log, commands }: Wiring): void {
         WIRING_CHECK_SUMMARY +
         '；构建后有 dist/style.css 的插件包再做样式检查：' +
         STYLE_CHECK_SUMMARY +
-        '。没过就一个都不发，回执按包一次列全）→ 在临时目录里组装发布内容并发到发布目标（不改仓里任何文件；tag latest；发布内容清单的 publishConfig.registry 写发布目标，命令行不带 --registry；workspace: 依赖写成 ^<工作区里那个号>，这一次同发的写成 ^新号）→ 按给定顺序发完。**版本号在仓里升**（改 package.json 并提交），同一个版本号永不重发。只发到源、不碰任何 home；升级 default 用 plugin-manager.update {"all":true}',
+        '。没过就一个都不发，回执按包一次列全）→ 在临时目录里组装发布内容并发到发布目标（不改仓里任何文件；tag latest；发布内容清单的 publishConfig.registry 写发布目标，命令行不带 --registry；workspace: 依赖写成 ^<工作区里那个号>，这一次同发的写成 ^新号）→ 按给定顺序发完。**npmjs 不在本机发**：发布目标里有 https://registry.npmjs.org/ 的包，发版前检查之后再查仓根有 .github/workflows/publish.yml、这些包的 repository 都指向同一个 GitHub 仓、HEAD 已推到那个仓上（不满足就拒，一个都不发）；本机先发完别的源，再把同样组装好的发布内容按顺序打成包文件（文件名带两位序号），在 HEAD 上建 GitHub release（tag release-<UTC 年月日>-<时分秒>）挂上去并公开，由 publish.yml 经 trusted publishing 依次发到 npmjs，等那次运行跑完（最多 3 分钟；没跑完或失败回 ok:false，写明运行的网址，重跑时工作流跳过已在 npmjs 上的包），回执 data.actions 是 { release, run } 两个网址；GitHub 凭据用 git 凭据管理器里 github.com 那份。**版本号在仓里升**（改 package.json 并提交），同一个版本号永不重发。只发到源、不碰任何 home；升级 default 用 plugin-manager.update {"all":true}',
     },
     async (args) => {
       if (!isRecord(args)) return { ok: false, error: `参数要是个对象。\n${RELEASE_USAGE}` }

@@ -5,7 +5,10 @@ import { KERNEL_PACKAGE } from '@godcreator/gwb-plugin-manager'
 import {
   alsoPublishToArgOf,
   dirtyLines,
+  githubRepoOf,
+  isNpmjsRegistry,
   kernelPeerProblems,
+  releaseTagOf,
   isPluginManifest,
   peerCycleProblems,
   peerLineProblems,
@@ -281,6 +284,19 @@ interface FakeOptions {
   failRun?: string
   failPublish?: string
   latest?: Record<string, string>
+  /** HEAD 不在 GitHub 上 */
+  commitMissing?: boolean
+  /** publish.yml 那次运行的结局；不给是成功 */
+  run?: { finished: true; success: boolean; url: string } | { finished: false; url?: string }
+}
+
+const NPMJS = 'https://registry.npmjs.org/'
+const WORKFLOW_FILE = path.resolve(REPO, '.github/workflows/publish.yml')
+const GITHUB_REPOSITORY = { type: 'git', url: 'https://github.com/godcreator02/fake-repo.git' }
+
+/** 发到 npmjs 的包：publishConfig 指 npmjs、repository 指 GitHub */
+function npmjsManifestOf(name: string, version: string, repository: unknown = GITHUB_REPOSITORY): string {
+  return JSON.stringify({ name, version, files: ['dist'], exports: EXPORTS, publishConfig: { registry: NPMJS, access: 'public' }, repository })
 }
 
 const PNPM = 'C:\\Users\\u\\AppData\\Local\\pnpm\\bin\\pnpm.exe'
@@ -337,6 +353,33 @@ function fake(options: FakeOptions = {}): ReleaseDeps & { calls: string[]; range
       calls.push(args.length === 1 ? `latest ${pkg}` : `latest ${pkg} 带了 ${String(args.length - 1)} 个多余参数`)
       return options.latest?.[pkg]
     },
+    async packRelease(input) {
+      calls.push(`pack ${input.version} → ${input.registry}`)
+      ranges.push(input.ranges)
+      return { ok: true, file: path.join(input.destination, `${path.basename(input.pkgDir)}-${input.version}.tgz`) }
+    },
+    async headCommit() {
+      return { ok: true, sha: 'a'.repeat(40) }
+    },
+    github: {
+      async hasCommit(repo, sha) {
+        calls.push(`有提交? ${repo.owner}/${repo.repo} ${sha.slice(0, 7)}`)
+        return options.commitMissing !== true
+      },
+      async createRelease(input) {
+        calls.push(`release ${input.tag} @${input.sha.slice(0, 7)}: ${input.assets.map((one) => one.name).join(' ')}`)
+        return { url: 'https://github.com/godcreator02/fake-repo/releases/tag/x' }
+      },
+      async waitPublishRun() {
+        calls.push('等 publish.yml')
+        return options.run ?? { finished: true, success: true, url: 'https://github.com/godcreator02/fake-repo/actions/runs/1' }
+      },
+    },
+    tempDir: () => path.normalize('/tmp/release'),
+    removeDir: (dir) => {
+      calls.push(`删 ${dir}`)
+    },
+    now: () => Date.UTC(2026, 9, 15, 7, 8, 9),
   }
 }
 
@@ -682,6 +725,71 @@ describe('发布目标（GWB-17）', () => {
     if (out.ok) return
     expect(out.error).toContain(`发到 ${LOCAL} 没成`)
     expect(out.data?.shipped.map((one) => one.registry)).toEqual([TEAM_REGISTRY])
+  })
+
+  it('发 npmjs 交给 Actions：本机先发别的源，再按顺序打包挂到 release 上、等 publish.yml 跑完；回执里 npmjs 一条在后', async () => {
+    const deps = fake({ files: { [path.resolve(REPO, 'a/package.json')]: npmjsManifestOf(A, '0.1.0'), [path.resolve(REPO, 'b/package.json')]: npmjsManifestOf(B, '0.2.0'), [WORKFLOW_FILE]: 'name: publish' } })
+    const out = await runRelease({ repoDir: REPO, packages: ['a', 'b'], alsoPublishTo: [LOCAL] }, deps)
+    expect(out.ok, out.ok ? '' : out.error).toBe(true)
+    if (!out.ok) return
+    const steps = deps.calls.filter((one) => /^(publish \S+ →|pack|release|等|删|有提交)/.test(one))
+    expect(steps).toEqual([
+      '有提交? godcreator02/fake-repo aaaaaaa',
+      `publish 0.1.0 → ${LOCAL}`,
+      `publish 0.2.0 → ${LOCAL}`,
+      `pack 0.1.0 → ${NPMJS}`,
+      `pack 0.2.0 → ${NPMJS}`,
+      'release release-20261015-070809 @aaaaaaa: 01-a-0.1.0.tgz 02-b-0.2.0.tgz',
+      '等 publish.yml',
+      `删 ${path.normalize('/tmp/release')}`,
+    ])
+    expect(deps.ranges.at(-1)).toEqual({ [A]: '^0.1.0', [B]: '^0.2.0' })
+    expect(out.data.shipped.map((one) => `${one.pkg} → ${one.registry}`)).toEqual([`${A} → ${LOCAL}`, `${B} → ${LOCAL}`, `${A} → ${NPMJS}`, `${B} → ${NPMJS}`])
+    expect(out.data.actions?.run).toBe('https://github.com/godcreator02/fake-repo/actions/runs/1')
+  })
+
+  it('发 npmjs：仓里没有 publish.yml、repository 不是 GitHub、HEAD 没推上去，都拒，一个都不发', async () => {
+    const cases: [FakeOptions, string][] = [
+      [{ files: { [path.resolve(REPO, 'a/package.json')]: npmjsManifestOf(A, '0.1.0') } }, '.github/workflows/publish.yml'],
+      [{ files: { [path.resolve(REPO, 'a/package.json')]: npmjsManifestOf(A, '0.1.0', 'https://git.example.com/x/y.git'), [WORKFLOW_FILE]: '' } }, 'repository 要写 GitHub 上的仓'],
+      [{ files: { [path.resolve(REPO, 'a/package.json')]: npmjsManifestOf(A, '0.1.0'), [WORKFLOW_FILE]: '' }, commitMissing: true }, '先 git push'],
+    ]
+    for (const [options, expected] of cases) {
+      const deps = fake(options)
+      const out = await runRelease({ repoDir: REPO, packages: ['a'], alsoPublishTo: [LOCAL] }, deps)
+      expect(out.ok).toBe(false)
+      if (!out.ok) expect(out.error).toContain(expected)
+      expect(deps.calls.some((one) => one.startsWith('publish ') || one.startsWith('pack ') || one.startsWith('release '))).toBe(false)
+    }
+  })
+
+  it('发 npmjs：Actions 没成或没跑完，回执说清本机已发的与去哪看，临时目录照样删', async () => {
+    const files = { [path.resolve(REPO, 'a/package.json')]: npmjsManifestOf(A, '0.1.0'), [WORKFLOW_FILE]: '' }
+    const failed = fake({ files, run: { finished: true, success: false, url: 'https://run/2' } })
+    const failedOut = await runRelease({ repoDir: REPO, packages: ['a'], alsoPublishTo: [LOCAL] }, failed)
+    expect(failedOut.ok).toBe(false)
+    if (!failedOut.ok) {
+      expect(failedOut.error).toContain('https://run/2')
+      expect(failedOut.error).toContain(`本机发的已经发完:${A}@0.1.0 → ${LOCAL}`)
+      expect(failedOut.data?.shipped.map((one) => one.registry)).toEqual([LOCAL])
+    }
+    expect(failed.calls.some((one) => one.startsWith('删 '))).toBe(true)
+
+    const slow = fake({ files, run: { finished: false, url: 'https://run/3' } })
+    const slowOut = await runRelease({ repoDir: REPO, packages: ['a'] }, slow)
+    expect(slowOut.ok).toBe(false)
+    if (!slowOut.ok) expect(slowOut.error).toContain('分钟内没跑完:到 https://run/3 看结果')
+  })
+
+  it('githubRepoOf、isNpmjsRegistry、releaseTagOf', () => {
+    expect(githubRepoOf({ repository: { url: 'git+https://github.com/o/r.git' } })).toEqual({ ok: true, repo: { owner: 'o', repo: 'r' } })
+    expect(githubRepoOf({ repository: 'https://github.com/o/r' })).toEqual({ ok: true, repo: { owner: 'o', repo: 'r' } })
+    expect(githubRepoOf({ repository: { url: 'https://gitea.example/o/r.git' } }).ok).toBe(false)
+    expect(githubRepoOf({}).ok).toBe(false)
+    expect(isNpmjsRegistry('https://registry.npmjs.org/')).toBe(true)
+    expect(isNpmjsRegistry('https://registry.npmjs.org')).toBe(true)
+    expect(isNpmjsRegistry(TEAM_REGISTRY)).toBe(false)
+    expect(releaseTagOf(Date.UTC(2026, 0, 2, 3, 4, 5))).toBe('release-20260102-030405')
   })
 
   it('alsoPublishToArgOf：不给是空表；不是 http(s) 地址的字符串数组、有重复：拒', () => {

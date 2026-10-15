@@ -23,9 +23,9 @@ description: 开发套件是一个普通的 gwb 插件，把「在一个新文�
 
 都登记在命令总线上，`plugin` 写包名 `@godcreator/gwb-devkit`；参数形状写在每条命令的 `usage` 里，agent 经 MCP 入口的 `search {"plugin":"@godcreator/gwb-devkit"}` 看得到。参数给错时回执带完整用法；**认不出的参数键直接拒**，报出是哪几个键：
 
-{/* ref file="../plugins/devkit/src/index.ts" lines="379-379" hash="442ab70b6abd" blob="3d6770ffb4e7" */}
+{/* ref file="../plugins/devkit/src/index.ts" lines="380-380" hash="442ab70b6abd" blob="e5d824e737b2" */}
 
-{/* ref file="../plugins/devkit/src/index.ts" lines="382-382" hash="10a55f69ee28" blob="3d6770ffb4e7" */}
+{/* ref file="../plugins/devkit/src/index.ts" lines="383-383" hash="10a55f69ee28" blob="e5d824e737b2" */}
 
 | 命令 | 做什么 | 接缝 |
 | --- | --- | --- |
@@ -39,29 +39,29 @@ description: 开发套件是一个普通的 gwb 插件，把「在一个新文�
 | `devkit.release` | 检查后把包发成正式版（tag latest） | [3 peer 里的内核包与插件](/docs/seams/kernel-peer)、[9 pnpm 与包源](/docs/seams/pnpm-registry)、[10 被测仓的形状](/docs/seams/repo-shape) |
 | `devkit.cdp` | 在一个 home 的页面里执行一个动作，经 `gwbNodeCli` 登记 | [6 CDP 驱动](/docs/seams/cdp) |
 
-{/* ref file="../plugins/devkit/src/index.ts" lines="524-524" hash="397ee09614ea" blob="3d6770ffb4e7" */}
+{/* ref file="../plugins/devkit/src/index.ts" lines="525-525" hash="397ee09614ea" blob="e5d824e737b2" */}
 
-{/* ref file="../plugins/devkit/src/index.ts" lines="582-582" hash="08ceea6ff858" blob="3d6770ffb4e7" */}
+{/* ref file="../plugins/devkit/src/index.ts" lines="583-583" hash="08ceea6ff858" blob="e5d824e737b2" */}
 
-{/* ref file="../plugins/devkit/src/index.ts" lines="219-219" hash="08ff22df6345" blob="3d6770ffb4e7" */}
+{/* ref file="../plugins/devkit/src/index.ts" lines="220-220" hash="08ff22df6345" blob="e5d824e737b2" */}
 
-{/* ref file="../plugins/devkit/src/index.ts" lines="258-258" hash="6434a1cfc4b2" blob="3d6770ffb4e7" */}
+{/* ref file="../plugins/devkit/src/index.ts" lines="259-259" hash="6434a1cfc4b2" blob="e5d824e737b2" */}
 
-{/* ref file="../plugins/devkit/src/index.ts" lines="312-312" hash="5c079b9f4a95" blob="3d6770ffb4e7" */}
+{/* ref file="../plugins/devkit/src/index.ts" lines="313-313" hash="5c079b9f4a95" blob="e5d824e737b2" */}
 
-{/* ref file="../plugins/devkit/src/index.ts" lines="291-291" hash="f36b33ff6cb1" blob="3d6770ffb4e7" */}
+{/* ref file="../plugins/devkit/src/index.ts" lines="292-292" hash="f36b33ff6cb1" blob="e5d824e737b2" */}
 
-{/* ref file="../plugins/devkit/src/index.ts" lines="407-407" hash="ff5e80f89bb2" blob="3d6770ffb4e7" */}
+{/* ref file="../plugins/devkit/src/index.ts" lines="408-408" hash="ff5e80f89bb2" blob="e5d824e737b2" */}
 
-{/* ref file="../plugins/devkit/src/index.ts" lines="457-457" hash="7e8a324d8f70" blob="3d6770ffb4e7" */}
+{/* ref file="../plugins/devkit/src/index.ts" lines="458-458" hash="7e8a324d8f70" blob="e5d824e737b2" */}
 
-{/* ref file="../plugins/devkit/src/index.ts" lines="336-336" hash="0e0de16916ac" blob="3d6770ffb4e7" */}
+{/* ref file="../plugins/devkit/src/index.ts" lines="337-337" hash="0e0de16916ac" blob="e5d824e737b2" */}
 
 `devkit.cdp` 是 `bin/cdp.mjs` 登记出来的：经 `gwbNodeCli` 登记的脚本自动成为同名命令，回执带 stdout、stderr 与退出码。工作台没运行时可以直接 `node <包根>/bin/cdp.mjs <home 名> <动作>`。
 
 加载完成时往 `<home>\gwb.log` 写一行「开发套件就绪」，列出此刻命令总线上 `plugin` 是本包的全部命令：有这一行说明 `apply` 执行完了。`devkit.cdp` 在不在取决于 node 命令行插件有没有加载，所以名单每次当场向命令总线查询，不另存一份：
 
-{/* ref file="../plugins/devkit/src/index.ts" lines="655-655" hash="772b255c8abc" blob="3d6770ffb4e7" */}
+{/* ref file="../plugins/devkit/src/index.ts" lines="656-656" hash="772b255c8abc" blob="e5d824e737b2" */}
 
 ### 说明书
 
@@ -74,7 +74,7 @@ description: 开发套件是一个普通的 gwb 插件，把「在一个新文�
 
 说明书只写步骤、完成判据和工具不会报出来的注意事项；命令的参数、回执、拒绝条件写在命令的 `usage` 里，说明书不重复。
 
-{/* ref file="../plugins/devkit/src/index.ts" lines="647-647" hash="affad272f46e" blob="3d6770ffb4e7" */}
+{/* ref file="../plugins/devkit/src/index.ts" lines="648-648" hash="affad272f46e" blob="e5d824e737b2" */}
 
 ### 模板
 

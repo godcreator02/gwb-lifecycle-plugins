@@ -22,13 +22,14 @@ description: devkit 与插件管理共享 pnpm 定位和鉴权边界。路由沿
 
 **插件管理拿它做什么**：只在 home 里运行 `add`（对齐 `cordis` 那一次带 `--save-exact`）、`remove`、`outdated --json`，不传 `--registry`，源由 pnpm 的配置决定；找插件时另运行只读的 `config list --json` 取路由，凭据只取当前 home 的 `npm-auth`。
 
-**devkit 拿它做什么**：`devkit.home.new`、`devkit.dev`、`devkit.release` 三条命令开头各找一次，找不到就回 `ok: false`、什么都不做。用在六处：
+**devkit 拿它做什么**：`devkit.home.new`、`devkit.dev`、`devkit.release` 三条命令开头各找一次，找不到就回 `ok: false`、什么都不做。用在这几处：
 
 | 命令 | 在哪运行 | 谁调 | 去哪个源 |
 | --- | --- | --- | --- |
 | `pnpm build` | 被测仓的仓根 | `devkit.dev`、`devkit.release` | 不适用 |
 | `pnpm pack --pack-destination <目标 home>\dev-packs` | 临时目录里组装好的发布内容 | `devkit.dev` | 不适用 |
-| `pnpm publish --no-git-checks --tag latest` | 临时目录里组装好的发布内容 | `devkit.release` | 发布目标，写在发布内容清单的 `publishConfig.registry`，命令行不带 `--registry` |
+| `pnpm publish --no-git-checks --tag latest` | 临时目录里组装好的发布内容 | `devkit.release` | 发布目标，写在发布内容清单的 `publishConfig.registry`，命令行不带 `--registry`；npmjs 不走这一条 |
+| `pnpm pack --pack-destination <系统临时目录>` | 临时目录里组装好的发布内容 | `devkit.release`，发布目标是 npmjs 的包 | 不适用：包文件挂到 GitHub release 上，由 Actions 发（见[发正式版](/docs/devkit/release#发到-npmjs交给-github-actions)） |
 | `pnpm view <包@版本> version` | 系统临时目录 | `devkit.release` | 发布目标：带范围的包名带 `--config.<范围>:registry=<发布目标>`，不带范围的带 `--registry` |
 | `pnpm view <包> dist-tags.latest` | 系统临时目录 | `devkit.release` | 不指定，按 `~/.npmrc` 的 scope 路由 |
 | `pnpm add <内核包、cordis（带 --save-exact）、基础插件>` | 新 home | `devkit.home.new` | 不指定：`@godcreator` 的包按 `~/.npmrc` 的 scope 路由，`cordis` 与 `@cordisjs/plugin-timer` 走默认源 |
@@ -37,9 +38,9 @@ description: devkit 与插件管理共享 pnpm 定位和鉴权边界。路由沿
 
 {/* ref file="../plugins/devkit/src/dev.ts" lines="313-316" hash="b36d9dc71ed0" blob="ebe1ec7fc4e7" */}
 
-{/* ref file="../plugins/devkit/src/node-dev-deps.ts" lines="261-280" hash="e6ffdc0c4e6d" blob="0af53fe4f48e" */}
+{/* ref file="../plugins/devkit/src/node-dev-deps.ts" lines="262-293" hash="c3c58be0343f" blob="7eef44a73b1e" */}
 
-{/* ref file="../plugins/devkit/src/node-dev-deps.ts" lines="362-378" hash="1b6cacd22d8e" blob="0af53fe4f48e" */}
+{/* ref file="../plugins/devkit/src/node-dev-deps.ts" lines="382-413" hash="8b2a8f9b1f54" blob="7eef44a73b1e" */}
 
 **在 home 里运行的 pnpm 都关掉自动补装 peer**：启动 pnpm 时非认证环境变量沿用，加一项 `pnpm_config_auto_install_peers=false`（插件管理另去掉 `ELECTRON_RUN_AS_NODE`）。插件管理的 pnpm 都在 home 里运行；devkit 只在 `home.new` 的三次 `pnpm add` 带它，在插件仓里的 build 与临时目录里的 pack、publish、view 不带——插件仓里开发要靠自动补装把 peer 里的内核包与插件装进 `node_modules`，带上它 pnpm 会按新配置重装、把这些 peer 拿掉，构建时找不到类型。插件的 peer 写了别的插件、home 里没装那个插件时，pnpm 默认把它装进 `node_modules/.pnpm` 且不提示，不写进 home 的 `package.json`、没有条目，插件管理也不认它。命令行参数 `--config.auto-install-peers=false` 会被 pnpm 忽略，只有环境变量或 home 的 `pnpm-workspace.yaml` 关得掉（实验见本仓 `probes/2609242300_peer-between-plugins/`）：
 
@@ -51,11 +52,11 @@ description: devkit 与插件管理共享 pnpm 定位和鉴权边界。路由沿
 
 {/* ref file="../plugins/devkit/src/vocab.ts" lines="6-10" hash="d1efd32b0aba" blob="a80f9b7d95a4" */}
 
-{/* ref file="../plugins/devkit/src/release.ts" lines="125-138" hash="eea1577f56fb" blob="b49dcd156322" */}
+{/* ref file="../plugins/devkit/src/release.ts" lines="158-171" hash="eea1577f56fb" blob="732178dd29c9" */}
 
 发布目标写进临时目录里发布内容清单的 `publishConfig.registry`，命令行不带 `--registry`；问「这个版本号在源上有没有」时指定发布目标。pnpm 12 里 `publishConfig.registry` 优先于 `~/.npmrc` 的 scope 路由与命令行的 `--registry`，而 `--registry` 不优先于 scope 路由——`pnpm view` 也一样，带范围的包名要用 `--config.<范围>:registry=` 才指定得了（实验见本仓 `probes/2609251140_pnpm-publish-config-registry/`）：
 
-{/* ref file="../plugins/devkit/src/node-dev-deps.ts" lines="185-198" hash="561b92e3cc22" blob="7ad0027b33e7" */}
+{/* ref file="../plugins/devkit/src/node-dev-deps.ts" lines="186-199" hash="561b92e3cc22" blob="7eef44a73b1e" */}
 
 问 peer 里各个插件的 `dist-tags.latest` 不指定源，由 `~/.npmrc` 按包名范围决定去哪问。
 

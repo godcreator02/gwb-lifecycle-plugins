@@ -35,11 +35,11 @@ description: 连接 devkit.dev、devkit.release、devkit.scaffold.plugin 与被�
 
 {/* ref file="../plugins/devkit/src/dev.ts" lines="97-100" hash="c53a8f4c178d" blob="48d80099fae0" */}
 
-{/* ref file="../plugins/devkit/src/node-dev-deps.ts" lines="218-224" hash="8c0a0fbe45af" blob="7ad0027b33e7" */}
+{/* ref file="../plugins/devkit/src/node-dev-deps.ts" lines="219-225" hash="8c0a0fbe45af" blob="7eef44a73b1e" */}
 
 **`keywords` 含 `gwb-plugin` 表示插件**：`devkit.release` 只对它查 peer（含 peer 里内核包的范围）与构建产物里包名 import 的两份名单；`devkit.dev` 只收插件与内核包，别的包（库）直接拒：
 
-{/* ref file="../plugins/devkit/src/release.ts" lines="119-119" hash="317b9b806e49" blob="b49dcd156322" */}
+{/* ref file="../plugins/devkit/src/release.ts" lines="152-152" hash="317b9b806e49" blob="732178dd29c9" */}
 
 {/* ref file="../plugins/devkit/src/dev.ts" lines="467-470" hash="15dd703f95a5" blob="9c7dc37e4061" */}
 
@@ -53,11 +53,11 @@ description: 连接 devkit.dev、devkit.release、devkit.scaffold.plugin 与被�
 
 **成员放在哪**：组装发布内容时找 `workspace:` 依赖的版本，从仓根往下扫两层，不认目录名；找不到那个包、或扫到读不懂的 `package.json`，直接报错：
 
-{/* ref file="../plugins/devkit/src/node-dev-deps.ts" lines="77-103" hash="1b46466d6d27" blob="7ad0027b33e7" */}
+{/* ref file="../plugins/devkit/src/node-dev-deps.ts" lines="78-104" hash="1b46466d6d27" blob="7eef44a73b1e" */}
 
 这里的「仓根」是从包目录往上找到的第一个有 `pnpm-workspace.yaml` 的目录；一路找到盘根都没有就报错，这个包不发：
 
-{/* ref file="../plugins/devkit/src/node-dev-deps.ts" lines="121-130" hash="53ef6c8aefb8" blob="7ad0027b33e7" */}
+{/* ref file="../plugins/devkit/src/node-dev-deps.ts" lines="122-131" hash="53ef6c8aefb8" blob="7eef44a73b1e" */}
 
 **`pnpm-workspace.yaml` 的 `packages` 里有 `plugins/*`**：`devkit.scaffold.plugin` 只往这样的仓里加插件，别的一概拒。`packages` 按 YAML 读，带不带引号、块列表还是流式列表都认；读不懂的写法报出是第几行，不当成「没有这一条」：
 
@@ -65,7 +65,7 @@ description: 连接 devkit.dev、devkit.release、devkit.scaffold.plugin 与被�
 
 **git 工作区干净**：`devkit.release` 在构建之前运行 `git status --porcelain=v1`，有一条改动就一个都不发；不是 git 仓也拒。`devkit.dev` 不查：
 
-{/* ref file="../plugins/devkit/src/release.ts" lines="350-359" hash="e996260268bf" blob="b49dcd156322" */}
+{/* ref file="../plugins/devkit/src/release.ts" lines="408-417" hash="e996260268bf" blob="732178dd29c9" */}
 
 ## 约定
 
@@ -85,7 +85,7 @@ devkit 保证：
 
 各条命令用假实现测自己那部分假设，没有一份测试拿一个真实的仓把几条命令串起来运行：
 
-{/* ref file="../plugins/devkit/tests/release.test.ts" lines="515-522" hash="9d6bd9132e58" blob="5c489c4c2fa7" */}
+{/* ref file="../plugins/devkit/tests/release.test.ts" lines="558-565" hash="9d6bd9132e58" blob="31463cf7f7fe" */}
 
 {/* ref file="../plugins/devkit/tests/dev.test.ts" lines="292-294" hash="6b99bf051abc" blob="75e00557d5e9" */}
 
@@ -95,7 +95,7 @@ devkit 保证：
 
 {/* ref file="../plugins/devkit/tests/scaffold.test.ts" lines="112-123" hash="8b41f52182cb" blob="f2871f97e5ba" */}
 
-{/* ref file="../plugins/devkit/tests/scaffold.test.ts" lines="684-684" hash="219764e4210c" blob="f2871f97e5ba" */}
+{/* ref file="../plugins/devkit/tests/scaffold.test.ts" lines="686-686" hash="219764e4210c" blob="2f70e79c9da0" */}
 
 {/* ref file="../plugins/devkit/tests/node-dev-deps.test.ts" lines="64-68" hash="1e4b4ec770c2" blob="4fa855823241" */}
 

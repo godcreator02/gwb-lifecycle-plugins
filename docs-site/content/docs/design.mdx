@@ -80,7 +80,7 @@ devkit 没有任何特权：装进 home 才有它的命令，和别的插件一�
 
 判据一句话：**这段逻辑能不能不启动进程、不开窗口、只给输入看输出。**
 
-能的部分是纯逻辑：时序、检查、命名、版本号、「记录里的 pid 还是不是那个 home」「装上的是不是这次打包的版本」「peer 里的插件和源上 latest 在不在同一条线」这些判断都在这里，测试用假的依赖把整条流程运行完。不能的部分在 `node-*-deps.ts` 与 `node-process-tree.ts` 里，只负责在真机器上拿到答案：启动进程、超时终止整棵进程树、查进程表与端口、读写磁盘、连 CDP、问 npm 源。这一层不做判断，也不进单元测试；唯一的例外是超时终止整棵进程树，用真的子进程测（孙进程真的没了，假实现证明不了）。
+能的部分是纯逻辑：时序、检查、命名、版本号、「记录里的 pid 还是不是那个 home」「装上的是不是这次打包的版本」「peer 里的插件和源上 latest 在不在同一条线」这些判断都在这里，测试用假的依赖把整条流程运行完。不能的部分在 `node-*-deps.ts`、`node-process-tree.ts` 与 `node-github.ts` 里，只负责在真机器上拿到答案：启动进程、超时终止整棵进程树、查进程表与端口、读写磁盘、连 CDP、问 npm 源、调 GitHub 的接口。这一层不做判断，也不进单元测试；唯一的例外是超时终止整棵进程树，用真的子进程测（孙进程真的没了，假实现证明不了）。
 
 两边靠显式接口隔开：`HomeDeps`、`DevDeps`、`ReleaseDeps` 由纯逻辑定义，运行时传 `node-*-deps.ts` 的实现，测试时传假实现。依赖方向单向：真机器那一层认识纯逻辑，纯逻辑不认识它。
 
@@ -88,9 +88,9 @@ devkit 没有任何特权：装进 home 才有它的命令，和别的插件一�
 
 {/* ref file="../plugins/devkit/src/dev.ts" lines="328-328" hash="1158b934aa50" blob="ebe1ec7fc4e7" */}
 
-{/* ref file="../plugins/devkit/src/release.ts" lines="13-13" hash="37be445dc92f" blob="f6121d7801e9" */}
+{/* ref file="../plugins/devkit/src/release.ts" lines="35-35" hash="37be445dc92f" blob="732178dd29c9" */}
 
-{/* tree dir="../plugins/devkit/src" depth="1" glob="*.ts" hash="845545ed05e8" */}
+{/* tree dir="../plugins/devkit/src" depth="1" glob="*.ts" hash="dec8d8d10e78" */}
 
 建仓是另一种形状：算计划、渲染模板、写磁盘只做计算与同步读写磁盘，不注入接口，测试直接写临时目录——把「往磁盘上写文件」换成假实现，等于没测。写完之后加 shadcn 组件要启动 pnpm，这一步照上面的分法：`shadcn-components.ts` 收一个「在插件包目录运行一条 pnpm 命令」的函数，运行时由 `node-shadcn-deps.ts` 给真的 pnpm，测试给照实测样子改插件包目录的假 pnpm，读写磁盘照样是真的。各模块在哪个文件、先读哪个，见[开发套件](/docs/devkit)的代码地图。
 

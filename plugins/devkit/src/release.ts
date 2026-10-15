@@ -10,6 +10,28 @@ import { isCordisPluginManifest, isRecord, packageManifestOf, parseHttpUrl, TEAM
 /** git 工作区的状态。`dirty` 里是 porcelain 条目原文（两列状态加路径） */
 export type GitStatus = { ok: true; dirty: string[] } | { ok: false; error: string }
 
+/** npmjs。发到这里的包不在本机发：组装好的包文件挂到 GitHub release 上，由仓里的 `PUBLISH_WORKFLOW` 经 trusted publishing 发 */
+export const NPMJS_REGISTRY = 'https://registry.npmjs.org/'
+/** 仓里发 npmjs 的工作流，相对仓根。npmjs 上每个包登记的 trusted publisher 写的就是这个文件名 */
+export const PUBLISH_WORKFLOW = '.github/workflows/publish.yml'
+/** 等 publish.yml 跑完的上限：它只下载包文件再逐个 npm publish，通常一分钟内跑完 */
+export const PUBLISH_RUN_TIMEOUT_MS = 180_000
+
+export interface GithubRepo {
+  owner: string
+  repo: string
+}
+
+/** 交给 Actions 发 npmjs 那一步用到的 GitHub 操作。凭据由实现自己取；连不上、没权限直接抛，信息里写明是哪个请求 */
+export interface GithubReleaseGateway {
+  /** 这个提交在 GitHub 上的仓里有没有 */
+  hasCommit(repo: GithubRepo, sha: string): Promise<boolean>
+  /** 在 `sha` 上建 release（tag 由 GitHub 建）：先建草稿、传上包文件，再公开——公开那一刻触发 publish.yml。回 release 的网页地址 */
+  createRelease(input: { repo: GithubRepo; tag: string; sha: string; title: string; body: string; assets: { name: string; file: string }[] }): Promise<{ url: string }>
+  /** 等 `sha` 上由 release 触发、`since` 之后建的 publish.yml 运行跑完；`timeoutMs` 内没跑完回 `finished: false` */
+  waitPublishRun(input: { repo: GithubRepo; sha: string; since: number; timeoutMs: number }): Promise<{ finished: true; success: boolean; url: string } | { finished: false; url?: string }>
+}
+
 export interface ReleaseDeps {
   /** 前台运行一条命令到结束：成没成加输出的最后几行；超时终止整棵进程树 */
   run(plan: RunPlan, timeoutMs: number): Promise<RunResult>
@@ -20,6 +42,15 @@ export interface ReleaseDeps {
    * `ranges` 是依赖名 → 写进去的范围：同一次发的包给 `^新版本号`，其余 workspace 依赖由实现按工作区里的版本号补 `^`
    */
   publish(input: { pkgDir: string; version: string; registry: string; ranges: Record<string, string> }): Promise<{ ok: boolean; tail: string }>
+  /** 照 `publish` 组装发布内容，但不发，打成包文件放进 `destination`，回包文件的绝对路径 */
+  packRelease(input: { pkgDir: string; version: string; registry: string; ranges: Record<string, string>; destination: string }): Promise<{ ok: true; file: string } | { ok: false; tail: string }>
+  /** 仓根 HEAD 的提交号 */
+  headCommit(repoDir: string): Promise<{ ok: true; sha: string } | { ok: false; error: string }>
+  github: GithubReleaseGateway
+  /** 新建一个空的临时目录，用完交给 `removeDir` */
+  tempDir(): string
+  removeDir(dir: string): void
+  now(): number
   /** 这个版本号在 `registry` 这个源上有没有。问不出来（源连不上、超时）就抛 */
   published(spec: string, registry: string): Promise<boolean>
   /** 源上这个包的 `dist-tags.latest`，问哪个源由 `.npmrc` 按包名范围决定。问不出、没发过正式版都回 undefined */
@@ -57,6 +88,8 @@ export interface ReleasedPackage {
 export interface ReleaseReport {
   repoDir: string
   shipped: ReleasedPackage[]
+  /** 有包发到 npmjs 时才有：挂包文件的 release 与发布它们的那次 Actions 运行 */
+  actions?: { release: string; run: string }
   /** 发完之后的下一步。说清「升级 default」为什么不在这条命令里 */
   note: string
 }
@@ -135,6 +168,31 @@ export function publishTargetOf(doc: Record<string, unknown>): { ok: true; regis
     return { ok: false, error: `publishConfig.registry 要是 http(s) 地址，实得 ${JSON.stringify(registry)}` }
   }
   return { ok: true, registry }
+}
+
+/** 包清单 `repository` 指向的 GitHub 仓。发到 npmjs 的包由那个仓的 `PUBLISH_WORKFLOW` 发，没写或写的不是 GitHub 地址都拒 */
+export function githubRepoOf(doc: Record<string, unknown>): { ok: true; repo: GithubRepo } | { ok: false; error: string } {
+  const repository = doc['repository']
+  const url = typeof repository === 'string' ? repository : isRecord(repository) && typeof repository['url'] === 'string' ? repository['url'] : undefined
+  const match = url === undefined ? null : /^(?:git\+)?https:\/\/github\.com\/([\w.-]+)\/([\w.-]+?)(?:\.git)?$/.exec(url)
+  if (match === null) {
+    return {
+      ok: false,
+      error: `repository 要写 GitHub 上的仓("repository": { "type": "git", "url": "https://github.com/<owner>/<仓名>.git" }):发到 npmjs 的包由那个仓的 ${PUBLISH_WORKFLOW} 发,实得 ${JSON.stringify(repository)}`,
+    }
+  }
+  return { ok: true, repo: { owner: match[1]!, repo: match[2]! } }
+}
+
+/** 这个发布目标是不是 npmjs：只认主机名，结尾的 `/` 写没写都算 */
+export function isNpmjsRegistry(registry: string): boolean {
+  return parseHttpUrl(registry)?.host === 'registry.npmjs.org'
+}
+
+/** 挂包文件的 release 的 tag：`release-<UTC 年月日>-<时分秒>` */
+export function releaseTagOf(ms: number): string {
+  const stamp = new Date(ms).toISOString().replace(/\.\d+Z$/, '').replace(/[-:]/g, '')
+  return `release-${stamp.replace('T', '-')}`
 }
 
 /** 命令参数 `alsoPublishTo`：不给是空表；给了就要是 http(s) 地址的字符串数组，不重复。不合格就拒，不丢掉不合格的项 */
@@ -453,11 +511,79 @@ async function ticketFor(
   return { pkg: `${manifest.name}@${manifest.version}`, problems }
 }
 
-/** 按给的顺序发：被依赖的先发，不然装的时候源上还没有它。一个包的各个发布目标都发完，再发下一个包 */
+/** 交给 Actions 发 npmjs 的那一批：都在同一个 GitHub 仓里，HEAD 已经在那个仓上 */
+interface ActionsHandoff {
+  repo: GithubRepo
+  sha: string
+  packages: PlannedPackage[]
+}
+
+/** 发任何一个包之前查：仓里有 publish.yml、包都指向同一个 GitHub 仓、HEAD 已推上去。没有包发 npmjs 回 undefined */
+async function actionsHandoffOf(repoDir: string, planned: PlannedPackage[], deps: ReleaseDeps): Promise<Refusal | ActionsHandoff | undefined> {
+  const viaActions = planned.filter((one) => one.registries.some(isNpmjsRegistry))
+  if (viaActions.length === 0) return undefined
+  if (!deps.exists(path.join(repoDir, PUBLISH_WORKFLOW))) {
+    return {
+      ok: false,
+      error: `发到 npmjs 的包由仓里的 ${PUBLISH_WORKFLOW} 经 GitHub Actions 发,${repoDir} 里没有这个文件,一个都没发:从 devkit 包的 template/repo/${PUBLISH_WORKFLOW}.tpl 复制一份(去掉 .tpl)、提交并推送;npmjs 上每个包还要登记 trusted publisher(工作流文件名 publish.yml),做法见说明书 gwb-devkit「发版」`,
+    }
+  }
+  let repo: GithubRepo | undefined
+  for (const one of viaActions) {
+    const found = githubRepoOf(one.manifest.doc)
+    if (!found.ok) return { ok: false, error: `${one.manifest.name} 的 package.json:${found.error},一个都没发` }
+    if (repo !== undefined && (repo.owner !== found.repo.owner || repo.repo !== found.repo.repo)) {
+      return { ok: false, error: `同一次发到 npmjs 的包要指向同一个 GitHub 仓:${one.manifest.name} 写的是 ${found.repo.owner}/${found.repo.repo},前面的包是 ${repo.owner}/${repo.repo},一个都没发` }
+    }
+    repo = found.repo
+  }
+  const head = await deps.headCommit(repoDir)
+  if (!head.ok) return { ok: false, error: `问不出 ${repoDir} 的 HEAD:${head.error},一个都没发` }
+  if (!(await deps.github.hasCommit(repo!, head.sha))) {
+    return { ok: false, error: `HEAD ${head.sha.slice(0, 7)} 还不在 GitHub 的 ${repo!.owner}/${repo!.repo} 上:npmjs 那份由 Actions 照这个提交发,先 git push 再来,一个都没发` }
+  }
+  return { repo: repo!, sha: head.sha, packages: viaActions }
+}
+
+/** 按发布顺序打包、挂到 release 上，等 publish.yml 跑完。包文件名带两位序号，工作流按文件名排序依次发 */
+async function handOffToActions(handoff: ActionsHandoff, ranges: Record<string, string>, deps: ReleaseDeps): Promise<{ ok: true; release: string; run: string } | Refusal> {
+  const destination = deps.tempDir()
+  try {
+    const assets: { name: string; file: string }[] = []
+    for (const [index, one] of handoff.packages.entries()) {
+      const packed = await deps.packRelease({ pkgDir: one.pkgDir, version: one.manifest.version, registry: NPMJS_REGISTRY, ranges, destination })
+      if (!packed.ok) return { ok: false, error: `${one.manifest.name}@${one.manifest.version} 打包没成:\n${packed.tail}` }
+      assets.push({ name: `${String(index + 1).padStart(2, '0')}-${path.basename(packed.file)}`, file: packed.file })
+    }
+    const specs = handoff.packages.map((one) => `${one.manifest.name}@${one.manifest.version}`)
+    const since = deps.now()
+    const release = await deps.github.createRelease({
+      repo: handoff.repo,
+      tag: releaseTagOf(since),
+      sha: handoff.sha,
+      title: specs.join('、'),
+      body: `由 devkit.release 组装，${PUBLISH_WORKFLOW} 按序号依次发到 npmjs：\n\n${specs.map((one) => `- ${one}`).join('\n')}`,
+      assets,
+    })
+    const run = await deps.github.waitPublishRun({ repo: handoff.repo, sha: handoff.sha, since, timeoutMs: PUBLISH_RUN_TIMEOUT_MS })
+    if (!run.finished) {
+      return {
+        ok: false,
+        error: `npmjs 那份交给了 Actions(release ${release.url}),${String(PUBLISH_RUN_TIMEOUT_MS / 60_000)} 分钟内没跑完:到 ${run.url ?? release.url} 看结果。跑成功了就是发完了;失败了修好后在网页上重跑,工作流会跳过已经在 npmjs 上的包`,
+      }
+    }
+    if (!run.success) return { ok: false, error: `Actions 发 npmjs 没成:${run.url}。看日志修好后在网页上重跑,工作流会跳过已经在 npmjs 上的包;同一个号别改了内容再发` }
+    return { ok: true, release: release.url, run: run.url }
+  } finally {
+    deps.removeDir(destination)
+  }
+}
+
+/** 按给的顺序发：被依赖的先发，不然装的时候源上还没有它。一个包的各个发布目标都发完，再发下一个包。npmjs 不在这里发，交给 `handOffToActions` */
 async function publishInOrder(planned: PlannedPackage[], ranges: Record<string, string>, deps: ReleaseDeps): Promise<Refusal & { data: { shipped: ReleasedPackage[] } } | ReleasedPackage[]> {
   const shipped: ReleasedPackage[] = []
   for (const plannedPackage of planned) {
-    for (const registry of plannedPackage.registries) {
+    for (const registry of plannedPackage.registries.filter((one) => !isNpmjsRegistry(one))) {
       const sent = await deps.publish({ pkgDir: plannedPackage.pkgDir, version: plannedPackage.manifest.version, registry, ranges })
       if (!sent.ok) {
         return { ok: false, error: `${plannedPackage.manifest.name}@${plannedPackage.manifest.version} 发到 ${registry} 没成:\n${sent.tail}`, data: { shipped } }
@@ -486,16 +612,42 @@ export async function runRelease(input: ReleaseInput, deps: ReleaseDeps): Promis
   for (const plannedPackage of plan.planned) tickets.push(await ticketFor(input.repoDir, plannedPackage, siblings, latest, deps))
   if (tickets.some((ticket) => ticket.problems.length > 0)) return { ok: false, error: ticketRefusal(tickets) }
 
+  let handoff: Awaited<ReturnType<typeof actionsHandoffOf>>
+  try {
+    handoff = await actionsHandoffOf(input.repoDir, plan.planned, deps)
+  } catch (err) {
+    return { ok: false, error: `查 GitHub 上的仓时出错,一个都没发:${err instanceof Error ? err.message : String(err)}` }
+  }
+  if (handoff !== undefined && 'ok' in handoff) return handoff
+
   const shipped = await publishInOrder(plan.planned, plan.ranges, deps)
   if (!Array.isArray(shipped)) return shipped
 
+  let actions: { release: string; run: string } | undefined
+  if (handoff !== undefined) {
+    let handedOff: Awaited<ReturnType<typeof handOffToActions>>
+    try {
+      handedOff = await handOffToActions(handoff, plan.ranges, deps)
+    } catch (err) {
+      handedOff = { ok: false, error: `交给 GitHub Actions 发 npmjs 时出错:${err instanceof Error ? err.message : String(err)}` }
+    }
+    if (!handedOff.ok) {
+      const done = shipped.length === 0 ? '' : `本机发的已经发完:${shipped.map((one) => `${one.pkg}@${one.version} → ${one.registry}`).join('、')}。`
+      return { ok: false, error: `${done}${handedOff.error}`, data: { shipped } }
+    }
+    actions = { release: handedOff.release, run: handedOff.run }
+    for (const one of handoff.packages) shipped.push({ pkg: one.manifest.name, version: one.manifest.version, dir: one.pkgDir, registry: NPMJS_REGISTRY })
+  }
+
   const shippedList = shipped.map((one) => `${one.pkg}@${one.version} → ${one.registry}`).join('、')
+  const npmjsLag = actions === undefined ? '' : `npmjs 那份由 Actions 发(${actions.run}),新版本要过几分钟才查得到;`
   return {
     ok: true,
     data: {
       repoDir: input.repoDir,
       shipped,
-      note: `发好了 ${shippedList}(tag latest)。这条命令只发到源、没碰任何 home:升级 default 用 plugin-manager.update {"all":true}(由插件管理自己做,热重新加载时它不会被停掉)。发版前该在隔离 home 里验过的,验完再升级`,
+      ...(actions === undefined ? {} : { actions }),
+      note: `发好了 ${shippedList}(tag latest)。${npmjsLag}这条命令只发到源、没碰任何 home:升级 default 用 plugin-manager.update {"all":true}(由插件管理自己做,热重新加载时它不会被停掉)。发版前该在隔离 home 里验过的,验完再升级`,
     },
   }
 }
