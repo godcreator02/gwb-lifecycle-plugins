@@ -5,13 +5,11 @@ import { artifactProblems } from './artifact-check.js'
 import type { BrowserProviders } from './browser-providers.js'
 import { styleProblems, type StyleCheckIo } from './style-check.js'
 import { wiringProblems, type WiringCheckIo } from './wiring-check.js'
-import { isCordisPluginManifest, isRecord, packageManifestOf, parseHttpUrl, TEAM_REGISTRY } from './vocab.js'
+import { isCordisPluginManifest, isRecord, NPMJS_REGISTRY, packageManifestOf, parseHttpUrl } from './vocab.js'
 
 /** git 工作区的状态。`dirty` 里是 porcelain 条目原文（两列状态加路径） */
 export type GitStatus = { ok: true; dirty: string[] } | { ok: false; error: string }
 
-/** npmjs。发到这里的包不在本机发：组装好的包文件挂到 GitHub release 上，由仓里的 `PUBLISH_WORKFLOW` 经 trusted publishing 发 */
-export const NPMJS_REGISTRY = 'https://registry.npmjs.org/'
 /** 仓里发 npmjs 的工作流，相对仓根。npmjs 上每个包登记的 trusted publisher 写的就是这个文件名 */
 export const PUBLISH_WORKFLOW = '.github/workflows/publish.yml'
 /** 等 publish.yml 跑完的上限：它只下载包文件再逐个 npm publish，通常一分钟内跑完 */
@@ -155,7 +153,7 @@ export function ticketManifestOf(text: string | undefined): ReleaseManifest | un
   }
 }
 
-const MISSING_PUBLISH_TARGET = `没写 publishConfig.registry:发到哪个源由包自己写明,在 package.json 里加上 "publishConfig": { "registry": "<源的地址>" }(团队源是 "publishConfig": { "registry": "${TEAM_REGISTRY}" })`
+const MISSING_PUBLISH_TARGET = `没写 publishConfig.registry:发到哪个源由包自己写明,在 package.json 里加上 "publishConfig": { "registry": "<源的地址>" }(发到 npmjs 是 "publishConfig": { "registry": "${NPMJS_REGISTRY}", "access": "public" })`
 
 /** 包发到哪个源：清单里 `publishConfig.registry` 写的那个。没写、或写的不是 http(s) 地址都拒，不猜 */
 export function publishTargetOf(doc: Record<string, unknown>): { ok: true; registry: string } | { ok: false; error: string } {

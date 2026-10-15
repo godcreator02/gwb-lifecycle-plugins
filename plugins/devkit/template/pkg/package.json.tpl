@@ -8,7 +8,7 @@
   },
   "files": ["dist"],
   "keywords": ["gwb-plugin"],
-  "publishConfig": { "registry": "{{registry}}" },
+  "publishConfig": { "registry": "{{registry}}", "access": "public" },
   "scripts": {
     "build": "node build.ts && tailwindcss -i src/client/styles.css -o dist/style.css",
     "typecheck": "tsc --noEmit -p tsconfig.json && tsc --noEmit -p src/client/tsconfig.json",

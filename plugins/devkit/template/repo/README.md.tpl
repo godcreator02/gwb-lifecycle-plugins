@@ -5,8 +5,9 @@
 仓是 pnpm workspace：**仓根是一个不发布的 private 包，自己没有代码**（`pnpm build` / `pnpm check` 都递归到各成员包），
 插件放在 `plugins/{{name}}/`。加第二个插件用 `devkit.scaffold.plugin {"repo":"<仓根>","name":"<短名>"}`，它在
 `plugins/` 下再建一个插件包；不是插件的包（插件共用的库之类）放在 `packages/`，需要时再加。
-包发到插件包 `package.json` 里 `publishConfig.registry` 写的源（建仓时的 `registry` 参数，不给是团队源），装进 home。
-GWB 发包与装依赖所用的 token 配在发起 home 的共享凭据 `npm-auth`；按 onboard 说明书迁移和配置。各个包名范围从哪个源装（`@<范围>:registry=`）仍可写在用户级 `~/.npmrc`，本仓不写认证信息。
+包发到插件包 `package.json` 里 `publishConfig.registry` 写的源（建仓时的 `registry` 参数，不给是 npmjs），装进 home。
+发到 npmjs 的包由 `.github/workflows/publish.yml` 经 GitHub Actions 发：插件包还要写 `repository`（这个仓在 GitHub 上的地址），npmjs 上登记 trusted publisher，做法见 devkit 的说明书 `gwb-devkit`「发版」。
+发到别的源时，发包与装依赖所用的 token 配在发起 home 的共享凭据 `npm-auth`；按 onboard 说明书迁移和配置。各个包名范围从哪个源装（`@<范围>:registry=`）仍可写在用户级 `~/.npmrc`，本仓不写认证信息。
 
 ## 插件包的结构（`plugins/{{name}}/`，配置都在包内）
 

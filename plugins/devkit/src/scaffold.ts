@@ -1,7 +1,7 @@
 import fs from 'node:fs'
 import path from 'node:path'
 import { isMap, isScalar, isSeq, LineCounter, parseDocument, type Document } from 'yaml'
-import { isRecord, parseHttpUrl, TEAM_REGISTRY, TEAM_SCOPE, versionCore } from './vocab.js'
+import { isRecord, NPMJS_REGISTRY, parseHttpUrl, TEAM_SCOPE, versionCore } from './vocab.js'
 
 /** 短名：kebab-case。段之间只许一个连字符、结尾不许有连字符——宽松的写法会放过 `x--`，生成的包名就一直带着它 */
 export const NAME_RE = /^[a-z][a-z0-9]*(?:-[a-z0-9]+)*$/
@@ -41,7 +41,7 @@ export interface ScaffoldInput {
   peerVersions: PeerVersions
   /** 包名范围，`@` 开头。不给是 `TEAM_SCOPE` */
   scope?: string
-  /** 写进插件包 `publishConfig.registry` 的发布目标。不给是 `TEAM_REGISTRY` */
+  /** 写进插件包 `publishConfig.registry` 的发布目标。不给是 `NPMJS_REGISTRY` */
   registry?: string
 }
 
@@ -127,8 +127,8 @@ function scopeOrTeamScope(scope: string | undefined): string {
  * 只收规范写法（与 `new URL(registry).href` 逐字相同）：原样写进 package.json 的 JSON 字符串里，
  * 规范写法里没有要转义的字符。账号写在 URL 里会随包清单发出去，发布 token 配在发起 home 的 npm-auth 凭据
  */
-function registryOrTeamRegistry(registry: string | undefined): string {
-  if (registry === undefined) return TEAM_REGISTRY
+function registryOrNpmjs(registry: string | undefined): string {
+  if (registry === undefined) return NPMJS_REGISTRY
   const url = parseHttpUrl(registry)
   if (url === undefined) {
     throw new Error(`registry 要是 http(s) 地址（如 "http://localhost:4873/"），实得 ${JSON.stringify(registry)}`)
@@ -151,7 +151,7 @@ export function planScaffold(input: ScaffoldInput): ScaffoldPlan {
   return {
     name,
     pkg: `${scopeOrTeamScope(input.scope)}/gwb-${name}`,
-    registry: registryOrTeamRegistry(input.registry),
+    registry: registryOrNpmjs(input.registry),
     pluginName: `gwb-${name}`,
     dir,
     peerVersions: peerVersionCores(input.peerVersions),
@@ -226,7 +226,7 @@ function workspacePackageGlobs(text: string, file: string): string[] | null {
 export function planScaffoldPlugin(input: ScaffoldPluginInput): ScaffoldPluginPlan {
   const name = validShortName(input.name)
   const pkg = `${scopeOrTeamScope(input.scope)}/gwb-${name}`
-  const registry = registryOrTeamRegistry(input.registry)
+  const registry = registryOrNpmjs(input.registry)
   const rawRepo = input.repo.trim()
   if (rawRepo === '') throw new Error('repo 是必给的：workspace 仓根的绝对路径（pnpm-workspace.yaml 所在的那一层）')
   const repoDir = path.resolve(rawRepo)

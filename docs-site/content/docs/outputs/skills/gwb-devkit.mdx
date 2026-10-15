@@ -12,7 +12,7 @@ description: 写新插件、改插件、在隔离 home 里验证改动、发正�
 
 1. 要用的能力先看提供方插件发布的 `.d.ts`：它给 cordis 的 `Context` 补了哪几项（`declare module 'cordis' { interface Context { … } }`），方法签名与文档注释就在那里。已经有了就直接用：peer 里写上提供方，`import type` 它的类型，`ctx.inject` 取用。不按名字调别的插件的命令；提供方只有命令、没有服务方法的，先给它加上服务方法
 2. 带界面的插件，先读外壳的说明书 `skill.read {"name":"gwb-shell"}`
-3. 建仓用 `devkit.scaffold`，往已有的 workspace 仓再加一个插件用 `devkit.scaffold.plugin`。没有团队源（`@godcreator`）发布权限的，两条都加 `scope` 与 `registry`，同一个仓里的插件用同一套；GWB 发布凭据保存在发起 home 的共享 secret `npm-auth`，配置步骤读 `gwb-plugin-manager`。两条命令写完文件后都要联网运行 shadcn 官方 CLI 加上 `button`，顺带把整个仓装一遍依赖
+3. 建仓用 `devkit.scaffold`，往已有的 workspace 仓再加一个插件用 `devkit.scaffold.plugin`。不给 `registry` 时插件包发到 npmjs（由 GitHub Actions 发，见下面「发版」）。没有 `@godcreator` 发布权限的，两条都加 `scope`，要发到别的源再加 `registry`，同一个仓里的插件用同一套；发到别的源的发布凭据保存在发起 home 的共享 secret `npm-auth`，配置步骤读 `gwb-plugin-manager`。两条命令写完文件后都要联网运行 shadcn 官方 CLI 加上 `button`，顺带把整个仓装一遍依赖
 4. 把模板改成真插件，守「写插件的规矩」：
    - `src/index.ts`：模板的 `<短名>.ping` 与窗格 `main` 换成真正的命令与窗格，命令照模板那条的写法登记。每条命令都写 `effect`，三选一：`read`（什么都不改，联网只读也算）、`write`（改本机的文件、设置、数据或界面）、`external`（影响本机以外或打扰人：推送、发到远端、发消息、弹窗或通知），按参数可能做几种事的取最重的那种。命令总线 0.6 起没写 `effect` 就登记失败，插件加载失败
    - `src/client/`：窗格里可点的控件用 shadcn 官方组件，模板已接好 `components.json`、`@/` 别名与 `Button`；要别的组件照外壳说明书的「接入 shadcn 组件」第 3 步起做

@@ -620,13 +620,13 @@ describe('发布目标（GWB-17）', () => {
     expect(publishTargetOf({ publishConfig: { registry: 'https://npm.example.com/api/npm' } })).toEqual({ ok: true, registry: 'https://npm.example.com/api/npm' })
   })
 
-  it('publishTargetOf：没写 publishConfig 或没写 registry：拒，报错写清要写什么、给出团队源地址作例子', () => {
+  it('publishTargetOf：没写 publishConfig 或没写 registry：拒，报错写清要写什么、给出 npmjs 的写法作例子', () => {
     for (const doc of [{}, { publishConfig: { access: 'public' } }]) {
       const got = publishTargetOf(doc)
       expect(got.ok, JSON.stringify(doc)).toBe(false)
       if (!got.ok) {
         expect(got.error).toContain('没写 publishConfig.registry')
-        expect(got.error).toContain(`"publishConfig": { "registry": "${TEAM_REGISTRY}" }`)
+        expect(got.error).toContain(`"publishConfig": { "registry": "https://registry.npmjs.org/", "access": "public" }`)
       }
     }
   })

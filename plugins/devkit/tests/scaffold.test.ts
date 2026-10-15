@@ -26,7 +26,7 @@ import {
   targetRel,
   writeRepo,
 } from '../src/scaffold.js'
-import { TEAM_REGISTRY, TEAM_SCOPE } from '../src/vocab.js'
+import { NPMJS_REGISTRY, TEAM_SCOPE } from '../src/vocab.js'
 import { KERNEL_PACKAGE, isCaretRange } from '@godcreator/gwb-plugin-manager'
 
 /**
@@ -132,12 +132,12 @@ describe('包名范围与发布目标（GWB-17）', () => {
     return JSON.parse(files.find((f) => f.rel === rel)?.text ?? '') as { name: string; publishConfig?: { registry?: unknown } }
   }
 
-  it('不给 scope、registry：包名在团队范围下，publishConfig.registry 写团队源', () => {
+  it('不给 scope、registry：包名在团队范围下，publishConfig 写 npmjs 与 access public', () => {
     const plan = planScaffold({ name: 'hello', dir: 'D:\\tmp\\x', peerVersions: PEERS })
     expect(plan.pkg).toBe(`${TEAM_SCOPE}/gwb-hello`)
-    expect(plan.registry).toBe(TEAM_REGISTRY)
+    expect(plan.registry).toBe(NPMJS_REGISTRY)
     const manifest = manifestOf(renderTemplate(TEMPLATE_ROOT, plan), 'plugins/hello/package.json')
-    expect(manifest.publishConfig?.registry).toBe(TEAM_REGISTRY)
+    expect(manifest.publishConfig).toEqual({ registry: NPMJS_REGISTRY, access: 'public' })
   })
 
   it('给了 scope、registry：包名 <scope>/gwb-<短名>，publishConfig.registry 是给的地址；建仓与加插件一样', () => {

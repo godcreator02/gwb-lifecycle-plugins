@@ -1,7 +1,7 @@
 import fs from 'node:fs'
 import path from 'node:path'
 import type { GwbContext } from '@godcreator/gwb-kernel-desktop'
-import { isRecord, requireKernel, TEAM_REGISTRY, TEAM_SCOPE } from './vocab.js'
+import { isRecord, NPMJS_REGISTRY, requireKernel, TEAM_SCOPE } from './vocab.js'
 // 只为引入对方包里的 declare module 'cordis'：ctx 上那几个服务名的类型从那里来
 import type {} from '@godcreator/gwb-commands'
 import type {} from '@godcreator/gwb-node-cli'
@@ -65,8 +65,8 @@ const SCAFFOLD_USAGE = [
   // 规则从 NAME_RE 取，不在这里抄一份
   `  name   必给，短名，kebab-case（${String(NAME_RE)}）。它派生出包名 <scope>/gwb-<短名>、插件名 gwb-<短名>、命令名 <短名>.<动作> 的前半`,
   '  dir    必给，目标目录的绝对路径，必须还不存在（存在就拒，不覆盖任何东西）。生成的仓只有一种布局：workspace——仓根是不发布的 private 包，插件包在 plugins/<短名>/',
-  `  scope  可选，包名范围（${String(SCOPE_RE)}），缺省 ${TEAM_SCOPE}。没有团队源发布权限的开发者给自己的范围`,
-  `  registry 可选，插件包 package.json 的 publishConfig.registry，devkit.release 发到这里。要是 http(s) 地址的规范写法（new URL(x).href 与原文相同，如 "http://localhost:4873/"），不带账号、查询串与 #；缺省是团队源 ${TEAM_REGISTRY}。发布凭据存在发起 home 的共享 secret npm-auth，接入步骤读 gwb-plugin-manager`,
+  `  scope  可选，包名范围（${String(SCOPE_RE)}），缺省 ${TEAM_SCOPE}。没有 ${TEAM_SCOPE} 发布权限的开发者给自己的范围`,
+  `  registry 可选，插件包 package.json 的 publishConfig.registry，devkit.release 发到这里。要是 http(s) 地址的规范写法（new URL(x).href 与原文相同，如 "http://localhost:4873/"），不带账号、查询串与 #；缺省是 npmjs ${NPMJS_REGISTRY}（由仓里的 .github/workflows/publish.yml 经 GitHub Actions 发）。插件包的 publishConfig 另写 "access": "public"。发到别的源的发布凭据存在发起 home 的共享 secret npm-auth，接入步骤读 gwb-plugin-manager`,
   '模板里要显示名的地方（README 标题、description、窗格标题）都用短名，要改自己改生成的文件。不建文档站',
   SCAFFOLD_PEER_VERSIONS_NOTE,
   SCAFFOLD_COMPONENTS_NOTE,
@@ -136,7 +136,7 @@ const RELEASE_USAGE = [
   '**版本号在仓里升**：发的是 package.json 里写的版本号，同一个版本号已在源上就拒——要发新的一版，先升版本号、提交，再调用',
   '**仓根 git 工作区不干净就拒**：正式版只从提交过的状态发',
   '  alsoPublishTo  可选，http(s) 地址的字符串数组：每个包发到自己的 publishConfig.registry 之后，再发到这些源。换源的过渡期用',
-  `**发到包自己的 publishConfig.registry**：没写这个字段、或写的不是 http(s) 地址就拒（团队源是 ${TEAM_REGISTRY}）。「同号已在源上」问的是这个源与 alsoPublishTo 里的每一个，有一个已有就拒`,
+  `**发到包自己的 publishConfig.registry**：没写这个字段、或写的不是 http(s) 地址就拒（npmjs 是 ${NPMJS_REGISTRY}）。「同号已在源上」问的是这个源与 alsoPublishTo 里的每一个，有一个已有就拒`,
   '**npmjs 不在本机发，交给 GitHub Actions**：发布目标里有 https://registry.npmjs.org/ 的包，本机先发完别的源，再把组装好的包按顺序打成包文件，在 HEAD 上建一个 GitHub release（tag release-<UTC 时间>）挂上去，由仓里的 .github/workflows/publish.yml 经 trusted publishing 按序号发到 npmjs，等它跑完（最多 3 分钟）再回执。发任何一个包之前先查：仓根有这个工作流文件、这些包的 repository 都指向同一个 GitHub 仓、HEAD 已经推到那个仓上，不满足就拒。GitHub 凭据用 git 凭据管理器里 github.com 那份（推送用的同一份）',
   '**发版前检查没过就拒**（构建之后，所有包一次列全）：产物里相对 import 指向的文件都在；dev 依赖不查',
   `**带界面的插件包另加样式检查**（构建后有 dist/style.css 才查）：${STYLE_CHECK_SUMMARY}`,
@@ -527,7 +527,7 @@ function registerScaffoldCommand({ ctx, log, commands }: Wiring): void {
       effect: 'write',
       description: '在一个新目录里生成一个 gwb 插件仓（workspace 布局，插件在 plugins/<短名>/）',
       usage:
-        `{name（必给，kebab-case 短名）, dir（必给，绝对路径且必须还不存在）, scope?（包名范围，缺省 ${TEAM_SCOPE}）, registry?（写进插件包 publishConfig.registry 的发布目标，缺省团队源）}。插件的模板在本包；要显示名的地方用短名；不建文档站。${SCAFFOLD_PEER_VERSIONS_NOTE}。${SCAFFOLD_COMPONENTS_NOTE}。回执 { repoDir, pluginDir, pkg, registry, name, files, components, nextSteps }，components 是添加的 shadcn 组件。参数不对会把完整说明回给你`,
+        `{name（必给，kebab-case 短名）, dir（必给，绝对路径且必须还不存在）, scope?（包名范围，缺省 ${TEAM_SCOPE}）, registry?（写进插件包 publishConfig.registry 的发布目标，缺省 npmjs）}。插件的模板在本包；要显示名的地方用短名；不建文档站。${SCAFFOLD_PEER_VERSIONS_NOTE}。${SCAFFOLD_COMPONENTS_NOTE}。回执 { repoDir, pluginDir, pkg, registry, name, files, components, nextSteps }，components 是添加的 shadcn 组件。参数不对会把完整说明回给你`,
     },
     async (args) => {
       if (!isRecord(args)) return { ok: false, error: `参数要是个对象。\n${SCAFFOLD_USAGE}` }

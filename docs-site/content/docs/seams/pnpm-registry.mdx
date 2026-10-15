@@ -48,11 +48,11 @@ description: devkit 与插件管理共享 pnpm 定位和鉴权边界。路由沿
 
 {/* ref file="../plugins/plugin-manager/src/pnpm.ts" lines="10-23" hash="a8e6203c4d42" blob="b62dd927fe34" */}
 
-**发布目标**：每个包发到自己 `package.json` 的 `publishConfig.registry`；没写这个字段、或写的不是 http(s) 地址就拒，报错里拿团队源 `TEAM_REGISTRY` 作例子写明要加什么。`TEAM_REGISTRY` 另一处用在建仓：不给 `registry` 参数时写进生成的插件包：
+**发布目标**：每个包发到自己 `package.json` 的 `publishConfig.registry`；没写这个字段、或写的不是 http(s) 地址就拒，报错里拿 npmjs 的写法 `NPMJS_REGISTRY` 作例子写明要加什么。`NPMJS_REGISTRY` 另一处用在建仓：不给 `registry` 参数时写进生成的插件包。团队源 `TEAM_REGISTRY` 只在包迁到 npmjs 的过渡期里作为 `alsoPublishTo` 的目标：
 
-{/* ref file="../plugins/devkit/src/vocab.ts" lines="6-10" hash="d1efd32b0aba" blob="a80f9b7d95a4" */}
+{/* ref file="../plugins/devkit/src/vocab.ts" lines="6-13" hash="b3a8ef50cf36" blob="03e13f8c59ca" */}
 
-{/* ref file="../plugins/devkit/src/release.ts" lines="158-171" hash="eea1577f56fb" blob="732178dd29c9" */}
+{/* ref file="../plugins/devkit/src/release.ts" lines="156-169" hash="f8e762766cbc" blob="70da389b6287" */}
 
 发布目标写进临时目录里发布内容清单的 `publishConfig.registry`，命令行不带 `--registry`；问「这个版本号在源上有没有」时指定发布目标。pnpm 12 里 `publishConfig.registry` 优先于 `~/.npmrc` 的 scope 路由与命令行的 `--registry`，而 `--registry` 不优先于 scope 路由——`pnpm view` 也一样，带范围的包名要用 `--config.<范围>:registry=` 才指定得了（实验见本仓 `probes/2609251140_pnpm-publish-config-registry/`）：
 

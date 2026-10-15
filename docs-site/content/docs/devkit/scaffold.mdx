@@ -15,7 +15,7 @@ workspace 仓：仓根是一个不发布的 private 包（`pnpm build` / `pnpm c
 
 ## 管什么
 
-一个短名派生出一组名字：包名 `<scope>/gwb-<短名>`、插件名 `gwb-<短名>`、命令名 `<短名>.<动作>` 的前半。模板里要显示名的地方（README 标题、仓根与插件包的 `description`、窗格标题、加载日志、窗格里的问候）也用短名，要中文名的自己改生成的文件。包的身份就是 `package.json` 的 `name`，发到哪里就是 `publishConfig.registry`，都用 npm 的标准字段：`scope` 参数定包名范围（缺省 `@godcreator`），`registry` 参数写进插件包的 `publishConfig.registry`（缺省团队源），`devkit.release` 照它发。没有团队源发布权限的开发者给自己的范围与源，就能走完建仓、改一版看一版、发正式版。这部分代码把包内 `template/` 的两部分按这组名字渲染好、写进一个还不存在的目录，在插件包目录加上 shadcn 组件，再把「接下来做什么」放进回执。
+一个短名派生出一组名字：包名 `<scope>/gwb-<短名>`、插件名 `gwb-<短名>`、命令名 `<短名>.<动作>` 的前半。模板里要显示名的地方（README 标题、仓根与插件包的 `description`、窗格标题、加载日志、窗格里的问候）也用短名，要中文名的自己改生成的文件。包的身份就是 `package.json` 的 `name`，发到哪里就是 `publishConfig.registry`，都用 npm 的标准字段：`scope` 参数定包名范围（缺省 `@godcreator`），`registry` 参数写进插件包的 `publishConfig.registry`（缺省 npmjs，`publishConfig` 里另写 `"access": "public"`），`devkit.release` 照它发。没有 `@godcreator` 发布权限的开发者给自己的范围与源，就能走完建仓、改一版看一版、发正式版。这部分代码把包内 `template/` 的两部分按这组名字渲染好、写进一个还不存在的目录，在插件包目录加上 shadcn 组件，再把「接下来做什么」放进回执。
 
 两条命令都只写插件的文件（加组件时 pnpm 顺带改仓根的锁文件与 `node_modules`，见下一节），不建文档站、不往已有的文档站里写页，也不调别的插件的命令：要文档站的仓，照站点插件与 docfirst 插件自己的说明书去建。加插件不碰仓根的 `package.json` 与 workspace 配置，README 里插件清单的更新由人做（`nextStepsPlugin` 最后一步提醒）。
 
@@ -56,7 +56,7 @@ workspace 仓：仓根是一个不发布的 private 包（`pnpm build` / `pnpm c
 
 六个类型，两条流程：建仓（参数 `ScaffoldInput` → 计划 `ScaffoldPlan` → 渲染好的 `RenderedFile[]`）、加插件（`ScaffoldPluginInput` → `ScaffoldPluginPlan` → 同样的 `RenderedFile[]`）。
 
-{/* ref file="../plugins/devkit/src/scaffold.ts" lines="28-96" hash="172ffc538a2c" blob="99db9041bdf1" */}
+{/* ref file="../plugins/devkit/src/scaffold.ts" lines="28-96" hash="9bc1b7fbb64b" blob="ab04a11abf6a" */}
 
 `ScaffoldPlan` 与 `ScaffoldPluginPlan` 算出来之后，后面每一步只看计划，不再回头看参数。两种参数里的 `peerVersions` 不是命令参数：`src/index.ts` 调 `homePeerVersions`，内核取运行中的内核服务的 `gwbKernel.version`，命令总线与外壳读这个 home 的 `node_modules/<包>/package.json`（没装就拒，报错写出读的是哪个文件）。计划里只留 x.y.z 三段（开发版去掉预发布段），渲染时分别填进生成的 `package.json` peer 里三个包的范围 `^x.y.z`。模板里因此不写死任何 `@godcreator` 包的版本号：写死的数字会随上游发版过时，上游一升 x，新仓第一次发版就被「和源上 latest 不在同一条线」拒掉（取舍见轨迹卡[建仓模板的 peer 版本号从 home 读](/trajectory/2026-09-25-scaffold-peers-from-home)）。
 
@@ -68,15 +68,15 @@ workspace 仓：仓根是一个不发布的 private 包（`pnpm build` / `pnpm c
 
 模块导出一串纯函数，`src/index.ts` 按顺序调用：
 
-{/* ref file="../plugins/devkit/src/scaffold.ts" lines="145-159" hash="cb658a9d0b77" blob="99db9041bdf1" */}
+{/* ref file="../plugins/devkit/src/scaffold.ts" lines="145-159" hash="aa09c1e90713" blob="ab04a11abf6a" */}
 
 校验、派生、转成绝对路径、填缺省值都在这一处做完，没有读写磁盘。抛出的每一句都写明该怎么改。`dir` 经 `path.resolve` 转成绝对路径，`D:/a/b` 与 `D:\a\b` 得到同一个结果。`scope` 要是 `@` 开头的 npm 包名范围；`registry` 要是 http(s) 地址的规范写法（与 `new URL(registry).href` 逐字相同，所以写进 JSON 不用转义），不带账号、查询串与 `#`（发布凭据写在发起 home 的共享 secret `npm-auth`，路由由 pnpm 配置提供）。不合规就拒，报错里写出规范写法，不替调用方改：
 
-{/* ref file="../plugins/devkit/src/scaffold.ts" lines="118-143" hash="3d5c2a2f7ea3" blob="91f8d6fe874d" */}
+{/* ref file="../plugins/devkit/src/scaffold.ts" lines="118-143" hash="38704f7af687" blob="ab04a11abf6a" */}
 
 加插件的计划**要读磁盘**（建仓的不读）：`repo` 必须已经是 workspace 仓才收，也就是 `pnpm-workspace.yaml` 的 `packages` 里有 `plugins/*` 这一条。
 
-{/* ref file="../plugins/devkit/src/scaffold.ts" lines="225-251" hash="a6a1b5796c2b" blob="99db9041bdf1" */}
+{/* ref file="../plugins/devkit/src/scaffold.ts" lines="225-251" hash="508e6034284a" blob="ab04a11abf6a" */}
 
 `packages` 用 yaml 库读，带不带引号、块列表还是流式列表、注释、CRLF 都认；文件写坏了、或 `packages` 不是字符串列表，报错写出文件与第几行第几列，不当成「没有这一条」。yaml 写在 dev 里，由 `build.ts` 打包进产物（见[开发](/docs/develop#提交前的检查)）：
 
@@ -117,7 +117,7 @@ workspace 仓：仓根是一个不发布的 private 包（`pnpm build` / `pnpm c
 
 给一份参数，看抛什么、算出什么；给一个临时目录，看磁盘上写下了什么。整个过程不启动进程、不开窗口，`tests/scaffold.test.ts` 直接测这几件事：
 
-短名的正则会不会放过 `x--` 这种结尾；`planScaffold` 的派生与缺省值，计划里没有显示名；给了 `scope`、`registry` 时包名、`publishConfig.registry`、README 与回执跟着变，内核包与模板用到的两个插件仍在 `@godcreator` 下，不给时是团队范围与团队源，不合规的范围与地址（不带 `@`、大写、非 http(s)、不是规范写法、带账号或查询串）建仓与加插件都拒；`planScaffoldPlugin` 对不存在的 repo、`pnpm-workspace.yaml` 的 `packages` 里没有 `plugins/*` 的拒绝，以及带引号、块列表、流式列表、注释、CRLF 几种写法都收，YAML 写坏了、`packages` 不是字符串列表时报出文件与行列；`dir` / `repo` 用正斜杠写与用反斜杠写得到同一个路径；`nextSteps` / `nextStepsPlugin` 写了什么、`packages` 参数有没有带上、流程指向说明书而不在回执里复述、不提文档站；生成的 `package.json` 在 peer 里写了内核包 `^<运行命令的内核版本号>`、命令总线与外壳 `^<home 里装着的版本号>`，开发版只取 x.y.z 三段，模板里这两项是占位符、不写死数字；`homePeerVersions` 读 home 里装着的版本，没装外壳时拒并写出读的是哪个文件；模板登记命令不写 `plugin`；窗格入口的 `PaneArgs`、`PaneHandle` 从外壳的 `@godcreator/gwb-shell/pane` 取；认不出的占位符真的会抛错，`{{title}}` 也算认不出；`.tpl` 后缀与两部分的去向（`landRel`）对不对；包内 `template/` 里每个文件都声明了属于哪部分、只有两部分；要显示名的地方都是短名；生成的文件里没有文档站；生成的清单 peer 里有内核包、只在 node 侧按值 import 了 `cordis` 时才写 peer `cordis`，命令总线与外壳写在 peer、不写 dev；生成的 node 侧源码从 peer 里的内核包 `import type` 接口类型；构建脚本从 shell 的 browser-imports 代码出口读外置名单、不写 react 包名的字面量，node 侧也用 esbuild 打成一个文件、外置 peer 与 `electron`、`cordis`，不输出 `.d.ts`、`exports["."]` 只指 `dist/index.js`，tsconfig 里没有 `verbatimModuleSyntax`；样式入口从外壳引令牌映射；模板不带测试文件、dev 里没有 `@tailwindcss/node`；清单的 `keywords` 只有 `gwb-plugin`、`files` 只有 `dist`、`exports` 只有 `.`、没有 `author` 与 `engines`、没有 `prepublishOnly`；生成的 `description` 是一句话、不带计数，生成的文件里没有已退役的 `gwb-repo-kit`；生成的 JSON、YAML 都解析得了；在临时 workspace 仓里真的生成一个 `plugins/<短名>/`；`writeRepo` 对已存在的目录真的拒绝；`packageRoot` 找到盘根都没有就抛；回执里给的命令参数都过得了 `JSON.parse`。`tests/commands.test.ts` 在假上下文上调两条命令，测回执只有那几个字段、不调别的插件的命令、不写文档站、写完文件后在插件包目录加上 `button` 且组件依赖都在 devDependencies、找不到 pnpm 时什么都不写。
+短名的正则会不会放过 `x--` 这种结尾；`planScaffold` 的派生与缺省值，计划里没有显示名；给了 `scope`、`registry` 时包名、`publishConfig.registry`、README 与回执跟着变，内核包与模板用到的两个插件仍在 `@godcreator` 下，不给时是团队范围与 npmjs（另带 `"access": "public"`），不合规的范围与地址（不带 `@`、大写、非 http(s)、不是规范写法、带账号或查询串）建仓与加插件都拒；`planScaffoldPlugin` 对不存在的 repo、`pnpm-workspace.yaml` 的 `packages` 里没有 `plugins/*` 的拒绝，以及带引号、块列表、流式列表、注释、CRLF 几种写法都收，YAML 写坏了、`packages` 不是字符串列表时报出文件与行列；`dir` / `repo` 用正斜杠写与用反斜杠写得到同一个路径；`nextSteps` / `nextStepsPlugin` 写了什么、`packages` 参数有没有带上、流程指向说明书而不在回执里复述、不提文档站；生成的 `package.json` 在 peer 里写了内核包 `^<运行命令的内核版本号>`、命令总线与外壳 `^<home 里装着的版本号>`，开发版只取 x.y.z 三段，模板里这两项是占位符、不写死数字；`homePeerVersions` 读 home 里装着的版本，没装外壳时拒并写出读的是哪个文件；模板登记命令不写 `plugin`；窗格入口的 `PaneArgs`、`PaneHandle` 从外壳的 `@godcreator/gwb-shell/pane` 取；认不出的占位符真的会抛错，`{{title}}` 也算认不出；`.tpl` 后缀与两部分的去向（`landRel`）对不对；包内 `template/` 里每个文件都声明了属于哪部分、只有两部分；要显示名的地方都是短名；生成的文件里没有文档站；生成的清单 peer 里有内核包、只在 node 侧按值 import 了 `cordis` 时才写 peer `cordis`，命令总线与外壳写在 peer、不写 dev；生成的 node 侧源码从 peer 里的内核包 `import type` 接口类型；构建脚本从 shell 的 browser-imports 代码出口读外置名单、不写 react 包名的字面量，node 侧也用 esbuild 打成一个文件、外置 peer 与 `electron`、`cordis`，不输出 `.d.ts`、`exports["."]` 只指 `dist/index.js`，tsconfig 里没有 `verbatimModuleSyntax`；样式入口从外壳引令牌映射；模板不带测试文件、dev 里没有 `@tailwindcss/node`；清单的 `keywords` 只有 `gwb-plugin`、`files` 只有 `dist`、`exports` 只有 `.`、没有 `author` 与 `engines`、没有 `prepublishOnly`；生成的 `description` 是一句话、不带计数，生成的文件里没有已退役的 `gwb-repo-kit`；生成的 JSON、YAML 都解析得了；在临时 workspace 仓里真的生成一个 `plugins/<短名>/`；`writeRepo` 对已存在的目录真的拒绝；`packageRoot` 找到盘根都没有就抛；回执里给的命令参数都过得了 `JSON.parse`。`tests/commands.test.ts` 在假上下文上调两条命令，测回执只有那几个字段、不调别的插件的命令、不写文档站、写完文件后在插件包目录加上 `button` 且组件依赖都在 devDependencies、找不到 pnpm 时什么都不写。
 
 模板接好 shadcn 的几项也由 `tests/scaffold.test.ts` 查：`components.json` 的风格、基色、别名，`tailwind.prefix` 与样式入口 `prefix(…)` 相同；三处 `@/` 别名；示例窗格用 `Button`、没有手写的 `<button>` / `<input>`，模板里不带组件文件、清单没有 `dependencies`。`tests/shadcn-components.test.ts` 在模板生成的插件包里配假 pnpm 走完加组件这一步，另测 import 怎么认、依赖表怎么算，以及 CLI 失败、组件不在约定位置、挪表没生效三种失败：
 
