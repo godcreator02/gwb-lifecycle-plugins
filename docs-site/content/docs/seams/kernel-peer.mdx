@@ -36,7 +36,7 @@ description: 连接插件包 package.json 的 peer（内核包的范围、用到
 
 **devkit 的发版前检查**：`devkit.release` 只查 `keywords` 含 `gwb-plugin` 的包，从插件管理 import `KERNEL_PACKAGE`、`isCaretRange`，只查 peer 里写没写内核包、写法是不是 `^x.y.z`，不对照哪个内核，没过的回执里写建议的范围：
 
-{/* ref file="../plugins/devkit/src/release.ts" lines="172-188" hash="2a49fd827aa9" blob="f6121d7801e9" */}
+{/* ref file="../plugins/devkit/src/release.ts" lines="186-202" hash="2a49fd827aa9" blob="b49dcd156322" */}
 
 **插件管理的 `list`**：从 home 的 `node_modules` 读每个包的 `package.json`，只看插件，拿插件管理所在那个 home 正在运行的内核（`gwbKernel.version`）比，范围不包含就在 `unmetPeers` 里列 `{ pkg: "@godcreator/gwb-kernel-desktop", range, installed: <运行中的内核版本> }`（见[内核兼容性](/docs/plugin-manager/kernel-compat)）：
 
@@ -46,9 +46,9 @@ description: 连接插件包 package.json 的 peer（内核包的范围、用到
 
 **peer 里的别的插件**：`"<插件包名>": "^x.y.z"`，只在 `ctx.inject([...], fn)` 里用的在 `peerDependenciesMeta` 标 `optional: true`（规矩见[用到的插件写 peer](/docs/rules/plugin-peers)）。devkit 与插件管理问的不是同一件事：devkit 在发版时问「上游有没有出破坏性版本」，拿范围下限和源上 latest 比在不在同一条线；插件管理在 home 里问「装着的这一版在不在范围里」，拿范围和装着的版本比，用的是 `caretRangeCovers`（插件管理内部的函数；比内核包时用的 `kernelRangeCovers` 只在它外面多一层「内核版本号不合法就抛错」，也不导出，见 [peer 满没满足](/docs/plugin-manager/peers)）。
 
-{/* ref file="../plugins/devkit/src/release.ts" lines="158-167" hash="4c0b32bbd73e" blob="f6121d7801e9" */}
+{/* ref file="../plugins/devkit/src/release.ts" lines="172-181" hash="4c0b32bbd73e" blob="b49dcd156322" */}
 
-{/* ref file="../plugins/devkit/src/release.ts" lines="190-212" hash="bb8b33a92f5d" blob="f6121d7801e9" */}
+{/* ref file="../plugins/devkit/src/release.ts" lines="204-226" hash="bb8b33a92f5d" blob="b49dcd156322" */}
 
 {/* ref file="../plugins/plugin-manager/src/kernel-compat.ts" lines="32-44" hash="12b7f5f720cb" blob="b88e71e1b482" */}
 
@@ -62,11 +62,11 @@ devkit 保证：插件包 peer 里的内核包没写、不是 `^x.y.z`，一个�
 
 **一个包是不是 gwb 插件，插件管理与 devkit 用同一条判法**：`keywords` 含 `gwb-plugin`。插件管理用它决定要不要看这个包的内核范围与 peer，devkit 用它决定要不要对这个包做插件包的那几项检查。两处各写一份，规则只有这一句。
 
-{/* ref file="../plugins/devkit/src/release.ts" lines="138-141" hash="50c14c866636" blob="f6121d7801e9" */}
+{/* ref file="../plugins/devkit/src/release.ts" lines="152-155" hash="50c14c866636" blob="b49dcd156322" */}
 
 **peer 里能写哪个包只由 devkit 判**：gwb 插件，加上 `keywords` 同时含 `cordis` 与 `plugin` 的第三方 cordis 插件（如 `@cordisjs/plugin-timer`），它们都装进 home、在 `cordis.yml` 里有条目；这两种都要和源上 latest 比同一条线。插件管理不判这一条：插件 peer 里写了什么包，它都拿 home 里装着的版本比。
 
-{/* ref file="../plugins/devkit/src/release.ts" lines="143-146" hash="25a48e7b0b5a" blob="f6121d7801e9" */}
+{/* ref file="../plugins/devkit/src/release.ts" lines="157-160" hash="25a48e7b0b5a" blob="b49dcd156322" */}
 
 建仓模板的 `template/pkg/package.json.tpl` 在 peer 里写内核包，值是 `^{{kernelVersion}}`：`devkit.scaffold` 与 `devkit.scaffold.plugin` 填入运行命令的那个 home 的内核版本号（只取 x.y.z），所以新仓在同一个内核上 `devkit.release` 时过得了这一项检查（见[模板与发版前检查](/docs/seams/template-release)）。模板的 peer 里还写着它用到的命令总线与外壳，值是 `^{{commandsVersion}}`、`^{{shellVersion}}`，由这两条命令读那个 home 里装着的版本填（见[建仓与加插件](/docs/devkit/scaffold#数据结构)），模板里不写死数字。
 
@@ -85,4 +85,4 @@ devkit 保证：插件包 peer 里的内核包没写、不是 `^x.y.z`，一个�
 
 {/* ref file="../plugins/plugin-manager/tests/peers.test.ts" lines="94-99" hash="c4b965343972" blob="ff4676d50940" */}
 
-{/* ref file="../plugins/devkit/tests/release.test.ts" lines="455-470" hash="627829b76890" blob="4c77897ab598" */}
+{/* ref file="../plugins/devkit/tests/release.test.ts" lines="456-471" hash="627829b76890" blob="5c489c4c2fa7" */}

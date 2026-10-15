@@ -42,13 +42,15 @@ export interface ReleaseInput {
   repoDir: string
   /** 要发的包目录，相对仓根，按依赖顺序（被依赖的排前面）。至少一个，命令入口 `packagesArgOf` 查过 */
   packages: string[]
+  /** 每个包发到自己的 `publishConfig.registry` 之后，再发到这些源（http(s) 地址，命令入口查过）。换源的过渡期用 */
+  alsoPublishTo?: string[]
 }
 
 export interface ReleasedPackage {
   pkg: string
   version: string
   dir: string
-  /** 发到的源 */
+  /** 发到的源。一个包发到几个源就有几条 */
   registry: string
 }
 
@@ -133,6 +135,18 @@ export function publishTargetOf(doc: Record<string, unknown>): { ok: true; regis
     return { ok: false, error: `publishConfig.registry 要是 http(s) 地址，实得 ${JSON.stringify(registry)}` }
   }
   return { ok: true, registry }
+}
+
+/** 命令参数 `alsoPublishTo`：不给是空表；给了就要是 http(s) 地址的字符串数组，不重复。不合格就拒，不丢掉不合格的项 */
+export function alsoPublishToArgOf(raw: unknown): { ok: true; registries: string[] } | { ok: false; error: string } {
+  if (raw === undefined) return { ok: true, registries: [] }
+  if (!Array.isArray(raw) || raw.some((one) => typeof one !== 'string' || parseHttpUrl(one) === undefined)) {
+    return { ok: false, error: `alsoPublishTo 要是 http(s) 地址的字符串数组(如 ["https://registry.npmjs.org/"]),实得 ${JSON.stringify(raw)}` }
+  }
+  const registries = raw as string[]
+  const repeated = registries.filter((one, index) => registries.indexOf(one) !== index)
+  if (repeated.length > 0) return { ok: false, error: `alsoPublishTo 里 ${repeated.join('、')} 写了不止一次` }
+  return { ok: true, registries }
 }
 
 /** 包清单是不是一个插件：keywords 含 `gwb-plugin` */
@@ -347,8 +361,8 @@ async function refusalIfTreeDirty(repoDir: string, deps: ReleaseDeps): Promise<R
 interface PlannedPackage {
   pkgDir: string
   manifest: ReleaseManifest
-  /** 发布目标：`publishTargetOf` 算出的源 */
-  registry: string
+  /** 按发布顺序的发布目标：`publishTargetOf` 算出的源在前，`alsoPublishTo` 在后 */
+  registries: string[]
   /** peer 里要和源上 latest 比同一条线的 gwb 插件 */
   pluginPeers: Set<string>
   /** 读包目录 node_modules 里某个依赖的清单，读不到或不是 JSON 回 undefined */
@@ -368,12 +382,13 @@ function peerManifestReader(pkgDir: string, deps: ReleaseDeps): (pkg: string) =>
 }
 
 /**
- * 每个包：清单读得出、`publishConfig.registry` 认得出、`files` 白名单里的产物都在、这个版本号在它的发布目标上还没有；
+ * 每个包：清单读得出、`publishConfig.registry` 认得出、`files` 白名单里的产物都在、这个版本号在每个发布目标上都还没有；
  * `ranges` 是同一次发的包 → `^新版本号`
  */
 async function planPackages(input: ReleaseInput, deps: ReleaseDeps): Promise<Refusal | { planned: PlannedPackage[]; ranges: Record<string, string> }> {
   const planned: PlannedPackage[] = []
   const ranges: Record<string, string> = {}
+  const alsoPublishTo = input.alsoPublishTo ?? []
   for (const rel of input.packages) {
     const pkgDir = path.resolve(input.repoDir, rel)
     const manifest = ticketManifestOf(deps.readText(path.join(pkgDir, 'package.json')))
@@ -382,16 +397,22 @@ async function planPackages(input: ReleaseInput, deps: ReleaseDeps): Promise<Ref
     }
     const target = publishTargetOf(manifest.doc)
     if (!target.ok) return { ok: false, error: `${manifest.name} 的 package.json:${target.error},一个都没发` }
+    if (alsoPublishTo.includes(target.registry)) {
+      return { ok: false, error: `alsoPublishTo 里的 ${target.registry} 就是 ${manifest.name} 的 publishConfig.registry,同一个源只发一次:从 alsoPublishTo 里去掉它,一个都没发` }
+    }
     // 产物在不在照 files 白名单问，不另列一份名单
     const missing = literalArtifacts(manifest.files).filter((one) => !deps.exists(path.join(pkgDir, one)))
     if (missing.length > 0) {
       return { ok: false, error: `${manifest.name} 的产物不全,没发:${missing.join('、')} 不在。仓根 pnpm build 刚跑过还缺,多半是 files 白名单里那一项根本没人生成` }
     }
-    if (await deps.published(`${manifest.name}@${manifest.version}`, target.registry)) {
-      return { ok: false, error: `${manifest.name}@${manifest.version} 已经在源 ${target.registry} 上了——同一个号永不重发,先抬 package.json 里的号再发` }
+    const registries = [target.registry, ...alsoPublishTo]
+    for (const registry of registries) {
+      if (await deps.published(`${manifest.name}@${manifest.version}`, registry)) {
+        return { ok: false, error: `${manifest.name}@${manifest.version} 已经在源 ${registry} 上了——同一个号永不重发,先抬 package.json 里的号再发` }
+      }
     }
     const peerManifestOf = peerManifestReader(pkgDir, deps)
-    planned.push({ pkgDir, manifest, registry: target.registry, pluginPeers: pluginPeersOf(manifest, peerManifestOf), peerManifestOf })
+    planned.push({ pkgDir, manifest, registries, pluginPeers: pluginPeersOf(manifest, peerManifestOf), peerManifestOf })
     ranges[manifest.name] = `^${manifest.version}`
   }
   return { planned, ranges }
@@ -432,15 +453,17 @@ async function ticketFor(
   return { pkg: `${manifest.name}@${manifest.version}`, problems }
 }
 
-/** 按给的顺序发：被依赖的先发，不然装的时候源上还没有它 */
+/** 按给的顺序发：被依赖的先发，不然装的时候源上还没有它。一个包的各个发布目标都发完，再发下一个包 */
 async function publishInOrder(planned: PlannedPackage[], ranges: Record<string, string>, deps: ReleaseDeps): Promise<Refusal & { data: { shipped: ReleasedPackage[] } } | ReleasedPackage[]> {
   const shipped: ReleasedPackage[] = []
   for (const plannedPackage of planned) {
-    const sent = await deps.publish({ pkgDir: plannedPackage.pkgDir, version: plannedPackage.manifest.version, registry: plannedPackage.registry, ranges })
-    if (!sent.ok) {
-      return { ok: false, error: `${plannedPackage.manifest.name}@${plannedPackage.manifest.version} 发版没成:\n${sent.tail}`, data: { shipped } }
+    for (const registry of plannedPackage.registries) {
+      const sent = await deps.publish({ pkgDir: plannedPackage.pkgDir, version: plannedPackage.manifest.version, registry, ranges })
+      if (!sent.ok) {
+        return { ok: false, error: `${plannedPackage.manifest.name}@${plannedPackage.manifest.version} 发到 ${registry} 没成:\n${sent.tail}`, data: { shipped } }
+      }
+      shipped.push({ pkg: plannedPackage.manifest.name, version: plannedPackage.manifest.version, dir: plannedPackage.pkgDir, registry })
     }
-    shipped.push({ pkg: plannedPackage.manifest.name, version: plannedPackage.manifest.version, dir: plannedPackage.pkgDir, registry: plannedPackage.registry })
   }
   return shipped
 }

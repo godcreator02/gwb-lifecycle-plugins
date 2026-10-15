@@ -3,6 +3,7 @@ import { describe, expect, it } from 'vitest'
 import { isCordisPluginManifest, TEAM_REGISTRY } from '../src/vocab.js'
 import { KERNEL_PACKAGE } from '@godcreator/gwb-plugin-manager'
 import {
+  alsoPublishToArgOf,
   dirtyLines,
   kernelPeerProblems,
   isPluginManifest,
@@ -638,6 +639,60 @@ describe('发布目标（GWB-17）', () => {
       expect(out.error).toContain('publishConfig.registry')
     }
     expect(deps.calls.some((one) => one.startsWith('publish '))).toBe(false)
+  })
+
+  it('alsoPublishTo：每个包先发到自己的发布目标、再发到额外的源，发完一个包再发下一个；回执每个源一条', async () => {
+    const deps = fake()
+    const out = await runRelease({ repoDir: REPO, packages: ['a', 'b'], alsoPublishTo: [LOCAL] }, deps)
+    expect(out.ok).toBe(true)
+    if (!out.ok) return
+    const publishes = deps.calls.filter((one) => one.startsWith('publish ') && one.includes('→'))
+    expect(publishes).toEqual([`publish 0.1.0 → ${TEAM_REGISTRY}`, `publish 0.1.0 → ${LOCAL}`, `publish 0.2.0 → ${TEAM_REGISTRY}`, `publish 0.2.0 → ${LOCAL}`])
+    expect(out.data.shipped.map((one) => `${one.pkg} → ${one.registry}`)).toEqual([`${A} → ${TEAM_REGISTRY}`, `${A} → ${LOCAL}`, `${B} → ${TEAM_REGISTRY}`, `${B} → ${LOCAL}`])
+  })
+
+  it('alsoPublishTo：同号已在额外的源上也拒，一个都不发', async () => {
+    const deps = fake()
+    deps.published = async (spec, registry) => {
+      deps.calls.push(`已发过? ${spec} → ${registry}`)
+      return spec === `${B}@0.2.0` && registry === LOCAL
+    }
+    const out = await runRelease({ repoDir: REPO, packages: ['a', 'b'], alsoPublishTo: [LOCAL] }, deps)
+    expect(out.ok).toBe(false)
+    if (!out.ok) expect(out.error).toContain(`${B}@0.2.0 已经在源 ${LOCAL} 上了`)
+    expect(deps.calls.some((one) => one.startsWith('publish '))).toBe(false)
+  })
+
+  it('alsoPublishTo 里写了包自己的发布目标：拒，一个都不发', async () => {
+    const deps = fake()
+    const out = await runRelease({ repoDir: REPO, packages: ['a'], alsoPublishTo: [TEAM_REGISTRY] }, deps)
+    expect(out.ok).toBe(false)
+    if (!out.ok) expect(out.error).toContain('同一个源只发一次')
+    expect(deps.calls.some((one) => one.startsWith('publish '))).toBe(false)
+  })
+
+  it('alsoPublishTo 一个源发失败：停下，回执里是已经发出去的', async () => {
+    const deps = fake()
+    deps.publish = async (input) => {
+      deps.calls.push(`publish ${input.version} → ${input.registry}`)
+      return input.registry === LOCAL ? { ok: false, tail: '假的失败' } : { ok: true, tail: '' }
+    }
+    const out = await runRelease({ repoDir: REPO, packages: ['a', 'b'], alsoPublishTo: [LOCAL] }, deps)
+    expect(out.ok).toBe(false)
+    if (out.ok) return
+    expect(out.error).toContain(`发到 ${LOCAL} 没成`)
+    expect(out.data?.shipped.map((one) => one.registry)).toEqual([TEAM_REGISTRY])
+  })
+
+  it('alsoPublishToArgOf：不给是空表；不是 http(s) 地址的字符串数组、有重复：拒', () => {
+    expect(alsoPublishToArgOf(undefined)).toEqual({ ok: true, registries: [] })
+    expect(alsoPublishToArgOf([LOCAL, 'https://registry.npmjs.org/'])).toEqual({ ok: true, registries: [LOCAL, 'https://registry.npmjs.org/'] })
+    for (const raw of ['https://registry.npmjs.org/', [1], ['registry.npmjs.org'], ['ftp://h/']]) {
+      expect(alsoPublishToArgOf(raw).ok, JSON.stringify(raw)).toBe(false)
+    }
+    const repeated = alsoPublishToArgOf([LOCAL, LOCAL])
+    expect(repeated.ok).toBe(false)
+    if (!repeated.ok) expect(repeated.error).toContain('不止一次')
   })
 
   it('查别的包的 latest 不指定源（由 .npmrc 的范围行决定）；peer 里别的范围下的插件、第三方 cordis 插件也查', async () => {
