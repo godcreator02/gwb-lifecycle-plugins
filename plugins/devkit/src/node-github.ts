@@ -6,6 +6,8 @@ const API = 'https://api.github.com'
 const UPLOADS = 'https://uploads.github.com'
 const CREDENTIAL_TIMEOUT_MS = 30_000
 const RUN_POLL_MS = 5_000
+const GET_ATTEMPTS = 4
+const GET_RETRY_MS = 3_000
 /** release 公开到 Actions 建出运行之间、本机与 GitHub 的时钟差：早于 `since` 这么多的运行也算这一次的 */
 const RUN_CLOCK_SKEW_MS = 60_000
 
@@ -60,7 +62,21 @@ export function githubGateway(token: () => Promise<string>): GithubReleaseGatewa
   let cachedToken: string | undefined
   const call = async (url: string, init: { method?: string; body?: string | Blob; contentType?: string } = {}): Promise<Response> => {
     cachedToken ??= await token()
-    return fetch(url, {
+    // 只读的 GET 遇到网络错误（这台机器连 GitHub 偶尔 TLS 握手失败）重试几次；改东西的请求不重试，免得重复建 release、重复传文件
+    if ((init.method ?? 'GET') === 'GET') {
+      for (let attempt = 1; ; attempt++) {
+        try {
+          return await send(url, init)
+        } catch (err) {
+          if (attempt >= GET_ATTEMPTS) throw new Error(`GitHub GET ${url} 连了 ${String(GET_ATTEMPTS)} 次都没连上:${err instanceof Error ? err.message : String(err)}`)
+          await new Promise((resolve) => setTimeout(resolve, GET_RETRY_MS))
+        }
+      }
+    }
+    return send(url, init)
+  }
+  const send = (url: string, init: { method?: string; body?: string | Blob; contentType?: string }): Promise<Response> =>
+    fetch(url, {
       method: init.method ?? 'GET',
       ...(init.body === undefined ? {} : { body: init.body }),
       headers: {
@@ -71,7 +87,6 @@ export function githubGateway(token: () => Promise<string>): GithubReleaseGatewa
         ...(init.contentType === undefined ? {} : { 'Content-Type': init.contentType }),
       },
     })
-  }
   const json = async <T>(url: string, init?: Parameters<typeof call>[1]): Promise<T> => {
     const response = await call(url, init)
     if (!response.ok) throw new Error(`GitHub ${init?.method ?? 'GET'} ${url} 返回 ${String(response.status)}:${(await response.text()).slice(0, 400)}`)

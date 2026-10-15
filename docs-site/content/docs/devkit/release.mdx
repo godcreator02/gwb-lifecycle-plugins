@@ -50,9 +50,9 @@ description: devkit.release 从仓根按依赖顺序把包发到各包的发布�
 
 等那次运行跑完最多 3 分钟。跑成功了回执 `ok: true`，`data.actions` 是 release 与那次运行的网址；没跑完或失败回 `ok: false`，写明本机已经发完的源和运行的网址。新版本过几分钟才查得到，紧接着升级 `default` 可能还看不到它。
 
-GitHub 的凭据用 git 凭据管理器里 github.com 那一份，就是推送用的同一份，不弹登录窗口、不写盘：
+查提交、等运行这类只读请求遇到网络错误会隔几秒重试几次；建 release、传包文件不重试，免得重复建。GitHub 的凭据用 git 凭据管理器里 github.com 那一份，就是推送用的同一份，不弹登录窗口、不写盘：
 
-{/* ref file="../plugins/devkit/src/node-github.ts" lines="12-49" hash="26b498d64052" blob="1d866d281b65" */}
+{/* ref file="../plugins/devkit/src/node-github.ts" lines="14-51" hash="26b498d64052" blob="062e9221bf77" */}
 
 npmjs 上每个包要先存在、再登记 trusted publisher，所以一个包第一次发到 npmjs 还是由人在本机发（`npm publish --auth-type=web`，浏览器里批准）；之后用 `npm trust github <包名> --repo <owner>/<仓名> --file publish.yml --yes` 登记，登记后两天内要有一次成功的发布，不然登记作废。
 
