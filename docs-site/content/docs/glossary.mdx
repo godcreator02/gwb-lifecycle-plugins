@@ -19,7 +19,7 @@ description: 这个仓里反复出现的词各指什么、在哪一页定义；�
 | 基础插件 | `devkit.home.new` 在新 home 启动前装好的插件：命令、外壳、数据、设置、说明书、插件管理、基础界面，加上提供 `timer` 服务的第三方 cordis 插件 `@cordisjs/plugin-timer` | [测试 home](/docs/devkit/home) |
 | 内核包 | `@godcreator/gwb-kernel-desktop`：内核作为 npm 包装在每个 home 的根上，和 `cordis` 并列（安装包只带启动器，启动器从 home 里加载内核）。插件在 peer 里写它的范围 `^x.y.z`，声明兼容哪些内核；它的包根导出内核给插件的接口类型（`GwbContext` 等），插件只 `import type` | [兼容哪个内核](/docs/rules/kernel-compat) |
 | importmap | 页面上「包名 → 文件地址」的表，浏览器侧代码里的包名 import 靠它解析。由 kernel 根据插件登记准备；React 由 shell 提供，其他插件也可登记 | [页面代码与 importmap](/docs/rules/importmap) |
-| 团队源 | gitea 个人源 `https://git.tianshen02.online:28377/api/packages/godcreator/npm/`。`@godcreator` 的包正从这里迁到 npmjs：迁完之前本机的 `@godcreator` 仍从这里装（scope 路由写在用户级 `~/.npmrc`），发版经 `alsoPublishTo` 同时发到这里，发布 token 来自发起 home 的 `npm-auth` 凭据 | [pnpm 与包源](/docs/seams/pnpm-registry) |
+| 团队源 | gitea 个人源 `https://git.tianshen02.online:28377/api/packages/godcreator/npm/`，`@godcreator` 的全部包都在这里：本机的 `@godcreator` 从这里装（scope 路由写在用户级 `~/.npmrc`），公开包另发一份到 npmjs。`devkit.release` 不写死这个地址，按范围路由问出来、先发到这里；发布 token 来自发起 home 的 `npm-auth` 凭据 | [pnpm 与包源](/docs/seams/pnpm-registry) |
 | 包名范围 | 包名 `@<范围>/<名>` 里的 `@<范围>`。团队的是 `@godcreator`；`devkit.scaffold` 的 `scope` 参数定生成的插件在哪个范围下 | [建仓与加插件](/docs/devkit/scaffold) |
 | 发布目标 | 一个包的正式版发到哪个源：它 `package.json` 的 `publishConfig.registry`，没写 `devkit.release` 就拒发。`devkit.scaffold` 的 `registry` 参数写这个字段 | [pnpm 与包源](/docs/seams/pnpm-registry) |
 | 包源 | 某个 scope 的包从哪个 npm 源装，由 pnpm 的 scope 路由决定；认证由当前 home 的 `npm-auth` 提供。路由配置和凭据原值迁移由 agent 照说明书 `gwb-plugin-manager` 编排，产品不改持久化 npmrc；`@godcreator` 那条是团队源 | [找插件](/docs/plugin-manager/sources) |

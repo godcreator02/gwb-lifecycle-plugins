@@ -40,7 +40,7 @@ description: devkit 与插件管理共享 pnpm 定位和鉴权边界。路由沿
 
 {/* ref file="../plugins/devkit/src/node-dev-deps.ts" lines="346-377" hash="c3c58be0343f" blob="a5afaa67bbb8" */}
 
-{/* ref file="../plugins/devkit/src/node-dev-deps.ts" lines="466-497" hash="8b2a8f9b1f54" blob="a5afaa67bbb8" */}
+{/* ref file="../plugins/devkit/src/node-dev-deps.ts" lines="494-533" hash="1952657729db" blob="578730ff2249" */}
 
 **在 home 里运行的 pnpm 都关掉自动补装 peer**：启动 pnpm 时非认证环境变量沿用，加一项 `pnpm_config_auto_install_peers=false`（插件管理另去掉 `ELECTRON_RUN_AS_NODE`）。插件管理的 pnpm 都在 home 里运行；devkit 只在 `home.new` 的三次 `pnpm add` 带它，在插件仓里的 build 与临时目录里的 pack、publish、view 不带——插件仓里开发要靠自动补装把 peer 里的内核包与插件装进 `node_modules`，带上它 pnpm 会按新配置重装、把这些 peer 拿掉，构建时找不到类型。插件的 peer 写了别的插件、home 里没装那个插件时，pnpm 默认把它装进 `node_modules/.pnpm` 且不提示，不写进 home 的 `package.json`、没有条目，插件管理也不认它。命令行参数 `--config.auto-install-peers=false` 会被 pnpm 忽略，只有环境变量或 home 的 `pnpm-workspace.yaml` 关得掉（实验见本仓 `probes/2609242300_peer-between-plugins/`）：
 
@@ -48,11 +48,15 @@ description: devkit 与插件管理共享 pnpm 定位和鉴权边界。路由沿
 
 {/* ref file="../plugins/plugin-manager/src/pnpm.ts" lines="10-23" hash="a8e6203c4d42" blob="b62dd927fe34" */}
 
-**发布目标**：每个包发到自己 `package.json` 的 `publishConfig.registry`；没写这个字段、或写的不是 http(s) 地址就拒，报错里拿 npmjs 的写法 `NPMJS_REGISTRY` 作例子写明要加什么。`NPMJS_REGISTRY` 另一处用在建仓：不给 `registry` 参数时写进生成的插件包。团队源 `TEAM_REGISTRY` 只在包迁到 npmjs 的过渡期里作为 `alsoPublishTo` 的目标：
+**发布目标**：每个包发到自己 `package.json` 的 `publishConfig.registry`；没写这个字段、或写的不是 http(s) 地址就拒，报错里拿 npmjs 的写法 `NPMJS_REGISTRY` 作例子写明要加什么。`NPMJS_REGISTRY` 另一处用在建仓：不给 `registry` 参数时写进生成的插件包：
 
-{/* ref file="../plugins/devkit/src/vocab.ts" lines="6-13" hash="b3a8ef50cf36" blob="03e13f8c59ca" */}
+{/* ref file="../plugins/devkit/src/vocab.ts" lines="6-10" hash="22d53c64032c" blob="aaab76ff0591" */}
 
-{/* ref file="../plugins/devkit/src/release.ts" lines="156-169" hash="f8e762766cbc" blob="70da389b6287" */}
+{/* ref file="../plugins/devkit/src/release.ts" lines="164-177" hash="f8e762766cbc" blob="8ecbe5a4c556" */}
+
+**本机装包的源也发一份**：一个包名范围只能指向一个源。本机的 `@godcreator` 指向 gitea 团队源，公开包的发布目标却是 npmjs，所以发版时问 `pnpm config get <范围>:registry`，答出来的源不是发布目标、也不是 npmjs，就先发到那里。团队源的地址不写在 devkit 里，只认 `~/.npmrc` 的范围行：
+
+{/* ref file="../plugins/devkit/src/release.ts" lines="204-216" hash="37f0c9aa7bc4" blob="8ecbe5a4c556" */}
 
 发布目标写进临时目录里发布内容清单的 `publishConfig.registry`，命令行不带 `--registry`；问「这个版本号在源上有没有」时指定发布目标。pnpm 12 里 `publishConfig.registry` 优先于 `~/.npmrc` 的 scope 路由与命令行的 `--registry`，而 `--registry` 不优先于 scope 路由——`pnpm view` 也一样，带范围的包名要用 `--config.<范围>:registry=` 才指定得了（实验见本仓 `probes/2609251140_pnpm-publish-config-registry/`）：
 
@@ -99,11 +103,11 @@ devkit 与插件管理都保证：在 home 里启动 pnpm 时带 `pnpm_config_au
 
 devkit 保证：
 
-- 正式版发到包的发布目标（`publishConfig.registry`，没写就拒），打 `latest`；开发版不发到任何源
-- 同一个版本号在发布目标上已有就不发
+- 正式版发到包的发布目标（`publishConfig.registry`，没写就拒），本机装这个包的源与它不同、又不是 npmjs 时也发一份，打 `latest`；开发版不发到任何源
+- 同一个版本号在发布目标上已有就不发；只在本机装包的源上有的，跳过那里、只补发布目标
 - 发布内容与开发版的包文件都在临时目录里组装，不改仓里的 `package.json`
 
-团队源需要保证的：`dist-tags.latest` 是正式最新版。源地址与 `~/.npmrc` 里 `@godcreator` 那一行一致**靠约定**：`vocab.ts` 的注释写着两者同一个地址，没有代码核对。发版前检查问 peer 里各个插件的 latest 靠 npmrc 按包名范围路由，`@godcreator` 的插件靠那一行，机器上没有它就问不出、发版前检查拒。
+团队源需要保证的：`dist-tags.latest` 是正式最新版。devkit 只经 `~/.npmrc` 里 `@godcreator` 那一行知道团队源：发版时往哪多发一份、发版前检查问 peer 里各个插件的 latest，都按范围路由走；机器上没有这一行，公开包只发 npmjs，`@godcreator` 的插件的 latest 就去 npmjs 问。
 
 插件包需要保证的：`package.json` 的 `keywords` 里写 `gwb-plugin`；库不写。
 

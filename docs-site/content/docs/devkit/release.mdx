@@ -9,13 +9,13 @@ description: devkit.release 从仓根按依赖顺序把包发到各包的发布�
 
 一句话：**只从提交过的状态、只在全部检查都过了之后，把一组包发成正式版。**
 
-收仓根 `dir` 与要发的包目录 `packages`（必给，非空数组，相对仓根，按依赖顺序），可选收额外的源 `alsoPublishTo`（http(s) 地址的数组，见下面「额外的源」），依次做六步：
+收仓根 `dir` 与要发的包目录 `packages`（必给，非空数组，相对仓根，按依赖顺序），依次做六步：
 
-{/* ref file="../plugins/devkit/src/release.ts" lines="595-651" hash="67ac85185e0a" blob="70da389b6287" */}
+{/* ref file="../plugins/devkit/src/release.ts" lines="671-732" hash="79cfcd14bccf" blob="8ecbe5a4c556" */}
 
 <Diagram name="dk-release" title="devkit.release 发正式版：六步依次做，任何一处没过，一个包都不发">
 - 第 1 步仓根 git 工作区干净（`git status --porcelain=v1`），不干净或问不出连构建都不运行；第 2 步仓根 `pnpm build`
-- 第 3 步每个包：清单读得出、`publishConfig.registry` 认得出、`files` 白名单里的产物都在；第 4 步这个版本号在包的每个发布目标上都还没有
+- 第 3 步每个包：清单读得出、`publishConfig.registry` 认得出、`files` 白名单里的产物都在；第 4 步这个版本号在 `publishConfig.registry` 上还没有，本机装这个包的源上已经有的不再发到那里
 - 第 5 步发版前检查，要发的包一起查、一次列全：peer 只有 `cordis`、内核包与插件、peer 里的插件和源上 latest 在同一条线、peer 不成环、peer 里内核包的写法、产物里的 import、带界面插件的样式、插件注入的服务与 peer 对不对得上；dev 依赖不查
 - 第 6 步在临时目录组装发布内容，按 `packages` 给的顺序发到各自的发布目标、标上 latest
 - 最下面那个框：任一项没过，一个包都不发，回执按包列出每一项问题
@@ -32,19 +32,31 @@ description: devkit.release 从仓根按依赖顺序把包发到各包的发布�
 
 发布目标是包自己 `package.json` 的 `publishConfig.registry`；没写、或写的不是 http(s) 地址就拒，报错写明要加什么、给出 npmjs 的写法作例子：
 
-{/* ref file="../plugins/devkit/src/release.ts" lines="156-169" hash="f8e762766cbc" blob="70da389b6287" */}
+{/* ref file="../plugins/devkit/src/release.ts" lines="164-177" hash="f8e762766cbc" blob="8ecbe5a4c556" */}
 
 它写进临时目录里发布内容清单的 `publishConfig.registry`，命令行不带 `--registry`；「同号已在源上」也问这个源。为什么这么传见 [pnpm 与包源](/docs/seams/pnpm-registry)。`publishConfig` 里别的字段（如 `access`）原样留在发布内容清单里。
 
-**额外的源**：给了 `alsoPublishTo`，每个包发到自己的发布目标之后，再依次发到这几个源，一个包的各个源都发完再发下一个包；回执的 `shipped` 每个源一条。用在换源的过渡期：本机按范围行从旧源装，新源已经开始收包。「同号已在源上」对每个源都问，有一个已有就拒；某个包的 `publishConfig.registry` 也写在 `alsoPublishTo` 里时拒，同一个源只发一次。参数不是 http(s) 地址的数组、有重复，在命令入口就拒。
+**本机装包的源上也发一份**：一个包名范围只能指向一个源。`@godcreator` 的公开包发到 npmjs，本机的 `@godcreator` 却指向 gitea 团队源（那里还有不公开的包），所以公开包在团队源上也要有一份，本机才装得到。发版时对每个包问 `pnpm config get <范围>:registry`：答出来的源不是 `publishConfig.registry`、也不是 npmjs，就排在 `publishConfig.registry` 前面也发一份；没配、是 npmjs、与发布目标相同，都只发发布目标。一个包的各个源都发完再发下一个包，回执的 `shipped` 每个源一条。
+
+{/* ref file="../plugins/devkit/src/release.ts" lines="204-216" hash="37f0c9aa7bc4" blob="8ecbe5a4c556" */}
+
+「同号已在源上」两个源都问：已在 `publishConfig.registry` 上就拒；只在本机装包的源上有，说明上一次发到了这里、后面交给 Actions 那步没成，这次跳过它、只补发布目标，修好之后再调一次 `devkit.release` 就能补完，不用抬版本号。
 
 ## 发到 npmjs：交给 GitHub Actions
 
 发布目标里有 npmjs（`https://registry.npmjs.org/`，结尾的 `/` 写没写都算）的包，不在本机发。npmjs 要求账号开两步验证，本机发包每次都要人在浏览器里批准；npmjs 给 CI 的办法是 trusted publishing：npmjs 上给每个包登记「哪个 GitHub 仓的哪个工作流可以发它」，工作流运行时用 GitHub 签发的身份证明去发，不存 token。
 
-发版前检查都过了之后、发任何一个包之前，先查三件事，有一件不满足就拒：仓根有 `.github/workflows/publish.yml`；这些包的 `repository` 都指向同一个 GitHub 仓；HEAD 已经推到那个仓上（Actions 照这个提交建 release）。然后本机先发完别的源，再把同样组装好的发布内容按 `packages` 的顺序打成包文件，文件名前加两位序号，在 HEAD 上建一个 GitHub release（tag 是 `release-<UTC 年月日>-<时分秒>`）：先建草稿、传上包文件，再公开。公开那一刻触发 `publish.yml`，它下载包文件、按文件名排序依次 `npm publish`，已经在 npmjs 上的跳过，所以失败后在网页上重跑不会重复发。
+仓的 `origin` 是 gitea，GitHub 上的同名公开仓由 gitea 的推送镜像同步：gitea 有什么，GitHub 就是什么，GitHub 上有、gitea 上没有的分支与 tag 在下一次同步时被删掉。所以 tag 不能只在 GitHub 上建，要先推到 origin，再等镜像把它带到 GitHub。
 
-{/* ref file="../plugins/devkit/src/release.ts" lines="512-578" hash="9329029ed66c" blob="70da389b6287" */}
+发版前检查都过了之后、发任何一个包之前，先查三件事，有一件不满足就拒：仓根有 `.github/workflows/publish.yml`；这些包的 `repository` 都指向同一个 GitHub 仓；HEAD 已经推到 origin（先 `git fetch origin`，再看 origin 的哪个分支包含它）。然后本机先发完别的源，再把同样组装好的发布内容按 `packages` 的顺序打成包文件，文件名前加两位序号，接着：
+
+1. 在 HEAD 上打 tag `release-<UTC 年月日>-<时分秒>`，推到 origin
+2. 每 5 秒问一次 GitHub 上的仓有没有这个提交，最多等 3 分钟。origin 就是 GitHub 的仓（还没切回 gitea 的）第一次就问到。等不到就回 `ok: false`，写明去 gitea 仓的「设置 → 仓库 → 推送镜像」看最近一次同步的结果；修好后再调一次 `devkit.release`，本机装包的源上已经有的版本不重发
+3. 在这个 tag 上建 GitHub release：先建草稿、传上包文件，再公开。公开那一刻触发 `publish.yml`，它下载包文件、按文件名排序依次 `npm publish`，已经在 npmjs 上的跳过，所以失败后在网页上重跑不会重复发
+
+{/* ref file="../plugins/devkit/src/release.ts" lines="601-614" hash="30a4e3bcb5d0" blob="8ecbe5a4c556" */}
+
+{/* ref file="../plugins/devkit/src/release.ts" lines="564-654" hash="1c0b92857553" blob="8ecbe5a4c556" */}
 
 包文件在本机构建与检查，工作流只负责发，所以它关掉了 provenance：provenance 声称包是在那次运行里构建的，和实际不符。工作流的模板在 devkit 包的 `template/repo/.github/workflows/publish.yml.tpl`，`devkit.scaffold` 建仓时一起生成。
 
@@ -76,17 +88,20 @@ npmjs 上每个包要先存在、再登记 trusted publisher，所以一个包�
 
 一次发版的输入、回执，以及每个包只解析一次的清单与它的检查结论：
 
-{/* ref file="../plugins/devkit/src/release.ts" lines="69-97" hash="eb3a4555367a" blob="70da389b6287" */}
+{/* ref file="../plugins/devkit/src/release.ts" lines="79-105" hash="24fad5fa2e1f" blob="8ecbe5a4c556" */}
 
-{/* ref file="../plugins/devkit/src/release.ts" lines="108-139" hash="b20d45fbda00" blob="70da389b6287" */}
+{/* ref file="../plugins/devkit/src/release.ts" lines="116-147" hash="b20d45fbda00" blob="8ecbe5a4c556" */}
 
 `TicketManifest` 只取发版前检查要看的那部分：全部 peer（含内核包）、是不是插件（`keywords` 含 `gwb-plugin`）。`Ticket.problems` 非空就拒，所有包的 `Ticket` 拼成一段回执，按包分组。
 
 ## 提供的接口
 
-对外一条命令 `devkit.release {"dir","packages","alsoPublishTo"?}`。发版前检查对**每个要发的包**查：
+对外一条命令 `devkit.release {"dir","packages"}`。发版前检查对**每个要发的包**查：
 
 - 产物里的 import：相对 import 指向的文件都在，产物按 JS 语法读得下去
+- 发到 npmjs 的包，必需的 peer 也在 npmjs 上：从 npmjs 装它的人只装得到 npmjs 上的包。`cordis`、`peerDependenciesMeta` 里标了 `optional` 的、同一次也发 npmjs 的不查；`workspace:` 的按包目录 `node_modules` 里装着的版本写成 `^<版本>`，用 `pnpm view <包>@<范围> version` 去 npmjs 问有没有落在范围里的版本
+
+{/* ref file="../plugins/devkit/src/release.ts" lines="317-349" hash="3bfa4998074b" blob="8ecbe5a4c556" */}
 
 **插件包**（`keywords` 含 `gwb-plugin`）另查七项：
 
@@ -99,35 +114,35 @@ npmjs 上每个包要先存在、再登记 trusted publisher，所以一个包�
 
 peer 里的插件在不在同一条线：
 
-{/* ref file="../plugins/devkit/src/release.ts" lines="260-282" hash="bb8b33a92f5d" blob="70da389b6287" */}
+{/* ref file="../plugins/devkit/src/release.ts" lines="270-292" hash="bb8b33a92f5d" blob="8ecbe5a4c556" */}
 
 peer 里哪些包算插件、要和源上 latest 比，读包目录 `node_modules` 里它的清单判，不看包名范围；同一条线怎么算：
 
-{/* ref file="../plugins/devkit/src/release.ts" lines="208-237" hash="779bc06b5b0f" blob="70da389b6287" */}
+{/* ref file="../plugins/devkit/src/release.ts" lines="218-247" hash="779bc06b5b0f" blob="8ecbe5a4c556" */}
 
 第三方 cordis 插件的判法：
 
-{/* ref file="../plugins/devkit/src/vocab.ts" lines="47-55" hash="4e6f59446327" blob="03e13f8c59ca" */}
+{/* ref file="../plugins/devkit/src/vocab.ts" lines="44-52" hash="4e6f59446327" blob="aaab76ff0591" */}
 
 peer 里只许哪几类包：
 
-{/* ref file="../plugins/devkit/src/release.ts" lines="284-305" hash="f0ed69422b73" blob="70da389b6287" */}
+{/* ref file="../plugins/devkit/src/release.ts" lines="294-315" hash="f0ed69422b73" blob="8ecbe5a4c556" */}
 
 peer 里内核包的检查，`^x.y.z` 写法的判定 `isCaretRange` 从插件管理的主入口 import（见 [peer 里的内核包与插件](/docs/seams/kernel-peer)）：
 
-{/* ref file="../plugins/devkit/src/release.ts" lines="239-258" hash="2a769b92b5b7" blob="70da389b6287" */}
+{/* ref file="../plugins/devkit/src/release.ts" lines="249-268" hash="2a769b92b5b7" blob="8ecbe5a4c556" */}
 
 **peer 不成环**：插件管理升级时按 peer 排重新加载的先后，被依赖的先；peer 成了环，环上的包排不出先后，只能重启工作台才换上新版本（见[热升级](/docs/plugin-manager/upgrade#重新加载的先后被依赖的先)）。所以发版前从本包出发，顺着 peer 里的 gwb 插件（`keywords` 含 `gwb-plugin`；`cordis` 与内核包不算）往下走，走回本包就拒，每个直接 peer 各报一条最短的环。往下走读的是装上的清单：本包 peer 里的包在包目录的 `node_modules` 里找，再往下照 node 的解析规则从那个包的真实目录往上找——pnpm 把一个包 peer 里的包放在它真实目录的旁边；同一次发的包按工作区里的清单算（它们 peer 里写 `workspace:*`，装着的未必是这一版）。读不到清单的包不往下走，第一层读不到由「peer 只许三类包」那项报。
 
 只认 peer：反方向用局部注入 `<上下文>.inject([...], fn)`、不写 peer 的不算边。拒绝理由里就写这个改法；提供方是同一个工作区里 peer 写了本包的插件时，注入检查对这种写法放行（见下面「注入与 peer」）。
 
-{/* ref file="../plugins/devkit/src/release.ts" lines="321-391" hash="e33b4c095b44" blob="70da389b6287" */}
+{/* ref file="../plugins/devkit/src/release.ts" lines="365-435" hash="e33b4c095b44" blob="8ecbe5a4c556" */}
 
-{/* ref file="../plugins/devkit/tests/release.test.ts" lines="184-189" hash="5ff651bf1710" blob="31463cf7f7fe" */}
+{/* ref file="../plugins/devkit/tests/release.test.ts" lines="188-193" hash="5ff651bf1710" blob="78a30203ea01" */}
 
-{/* ref file="../plugins/devkit/tests/release.test.ts" lines="191-201" hash="12a6d4920216" blob="31463cf7f7fe" */}
+{/* ref file="../plugins/devkit/tests/release.test.ts" lines="195-205" hash="12a6d4920216" blob="78a30203ea01" */}
 
-{/* ref file="../plugins/devkit/tests/release.test.ts" lines="212-222" hash="fa1d8dc5919e" blob="31463cf7f7fe" */}
+{/* ref file="../plugins/devkit/tests/release.test.ts" lines="216-226" hash="fa1d8dc5919e" blob="78a30203ea01" */}
 
 **产物检查**在 `src/artifact-check.ts`。哪些文件算哪一侧，照模板生成的插件包的构建约定判：node 侧是 `exports["."]` 的运行时入口（没有 `exports` 时是 `main`）顺着相对 import 走到的文件，也就是内核的 loader 按包名 import 插件时加载的那些；浏览器侧是 `dist/client.js` 顺着相对 import 走到的文件；两边都走不到的文件不查。库（没有 `gwb-plugin` 的包）只查相对 import，不查两份包名名单：库由用它的插件打包进产物，它的 import 不在 home 里按包名解析。库可以只有子路径导出、包根没有入口，所以 node 侧从 `exports` 每个子路径指到的 js 文件走起（带 `*` 的通配子路径、`./styles.css` 这类不是 js 的目标不算；没有 `exports` 时取 `main`），外加 `bin` 里的脚本；一个 js 入口都没有才拒。插件照旧只从 `exports["."]` 走起，没有就拒：内核的 loader 按包名 import 插件。
 
@@ -191,18 +206,20 @@ node 侧放行的包名：
 
 ## 依赖的接口
 
-{/* ref file="../plugins/devkit/src/release.ts" lines="13-67" hash="11793f50b522" blob="70da389b6287" */}
+{/* ref file="../plugins/devkit/src/release.ts" lines="13-77" hash="c29a8737f00f" blob="8ecbe5a4c556" */}
 
 | 接口 | 用来做什么 | 生产实现 | 测试实现 |
 | --- | --- | --- | --- |
 | `gitStatus` | 仓根工作区干不干净；问不出也是一种答案：拒 | `git status --porcelain=v1`，改动行由 `dirtyLines` 按 porcelain 条目的样子认（stderr 里的警告不算） | 回预设的干净、不干净或问不出 |
 | `run` | 仓根 `pnpm build` | `runCaptured`，超时终止整棵进程树 | 记一行调用、可以让它失败 |
-| `published` | 这个版本号在发布目标上有没有 | `pnpm view <包>@<版本> version`，指定去问发布目标；退出码 0 是有，报 `ERR_PNPM_PACKAGE_NOT_FOUND` / `ERR_PNPM_FETCH_404` 是没有，别的失败抛出 | 一张「已发过」的表 |
+| `published` | 这个版本号在某个源上有没有；发 npmjs 的包查 peer 时问的是落在范围里的版本 | `pnpm view <包>@<版本或范围> version`，指定去问那个源；退出码 0 是有，报 `ERR_PNPM_PACKAGE_NOT_FOUND` / `ERR_PNPM_FETCH_404` 是没有，别的失败抛出 | 一张「已发过」的表 |
+| `installRegistry` | 本机装这个包从哪个源下，定要不要在那里也发一份 | `pnpm config get <范围>:registry`，回 `undefined` 是没配，回的不是 http(s) 地址就抛；包名不带范围不问 | 给定的源，或没配 |
 | `latest` | peer 里的 gwb 插件在源上的 `dist-tags.latest`（dev 依赖不问） | `pnpm view <包> dist-tags.latest`，不指定源；失败回 `undefined`，由检查报「问不出」 | 一张 latest 表，可以缺项 |
 | `publish` | 在临时目录组装发布内容并发出、标上 latest；npmjs 不经它 | `node-dev-deps.ts` 的组装（与开发版打包共用），最后 `pnpm publish --no-git-checks --tag latest` | 记下发了什么、写进去的依赖范围，可以让某一个失败 |
 | `packRelease` | 发 npmjs 的包：同样组装，打成包文件交给 Actions | 同一套组装，最后 `pnpm pack --pack-destination` | 记下打了什么、写进去的依赖范围 |
-| `headCommit` / `github` | HEAD 的提交号；查提交在不在 GitHub 上、建 release、传上包文件、等 `publish.yml` 跑完 | `git rev-parse HEAD`；`node-github.ts` 经 GitHub REST API，凭据取自 git 凭据管理器 | 固定的提交号；可以让提交不在、让运行失败或没跑完 |
-| `tempDir` / `removeDir` / `now` | 放包文件的临时目录；release 的 tag 用的时刻 | 系统临时目录下新建、`removeTree`；`Date.now()` | 固定的目录与时刻 |
+| `headCommit` / `onOrigin` / `pushTag` | HEAD 的提交号；它推到 origin 没有；在它上面打 tag 推到 origin | `git rev-parse HEAD`；`git fetch origin` 再 `git branch -r --contains`；`git tag` 再 `git push origin refs/tags/<tag>` | 固定的提交号；可以让它没推到 origin；记下推了哪个 tag |
+| `github` | 查提交到没到 GitHub 上、建 release、传上包文件、等 `publish.yml` 跑完 | `node-github.ts` 经 GitHub REST API，凭据取自 git 凭据管理器 | 可以让提交前几次查不到或一直查不到、让运行失败或没跑完 |
+| `tempDir` / `removeDir` / `now` / `sleep` | 放包文件的临时目录；tag 用的时刻；等镜像同步时隔几秒再查 | 系统临时目录下新建、`removeTree`；`Date.now()`；`setTimeout` | 固定的目录；假时钟，`sleep` 只往前拨时钟 |
 | `readText` / `exists` | 读清单、查产物、读 peer 的清单与内核包页面入口 | `node:fs` | 内存里的文件表 |
 | `filesUnder` / `tailwindOf` | 样式检查：列出样式入口与 `.tsx`；从被检查包的 `@tailwindcss/cli` 旁边找 Tailwind 编译器。注入检查也用 `filesUnder` 列 `src/` 下的源码与提供方的运行时代码 | `node-dev-deps.ts` 里的同名函数 | 内存里的文件表；假编译器，颜色类与 `@apply` 那几条用真实编译器 |
 | `realpath` | peer 不成环：包目录链接指向的真实目录，从那里往上找它 peer 里的包 | `fs.realpathSync` | 原样返回，或一张链接表 |
@@ -219,13 +236,13 @@ node 侧放行的包名：
 
 ## 怎么单独测
 
-`tests/release.test.ts` 注入一套假的 `ReleaseDeps`，整条流程在测试里运行完：git 工作区检查在最前、构建次之、按给定顺序发、范围是 `^新版本号`；git 工作区不干净或问不出、清单读不到、同号已在源上、产物不全、构建失败时一个都不发；发版前检查没过时构建之后、发之前拒，所有包的问题一次列全；第二个包发失败时回执带上已经发出去的那一个；每个包发到自己的发布目标、没写或写坏了 `publishConfig.registry` 时点名是哪个包；给了额外的源时每个包按顺序发到各个源、同号已在额外的源上也拒、额外的源和发布目标相同时拒、某个源发失败时回执带上已经发出去的那几条；发到 npmjs 的包本机先发别的源、再按顺序打包、传到 release 上，没有工作流文件、`repository` 不是 GitHub、HEAD 没推上去时一个都不发，Actions 没成或没跑完时回执带上本机已发的与运行的网址、临时目录照样删。dev 依赖落后、出范围、写法不是 `^` 都照常发，也不去源上问它的 latest。同一条线、peer 只许三类、peer 不成环、内核包写法几条规则各有纯函数测试；peer 不成环那条给一张假文件表加一张目录链接表，测两个包互相写 peer、要走好几步的环、不成环、反方向局部注入、同一次发的包按工作区里的清单。
+`tests/release.test.ts` 注入一套假的 `ReleaseDeps`，整条流程在测试里运行完：git 工作区检查在最前、构建次之、按给定顺序发、范围是 `^新版本号`；git 工作区不干净或问不出、清单读不到、同号已在源上、产物不全、构建失败时一个都不发；发版前检查没过时构建之后、发之前拒，所有包的问题一次列全；第二个包发失败时回执带上已经发出去的那一个；每个包发到自己的发布目标、没写或写坏了 `publishConfig.registry` 时点名是哪个包；本机装包的源与发布目标不同时每个包先发那里、再发发布目标，同号已在那里就跳过、已在发布目标上就拒，问不出从哪装时一个都不发，那里发失败时回执带上已经发出去的那几条；发到 npmjs 的包本机先发别的源、打包、tag 推到 origin、等镜像同步、再传到 release 上，镜像慢时隔一会儿再查、一直等不到时不建 release 并写明去 gitea 哪里看，没有工作流文件、`repository` 不是 GitHub、HEAD 没推到 origin 时一个都不发，必需的 peer 不在 npmjs 上时拒（标了 optional 的、同一次也发 npmjs 的不查），Actions 没成或没跑完时回执带上本机已发的与运行的网址、临时目录照样删。dev 依赖落后、出范围、写法不是 `^` 都照常发，也不去源上问它的 latest。同一条线、peer 只许三类、peer 不成环、内核包写法几条规则各有纯函数测试；peer 不成环那条给一张假文件表加一张目录链接表，测两个包互相写 peer、要走好几步的环、不成环、反方向局部注入、同一次发的包按工作区里的清单。
 
-{/* ref file="../plugins/devkit/tests/release.test.ts" lines="418-444" hash="961f467267d4" blob="31463cf7f7fe" */}
+{/* ref file="../plugins/devkit/tests/release.test.ts" lines="445-471" hash="961f467267d4" blob="78a30203ea01" */}
 
-{/* ref file="../plugins/devkit/tests/release.test.ts" lines="446-459" hash="f28ec3e1ad2a" blob="31463cf7f7fe" */}
+{/* ref file="../plugins/devkit/tests/release.test.ts" lines="473-486" hash="f28ec3e1ad2a" blob="78a30203ea01" */}
 
-`tests/artifact-check.test.ts` 给一张假文件表测产物检查：两侧入口怎么认、压成一行的各种写法都找到、字符串与注释里的 `import(…)` 不算、页面入口读不到就报。`tests/style-check.test.ts` 给假文件表与假编译器测样式检查：样式入口认不出、类选择器不带前缀、`@scope` 块放行与根不带前缀、fallback 写死、调色板、前缀排在变体后面、带前缀编不出、漏了前缀各报什么；颜色类怎么认、样式入口里带前缀的 `@apply` 这两处用真实 Tailwind 编：devkit 的 dev 里装了 `@tailwindcss/cli` 与 `tailwindcss`，编译器照 `tailwindOf` 的找法从 devkit 包目录找，产物与源码由同一份样式入口编出来；拿真实 Tailwind 的核对在 baseui、外壳、dsh、块笔记核心四个真实包上做过（块笔记核心没过，见它仓里的 feedback）。`tests/wiring-check.test.ts` 给假文件表测注入与 peer：三种注入写法与类型参数、认不出的写法逐处报、不是注入的属性读取与类型成员不管、类型入口里补的名字怎么读、几个声明方时按运行时代码判、只写在 dev、必需注入标了 optional、写 peer 会成环时放行、仓里没有文档站也不报。`tests/node-dev-deps.test.ts` 测组装发布内容的纯函数：发布用清单怎么改写、`workspace:` 找不到就抛、`catalog:` 从默认与具名 catalog 取范围（peer 里也取）、catalog 或其中的包找不到与 `pnpm-workspace.yaml` 读不懂时抛、`pnpm view` 的结果怎么判。
+`tests/artifact-check.test.ts` 给一张假文件表测产物检查：两侧入口怎么认、压成一行的各种写法都找到、字符串与注释里的 `import(…)` 不算、页面入口读不到就报。`tests/style-check.test.ts` 给假文件表与假编译器测样式检查：样式入口认不出、类选择器不带前缀、`@scope` 块放行与根不带前缀、fallback 写死、调色板、前缀排在变体后面、带前缀编不出、漏了前缀各报什么；颜色类怎么认、样式入口里带前缀的 `@apply` 这两处用真实 Tailwind 编：devkit 的 dev 里装了 `@tailwindcss/cli` 与 `tailwindcss`，编译器照 `tailwindOf` 的找法从 devkit 包目录找，产物与源码由同一份样式入口编出来；拿真实 Tailwind 的核对在 baseui、外壳、dsh、块笔记核心四个真实包上做过（块笔记核心没过，见它仓里的 feedback）。`tests/wiring-check.test.ts` 给假文件表测注入与 peer：三种注入写法与类型参数、认不出的写法逐处报、不是注入的属性读取与类型成员不管、类型入口里补的名字怎么读、几个声明方时按运行时代码判、只写在 dev、必需注入标了 optional、写 peer 会成环时放行、仓里没有文档站也不报。`tests/node-dev-deps.test.ts` 测组装发布内容的纯函数：发布用清单怎么改写、`workspace:` 找不到就抛、`catalog:` 从默认与具名 catalog 取范围（peer 里也取）、catalog 或其中的包找不到与 `pnpm-workspace.yaml` 读不懂时抛、`pnpm view` 的结果怎么判、`pnpm config get <范围>:registry` 的结果怎么读。
 
 {/* ref file="../plugins/devkit/tests/artifact-check.test.ts" lines="58-66" hash="721f11d2e981" blob="3fad9bb8b28a" */}
 
@@ -241,6 +258,6 @@ node 侧放行的包名：
 
 **先读** `runRelease`：六步的顺序在这一个函数里。
 
-**读序**：`runRelease` → `planPackages`（每个包的清单、发布目标、产物、同号）→ `ticketFor`（一个包的全部检查）→ `peerLineProblems` / `peerProblems` / `peerCycleProblems` / `kernelPeerProblems` / `artifactProblems` / `wiringProblems` → `ReleaseDeps`（哪些是注入的）。
+**读序**：`runRelease` → `planPackages`（每个包的清单、发布目标与 `registriesFor`、产物、同号）→ `ticketFor`（一个包的全部检查）与 `publicPeerProblems`（发 npmjs 的包的 peer）→ `actionsHandoffOf` / `handOffToActions` / `waitForMirror`（交给 Actions 那一段）→ `peerLineProblems` / `peerProblems` / `peerCycleProblems` / `kernelPeerProblems` / `artifactProblems` / `wiringProblems` → `ReleaseDeps`（哪些是注入的）。
 
 **可跳过**：`sameReleaseLine`、`dirtyLines` 这几个小函数，形状简单、有测试覆盖；`node-dev-deps.ts` 里复制文件、写临时清单的那几十行是 npm 打包的细节。

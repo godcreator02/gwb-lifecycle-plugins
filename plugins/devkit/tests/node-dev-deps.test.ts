@@ -4,6 +4,7 @@ import path from 'node:path'
 import { afterEach, describe, expect, it } from 'vitest'
 import {
   distManifest,
+  installRegistryFromConfig,
   publishedFromView,
   registryPinArgs,
   unsupportedFileEntries,
@@ -259,5 +260,18 @@ describe('pnpm view 的结果：这个版本号在源上有没有', () => {
 
   it('别的失败（源连不上、超时）：直接抛，不当成没发过', () => {
     expect(() => publishedFromView({ ok: false, tail: 'ERR_PNPM_META_FETCH_FAIL  GET http://r/: request to http://r/ failed, reason: connect ECONNREFUSED' }, '@godcreator/x@0.1.0', 'http://r/')).toThrow(/ECONNREFUSED/)
+  })
+})
+
+describe('installRegistryFromConfig：pnpm config get <范围>:registry 的结果', () => {
+  it('最后一行是地址就是那个源；是 undefined 就是没给这个范围配源', () => {
+    expect(installRegistryFromConfig({ ok: true, tail: 'https://git.example.com/api/packages/team/npm/\n' }, '@team')).toBe('https://git.example.com/api/packages/team/npm/')
+    expect(installRegistryFromConfig({ ok: true, tail: 'undefined' }, '@team')).toBeUndefined()
+  })
+
+  it('命令没成、什么都没输出、输出的不是 http(s) 地址：抛', () => {
+    expect(() => installRegistryFromConfig({ ok: false, tail: 'boom' }, '@team')).toThrow(/没成/)
+    expect(() => installRegistryFromConfig({ ok: true, tail: '' }, '@team')).toThrow(/没成/)
+    expect(() => installRegistryFromConfig({ ok: true, tail: 'git.example.com' }, '@team')).toThrow(/不是 http\(s\) 地址/)
   })
 })

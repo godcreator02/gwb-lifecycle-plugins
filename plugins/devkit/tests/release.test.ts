@@ -1,9 +1,8 @@
 import path from 'node:path'
 import { describe, expect, it } from 'vitest'
-import { isCordisPluginManifest, TEAM_REGISTRY } from '../src/vocab.js'
+import { isCordisPluginManifest } from '../src/vocab.js'
 import { KERNEL_PACKAGE } from '@godcreator/gwb-plugin-manager'
 import {
-  alsoPublishToArgOf,
   dirtyLines,
   githubRepoOf,
   isNpmjsRegistry,
@@ -14,7 +13,9 @@ import {
   peerLineProblems,
   peerProblems,
   publishTargetOf,
+  registriesFor,
   runRelease,
+  sameRegistry,
   sameReleaseLine,
   ticketManifestOf,
   ticketRefusal,
@@ -38,6 +39,9 @@ const API = '@godcreator/gwb-plugin-api'
 const KERNEL_PEER = { [KERNEL_PACKAGE]: '^0.3.0' }
 
 const EXPORTS = { '.': { types: './dist/index.d.ts', default: './dist/index.js' } }
+
+/** 团队的私有源 */
+const TEAM_REGISTRY = 'https://git.example.com/api/packages/team/npm/'
 
 /** 发布目标：每个要发的包都得写 */
 const PUBLISH_CONFIG = { registry: TEAM_REGISTRY }
@@ -284,8 +288,12 @@ interface FakeOptions {
   failRun?: string
   failPublish?: string
   latest?: Record<string, string>
-  /** HEAD 不在 GitHub 上 */
-  commitMissing?: boolean
+  /** 本机装包的源（`.npmrc` 给范围配的源）；不给是没配 */
+  installRegistry?: string
+  /** HEAD 没推到 origin */
+  notOnOrigin?: boolean
+  /** 推送镜像慢：GitHub 上查这个提交，前几次没有；`Infinity` 是一直没有 */
+  mirrorLagPolls?: number
   /** publish.yml 那次运行的结局；不给是成功 */
   run?: { finished: true; success: boolean; url: string } | { finished: false; url?: string }
 }
@@ -304,6 +312,8 @@ const PNPM = 'C:\\Users\\u\\AppData\\Local\\pnpm\\bin\\pnpm.exe'
 function fake(options: FakeOptions = {}): ReleaseDeps & { calls: string[]; ranges: Record<string, string>[] } {
   const calls: string[] = []
   const ranges: Record<string, string>[] = []
+  let clock = Date.UTC(2026, 9, 15, 7, 8, 9)
+  let mirrorLag = options.mirrorLagPolls ?? 0
   const files: Record<string, string> = {
     [path.resolve(REPO, 'a/package.json')]: manifestOf(A, '0.1.0'),
     [path.resolve(REPO, 'b/package.json')]: manifestOf(B, '0.2.0'),
@@ -361,10 +371,27 @@ function fake(options: FakeOptions = {}): ReleaseDeps & { calls: string[]; range
     async headCommit() {
       return { ok: true, sha: 'a'.repeat(40) }
     },
+    async onOrigin(_repoDir, sha) {
+      calls.push(`推到 origin 了? ${sha.slice(0, 7)}`)
+      return { ok: true, pushed: options.notOnOrigin !== true }
+    },
+    async pushTag(_repoDir, tag, sha) {
+      calls.push(`tag ${tag} @${sha.slice(0, 7)} → origin`)
+      return { ok: true }
+    },
+    async installRegistry(pkg) {
+      calls.push(`从哪装 ${pkg}`)
+      return options.installRegistry
+    },
+    async sleep(ms) {
+      clock += ms
+    },
     github: {
       async hasCommit(repo, sha) {
         calls.push(`有提交? ${repo.owner}/${repo.repo} ${sha.slice(0, 7)}`)
-        return options.commitMissing !== true
+        if (mirrorLag <= 0) return true
+        mirrorLag -= 1
+        return false
       },
       async createRelease(input) {
         calls.push(`release ${input.tag} @${input.sha.slice(0, 7)}: ${input.assets.map((one) => one.name).join(' ')}`)
@@ -379,7 +406,7 @@ function fake(options: FakeOptions = {}): ReleaseDeps & { calls: string[]; range
     removeDir: (dir) => {
       calls.push(`删 ${dir}`)
     },
-    now: () => Date.UTC(2026, 9, 15, 7, 8, 9),
+    now: () => clock,
   }
 }
 
@@ -606,10 +633,6 @@ describe('发正式版', () => {
     expect(out).toMatchObject({ ok: false })
     expect(out.ok === false && out.data?.shipped).toHaveLength(1)
   })
-
-  it('团队源的地址', () => {
-    expect(TEAM_REGISTRY).toBe('https://git.tianshen02.online:28377/api/packages/godcreator/npm/')
-  })
 })
 
 describe('发布目标（GWB-17）', () => {
@@ -684,61 +707,82 @@ describe('发布目标（GWB-17）', () => {
     expect(deps.calls.some((one) => one.startsWith('publish '))).toBe(false)
   })
 
-  it('alsoPublishTo：每个包先发到自己的发布目标、再发到额外的源，发完一个包再发下一个；回执每个源一条', async () => {
-    const deps = fake()
-    const out = await runRelease({ repoDir: REPO, packages: ['a', 'b'], alsoPublishTo: [LOCAL] }, deps)
+  it('registriesFor：本机装包的源没配、是 npmjs、与发布目标相同，都只发发布目标；不同就排在发布目标前面', () => {
+    expect(registriesFor(NPMJS, undefined)).toEqual([NPMJS])
+    expect(registriesFor(TEAM_REGISTRY, NPMJS)).toEqual([TEAM_REGISTRY])
+    expect(registriesFor(TEAM_REGISTRY, TEAM_REGISTRY.replace(/\/$/, ''))).toEqual([TEAM_REGISTRY])
+    expect(registriesFor(NPMJS, TEAM_REGISTRY)).toEqual([TEAM_REGISTRY, NPMJS])
+    expect(sameRegistry('https://h/a/', 'https://h/a')).toBe(true)
+    expect(sameRegistry('https://h/a/', 'https://h/b/')).toBe(false)
+  })
+
+  it('本机装包的源与发布目标不同：每个包先发到装包的源、再发发布目标，发完一个包再发下一个；回执每个源一条', async () => {
+    const deps = fake({ installRegistry: LOCAL })
+    const out = await runRelease({ repoDir: REPO, packages: ['a', 'b'] }, deps)
     expect(out.ok).toBe(true)
     if (!out.ok) return
+    expect(deps.calls).toContain(`从哪装 ${A}`)
     const publishes = deps.calls.filter((one) => one.startsWith('publish ') && one.includes('→'))
-    expect(publishes).toEqual([`publish 0.1.0 → ${TEAM_REGISTRY}`, `publish 0.1.0 → ${LOCAL}`, `publish 0.2.0 → ${TEAM_REGISTRY}`, `publish 0.2.0 → ${LOCAL}`])
-    expect(out.data.shipped.map((one) => `${one.pkg} → ${one.registry}`)).toEqual([`${A} → ${TEAM_REGISTRY}`, `${A} → ${LOCAL}`, `${B} → ${TEAM_REGISTRY}`, `${B} → ${LOCAL}`])
+    expect(publishes).toEqual([`publish 0.1.0 → ${LOCAL}`, `publish 0.1.0 → ${TEAM_REGISTRY}`, `publish 0.2.0 → ${LOCAL}`, `publish 0.2.0 → ${TEAM_REGISTRY}`])
+    expect(out.data.shipped.map((one) => `${one.pkg} → ${one.registry}`)).toEqual([`${A} → ${LOCAL}`, `${A} → ${TEAM_REGISTRY}`, `${B} → ${LOCAL}`, `${B} → ${TEAM_REGISTRY}`])
   })
 
-  it('alsoPublishTo：同号已在额外的源上也拒，一个都不发', async () => {
-    const deps = fake()
-    deps.published = async (spec, registry) => {
-      deps.calls.push(`已发过? ${spec} → ${registry}`)
+  it('同号已在装包的源上：跳过那个源、只发发布目标；同号已在发布目标上：拒，一个都不发', async () => {
+    const skipped = fake({ installRegistry: LOCAL })
+    skipped.published = async (spec, registry) => {
+      skipped.calls.push(`已发过? ${spec} → ${registry}`)
       return spec === `${B}@0.2.0` && registry === LOCAL
     }
-    const out = await runRelease({ repoDir: REPO, packages: ['a', 'b'], alsoPublishTo: [LOCAL] }, deps)
+    const skippedOut = await runRelease({ repoDir: REPO, packages: ['a', 'b'] }, skipped)
+    expect(skippedOut.ok).toBe(true)
+    expect(skipped.calls.filter((one) => one.startsWith('publish ') && one.includes('→'))).toEqual([`publish 0.1.0 → ${LOCAL}`, `publish 0.1.0 → ${TEAM_REGISTRY}`, `publish 0.2.0 → ${TEAM_REGISTRY}`])
+
+    const refused = fake({ installRegistry: LOCAL })
+    refused.published = async (spec, registry) => spec === `${B}@0.2.0` && registry === TEAM_REGISTRY
+    const refusedOut = await runRelease({ repoDir: REPO, packages: ['a', 'b'] }, refused)
+    expect(refusedOut.ok).toBe(false)
+    if (!refusedOut.ok) expect(refusedOut.error).toContain(`${B}@0.2.0 已经在源 ${TEAM_REGISTRY} 上了`)
+    expect(refused.calls.some((one) => one.startsWith('publish '))).toBe(false)
+  })
+
+  it('问不出本机从哪个源装：拒，一个都不发', async () => {
+    const deps = fake()
+    deps.installRegistry = async () => {
+      throw new Error('pnpm config get 没成')
+    }
+    const out = await runRelease({ repoDir: REPO, packages: ['a'] }, deps)
     expect(out.ok).toBe(false)
-    if (!out.ok) expect(out.error).toContain(`${B}@0.2.0 已经在源 ${LOCAL} 上了`)
+    if (!out.ok) expect(out.error).toContain(`问不出本机从哪个源装 ${A}`)
     expect(deps.calls.some((one) => one.startsWith('publish '))).toBe(false)
   })
 
-  it('alsoPublishTo 里写了包自己的发布目标：拒，一个都不发', async () => {
-    const deps = fake()
-    const out = await runRelease({ repoDir: REPO, packages: ['a'], alsoPublishTo: [TEAM_REGISTRY] }, deps)
-    expect(out.ok).toBe(false)
-    if (!out.ok) expect(out.error).toContain('同一个源只发一次')
-    expect(deps.calls.some((one) => one.startsWith('publish '))).toBe(false)
-  })
-
-  it('alsoPublishTo 一个源发失败：停下，回执里是已经发出去的', async () => {
-    const deps = fake()
+  it('装包的源发失败：停下，回执里是已经发出去的', async () => {
+    const deps = fake({ installRegistry: LOCAL })
     deps.publish = async (input) => {
       deps.calls.push(`publish ${input.version} → ${input.registry}`)
-      return input.registry === LOCAL ? { ok: false, tail: '假的失败' } : { ok: true, tail: '' }
+      return input.pkgDir.endsWith('b') && input.registry === LOCAL ? { ok: false, tail: '假的失败' } : { ok: true, tail: '' }
     }
-    const out = await runRelease({ repoDir: REPO, packages: ['a', 'b'], alsoPublishTo: [LOCAL] }, deps)
+    const out = await runRelease({ repoDir: REPO, packages: ['a', 'b'] }, deps)
     expect(out.ok).toBe(false)
     if (out.ok) return
     expect(out.error).toContain(`发到 ${LOCAL} 没成`)
-    expect(out.data?.shipped.map((one) => one.registry)).toEqual([TEAM_REGISTRY])
+    expect(out.data?.shipped.map((one) => `${one.pkg} → ${one.registry}`)).toEqual([`${A} → ${LOCAL}`, `${A} → ${TEAM_REGISTRY}`])
   })
 
-  it('发 npmjs 交给 Actions：本机先发别的源，再按顺序打包挂到 release 上、等 publish.yml 跑完；回执里 npmjs 一条在后', async () => {
-    const deps = fake({ files: { [path.resolve(REPO, 'a/package.json')]: npmjsManifestOf(A, '0.1.0'), [path.resolve(REPO, 'b/package.json')]: npmjsManifestOf(B, '0.2.0'), [WORKFLOW_FILE]: 'name: publish' } })
-    const out = await runRelease({ repoDir: REPO, packages: ['a', 'b'], alsoPublishTo: [LOCAL] }, deps)
+  it('发 npmjs 交给 Actions：本机先发装包的源，打包，tag 推到 origin、等镜像同步到 GitHub，再建 release、等 publish.yml 跑完；回执里 npmjs 一条在后', async () => {
+    const deps = fake({ installRegistry: LOCAL, files: { [path.resolve(REPO, 'a/package.json')]: npmjsManifestOf(A, '0.1.0'), [path.resolve(REPO, 'b/package.json')]: npmjsManifestOf(B, '0.2.0'), [WORKFLOW_FILE]: 'name: publish' } })
+    const out = await runRelease({ repoDir: REPO, packages: ['a', 'b'] }, deps)
     expect(out.ok, out.ok ? '' : out.error).toBe(true)
     if (!out.ok) return
-    const steps = deps.calls.filter((one) => /^(publish \S+ →|pack|release|等|删|有提交)/.test(one))
+    const steps = deps.calls.filter((one) => /^(publish \S+ →|pack|tag|release|等|删|有提交|推到 origin)/.test(one))
     expect(steps).toEqual([
-      '有提交? godcreator02/fake-repo aaaaaaa',
+      '推到 origin 了? aaaaaaa',
       `publish 0.1.0 → ${LOCAL}`,
       `publish 0.2.0 → ${LOCAL}`,
       `pack 0.1.0 → ${NPMJS}`,
       `pack 0.2.0 → ${NPMJS}`,
+      'tag release-20261015-070809 @aaaaaaa → origin',
+      '有提交? godcreator02/fake-repo aaaaaaa',
       'release release-20261015-070809 @aaaaaaa: 01-a-0.1.0.tgz 02-b-0.2.0.tgz',
       '等 publish.yml',
       `删 ${path.normalize('/tmp/release')}`,
@@ -748,25 +792,80 @@ describe('发布目标（GWB-17）', () => {
     expect(out.data.actions?.run).toBe('https://github.com/godcreator02/fake-repo/actions/runs/1')
   })
 
-  it('发 npmjs：仓里没有 publish.yml、repository 不是 GitHub、HEAD 没推上去，都拒，一个都不发', async () => {
+  it('发 npmjs：推送镜像慢就隔一会儿再查，查到了接着建 release', async () => {
+    const deps = fake({ mirrorLagPolls: 2, files: { [path.resolve(REPO, 'a/package.json')]: npmjsManifestOf(A, '0.1.0'), [WORKFLOW_FILE]: '' } })
+    const out = await runRelease({ repoDir: REPO, packages: ['a'] }, deps)
+    expect(out.ok, out.ok ? '' : out.error).toBe(true)
+    expect(deps.calls.filter((one) => one.startsWith('有提交?'))).toHaveLength(3)
+    expect(deps.calls.some((one) => one.startsWith('release '))).toBe(true)
+  })
+
+  it('发 npmjs：镜像一直没同步到 GitHub，不建 release，回执说清本机已发的、去 gitea 哪里看、修好后再调一次', async () => {
+    const deps = fake({ installRegistry: LOCAL, mirrorLagPolls: Infinity, files: { [path.resolve(REPO, 'a/package.json')]: npmjsManifestOf(A, '0.1.0'), [WORKFLOW_FILE]: '' } })
+    const out = await runRelease({ repoDir: REPO, packages: ['a'] }, deps)
+    expect(out.ok).toBe(false)
+    if (!out.ok) {
+      expect(out.error).toContain(`本机发的已经发完:${A}@0.1.0 → ${LOCAL}`)
+      expect(out.error).toContain('推送镜像')
+      expect(out.error).toContain('再调一次 devkit.release')
+      expect(out.data?.shipped.map((one) => one.registry)).toEqual([LOCAL])
+    }
+    expect(deps.calls.some((one) => one.startsWith('release '))).toBe(false)
+    expect(deps.calls.some((one) => one.startsWith('删 '))).toBe(true)
+  })
+
+  it('发 npmjs：必需的 peer 不在 npmjs 上就拒；标了 optional 的、同一次也发 npmjs 的、cordis 不查', async () => {
+    const PRIVATE_PEER = '@someone/gwb-private'
+    const OPTIONAL_PEER = '@someone/gwb-optional'
+    const nodeModules = (pkg: string) => ({ [path.resolve(REPO, 'a/node_modules', ...pkg.split('/'), 'package.json')]: JSON.stringify({ name: pkg, version: '0.1.0', keywords: ['gwb-plugin'] }) })
+    const deps = fake({
+      latest: { [PRIVATE_PEER]: '0.1.0', [OPTIONAL_PEER]: '0.1.0', [B]: '0.2.0' },
+      published: [`${KERNEL_PACKAGE}@^0.3.0`],
+      files: {
+        [path.resolve(REPO, 'a/package.json')]: pluginManifestOf(A, '0.1.0', undefined, {
+          publishConfig: { registry: NPMJS, access: 'public' },
+          repository: GITHUB_REPOSITORY,
+          peerDependencies: { ...KERNEL_PEER, cordis: '^4.0.0', [PRIVATE_PEER]: '^0.1.0', [OPTIONAL_PEER]: '^0.1.0', [B]: '^0.2.0' },
+          peerDependenciesMeta: { [OPTIONAL_PEER]: { optional: true } },
+        }),
+        [path.resolve(REPO, 'b/package.json')]: pluginManifestOf(B, '0.2.0', undefined, { publishConfig: { registry: NPMJS, access: 'public' }, repository: GITHUB_REPOSITORY, peerDependencies: KERNEL_PEER }),
+        ...nodeModules(PRIVATE_PEER),
+        ...nodeModules(OPTIONAL_PEER),
+        ...nodeModules(B),
+        [WORKFLOW_FILE]: '',
+      },
+    })
+    const out = await runRelease({ repoDir: REPO, packages: ['b', 'a'] }, deps)
+    expect(out.ok).toBe(false)
+    if (!out.ok) {
+      expect(out.error).toContain(`peer ${PRIVATE_PEER}(^0.1.0)在 npmjs 上没有`)
+      expect(out.error).not.toContain(`peer ${OPTIONAL_PEER}(`)
+      expect(out.error).not.toContain(`peer ${B}(`)
+    }
+    const askedNpmjs = deps.calls.filter((one) => one.startsWith('已发过?') && one.endsWith(`→ ${NPMJS}`) && !one.includes('@0.'))
+    expect(askedNpmjs.map((one) => one.split(' ')[1])).toEqual([`${KERNEL_PACKAGE}@^0.3.0`, `${KERNEL_PACKAGE}@^0.3.0`, `${PRIVATE_PEER}@^0.1.0`])
+    expect(deps.calls.some((one) => one.startsWith('publish ') || one.startsWith('pack '))).toBe(false)
+  })
+
+  it('发 npmjs：仓里没有 publish.yml、repository 不是 GitHub、HEAD 没推到 origin，都拒，一个都不发', async () => {
     const cases: [FakeOptions, string][] = [
       [{ files: { [path.resolve(REPO, 'a/package.json')]: npmjsManifestOf(A, '0.1.0') } }, '.github/workflows/publish.yml'],
       [{ files: { [path.resolve(REPO, 'a/package.json')]: npmjsManifestOf(A, '0.1.0', 'https://git.example.com/x/y.git'), [WORKFLOW_FILE]: '' } }, 'repository 要写 GitHub 上的仓'],
-      [{ files: { [path.resolve(REPO, 'a/package.json')]: npmjsManifestOf(A, '0.1.0'), [WORKFLOW_FILE]: '' }, commitMissing: true }, '先 git push'],
+      [{ files: { [path.resolve(REPO, 'a/package.json')]: npmjsManifestOf(A, '0.1.0'), [WORKFLOW_FILE]: '' }, notOnOrigin: true }, '先 git push'],
     ]
     for (const [options, expected] of cases) {
-      const deps = fake(options)
-      const out = await runRelease({ repoDir: REPO, packages: ['a'], alsoPublishTo: [LOCAL] }, deps)
+      const deps = fake({ ...options, installRegistry: LOCAL })
+      const out = await runRelease({ repoDir: REPO, packages: ['a'] }, deps)
       expect(out.ok).toBe(false)
       if (!out.ok) expect(out.error).toContain(expected)
-      expect(deps.calls.some((one) => one.startsWith('publish ') || one.startsWith('pack ') || one.startsWith('release '))).toBe(false)
+      expect(deps.calls.some((one) => one.startsWith('publish ') || one.startsWith('pack ') || one.startsWith('release ') || one.startsWith('tag '))).toBe(false)
     }
   })
 
   it('发 npmjs：Actions 没成或没跑完，回执说清本机已发的与去哪看，临时目录照样删', async () => {
     const files = { [path.resolve(REPO, 'a/package.json')]: npmjsManifestOf(A, '0.1.0'), [WORKFLOW_FILE]: '' }
-    const failed = fake({ files, run: { finished: true, success: false, url: 'https://run/2' } })
-    const failedOut = await runRelease({ repoDir: REPO, packages: ['a'], alsoPublishTo: [LOCAL] }, failed)
+    const failed = fake({ files, installRegistry: LOCAL, run: { finished: true, success: false, url: 'https://run/2' } })
+    const failedOut = await runRelease({ repoDir: REPO, packages: ['a'] }, failed)
     expect(failedOut.ok).toBe(false)
     if (!failedOut.ok) {
       expect(failedOut.error).toContain('https://run/2')
@@ -790,17 +889,6 @@ describe('发布目标（GWB-17）', () => {
     expect(isNpmjsRegistry('https://registry.npmjs.org')).toBe(true)
     expect(isNpmjsRegistry(TEAM_REGISTRY)).toBe(false)
     expect(releaseTagOf(Date.UTC(2026, 0, 2, 3, 4, 5))).toBe('release-20260102-030405')
-  })
-
-  it('alsoPublishToArgOf：不给是空表；不是 http(s) 地址的字符串数组、有重复：拒', () => {
-    expect(alsoPublishToArgOf(undefined)).toEqual({ ok: true, registries: [] })
-    expect(alsoPublishToArgOf([LOCAL, 'https://registry.npmjs.org/'])).toEqual({ ok: true, registries: [LOCAL, 'https://registry.npmjs.org/'] })
-    for (const raw of ['https://registry.npmjs.org/', [1], ['registry.npmjs.org'], ['ftp://h/']]) {
-      expect(alsoPublishToArgOf(raw).ok, JSON.stringify(raw)).toBe(false)
-    }
-    const repeated = alsoPublishToArgOf([LOCAL, LOCAL])
-    expect(repeated.ok).toBe(false)
-    if (!repeated.ok) expect(repeated.error).toContain('不止一次')
   })
 
   it('查别的包的 latest 不指定源（由 .npmrc 的范围行决定）；peer 里别的范围下的插件、第三方 cordis 插件也查', async () => {

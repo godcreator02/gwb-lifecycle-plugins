@@ -14,6 +14,9 @@ export type GitStatus = { ok: true; dirty: string[] } | { ok: false; error: stri
 export const PUBLISH_WORKFLOW = '.github/workflows/publish.yml'
 /** 等 publish.yml 跑完的上限：它只下载包文件再逐个 npm publish，通常一分钟内跑完 */
 export const PUBLISH_RUN_TIMEOUT_MS = 180_000
+/** 推到 origin 的 tag 经 gitea 的推送镜像出现在 GitHub 上的上限：镜像开了「推送时同步」，通常几秒到半分钟 */
+export const MIRROR_SYNC_TIMEOUT_MS = 180_000
+const MIRROR_POLL_MS = 5_000
 
 export interface GithubRepo {
   owner: string
@@ -24,7 +27,7 @@ export interface GithubRepo {
 export interface GithubReleaseGateway {
   /** 这个提交在 GitHub 上的仓里有没有 */
   hasCommit(repo: GithubRepo, sha: string): Promise<boolean>
-  /** 在 `sha` 上建 release（tag 由 GitHub 建）：先建草稿、传上包文件，再公开——公开那一刻触发 publish.yml。回 release 的网页地址 */
+  /** 在 tag `tag` 上建 release（tag 已经从 origin 同步到 GitHub）：先建草稿、传上包文件，再公开——公开那一刻触发 publish.yml。回 release 的网页地址 */
   createRelease(input: { repo: GithubRepo; tag: string; sha: string; title: string; body: string; assets: { name: string; file: string }[] }): Promise<{ url: string }>
   /** 等 `sha` 上由 release 触发、`since` 之后建的 publish.yml 运行跑完；`timeoutMs` 内没跑完回 `finished: false` */
   waitPublishRun(input: { repo: GithubRepo; sha: string; since: number; timeoutMs: number }): Promise<{ finished: true; success: boolean; url: string } | { finished: false; url?: string }>
@@ -44,7 +47,14 @@ export interface ReleaseDeps {
   packRelease(input: { pkgDir: string; version: string; registry: string; ranges: Record<string, string>; destination: string }): Promise<{ ok: true; file: string } | { ok: false; tail: string }>
   /** 仓根 HEAD 的提交号 */
   headCommit(repoDir: string): Promise<{ ok: true; sha: string } | { ok: false; error: string }>
+  /** 先 fetch origin，再看这个提交在不在 origin 的某个分支上 */
+  onOrigin(repoDir: string, sha: string): Promise<{ ok: true; pushed: boolean } | { ok: false; error: string }>
+  /** 在 `sha` 上建 tag `tag` 并推到 origin */
+  pushTag(repoDir: string, tag: string, sha: string): Promise<{ ok: true } | { ok: false; error: string }>
+  /** 本机装这个包时从哪个源下：`.npmrc` 给包名范围配的源。没配（走默认源）、包名不带范围都回 undefined；问不出就抛 */
+  installRegistry(pkg: string): Promise<string | undefined>
   github: GithubReleaseGateway
+  sleep(ms: number): Promise<void>
   /** 新建一个空的临时目录，用完交给 `removeDir` */
   tempDir(): string
   removeDir(dir: string): void
@@ -71,8 +81,6 @@ export interface ReleaseInput {
   repoDir: string
   /** 要发的包目录，相对仓根，按依赖顺序（被依赖的排前面）。至少一个，命令入口 `packagesArgOf` 查过 */
   packages: string[]
-  /** 每个包发到自己的 `publishConfig.registry` 之后，再发到这些源（http(s) 地址，命令入口查过）。换源的过渡期用 */
-  alsoPublishTo?: string[]
 }
 
 export interface ReleasedPackage {
@@ -193,16 +201,18 @@ export function releaseTagOf(ms: number): string {
   return `release-${stamp.replace('T', '-')}`
 }
 
-/** 命令参数 `alsoPublishTo`：不给是空表；给了就要是 http(s) 地址的字符串数组，不重复。不合格就拒，不丢掉不合格的项 */
-export function alsoPublishToArgOf(raw: unknown): { ok: true; registries: string[] } | { ok: false; error: string } {
-  if (raw === undefined) return { ok: true, registries: [] }
-  if (!Array.isArray(raw) || raw.some((one) => typeof one !== 'string' || parseHttpUrl(one) === undefined)) {
-    return { ok: false, error: `alsoPublishTo 要是 http(s) 地址的字符串数组(如 ["https://registry.npmjs.org/"]),实得 ${JSON.stringify(raw)}` }
-  }
-  const registries = raw as string[]
-  const repeated = registries.filter((one, index) => registries.indexOf(one) !== index)
-  if (repeated.length > 0) return { ok: false, error: `alsoPublishTo 里 ${repeated.join('、')} 写了不止一次` }
-  return { ok: true, registries }
+/** 两个源地址是不是同一个：结尾的 `/` 写没写都算 */
+export function sameRegistry(a: string, b: string): boolean {
+  return a.replace(/\/+$/, '') === b.replace(/\/+$/, '')
+}
+
+/**
+ * 一个包按顺序发到哪些源：本机装它用的源（`installRegistry`）在前，包自己的 `publishConfig.registry` 在后。
+ * 本机装包的源与发布目标相同、或是 npmjs、或没配，就只发发布目标——公开包在团队源上也有一份，本机才装得到
+ */
+export function registriesFor(target: string, installRegistry: string | undefined): string[] {
+  if (installRegistry === undefined || isNpmjsRegistry(installRegistry) || sameRegistry(installRegistry, target)) return [target]
+  return [installRegistry, target]
 }
 
 /** 包清单是不是一个插件：keywords 含 `gwb-plugin` */
@@ -298,6 +308,40 @@ export function peerProblems(manifest: TicketManifest, peerManifestOf: (pkg: str
         `peer 写了 ${pkg},它不是插件(keywords 里没有 gwb-plugin,也没有同时写 cordis 与 plugin):peer 只写运行时从 home 里得到的东西——cordis、内核包 ${KERNEL_PACKAGE}、用到的插件(gwb 插件或第三方 cordis 插件)。` +
           `库、接口定义包、importmap 里的包、构建时才用的包写 devDependencies、打包进产物;` +
           `打包不进产物的自用库(原生可执行文件、运行时按路径读自己文件的包)写 dependencies,并在清单里写明原因`,
+      )
+    }
+  }
+  return problems
+}
+
+function isOptionalPeer(doc: Record<string, unknown>, pkg: string): boolean {
+  const meta = doc['peerDependenciesMeta']
+  if (!isRecord(meta)) return false
+  const entry = meta[pkg]
+  return isRecord(entry) && entry['optional'] === true
+}
+
+/**
+ * 发到 npmjs 的包，必需的 peer（`cordis` 与标了 optional 的不算）也要在 npmjs 上：从 npmjs 装它的人只装得到 npmjs 上的包。
+ * 同一次也发 npmjs 的包不查；`workspace:` 的按包目录 node_modules 里装着的版本写成 `^<版本>` 去问
+ */
+async function publicPeerProblems(plannedPackage: PlannedPackage, npmjsSiblings: ReadonlySet<string>, deps: ReleaseDeps): Promise<string[]> {
+  const { manifest, peerManifestOf } = plannedPackage
+  const problems: string[] = []
+  for (const [pkg, range] of Object.entries(manifest.peers)) {
+    if (pkg === 'cordis' || npmjsSiblings.has(pkg) || isOptionalPeer(manifest.doc, pkg)) continue
+    let wanted = range
+    if (range.startsWith('workspace:')) {
+      const installed = peerManifestOf(pkg)
+      if (!isRecord(installed) || typeof installed['version'] !== 'string') {
+        problems.push(`peer ${pkg} 写的是 "${range}",包目录的 node_modules 里读不到它的版本:先在仓根 pnpm install`)
+        continue
+      }
+      wanted = `^${installed['version']}`
+    }
+    if (!(await deps.published(`${pkg}@${wanted}`, NPMJS_REGISTRY))) {
+      problems.push(
+        `peer ${pkg}(${wanted})在 npmjs 上没有:这个包发到 npmjs,从 npmjs 装它的人装不到这个 peer。把 ${pkg} 也公开发到 npmjs;它不是运行的前提的话,在 peerDependenciesMeta 里标 optional`,
       )
     }
   }
@@ -417,7 +461,7 @@ async function refusalIfTreeDirty(repoDir: string, deps: ReleaseDeps): Promise<R
 interface PlannedPackage {
   pkgDir: string
   manifest: ReleaseManifest
-  /** 按发布顺序的发布目标：`publishTargetOf` 算出的源在前，`alsoPublishTo` 在后 */
+  /** 按发布顺序的发布目标，见 `registriesFor` */
   registries: string[]
   /** peer 里要和源上 latest 比同一条线的 gwb 插件 */
   pluginPeers: Set<string>
@@ -438,13 +482,13 @@ function peerManifestReader(pkgDir: string, deps: ReleaseDeps): (pkg: string) =>
 }
 
 /**
- * 每个包：清单读得出、`publishConfig.registry` 认得出、`files` 白名单里的产物都在、这个版本号在每个发布目标上都还没有；
+ * 每个包：清单读得出、`publishConfig.registry` 认得出、`files` 白名单里的产物都在、这个版本号在 `publishConfig.registry` 上还没有
+ * （本机装包的源上已经有的，这次不再发到那里）；
  * `ranges` 是同一次发的包 → `^新版本号`
  */
 async function planPackages(input: ReleaseInput, deps: ReleaseDeps): Promise<Refusal | { planned: PlannedPackage[]; ranges: Record<string, string> }> {
   const planned: PlannedPackage[] = []
   const ranges: Record<string, string> = {}
-  const alsoPublishTo = input.alsoPublishTo ?? []
   for (const rel of input.packages) {
     const pkgDir = path.resolve(input.repoDir, rel)
     const manifest = ticketManifestOf(deps.readText(path.join(pkgDir, 'package.json')))
@@ -453,19 +497,27 @@ async function planPackages(input: ReleaseInput, deps: ReleaseDeps): Promise<Ref
     }
     const target = publishTargetOf(manifest.doc)
     if (!target.ok) return { ok: false, error: `${manifest.name} 的 package.json:${target.error},一个都没发` }
-    if (alsoPublishTo.includes(target.registry)) {
-      return { ok: false, error: `alsoPublishTo 里的 ${target.registry} 就是 ${manifest.name} 的 publishConfig.registry,同一个源只发一次:从 alsoPublishTo 里去掉它,一个都没发` }
-    }
     // 产物在不在照 files 白名单问，不另列一份名单
     const missing = literalArtifacts(manifest.files).filter((one) => !deps.exists(path.join(pkgDir, one)))
     if (missing.length > 0) {
       return { ok: false, error: `${manifest.name} 的产物不全,没发:${missing.join('、')} 不在。仓根 pnpm build 刚跑过还缺,多半是 files 白名单里那一项根本没人生成` }
     }
-    const registries = [target.registry, ...alsoPublishTo]
-    for (const registry of registries) {
-      if (await deps.published(`${manifest.name}@${manifest.version}`, registry)) {
+    let installRegistry: string | undefined
+    try {
+      installRegistry = await deps.installRegistry(manifest.name)
+    } catch (err) {
+      return { ok: false, error: `问不出本机从哪个源装 ${manifest.name}:${err instanceof Error ? err.message : String(err)},一个都没发` }
+    }
+    const registries: string[] = []
+    for (const registry of registriesFor(target.registry, installRegistry)) {
+      if (!(await deps.published(`${manifest.name}@${manifest.version}`, registry))) {
+        registries.push(registry)
+        continue
+      }
+      if (sameRegistry(registry, target.registry)) {
         return { ok: false, error: `${manifest.name}@${manifest.version} 已经在源 ${registry} 上了——同一个号永不重发,先抬 package.json 里的号再发` }
       }
+      // 只在本机装包的源上有：上一次发到了这里、交给 Actions 那步没成，这一次只补发布目标
     }
     const peerManifestOf = peerManifestReader(pkgDir, deps)
     planned.push({ pkgDir, manifest, registries, pluginPeers: pluginPeersOf(manifest, peerManifestOf), peerManifestOf })
@@ -509,14 +561,15 @@ async function ticketFor(
   return { pkg: `${manifest.name}@${manifest.version}`, problems }
 }
 
-/** 交给 Actions 发 npmjs 的那一批：都在同一个 GitHub 仓里，HEAD 已经在那个仓上 */
+/** 交给 Actions 发 npmjs 的那一批：都指向同一个 GitHub 仓，HEAD 已经推到 origin */
 interface ActionsHandoff {
+  repoDir: string
   repo: GithubRepo
   sha: string
   packages: PlannedPackage[]
 }
 
-/** 发任何一个包之前查：仓里有 publish.yml、包都指向同一个 GitHub 仓、HEAD 已推上去。没有包发 npmjs 回 undefined */
+/** 发任何一个包之前查：仓里有 publish.yml、包都指向同一个 GitHub 仓、HEAD 已推到 origin。没有包发 npmjs 回 undefined */
 async function actionsHandoffOf(repoDir: string, planned: PlannedPackage[], deps: ReleaseDeps): Promise<Refusal | ActionsHandoff | undefined> {
   const viaActions = planned.filter((one) => one.registries.some(isNpmjsRegistry))
   if (viaActions.length === 0) return undefined
@@ -537,10 +590,27 @@ async function actionsHandoffOf(repoDir: string, planned: PlannedPackage[], deps
   }
   const head = await deps.headCommit(repoDir)
   if (!head.ok) return { ok: false, error: `问不出 ${repoDir} 的 HEAD:${head.error},一个都没发` }
-  if (!(await deps.github.hasCommit(repo!, head.sha))) {
-    return { ok: false, error: `HEAD ${head.sha.slice(0, 7)} 还不在 GitHub 的 ${repo!.owner}/${repo!.repo} 上:npmjs 那份由 Actions 照这个提交发,先 git push 再来,一个都没发` }
+  const pushed = await deps.onOrigin(repoDir, head.sha)
+  if (!pushed.ok) return { ok: false, error: `问不出 HEAD 在不在 origin 上:${pushed.error},一个都没发` }
+  if (!pushed.pushed) {
+    return { ok: false, error: `HEAD ${head.sha.slice(0, 7)} 还没推到 origin:npmjs 那份由 GitHub 上的 Actions 照这个提交发,提交要先经 origin(gitea 的推送镜像)到 GitHub。先 git push 再来,一个都没发` }
   }
-  return { repo: repo!, sha: head.sha, packages: viaActions }
+  return { repoDir, repo: repo!, sha: head.sha, packages: viaActions }
+}
+
+/** tag 推到 origin 之后，等推送镜像把这个提交同步到 GitHub。origin 就是 GitHub 的仓不用等 */
+async function waitForMirror(handoff: ActionsHandoff, deps: ReleaseDeps): Promise<Refusal | undefined> {
+  const deadline = deps.now() + MIRROR_SYNC_TIMEOUT_MS
+  while (!(await deps.github.hasCommit(handoff.repo, handoff.sha))) {
+    if (deps.now() >= deadline) {
+      return {
+        ok: false,
+        error: `${String(MIRROR_SYNC_TIMEOUT_MS / 60_000)} 分钟内 GitHub 的 ${handoff.repo.owner}/${handoff.repo.repo} 上还没有提交 ${handoff.sha.slice(0, 7)}:origin 没开到 GitHub 的推送镜像,或镜像同步失败。到 gitea 仓的「设置 → 仓库 → 推送镜像」看最近一次同步的结果(开镜像用 gitea.push-mirror.add)。修好后再调一次 devkit.release:本机装包的源上已经有的版本不重发,只补 GitHub 与 npmjs 这几步`,
+      }
+    }
+    await deps.sleep(MIRROR_POLL_MS)
+  }
+  return undefined
 }
 
 /** 按发布顺序打包、挂到 release 上，等 publish.yml 跑完。包文件名带两位序号，工作流按文件名排序依次发 */
@@ -555,9 +625,15 @@ async function handOffToActions(handoff: ActionsHandoff, ranges: Record<string, 
     }
     const specs = handoff.packages.map((one) => `${one.manifest.name}@${one.manifest.version}`)
     const since = deps.now()
+    const tag = releaseTagOf(since)
+    // tag 先推到 origin：只在 GitHub 上建的 tag，下一次推送镜像同步时会被删掉，release 就挂空了
+    const tagged = await deps.pushTag(handoff.repoDir, tag, handoff.sha)
+    if (!tagged.ok) return { ok: false, error: `tag ${tag} 推到 origin 没成:${tagged.error}` }
+    const mirrored = await waitForMirror(handoff, deps)
+    if (mirrored !== undefined) return mirrored
     const release = await deps.github.createRelease({
       repo: handoff.repo,
-      tag: releaseTagOf(since),
+      tag,
       sha: handoff.sha,
       title: specs.join('、'),
       body: `由 devkit.release 组装，${PUBLISH_WORKFLOW} 按序号依次发到 npmjs：\n\n${specs.map((one) => `- ${one}`).join('\n')}`,
@@ -606,8 +682,13 @@ export async function runRelease(input: ReleaseInput, deps: ReleaseDeps): Promis
 
   const latest = await latestOfUpstreams(plan.planned, deps)
   const siblings = new Map(plan.planned.map((planned) => [planned.manifest.name, { pkgDir: planned.pkgDir, peers: Object.keys(planned.manifest.peers), plugin: planned.manifest.plugin }]))
+  const toNpmjs = new Set(plan.planned.filter((planned) => planned.registries.some(isNpmjsRegistry)).map((planned) => planned.manifest.name))
   const tickets: Ticket[] = []
-  for (const plannedPackage of plan.planned) tickets.push(await ticketFor(input.repoDir, plannedPackage, siblings, latest, deps))
+  for (const plannedPackage of plan.planned) {
+    const ticket = await ticketFor(input.repoDir, plannedPackage, siblings, latest, deps)
+    if (toNpmjs.has(plannedPackage.manifest.name)) ticket.problems.push(...(await publicPeerProblems(plannedPackage, toNpmjs, deps)))
+    tickets.push(ticket)
+  }
   if (tickets.some((ticket) => ticket.problems.length > 0)) return { ok: false, error: ticketRefusal(tickets) }
 
   let handoff: Awaited<ReturnType<typeof actionsHandoffOf>>

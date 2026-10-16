@@ -1,0 +1,30 @@
+---
+title: 公开包先发团队源，tag 经推送镜像到 GitHub，删掉 alsoPublishTo
+born-at: 2026-10-16T14:20
+type: choice
+parent: [2026-09-08-gwb-devkit]
+label: gitea 为主、镜像到 GitHub
+domain: 发版
+---
+
+## 背景
+
+2026-10-15 代码迁到 GitHub、公开包改发 npmjs，`devkit.release` 加了可选参数 `alsoPublishTo`，过渡期每次都要手写团队源地址，同时发 gitea；10-15 发 settings 0.4.2 时漏写过一次，事后补发。
+10-16 用户把方向改成：gitea 是主仓，所有仓、所有包都在 gitea；仓分全公开与全不公开两种，全公开的由 gitea 的推送镜像同步到 GitHub、包另发一份到 npmjs，全不公开的只在 gitea。npmjs 的 trusted publishing 只认 GitHub Actions 这类 CI，gitea 自带的 Actions 不在里面，所以 npmjs 那份仍由 GitHub 上的 `publish.yml` 发。
+
+## 结论与边界
+
+devkit 0.27.0：
+
+- 删掉 `alsoPublishTo`。本机装这个包的源由 `pnpm config get <范围>:registry` 问出来，它不是 `publishConfig.registry`、也不是 npmjs，就先发到那里。团队源地址不再写在 devkit 里，常量 `TEAM_REGISTRY` 一起删掉
+- HEAD 只要求推到 origin；tag 在本机打、推到 origin，再每 5 秒问一次 GitHub 有没有这个提交，最多等 3 分钟，问到了才在这个 tag 上建 release。只在 GitHub 上建 tag 不行：推送镜像是整仓覆盖，GitHub 上有、gitea 上没有的 tag 下一次同步就被删掉
+- 等不到镜像、Actions 没成时，团队源上已经发了。再调一次 `devkit.release`：同号只在本机装包的源上有的跳过那里，只补发布目标，不用抬版本号
+- 发到 npmjs 的包，必需的 peer 也要在 npmjs 上，不然从 npmjs 装它的人装不全
+
+origin 还是 GitHub 的仓照样能发：tag 直接推到 GitHub，第一次就问到提交。
+
+没做的：
+
+- 不在 devkit 里调 gitea 的接口去触发同步。镜像开了「推送时同步」，推 tag 就会同步；同步失败由回执指到 gitea 的镜像页去看
+- 不给 Actions 改成按 tag 触发、在 GitHub 上重新构建：包文件仍在本机构建与检查，团队源与 npmjs 上是同一份
+- 不加团队源地址的设置项：本机从哪装就发到哪，配置只有 `~/.npmrc` 这一处

@@ -54,14 +54,15 @@ description: 写新插件、改插件、在隔离 home 里验证改动、发正�
 ## 发版
 
 1. 在隔离 home 里验过这一版（「改一版看一版」）。插件包 peer 里内核包 `@godcreator/gwb-kernel-desktop` 的范围 `^x.y.z` 要包含验证时那个内核，不包含就改成 `^<那个内核的版本号>`：`devkit.release` 不查这一点
-2. 照说明书 `gwb-release` 升版本号并提交，仓根 git 工作区干净。要发到 npmjs 的，把这个提交推到 GitHub
-3. `devkit.release {"dir":"<仓根>","packages":[…]}`，`packages` 按依赖顺序排，被依赖的在前。回执 `ok: false` 时照回执里说的处理：发版前没过的一个包都没发，照回执逐条改完、`pnpm check`、提交，再调一次；GitHub Actions 那一步没成的，回执写着运行的网址，在网页上看日志、修好后重跑。只经这条命令发，不手工 `pnpm publish`：手工发既不构建，也不做发版前检查
+2. 照说明书 `gwb-release` 升版本号并提交，仓根 git 工作区干净。要发到 npmjs 的，把这个提交推到 origin
+3. `devkit.release {"dir":"<仓根>","packages":[…]}`，`packages` 按依赖顺序排，被依赖的在前。回执 `ok: false` 时照回执里说的处理：发版前没过的一个包都没发，照回执逐条改完、`pnpm check`、提交，再调一次；等不到推送镜像把提交同步到 GitHub 的，照回执去 gitea 看镜像、修好后再调一次（已发到团队源的不重发）；GitHub Actions 那一步没成的，回执写着运行的网址，在网页上看日志、修好后重跑。只经这条命令发，不手工 `pnpm publish`：手工发既不构建，也不做发版前检查
 4. 升级日常用的 default：照说明书 `gwb-plugin-manager` 的「升级插件」
 
 **完成判据**：`devkit.release` 回执 `ok: true`，`shipped` 里是这次的包、版本与发布目标；default 的 `plugin-manager.list` 里这个包的版本是刚发的正式版、条目 `active` 为 true；再调一次 `index`，看得到这个包的命令与说明书。
 
 - **包的 `repository`** 写源码所在的仓：`"repository": { "type": "git", "url": "https://github.com/<owner>/<仓名>.git" }`，npmjs 的包页面靠它链到源码。发到 npmjs 的带范围的包，`publishConfig` 里还要有 `"access": "public"`，不然按私有包发、免费账号会被拒。都没有工具查
-- **发到 npmjs 的包由 GitHub Actions 发**：`devkit.release` 把组装好的包文件作为附件上传到 GitHub release，仓里的 `.github/workflows/publish.yml` 用 trusted publishing 发出去，本机不存 npmjs 的 token。仓里还没有这个工作流的，从 devkit 包的 `template/repo/.github/workflows/publish.yml.tpl` 复制一份（去掉 `.tpl`）、提交、推送
+- **发到 npmjs 的包由 GitHub Actions 发**：`devkit.release` 先把包发到本机装这个范围的源（`@godcreator` 是 gitea 团队源），再打 tag 推到 origin，等 gitea 的推送镜像把它同步到 GitHub，把组装好的包文件作为附件上传到那个 tag 的 GitHub release，仓里的 `.github/workflows/publish.yml` 用 trusted publishing 发出去，本机不存 npmjs 的 token。仓里还没有这个工作流的，从 devkit 包的 `template/repo/.github/workflows/publish.yml.tpl` 复制一份（去掉 `.tpl`）、提交、推送；gitea 仓还没开到 GitHub 的推送镜像的，读说明书 `gitea` 的「开推送镜像」
+- **公开包的必需 peer 也要公开**：发到 npmjs 的包，peer 里不是 optional 的插件也要在 npmjs 上，不然 `devkit.release` 拒发
 - **一个包第一次上 npmjs**：npmjs 上要先有这个包，才能登记谁能发它。下面的命令在有终端的地方运行（后台进程里 npm 直接报 `EOTP`，给不出批准链接），每条都要人在浏览器里批准：
   1. 发一个占位版：建一个目录，只放 `package.json`（包名、版本 `0.0.1-stage`、`license`、`repository`）与 README，`npm publish <目录> --auth-type=web --access public --tag stage --registry https://registry.npmjs.org/ --@<范围>:registry=https://registry.npmjs.org/`。npmjs 不收 `0.0.0-stage`；预发布版不带 `--tag` 会被拒；`~/.npmrc` 里这个范围指向别的源时，它比 `--registry` 优先，不带最后一个参数就发到那个源去了
   2. 登记 trusted publisher：`npx npm@12 trust github <包名> --repository=<owner>/<仓名> --file=publish.yml --allow-publish --yes --registry=https://registry.npmjs.org/`。npm 11 发的登记请求 npmjs 回 400，npm 12 要求写明权限 `--allow-publish`

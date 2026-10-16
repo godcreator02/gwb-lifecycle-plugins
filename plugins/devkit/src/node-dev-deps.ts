@@ -258,8 +258,8 @@ export function unsupportedFileEntries(files: readonly string[]): string[] {
 }
 
 /**
- * `pnpm view <包>@<版本> version` 的结果 → 这个版本号在源上有没有。退出码 0 是有；pnpm 报没有这个版本或没有这个包（404）是没有；
- * 别的失败（源连不上、超时）问不出，直接抛
+ * `pnpm view <包>@<版本或范围> version` 的结果 → 源上有没有这个版本（范围：有没有落在范围里的版本）。退出码 0 是有；
+ * pnpm 报没有这个版本、范围里没有版本、没有这个包（404）是没有；别的失败（源连不上、超时）问不出，直接抛
  */
 export function publishedFromView(seen: { ok: boolean; tail: string }, spec: string, registry: string): boolean {
   if (seen.ok) return true
@@ -463,6 +463,34 @@ async function headCommitOf(repoDir: string): Promise<{ ok: true; sha: string } 
   return { ok: true, sha }
 }
 
+/** fetch 要连远端，比本地的 git 命令给得宽 */
+const GIT_REMOTE_TIMEOUT_MS = 120_000
+
+async function onOriginOf(repoDir: string, sha: string): Promise<{ ok: true; pushed: boolean } | { ok: false; error: string }> {
+  const fetched = await runCaptured({ command: 'git', args: ['fetch', '--quiet', 'origin'], cwd: repoDir }, GIT_REMOTE_TIMEOUT_MS)
+  if (!fetched.ok) return { ok: false, error: `git fetch origin 没成:${fetched.tail}` }
+  const branches = await runCaptured({ command: 'git', args: ['branch', '-r', '--contains', sha], cwd: repoDir }, GIT_TIMEOUT_MS)
+  if (!branches.ok) return { ok: false, error: `git branch -r --contains 没成:${branches.tail}` }
+  return { ok: true, pushed: branches.tail.split(/\r?\n/).some((line) => line.trim().startsWith('origin/')) }
+}
+
+async function pushTagOf(repoDir: string, tag: string, sha: string): Promise<{ ok: true } | { ok: false; error: string }> {
+  const created = await runCaptured({ command: 'git', args: ['tag', tag, sha], cwd: repoDir }, GIT_TIMEOUT_MS)
+  if (!created.ok) return { ok: false, error: `git tag 没成:${created.tail}` }
+  const pushed = await runCaptured({ command: 'git', args: ['push', 'origin', `refs/tags/${tag}`], cwd: repoDir }, GIT_REMOTE_TIMEOUT_MS)
+  if (!pushed.ok) return { ok: false, error: `git push origin ${tag} 没成:${pushed.tail}` }
+  return { ok: true }
+}
+
+/** `pnpm config get <范围>:registry` 的最后一行：`undefined` 是没给这个范围配源 */
+export function installRegistryFromConfig(seen: { ok: boolean; tail: string }, scope: string): string | undefined {
+  const last = seen.tail.split(/\r?\n/).map((line) => line.trim()).filter((line) => line !== '').at(-1)
+  if (!seen.ok || last === undefined) throw new Error(`pnpm config get ${scope}:registry 没成:${seen.tail}`)
+  if (last === 'undefined') return undefined
+  if (!/^https?:\/\//.test(last)) throw new Error(`pnpm config get ${scope}:registry 回的不是 http(s) 地址:${last}`)
+  return last
+}
+
 /** 发正式版在这台机器上的实现。`pnpm` 是命令开头找到的那个；组装发布内容与开发版的打包共用 withStagedDistribution */
 export const releaseDepsWith = (pnpm: string, homeDir?: string): ReleaseDeps => ({
   browserProviders: (pkgDir, manifest) => collectBrowserImports(pkgDir, manifest, {
@@ -474,7 +502,15 @@ export const releaseDepsWith = (pnpm: string, homeDir?: string): ReleaseDeps => 
   publish: (input) => publishStaged({ ...input, pnpm, ...(homeDir === undefined ? {} : { homeDir }) }),
   packRelease: (input) => packReleaseStaged({ ...input, pnpm }),
   headCommit: headCommitOf,
+  onOrigin: onOriginOf,
+  pushTag: pushTagOf,
+  installRegistry: async (pkg) => {
+    const scope = /^(@[^/]+)\//.exec(pkg)?.[1]
+    if (scope === undefined) return undefined
+    return installRegistryFromConfig(await runWithHomeAuth(homeDir, pnpmPlan(['config', 'get', `${scope}:registry`], os.tmpdir(), pnpm), 60_000), scope)
+  },
   github: githubGateway(githubTokenFromGit),
+  sleep: (ms) => new Promise((resolve) => setTimeout(resolve, ms)),
   tempDir: () => fs.mkdtempSync(path.join(os.tmpdir(), 'gwb-devkit-release-')),
   removeDir: (dir) => removeTree(dir),
   now: () => Date.now(),
