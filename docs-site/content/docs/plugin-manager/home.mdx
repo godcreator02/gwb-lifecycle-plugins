@@ -2,6 +2,7 @@
 title: home 的包与条目
 description: home 里有包与条目两层，list 按包名把两层对上、两层都不丢；内核包与 cordis 在清单里但没有条目，不进 list；只有插件管理写 home——包只经 applyToHome 运行 pnpm，条目只经 loader 的条目树
 ---
+import { Diagram } from '../_shared/diagram'
 
 # home 的包与条目
 
@@ -80,6 +81,6 @@ description: home 里有包与条目两层，list 按包名把两层对上、两
 
 {/* ref file="../plugins/plugin-manager/tests/loader.test.ts" lines="96-116" hash="6bef9287437e" blob="0f485f2217e0" */}
 
-<Note>
+<Callout>
 **别直接写 cordis.yml**：绕过条目树改文件，内存里的条目不知道，改动要等下次重启才生效，而且中间任何一次写回都会用内存里的旧内容把它覆盖掉。
-</Note>
+</Callout>

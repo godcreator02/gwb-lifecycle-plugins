@@ -3,6 +3,8 @@ title: 重新加载条目
 description: update 装完包后逐条重新加载条目：停用 → 等旧的卸载完 → 启用 → 等新的加载完，在同一条 await 链里做完；这段代码只持有条目树与 logger，被重新加载的条目连带卸载哪些插件都不影响它做完；插件管理自己与 peer 了它的包先回执、后依次重新加载；手动重新加载一条用 disable 再 enable
 ---
 
+import { Diagram } from '../_shared/diagram'
+
 # 重新加载条目
 
 **本页回答**：`update` 装完包后怎么重新加载一条条目、为什么要等旧的卸载完；回执里每条条目的 `action` 与 `state` 各是什么；为什么停用与启用要在同一条 `await` 链里做完；插件管理自己与 peer 了它的包怎么办；人或 agent 要手动重新加载一条条目时怎么做。`update` 什么时候重新加载哪些条目见[热升级](/docs/plugin-manager/upgrade)。
@@ -70,6 +72,6 @@ peer 里直接或经别的包写了插件管理的包（baseui、devkit）也一
 
 插件管理没有单独的重新加载命令：换了版本的条目由 `update` 在同一条命令里重新加载，手动重新加载一条就先 `disable` 再 `enable`。两条命令之间隔着一次调用，所以只对调用方发命令不经过的插件这样做。
 
-<Note>
+<Callout>
 **命令插件、MCP 入口、插件管理自己别用 disable 加 enable**：停用它们以后，调用方发不出下一条命令，条目停在停用状态，只能换一条调用途径（比如插件管理窗格）或手工改 `cordis.yml` 再重启。这几个插件换版本经 `update`，重新加载在它的 `await` 链里做完。
-</Note>
+</Callout>

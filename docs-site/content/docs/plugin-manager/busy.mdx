@@ -3,6 +3,8 @@ title: 同一时刻只允许一个改动
 description: 服务上的 install、uninstall、update 三个方法在最外层经过同一道 BUSY 检查，同名命令调的就是它们，已有一个在运行时重入的直接回 BUSY、不排队；所以插件管理在一个 home 里同一时刻最多一个写 home 的 pnpm；管不到的三处写明
 ---
 
+import { Diagram } from '../_shared/diagram'
+
 # 同一时刻只允许一个改动
 
 **本页回答**：哪几个改动经过 BUSY 检查、重入时回什么；为什么要这道检查、为什么不排队；它管不到哪几处。

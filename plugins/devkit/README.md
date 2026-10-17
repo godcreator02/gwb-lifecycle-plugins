@@ -26,6 +26,6 @@ devkit 不另定义设置项；私有源安装与发布使用发起 home 的共�
 
 ## 文档
 
-`docs-site/` 是文档站：在仓根 `pnpm install` 之后，`cd docs-site && pnpm build && pnpm start`，看 `http://localhost:4322`。现状页的说法引用这个仓的真实源码，`pnpm doc` 核对，失败就是文档和代码不一致了。
+`docs-site/` 是文档站（fumadocs + React Router + Vite，建在 `@godcreator/god-docsite` 上），不在仓根的工作区里，自带依赖树与锁文件。开发服务由工作台托管：`docsite.site.add {"dir":"<站目录>"}` 登记并启动，地址看 `docsite.site.list`。现状页的说法引用这个仓的真实源码，`pnpm doc` 核对，失败就是文档和代码不一致了。
 
 从哪读起：入口页讲是什么、写一个插件从头走一遍、按来意读哪几页，末尾是模块索引与接缝表；开发套件看「gwb-devkit · 开发套件」那组页面，插件管理看「gwb-plugin-manager · 插件管理」那组；为什么这么切分看「关键设计」，改这个仓本身看「开发」；写插件的规矩在「写插件的规矩」那组页面；写插件、改插件、在隔离 home 里验证的步骤在随包发布的说明书 `gwb-devkit` 里。这份 README 是生成文件，正本是 `docs-site/content/docs/outputs/readme.mdx`。

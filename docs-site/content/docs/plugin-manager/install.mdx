@@ -3,6 +3,8 @@ title: 安装与卸载
 description: install 在一条命令里装一个还没装的包（清单写 ^ 范围）并加一条条目，只等写入、不等加载；已装的包直接报错；home 里只有插件、内核包与 cordis，所以不替插件装它 peer 里的插件、不判断是不是库；uninstall 先删条目后卸包、不回滚，内核包与 cordis 不许卸
 ---
 
+import { Diagram } from '../_shared/diagram'
+
 # 安装与卸载
 
 **本页回答**：装一个包经过哪几步、每一步失败时回执是什么样；为什么已装的包不许再 `install`；为什么建条目不等加载；为什么不替插件装它 peer 里的插件、也不判断是不是库；卸载为什么先删条目、失败不回滚。条目 id 怎么选见[条目 id](/docs/plugin-manager/ids)。

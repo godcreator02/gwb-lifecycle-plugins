@@ -2,6 +2,7 @@
 title: 热升级
 description: outdated 查过期包；update 的参数三选一（all 升全部过期包、only 升点名的过期包、specs 按给定写法装已装的包），一次 pnpm add（清单写 ^ 范围），specs 装完核对准确版本号；装之前与装之后真实目录变了的包按装上后的 peer 排先后（被依赖的先）逐条停用再启用；插件管理自己与 peer 了它的包在回执发出后依次重新加载；peer 成环的包不重新加载、回执提示重启；不重启、不整页重新加载
 ---
+import { Diagram } from '../_shared/diagram'
 
 # 热升级
 

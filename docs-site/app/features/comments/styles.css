@@ -1,0 +1,76 @@
+@import '@godcreator/comments/styles.css';
+
+/* 评论写进站点的 comments/，不进 Tailwind 的源码扫描：扫描到的文件一变，dev 下整页刷新，推送连接与页面状态都断掉。
+   路径相对这个文件（站点的 app/features/comments/） */
+@source not '../../../comments';
+
+/*
+ * 评论在正文上的标记（CommentsDock 注册高亮、给被批的元素加属性）：划的字走 CSS Custom Highlight API，注册名 docsite-comment，
+ * 打开着的那一串加深，写草稿时批的字是蓝色；被批的元素本身不铺底色、不加边框、点了不打开评论，正文栏左边外侧一道和它上下对齐的竖黄条
+ * （comment-margin-bars，挂在 body 上，点它打开那一串），悬停元素或黄条时加深，打开着的那一串加粗；正在写的草稿批的元素同样一道，是蓝色；
+ * 批注模式打开时正文鼠标换成十字
+ */
+::highlight(docsite-comment) {
+  background-color: color-mix(in oklab, #f5b301 16%, transparent);
+  text-decoration: underline 2px color-mix(in oklab, #f5b301 75%, transparent);
+  text-underline-offset: 3px;
+}
+
+::highlight(docsite-comment-active) {
+  background-color: color-mix(in oklab, #f5b301 42%, transparent);
+}
+
+::highlight(docsite-comment-draft) {
+  background-color: color-mix(in oklab, #2383e2 18%, transparent);
+  text-decoration: underline 2px #2383e2;
+  text-underline-offset: 3px;
+}
+
+.docsite-comment-margin-bar {
+  position: absolute;
+  z-index: 10;
+  width: 3px;
+  padding: 0;
+  border: 0;
+  border-radius: 2px;
+  background-color: color-mix(in oklab, #f5b301 65%, transparent);
+  cursor: pointer;
+  transition:
+    background-color 0.15s,
+    width 0.15s,
+    margin-left 0.15s;
+}
+
+/* 线只有几像素宽：两边各加一段透明的点击范围 */
+.docsite-comment-margin-bar::before {
+  content: '';
+  position: absolute;
+  inset: 0 -5px;
+}
+
+.docsite-comment-margin-bar:hover,
+.docsite-comment-margin-bar[data-hovered] {
+  background-color: #f5b301;
+}
+
+.docsite-comment-margin-bar[data-active] {
+  width: 5px;
+  margin-left: -1px;
+  background-color: #f5b301;
+}
+
+.docsite-comment-margin-bar-draft,
+.docsite-comment-margin-bar-draft:hover {
+  width: 5px;
+  margin-left: -1px;
+  background-color: #2383e2;
+  cursor: default;
+}
+
+html[data-comment-picking] [data-comment-scope] {
+  cursor: crosshair;
+}
+
+[data-comment-body] :is(p) {
+  margin: 4px 0;
+}

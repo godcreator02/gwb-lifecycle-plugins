@@ -3,6 +3,8 @@ title: peer 满没满足
 description: 插件在 peerDependencies 里写内核包与它用到的别的插件的 ^x.y.z；list 按包报 unmetPeers，只看插件 peer 里 cordis 以外的包，内核包对照正在运行的内核、别的包对照 home 里装着的版本，optional 的没装不算，只报告不拦加载；插件管理启动的 pnpm 不自动补装缺的 peer
 ---
 
+import { Diagram } from '../_shared/diagram'
+
 # peer 满没满足
 
 **本页回答**：`list` 回执里的 `unmetPeers` 怎么算；「装着的版本」从哪读；为什么只报告、不拦加载；缺的 peer 为什么不会被自动装上。什么时候该写 peer、怎么写是写插件的规矩，见[用到的插件写 peer](/docs/rules/plugin-peers)。

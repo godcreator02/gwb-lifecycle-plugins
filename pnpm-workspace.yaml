@@ -1,10 +1,9 @@
 packages:
   # 两个插件：开发套件 devkit 与插件管理 plugin-manager
   - plugins/*
-  # 文档站：自己的依赖树，不进根 check
-  - docs-site
 
 allowBuilds:
-  # 文档站的依赖间接带进来的两个包：@parcel/watcher 不运行安装脚本，esbuild 要运行（它下载自己的二进制）
+  # 插件的依赖间接带进来的两个包：@parcel/watcher（devkit 的 @tailwindcss/cli 用）不运行安装脚本，
+  # esbuild（两个插件的 vitest 经 vite 用）要运行（它下载自己的二进制）
   '@parcel/watcher': false
   esbuild: true

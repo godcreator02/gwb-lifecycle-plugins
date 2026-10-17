@@ -3,8 +3,9 @@
  *
  * 项目根是这个站目录，引用的代码在 `plugins/devkit/`、`plugins/plugin-manager/`——
  * 引用里写 `../plugins/<目录>/…`，按项目根拼路径，页面在哪个子目录都一样。
- * content 是各区的上一级目录：`trajectory/` 与 `future/` 两个名字固定，其余目录都是现状区、都进 check；
- * 本站的现状区只有 `content/docs`。
+ * content 是各区的上一级目录：`future/` 不进核对，其余目录都是现状区、都进 check；
+ * 本站的现状区只有 `content/docs`，里面有页面、生成正本与 `_shared/` 下的示意图组件
+ * （组件源码也进核对，只是它们没钉记号）。
  *
  * 生成文件写到各自的插件目录，正本都在 `content/docs/outputs/`。`plugins/devkit/`：AGENTS、CLAUDE、README，
  * 外加随包发布的说明书 `skills/gwb-devkit/SKILL.md`（写插件手册）与它的两份附件 `references/`、
@@ -17,11 +18,13 @@
  * 但不在 package.json 的 files 白名单里，不随包发布。
  * 生成正本按原文渲染，里面不能用 JSX 组件。
  *
- * components 是组件名册：fumadocsRoster 给 fumadocs 自带文件树 Files / Folder / File 与 Note 的机读规则，
- * 站里自己加的组件在它后面追加。
+ * fumadocsRoster 与 components：组件名册。fumadocsRoster 放进 fumadocs 自带文件树 Files / Folder / File
+ * 与 Note 的机读规则，components 里同名的规则盖过它；Steps / Accordions 是 fumadocs 自带的排版组件，
+ * 规则在这里手写（doc-export 的现成名册不含它们）。Diagram 是示意图（组件在 `content/docs/_shared/`），
+ * DirSwap、ReloadPicker、RemountRace 是讲解页里的小演示（在 `content/docs/flows/plugin-manager-update/`）。
+ * Term 是平台的术语标注，本站暂未用到，规则留着备页面使用。
+ * trajectory：轨迹卡放在站点根下的 trajectory/，站点的卡集合（app/features/trajectory/mdx.ts）读同一个目录。
  */
-import { fumadocsRoster } from '@godcreator/docfirst-workflow/fumadocs/roster'
-
 export default {
   content: 'content',
   outputs: {
@@ -40,8 +43,10 @@ export default {
       { to: '../plugins/plugin-manager/skills/gwb-plugin-manager/SKILL.md', frontmatter: ['name', 'description'] },
     ],
   },
+  fumadocsRoster: true,
   components: {
-    ...fumadocsRoster,
+    // 手写的术语标注：机读版里只留术语原词
+    Term: 'children',
     // 示意图：图本身 agent 看不见，生成 markdown 时只保留「[图] 标题」和子元素里的文字说明
     Diagram: (node, h) => [h.paragraph(`[图] ${h.attr(node, 'title') ?? h.attr(node, 'name') ?? ''}`), ...h.children()],
     // fumadocs 自带的骨架组件：分步与折叠只是排版，机读版保留里面的正文
@@ -50,9 +55,10 @@ export default {
     Accordions: 'children',
     Accordion: (node, h) => [h.paragraph(h.attr(node, 'title') ?? ''), ...h.children()],
     Callout: (node, h) => [h.paragraph(`[${h.attr(node, 'title') ?? '提示'}]`), ...h.children()],
-    // 讲解页的小演示（src/components/explain/）：演示本身 agent 看不见，页面要说的话都写在正文里
+    // 讲解页的小演示：演示本身 agent 看不见，页面要说的话都写在正文里
     DirSwap: (node, h) => h.paragraph('[演示] 装上新版本之后，链接与运行中的代码各指向哪个目录'),
     ReloadPicker: (node, h) => h.paragraph('[演示] 挑几个包升级，看谁的目录变了、谁被重新加载'),
     RemountRace: (node, h) => h.paragraph('[演示] 停用后马上启用与等旧实例卸载完再启用的时间线'),
   },
+  trajectory: 'trajectory',
 }

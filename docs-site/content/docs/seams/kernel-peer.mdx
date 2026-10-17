@@ -3,6 +3,8 @@ title: 3 peer 里的内核包与插件
 description: 连接插件包 package.json 的 peer（内核包的范围、用到的别的插件的范围）与读它们的两处：devkit.release 发版前拒写法不对的、plugin-manager.list 在 home 里只报告 unmetPeers（内核包那一项对照正在运行的内核）；内核范围的比对规则只有一份，在插件管理的 src/kernel-compat.ts，devkit 从插件管理的主入口 import
 ---
 
+import { Diagram } from '../_shared/diagram'
+
 **本页回答**：插件在哪里声明兼容哪个内核、用到哪些别的插件；谁读、拿什么比；内核范围的比对规则放在哪、devkit 怎么用到它；devkit 与插件管理各保证什么。
 
 ## 连接的模块

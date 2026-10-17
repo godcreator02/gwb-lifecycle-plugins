@@ -1,7 +1,7 @@
 # gwb-devkit
 
 开发套件，**一个普通的 gwb 插件**，源码在 `plugins/devkit/`。仓 `gwb-lifecycle-plugins` 是 pnpm workspace（仓名不同于包名，包名与说明书名仍是 `gwb-devkit`）：`plugins/devkit/` 是开发套件，
-`plugins/plugin-manager/` 是插件管理 `@godcreator/gwb-plugin-manager`（单独发版），`docs-site/` 是文档站。两个包都是公开包：`devkit.release` 先发到本机装 `@godcreator` 的 gitea 团队源，再经 GitHub Actions 发到 npmjs，发版要给 `packages` 参数。主仓在 gitea（`godcreator/gwb-lifecycle-plugins`），GitHub 上的 `godcreator02/gwb-lifecycle-plugins` 是推送镜像同步过去的副本；别的仓写来的反馈是 gitea 上的 issue。
+`plugins/plugin-manager/` 是插件管理 `@godcreator/gwb-plugin-manager`（单独发版）；`docs-site/` 是文档站，不在工作区里，自带依赖树与锁文件。两个包都是公开包：`devkit.release` 先发到本机装 `@godcreator` 的 gitea 团队源，再经 GitHub Actions 发到 npmjs，发版要给 `packages` 参数。主仓在 gitea（`godcreator/gwb-lifecycle-plugins`），GitHub 上的 `godcreator02/gwb-lifecycle-plugins` 是推送镜像同步过去的副本；别的仓写来的反馈是 gitea 上的 issue。
 **开发套件没有界面**：使用者是 agent，读的是回执。这份只写不知道就会做错事的硬约束，为什么这么做在文档站。
 
 ## 先读

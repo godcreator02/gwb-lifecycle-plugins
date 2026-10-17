@@ -1,0 +1,31 @@
+---
+title: 文档站迁到 god-docsite
+born-at: 2026-10-17T12:16
+type: choice
+parent: [2026-09-08-gwb-devkit]
+label: 迁文档站
+domain: 文档站
+---
+
+## 背景
+
+docs-site 原来是 Next 16 + `@godcreator/docfirst-workflow` 0.5.2：每个区一个 Next 布局（docs、future 各一个侧栏，轨迹盘与轨迹卡页是站里手写的 `src/app/` 文件），组件名册由 `src/components/registry.ts` 与 `scripts/verify-roster.mjs` 两边核对，看页面要先 `pnpm build` 再 `pnpm start`（端口 4322）。站里有约 140 个 mdx、27 个自绘组件（`Diagram` 分发器加 22 张图、parts 与 steps 两个辅助、讲解页的三个小演示），没有用讲解组件包。平台换成了 `@godcreator/god-docsite`（fumadocs + React Router + Vite）加功能包 code-pin、trajectory、explainer，命令行换成 `@godcreator/docfirst` 0.1.0，开发服务由工作台的 `docsite.site.*` 托管。照 god-docsite 维护页「Next docfirst 站迁到平台」迁过来，前面已经迁过 gwb-vscode、gwb-windows-backup 到 gwb-ui-plugins、gwb-base-plugins 十三个站。
+
+## 结论与边界
+
+- 骨架用 `docfirst.create` 在 `D:\gwb-docfirst-migrate\gwb-lifecycle-plugins\docs-site` 生成，`app/` 与根配置（vite / react-router / source.config / tsconfig / .gitignore / pnpm-workspace / 锁文件）、身份文件 `docsite.json`、`people.json`、`glossary.json`、`comments/` 整份换进 docs-site；`package.json` 的依赖与脚本照骨架，名字、版本、描述保留
+- 站移出仓根 pnpm 工作区（它自带 `pnpm-workspace.yaml`，留在里面就是工作区嵌套），仓根 `pnpm install` 后锁文件删掉站的那份依赖（约 2950 行）。仓根 `allowBuilds` 留着：`@parcel/watcher` 与 esbuild 看着像文档站带进来的，实际是插件依赖树带的（devkit 的 `@tailwindcss/cli`、两个插件的 vitest 经 vite），注释改成了实际来源；仓根 `package.json` 的脚本没用 `--filter` 调站，不用改
+- 27 个组件按用的范围归位：`diagram.tsx` 与 `diagrams/`（22 张图加 parts、steps）被 docs 根、devkit、plugin-manager、seams 四处 16 页共用，进 `content/docs/_shared/`；讲解页的三个小演示只被 `flows/plugin-manager-update.mdx` 用，与共用的 `explain.css` 一起进它的同名文件夹。删掉 13 个文件里的 `'use client'`；17 个页面开头加 import，插入的行尾跟着页面自己的行尾（5 个页面是 CRLF）
+- 示意图的强调色变量（`--diagram-a` / `--diagram-b` 及 soft 变体）与 `.diagram*` 一套类原来写在旧站 `src/app/global.css`，挪成 `_shared/diagram.css` 由 `diagram.tsx` import，深浅主题各一套；旧 `global.css` 的 `html { scrollbar-gutter: stable }` 没带进骨架的 `app/app.css`（照 gwb-base-plugins 的先例）
+- 两个页面的 `<Note>` 换成 fumadocs 自带的 `<Callout>`（旧 Note 是站里自定义组件，新站组件表没有它），`.note` 类随之淘汰
+- 轨迹卡 90 张从 `content/trajectory/` 挪到站点根 `trajectory/`，旧的 `meta.json` 删掉；`content/meta.json` 写站名，docs、future 两区加 `title` 与 `"root": true`；首页写一句站的介绍
+- `docfirst.config.mjs` 改成 `fumadocsRoster: true`、`trajectory: 'trajectory'`、名册加 `Term`。doc-export 0.1.0 的现成名册只含 Note、Files、Folder、File，旧名册里手写的 Steps / Step / Accordions / Accordion / Callout 与站里组件（Diagram、三个演示）的规则照抄进去。组件没有 `.data.mjs`，不用补 `.d.mts`
+- 生成物三处变化：README 与 AGENTS 是正本跟着迁移改的（「build 再 start、看 4322 端口」改成由工作台托管；「docs-site 在工作区里」改成不在、自带依赖树）；plugin-manager 的 SKILL.md 多两处空行，是有序列表嵌套内容的新渲染器写法，读出来一样，插件不发新版。正本的列表本来就是 `-`、网址都在反引号里，doc-export 0.1.0 的已知差异没在别处出现
+- 一张卡（`2026-10-16-staged-manifest-resolves-catalog`）的 frontmatter 里 `title` 与 `label` 的值含 `catalog:`，YAML 读成嵌套映射，新 docfirst 报红；给这两行的值加引号修好，正文一字未动
+- `pnpm doc` 全绿（没有页钉着这次改掉的文件，无黄灯要确认），`pnpm typecheck`、`pnpm build` 通过，仓根两个插件的 `typecheck` 通过，`docsite.site.start` 后首页、各区第一页、卡页、`/llms.txt` 都是 200
+
+## 代价与遗留
+
+- 旧 `next.config.mjs` 里 8 条旧网址跳转（`/docs/start`、`/docs/system-map`、`/docs/scaffold`、`/docs/structure`、`/docs/home`、`/docs/dev`、`/docs/cdp` 指到 devkit 子目录的各条与 `/outputs/*` 前缀）没有迁：React Router 站没有对应机制；站内没有链接指向它们，只有外部直链会 404。旧 `/` → `/docs` 的永久跳转也不迁，新站有自己的首页
+- 全站 `scrollbar-gutter: stable` 没带过来（上面写过），窄窗口下滚动条出现时页面会轻微抖动
+- 旧 Note 的蓝边盒样式换成 fumadocs Callout 的默认样子，两处提示框外观变了

@@ -33,7 +33,7 @@ plugin-manager.install {"pkg":"@godcreator/gwb-devkit"}
 pnpm install
 ```
 
-仓根的 workspace 包含两个插件包与 `docs-site`，一次装齐；devkit 的 peer 里写着插件管理（`workspace:^`），装好后 devkit 从工作区里的插件管理取它导出的函数与类型。文档站目录里另有自己的 `pnpm-workspace.yaml` 与锁文件，这是本仓特有的布局，模板生成的新仓没有。
+仓根的 workspace 只包含两个插件包；devkit 的 peer 里写着插件管理（`workspace:^`），装好后 devkit 从工作区里的插件管理取它导出的函数与类型。文档站 `docs-site/` 不在工作区里，自带自己的 `pnpm-workspace.yaml` 与锁文件，迁到 god-docsite 平台后就不再进仓根 workspace；模板生成的新仓同样只有 `plugins/` 在工作区里。
 
 实验材料放 `probes/<时间戳>_<目的>/`：一次实验一个目录、自包含、进 git、不在 workspace 里。
 
@@ -112,7 +112,7 @@ pnpm doc                                # docfirst check：页面引用的代码
 pnpm doc:confirm                        # 机械写回：草稿换成正式记号、挪了位置的写回行号、重新生成生成文件
 pnpm doc:confirm <页的路径…> --accept    # 引用的代码改了、页上的说法仍成立时确认黄灯；只点名自己改的页
 pnpm doc:render                         # 按 content/docs/outputs/ 重新生成 AGENTS.md、CLAUDE.md、README.md 与说明书
-pnpm build                              # 构建文档站；端口见 package.json 的 start 脚本（4322）
+pnpm build                              # 构建文档站，只作提交前的检查；看页面用工作台托管的开发服务（docsite.site.list 的 url）
 ```
 
 **生成文件不手改**：`plugins/devkit/AGENTS.md`、`CLAUDE.md`、`README.md`、两个插件 `skills/` 下的 `SKILL.md` 与 `references/` 附件都由 `content/docs/outputs/` 下的 mdx 生成（附件 `references/rules.md` 由 `rules/index.mdx` 生成），对应关系在 `docfirst.config.mjs` 的 `outputs`；改 mdx、运行 `pnpm doc:render`，mdx 与生成文件放进同一个提交。

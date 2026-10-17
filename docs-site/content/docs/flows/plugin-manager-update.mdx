@@ -3,6 +3,11 @@ title: plugin-manager.update 的执行流程
 description: 升级 home 里的插件：收到参数、查过期、一次 pnpm add、比真实目录、按 peer 排先后逐条重新加载、发回执，插件管理自己与 peer 了它的包在回执之后依次重新加载，peer 成环的留到重启
 ---
 
+import { Diagram } from '../_shared/diagram'
+import { DirSwap } from './plugin-manager-update/dir-swap'
+import { ReloadPicker } from './plugin-manager-update/reload-picker'
+import { RemountRace } from './plugin-manager-update/remount-race'
+
 升级一个插件，pnpm 把新版本装进一个新目录，再让 `node_modules/<包名>` 这个链接指过去。**正在运行的代码不会自己换新**：它是启动时从旧目录加载进来的，要把那个插件的条目停用、再启用，它才顺着链接从新目录重新加载一遍。
 
 <DirSwap />
